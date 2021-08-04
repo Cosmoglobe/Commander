@@ -35,9 +35,6 @@ module comm_tod_mod
   private
   public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
-  type :: byte_pointer
-   byte, dimension(:), allocatable :: p 
-  end type byte_pointer
 
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
@@ -72,6 +69,7 @@ module comm_tod_mod
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
+     integer(i4b),        allocatable, dimension(:,:)   :: zext    ! Extension of compressed diode arrays
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 
@@ -502,7 +500,7 @@ contains
     class(comm_tod),                intent(inout)  :: self
     character(len=*), dimension(:), intent(in)     :: detlabels
 
-    integer(i4b) :: i, j, n, det, ierr, ndet_tot
+    integer(i4b) :: i, j, k, n, det, ierr, ndet_tot
     real(dp)     :: t1, t2
     real(sp)     :: psi
     type(hdf_file)     :: file
@@ -576,6 +574,7 @@ contains
 
     call wall_time(t1)
     allocate(self%scans(self%nscan))
+    call update_status(status, "000")
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn, self%ndiode, self%diode_names)
@@ -593,6 +592,39 @@ contains
           end if
        end do
     end do
+    call update_status(status, "qqq")
+!!$    if (self%ndiode > 1 .and. self%compressed_tod) then
+!!$       ! Pre-allocate diode arrays, to avoid memory fragmenation
+!!$       do i = 1, self%nscan
+!!$          do j = 1, self%ndet
+!!$             allocate(self%scans(i)%d(j)%zdiode(self%ndiode))
+!!$             do k = 1, self%ndiode
+!!$                allocate(self%scans(i)%d(j)%zdiode(k)%p(self%scans(i)%zext(j,k)))
+!!$             end do
+!!$          end do
+!!$       end do
+!!$    end if
+
+    call update_status(status, "aaa")
+    do i = 1, self%nscan
+       call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
+            & detlabels, self%nhorn, self%ndiode, self%diode_names)
+
+!!$       do j = 1, self%ndet
+!!$          deallocate(self%scans(i)%d(j)%zdiode1,self%scans(i)%d(j)%zdiode2,self%scans(i)%d(j)%zdiode3,self%scans(i)%d(j)%zdiode4)
+!!$       end do
+    end do
+    call update_status(status, "111")
+!!$    do i = self%nscan, 1, -1
+!!$       do j = self%ndet, 1, -1
+!!$          do k = 1, self%ndiode
+!!$             deallocate(self%scans(i)%d(j)%zdiode(k)%p)
+!!$          end do
+!!$          deallocate(self%scans(i)%d(j)%zdiode)
+!!$       end do
+!!$    end do
+
+    call update_status(status, "bbb")
 
     ! Initialize mean gain
     allocate(ns(0:self%ndet))
@@ -636,6 +668,8 @@ contains
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
          & '    Myid = ', self%myid, ' -- nscan = ', self%nscan, &
          & ', TOD IO time = ', t2-t1, ' sec'
+
+
 
   end subroutine read_tod
 
@@ -725,6 +759,7 @@ contains
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
+    if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
 
@@ -778,43 +813,51 @@ contains
        end if
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
-       if(ndiode == 1) then
-         if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
-         else
-            allocate(self%d(i)%tod(m))
-            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
-            if (tod%halfring_split == 2 )then
-               self%d(i)%tod = buffer_sp(m+1:2*m)
-            else
-               self%d(i)%tod = buffer_sp(1:m)
-            end if
-         end if
-       else ! ndiode > 1 per tod
-          if(tod%compressed_tod == .false.) then
-             
-          else
-          end if
-          if (tod%compressed_tod) then
-             allocate(self%d(i)%zdiode(ndiode))
-             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
-             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
-          else
-             ! HKE: This array should have the ordering switched
-             allocate(self%d(i)%diode(ndiode, m))
-             do k = 1, ndiode
-                
-                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
-                if (tod%halfring_split == 2 )then
-                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
-                else
-                   self%d(i)%diode(k, :) = buffer_sp(1:m)
-                end if
-             end do
-          end if
-       end if
+       ! Get compressed diode array sizes
+!!$       if (tod%ndiode > 1 .and. tod%compressed_tod) then
+!!$          call get_hdf_vlen_ext(file, slabel // '/' // trim(field) // '/diodes', self%zext(i,:))
+!!$       end if
+
+!!$       if(ndiode == 1) then
+!!$         if (tod%compressed_tod) then
+!!$            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+!!$         else
+!!$            allocate(self%d(i)%tod(m))
+!!$            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+!!$            if (tod%halfring_split == 2 )then
+!!$               self%d(i)%tod = buffer_sp(m+1:2*m)
+!!$            else
+!!$               self%d(i)%tod = buffer_sp(1:m)
+!!$            end if
+!!$         end if
+!!$       else ! ndiode > 1 per tod
+!!$          if(tod%compressed_tod == .false.) then
+!!$             
+!!$          else
+!!$          end if
+!!$          if (tod%compressed_tod) then
+!!$             !allocate(self%d(i)%zdiode(ndiode))
+!!$             !call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
+!!$             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode1, self%d(i)%zdiode2, self%d(i)%zdiode3, self%d(i)%zdiode4)
+!!$             
+!!$             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
+!!$          else
+!!$             ! HKE: This array should have the ordering switched
+!!$             allocate(self%d(i)%diode(ndiode, m))
+!!$             do k = 1, ndiode
+!!$                
+!!$                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
+!!$                if (tod%halfring_split == 2 )then
+!!$                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
+!!$                else
+!!$                   self%d(i)%diode(k, :) = buffer_sp(1:m)
+!!$                end if
+!!$             end do
+!!$          end if
+!!$       end if
     end do
     deallocate(buffer_sp)
+
 
     ! Initialize Huffman key
     call read_alloc_hdf(file, slabel // "/common/huffsymb", hsymb)
@@ -837,6 +880,111 @@ contains
     call close_hdf_file(file)
 
   end subroutine read_hdf_scan
+
+  subroutine read_hdf_scan_data(self, tod, filename, scan, ndet, detlabels, nhorn, ndiode, diode_names)
+    ! 
+    ! Reads common scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scan)
+    !           Scan object
+    ! tod:      derived class (comm_tod)
+    !           Main TOD object to which current scan belongs
+    ! filename: character
+    !           TOD filename
+    ! scan:     int
+    !           Scan ID
+    ! ndet:     int
+    !           Number of detectors
+    ! nhorn:    int
+    !           Number of horns
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! ndiode:   int 
+    !           Number of diodes per combined tod
+    ! diode_names : string (array (ndet, ndiode)
+    !           Array of diode labels, eg. [['sky00', 'sky01', 'load00',
+    !           'load01'], ['sky10', 'sky11', 'load10', 'load11'], ...]
+    ! scan:     derived class (comm_scan)
+    !           
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    ! TODO
+    ! ----
+    ! - ndet, nhorn and detlabels should be taken from tod, not inserted as separate parameters?
+    ! 
+    implicit none
+    class(comm_scan),               intent(inout) :: self
+    class(comm_tod),                intent(in)    :: tod
+    character(len=*),               intent(in)    :: filename
+    integer(i4b),                   intent(in)    :: scan, ndet, nhorn, ndiode
+    character(len=*), dimension(:), intent(in)    :: detlabels
+    character(len=*), dimension(:,:), intent(in)  :: diode_names
+
+    integer(i4b)       :: i,j,k,l, n, m, ext(1)
+    real(sp)           :: nu
+    real(dp)           :: scalars(4)
+    character(len=6)   :: slabel
+    character(len=128) :: field   
+    type(hdf_file)     :: file
+    real(sp),     allocatable, dimension(:)       :: buffer_sp
+
+    call int2string(scan, slabel)
+    call open_hdf_file(filename, file, "r")
+
+    ! Find array sizes
+    ! Read detector scans
+    if (.not. tod%compressed_tod) allocate(buffer_sp(n))
+    do i = 1, ndet
+       field = detlabels(i)
+       if(ndiode == 1) then
+         if (tod%compressed_tod) then
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+         else
+            allocate(self%d(i)%tod(m))
+            call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+            if (tod%halfring_split == 2 )then
+               self%d(i)%tod = buffer_sp(m+1:2*m)
+            else
+               self%d(i)%tod = buffer_sp(1:m)
+            end if
+         end if
+       else ! ndiode > 1 per tod
+          if(tod%compressed_tod == .false.) then
+             
+          else
+          end if
+          if (tod%compressed_tod) then
+             allocate(self%d(i)%zdiode(ndiode))
+             call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode)
+             !call read_hdf_vlen(file, slabel // '/' // trim(field) // '/diodes', self%d(i)%zdiode1, self%d(i)%zdiode2, self%d(i)%zdiode3, self%d(i)%zdiode4)
+             
+             !call read_hdf_opaque(file, slabel // '/' // trim(field) // '/' // trim(diode_names(i,k)), self%d(i)%zdiode(k)%p)
+          else
+             ! HKE: This array should have the ordering switched
+             allocate(self%d(i)%diode(ndiode, m))
+             do k = 1, ndiode
+                
+                call read_hdf(file, slabel // '/' // trim(field) // '/' //trim(diode_names(i, k)), buffer_sp)
+                if (tod%halfring_split == 2 )then
+                   self%d(i)%diode(k, :) = buffer_sp(m+1:2*m)
+                else
+                   self%d(i)%diode(k, :) = buffer_sp(1:m)
+                end if
+             end do
+          end if
+       end if
+    end do
+    if (allocated(buffer_sp)) deallocate(buffer_sp)
+
+    ! Clean up
+    call close_hdf_file(file)
+
+  end subroutine read_hdf_scan_data
 
 
   subroutine read_jumplist(self, datadir, jumplist)
@@ -1222,7 +1370,9 @@ contains
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
-          self%scans(i)%d(j)%accept               = .true.  !output(k,j,5) == 1.d0
+          if (output(k,j,5) == 0) then
+             self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
+          end if
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
           !if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
@@ -1882,6 +2032,7 @@ contains
 
 !    allocate(buff(size(diodes,1)))
     do i = 1, self%ndiode
+!HKEHKE
         call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, diodes(:,i))
         !tot = sum(diodes(:,i))
         !call huffman_decode3(self%scans(scan)%todkey, self%scans(scan)%d(det)%zdiode(i)%p, buff)

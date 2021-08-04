@@ -38,10 +38,10 @@ module comm_tod_adc_mod
 
   type :: comm_adc
     real(sp),          allocatable, dimension(:) :: adc_in, adc_out, rms_bins, v_bins, vbin_edges
+    real(sp),          allocatable, dimension(:) :: dpc_in, dpc_out
     integer(i4b),      allocatable, dimension(:) :: nval
     integer(i4b)                                 :: comm, myid, nbins, window
     real(sp)                                     :: v_min, v_max ! Global variable for the experiment determined in the parameter file 
-    real(sp)                                     :: min2, max2
     class(comm_mapinfo), pointer                 :: info => null()    ! Map definition
     character(len=512)                           :: outdir
     type(spline_type)                            :: sadc
@@ -49,6 +49,7 @@ module comm_tod_adc_mod
     procedure :: adc_correct
     procedure :: build_table
     procedure :: bin_scan_rms
+    procedure :: load_dpc
     procedure :: find_horn_min_max
     procedure :: construct_voltage_bins
   end type comm_adc
@@ -123,7 +124,40 @@ contains
 
   end function constructor
 
-  subroutine adc_correct(self, tod_in, tod_out)
+  subroutine load_dpc(self, table_in, table_out)
+    !=========================================================================
+    ! Load the dpc correction tables into the diode adc object
+    ! 
+    ! Inputs:
+    !
+    ! self    : comm_adc object
+    !    
+    ! dpc_in  : float array
+    !           dpc voltage in grid
+    ! dpc_out : float array
+    !           dpc voltage out grid
+
+    implicit none
+    class(comm_adc),        intent(inout) :: self
+    real(dp), dimension(:), intent(in)    :: table_in
+    real(dp), dimension(:), intent(in)    :: table_out
+
+    integer(i4b)                          :: leng, ierr
+
+    leng = size(table_in)
+
+    allocate(self%dpc_in(leng))
+    allocate(self%dpc_out(leng))
+
+    self%dpc_in(:)  = real(table_in(:))
+    self%dpc_out(:) = real(table_out(:))
+
+    ! call mpi_bcast(self%dpc_in,  leng, MPI_REAL, 0, self%comm, ierr)
+    ! call mpi_bcast(self%dpc_out, leng, MPI_REAL, 0, self%comm, ierr)
+    
+  end subroutine load_dpc
+
+  subroutine adc_correct(self, tod_in, tod_out, mode)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -143,6 +177,7 @@ contains
     class(comm_adc),                 intent(inout) :: self
     real(sp), dimension(:),          intent(in)    :: tod_in
     real(sp), dimension(:),          intent(out)   :: tod_out
+    character(len=*),                intent(in)    :: mode
     integer(i4b)                                   :: i, leng
 
     real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
@@ -157,9 +192,17 @@ contains
 
     in_buff  = dble(tod_in)
     out_buff = 0.d0
-    dbl_in   = dble(self%adc_in)
-    dbl_out  = dble(self%adc_out)
 
+    if (trim(mode) == 'gauss') then
+       dbl_in   = dble(self%adc_in)
+       dbl_out  = dble(self%adc_out)
+    else if (trim(mode) == 'dpc') then
+       dbl_in   = dble(self%dpc_in)
+       dbl_out  = dble(self%dpc_out)
+    else if (trim(mode) == 'none') then
+       tod_out = tod_in
+       return
+    end if
     call spline(self%sadc, dbl_in, dbl_out, regular=.true.)
     do i = 1, leng
        out_buff(i) = splint(self%sadc,in_buff(i))
@@ -326,6 +369,7 @@ contains
     real(sp),     dimension(:),      allocatable   :: x1, x2, y1, y2
     integer(i4b), dimension(:),      allocatable   :: binmask
     integer(i4b), dimension(:),      allocatable   :: dummymask
+    integer(i4b), dimension(:),      allocatable   :: v_dips
     integer(i4b)                                   :: i, j, leng
     integer(i4b)                                   :: ierr, trims
     integer(i4b)                                   :: dip1, v_off, diprange
@@ -369,26 +413,31 @@ contains
              middle_mean = middle_mean + self%rms_bins(j)
           end if
        end do
-       write(*,*) i
-       middle_mean = middle_mean/i
-       
+
+       !! This is some seg-faulty territory
+       if (i /= 0) then
+          middle_mean = middle_mean/i
+       end if
+
        i = 0
        do j = 150, 350
           if (binmask(j) == 0) cycle
           i = i + 1
           middle_std = middle_std + (middle_mean-self%rms_bins(j))**2
        end do
-       write(*,*) i
-       middle_std = sqrt(middle_std/i)
+       !! This is some seg-faulty territory
+       if (i /= 0) then
+          middle_std = sqrt(middle_std/i)
+       end if
 
        ! Mask out large deviations
        ! let large deviations below the mean to stay so we can find the dips
        do j = 1, self%nbins
-          if (self%rms_bins(j) < middle_mean-0.2*middle_mean) binmask(j) = 0
-          if (self%rms_bins(j) > middle_mean+7.5*middle_std) binmask(j) = 0
+          if (self%rms_bins(j) < 0.5*middle_mean) binmask(j) = 0
+          if (self%rms_bins(j) > middle_mean+2.0*middle_std) binmask(j) = 0
        end do
 
-      ! How many edge bins do we remove for our fit?
+       ! How many edge bins do we remove for our fit?
        trims = 10
 
        ! Trim 10 off the "bottom"
@@ -421,6 +470,7 @@ contains
        allocate(flatrirf(self%nbins))
 
        rirf(:)     = 0.0
+       idrf(:)     = 0.0
 
        ! Remove toe linear time 
        linrms  = slope*self%v_bins + offset
@@ -433,14 +483,80 @@ contains
        v_off = 0
        diprange = 10
 
-       call return_v_off(self%v_bins, flatrms, binmask, dip1, v_off, diprange)
+       v_dips = return_dips(self%v_bins, flatrms, binmask, diprange)
+
+       open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+       open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+       ! open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+       ! open(47, file=trim(self%outdir)//'/adc_rirf_'//trim(name)//'.dat')
+       ! open(48, file=trim(self%outdir)//'/adc_idrf_'//trim(name)//'.dat')
+       ! open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+       open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+       open(51, file=trim(self%outdir)//'/adc_voltage_bins_'//trim(name)//'.dat')
+       ! open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
+       open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+       do i = 1, self%nbins
+          write(44, fmt='(f30.8)') flatrms(i)
+          write(45, fmt='(f16.8)') linrms(i)
+          ! write(46, fmt='(f16.8)') flatrirf(i)
+          ! write(47, fmt='(f16.8)') rirf(i)
+          ! write(48,fmt='(f16.8)')  idrf(i)
+          ! write(49,fmt='(f16.8)')  model(i)
+          write(50, fmt='(f16.8)') self%rms_bins(i)
+          write(51, fmt='(f16.8)') self%v_bins(i)
+          ! write(53, fmt='(f16.8)') self%adc_out(i)
+          write(54, fmt='(i1)')    binmask(i)
+       end do
+       close(44)
+       close(45)
+       ! close(46)
+       ! close(47)
+       ! close(48)
+       ! close(49)
+       close(50)
+       close(51)
+       ! close(53)
+       close(54)
 
        ! Return the Inverse Differential Response Function (idrf)
-       if (dip1 /= 0) then 
-          idrf = return_gaussian_idrf(self%v_bins, flatrms, binmask, dip1, v_off, handle)
-       end if
+       idrf = return_gaussian_idrf_dips(self%v_bins, flatrms, binmask, v_dips, handle,name)
+
        ! Also create a composition of our model to compare with the binned RMS
        model = linrms - idrf
+
+       ! open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+       ! open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+       ! open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+       ! open(47, file=trim(self%outdir)//'/adc_rirf_'//trim(name)//'.dat')
+       open(48, file=trim(self%outdir)//'/adc_idrf_'//trim(name)//'.dat')
+       open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+       ! open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+       ! open(51, file=trim(self%outdir)//'/adc_voltage_bins_'//trim(name)//'.dat')
+       ! open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
+       ! open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+       do i = 1, self%nbins
+          ! write(44, fmt='(f30.8)') flatrms(i)
+          ! write(45, fmt='(f16.8)') linrms(i)
+          ! write(46, fmt='(f16.8)') flatrirf(i)
+          ! write(47, fmt='(f16.8)') rirf(i)
+          write(48,fmt='(f16.8)')  idrf(i)
+          write(49,fmt='(f16.8)')  model(i)
+          ! write(50, fmt='(f16.8)') self%rms_bins(i)
+          ! write(51, fmt='(f16.8)') self%v_bins(i)
+          ! write(53, fmt='(f16.8)') self%adc_out(i)
+          ! write(54, fmt='(i1)')    binmask(i)
+       end do
+       ! close(44)
+       ! close(45)
+       ! close(46)
+       ! close(47)
+       close(48)
+       close(49)
+       ! close(50)
+       ! close(51)
+       ! close(53)
+       ! close(54)
+
 
        ! Integrate up that idrf to receive the Reconstructed Inverse Response Function (rirf)
        ! This function is what we actually use as our correction function
@@ -465,38 +581,38 @@ contains
        
        ! Write to file binned rms, voltages, and response function to files
 
-       open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
-       open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+       ! open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+       ! open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
        open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
        open(47, file=trim(self%outdir)//'/adc_rirf_'//trim(name)//'.dat')
-       open(48, file=trim(self%outdir)//'/adc_idrf_'//trim(name)//'.dat')
-       open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
-       open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
-       open(51, file=trim(self%outdir)//'/adc_voltage_bins_'//trim(name)//'.dat')
+       ! open(48, file=trim(self%outdir)//'/adc_idrf_'//trim(name)//'.dat')
+       ! open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+       ! open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+       ! open(51, file=trim(self%outdir)//'/adc_voltage_bins_'//trim(name)//'.dat')
        open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
-       open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+       ! open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
        do i = 1, self%nbins
-          write(44, fmt='(f30.8)') flatrms(i)
-          write(45, fmt='(f16.8)') linrms(i)
+          ! write(44, fmt='(f30.8)') flatrms(i)
+          ! write(45, fmt='(f16.8)') linrms(i)
           write(46, fmt='(f16.8)') flatrirf(i)
           write(47, fmt='(f16.8)') rirf(i)
-          write(48,fmt='(f16.8)')  idrf(i)
-          write(49,fmt='(f16.8)')  model(i)
-          write(50, fmt='(f16.8)') self%rms_bins(i)
-          write(51, fmt='(f16.8)') self%v_bins(i)
+          ! write(48,fmt='(f16.8)')  idrf(i)
+          ! write(49,fmt='(f16.8)')  model(i)
+          ! write(50, fmt='(f16.8)') self%rms_bins(i)
+          ! write(51, fmt='(f16.8)') self%v_bins(i)
           write(53, fmt='(f16.8)') self%adc_out(i)
-          write(54, fmt='(i1)')    binmask(i)
+          ! write(54, fmt='(i1)')    binmask(i)
        end do
-       close(44)
-       close(45)
+       ! close(44)
+       ! close(45)
        close(46)
        close(47)
-       close(48)
-       close(49)
-       close(50)
-       close(51)
+       ! close(48)
+       ! close(49)
+       ! close(50)
+       ! close(51)
        close(53)
-       close(54)
+       ! close(54)
 
        deallocate(linrms)
        deallocate(flatrms)
@@ -611,8 +727,8 @@ contains
     deallocate(work)
     
   end subroutine return_linreg
-    
-  subroutine return_v_off(x,y,mask,dip1,v_off,diprange)
+
+  function return_dips(x,y,mask,diprange)
     ! ====================================================================
     ! Dip identifying subroutine that returns the first dip location and
     ! the distance between dips in the RMS
@@ -645,28 +761,30 @@ contains
     real(sp),     dimension(:), intent(in)    :: x, y
     integer(i4b), dimension(:), intent(in)    :: mask
     integer(i4b),               intent(in)    :: diprange
-    integer(i4b),               intent(inout) :: dip1, v_off
     logical(lgt), dimension(:), allocatable   :: truths
     integer(i4b), dimension(:), allocatable   :: dips
+    integer(i4b), dimension(:), allocatable   :: return_dips
     integer(i4b)                              :: leng, i, j, count
     integer(i4b)                              :: ndips
-    real(dp)                                  :: y_mean, y_var, y_std
+    real(sp)                                  :: y_mean, y_var, y_std
     
     leng = size(x)
     
     allocate(truths(diprange))
     allocate(dips(leng))
-    
-    v_off     = 0.0
+
+    dips(:)   = 0
     ndips     = 0
     truths(:) = .false.
-    
+    y_mean    = 0.0
+    y_var     = 0.0
+
     ! Determine mean and standard deviation of the input y-array
     count = 0
     do i = 1, leng
        if (mask(i) == 0) cycle
-       count = count + 1
-       y_mean  = y_mean + y(i)
+       count  = count + 1
+       y_mean = y_mean + y(i)
     end do
     y_mean = y_mean/count
     
@@ -687,7 +805,7 @@ contains
     do i = 1, leng
        if (mask(i) == 0) cycle
        ! Only consider variations
-       if (y(i) < y_mean-1.0*y_std) then
+       if (y(i) < y_mean-1.0*y_std .and. y(i-1) < y_mean-1.0*y_std .and. y(i+1) < y_mean-1.0*y_std) then
           truths(:) = .false.
           ! search local range
           do j = 1, diprange
@@ -710,23 +828,26 @@ contains
        end if
     end do
     
-    dip1 = dips(1)
+    return_dips = dips(1:ndips)
 
-    if (ndips .ne. 1) then
-       do i = 1, ndips-1
-          v_off = v_off + dips(i+1) - dips(i)
-       end do
-       v_off = v_off
-       ! write(*,fmt='(a,i2,a,i4)') 'ndips = ', ndips, ', v_off = ', v_off
-    else
-       ! write(*,*) 'ndips = 1, v_off = 0.0'
-       v_off = 0
-    end if
+    ! dip1 = dips(1)
+
+    ! if (ndips .ne. 1) then
+    !    do i = 1, ndips-1
+    !       v_off = v_off + dips(i+1) - dips(i)
+    !    end do
+    !    v_off = v_off
+    !    write(*,fmt='(a,i2,a,i4)') 'ndips = ', ndips, ', v_off = ', v_off
+    ! else
+    !    write(*,*) 'ndips = 1, v_off = 0'
+    !    v_off = 0
+    ! end if
     deallocate(truths)
     deallocate(dips)
 
-  end subroutine return_v_off
-  
+  end function return_dips
+
+
   ! Going to change this up to be a bit more modular for the inversion sampler
   ! function return_gaussian(x, mu, sigma, amp) result(y)
   function return_gaussian(x, pars) result(y)
@@ -771,8 +892,8 @@ contains
     end do
     
   end function return_gaussian
-  
-  function return_gaussian_idrf(x, y, mask, dip1, v_off, handle) result(idrf)
+
+  function return_gaussian_idrf_dips(x, y, mask, dips, handle,name) result(idrf)
     !=========================================================================
     ! Fits a single gaussian function to all recognized dips in the 
     ! white noise level
@@ -785,10 +906,8 @@ contains
     !          rms bins from the rms estimates as a function of voltage
     ! mask:    integer array
     !          mask for binned rms array - 0 if y(i) = NaN or has been trimmed
-    ! dip1:    integer
-    !          index value for the location of the first dip
-    ! v_off:   integer
-    !          offset between dips (index values)
+    ! dips:    integer array
+    !          index value for the location of the dips to be fit
     ! handle:  type(planck_rng)
     !          Healpix random number type
     !
@@ -802,8 +921,8 @@ contains
     implicit none
     
     real(sp), dimension(:),     intent(in)    :: x, y
-    integer(i4b),               intent(in)    :: dip1, v_off
     integer(i4b), dimension(:), intent(in)    :: mask
+    integer(i4b), dimension(:), intent(in)    :: dips
     type(planck_rng),           intent(inout) :: handle
     real(sp), allocatable, dimension(:)       :: idrf, newy, model
     real(sp)                                  :: sigma, amp, mean, fwhm
@@ -811,8 +930,10 @@ contains
     integer(i4b)                              :: leng, i, j, ndips
     integer(i4b)                              :: fit_range
 
+    character(len=2)                          :: dip_str
+    character(len=50),          intent(in)    :: name
 
-    real(sp), dimension(:), allocatable       :: x_tmp, y_tmp
+    real(sp), dimension(:), allocatable       :: x_tmp, y_tmp, ret_mod
 
     integer(i4b)                              :: currpar, first, last, ngibbs, k
 
@@ -825,7 +946,6 @@ contains
     fit_range = 30
     ngibbs    = 10
     leng      = size(x)
-
     
     ! allocate all relevant arrays
     allocate(idrf(leng))
@@ -834,12 +954,9 @@ contains
 
     ! init cumulative arrays
     idrf(:)  = 0.0
+    newy(:)  = 0.0
 
-    if (v_off == 0) then
-       ndips = 1
-    else
-       ndips = 1 + int((maxval(x)-x(dip1))/(x(v_off+dip1)-x(dip1)))
-    end if
+    ndips = size(dips)
 
     do j = 1, ndips
        sigma        = 0.0
@@ -847,30 +964,27 @@ contains
        amp          = 0.0
 
        ! Define first and last for indices - range to fit Gaussian to dip
-       first = dip1+(j-1)*v_off
-       last  = dip1+(j-1)*v_off
-       if (dip1+(j-1)*v_off - fit_range < 1) then
+       first = dips(j)!dip1+(j-1)*v_off
+       last  = dips(j)!dip1+(j-1)*v_off
+       if (dips(j) - fit_range < 1) then
           first = 1
-       else
-          do i = dip1+(j-1)*v_off, dip1+(j-1)*v_off - fit_range, -1
-             if (mask(i) == 0) cycle
-             first = min(first,i)
-          end do
-       end if
-       if (dip1+(j-1)*v_off + fit_range > leng) then
+       else if (dips(j) + fit_range > leng) then
           last = leng
        else 
-          do i = dip1+(j-1)*v_off, dip1+(j-1)*v_off + fit_range
+          do i = dips(j) - fit_range, dips(j) + fit_range
              if (mask(i) == 0) cycle
-             last = max(last,i)
+             first = min(first,i)
+             last  = max(last,i)
           end do
        end if
 
        ! allocate temporary array for voltage bins and rms bins
        allocate(x_tmp(last-first),y_tmp(last-first))
+
+       allocate(ret_mod(last-first))
        ! Flip the dip!
 
-       do i = dip1+(j-1)*v_off-fit_range, dip1+(j-1)*v_off+fit_range
+       do i = dips(j)-fit_range, dips(j)+fit_range
           ! skip over incides that are masked or outside the index range
           if (i < 1) cycle
           if (i > leng) cycle
@@ -881,35 +995,35 @@ contains
        x_tmp(:) = x(first:last)
        y_tmp(:) = newy(first:last)
 
+       write(dip_str,'(i0.2)') j
+       
        ! Define estimates to the Gaussian parameters
-       do i = dip1+(j-1)*v_off, dip1+(j-1)*v_off+fit_range
+       do i = dips(j), dips(j)+fit_range
           if (mask(i) == 0) cycle
-          if (newy(i) < newy(dip1+(j-1)*v_off)/2.0) then
-             fwhm = x(i)-x(dip1+(j-1)*v_off)
+          if (newy(i) < newy(dips(j))/2.0) then
+             fwhm = x(i)-x(dips(j))
              exit
           end if
        end do
 
-       sigma   = max(2.0*(fwhm/2.355), 0.0001)
-       mean    = x(dip1+(j-1)*v_off)
+       sigma   = max(2.0*(fwhm/2.355), 0.00001)
+       mean    = x(dips(j))
        amp     = maxval(y_tmp)
 
        pars(1) = mean
        pars(2) = sigma
        pars(3) = amp
 
-       ! pars     = par_est
+       ! par_est = pars
 
        ! write(*,*) 'initial estimates:'
        ! write(*,*) 'mean  = ', pars(1) 
        ! write(*,*) 'sigma = ', pars(2) 
        ! write(*,*) 'amp   = ', pars(3) 
 
-
-
        ! ! With our estimates, let's sample for the parameters
        ! do k = 1, 1!ngibbs
-       !    do i = 1, 1
+       !    do i = 1, 1!3
        !       currpar  = i
        !       x_par(:) = 0.0
              
@@ -924,7 +1038,7 @@ contains
        !       else if (i == 3) then
        !          ! Ensure amplitude is always greater than 0
        !          P_par(1) = 0.0
-       !          P_par(2) = maxval(y_tmp)
+       !          P_par(2) = maxval(y_tmp)*1.5
        !       end if
              
        !       ! Grid out parameter estimates
@@ -943,13 +1057,36 @@ contains
        ! write(*,*) 'sigma = ', pars(2) 
        ! write(*,*) 'amp   = ', pars(3) 
 
-       ! ! We will assume the mean is given by the dip minimum location
-       mean  = x(dip1+(j-1)*v_off)
-       sigma = max(2.0*(fwhm/2.355), 0.001d0)
-       amp   = maxval(y_tmp)
-       ! ! model = return_gaussian(x,mean,sigma,amp)
+       ! For overwriting the inversion sampling pars
+       ! pars(1) = x(dips(j))
+       ! pars(2) = max(2.0*(fwhm/2.355), 0.00001)
+       ! pars(3) = maxval(y_tmp)
+
+       ! write(*,*) 'Dip ', j
+       ! write(*,*) 'mean  = ', pars(1) 
+       ! write(*,*) 'sigma = ', pars(2) 
+       ! write(*,*) 'amp   = ', pars(3) 
+       ! write(*,*) '-----------------'
+       ! write(*,*) ''
+
+       ! ret_mod = return_gaussian(x_tmp,pars)
+       ! open(60,file='dip_xs_'//dip_str//'_'//trim(name)//'.dat')
+       ! open(61,file='dip_ys_'//dip_str//'_'//trim(name)//'.dat')
+       ! open(62,file='dip_model_'//dip_str//'_'//trim(name)//'.dat')
+       ! do i = 1, last-first
+       !    write(60,*) x_tmp(i)
+       !    write(61,*) y_tmp(i)
+       !    write(62,*) ret_mod(i)
+       ! end do
+       ! close(60)
+       ! close(61)
+       ! close(62)
 
        deallocate(x_tmp,y_tmp)
+       ! deallocate(ret_mod)
+
+       if (amp < 0.0) cycle
+       if (sigma < 0.0) cycle
 
        model = return_gaussian(x,pars)
        idrf  = idrf + model
@@ -991,6 +1128,6 @@ contains
       pars(currpar) = tmp
 
     end function lnL_dip_n
-  end function return_gaussian_idrf
+  end function return_gaussian_idrf_dips
   
 end module comm_tod_adc_mod

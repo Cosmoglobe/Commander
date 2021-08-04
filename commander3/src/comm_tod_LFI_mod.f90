@@ -56,8 +56,7 @@ module comm_tod_LFI_mod
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
      type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet
-     type(adc_pointer), allocatable, dimension(:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
-     ! type(adc_pointer), allocatable, dimension(:,:,:,:)   :: adc_corrections ! ndet, n_diode, (sky, load)
+     type(adc_pointer), allocatable, dimension(:,:)     :: adc_corrections ! ndet, n_diode
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
@@ -120,7 +119,6 @@ contains
     integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth
     logical(lgt) :: pol_beam
     character(len=50) :: name
-    integer(i4b) :: horn
 
     real(dp), dimension(:),   allocatable :: nus
     real(sp), dimension(:,:), allocatable :: filtered
@@ -245,81 +243,71 @@ contains
     allocate(constructor%diode_weights(constructor%ndet, 2))
     allocate(constructor%spike_templates(0:constructor%nbin_spike-1, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
-    allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode, 2))
+    allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode))
     allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
     allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
+
+    ! Declare adc_mode 
+    constructor%adc_mode = 'gauss'
+    constructor%nbin_adc = 500
+
+    ! Create adc objects for each detector, diode
+    do i = 1, constructor%ndet
+       do j=1, constructor%ndiode ! init the adc correction structures
+          constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
+       end do
+    end do
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
     constructor%spike_amplitude = 0.d0
 
-
-    constructor%adc_mode = 'gauss'
-
-    
-
     ! Compute ADC correction tables for each diode
+    if (constructor%myid == 0) write(*,*) 'ADC mode : ', trim(constructor%adc_mode)
 
-    if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
+    if (trim(constructor%adc_mode) == 'gauss') then
+       if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
 
-    constructor%nbin_adc = 500
-
-    ! Determine v_min and v_max for each diode
-    do i = 1, constructor%ndet
-
-      do j=1, constructor%ndiode ! init the adc correction structures
-        horn=1
-        if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-
-        constructor%adc_corrections(i,j,horn)%p => comm_adc(cpar,info,constructor%nbin_adc)
-      end do
-
-      do k = 1, constructor%nscan ! determine vmin and vmax for each diode
-        allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
-        allocate(flag(constructor%scans(k)%ntod))
-        call constructor%decompress_diodes(k, i, diode_data, flag=flag)
-        do j = 1, 1!constructor%ndiode
-          horn=1
-          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-          call constructor%adc_corrections(i,j,horn)%p%find_horn_min_max(diode_data(:,j), flag,constructor%flag0)
-
-        end do
-        deallocate(diode_data, flag)
-
-      end do ! end loop over scans
-
-      do j = 1, constructor%ndiode ! allreduce vmin and vmax
-
-        horn=1
-        if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-
-        ! All reduce min and max
-        call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j,horn)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)
-        call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j,horn)%p%v_max,1,MPI_REAL,MPI_MAX,constructor%comm,ierr)
-        call constructor%adc_corrections(i,j,horn)%p%construct_voltage_bins
-
-      end do
-    end do
-
-
-    ! Now bin rms for all scans and compute the correction table
-    do i = 1, constructor%ndet
-       do j = 1, constructor%ndiode
-          name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-          horn=1
-          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-          do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
+       ! Determine v_min and v_max for each diode
+       do i = 1, 1!constructor%ndet
+                    
+          do k = 1, constructor%nscan ! determine vmin and vmax for each diode
              allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
              allocate(flag(constructor%scans(k)%ntod))
-             call constructor%decompress_diodes(k, i, diode_data, flag)
-             call constructor%adc_corrections(i,j,horn)%p%bin_scan_rms(diode_data(:,j), flag,constructor%flag0) 
+             call constructor%decompress_diodes(k, i, diode_data, flag=flag)
+             do j = 1, constructor%ndiode
+                call constructor%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,constructor%flag0)
+             end do
              deallocate(diode_data, flag)
+             
+          end do ! end loop over scans
+          
+          do j = 1, constructor%ndiode ! allreduce vmin and vmax
+             ! All reduce min and max
+             call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)
+             call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,constructor%comm,ierr)
+             call constructor%adc_corrections(i,j)%p%construct_voltage_bins
+             
           end do
-          ! Build the actual adc correction tables (adc_in, adc_out)
-          if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
-          call constructor%adc_corrections(i,j,horn)%p%build_table(handle,name)
        end do
-    end do
+       
+       ! Now bin rms for all scans and compute the correction table
+       do i = 1, 1!constructor%ndet
+          do j = 1, constructor%ndiode
+             do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
+                allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
+                allocate(flag(constructor%scans(k)%ntod))
+                call constructor%decompress_diodes(k, i, diode_data, flag)
+                call constructor%adc_corrections(i,j)%p%bin_scan_rms(diode_data(:,j), flag,constructor%flag0) 
+                deallocate(diode_data, flag)
+             end do
+             ! Build the actual adc correction tables (adc_in, adc_out)
+             name = trim(constructor%label(i)) // '_' // trim(constructor%diode_names(i,j))
+             if (constructor%myid == 0) write(*,*) 'Build adc correction table for '//trim(name)
+             call constructor%adc_corrections(i,j)%p%build_table(handle,name)
+          end do
+       end do
+    end if
 
     stop
 
@@ -338,9 +326,7 @@ contains
 
         ! corrected_data = diode_data
         do j = 1, constructor%ndiode
-          horn=1
-          if(index('ref', constructor%diode_names(i,j)) /= 0) horn=2
-          call constructor%adc_corrections(i,j,horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+          call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j),constructor%adc_mode)
         end do
 
         ! compute the ref load transfer function
@@ -702,7 +688,7 @@ contains
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
 
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, ierr
     integer(i4b) :: ext(2)
     real(dp) :: weight
     character(len=2) :: diode_name
@@ -716,43 +702,40 @@ contains
     self%diode_weights(band,1) = weight
     self%diode_weights(band,2) = 1.d0 - weight
 
+
+    ! if (self%myid == 0) then
+
     do i=0, 1
-      if(index(self%label(band), 'M') /= 0) then
-        if(i == 0) then
-          diode_name = '00'
-        else
-          diode_name = '01'
-        end if
-      else
-        if(i == 0) then
-          diode_name = '10'
-        else
-          diode_name = '11'
-        end if
-      end if
-!      write(self%diode_names(band,i+1), 'sky'//diode_name)
-!      write(self%diode_names(band,i+3), 'ref'//diode_name)
-      ! read in adc correction templates
-      ! call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
-      ! allocate(adc_buffer(ext(1), ext(2)))
-      ! call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)      
-      ! self%adc_corrections(band, i+1, 1, 1)%p => comm_adc(adc_buffer(:,1), adc_buffer(:,2)) !adc correction for first half, sky
-      ! self%adc_corrections(band, i+1, 1, 2)%p => comm_adc(adc_buffer(:,3), adc_buffer(:,4)) !adc correction for first half, load
-      ! deallocate(adc_buffer)
-
-      ! call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, ext)
-      ! allocate(adc_buffer(ext(1), ext(2)))
-      ! call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc953-'//diode_name, adc_buffer)
-      ! self%adc_corrections(band, i+1, 2, 1)%p => comm_adc(adc_buffer(:,1), adc_buffer(:,2)) !adc correction for second half, sky
-      ! self%adc_corrections(band, i+1, 2, 2)%p => comm_adc(adc_buffer(:,3), adc_buffer(:,4)) !adc corrections for second half, load
-      ! deallocate(adc_buffer)
-
-      if (index(self%label(band), '44') /= 0) then ! read spike templates
-         !call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
-         self%spike_templates = 0.d0
-      end if     
- 
+       if(index(self%label(band), 'M') /= 0) then
+          if(i == 0) then
+             diode_name = '00'
+          else
+             diode_name = '01'
+          end if
+       else
+          if(i == 0) then
+             diode_name = '10'
+          else
+             diode_name = '11'
+          end if
+       end if
+       
+       ! read in adc correction templates
+       call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, ext)
+       allocate(adc_buffer(ext(1), ext(2)))
+       
+       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'adc91-'//diode_name, adc_buffer)      
+       ! Reading and broadcasting is done within %load_dpc
+       call self%adc_corrections(band, i+1)%p%load_dpc(adc_buffer(:,1), adc_buffer(:,2))
+       call self%adc_corrections(band, i+3)%p%load_dpc(adc_buffer(:,3), adc_buffer(:,4))
+       deallocate(adc_buffer)
+       
+       if (index(self%label(band), '44') /= 0) then ! read spike templates
+          !call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'spikes-'//diode_name, self%spike_templates(band, i+1, :, :))
+          self%spike_templates = 0.d0
+       end if
     end do
+    ! end if
 
   end subroutine load_instrument_LFI
   
@@ -780,7 +763,7 @@ contains
     real(sp),          dimension(0:),    intent(in)    :: procmask
     real(sp),          dimension(:,:),   intent(out)   :: tod
 
-    integer(i4b) :: i,j,k,half,horn,n_mask
+    integer(i4b) :: i,j,k,half,n_mask
     real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data
     integer(i4b), allocatable, dimension(:) :: pix, mask
     real(dp) :: r1, r2, sum1, sum2
@@ -798,10 +781,8 @@ contains
         ! Apply ADC corrections
 
         do j=1, self%ndiode
-          horn=1
-          if(index('ref', self%diode_names(i,j)) /= 0) horn=2
 
-          call self%adc_corrections(i, j, horn)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+          call self%adc_corrections(i, j)%p%adc_correct(diode_data(:,j), corrected_data(:,j),self%adc_mode)
 
           !do k = 1, 10
           !   write(*,*) diode_data(k,j), corrected_data(k,j)
@@ -1090,7 +1071,7 @@ contains
     character(len=*),                    intent(in)     :: path
 
     character(len=10) :: diode_name
-    integer(i4b) :: ierr, i, j, horn
+    integer(i4b) :: ierr, i, j
     real(dp), allocatable, dimension(:,:)   :: amp, amp_tot
     real(dp), allocatable, dimension(:,:,:) :: R, R_tot
 
@@ -1112,11 +1093,8 @@ contains
        do i = 1, self%ndet
           do j = 1, self%ndiode
              diode_name = trim(self%label(i))//'_'//trim(self%diode_names(i,j))
-             horn=1
-             if(index('ref', self%diode_names(i,j)) /= 0) horn=2
-
-             call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_in',self%adc_corrections(i,j,horn)%p%adc_in)
-             call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_out',self%adc_corrections(i,j,horn)%p%adc_out)
+             call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_in',self%adc_corrections(i,j)%p%adc_in)
+             call write_hdf(chainfile, trim(adjustl(path))//trim(diode_name)//'_out',self%adc_corrections(i,j)%p%adc_out)
           end do
        end do
     end if
