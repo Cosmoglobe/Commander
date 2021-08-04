@@ -1862,7 +1862,7 @@ contains
     implicit none
     character(len=*),                   intent(in) :: filename
     real(dp),         dimension(0:),    intent(in) :: array
-    class(map_ptr),   dimension(:),     intent(in) :: outmaps
+    class(map_ptr),   dimension(:),     intent(inout) :: outmaps
 
     integer(i4b) :: np0, m
 
@@ -1881,7 +1881,7 @@ contains
     implicit none
     character(len=*),                    intent(in) :: filename
     real(dp),         dimension(0:, 1:), intent(in) :: array
-    class(map_ptr),   dimension(:),      intent(in) :: outmaps
+    class(map_ptr),   dimension(:),      intent(inout) :: outmaps
 
     outmaps(1)%p%map = array
 

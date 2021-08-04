@@ -1976,11 +1976,11 @@ contains
     chaindir = trim(cpar%outdir) // '/'
    
     !verify that the output directory exists
-    inquire(directory=cpar%outdir, exist=exist) 
-    if (.not. exist) then
-      write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
-      stop
-    end if 
+    !inquire(directory=cpar%outdir, exist=exist) 
+    !if (.not. exist) then
+    !  write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
+    !  stop
+    !end if 
 
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') call validate_file(trim(datadir)//trim(cpar%cg_samp_group_mask(i)))

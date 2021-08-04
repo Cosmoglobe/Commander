@@ -144,7 +144,7 @@ contains
        end if
 
        ! Identify spikes
-       if (self%first_call .and. not(present(dospike))) call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       if (self%first_call .and. .not. (present(dospike))) call find_d_prime_spikes(self, scan, i, d_prime, pix)
 
        !alpha    = self%scans(scan)%d(i)%N_psd%alpha
        !nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
