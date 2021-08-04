@@ -180,8 +180,8 @@ contains
     character(len=*),                intent(in)    :: mode
     integer(i4b)                                   :: i, leng
 
-    !real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
-    !real(dp), dimension(:), allocatable            :: in_buff, out_buff
+    real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
+    real(dp), dimension(:), allocatable            :: in_buff, out_buff
     
     leng = size(tod_in)
 
@@ -208,7 +208,7 @@ contains
        out_buff(i) = splint(self%sadc,in_buff(i))
     end do
 
-    !tod_out = real(out_buff)
+    tod_out = real(out_buff)
 
     ! If adc_correct_type == 'dpc' then
     ! tod_out = tod_in
@@ -483,8 +483,8 @@ contains
        ! After we remove the linear term, let's fit Gaussians to return the inverse differential resposne function
 
        ! First step is to identify dips
-       dip1  = 0
-       v_off = 0
+       ! dip1  = 0
+       ! v_off = 0
        diprange = 10
 
        v_dips = return_dips(self%v_bins, flatrms, binmask, diprange)
@@ -792,8 +792,8 @@ contains
        y_mean = y_mean + y(i)
     end do
     if (count == 0) then
-       dip1 = 0.d0
-       v_off = 0.d0
+       ! dip1 = 0.d0
+       ! v_off = 0.d0
        deallocate(truths, dips)
        return
     end if
@@ -992,7 +992,7 @@ contains
        ! allocate temporary array for voltage bins and rms bins
        allocate(x_tmp(last-first),y_tmp(last-first))
 
-       allocate(ret_mod(last-first))
+       ! allocate(ret_mod(last-first))
        ! Flip the dip!
 
        do i = dips(j)-fit_range, dips(j)+fit_range

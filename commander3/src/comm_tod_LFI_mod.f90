@@ -269,7 +269,7 @@ contains
        if (constructor%myid == 0) write(*,*) 'Building ADC correction tables'
 
        ! Determine v_min and v_max for each diode
-       do i = 1, 1!constructor%ndet
+       do i = 1, constructor%ndet
                     
           do k = 1, constructor%nscan ! determine vmin and vmax for each diode
              allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
@@ -293,7 +293,7 @@ contains
        call update_status(status, "ADC_range")
        
        ! Now bin rms for all scans and compute the correction table
-       do i = 1, 1!constructor%ndet
+       do i = 1, constructor%ndet
           do j = 1, constructor%ndiode
              do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
                 allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
@@ -312,7 +312,7 @@ contains
        call update_status(status, "ADC_table")
     end if
 
-    stop
+    ! stop
 
     ! Compute reference load filter spline
     if (constructor%myid == 0) write(*,*) '   Build reference load filter'
