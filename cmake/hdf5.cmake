@@ -28,12 +28,6 @@
 
 message(STATUS "---------------------------------------------------------------")
 
-#find_package(SZIP) # <= there is no native cmake find module for this one
-#find_package(ZLIB)
-
-# asking for an exact hdf5 version
-#find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
-
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
 # it still be working as before.
@@ -86,7 +80,7 @@ if(NOT HDF5_FOUND)
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Compiling and installing HDF5
+	# Compiling and Installing Static and Shared HDF5
 	#------------------------------------------------------------------------------
 	ExternalProject_Add(
 		hdf5
@@ -163,9 +157,10 @@ if(NOT HDF5_FOUND)
 			"${CMAKE_INSTALL_PREFIX}/include/static"
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
+	#------------------------------------------------------------------------------
 	message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
 	message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
-	#set($ENV{PATH} "${out_lib_dir}/")
+	#------------------------------------------------------------------------------
 else()
 	add_custom_target(hdf5
 		ALL ""

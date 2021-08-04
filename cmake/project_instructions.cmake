@@ -31,6 +31,10 @@
 # [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
 # [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
 # [x] Add one variable which will force all libraries to be recompiled;
+# [x] Change CFitsIO to CMake installation
+# [ ] Write your own CFitsIO or modify an existing one, because it doesn't seem to work with version 4.0.0
+# [ ] Change FFTW to CMake installation
+# [ ] Finish Custom CMake module for CAMB as it is now works only with Intel compilers
 
 #------------------------------------------------------------------------------
 # including compiler definitions
@@ -59,7 +63,7 @@ list(APPEND projects
 	hdf5
 	doxygen
 	healpix
-	camb
+	#camb #<= crushes with current FindCFITSIO I think
 	commander3
 	)
 #==============================================================================
@@ -110,7 +114,8 @@ set(libssh2_git_tag "42d37aa63129a1b2644bf6495198923534322d64")
 # It seems that 7.74 is much better in terms of CMake support than version 7.69.
 #set(curl_url "https://github.com/curl/curl/releases/download/curl-7_69_0/curl-7.69.0.zip")
 set(curl_git_url "https://github.com/curl/curl.git")
-set(curl_git_tag "e052859759b34d0e05ce0f17244873e5cd7b457b")
+#set(curl_git_tag "e052859759b34d0e05ce0f17244873e5cd7b457b")
+set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 #------------------------------------------------------------------------------
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
@@ -143,7 +148,8 @@ set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 # CFitsio
 #------------------------------------------------------------------------------
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
-set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
+#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
+set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
 #------------------------------------------------------------------------------
 # HEALPix
 #------------------------------------------------------------------------------

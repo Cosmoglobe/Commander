@@ -26,7 +26,8 @@
 
 message(STATUS "---------------------------------------------------------------")
 if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
-	find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
+	#find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
+	find_package(HEALPIX COMPONENTS SHARP Fortran)
 endif()
 
 if(NOT HEALPIX_FOUND)
@@ -92,6 +93,7 @@ if(NOT HEALPIX_FOUND)
 		#"FITSDIR=${CFITSIO_LIBRARY}"
 		"FITSINC=${CFITSIO_INCLUDE_DIRS}"
 		"F_SHARED=0"
+		#"F_SHARED=1"
 		"FC=${MPI_Fortran_COMPILER}" 
 		"CXX=${MPI_CXX_COMPILER}" 
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
@@ -159,18 +161,15 @@ if(NOT HEALPIX_FOUND)
 		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}sharp${CMAKE_STATIC_LIBRARY_SUFFIX}
 		${HEALPIX_INSTALL_PREFIX}/lib/${CMAKE_STATIC_LIBRARY_PREFIX}healpix${CMAKE_STATIC_LIBRARY_SUFFIX}
 		)
-	set(HEALPIX_INCLUDE_DIRS
-		"${HEALPIX_INSTALL_PREFIX}/include"
-		"${HEALPIX_INSTALL_PREFIX}/include/libsharp"
-		)
 	#include_directories("${CMAKE_INSTALL_PREFIX}/healpix/include")
-	#include_directories("${HEALPIX_INSTALL_PREFIX}/include")
-	include_directories("${HEALPIX_INCLUDE_DIRS}")
+	include_directories("${HEALPIX_INSTALL_PREFIX}/include")
+	include_directories("${HEALPIX_INSTALL_PREFIX}/include/libsharp")
 	#------------------------------------------------------------------------------
 	message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
 else()
 	add_custom_target(healpix ALL "")
-	message(STATUS "HEALPIX LIBRARIES are: ${HEALPIX_LIBRARIES}")
+	message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
+	message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 endif()

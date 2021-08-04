@@ -27,15 +27,8 @@
 
 message(STATUS "---------------------------------------------------------------")
 
-#if(NOT (ZLIB_FORCE_COMPILE OR HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-#if(USE_SYSTEM_ZLIB AND NOT USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
 if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
-	#set(zlib_minimal_accepted_version "1.2.11")
 	find_package(ZLIB 1.2.11)
-	# Require ZLib to be of the most recent version
-	#if(ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_accepted_version)
-	#	message(STATUS "Required version -- ${zlib_minimal_accepted_version} -- will be compiled from source.")
-	#endif()
 endif()
 
 if(NOT ZLIB_FOUND)
@@ -73,7 +66,7 @@ if(NOT ZLIB_FOUND)
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Compiling and installing ZLib
+	# Compiling and Installing ZLib
 	#------------------------------------------------------------------------------
 	ExternalProject_Add(
 		zlib

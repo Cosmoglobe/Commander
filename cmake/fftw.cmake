@@ -24,6 +24,10 @@
 # If it fails to do so, it will download, compile and install FFTW from source.
 #================================================================================
 
+# TODO: I am using FFTW3_* instead of FFTW_* variables (because MPI is treated 
+# separetely), that is why in the ned I have FFTW3_LIBRARIES instead of 
+# FFTW_LIBRARIES. Perhaps this is incorrect? Need to take a look into FindFFTW.cmake
+# and rewrite it if necessary.
 message(STATUS "---------------------------------------------------------------")
 if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
 	find_package(FFTW 
@@ -38,68 +42,14 @@ if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
 endif()
 # Is TRUE if one of the components were missing
 if(NOT FFTW_FOUND)
-	# Configure command to compile FFTW from source
-	# DOUBLE (default one)
-	list(APPEND fftw_double_configure_command 
-		"${CMAKE_COMMAND}" "-E" "env" 
-		"FC=${MPI_Fortran_COMPILER}" 
-		"CXX=${MPI_CXX_COMPILER}" 
-		"CPP=${COMMANDER3_CPP_COMPILER}" 
-		"CC=${MPI_C_COMPILER}" 
-		"MPICC=${MPI_C_COMPILER}" 
-		#"./configure" 
-		"${FFTW_SOURCE_DIR}/configure" 
-		"--prefix=<INSTALL_DIR>")
-	# FLOAT
-	list(APPEND fftw_float_configure_command 
-		"${CMAKE_COMMAND}" "-E" "env" 
-		"FC=${MPI_Fortran_COMPILER}" 
-		"CXX=${MPI_CXX_COMPILER}" 
-		"CPP=${COMMANDER3_CPP_COMPILER}" 
-		"CC=${MPI_C_COMPILER}" 
-		"MPICC=${MPI_C_COMPILER}" 
-		#"./configure" 
-		"${FFTW_SOURCE_DIR}/configure" 
-		"--prefix=<INSTALL_DIR>")
-	# First, we determine which component were found, so we can link them
-	# others will be compiled from source
-	# double component is default one, so no configuration option required
-	if(NOT FFTW_DOUBLE_FOUND)
-		message(STATUS "Missing component - DOUBLE - will be compiled from source")	
-	else()
-		message(STATUS "Found FFTW_DOUBLE_LIB: ${FFTW_DOUBLE_LIB}")
-	endif()
-	if(NOT FFTW_DOUBLE_THREADS_FOUND)
-		message(STATUS "Missing component - DOUBLE_THREADS - will be compiled from source")	
-		list(APPEND fftw_double_configure_command "--enable-threads")
-	else()
-		message(STATUS "Found FFTW_DOUBLE_THREADS_LIB: ${FFTW_DOUBLE_THREADS_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_FOUND)
-		message(STATUS "Missing component - FLOAT - will be compiled from source")	
-		list(APPEND fftw_float_configure_command "--enable-float")
-	else()
-		message(STATUS "Found FFTW_FLOAT_LIB: ${FFTW_FLOAT_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_THREADS_FOUND)
-		message(STATUS "Missing component - FLOAT_THREADS - will be compiled from source")	
-		list(APPEND fftw_float_configure_command "--enable-threads")
-	else()
-		message(STATUS "Found FFTW_FLOAT_THREADS_LIB: ${FFTW_FLOAT_THREADS_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_OPENMP_FOUND)
-		message(STATUS "Missing component - FLOAT_OPENMP - will be compiled from source")	
-		list(APPEND fftw_float_configure_command "--enable-openmp")
-	else()
-		message(STATUS "Found FFTW_FLOAT_OPENMP_LIB: ${FFTW_FLOAT_OPENMP_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_MPI_FOUND)
-		message(STATUS "Missing component - FLOAT_MPI - will be compiled from source")	
-		list(APPEND fftw_float_configure_command "--enable-mpi")
-	else()
-		message(STATUS "Found FFTW_FLOAT_MPI_LIB: ${FFTW_FLOAT_MPI_LIB}")
-	endif()
 	#------------------------------------------------------------------------------
+	# Splitting the project into 5 steps:
+	# 1. To download the project
+	# 2. To compile with double static 
+	# 3. To compile with double shared 
+	# 4. To compile with float static 
+	# 5. To compile with float shared 
+	#
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.
 	# In addition, this will allow us to download sources only once and then just 
@@ -107,10 +57,6 @@ if(NOT FFTW_FOUND)
 	#------------------------------------------------------------------------------
 	# Getting FFTW from source
 	#------------------------------------------------------------------------------
-	# Splitting external project add into 3 steps:
-	# 1. To download the project
-	# 2. To compile with single 
-	# 3. and double precision - requires by GNU compilers
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${FFTW_SOURCE_DIR}/CMakeLists.txt")
 		message(STATUS "No FFTW sources were found; thus, will download it from source:\n${fftw_url}")
@@ -136,87 +82,78 @@ if(NOT FFTW_FOUND)
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# FFTW Float precision
+	# Compiling and Installing Static and Shared FFTW
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(
-		fftw_float
-		DEPENDS						fftw_src
-		PREFIX						"${LIBS_BUILD_DIR}"
-		SOURCE_DIR				"${FFTW_SOURCE_DIR}"
-		BINARY_DIR				"${FFTW_SOURCE_DIR}" 
-		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			ON 
-		LOG_BUILD					ON 
-		LOG_INSTALL				ON
-		# Disabling download
-		DOWNLOAD_COMMAND	""
-		# Commands to configure, build and install the project
-		CONFIGURE_COMMAND "${fftw_float_configure_command}"
-		)
+	# Looping over libraries we need to compile
+	list(APPEND _FFTW_NAMES_ double float)
+	list(APPEND _FFTW_ARGS_ -DENABLE_FLOAT:BOOL=OFF -DENABLE_FLOAT:BOOL=ON)
+	list(APPEND _FFTW_LIB_TYPE_ shared static)
+	list(APPEND _FFTW_LIB_BOOL_VAL_ -DBUILD_SHARED_LIBS:BOOL=ON -DBUILD_SHARED_LIBS:BOOL=OFF)
+	foreach(_fftw_component_ _fftw_arg_ IN ZIP_LISTS _FFTW_NAMES_ _FFTW_ARGS_)
+		foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _FFTW_LIB_TYPE_ _FFTW_LIB_BOOL_VAL_)
+			ExternalProject_Add(
+				fftw_${_fftw_component_}_${_lib_type_}
+				DEPENDS           fftw_src
+				PREFIX            "${LIBS_BUILD_DIR}"
+				SOURCE_DIR        "${FFTW_SOURCE_DIR}"
+				#BINARY_DIR        "${FFTW_SOURCE_DIR}"
+				INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}"
+				LOG_DIR           "${CMAKE_LOG_DIR}"
+				LOG_CONFIGURE     ON 
+				LOG_BUILD         ON 
+				LOG_INSTALL       ON 
+				# Disabling download
+				DOWNLOAD_COMMAND  ""
+				CMAKE_ARGS
+					-DCMAKE_BUILD_TYPE=Release
+					# Specifying installations paths for binaries and libraries
+					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+					# Specifying compilers
+					-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+					-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+					-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+					# Building both static and shared libraries
+					${_bool_val_}
+					# Which libraries to produce
+					-DENABLE_OPENMP:BOOL=ON
+					-DENABLE_THREADS:BOOL=ON
+					${_fftw_arg_}
+					# ensuring it will be installed inside `lib` and not `lib64`
+					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+				)
+		endforeach()
+	endforeach()
 	#------------------------------------------------------------------------------
-	# FFTW Double precision
-	#------------------------------------------------------------------------------
-	ExternalProject_Add(
-		fftw_double
-		DEPENDS						fftw_src
-											fftw_float
-		PREFIX						"${LIBS_BUILD_DIR}"
-		SOURCE_DIR				"${FFTW_SOURCE_DIR}"
-		BINARY_DIR				"${FFTW_SOURCE_DIR}" 
-		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			ON 
-		LOG_BUILD					ON 
-		LOG_INSTALL				ON
-		# Disabling download
-		DOWNLOAD_COMMAND	""
-		# Commands to configure, build and install the project
-		CONFIGURE_COMMAND "${fftw_double_configure_command}"
-		)
-	# Adding fftw3, fftw3_threads, fftw3_mpi and fftws3_omp into a library variable
-	# Defining this variable just to not to overwrite FFTW_LIBRARIES created by FindFFTW
-	if(NOT FFTW_DOUBLE_FOUND)
-		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3${CMAKE_STATIC_LIBRARY_SUFFIX}")
-	else()
-		list(APPEND FFTW3_LIBRARIES "${FFTW_DOUBLE_LIB}")
-	endif()
-	if(NOT FFTW_DOUBLE_THREADS_FOUND)
-		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3_threads${CMAKE_STATIC_LIBRARY_SUFFIX}")
-	else()
-		list(APPEND FFTW3_LIBRARIES "${FFTW_DOUBLE_THREADS_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_FOUND)
-		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f${CMAKE_STATIC_LIBRARY_SUFFIX}")
-	else()
-		list(APPEND FFTW3_LIBRARIES "${FFTW_FLOAT_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_THREADS_FOUND)
-		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f_threads${CMAKE_STATIC_LIBRARY_SUFFIX}")
-	else()
-		list(APPEND FFTW3_LIBRARIES "${FFTW_FLOAT_THREADS_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_OPENMP_FOUND)
-		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f_omp${CMAKE_STATIC_LIBRARY_SUFFIX}")
-	else()
-		list(APPEND FFTW3_LIBRARIES "${FFTW_FLOAT_OPENMP_LIB}")
-	endif()
-	if(NOT FFTW_FLOAT_MPI_FOUND)
-		list(APPEND FFTW3_LIBRARIES "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}${project}3f_mpi${CMAKE_STATIC_LIBRARY_SUFFIX}")
-	else()
-		list(APPEND FFTW3_LIBRARIES "${FFTW_FLOAT_MPI_LIB}")
-	endif()
+	# Creating Unified Target
 	#------------------------------------------------------------------------------
 	add_custom_target(fftw 
 		ALL ""
-		DEPENDS fftw_float
-						fftw_double
+		DEPENDS fftw_float_static
+						fftw_double_static
+		        fftw_float_shared
+						fftw_double_shared
 		)
+	#------------------------------------------------------------------------------
+	# Adding fftw3, fftw3_threads, and fftws3_omp into a library variable
+	# Defining this variable just to not to overwrite FFTW_LIBRARIES created by FindFFTW
+	set(FFTW3_LIBRARIES
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3_threads${CMAKE_STATIC_LIBRARY_SUFFIX}"	
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f_threads${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f_omp${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		)
+	set(FFTW_INCLUDE_DIRS
+		"${CMAKE_INSTALL_PREFIX}/include"	
+		)
+	include_directories(${FFTW_INCLUDE_DIRS})
+	#------------------------------------------------------------------------------
+	message(STATUS "FFTW LIBRARIES will be: ${FFTW3_LIBRARIES}")
+	message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
+	#------------------------------------------------------------------------------
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(fftw ALL "")
-	#add_custom_target(fftw_double ALL "")
-	#add_custom_target(fftw_float ALL "")
 	set(FFTW3_LIBRARIES
 		${FFTW_DOUBLE_LIB}
 		${FFTW_DOUBLE_THREADS_LIB}
@@ -225,4 +162,9 @@ else()
 		${FFTW_FLOAT_THREADS_LIB}
 		#${FFTW_FLOAT_MPI_LIB}
 		)
+	include_directories(${FFTW_INCLUDE_DIRS})
+	#------------------------------------------------------------------------------
+	message(STATUS "FFTW LIBRARIES will be: ${FFTW3_LIBRARIES}")
+	message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
+	#------------------------------------------------------------------------------
 endif()
