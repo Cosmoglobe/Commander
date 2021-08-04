@@ -105,6 +105,7 @@ module comm_tod_mod
      logical(lgt) :: orb_abscal
      logical(lgt) :: compressed_tod               
      logical(lgt) :: symm_flags               
+     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -825,9 +826,15 @@ contains
     call read_alloc_hdf(file, slabel // "/common/hufftree", htree)
     call hufmak_precomp(hsymb,htree,self%hkey)
     if (tod%compressed_tod) then
-       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-       call hufmak_precomp(hsymb,htree,self%todkey)
+        if (tod%HFI_flag) then 
+          call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
+          call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
+          call hufmak_precomp(hsymb,htree,self%todkey)
+        else
+          call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+          call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+          call hufmak_precomp(hsymb,htree,self%todkey)
+        end if
     end if
     deallocate(hsymb, htree)
 

@@ -124,6 +124,7 @@ contains
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
     constructor%ntime           = 1
+    constructor%HFI_flag        = .true.
 
     nside_beam                  = 512
     nmaps_beam                  = 3
