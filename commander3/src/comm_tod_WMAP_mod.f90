@@ -284,7 +284,7 @@ contains
 
       ! Initialize local variables
       ndelta          = size(delta,3)
-      self%n_bp_prop  = ndelta
+      self%n_bp_prop  = ndelta-1
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2

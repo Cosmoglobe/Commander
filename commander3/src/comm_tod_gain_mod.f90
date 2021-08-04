@@ -288,7 +288,7 @@ contains
    ! the sum i is over the detector.
    subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
     implicit none
-    class(comm_tod),                   intent(in)     :: tod
+    class(comm_tod),                   intent(inout)  :: tod
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
     real(sp),          dimension(:,:), intent(in)     :: s_invN
@@ -301,7 +301,7 @@ contains
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b, scale
+    real(dp)     :: A, b, scale, dA, db
     integer(i4b) :: i, j, ext(2), ndet, ntod
     character(len=5) :: itext
 
@@ -332,16 +332,29 @@ contains
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (present(mask_lowres)) then
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+          dA = sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
+          db = sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
        else
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+          dA = sum(s_invN(:,j) * s_ref(:,j))
+          db = sum(s_invN(:,j) * residual(:,j))
        end if
-       if (tod%scanid(scan) == 30 .and. out) then
-         !write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+
+       if (dA == 0.) then
+          tod%scans(scan)%d(j)%accept = .false.
+          write(*,*) 'Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j, dA
+       else if (db/sqrt(dA) > 1000.) then
+          tod%scans(scan)%d(j)%accept = .false.
+          write(*,*) 'Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
+       else 
+          A_abs(j) = A_abs(j) + dA
+          b_abs(j) = b_abs(j) + db
+       end if
+
+       !if (tod%scanid(scan) == 30 .and. out) then
+       !if (out) then
+       !   write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
          !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-       end if
+       !end if
     end do
 
     if (.false. .and. out) then
@@ -432,7 +445,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,*) 'abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.5)') '      Abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -499,7 +512,7 @@ contains
        if (tod%verbosity > 1) then
          !write(*,*) 'A =', A
          !write(*,*) 'b =', b
-         write(*,*) 'relcal = ', real(x,sp)
+          !write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &

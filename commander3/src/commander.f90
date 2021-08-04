@@ -251,7 +251,7 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -344,6 +344,11 @@ contains
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
+       if (cpar%myid == 0) then
+          write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
+          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
+       end if
+
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -355,7 +360,8 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (.true. .or. mod(iter,2) == 0) then
+                   if (mod(iter,2) == 0) then
+                   !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)

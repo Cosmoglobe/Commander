@@ -87,6 +87,8 @@ module comm_tod_mod
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
+     logical(lgt) :: L2_exist
+     character(len=512) :: L2file
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
@@ -125,6 +127,7 @@ module comm_tod_mod
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
+     character(len=512) :: datadir
      integer(i4b) :: output_4D_map                                ! Output 4D maps
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
@@ -256,8 +259,9 @@ contains
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
 
-    integer(i4b) :: i, ndelta, ierr
+    integer(i4b) :: i, ndelta, ierr, unit
     character(len=512) :: datadir
+    character(len=4)   :: id
 
     self%tod_type      = tod_type
     self%myid          = cpar%myid_chain
@@ -309,10 +313,20 @@ contains
     end if
 
     datadir = trim(cpar%datadir)//'/'
+    self%datadir     = datadir
     self%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
     self%procmaskf1  = trim(datadir)//trim(cpar%ds_tod_procmask1(id_abs))
     self%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
     self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
+
+    if (.not. self%sample_L1_par) then
+       call int2string(self%myid, id)
+       unit        = getlun()
+       self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'_core'//id//'.unf'
+       inquire(file=trim(self%L2file), exist=self%L2_exist)
+    else
+       self%L2_exist = .false.
+    end if
 
     call self%get_scan_ids(self%filelist)
 
@@ -578,19 +592,6 @@ contains
     do i = 1, self%nscan
        call read_hdf_scan(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
             & detlabels, self%nhorn, self%ndiode, self%diode_names)
-       do det = 1, self%ndet
-          if (self%compressed_tod) then
-            self%scans(i)%d(det)%accept = .true.
-          else
-            self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
-            if (.not. self%scans(i)%d(det)%accept) then
-               write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
-                    & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
-               write(*,fmt='(a,a)') '    filename = ', &
-                    & trim(self%hdfname(i))
-            end if
-          end if
-       end do
     end do
     call update_status(status, "qqq")
 !!$    if (self%ndiode > 1 .and. self%compressed_tod) then
@@ -606,14 +607,28 @@ contains
 !!$    end if
 
     call update_status(status, "aaa")
-    do i = 1, self%nscan
-       call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
-            & detlabels, self%nhorn, self%ndiode, self%diode_names)
+    if (.not. self%L2_exist) then
+       do i = 1, self%nscan
+          call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
+               & detlabels, self%nhorn, self%ndiode, self%diode_names)
 
 !!$       do j = 1, self%ndet
 !!$          deallocate(self%scans(i)%d(j)%zdiode1,self%scans(i)%d(j)%zdiode2,self%scans(i)%d(j)%zdiode3,self%scans(i)%d(j)%zdiode4)
 !!$       end do
-    end do
+
+          do det = 1, self%ndet
+             if (allocated(self%scans(i)%d(det)%tod)) then
+                self%scans(i)%d(det)%accept = all(self%scans(i)%d(det)%tod==self%scans(i)%d(det)%tod)
+                if (.not. self%scans(i)%d(det)%accept) then
+                   write(*,fmt='(a,i8,a,i3, i10)') 'Input TOD contain NaN -- scan =', &
+                        & self%scanid(i), ', det =', det, count(self%scans(i)%d(det)%tod/=self%scans(i)%d(det)%tod)
+                   write(*,fmt='(a,a)') '    filename = ', &
+                        & trim(self%hdfname(i))
+                end if
+             end if
+          end do
+       end do
+    end if
     call update_status(status, "111")
 !!$    do i = self%nscan, 1, -1
 !!$       do j = self%ndet, 1, -1
@@ -772,6 +787,7 @@ contains
        xi_n(1:3)            = scalars(2:4)
        xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
        self%d(i)%gain       = self%d(i)%gain_def
+       self%d(i)%accept     = .true.
 
        if (trim(tod%noise_psd_model) == 'oof') then
           self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
@@ -2002,7 +2018,7 @@ contains
 
   end subroutine decompress_pointing_and_flags
 
-  subroutine decompress_diodes(self, scan, det, diodes, flag, pix)
+  subroutine decompress_diodes(self, scan, det, diodes, flag, pix, psi)
     ! Decompress per-diode tod information
     ! 
     ! Inputs:
@@ -2025,6 +2041,7 @@ contains
     real(sp),          dimension(:,:),  intent(out) :: diodes
     integer(i4b),      dimension(:),    intent(out), optional :: flag
     integer(i4b),      dimension(:),    intent(out), optional :: pix
+    integer(i4b),      dimension(:),    intent(out), optional :: psi
 
     integer(i4b) :: i, j
     real(sp)     :: tot
@@ -2059,6 +2076,20 @@ contains
     if (present(pix)) then ! this assumes nhorn = 1, sorry future person
       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(1)%p, pix)
     end if
+
+    if (present(psi)) then ! this assumes nhorn = 1, sorry future person
+      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(1)%p,  psi, imod=self%npsi-1)
+      if (self%polang(det) /= 0.) then
+         do j = 1, size(psi)
+            psi(j) = psi(j) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
+            if (psi(j) < 1) then
+               psi(j) = psi(j) + self%npsi
+            else if (psi(j) > self%npsi) then
+               psi(j) = psi(j) - self%npsi
+            end if
+         end do
+      end if
+   end if
 
   end subroutine decompress_diodes
 
@@ -2161,7 +2192,7 @@ contains
   ! Generic deferred routines that do not do anything
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine diode2tod_inst(self, scan, procmask, tod)
+  subroutine diode2tod_inst(self, scan, map_sky, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
     ! 
@@ -2178,10 +2209,11 @@ contains
     !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_tod),                     intent(inout) :: self
-    integer(i4b),                        intent(in)    :: scan
-    real(sp),          dimension(:),     intent(in)    :: procmask
-    real(sp),          dimension(:,:),   intent(out)   :: tod
+    class(comm_tod),                           intent(inout) :: self
+    integer(i4b),                              intent(in)    :: scan
+    real(sp),          dimension(0:,1:,1:,1:), intent(in)    :: map_sky
+    real(sp),          dimension(:),           intent(in)    :: procmask
+    real(sp),          dimension(:,:),         intent(out)   :: tod
     tod = 0.
   end subroutine diode2tod_inst
 

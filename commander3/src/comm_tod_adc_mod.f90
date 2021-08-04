@@ -30,7 +30,8 @@ module comm_tod_adc_mod
   use comm_map_mod
   use comm_param_mod
   use InvSamp_mod
-
+  use comm_hdf_mod
+  ! use mpi
   implicit none
 
   private
@@ -55,7 +56,7 @@ module comm_tod_adc_mod
   end type comm_adc
 
   interface comm_adc
-    procedure constructor
+    procedure constructor_internal, constructor_precomp
   end interface comm_adc
 
   type adc_pointer
@@ -64,7 +65,7 @@ module comm_tod_adc_mod
 
 contains
 
-  function constructor(cpar, info, nbins)
+  function constructor_internal(cpar, info, nbins)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
     ! Also initializes the bins used for the actual correction model
@@ -83,7 +84,7 @@ contains
     ! Returns:
     ! --------
     !
-    ! constructor: pointer
+    ! constructor_internal: pointer
     !    contains all of the bins needed for computing adc corrections
     !    and the actual correction tables
     ! ====================================================================
@@ -91,38 +92,38 @@ contains
     implicit none
     integer(i4b),           intent(in) :: nbins
     class(comm_mapinfo),    target     :: info
-    class(comm_adc),        pointer    :: constructor
+    class(comm_adc),        pointer    :: constructor_internal
     type(comm_params),      intent(in) :: cpar
     
     real(sp)     :: diff
 
     integer(i4b) :: i, ierr
     
-    allocate(constructor)
+    allocate(constructor_internal)
     
-    constructor%window  =  10
-    constructor%info    => info
-    constructor%myid    =  cpar%myid_chain
-    constructor%comm    =  cpar%comm_chain
-    constructor%outdir  =  cpar%outdir
-    constructor%nbins   =  nbins
+    constructor_internal%window  =  10
+    constructor_internal%info    => info
+    constructor_internal%myid    =  cpar%myid_chain
+    constructor_internal%comm    =  cpar%comm_chain
+    constructor_internal%outdir  =  cpar%outdir
+    constructor_internal%nbins   =  nbins
     
-    allocate(constructor%adc_in(constructor%nbins), constructor%adc_out(constructor%nbins))
-    allocate(constructor%rms_bins(constructor%nbins), constructor%v_bins(constructor%nbins))
-    allocate(constructor%nval(constructor%nbins), constructor%vbin_edges(constructor%nbins+1))
+    allocate(constructor_internal%adc_in(constructor_internal%nbins), constructor_internal%adc_out(constructor_internal%nbins))
+    allocate(constructor_internal%rms_bins(constructor_internal%nbins), constructor_internal%v_bins(constructor_internal%nbins))
+    allocate(constructor_internal%nval(constructor_internal%nbins), constructor_internal%vbin_edges(constructor_internal%nbins+1))
 
-    constructor%adc_in(:)     = 0.0
-    constructor%adc_out(:)    = 0.0
-    constructor%vbin_edges(:) = 0.0
-    constructor%v_bins(:)     = 0.0
-    constructor%rms_bins(:)   = 0.0
-    constructor%nval(:)       = 0
+    constructor_internal%adc_in(:)     = 0.0
+    constructor_internal%adc_out(:)    = 0.0
+    constructor_internal%vbin_edges(:) = 0.0
+    constructor_internal%v_bins(:)     = 0.0
+    constructor_internal%rms_bins(:)   = 0.0
+    constructor_internal%nval(:)       = 0
 
     ! Initialize v_min and v_max on obscenely wrong numbers
-    constructor%v_max = 0.0
-    constructor%v_min = 100000.0
+    constructor_internal%v_max = 0.0
+    constructor_internal%v_min = 100000.0
 
-  end function constructor
+  end function constructor_internal
 
   subroutine load_dpc(self, table_in, table_out)
     !=========================================================================
@@ -157,7 +158,65 @@ contains
     
   end subroutine load_dpc
 
-  subroutine adc_correct(self, tod_in, tod_out, mode)
+
+  function constructor_precomp(instfile, path, load)
+    ! ====================================================================
+    ! Sets up an adc correction object that maps input and output voltages
+    ! Also initializes the bins used for the actual correction model
+    !
+    ! Inputs:
+    ! 
+    ! comm   : integer
+    !          mpi communicator
+    !
+    ! myid   : integer
+    !          mpi identifier
+    !
+    ! nbins  : integer
+    !          number of bins used for building the adc correction tables
+    !
+    ! Returns:
+    ! --------
+    !
+    ! constructor: pointer
+    !    contains all of the bins needed for computing adc corrections
+    !    and the actual correction tables
+    ! ====================================================================
+    
+    implicit none
+    type(hdf_file),     intent(in) :: instfile
+    character(len=512), intent(in) :: path
+    logical(lgt),       intent(in) :: load
+    class(comm_adc),    pointer    :: constructor_precomp
+    
+    integer(i4b) :: ext(2), col
+    real(dp), dimension(:,:), allocatable :: buffer
+
+    allocate(constructor_precomp)
+        
+    ! read in adc correction templates
+    call get_size_hdf(instfile, path, ext)
+    allocate(buffer(ext(1), ext(2)))
+    call read_hdf(instfile, path, buffer)
+    col = 1; if (load) col = 3
+    do while (buffer(ext(1),col) == 0.d0)
+       ext(1) = ext(1)-1
+    end do
+
+    allocate(constructor_precomp%adc_in(ext(1)))
+    allocate(constructor_precomp%adc_out(ext(1)))
+    constructor_precomp%adc_in  = buffer(1:ext(1),col)
+    constructor_precomp%adc_out = buffer(1:ext(1),col+1)
+    constructor_precomp%v_min   = constructor_precomp%adc_in(1)
+    constructor_precomp%v_max   = constructor_precomp%adc_in(ext(1))
+    deallocate(buffer)
+    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_in,dp), real(constructor_precomp%adc_out,dp))
+
+  end function constructor_precomp
+
+
+
+  subroutine adc_correct(self, tod_in, tod_out, scan, det, di)
     !=========================================================================
     ! Adc corrects a timestream 
     ! 
@@ -171,50 +230,26 @@ contains
     ! Outputs : 
     !
     ! tod_out : float array
-    !    The adc corrected version of tod_in
-    
+    !    The adc corrected version of tod_in    
     implicit none
     class(comm_adc),                 intent(inout) :: self
     real(sp), dimension(:),          intent(in)    :: tod_in
     real(sp), dimension(:),          intent(out)   :: tod_out
-    character(len=*),                intent(in)    :: mode
-    integer(i4b)                                   :: i, leng
+    integer(i4b), intent(in), optional :: scan, det, di
 
-    real(dp), dimension(:), allocatable            :: dbl_in, dbl_out
-    real(dp), dimension(:), allocatable            :: in_buff, out_buff
-    
-    leng = size(tod_in)
+    integer(i4b)                                   :: i
 
     ! allocate(self%sadc(leng))
-    allocate(dbl_in(self%nbins),dbl_out(self%nbins))
-
-    allocate(in_buff(leng),out_buff(leng))
-
-    in_buff  = dble(tod_in)
-    out_buff = 0.d0
-
-    if (trim(mode) == 'gauss') then
-       dbl_in   = dble(self%adc_in)
-       dbl_out  = dble(self%adc_out)
-    else if (trim(mode) == 'dpc') then
-       dbl_in   = dble(self%dpc_in)
-       dbl_out  = dble(self%dpc_out)
-    else if (trim(mode) == 'none') then
-       tod_out = tod_in
-       return
-    end if
-    call spline(self%sadc, dbl_in, dbl_out, regular=.true.)
-    do i = 1, leng
-       out_buff(i) = splint(self%sadc,in_buff(i))
+    do i = 1, size(tod_in)
+       if (tod_in(i) < self%v_min .or. tod_in(i) > self%v_max) then
+          tod_out(i) = tod_in(i)
+       else
+          tod_out(i) = splint(self%sadc,real(tod_in(i),dp))
+       end if
+       if (abs(tod_in(i)-tod_out(i))/tod_in(i) > 1d-2) then
+          write(*,*) scan, det, di, tod_in(i), tod_out(i), (tod_in(i)-tod_out(i))/tod_in(i)
+       end if
     end do
-
-    tod_out = real(out_buff)
-
-    ! If adc_correct_type == 'dpc' then
-    ! tod_out = tod_in
-
-    deallocate(dbl_in,dbl_out)
-    deallocate(in_buff,out_buff)
     
   end subroutine adc_correct
 
@@ -627,6 +662,8 @@ contains
     ! mpi_bcast the tables to all other cores
     call mpi_bcast(self%adc_in,  self%nbins, MPI_REAL, 0, self%comm, ierr) 
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
+
+    call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp))
     
   end subroutine build_table
     
