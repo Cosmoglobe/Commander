@@ -442,29 +442,6 @@ def create_rimo(fname, rot=0):
 
           mB = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
-<<<<<<< HEAD
-
-          xx2, yy2 = np.meshgrid(X2 - popt[1],Y2 + popt[2])
-          theta = 2*np.arcsin(np.sqrt(xx2**2+yy2**2)/2)
-          phi = np.arctan2(yy2, xx2)
-          pix = hp.ang2pix(nside, theta, phi)
-
-
-          source_idx = pix.flatten()
-          fluxB = copy.deepcopy(beamB_2.flatten())
-          while len(source_idx) > 0:
-            hp_no, idx_t = np.unique(source_idx, return_index=True)
-            mB[hp_no] += fluxB[idx_t]
-            N[hp_no]  += 1
-
-            source_idx = np.delete(source_idx, idx_t)
-            fluxB = np.delete(fluxB, idx_t)
-          mB[N > 0] = mB[N > 0]/N[N > 0]
-
-
-
-          
-=======
           pix = hp.ang2pix(nside, theta, phi)
           mA[pix] += beamA_2
           mB[pix] += beamB_2
@@ -535,95 +512,6 @@ def create_rimo(fname, rot=0):
               f.create_dataset(DA + '24/psi_ell', data=[0])
       
      
-<<<<<<< HEAD
-      nside  = 2**7     # 128
-      sllmax = 2*nside  # 256
-      slmmax = 100
-      labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
-      fnames = glob('data/wmap_sidelobe*.fits')
-      for i in range(len(labels)):
-        lab = labels[i]
-        for fname in fnames:
-          if lab in fname:
-            data = hp.read_map(fname)
-            break
-        
-        print(lab, fname)
-        # Beam is normalized such that sum(slAB) = Npix, or
-        #                              \int B(\Omega)\,d\Omega = 4\pi
-        # Commander expects \int B\,d\Omega = 1.
-        # Not sure if this factor is needed...
-        beamtot = hp.reorder(data, n2r=True)
-        
-        beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
-        #beam_A = hp.reorder(data, n2r=True)
-        beam_A[beam_A < 0] = 0
-        beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
-        #beam_B = hp.reorder(data, n2r=True)
-        beam_B[beam_B > 0] = 0
-        beam_B = -beam_B
-  
-        dir_A = dir_A_los[i]
-        theta = np.arccos(dir_A[2])
-        phi = np.arctan2(dir_A[1], dir_A[0])
-
-       
-        #hp.mollview(beam_A, min=0, max=0.3)
-  
-        r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
-            deg=False, eulertype='ZYX')
-        beam_A_temp = r.rotate_map_pixel(beam_A)
-
-        #hp.mollview(beam_A_temp, min=0, max=0.3)
-  
-        r = hp.rotator.Rotator(rot=(rot*np.pi/180, 0, 0), \
-            deg=False, eulertype='ZYX')
-        beam_A = r.rotate_map_pixel(beam_A_temp)
-  
-        #hp.mollview(beam_A, min=0, max=0.3)
-  
-        alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
-        s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)
-  
-        dir_B = dir_B_los[i]
-        theta = np.arccos(dir_B[2])
-        phi = np.arctan2(dir_B[1], dir_B[0])
-        
-        r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
-            deg=False, eulertype='ZYX')
-        beam_B_temp = r.rotate_map_pixel(beam_B)
-  
-        r = hp.rotator.Rotator(rot=(-rot*np.pi/180, 0, 0), \
-            deg=False, eulertype='ZYX')
-        beam_B = r.rotate_map_pixel(beam_B_temp)
-  
-  
-        alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
-        s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
-  
-        DA = labels[i]
-      
-        with h5py.File(fname_out, 'a') as f:
-            f.create_dataset(DA + '13/sl/T', data=s_lm_A)
-            f.create_dataset(DA + '14/sl/T', data=s_lm_A)
-            f.create_dataset(DA + '23/sl/T', data=s_lm_B)
-            f.create_dataset(DA + '24/sl/T', data=s_lm_B)
-            f.create_dataset(DA + '13/sl/E', data=s_lm_A*0)
-            f.create_dataset(DA + '14/sl/E', data=s_lm_A*0)
-            f.create_dataset(DA + '23/sl/E', data=s_lm_B*0)
-            f.create_dataset(DA + '24/sl/E', data=s_lm_B*0)
-            f.create_dataset(DA + '13/sl/B', data=s_lm_A*0)
-            f.create_dataset(DA + '14/sl/B', data=s_lm_A*0)
-            f.create_dataset(DA + '23/sl/B', data=s_lm_B*0)
-            f.create_dataset(DA + '24/sl/B', data=s_lm_B*0)
-            f.create_dataset(DA + '13/sllmax', data=[sllmax])
-            f.create_dataset(DA + '14/sllmax', data=[sllmax])
-            f.create_dataset(DA + '23/sllmax', data=[sllmax])
-            f.create_dataset(DA + '24/sllmax', data=[sllmax])
-            f.create_dataset(DA + '13/slmmax', data=[slmmax])
-            f.create_dataset(DA + '14/slmmax', data=[slmmax])
-            f.create_dataset(DA + '23/slmmax', data=[slmmax])
-            f.create_dataset(DA + '24/slmmax', data=[slmmax])
 
 if __name__ == '__main__':
     fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
