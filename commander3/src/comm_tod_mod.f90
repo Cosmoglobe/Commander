@@ -1433,7 +1433,7 @@ contains
 
   end subroutine construct_dipole_template
 
-  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dip, factor)
+  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dipA, s_dipB, factor)
     !construct a CMB dipole template in the time domain for differential data
     !
     !
@@ -1459,12 +1459,13 @@ contains
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     logical(lgt),                      intent(in)    :: orbital
-    real(sp),        dimension(:,:),   intent(out)   :: s_dip
+    real(sp),        dimension(:,:),   intent(out)   :: s_dipA, s_dipB
     real(dp),               intent(in), optional     :: factor
 
     integer(i4b) :: i, j, ntod
     real(dp)     :: v_ref(3), f
     real(dp), allocatable, dimension(:,:) :: P
+    real(sp), allocatable, dimension(:)   :: s_bufA, s_bufB
 
     f = 1.d0; if (present(factor)) f = factor
     ntod = self%scans(scan)%ntod
@@ -1488,9 +1489,14 @@ contains
        end do
     end if
 
+    ! In order to not completely break the rest of Commander, I am making the
+    ! notation a little different for the beam indexing. Essentially, when it
+    ! indexes 113, 114, 123, 124, the actual output will be A/A/B/B
     do j = 1, self%ndet
-       call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+       call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
+            & orbital, self%orb_4pi_beam, P, s_dipA(:,j), f)
+       call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
+            & orbital, self%orb_4pi_beam, P, s_dipB(:,j), f)
     end do
     deallocate(P)
 

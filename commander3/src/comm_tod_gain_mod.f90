@@ -712,9 +712,9 @@ contains
      allocate(precond(nscan))
      allocate(fourier_fluctuations(n))
 
-     !write(*, *) 'Sigma_0: ', sigma_0
-     !write(*, *) 'alpha: ', alpha
-     !write(*, *) 'fknee: ', fknee
+!     write(*, *) 'Sigma_0: ', sigma_0
+!     write(*, *) 'alpha: ', alpha
+!     write(*, *) 'fknee: ', fknee
 
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
@@ -732,6 +732,8 @@ contains
             b(i) = b(i) + fluctuations(i)
             precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
          end do
+      else
+        precond = 1.d0
       end if
 
 !      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)

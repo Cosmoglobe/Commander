@@ -343,10 +343,7 @@ contains
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
-    self%s_orbA = s_bufA
-    self%s_orbB = s_bufB
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orbA, self%s_orbB, 1d3)
     self%s_totA = self%s_totA + self%s_orbA
     self%s_totB = self%s_totB + self%s_orbB
     do j = 1, self%ndet
