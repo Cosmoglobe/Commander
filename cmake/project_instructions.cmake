@@ -63,7 +63,7 @@ list(APPEND projects
 	hdf5
 	doxygen
 	healpix
-	camb #<= crushes with current FindCFITSIO I think
+	camb
 	commander3
 	)
 #==============================================================================

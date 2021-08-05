@@ -66,11 +66,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:, j) - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
+         r_fill = tod_arr(:, j) - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        else
-         r_fill = tod%scans(scan_id)%d(j)%tod - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
+         r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -134,19 +132,17 @@ contains
        write(58,*)
        do i = 1, size(s_tot,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+            write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
           else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
           end if
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline
+            write(58,*) i, tod_arr(i, 1)
           else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline
+            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i)
           end if
        end do
        close(58)
@@ -172,6 +168,7 @@ contains
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
     integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
     real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
     real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
@@ -185,7 +182,7 @@ contains
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
-    allocate(temp_gain(nscan_tot))
+    allocate(lhs(nscan_tot), rhs(nscan_tot))
     g = 0.d0
     do j = 1, ndet
        do i = 1, tod%nscan
@@ -276,7 +273,7 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    deallocate(g)
+    deallocate(g, lhs, rhs)
 
   end subroutine sample_smooth_gain
 
@@ -317,11 +314,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod_arr(:,j))), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j) - s_sub(:,j)
        else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -354,6 +349,7 @@ contains
        !if (out) then
        !   write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
          !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
+
        !end if
     end do
 
@@ -386,9 +382,9 @@ contains
        open(58,file='gainfit4_'//itext//'.dat')       
        do i = 1, size(s_sub,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 4) - tod%scans(scan)%d(4)%baseline
+            write(58,*) i, tod_arr(i, 4)
           else
-            write(58,*) i, tod%scans(scan)%d(4)%tod(i) - tod%scans(scan)%d(4)%baseline
+            write(58,*) i, tod%scans(scan)%d(4)%tod(i)
           end if
        end do
        write(58,*)
@@ -535,6 +531,7 @@ contains
     !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
     !  we have
     !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
+    !    = g(d_A - d_B) + g*x_im*(d_A + d_B)
     !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
     !
     !
@@ -581,9 +578,31 @@ contains
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
-         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
-         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
+         write(*,*) 'b', b
+         write(*,*) 'A', A
          write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
+         ! WMAP has only used the orbital dipole alone to solve for the
+         ! transmission imbalance terms. For K11 and K12, the results they have
+         ! are
+         ! 1-year: -0.00204             -0.00542
+         ! 3-year:  0.0000  \pm 0.0007   0.0056  \pm 0.0001
+         ! 5-year:  0.00012              0.00589
+         ! 7-year: -0.00063 \pm 0.00022  0.00539 \pm 0.00010
+         ! 9-year: -0.00067 \pm 0.00017  0.00536 \pm 0.00014
+         !
+         ! The values that I have been getting using Commander are closer to
+         !         -0.00483              0.00439
+         ! There are certainly some differences in how the WMAP analysis
+         ! proceeded versus the Commander analysis. My thoughts currently are:
+         ! 1. Calibrating against the total sky signal versus orbital dipole
+         ! 2. A difference in how x_im is determined algorithmically
+         ! 3. A typo in my implementation of the imbalance sampling.
+         ! 
+         ! To me, these are in reverse order of likelihood. I also wonder if
+         ! there is some degeneracy with x_im and the gain. The best way to
+         ! determine this is to see if this difference still exists with
+         ! identical gain solutions.
+
        end if
     end if
     call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
@@ -889,7 +908,7 @@ contains
 !               write(58, *) prop_sol(i)
 !            end do
 !            close(58)
-         end if
+!         end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            call int2string(iterations, itext)

@@ -91,6 +91,11 @@ contains
 
     allocate(constructor%lmax_ind_pol(3,constructor%npar))
     constructor%lmax_ind_pol = 0 !always fullsky (lmax=0) for line component
+    if (allocated(constructor%lmax_ind_mix)) deallocate(constructor%lmax_ind_mix)
+    allocate(constructor%lmax_ind_mix(3,constructor%npar))
+    constructor%lmax_ind_mix = 0 !always fullsky (lmax=0) for line component
+    allocate(constructor%pol_pixreg_type(3,constructor%npar))
+    constructor%pol_pixreg_type = 0
 
     allocate(constructor%theta_def(n), constructor%p_gauss(2,n), constructor%p_uni(2,n))
     allocate(constructor%poltype(n), constructor%indlabel(n), constructor%line2RJ(n))

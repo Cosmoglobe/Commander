@@ -411,7 +411,7 @@ contains
     self%pix2ind = -1
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
-       do j = 1, self%ndet
+       if (self%nhorn == 2) then
          do l = 1, self%nhorn
           call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
@@ -419,7 +419,18 @@ contains
              self%pix2ind(pix(k)) = 1
           end do
         end do
-       end do
+       else
+         do j = 1, self%ndet
+           do l = 1, self%nhorn
+            call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+            self%pix2ind(pix(1)) = 1
+            do k = 2, self%scans(i)%ntod
+               pix(k)  = pix(k-1)  + pix(k)
+               self%pix2ind(pix(k)) = 1
+            end do
+          end do
+         end do
+       end if
        deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
@@ -776,7 +787,9 @@ contains
     allocate(self%d(ndet), buffer_sp(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
-       allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       end if
 
        allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
@@ -816,12 +829,16 @@ contains
        deallocate(xi_n)
 
        ! Read Huffman coded data arrays
-       if (nhorn == 2) then
+       if (nhorn == 2 .and. i == 1) then
+         ! For a single DA, this is redundant, so we are loading 4 times the
+         ! necessary pointing (and flags) information. Strictly speaking, this
+         ! would involve needing to have a self%pixA and self%pixB attribute for
+         ! WMAP only and not allocate self%d(i)%pix(j)
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
-       else
+       else if (nhorn .ne. 2) then
          do j = 1, nhorn
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
@@ -1889,13 +1906,12 @@ contains
     logical(lgt),                    intent(in), optional :: absbp, verbose
 
     
-    real(dp)     :: chisq, d0, g, b
+    real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
-    b           = self%scans(scan)%d(det)%baseline
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
