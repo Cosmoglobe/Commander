@@ -1433,7 +1433,8 @@ contains
 
   end subroutine construct_dipole_template
 
-  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dip, factor)
+  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, horn, s_dip, &
+                                         &  factor)
     !construct a CMB dipole template in the time domain for differential data
     !
     !
@@ -1449,7 +1450,8 @@ contains
     !       integer label for polarization angle
     !  orbital: logical
     !       flag for whether the orbital or solar dipole is used as the template
-    !
+    !  horn: integer
+    !       corresponds to either horn = 1 (A) or horn = 2 (B)
     !  Returns:
     !  --------
     !  s_dip: real (sp)
@@ -1459,6 +1461,7 @@ contains
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     logical(lgt),                      intent(in)    :: orbital
+    integer(i4b),                      intent(in)    :: horn
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
     real(dp),               intent(in), optional     :: factor
 
@@ -1489,8 +1492,16 @@ contains
     end if
 
     do j = 1, self%ndet
-       call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+       ! Since the "det" index actually references which beam you're looking at,
+       ! we need to reference horns A and B, which are ordered AABB in WMAP
+       ! data.
+       if (horn == 1) then
+          call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
+               & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+       else
+          call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
+               & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+       end if
     end do
     deallocate(P)
 

@@ -157,6 +157,32 @@ contains
 
   subroutine compute_CMB_dipole(self, det, v_ref, nu, &
        & relativistic, beam_4pi, P, s_dip, factor)
+    ! Evaluates the CMB dipole as a function of time
+    !
+    !
+    !   Arguments:
+    !   ---------
+    !   self: comm_orbdipole object
+    !
+    !   det: int
+    !        detector index
+    !   v_ref: double, array of length 3
+    !        velocity of observer in km/s, Galactic coordinates
+    !   relativistic: logical
+    !        if True, comoputes relativistic correction
+    !   beam_4pi: logical
+    !        if True, uses the full main beam map, else uses pencil beam.
+    !   P: double, array
+    !        Pointing array
+    !        if beam_4pi, array of phi/theta/psi values for TOD
+    !        else, array of unit vectors for TOD pointing
+    !   factor: double (optional)
+    !        multiplicative factor if ad-hoc unit correction is needed.
+    !
+    !   Returns:
+    !   --------
+    !   s_dip: real (sp)
+    !        Array of dipole template timestreams for given detector
     implicit none
     class(comm_orbdipole),                 intent(inout)  :: self
     integer(i4b),                          intent(in)  :: det

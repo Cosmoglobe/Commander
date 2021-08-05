@@ -343,10 +343,16 @@ contains
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
-    self%s_orbA = s_bufA
-    self%s_orbB = s_bufB
+    ! This call calculates the dipole template assuming that all the detectors
+    ! are pointing at pixel A. The next line assumes they're all pointing at
+    ! pixel B.
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), &
+        & .true., 1, self%s_orbA, 1d3)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), &
+        & .true., 2, self%s_orbB, 1d3)
+    ! OK, so this created an orbital dipole template for four timestreams, but
+    ! they don't actually correspond to the horns A and B, I think they're
+    ! switched.
     self%s_totA = self%s_totA + self%s_orbA
     self%s_totB = self%s_totB + self%s_orbB
     do j = 1, self%ndet
@@ -356,27 +362,12 @@ contains
     end do
 
 
-    ! Construct zodical light template
-    if (tod%subtract_zodi) then
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call compute_zodi_template(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
-          call compute_zodi_template(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufB)
-          self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
-          self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
-          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
-          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
-       end do
-    else
-       self%s_zodi = 0.
-    end if
-
     ! Construct sidelobe template
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
-          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
+          ! Accessing slconv(1) and slconv(3) because the beams are stored in
+          ! the order AABB for detectors 13/14/23/23.
           call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
           call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
           self%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
@@ -400,6 +391,21 @@ contains
        end do
     else
        self%s_mono = 0.d0 
+    end if
+
+    ! Construct zodical light template
+    if (tod%subtract_zodi) then
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          call compute_zodi_template(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
+          call compute_zodi_template(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufB)
+          self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
+          self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
+          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
+          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
+       end do
+    else
+       self%s_zodi = 0.
     end if
 
     ! Clean-up
