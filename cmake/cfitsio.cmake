@@ -102,6 +102,7 @@ if(NOT CFITSIO_FOUND)
 			cfitsio_${_lib_type_}
 			# Specifying that cfitsio depends on the curl project and should be built after it
 			DEPENDS						required_libraries
+												zlib
 												curl
 												cfitsio_src
 			PREFIX						"${LIBS_BUILD_DIR}"

@@ -138,6 +138,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
+	# CAMB
+	${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)
 
 # Setting executable name
@@ -206,6 +208,8 @@ target_link_libraries(${commander3}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
 	#${SHARP2_LIBRARIES}
+	# Including CAMB
+	${CAMB_LIBRARIES}
 	# Including HEALPix
 	${HEALPIX_LIBRARIES}
 	# Including CFitsIO
