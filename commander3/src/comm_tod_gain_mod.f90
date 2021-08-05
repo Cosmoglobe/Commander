@@ -195,52 +195,52 @@ contains
           g(k,j,2) = tod%scans(i)%d(j)%gain_invsigma
        end do
     end do
-    if (tod%myid == 0) then
-       call mpi_reduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-            & 0, tod%comm, ierr)
-    else
-       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-            & 0, tod%comm, ierr)
-    end if
+!    if (tod%myid == 0) then
+       call mpi_allreduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
+            & tod%comm, ierr)
+!    else
+!       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
+!            & 0, tod%comm, ierr)
+!    end if
 
-    if (tod%myid == 0) then
+!    if (tod%myid == 0) then
 !!$       open(58,file='tmp.unf', form='unformatted')
 !!$       read(58) g
 !!$       close(58)
 
-        count = count+1
+ !       count = count+1
         !write(*, *) "FREQ IS ", trim(tod%freq), count
        !nbin = nscan_tot / binsize + 1
 
-        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-       do j = 1, ndet
-          do k = 1, nscan_tot
-             !if (g(k,j,2) /= 0) then
-             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-             if (g(k,j,2) > 0) then
-                if (abs(g(k, j, 1)) > 1e10) then
-                   write(*, *) 'G1'
-                   write(*, *) g(k, j, 1)
-                end if
-                if (abs(g(k, j, 2)) > 1e10) then
-                   write(*, *) 'G2'
-                   write(*, *) g(k, j, 2)
-                end if
-                !if (abs(dipole_mods(k, j) > 1e10)) then
-                !   write(*, *) 'DIPOLE_MODS'
-                !   write(*, *) dipole_mods(k, j)
-                !else
-                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-                !end if
-             else
-                write(58,*) j, k, 0., 0.0, 0., 0.
-             end if
-          end do
-          write(58,*)
-       end do
-       close(58)
+!!$!        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
+!!$       do j = 1, ndet
+!!$          do k = 1, nscan_tot
+!!$             !if (g(k,j,2) /= 0) then
+!!$             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
+!!$             if (g(k,j,2) > 0) then
+!!$                if (abs(g(k, j, 1)) > 1e10) then
+!!$                   write(*, *) 'G1'
+!!$                   write(*, *) g(k, j, 1)
+!!$                end if
+!!$                if (abs(g(k, j, 2)) > 1e10) then
+!!$                   write(*, *) 'G2'
+!!$                   write(*, *) g(k, j, 2)
+!!$                end if
+!!$                !if (abs(dipole_mods(k, j) > 1e10)) then
+!!$                !   write(*, *) 'DIPOLE_MODS'
+!!$                !   write(*, *) dipole_mods(k, j)
+!!$                !else
+!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
+!!$                !end if
+!!$             else
+!!$                write(58,*) j, k, 0., 0.0, 0., 0.
+!!$             end if
+!!$          end do
+!!$          write(58,*)
+!!$       end do
+!!$       close(58)
 
-       do j = 1, ndet
+       do j = 1+tod%myid, ndet, tod%numprocs
          if (all(g(:, j, 1) == 0)) continue
           fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
           alpha = -1.d0
@@ -257,10 +257,12 @@ contains
           call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
              & fknee, trim(tod%operation)=='sample', handle)
        end do
-    end if
+!    end if
 
     ! Distribute and update results
-    call mpi_bcast(g, size(g),  MPI_DOUBLE_PRECISION, 0, tod%comm, ierr)    
+       do j = 1, ndet
+          call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
+       end do
     do j = 1, ndet
        do i = 1, tod%nscan
           k        = tod%scanid(i)
@@ -286,7 +288,7 @@ contains
    ! the sum i is over the detector.
    subroutine accumulate_abscal(tod, scan, mask, s_sub, s_ref, s_invN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
     implicit none
-    class(comm_tod),                   intent(in)     :: tod
+    class(comm_tod),                   intent(inout)  :: tod
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub, s_ref
     real(sp),          dimension(:,:), intent(in)     :: s_invN
@@ -299,7 +301,7 @@ contains
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b, scale
+    real(dp)     :: A, b, scale, dA, db
     integer(i4b) :: i, j, ext(2), ndet, ntod
     character(len=5) :: itext
 
@@ -330,16 +332,29 @@ contains
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (present(mask_lowres)) then
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
+          dA = sum(s_invN(:,j) * s_ref(:,j)    * mask_lowres(:,j))
+          db = sum(s_invN(:,j) * residual(:,j) * mask_lowres(:,j))
        else
-          A_abs(j) = A_abs(j) + sum(s_invN(:,j) * s_ref(:,j))
-          b_abs(j) = b_abs(j) + sum(s_invN(:,j) * residual(:,j))
+          dA = sum(s_invN(:,j) * s_ref(:,j))
+          db = sum(s_invN(:,j) * residual(:,j))
        end if
-       if (tod%scanid(scan) == 30 .and. out) then
-         !write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+
+       if (dA == 0.) then
+          tod%scans(scan)%d(j)%accept = .false.
+          write(*,*) 'Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j, dA
+       else if (db/sqrt(dA) > 1000.) then
+          tod%scans(scan)%d(j)%accept = .false.
+          write(*,*) 'Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
+       else 
+          A_abs(j) = A_abs(j) + dA
+          b_abs(j) = b_abs(j) + db
+       end if
+
+       !if (tod%scanid(scan) == 30 .and. out) then
+       !if (out) then
+       !   write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
          !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-       end if
+       !end if
     end do
 
     if (.false. .and. out) then
@@ -430,7 +445,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,*) 'abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.5)') '      Abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -497,7 +512,7 @@ contains
        if (tod%verbosity > 1) then
          !write(*,*) 'A =', A
          !write(*,*) 'b =', b
-         write(*,*) 'relcal = ', real(x,sp)
+          !write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -653,7 +668,8 @@ contains
 
      real(dp), allocatable, dimension(:)     :: freqs, dt, inv_N_corr
      complex(dpc), allocatable, dimension(:) :: dv
-     real(dp), allocatable, dimension(:)     :: fluctuations
+     real(dp), allocatable, dimension(:)     :: fluctuations, temp
+     real(dp), allocatable, dimension(:)     :: precond
      complex(dpc), allocatable, dimension(:) :: fourier_fluctuations
      integer*8          :: plan_fwd, plan_back
      integer(i4b)       :: nscan, nfft, n, nomp, err
@@ -684,11 +700,13 @@ contains
 
      allocate(inv_N_corr(n))
      allocate(fluctuations(nscan))
+!     allocate(temp(nscan))
+     allocate(precond(nscan))
      allocate(fourier_fluctuations(n))
 
-     write(*, *) 'Sigma_0: ', sigma_0
-     write(*, *) 'alpha: ', alpha
-     write(*, *) 'fknee: ', fknee
+!!$     write(*, *) 'Sigma_0: ', sigma_0
+!!$     write(*, *) 'alpha: ', alpha
+!!$     write(*, *) 'fknee: ', fknee
 
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
@@ -704,11 +722,18 @@ contains
         do i = 1, nscan
             fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
             b(i) = b(i) + fluctuations(i)
+            precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
          end do
       end if
 
-      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, plan_fwd, plan_back)
-      deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations)
+!      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
+!      precond = 1.d0
+!      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .false.)
+      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)
+      deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations, precond)
+          
+      call dfftw_destroy_plan(plan_fwd)                                           
+      call dfftw_destroy_plan(plan_back) 
 
   end subroutine wiener_filtered_gain
 
@@ -733,6 +758,7 @@ contains
      !Normalization
      dv = dv / sqrt(real(nfft, dp))
      fourier_vector(1:n) = dv(0:n-1)
+     deallocate(dt, dv)
 
   end subroutine timev_to_fourier
 
@@ -755,18 +781,21 @@ contains
      ! Normalization
      dt = dt / sqrt(real(nfft, dp))
      vector = dt(1:nfft)
+     deallocate(dt, dv)
 
   end subroutine fourierv_to_time
 
-  function solve_cg_gain(inv_N_wn, inv_N_corr, b, plan_fwd, plan_back)
+  function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+!     & with_precond)
      implicit none
-     real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b
+     real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b, precond
      integer*8             , intent(in) :: plan_fwd, plan_back
+!     logical(lgt)                       :: with_precond
 
      real(dp), dimension(size(b))       :: solve_cg_gain
      real(dp), allocatable, dimension(:)    :: initial_guess, prop_sol, residual
-     real(dp), allocatable, dimension(:)    :: p, Abyp, new_residual
-     real(dp)       :: alpha, beta
+     real(dp), allocatable, dimension(:)    :: p, Abyp, new_residual, z, new_z
+     real(dp)       :: alpha, beta, orig_residual
      integer(i4b)   :: iterations, nscan, i
      logical(lgt)   :: converged
      character(len=8)   :: itext
@@ -785,19 +814,21 @@ contains
 
      nscan = size(b)
      allocate(initial_guess(nscan), prop_sol(nscan), residual(nscan), p(nscan))
-     allocate(Abyp(nscan), new_residual(nscan))
+     allocate(Abyp(nscan), new_residual(nscan), z(nscan), new_z(nscan))
 
      initial_guess = 0.d0
      prop_sol = initial_guess
      residual = b - tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, prop_sol, &
         & plan_fwd, plan_back)
+     orig_residual = sum(abs(residual))
+     z = residual / precond
 !      open(58, file='gain_cg_residual.dat')
 !      do i = 1, nscan
 !         write(58, *) residual(i)
 !      end do
 !      close(58)
 
-     p = residual
+     p = z
      iterations = 0
      converged = .false.
      do while ((.not. converged) .and. (iterations < 100000))
@@ -811,7 +842,7 @@ contains
 !            close(58)
 !         end if
 
-         alpha = sum(residual**2) / sum(p * Abyp) 
+         alpha = sum(residual * z) / sum(p * Abyp) 
          prop_sol = prop_sol + alpha * p
 !         if (iterations == 0) then
 !            write(*,*) 'Alpha:', alpha
@@ -831,12 +862,13 @@ contains
 !            close(58)
 !         end if
 
-         if (sum(abs(new_residual)) < 1e-12) then 
+         if (sum(abs(new_residual))/orig_residual < 1e-12) then 
             converged = .true.
             exit
          end if
-         beta = sum(new_residual ** 2) / sum(residual ** 2)
-         p = new_residual + beta * p
+         new_z = new_residual / precond
+         beta = sum(new_residual * new_z) / sum(residual * z)
+         p = new_z + beta * p
 !         if (iterations == 0) then
 !            write(*,*) 'Beta:', beta
 !            open(58, file='gain_cg_p.dat')
@@ -847,9 +879,10 @@ contains
 !         end if
 
          residual = new_residual
+         z = new_z
          iterations = iterations + 1
-         if (mod(iterations, 100) == 0) then
-            write(*, *) "Gain CG search res: ", sum(abs(new_residual))
+         if (.false. .and. mod(iterations, 100) == 0) then
+            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            do i = 1, nscan
@@ -869,9 +902,15 @@ contains
      if (.not. converged) then
         write(*, *) "Gain CG search did not converge."
      end if
+!     if (with_precond) then
+!        write(*, *) "With preconditioner"
+!     else
+!        write(*, *) "Without preconditioner"
+!     end if
+     !write(*, *) "Gain CG iterations: ", iterations
      solve_cg_gain = prop_sol
 
-     deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual)
+     deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
 
   end function solve_cg_gain
 
@@ -969,13 +1008,14 @@ contains
      integer(i4b)   :: i
 
      mean = gain(1) 
+     res = 0.d0
      do i = 2, size(gain)
          res(i) = gain(i) - gain(i-1)
          mean = mean + res(i)
       end do
       mean = mean / size(gain)
       std = 0.d0
-      do i = 1, size(gain)
+      do i = 2, size(gain)
          std = std + (res(i) - mean) ** 2
       end do
       if (std == 0) then
