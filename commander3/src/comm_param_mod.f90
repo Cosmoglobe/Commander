@@ -488,7 +488,7 @@ contains
     character(len=3) :: itext
     character(len=2) :: jtext
 
-    len_itext=len(trim(itext))
+    len_itext=len(trim(itext)) !! FIXME
     call get_parameter_hashtable(htbl, 'NUMBAND',             par_int=cpar%numband)
     call get_parameter_hashtable(htbl, 'DATA_DIRECTORY',      par_string=cpar%datadir)
     call get_parameter_hashtable(htbl, 'SOURCE_MASKFILE',     par_string=cpar%ds_sourcemask)
@@ -639,7 +639,7 @@ contains
     pol_labels(2)='POL'
     pol_labels(3)='POL3'
 
-    len_itext=len(trim(itext))
+    len_itext=len(trim(itext)) !FIXME!!
     call get_parameter_hashtable(htbl, 'INSTRUMENT_PARAM_FILE', par_string=cpar%cs_inst_parfile)
     call get_parameter_hashtable(htbl, 'INIT_INSTRUMENT_FROM_HDF', par_string=cpar%cs_init_inst_hdf)
     call get_parameter_hashtable(htbl, 'NUM_SIGNAL_COMPONENTS', par_int=cpar%cs_ncomp_tot)
@@ -1974,13 +1974,15 @@ contains
 
     datadir  = trim(cpar%datadir) // '/'
     chaindir = trim(cpar%outdir) // '/'
-   
-    !verify that the output directory exists
-    inquire(directory=cpar%outdir, exist=exist) 
-    if (.not. exist) then
-      write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
-      stop
-    end if 
+
+#ifdef USE_INTEL   
+      !verify that the output directory exists
+      inquire(directory=cpar%outdir, exist=exist) 
+      if (.not. exist) then
+        write(*,*) "Error: the specified output directory ", trim(cpar%outdir), " does not exist"
+        stop
+      end if 
+#endif
 
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') call validate_file(trim(datadir)//trim(cpar%cg_samp_group_mask(i)))

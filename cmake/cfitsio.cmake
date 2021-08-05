@@ -34,6 +34,11 @@ endif()
 
 if(NOT CFITSIO_FOUND)
 	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
+	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
@@ -97,6 +102,7 @@ if(NOT CFITSIO_FOUND)
 			cfitsio_${_lib_type_}
 			# Specifying that cfitsio depends on the curl project and should be built after it
 			DEPENDS						required_libraries
+												zlib
 												curl
 												cfitsio_src
 			PREFIX						"${LIBS_BUILD_DIR}"

@@ -27,7 +27,6 @@
 
 message(STATUS "---------------------------------------------------------------")
 
-#if(NOT (LIBAEC_FORCE_COMPILE OR HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 if(USE_SYSTEM_LIBAEC AND USE_SYSTEM_LIBS AND NOT USE_SYSTEM_HDF5)
 	# TODO: Add maybe SZip with find_package or something like that.
 	# Need to have a proper find package or something like that for SZip/LibAEC
@@ -40,6 +39,11 @@ if(USE_SYSTEM_LIBAEC AND USE_SYSTEM_LIBS AND NOT USE_SYSTEM_HDF5)
 endif()
 
 if(NOT (HDF5_FOUND AND LIBAEC_FOUND))
+	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
 	#------------------------------------------------------------------------------
 	# Getting LIBAEC from source.
 	#------------------------------------------------------------------------------
@@ -65,64 +69,44 @@ if(NOT (HDF5_FOUND AND LIBAEC_FOUND))
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Building Static LibAEC
+	# Compiling and Installing Static and Shared LibAEC
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(
-		libaec_static
-		DEPENDS						required_libraries 
-											libaec_src
-		PREFIX						"${LIBS_BUILD_DIR}"
-		SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
-		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			ON
-		LOG_BUILD					ON
-		LOG_INSTALL				ON
-		# Disabling download
-		DOWNLOAD_COMMAND	""
-		# commands how to build the project
-		CMAKE_ARGS
-			-DCMAKE_BUILD_TYPE=Release
-			# Specifying installations paths for binaries and libraries
-			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-			# some systems can create lib64 instead of lib and we need to ensure 
-			# we get only lib, otherwise everything breaks.
-			-DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-			-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:PATH=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
-			# Specifying compilers
-			-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-			# Building only shared libraries
-			-DBUILD_SHARED_LIBS:BOOL=OFF
-		)
+	list(APPEND _AEC_LIB_TYPES_ static shared)
+	list(APPEND _AEC_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
+	foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _AEC_LIB_TYPES_ _AEC_LIB_BOOL_VALS_)
+		ExternalProject_Add(
+			libaec_${_lib_type_}
+			DEPENDS						required_libraries 
+												libaec_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			ON
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
+			# Disabling download
+			DOWNLOAD_COMMAND	""
+			# commands how to build the project
+			CMAKE_ARGS
+				-DCMAKE_BUILD_TYPE=Release
+				# Specifying installations paths for binaries and libraries
+				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+				-DCMAKE_INSTALL_LIBDIR:PATH=lib #${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+				-DCMAKE_INSTALL_INCLUDEDIR:PATH=include
+				# Specifying compilers
+				-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+				# Building only shared libraries
+				${_bool_val_}
+			)
+	endforeach()
 	#------------------------------------------------------------------------------
-	# Building Shared LibAEC
+	# Creating Unified Target
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(
-		libaec_shared
-		DEPENDS						required_libraries 
-											libaec_src
-		PREFIX						"${LIBS_BUILD_DIR}"
-		SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
-		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			ON
-		LOG_BUILD					ON
-		LOG_INSTALL				ON
-		# Disabling download
-		DOWNLOAD_COMMAND	""
-		# commands how to build the project
-		CMAKE_ARGS
-			-DCMAKE_BUILD_TYPE=Release
-			# Specifying installations paths for binaries and libraries
-			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-			# some systems can create lib64 instead of lib and we need to ensure 
-			# we get only lib, otherwise everything breaks.
-			-DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-			-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:PATH=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
-			# Specifying compilers
-			-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-			# Building only shared libraries
-			-DBUILD_SHARED_LIBS:BOOL=ON
+	add_custom_target(libaec 
+		ALL ""
+		DEPENDS libaec_static
+						libaec_shared
 		)
 	#------------------------------------------------------------------------------
 	# Defining the variable which will show the path to the compiled libraries
@@ -136,13 +120,6 @@ if(NOT (HDF5_FOUND AND LIBAEC_FOUND))
 	set(LIBAEC_LIBRARIES
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}aec${CMAKE_SHARED_LIBRARY_SUFFIX}" 
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}sz${CMAKE_SHARED_LIBRARY_SUFFIX}" 
-		)
-	# Adding new target -- libaec -- to ensure that only after all libraries built
-	# the project can use this target.
-	add_custom_target(libaec 
-		ALL ""
-		DEPENDS libaec_static
-						libaec_shared
 		)
 	#------------------------------------------------------------------------------
 	message(STATUS "LIBAEC LIBRARIES will be: ${LIBAEC_LIBRARIES}")

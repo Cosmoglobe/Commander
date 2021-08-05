@@ -27,12 +27,16 @@
 
 if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 	message(STATUS "---------------------------------------------------------------")
-	#if(NOT (LIBSSH2_FORCE_COMPILE OR ALL_FORCE_COMPILE))
 	if(USE_SYSTEM_LIBSSH2 AND USE_SYSTEM_LIBS)
 		find_package(LibSSH2)
 	endif()
 
 	if(NOT LIBSSH2_FOUND) 
+		#------------------------------------------------------------------------------
+		# Note: the explicit splitting for download and install step is done on purpose
+		# to avoid errors when you want to recompile libraries for different owls etc.
+		# In addition, this will allow us to download sources only once and then just 
+		# reuse it whenever possible.
 		#------------------------------------------------------------------------------
 		# Getting LibSSH2 from source.
 		#------------------------------------------------------------------------------
@@ -102,7 +106,9 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 					-DCMAKE_BUILD_TYPE=Release
 					# Specifying installations paths for binaries and libraries
 					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-					-DCMAKE_INSTALL_LIBDIR=lib
+					#-DCMAKE_INSTALL_LIBDIR=lib
+					-DCMAKE_INSTALL_LIBDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+					-DCMAKE_INSTALL_INCLUDEDIR:PATH=include
 					# Specifying compilers
 					-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 					# Building both static and shared libraries with MbedTLS backend
@@ -148,7 +154,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 	else()
 		# If libssh2 exists on the system, we just use this version instead.
-		add_custom_target(${project} ALL "")
+		add_custom_target(libssh2 ALL "")
 		#------------------------------------------------------------------------------
 		message(STATUS "LibSSH2 LIBRARY are: ${LIBSSH2_LIBRARY}")
 		message(STATUS "LibSSH2 INCLUDE DIR are: ${LIBSSH2_INCLUDE_DIR}")

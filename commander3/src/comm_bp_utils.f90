@@ -259,7 +259,7 @@ contains
 2      close(unit)
     end if
 
-    x = x * 1.d9 ! Convert from GHz to Hz
+    x(1:m) = x(1:m) * 1.d9 ! Convert from GHz to Hz
 
     first = 1
     last  = m

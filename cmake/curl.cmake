@@ -54,6 +54,11 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 			${CMAKE_LIBRARY_OUTPUT_DIRECTORY}:$ENV{LD_LIBRARY_PATH}
 			)
 		#------------------------------------------------------------------------------
+		# Note: the explicit splitting for download and install step is done on purpose
+		# to avoid errors when you want to recompile libraries for different owls etc.
+		# In addition, this will allow us to download sources only once and then just 
+		# reuse it whenever possible.
+		#------------------------------------------------------------------------------
 		# Getting cURL from source
 		#------------------------------------------------------------------------------
 		# Checking whether we have source directory and this directory is not empty.
@@ -106,7 +111,8 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 					-DCMAKE_BUILD_TYPE=Release
 					# Specifying installations paths for binaries and libraries
 					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-					-DCMAKE_INSTALL_LIBDIR:PATH=lib
+					#-DCMAKE_INSTALL_LIBDIR:PATH=lib
+					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 					-DCMAKE_INSTALL_INCLUDEDIR:PATH=include
 					-DBUILD_CURL_EXE:BOOL=ON
 					# Building both static and shared libraries
@@ -164,7 +170,7 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		message(STATUS "cURL INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	else()
-		add_custom_target(${project} ALL "")
+		add_custom_target(curl ALL "")
 		include_directories(${CURL_INCLUDE_DIR})
 		include_directories(${CURL_BINARY_DIR})
 		#------------------------------------------------------------------------------
@@ -174,5 +180,5 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 	endif()
 else()
 	# making an empty target so the project will compile regardless of cURL 
-	add_custom_target(${project} ALL "")
+	add_custom_target(curl ALL "")
 endif()
