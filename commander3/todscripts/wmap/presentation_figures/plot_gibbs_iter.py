@@ -6,7 +6,9 @@ import h5py
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0001.h5', 'r')
 
 bands=['023-WMAP_K']
-burn = 110
+burn = 2
+#burn = 100
+burn = 200
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #
@@ -61,9 +63,13 @@ for band in bands:
   for j in range(5):
     axes[j].plot(samps[burn:], gain0s[j][burn:])
   for j in range(2):
-  #  axes[j+5].axhline(x_imw9[band][j] - x_imw9u[band][j], color='k', linestyle='--')
-  #  axes[j+5].axhline(x_imw9[band][j] + x_imw9u[band][j], color='k', linestyle='--')
     axes[j+5].plot(samps[burn:], x_ims[j][burn:])
+    ylim = axes[j+5].get_ylim()
+    axes[j+5].axhline(x_imw9[band][j] - x_imw9u[band][j], color='k',
+        linestyle='--')
+    axes[j+5].axhline(x_imw9[band][j] + x_imw9u[band][j], color='k',
+        linestyle='--')
+    axes[j+5].set_ylim(ylim)
   plt.suptitle(band)
 
   axes[0].set_ylabel(r'$g_0$')
