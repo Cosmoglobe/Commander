@@ -731,7 +731,9 @@ contains
             fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
             b(i) = b(i) + fluctuations(i)
             precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
-         end do
+        end do
+      else
+        precond = 1d0
       end if
 
 !      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
