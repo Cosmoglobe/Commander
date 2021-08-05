@@ -28,12 +28,6 @@
 
 message(STATUS "---------------------------------------------------------------")
 
-#find_package(SZIP) # <= there is no native cmake find module for this one
-#find_package(ZLIB)
-
-# asking for an exact hdf5 version
-#find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
-
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
 # it still be working as before.
@@ -51,27 +45,58 @@ if(NOT HDF5_FOUND)
 	if(NOT HDF5_Fortran_FOUND)
 		message(STATUS "Missing component -- Fortran -- will be compiled from source.")	
 	endif()
-
+	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
 	#------------------------------------------------------------------------------
 	# Getting HDF5 from source
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(${project}
-		DEPENDS required_libraries 
-						zlib 
-						libaec
-		URL "${${project}_url}"
-		URL_MD5 "${${project}_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/${project}"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}"
-		#BINARY_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hdf5-1.12.0/"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		LOG_CONFIGURE	ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${HDF5_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
+		ExternalProject_Add(
+			hdf5_src
+			DEPENDS						required_libraries 
+												zlib 
+												libaec
+			URL								"${hdf5_url}"
+			URL_MD5						"${hdf5_md5}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${HDF5_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
+		add_custom_target(hdf5_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and Installing Static and Shared HDF5
+	#------------------------------------------------------------------------------
+	ExternalProject_Add(
+		hdf5
+		DEPENDS						required_libraries 
+											zlib 
+											libaec
+											hdf5_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${HDF5_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE			ON 
+		LOG_BUILD					ON 
+		LOG_INSTALL				ON 
 		# commands how to build the project
+		DOWNLOAD_COMMAND	""
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
 			# Specifying installations paths for binaries and libraries
@@ -132,9 +157,10 @@ if(NOT HDF5_FOUND)
 			"${CMAKE_INSTALL_PREFIX}/include/static"
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
+	#------------------------------------------------------------------------------
 	message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
 	message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
-	#set($ENV{PATH} "${out_lib_dir}/")
+	#------------------------------------------------------------------------------
 else()
 	add_custom_target(hdf5
 		ALL ""

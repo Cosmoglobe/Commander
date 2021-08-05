@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script determines the location of HDF5 on the host system.
 # If it fails to do so, it will download, compile and install HDF5 from source.
 # The HDF5 group provides sources for zlib and szip, which we are going to use
