@@ -16,37 +16,7 @@ owl_3637="$owl_prefix+(3[6-7])+$owl_suffix"
 # Will compile commander only if on owl!
 if [[ "${HOSTNAME}" =~ "owl"* ]]
 then
-  echo "You are on ${HOSTNAME}"
-  if [[ "${HOSTNAME}" =~ $owl_1724 ]]; then
-    build_dir="build_owl1724"
-  elif [[ "${HOSTNAME}" =~ $owl_2528 ]]; then
-    build_dir="build_owl2528"
-  elif [[ "${HOSTNAME}" =~ $owl_2930 ]]; then
-    build_dir="build_owl2930"
-  elif [[ "${HOSTNAME}" =~ $owl_3135 ]]; then
-    build_dir="build_owl3135"
-  elif [[ "${HOSTNAME}" =~ $owl_3637 ]]; then
-    build_dir="build_owl3637"
-  fi
-	# (Re)loading necessary modules
-	module purge
-	module load gnu git/2.30.1 Intel_parallel_studio/2018/3.051
-	echo "(Re)loaded the following modules:"
-	echo "$(module list)"
-	# Checking for existence of build directory
-	echo "Checking for 'build' directory."
-	if [[ -e "$comm3_root_dir/$build_dir" ]];
-	then
-		echo "$comm3_root_dir/$build_dir exists! Proceeding..."
-	else
-		echo "$comm3_root_dir/$build_dir does not exist! Creating..."
-		mkdir $comm3_root_dir/$build_dir
-	fi
-	# Executing CMake command to compile Commander3
-	# Documentation reference:
-	# https://cmake.org/cmake/help/v3.17/manual/cmake.1.html
-	# Configure command
-	cmake3 -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+	#------------------------------------------------------------------------------
 	# Getting the total number of CPUs, taken from this answer:
 	# https://stackoverflow.com/questions/6481005/how-to-obtain-the-number-of-cpus-cores-in-linux-from-the-command-line
 	# macOS:           Use `sysctl -n hw.*cpu_max`, which returns the values of
@@ -65,7 +35,7 @@ then
 	#                        `-p` reports *online* CPUs only - i.e., on hot-pluggable
 	#                        systems, currently disabled (offline) CPUs are NOT
 	#                        reported.
-
+	#
 	# Number of LOGICAL CPUs (includes those reported by hyper-threading cores)
 	# Linux: Simply count the number of (non-comment) output lines from `lscpu -p`,
 	# which tells us the number of *logical* CPUs.
@@ -81,6 +51,61 @@ then
 	physicalCpuCount=$([ $(uname) = 'Darwin' ] &&
 												 sysctl -n hw.physicalcpu_max ||
 												 lscpu -p | egrep -v '^#' | sort -u -t, -k 2,4 | wc -l)
-	# Build and install command
-	cmake3 --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount 
+	#------------------------------------------------------------------------------
+  echo "You are on ${HOSTNAME}"
+	#------------------------------------------------------------------------------
+  if [[ "${HOSTNAME}" =~ $owl_1724 ]]; then
+    build_dir="build_owl1724"
+  elif [[ "${HOSTNAME}" =~ $owl_2528 ]]; then
+    build_dir="build_owl2528"
+  elif [[ "${HOSTNAME}" =~ $owl_2930 ]]; then
+    build_dir="build_owl2930"
+  elif [[ "${HOSTNAME}" =~ $owl_3135 ]]; then
+    build_dir="build_owl3135"
+  elif [[ "${HOSTNAME}" =~ $owl_3637 ]]; then
+    build_dir="build_owl3637"
+  fi
+	#------------------------------------------------------------------------------
+	# (Re)loading necessary modules
+	module purge
+	# Loading CMake, Autotools and Git
+	module load gnu git/2.30.1 cmake/3.21.1
+	# Intel compilers
+	module load Intel_parallel_studio/2020/4.912 #Intel_parallel_studio/2018/3.051
+	# Custom GNU compilers
+	#module load mygcc/9.3.0 myopenmpi/4.0.3 
+	echo "(Re)loaded the following modules:"
+	echo "$(module list)"
+	#------------------------------------------------------------------------------
+	# Checking for existence of build directory
+	echo "Checking for 'build' directory."
+	abs_path_to_build="$comm3_root_dir/$build_dir"
+	if [[ -d "$abs_path_to_build" ]]; 
+	then
+		echo "$abs_path_to_build exists! Proceeding..."
+	else
+		echo "$abs_path_to_build does not exist! Creating..."
+		mkdir $abs_path_to_build 
+	fi
+	#------------------------------------------------------------------------------
+	# If directory is empty or doesn't have correct CMake produced structure, 
+	# we simply remove its contents and start anew
+	if [[ -e "$abs_path_to_build/CMakeCache.txt" && -d "$abs_path_to_build/CMakeFiles" 
+		&& -e "$abs_path_to_build/Makefile" && -e "$abs_path_to_build/cmake_install.cmake" ]];
+	then
+		echo "Rebuilding the projects."
+		cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount 
+	else
+		echo "Building the project from scratch."
+		rm -rf $abs_path_to_build/*
+		# Executing CMake commands for the first time
+		# Using Intel compilers
+		#cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=ON -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+		cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=ON -DUSE_SYSTEM_CFITSIO:BOOL=ON -DUSE_SYSTEM_HDF5:BOOL=ON -DUSE_SYSTEM_HEALPIX:BOOL=ON -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+		# Using GNU GCC/GFortran compilers
+		#cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -DUSE_SYSTEM_BLAS:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+		# Build and install command
+		cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount -v 
+
+	fi
 fi
