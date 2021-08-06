@@ -209,15 +209,15 @@ contains
     ! Define diode labels
     do i = 1, constructor%ndet
        if (index(constructor%label(i), 'M') /= 0) then
-          constructor%diode_names(i,1) = 'sky00'
-          constructor%diode_names(i,2) = 'sky01'
-          constructor%diode_names(i,3) = 'ref00'
-          constructor%diode_names(i,4) = 'ref01'
+          constructor%diode_names(i,1) = 'ref00'
+          constructor%diode_names(i,2) = 'sky00'
+          constructor%diode_names(i,3) = 'ref01'
+          constructor%diode_names(i,4) = 'sky01'
        else
-          constructor%diode_names(i,1) = 'sky10'
-          constructor%diode_names(i,2) = 'sky11'
-          constructor%diode_names(i,3) = 'ref10'
-          constructor%diode_names(i,4) = 'ref11'
+          constructor%diode_names(i,1) = 'ref10'
+          constructor%diode_names(i,2) = 'sky10'
+          constructor%diode_names(i,3) = 'ref11'
+          constructor%diode_names(i,4) = 'sky11'
        end if
     end do
 
