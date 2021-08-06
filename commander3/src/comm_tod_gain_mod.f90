@@ -908,7 +908,7 @@ contains
 !               write(58, *) prop_sol(i)
 !            end do
 !            close(58)
-!         end if
+         end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            call int2string(iterations, itext)

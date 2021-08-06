@@ -1053,25 +1053,50 @@ contains
 
 
   subroutine get_scan_ids(self, filelist)
+    !
+    ! Routine that reads-in the `filelist_*.txt` twice and retrieves the values from it. 
+    ! The 1st read-in is done in order to get the total number of lines, while the 2nd 
+    ! is for retrieveing the scans, filenames etc.
+    !
+    ! Arguments:
+    ! ----------
+    ! self:     pointer of `comm_tod` class
+    !           Points to output of the constructor
+    ! filelist: string
+    !           The filelists_*.txt name (with full path)
+    !
+    ! Returns:
+    ! ----------
+    ! self:     pointer of `comm_tod` class
+    !           Points to output of the constructor
+    !
     implicit none
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p
+    integer(i4b)       :: ind(1), n, p
+    integer(i4b)       :: unit    ! value for I/O operations
+    integer(i4b)       :: i, j, k ! loop indices
+    integer(i4b)       :: n_tot   ! total number of lines in `filelists_*.txt` (full path) 
+    integer(i4b)       :: np      ! number of MPI processes
+    integer(i4b)       :: ierr    ! MPI error value
     real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
     character(len=512) :: infile
-    real(dp),           allocatable, dimension(:)   :: weight, sid
+    real(dp),           allocatable, dimension(:)   :: weight ! used for load balancing
     real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
-    integer(i4b),       allocatable, dimension(:)   :: scanid, id
+    real(dp),           allocatable, dimension(:)   :: sid
+    integer(i4b),       allocatable, dimension(:)   :: scanid ! scan ids (first column in `filelists_*.txt`)
+    integer(i4b),       allocatable, dimension(:)   :: id
     integer(i4b),       allocatable, dimension(:)   :: proc
     real(dp),           allocatable, dimension(:)   :: pweight
-    character(len=512), allocatable, dimension(:)   :: filename
+    character(len=512), allocatable, dimension(:)   :: filename ! names of the files which contains given scans
 
     np = self%numprocs
     if (self%myid == 0) then
        unit = getlun()
 
        n_tot = 0
+       ! Opening the `filelits_*.txt` and counting the total number of lines there
        open(unit, file=trim(filelist))
        read(unit,*) n
        do i = 1, n
@@ -1104,6 +1129,7 @@ contains
          
        else
        
+         ! Opening the `filelists_*.txt` and retrieving the values
          open(unit, file=trim(filelist))
          read(unit,*) n
          allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
@@ -1906,7 +1932,7 @@ contains
     logical(lgt),                    intent(in), optional :: absbp, verbose
 
     
-    real(dp)     :: chisq, d0, g
+    real(dp)     :: chisq, d0, g, b
     integer(i4b) :: i, n
 
     chisq       = 0.d0

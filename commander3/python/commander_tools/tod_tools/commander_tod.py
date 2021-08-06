@@ -87,13 +87,13 @@ class commander_tod:
         dims = np.shape(data)
 
         if(len(dims) != 2):
-            raise TypeError('Call to add matrix with an object of shape ' + str(shape))
+            raise TypeError('Call to add matrix with an object of shape ' + str(np.shape(data)))
 
         if(dims[0] != len(columnInfo)):
             if(dims[1] == len(columnInfo)):
                 data = np.transpose(data)
             else:
-                raise ValueError('Data is shape ' + str(shape) + ' but column headers have length ' + str(len(columnInfo)))  
+                raise ValueError('Data has shape ' + str(np.shape(data)) + ' but column headers have length ' + str(len(columnInfo)))  
 
         if compression == None or compression == []:
             if type(data) == np.ndarray:
