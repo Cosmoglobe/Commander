@@ -66,11 +66,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:, j) - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
+         r_fill = tod_arr(:, j) - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        else
-         r_fill = tod%scans(scan_id)%d(j)%tod - tod%scans(scan_id)%d(j)%baseline & 
-           & - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
+         r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -134,19 +132,17 @@ contains
        write(58,*)
        do i = 1, size(s_tot,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+            write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
           else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline &
-            & - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
+            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
           end if
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - tod%scans(scan_id)%d(1)%baseline
+            write(58,*) i, tod_arr(i, 1)
           else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - tod%scans(scan_id)%d(1)%baseline
+            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i)
           end if
        end do
        close(58)
@@ -172,6 +168,7 @@ contains
     integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
     integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
     real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
     real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
@@ -185,7 +182,7 @@ contains
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
-    allocate(temp_gain(nscan_tot))
+    allocate(lhs(nscan_tot), rhs(nscan_tot))
     g = 0.d0
     do j = 1, ndet
        do i = 1, tod%nscan
@@ -203,61 +200,131 @@ contains
 !            & 0, tod%comm, ierr)
 !    end if
 
-!    if (tod%myid == 0) then
-!!$       open(58,file='tmp.unf', form='unformatted')
-!!$       read(58) g
-!!$       close(58)
+    if (tod%myid == 0) then
+        count = count+1
 
- !       count = count+1
-        !write(*, *) "FREQ IS ", trim(tod%freq), count
-       !nbin = nscan_tot / binsize + 1
-
-!!$!        open(58,file='gain_' // trim(tod%freq) // '.dat', recl=1024)
-!!$       do j = 1, ndet
-!!$          do k = 1, nscan_tot
-!!$             !if (g(k,j,2) /= 0) then
-!!$             !if (g(k,j,2) /= g(k,j,2)) write(*,*) j,k, real(g(k,j,1),sp), real(g(k,j,2),sp), real(g(k,j,1)/g(k,j,2),sp)
-!!$             if (g(k,j,2) > 0) then
-!!$                if (abs(g(k, j, 1)) > 1e10) then
-!!$                   write(*, *) 'G1'
-!!$                   write(*, *) g(k, j, 1)
-!!$                end if
-!!$                if (abs(g(k, j, 2)) > 1e10) then
-!!$                   write(*, *) 'G2'
-!!$                   write(*, *) g(k, j, 2)
-!!$                end if
-!!$                !if (abs(dipole_mods(k, j) > 1e10)) then
-!!$                !   write(*, *) 'DIPOLE_MODS'
-!!$                !   write(*, *) dipole_mods(k, j)
-!!$                !else
-!!$                   write(58,*) j, k, real(g(k,j,1)/g(k,j,2),sp), real(g(k,j,1),sp), real(g(k,j,2),sp), real(dipole_mods(k, j), sp)
-!!$                !end if
-!!$             else
-!!$                write(58,*) j, k, 0., 0.0, 0., 0.
-!!$             end if
-!!$          end do
-!!$          write(58,*)
-!!$       end do
-!!$       close(58)
-
-       do j = 1+tod%myid, ndet, tod%numprocs
-         if (all(g(:, j, 1) == 0)) continue
-          fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
-          alpha = -1.d0
-          temp_gain = 0.d0
-          ! This is not completely correct - should probably truncate, or
-          ! something.
-          do k = 1, nscan_tot
-            if (g(k, j, 2) > 0.d0) then
-               temp_gain(k) = g(k, j, 1) / g(k, j, 2)
+       allocate(window_sizes(tod%ndet, tod%nscan_tot))
+       call get_smoothing_windows(tod, window_sizes, dipole_mods)
+       do j = 1, ndet
+         lhs = 0.d0
+         rhs = 0.d0
+         pid_id = 1
+         k = 0
+         !write(*,*) "PIDRANGE: ", tod%jumplist(j, :)
+         do while (pid_id < size(tod%jumplist(j, :)))
+            if (tod%jumplist(j, pid_id) == 0) exit
+            currstart = tod%jumplist(j, pid_id)
+            if (tod%jumplist(j, pid_id+1) == 0) then
+               currend = nscan_tot
+            else
+               !currend = tod%jumplist(j, pid_id +1)
+               currend = tod%jumplist(j, pid_id +1) - 1
             end if
-          end do
-          sigma_0 = calc_sigma_0(temp_gain)
-!          sigma_0 = 0.002d0
-          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
-             & fknee, trim(tod%operation)=='sample', handle)
+            !write(*,*) 'j, pid_id, currstart, currend:', j, pid_id, currstart, currend
+            sum_weighted_gain = 0.d0
+            sum_inv_sigma_squared = 0.d0
+            allocate(temp_gain(currend - currstart + 1))
+            allocate(temp_invsigsquared(currend - currstart + 1))
+            allocate(summed_invsigsquared(currend-currstart + 1))
+            allocate(smoothed_gain(currend-currstart + 1))
+            do k = currstart, currend
+               if (g(k,j,2) /= g(k,j,2)) then
+                  write(*,*) 'GAIN IS NAN', k, j
+                  temp_gain(k-currstart + 1) = 0.d0
+               else if (g(k,j,2) > 0.d0) then
+                  temp_gain(k-currstart + 1) = g(k, j, 1) / g(k, j, 2)
+                  if (trim(tod%operation) == 'sample') then
+                     temp_gain(k-currstart+1) = temp_gain(k-currstart+1) + rand_gauss(handle) / g(k, j, 2)
+                  end if
+               else
+                  temp_gain(k-currstart + 1) = 0.d0
+               end if
+               temp_invsigsquared(k - currstart + 1) = max(g(k, j, 2),0.d0)
+            end do
+            kernel_type = 'boxcar'
+            call moving_average_variable_window(temp_gain, smoothed_gain, &
+               & window_sizes(j, currstart:currend), temp_invsigsquared, summed_invsigsquared, kernel_type)
+            if (any(summed_invsigsquared < 0)) then
+               write(*, *) 'WHOOOOPS'
+               write(*, *) 'currstart', currstart
+               write(*, *) 'currend', currend
+               write(*, *) 'temp_invsigsquared', temp_invsigsquared
+               stop
+            end if
+            !write(*, *) 'SMOOTHED_GAIN:', smoothed_gain
+            !write(*, *) 'SUMMED_INVSIGSQUARED:', summed_invsigsquared
+            do k = currstart, currend
+               g(k, j, 1) = smoothed_gain(k - currstart + 1)
+              if (summed_invsigsquared(k - currstart + 1) > 0) then
+                  g(k, j, 2) = 1.d0 / sqrt(summed_invsigsquared(k - currstart + 1))
+               else
+                  g(k, j, 2) = 0.d0
+               end if
+            end do
+            pid_id = pid_id + 1
+
+            deallocate(temp_gain)
+            deallocate(temp_invsigsquared)
+            deallocate(summed_invsigsquared)
+            deallocate(smoothed_gain)
+         end do
+         mu  = 0.d0
+         denom = 0.d0
+         do k = 1, nscan_tot
+            if (g(k, j, 2) <= 0.d0) cycle
+            mu         = mu + g(k, j, 1)! * g(k,j,2)
+            denom      = denom + 1.d0! * g(k,j,2)
+         end do
+         if (denom > 0) then
+            mu = mu / denom
+
+            ! Make sure fluctuations sum up to zero
+            !         if (tod%verbosity > 1) then
+            !           write(*,*) 'mu = ', mu
+            !         end if
+            g(:,j,1) = g(:,j,1) - mu
+         end if
        end do
-!    end if
+       do j = 1, ndet
+          do k = 1, nscan_tot
+             !if (g(k,j,2) /= 0) then
+             if (g(k,j,2) > 0) then
+                if (abs(g(k, j, 1)) > 1e10) then
+                   write(*, *) 'G1_postsmooth'
+                   write(*, *) g(k, j, 1)
+                end if
+                if (abs(g(k, j, 2)) > 1e10) then
+                   write(*, *) 'G2_postsmooth'
+                   write(*, *) g(k, j, 2)
+                end if
+                if (abs(dipole_mods(k, j) > 1e10)) then
+                   write(*, *) 'DIPOLE_MODS'
+                   write(*, *) dipole_mods(k, j)
+                else
+                end if
+             end if
+          end do
+       end do
+
+       !do j = 1, ndet
+       !  if (all(g(:, j, 1) == 0)) continue
+       !   fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
+       !   alpha = -1.d0
+       !   temp_gain = 0.d0
+       !   ! This is not completely correct - should probably truncate, or
+       !   ! something.
+       !   do k = 1, nscan_tot
+       !     if (g(k, j, 2) > 0.d0) then
+       !        temp_gain(k) = g(k, j, 1) / g(k, j, 2)
+       !     end if
+       !   end do
+       !   sigma_0 = calc_sigma_0(temp_gain)
+!      !    sigma_0 = 0.002d0
+       !   call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), sigma_0, alpha, &
+       !      & fknee, trim(tod%operation)=='sample', handle)
+       !end do
+       deallocate(window_sizes)
+    end if
 
     ! Distribute and update results
        do j = 1, ndet
@@ -276,7 +343,7 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    deallocate(g)
+    deallocate(g, lhs, rhs)
 
   end subroutine sample_smooth_gain
 
@@ -317,11 +384,9 @@ contains
           cycle
        end if
        if (present(tod_arr)) then
-         r_fill = tod_arr(:,j)-s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod_arr(:,j))), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod_arr(:,j) - s_sub(:,j)
        else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j) - tod%scans(scan)%d(j)%baseline
-         !if (tod%scanid(scan) == 30 .and. out) write(*,*) tod%scanid(scan), sum(abs(tod%scans(scan)%d(j)%tod)), sum(abs(s_sub(:,j))), tod%scans(scan)%d(j)%baseline
+         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)
        end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
@@ -386,9 +451,9 @@ contains
        open(58,file='gainfit4_'//itext//'.dat')       
        do i = 1, size(s_sub,1)
           if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 4) - tod%scans(scan)%d(4)%baseline
+            write(58,*) i, tod_arr(i, 4)
           else
-            write(58,*) i, tod%scans(scan)%d(4)%tod(i) - tod%scans(scan)%d(4)%baseline
+            write(58,*) i, tod%scans(scan)%d(4)%tod(i)
           end if
        end do
        write(58,*)
@@ -510,9 +575,9 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         !write(*,*) 'A =', A
-         !write(*,*) 'b =', b
-          !write(*,*) 'relcal = ', real(x,sp)
+!!$         write(*,*) 'A =', A
+!!$         write(*,*) 'b =', b
+!!$         write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -535,6 +600,7 @@ contains
     !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
     !  we have
     !  d = g[(1+x_im)*d_A - (1-x_im)*d_B]
+    !    = g(d_A - d_B) + g*x_im*(d_A + d_B)
     !  Returns x_{im,1} for detectors 13/14, and x_{im,2} for detectors 23/24.
     !
     !
@@ -581,9 +647,31 @@ contains
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
-         write(*,*) 'b', sum(b(1:2)), sum(b(3:4))
-         write(*,*) 'A', sum(A(1:2)), sum(A(3:4))
+         write(*,*) 'b', b
+         write(*,*) 'A', A
          write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
+         ! WMAP has only used the orbital dipole alone to solve for the
+         ! transmission imbalance terms. For K11 and K12, the results they have
+         ! are
+         ! 1-year: -0.00204             -0.00542
+         ! 3-year:  0.0000  \pm 0.0007   0.0056  \pm 0.0001
+         ! 5-year:  0.00012              0.00589
+         ! 7-year: -0.00063 \pm 0.00022  0.00539 \pm 0.00010
+         ! 9-year: -0.00067 \pm 0.00017  0.00536 \pm 0.00014
+         !
+         ! The values that I have been getting using Commander are closer to
+         !         -0.00483              0.00439
+         ! There are certainly some differences in how the WMAP analysis
+         ! proceeded versus the Commander analysis. My thoughts currently are:
+         ! 1. Calibrating against the total sky signal versus orbital dipole
+         ! 2. A difference in how x_im is determined algorithmically
+         ! 3. A typo in my implementation of the imbalance sampling.
+         !
+         ! To me, these are in reverse order of likelihood. I also wonder if
+         ! there is some degeneracy with x_im and the gain. The best way to
+         ! determine this is to see if this difference still exists with
+         ! identical gain solutions.
+
        end if
     end if
     call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &
@@ -704,9 +792,9 @@ contains
      allocate(precond(nscan))
      allocate(fourier_fluctuations(n))
 
-!!$     write(*, *) 'Sigma_0: ', sigma_0
-!!$     write(*, *) 'alpha: ', alpha
-!!$     write(*, *) 'fknee: ', fknee
+     !write(*, *) 'Sigma_0: ', sigma_0
+     !write(*, *) 'alpha: ', alpha
+     !write(*, *) 'fknee: ', fknee
 
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
@@ -881,15 +969,15 @@ contains
          residual = new_residual
          z = new_z
          iterations = iterations + 1
-         if (.false. .and. mod(iterations, 100) == 0) then
-            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
+!         if (mod(iterations, 100) == 0) then
+!            write(*, *) "Gain CG search res: ", sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            do i = 1, nscan
 !               write(58, *) prop_sol(i)
 !            end do
 !            close(58)
-         end if
+!         end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            call int2string(iterations, itext)

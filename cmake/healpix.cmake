@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script determines the location of HEALPix on the host system.
 # If it fails to do so, it will download, compile and install HEALPix from source.
 #================================================================================
@@ -163,7 +161,6 @@ if(NOT HEALPIX_FOUND)
 		)
 	#include_directories("${CMAKE_INSTALL_PREFIX}/healpix/include")
 	include_directories("${HEALPIX_INSTALL_PREFIX}/include")
-	include_directories("${HEALPIX_INSTALL_PREFIX}/include/libsharp")
 	#------------------------------------------------------------------------------
 	message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
 else()
