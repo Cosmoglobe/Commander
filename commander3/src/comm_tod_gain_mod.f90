@@ -342,7 +342,7 @@ contains
        if (dA == 0.) then
           tod%scans(scan)%d(j)%accept = .false.
           write(*,*) 'Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j, dA
-       else if (db/sqrt(dA) > 1000.) then
+       else if (abs(db/sqrt(dA)) > 1000. .or. 1/sqrt(dA) < 1d-6) then
           tod%scans(scan)%d(j)%accept = .false.
           write(*,*) 'Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
        else 
@@ -351,10 +351,10 @@ contains
        end if
 
        !if (tod%scanid(scan) == 30 .and. out) then
-       !if (out) then
-       !   write(*,*) tod%scanid(scan), real(sum(s_invN(:,j) * residual(:,j))/sum(s_invN(:,j) * s_ref(:,j)),sp), real(1/sqrt(sum(s_invN(:,j) * s_ref(:,j))),sp), '  # absK', j
+       if (out .and. dA > 0.d0) then
+          !write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # absK', j
          !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-       !end if
+       end if
     end do
 
     if (.false. .and. out) then

@@ -1380,13 +1380,18 @@ contains
     call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
 
+!!$    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
+!!$    do j = 1, self%ndet
+!!$       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.)
+!!$    end do
+
     do j = 1, self%ndet
        do i = 1, self%nscan
           k             = self%scanid(i)
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
-          if (output(k,j,5) == 0) then
+          if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
           end if
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
