@@ -743,7 +743,7 @@ contains
     self%diode_weights(band,1) = weight
     self%diode_weights(band,2) = 1.d0 - weight
 
-    if (self%use_dpc_adc) then
+    if (self%use_dpc_adc .and. .not. self%L2_exist) then
        ! Read ADC corrections
        path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'0'
        self%adc_corrections(band,1)%p => comm_adc(instfile, path, .true.) !first half, load
@@ -1407,9 +1407,11 @@ contains
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask
 
-    integer(i4b) :: i, j, k, m, n, npix, unit
+    integer(i4b) :: i, j, k, m, n, npix, unit, barrier, mpistat(MPI_STATUS_SIZE), ierr
     character(len=4)   :: id
+    character(len=6)   :: scantext
     character(len=512) :: filename
+    type(hdf_file) :: h5_file
     real(dp), allocatable, dimension(:,:)     :: m_buf
  !   real(sp), allocatable, dimension(:)       :: procmask
     real(sp), allocatable, dimension(:,:)     :: tod
@@ -1421,8 +1423,13 @@ contains
 !!$    call self%procmask%bcast_fullsky_map(m_buf); procmask  = m_buf(:,1)
 !!$    deallocate(m_buf)
     
-    unit = getlun()
-    open(unit, file=trim(self%L2file), form='unformatted')
+    !unit = getlun()
+    !open(unit, file=trim(self%L2file), form='unformatted')
+
+    if (self%L2_exist) then
+       if (self%myid == 0) write(*,*) "Reading L2 from ", trim(self%L2file)
+       call open_hdf_file(self%L2file, h5_file, 'r')
+    end if
     
     ! Reduce all scans
     do i = 1, self%nscan
@@ -1432,42 +1439,46 @@ contains
        n = self%scans(i)%ntod
        allocate(tod(n, self%ndet))
        if (self%L2_exist) then
-          if (self%myid == 0 .and. i == 1) write(*,*) "Reading L2 from ", trim(self%L2file)
-          read(unit) tod
+          call int2string(self%scanid(i), scantext)
+          call read_hdf(h5_file, scantext, tod)
        else
           if (self%myid == 0 .and. i == 1) write(*,*) "Converting L1 to L2"
           call self%diode2tod_inst(i, map_sky, procmask, tod)
-          write(unit) tod
        end if
+
+       ! Store relevant data
        do j = 1, self%ndet
           if (any(isnan(tod(:,j)))) self%scans(i)%d(j)%accept = .false.
+          if (.not. self%scans(i)%d(j)%accept) cycle 
+          allocate(self%scans(i)%d(j)%tod(n))
+          self%scans(i)%d(j)%tod = tod(:,j)
        end do
 
-       ! Find effective TOD length
-       if (self%halfring_split == 0) then
-          m = get_closest_fft_magic_number(n)
-       else if (self%halfring_split == 1 .or. self%halfring_split == 2) then
-          m = get_closest_fft_magic_number(n/2)
-       else 
-          write(*,*) "Unknown halfring_split value in read_hdf_scan"
-          stop
-       end if
-       if (real(m-n,dp)/real(n,dp) > 0.001d0) then
-          write(*,*) 'Warning: More than 0.1% of scan', self%scanid(i), ' removed by FFTW cut'
-       end if
-
-       if (m /= n) write(*,*) 'ERROR', self%scanid(i), m, n
+!!$       ! Find effective TOD length
+!!$       if (self%halfring_split == 0) then
+!!$          m = get_closest_fft_magic_number(n)
+!!$       else if (self%halfring_split == 1 .or. self%halfring_split == 2) then
+!!$          m = get_closest_fft_magic_number(n/2)
+!!$       else 
+!!$          write(*,*) "Unknown halfring_split value in read_hdf_scan"
+!!$          stop
+!!$       end if
+!!$       if (real(m-n,dp)/real(n,dp) > 0.001d0) then
+!!$          write(*,*) 'Warning: More than 0.1% of scan', self%scanid(i), ' removed by FFTW cut'
+!!$       end if
+!!$
+!!$       if (m /= n) write(*,*) 'ERROR', self%scanid(i), m, n
        
-       ! Copy data, and free up old arrays
+       ! Free up old arrays
        do j = 1, self%ndet
-          if (.not. self%scans(i)%d(j)%accept) cycle 
-
-          allocate(self%scans(i)%d(j)%tod(m))
-          if (self%halfring_split == 2) then
-             self%scans(i)%d(j)%tod = tod(m+1:2*m,j)
-          else
-             self%scans(i)%d(j)%tod = tod(1:m,j)
-          end if
+!!$          if (.not. self%scans(i)%d(j)%accept) cycle 
+!!$
+!!$          allocate(self%scans(i)%d(j)%tod(m))
+!!$          if (self%halfring_split == 2) then
+!!$             self%scans(i)%d(j)%tod = tod(m+1:2*m,j)
+!!$          else
+!!$             self%scans(i)%d(j)%tod = tod(1:m,j)
+!!$          end if
           if (allocated(self%scans(i)%d(j)%ztod))   deallocate(self%scans(i)%d(j)%ztod)
           if (allocated(self%scans(i)%d(j)%diode))  deallocate(self%scans(i)%d(j)%diode)
           if (allocated(self%scans(i)%d(j)%zdiode)) then
@@ -1475,21 +1486,41 @@ contains
                 deallocate(self%scans(i)%d(j)%zdiode(k)%p) 
              end do
              deallocate(self%scans(i)%d(j)%zdiode)
-!!$             deallocate(self%scans(i)%d(j)%zdiode2)
-!!$             deallocate(self%scans(i)%d(j)%zdiode3)
-!!$             deallocate(self%scans(i)%d(j)%zdiode4)
           end if
-!!$          if (self%scanid(i)== 841 .and. j == 1) then
-!!$             write(*,*) self%scanid(i), j, sum(self%scans(i)%d(j)%tod)
-!!$             do k = 1, m
-!!$                write(*,*) k, self%scans(i)%d(j)%tod(k)
-!!$             end do
-!!$          end if
         end do
         call huff_deallocate(self%scans(i)%todkey)
         deallocate(tod)
      end do
-     close(unit)
+    if (self%L2_exist) call close_hdf_file(h5_file)
+
+    if (.not. self%L2_exist) then
+       ! Write preprocessed data to file in round-robin manner
+       barrier = self%nscan
+       if (self%myid == 0) then
+          write(*,*) "Writing L2 to ", trim(self%L2file)
+          call open_hdf_file(self%L2file, h5_file, 'w')
+          call write_hdf(h5_file, "freq", trim(self%freq))
+       end if
+       if (self%myid > 0) then
+          call mpi_recv(barrier, 1, MPI_INTEGER, self%myid-1, 98, self%comm, mpistat, ierr)
+          call open_hdf_file(self%L2file, h5_file, 'b')
+       end if
+       do i = 1, self%nscan
+          call int2string(self%scanid(i), scantext)
+          n = self%scans(i)%ntod
+          allocate(tod(n,self%ndet))
+          do j = 1, self%ndet
+             if (.not. self%scans(i)%d(j)%accept) cycle 
+             tod(:,j) = self%scans(i)%d(j)%tod
+          end do
+          call write_hdf(h5_file, scantext, tod)
+          deallocate(tod)
+       end do
+       call close_hdf_file(h5_file)
+       if (self%myid < self%numprocs-1) then
+          call mpi_send(barrier, 1, MPI_INTEGER, self%myid+1, 98, self%comm, ierr)      
+       end if
+    end if
 
      !deallocate(procmask)
 
