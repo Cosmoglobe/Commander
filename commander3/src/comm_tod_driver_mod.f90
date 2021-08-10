@@ -636,6 +636,11 @@ contains
     real(dp)     :: t1, t2
     type(comm_scandata) :: sd
 
+    real(sp), allocatable, dimension(:,:) :: residual
+    real(sp), allocatable, dimension(:)   :: r_fill
+    real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
+    integer(i4b) :: ext(2)
+
     if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
 
 
@@ -654,6 +659,8 @@ contains
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
+       allocate(residual(ext(1):ext(2),tod%ndet))
+       allocate(r_fill(sd%ntod))
 
        ! Calibrator is just a constant value
        s_buf = 1.
@@ -667,14 +674,6 @@ contains
           call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
             & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
           call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
-
-          ! Estimate the baseline and sample it if requested
-          !tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
-          !  & *sd%mask(:,j))/sum(sd%mask(:,j))
-          !if (trim(tod%operation) == 'sample') then
-          !  tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
-          !   &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
-          end if
        end do
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
@@ -685,11 +684,11 @@ contains
              residual(:,j) = 0.
           end if
           r_fill = sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)
-          call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', &
-            & real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
+          call fill_all_masked(r_fill, sd%mask(:,j), sd%ntod, trim(tod%operation) == 'sample', &
+            & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
           call tod%downsample_tod(r_fill, ext, residual(:,j))
        end do
-       call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       call multiply_inv_N(tod, i, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
 
        do j = 1, tod%ndet
@@ -697,7 +696,7 @@ contains
             tod%scans(i)%d(j)%baseline = 0.
             cycle
           end if
-          tod%scans(scan_id)%d(j)%baseline = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j)) &
+          tod%scans(i)%d(j)%baseline = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j)) &
                                         &  / sum(s_invsqrtN(:,j) * mask_lowres(:,j))
           if (trim(tod%operation) == 'sample') then
             tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
@@ -707,6 +706,7 @@ contains
 
 
        ! Clean up
+       deallocate(s_invsqrtN, s_buf, mask_lowres, residual, r_fill)
        call wall_time(t2)
        tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
        tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
