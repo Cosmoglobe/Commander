@@ -615,6 +615,17 @@ contains
 
   ! Sample baseline
   subroutine sample_baseline(tod, handle, map_sky, procmask, procmask2)
+    !   Subroutine that implements baseline subtraction, assuming a constant
+    !   offset for each TOD.
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information
+    !   handle:   planck_rng derived type
+    !             Healpix definition for random number generation
+    !             so that the same sequence can be resumed later on from that same point
+    !   map_sky:
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
@@ -627,6 +638,7 @@ contains
 
     if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
 
+
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
@@ -638,18 +650,61 @@ contains
           call sd%init_differential(tod, i, map_sky, procmask, procmask2)
        end if
 
+       call tod%downsample_tod(sd%s_orb(:,1), ext)
+       allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
+       allocate(s_buf(sd%ntod, sd%ndet))
+       allocate(mask_lowres(ext(1):ext(2), tod%ndet))
+
+       ! Calibrator is just a constant value
+       s_buf = 1.
+
        do j = 1, tod%ndet
+          if (.not. tod%scans(i)%d(j)%accept) cycle
           ! Return the data to its raw state
           sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
 
+          call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=0.9)
+          call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+            & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+          call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
+
           ! Estimate the baseline and sample it if requested
-          tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
-            & *sd%mask(:,j))/sum(sd%mask(:,j))
-          if (trim(tod%operation) == 'sample') then
-            tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
-             &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
+          !tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
+          !  & *sd%mask(:,j))/sum(sd%mask(:,j))
+          !if (trim(tod%operation) == 'sample') then
+          !  tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
+          !   &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
           end if
        end do
+       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+
+
+
+       do j = 1, tod%ndet
+          if (.not. tod%scans(i)%d(j)%accept) then
+             residual(:,j) = 0.
+          end if
+          r_fill = sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)
+          call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', &
+            & real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
+          call tod%downsample_tod(r_fill, ext, residual(:,j))
+       end do
+       call multiply_inv_N(tod, scan_id, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+
+
+       do j = 1, tod%ndet
+          if (.not. tod%scans(i)%d(j)%accept) then
+            tod%scans(i)%d(j)%baseline = 0.
+            cycle
+          end if
+          tod%scans(scan_id)%d(j)%baseline = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j)) &
+                                        &  / sum(s_invsqrtN(:,j) * mask_lowres(:,j))
+          if (trim(tod%operation) == 'sample') then
+            tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
+              &   + rand_gauss(handle) / sqrt(sum(s_invsqrtN(:,j) * mask_lowres(:,j)))
+          end if
+       end do
+
 
        ! Clean up
        call wall_time(t2)
