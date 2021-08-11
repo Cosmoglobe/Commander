@@ -50,9 +50,9 @@ module comm_hdf_mod
   end type hdf_file
 
   type :: byte_pointer
-     byte, dimension(:), allocatable :: p 
-   ! contains
-   !   final :: dealloc_byte_pointer
+    byte, dimension(:), allocatable :: p 
+    !contains
+    !  final :: dealloc_byte_pointer
   end type byte_pointer
 
   interface read_hdf

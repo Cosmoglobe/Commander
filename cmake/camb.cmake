@@ -69,7 +69,7 @@ ExternalProject_Add(
 	INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}" 
 	LOG_DIR						"${CMAKE_LOG_DIR}"
 	LOG_CONFIGURE			ON
-	LOG_BUILD					ON 
+	LOG_BUILD					ON
 	LOG_INSTALL				ON 
 	# Commadns to build the project
 	DOWNLOAD_COMMAND	""
@@ -82,6 +82,9 @@ ExternalProject_Add(
 		-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
 		-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 		-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+		-DMPI_Fortran_COMPILER=${MPI_Fortran_COMPILER}
+		-DMPI_C_COMPILER=${MPI_C_COMPILER}
+		-DMPI_CXX_COMPILER=${MPI_CXX_COMPILER}
 		# Check submodules during build
 		-DGIT_SUBMODULE:BOOL=ON
 		# CFitsIO paths

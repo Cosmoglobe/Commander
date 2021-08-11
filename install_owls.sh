@@ -71,9 +71,11 @@ then
 	# Loading CMake, Autotools and Git
 	module load gnu git/2.30.1 cmake/3.21.1
 	# Intel compilers
-	module load Intel_parallel_studio/2020/4.912 #Intel_parallel_studio/2018/3.051
+	#module load Intel_parallel_studio/2020/4.912 #Intel_parallel_studio/2018/3.051
 	# Custom GNU compilers
-	#module load mygcc/9.3.0 myopenmpi/4.0.3 
+	# Note: HEALPix 3.70 doesn't compile with GNU 10.3.0, so use 9.3.0 only
+	# Note2: Switched to HEALPix 3.80 instead and it worked :)
+	module load foss/10.3.0 
 	echo "(Re)loaded the following modules:"
 	echo "$(module list)"
 	#------------------------------------------------------------------------------
@@ -102,12 +104,13 @@ then
 		# Executing CMake commands for the first time
 		#------------------------------------------------------------------------------
 		# Using Intel compilers
-		cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+		#cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
 		#cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=ifort -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=ON -DUSE_SYSTEM_CFITSIO:BOOL=ON -DUSE_SYSTEM_HDF5:BOOL=ON -DUSE_SYSTEM_HEALPIX:BOOL=ON -S $comm3_root_dir -B $comm3_root_dir/$build_dir
 		#------------------------------------------------------------------------------
 		# Using GNU GCC/GFortran compilers
 		#------------------------------------------------------------------------------
 		#cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=OFF -DUSE_SYSTEM_CFITSIO:BOOL=OFF -DUSE_SYSTEM_HDF5:BOOL=OFF -DUSE_SYSTEM_HEALPIX:BOOL=OFF -DUSE_SYSTEM_BLAS:BOOL=OFF -S $comm3_root_dir -B $comm3_root_dir/$build_dir
+		cmake -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER=gfortran -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort -DCFITSIO_USE_CURL:BOOL=OFF -DUSE_SYSTEM_FFTW:BOOL=ON -DUSE_SYSTEM_CFITSIO:BOOL=ON -DUSE_SYSTEM_HDF5:BOOL=ON -DUSE_SYSTEM_HEALPIX:BOOL=ON -DUSE_SYSTEM_BLAS:BOOL=ON -S $comm3_root_dir -B $comm3_root_dir/$build_dir
 		#------------------------------------------------------------------------------
 		# Build and install command
 		#------------------------------------------------------------------------------
