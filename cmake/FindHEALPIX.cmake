@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Module to find HEALPix on the system
 # It looks for HEALPix components, such as:
 # sharp, f90, cxx, c 

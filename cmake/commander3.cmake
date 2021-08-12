@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script compiles/installs Commander3 on host system and it also 
 # links Commander3 to external dependencies (such as HDF5, CFitsio, HEALPix etc.)
 #================================================================================
@@ -63,6 +65,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
+	#${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_SPIDER_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_LB_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
@@ -136,6 +139,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
+	# CAMB
+	${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)
 
 # Setting executable name
@@ -158,6 +163,11 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	target_compile_definitions(${commander3}
 		PUBLIC
 		USE_INTEL
+		)
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+	target_compile_definitions(${commander3}
+		PUBLIC
+		USE_GNU
 		)
 endif()
 # adding compiler flags to commander3 target
@@ -204,6 +214,8 @@ target_link_libraries(${commander3}
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
 	#${SHARP2_LIBRARIES}
+	# Including CAMB
+	${CAMB_LIBRARIES}
 	# Including HEALPix
 	${HEALPIX_LIBRARIES}
 	# Including CFitsIO

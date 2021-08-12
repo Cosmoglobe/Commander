@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script contains general instructions on how to fetch and build 
 # Commander3 and all its dependencies. It is split into three parts, each containing 
 # its set of instaructions/variables. It is done for easier maintenance. 
@@ -28,7 +30,11 @@
 # [ ] Change URL_MD5 to URL_HASH of every project;
 # [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
 # [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
-# [ ] Add one variable which will force all libraries to be recompiled;
+# [x] Add one variable which will force all libraries to be recompiled;
+# [x] Change CFitsIO to CMake installation
+# [ ] Write your own CFitsIO or modify an existing one, because it doesn't seem to work with version 4.0.0
+# [ ] Change FFTW to CMake installation
+# [ ] Finish Custom CMake module for CAMB as it is now works only with Intel compilers
 
 #------------------------------------------------------------------------------
 # including compiler definitions
@@ -57,6 +63,7 @@ list(APPEND projects
 	hdf5
 	doxygen
 	healpix
+	camb
 	commander3
 	)
 #==============================================================================
@@ -149,11 +156,13 @@ set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
-set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
+set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
 #set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
 #set(healpix_md5 "540b243406596205a7a82434d99af41e")
 #set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
-set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
+#set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
+set(healpix_md5 "923d31845716014e38f34c4de59264e1")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
@@ -162,7 +171,7 @@ set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
 #------------------------------------------------------------------------------
 # CAMB with custom CMake support
 set(camb_git_url "https://github.com/maksymbrl/CAMB.git")
-set(camb_git_tag "36cc4e546427b9b30359473be628d506b09eb658")
+set(camb_git_tag "f056440afde31e3ec63074b626257a5c500e6097")
 #------------------------------------------------------------------------------
 # Doxygen
 #------------------------------------------------------------------------------
