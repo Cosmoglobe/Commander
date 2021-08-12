@@ -1400,6 +1400,9 @@ contains
     integer(i4b) :: i, j, ntod
     real(dp)     :: v_ref(3)
     real(dp), allocatable, dimension(:,:) :: P
+    logical(lgt)  :: relativistic
+
+    relativistic = .true.
 
     ntod = self%scans(scan)%ntod
 
@@ -1427,7 +1430,7 @@ contains
        end if
 
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & orbital, self%orb_4pi_beam, P, s_dip(:,j))
+            & relativistic, self%orb_4pi_beam, P, s_dip(:,j))
     end do
     deallocate(P)
 
@@ -1468,6 +1471,9 @@ contains
     integer(i4b) :: i, j, ntod
     real(dp)     :: v_ref(3), f
     real(dp), allocatable, dimension(:,:) :: P
+    logical(lgt)  :: relativistic
+
+    relativistic = .true.
 
     f = 1.d0; if (present(factor)) f = factor
     ntod = self%scans(scan)%ntod
@@ -1497,10 +1503,10 @@ contains
        ! data.
        if (horn == 1) then
           call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
-               & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+               & relativistic, self%orb_4pi_beam, P, s_dip(:,j), f)
        else
           call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
-               & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+               & relativistic, self%orb_4pi_beam, P, s_dip(:,j), f)
        end if
     end do
     deallocate(P)
