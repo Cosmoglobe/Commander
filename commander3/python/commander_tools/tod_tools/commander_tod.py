@@ -209,7 +209,7 @@ class commander_tod:
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
             self.add_field('/common/version', self.version)
-            print(f"Maksym's debug statement -- self.pids.keys(): {list(self.pids.keys())}")
+            #print(f"Maksym's debug statement -- self.pids.keys(): {list(self.pids.keys())}")
             #self.add_field('/common/pids', list(self.pids.keys()))
             # [Maksym]: was getting the error:
             # ...
@@ -241,7 +241,7 @@ class commander_tod:
             numStr = str(key)
             if(key == 1):
                 numStr = ''
-            print("Maksym's debug statement -- finalize chunk is working")
+            #print("Maksym's debug statement -- finalize chunk is working")
             self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
             self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
             #with np.printoptions(threshold=np.inf):
@@ -302,8 +302,11 @@ class commander_tod:
         return
 
     def make_filelists(self):
-        for freq in np.string_(self.filelists.keys()):
-            print("Maksym's debug message -- making filelists")
+        #print(self.filelists)
+        #print(type(self.filelists))
+        #for freq in np.string_(self.filelists.keys()):
+        for freq in self.filelists.keys():
+            #print("Maksym's debug message -- making filelists")
             outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
             outfile.write(str(len(self.filelists[freq])) + '\n')
             for buf in self.filelists[freq].values():

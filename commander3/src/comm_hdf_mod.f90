@@ -33,11 +33,18 @@ module comm_hdf_mod
      integer            :: status
   end type hdf_file
 
+#ifdef USE_INTEL   
   type :: byte_pointer
     byte, dimension(:), allocatable :: p 
     !contains
     !  final :: dealloc_byte_pointer
   end type byte_pointer
+#elif USE_GNU   
+  type :: byte_pointer
+    pointer, dimension(:), allocatable :: p 
+  end type byte_pointer
+#endif
+
 
   interface read_hdf
      module procedure read_hdf_0d_dp

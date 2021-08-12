@@ -9,6 +9,8 @@ import time
 import argparse
 import re
 from tqdm import tqdm
+import multiprocessing as mp
+from joblib import cpu_count, Parallel, delayed, parallel_backend
 from pathlib import Path
 # Getting full path to Mathew's library as an object
 commander_tools_path = Path(__file__).absolute().parents[2].joinpath('python','commander_tools').resolve()
@@ -23,18 +25,15 @@ def main():
     """
     Main method of the script
     """
-    make_od()
-
-
-def make_od():
-    """
-    Method to process one file/CES
-    """
+    #nprocs = mp.cpu_count()
+    #nprocs = joblib.cpu_count()
+    nprocs = cpu_count()
     level3_dir = Path('/mn/stornext/d16/cmbco/bp/maksym/quiet/data/Q/ces/patch_gc') 
     output_dir = Path('/mn/stornext/d16/cmbco/bp/maksym/quiet/data/Q/ces/patch_gc/output')
     if not Path.is_dir(output_dir):
         Path.mkdir(output_dir)
     version = np.string_('0.0.2')
+    freqs = ['Q']
     #---------------------------------------------
     # Retrieving data
     #---------------------------------------------
@@ -43,9 +42,33 @@ def make_od():
     level3_data_files = [data_file.name for data_file in level3_data_files]
     # Retrieving CES values from the file names 
     compiled_pattern = re.compile('[\d]')
-    level3_ces_nums = [int("".join(compiled_pattern.findall(data_file))) for data_file in level3_data_files] 
+    level3_ces_nums = [int("".join(compiled_pattern.findall(data_file))) 
+            for data_file in level3_data_files] 
+    #---------------------------------------------
+    with parallel_backend(backend="multiprocessing", n_jobs=nprocs):
+        manager = mp.Manager()
+        # Initialising tod object
+        dicts = {freqs[0]:manager.dict()}#, 44:manager.dict(), 70:manager.dict()}
+        ctod = comm_tod.commander_tod(output_dir, 'QUIET', version, dicts=dicts, overwrite=True)
+        #
+        x = Parallel(verbose=2)(delayed(make_od)
+                (level3_dir, level3_data_files, level3_ces_nums, ctod, 
+                    version, freqs, dicts, k) for k in range(len(level3_ces_nums)))
+        #make_od(level3_dir, output_dir, version, freqs, dicts)
+        # making filelist
+        ctod.make_filelists()
+
+
+def make_od(level3_dir, level3_data_files, 
+        level3_ces_nums, ctod, version, freqs, dicts, k):
+    """
+    Method to process one file/CES
+    """
+    # Working with all the files for a given patch
+    #for i in tqdm(range(3)):#len(level3_ces_nums)):
     # Retrieving data from old Level3 files 
-    readin_file = h5py.File(level3_dir / level3_data_files[0], 'r')
+    readin_file = h5py.File(level3_dir / level3_data_files[k], 'r')
+    print(f"Working with file: {level3_data_files[k]}")
     # Things to include per detector
     alpha        = np.array(readin_file.get('alpha'))
     fknee        = np.array(readin_file.get('fknee'))
@@ -71,8 +94,6 @@ def make_od():
     #---------------------------------------------
     # Writing data to a file
     #---------------------------------------------
-    # Initialising tod object
-    ctod = comm_tod.commander_tod(output_dir, 'QUIET', version, dicts=None, overwrite=False)
     # Huffmann compression
     huffman = ['huffman', {'dictNum':1}]
     # Digitization values for \psi 
@@ -81,15 +102,14 @@ def make_od():
     datatype = 'QUIET'
     det_list = []
     # Creating new file
-    #for ces in level3_ces:
-    #    comm_tod.init_file(1, ces, mode='w')
-    ces = level3_ces_nums[1]
-    ctod.init_file('Q', ces, mode='w')
+    ces = level3_ces_nums[k]
+    ctod.init_file(freqs[0], ces, mode='w')
     #---------------------------------------------
     # Looping through 19 amplifiers (1 ampl has 4 diodes)
     # and adding new fields to a file
     i = 0
-    for det in tqdm(range(0, 19, 1)):
+    #for det in tqdm(range(0, 19, 1)):
+    for det in range(0, 19, 1):
         label  = str(det+1).zfill(2) #+ f'{diode_labels[diode]}'
         prefix = f'{ces}'.zfill(6) + '/' + label 
         # Digitizing \psi
@@ -147,12 +167,10 @@ def make_od():
     ctod.add_field(prefix + '/vsun', vsun)
     ctod.add_field(prefix + '/time', np.array([time_vals[0], 0, 0]))
     #---------------------------------------------
-    print("Running finalize_chunk")
+    print("Running finalize_chunk on file: {level3_data_files[k]}")
     ctod.finalize_chunk(f'{ces}'.zfill(6))
     print("finalize_chunk has finished")
     ctod.finalize_file()
-    # making filelist
-    #ctod.make_filelists()
 
 
 

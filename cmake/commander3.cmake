@@ -164,6 +164,11 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 		PUBLIC
 		USE_INTEL
 		)
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+	target_compile_definitions(${commander3}
+		PUBLIC
+		USE_GNU
+		)
 endif()
 # adding compiler flags to commander3 target
 target_compile_options(${commander3}
