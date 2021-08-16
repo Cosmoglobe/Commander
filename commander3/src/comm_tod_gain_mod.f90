@@ -947,15 +947,15 @@ contains
          residual = new_residual
          z = new_z
          iterations = iterations + 1
-         if (mod(iterations, 100) == 0) then
-            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
+!         if (mod(iterations, 100) == 0) then
+!            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            do i = 1, nscan
 !               write(58, *) prop_sol(i)
 !            end do
 !            close(58)
-         end if
+!         end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
 !            call int2string(iterations, itext)
@@ -973,7 +973,7 @@ contains
 !     else
 !        write(*, *) "Without preconditioner"
 !     end if
-     write(*, *) "Gain CG iterations: ", iterations
+!     write(*, *) "Gain CG iterations: ", iterations
      solve_cg_gain = prop_sol
 
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
