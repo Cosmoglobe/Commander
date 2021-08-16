@@ -175,11 +175,11 @@ contains
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
     constructor%ndiode          = 4
-    constructor%sample_L1_par   = .false.
+    constructor%sample_L1_par   = .true. !.false.
     constructor%compressed_tod  = .true.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
-    constructor%use_dpc_adc     = .true.
+    constructor%use_dpc_adc     = .false. !.true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
@@ -313,6 +313,7 @@ contains
              do j = 1, constructor%ndiode
                 ! Build the actual adc correction tables (adc_in, adc_out)
                 name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+                if (constructor%myid == 0) write(*,*) '    Building table for '// trim(name)
                 call constructor%adc_corrections(i,j)%p%build_table(handle, name)
              end do
           end do
@@ -557,6 +558,7 @@ contains
     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
     call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
     call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
+    call sample_gain_psd(self, handle)
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -658,7 +660,7 @@ contains
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
-    call syncronize_binmap(binmap, self)
+    call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, &
@@ -1520,6 +1522,7 @@ contains
        if (self%myid < self%numprocs-1) then
           call mpi_send(barrier, 1, MPI_INTEGER, self%myid+1, 98, self%comm, ierr)      
        end if
+       call mpi_barrier(self%comm, ierr)
     end if
 
      !deallocate(procmask)
