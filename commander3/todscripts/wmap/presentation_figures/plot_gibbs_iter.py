@@ -7,8 +7,9 @@ data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0
 
 bands=['023-WMAP_K']
 burn = 2
-#burn = 100
-burn = 200
+burn = 1000
+#burn = 200
+thin = 25
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #
@@ -50,7 +51,7 @@ for band in bands:
   gain0s = [[],[],[],[],[]]
   x_ims = [[],[]]
   samps = []
-  for i in range(1, len(data.keys())-1):
+  for i in range(burn, len(data.keys())-1, thin):
     gain0 = data[str(i).zfill(6) + '/tod/'+band+'/gain0'][:]
     x_im = data[str(i).zfill(6) + '/tod/'+band+'/x_im'][:]
     for j in range(5):
@@ -61,9 +62,9 @@ for band in bands:
 
   fig, axes = plt.subplots(nrows=7, sharex=True)
   for j in range(5):
-    axes[j].plot(samps[burn:], gain0s[j][burn:])
+    axes[j].plot(samps, gain0s[j])
   for j in range(2):
-    axes[j+5].plot(samps[burn:], x_ims[j][burn:])
+    axes[j+5].plot(samps, x_ims[j])
     ylim = axes[j+5].get_ylim()
     axes[j+5].axhline(x_imw9[band][j] - x_imw9u[band][j], color='k',
         linestyle='--')
