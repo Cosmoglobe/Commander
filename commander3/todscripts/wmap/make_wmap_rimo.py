@@ -365,9 +365,10 @@ def create_rimo(fname, rot=0):
       X2 = np.linspace(X[0], X[-1], len(X)*10)
       Y2 = np.linspace(Y[0], Y[-1], len(Y)*10)
 
-      nside = 1024
-      X2 = np.linspace(X[0], X[-1], len(X)*5)
-      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
+      #nside = 1024
+      #X2 = np.linspace(X[0], X[-1], len(X)*5)
+      #Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
+
       xx, yy = np.meshgrid(X,Y)
       theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
       phi = np.arctan2(yy, xx)
@@ -400,9 +401,6 @@ def create_rimo(fname, rot=0):
                 bounds=((np.array([0,-np.inf,-np.inf,0,0,-np.pi/4]),
                   np.array([np.inf,np.inf,np.inf,np.inf,np.inf,np.pi/4]))))
 
-
-
-
           mA = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
 
@@ -426,6 +424,8 @@ def create_rimo(fname, rot=0):
           #mA[~np.isfinite(mA)] = 0
 
 
+
+
           # 2D Gaussian fits
           beamB[~np.isfinite(beamB)] = 0
           mu_x = (beamB*xx).sum()/(beamB).sum()
@@ -437,39 +437,27 @@ def create_rimo(fname, rot=0):
 
           xieta = np.array([xx.flatten()[inds], yy.flatten()[inds]])
           popt, pcov = curve_fit(gaussian2d, xieta, beamB.flatten()[inds], p0=p0, sigma=sigmB.flatten()[inds],
-                bounds=((np.array([0,-np.inf,-np.inf,0,0,-np.pi/2]), np.array([np.inf,np.inf,np.inf,np.inf,np.inf,np.pi/2]))))
-
+                bounds=((np.array([0,-np.inf,-np.inf,0,0,-np.pi/4]),
+                  np.array([np.inf,np.inf,np.inf,np.inf,np.inf,np.pi/4]))))
 
           mB = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
+
+          xx2, yy2 = np.meshgrid(X2 - popt[1],Y2 + popt[2])
+          theta = 2*np.arcsin(np.sqrt(xx2**2+yy2**2)/2)
+          phi = np.arctan2(yy2, xx2)
           pix = hp.ang2pix(nside, theta, phi)
-          mA[pix] += beamA_2
-          mB[pix] += beamB_2
-          N[pix] += 1
-          #hp.gnomview(m/N, rot=(-130,86.38,0), reso=1)
-          mA = mA/N
-          mB = mB/N
-          mA[~np.isfinite(mA)] = 0
-          mB[~np.isfinite(mB)] = 0
 
-          #hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
-          #hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
+          source_idx = pix.flatten()
+          fluxB = copy.deepcopy(beamB_2.flatten())
+          while len(source_idx) > 0:
+            hp_no, idx_t = np.unique(source_idx, return_index=True)
+            mB[hp_no] += fluxB[idx_t]
+            N[hp_no]  += 1
 
-
-          ind = np.argmax(mA)
-
-
-          th, ph = hp.pix2ang(nside, ind)
-          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
-              deg=False, eulertype='ZYX')
-          mA = r.rotate_map_pixel(mA)
-
-          ind = np.argmax(mB)
-          th, ph = hp.pix2ang(nside, ind)
-          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
-              deg=False, eulertype='ZYX')
-          mB = r.rotate_map_pixel(mB)
-
+            source_idx = np.delete(source_idx, idx_t)
+            fluxB = np.delete(fluxB, idx_t)
+          mB[N > 0] = mB[N > 0]/N[N > 0]
 
 
           # Normalizing, assuming that s_lms are correct
