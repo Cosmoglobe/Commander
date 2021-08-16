@@ -36,6 +36,7 @@ module comm_tod_mod
   public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
 
+  ! Structure for individual detectors
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma        ! Gain; assumed constant over scan
@@ -58,6 +59,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
   end type comm_detscan
 
+  ! Stores information about all detectors at once 
   type :: comm_scan
      integer(i4b)   :: ntod                                        ! Number of time samples
      integer(i4b)      :: ext_lowres(2)             ! Shape of downgraded TOD including padding
@@ -164,6 +166,12 @@ module comm_tod_mod
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
+     ! Gain parameters
+     real(dp), allocatable, dimension(:)     :: gain_sigma_0  ! size(ndet), the estimated white noise level of that scan. Not truly a white noise since our model is sigma_0**2 * (f/fknee)**alpha instead of sigma_0 ** 2 (1 + f/fknee ** alpha)
+     real(dp), allocatable, dimension(:)    :: gain_fknee ! size(ndet)
+     real(dp), allocatable, dimension(:)    :: gain_alpha ! size(ndet)
+     real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
+     real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -322,7 +330,7 @@ contains
     if (.not. self%sample_L1_par) then
        call int2string(self%myid, id)
        unit        = getlun()
-       self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'_core'//id//'.unf'
+       self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
        inquire(file=trim(self%L2file), exist=self%L2_exist)
     else
        self%L2_exist = .false.
@@ -373,6 +381,17 @@ contains
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
 
+    !Allocate and initialize gain structures
+    allocate(self%gain_sigma_0(self%ndet))
+    ! To be initialized at first call
+    self%gain_sigma_0 = -1.d0
+    allocate(self%gain_fknee(self%ndet))
+    allocate(self%gain_alpha(self%ndet))
+    self%gain_fknee =  0.002d0 / (60.d0 * 60.d0) ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_alpha =  -1.d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_fknee_std = abs(self%gain_fknee(1) * 0.01)
+    self%gain_alpha_std = abs(self%gain_alpha(1) * 0.01)
+
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
@@ -411,15 +430,27 @@ contains
     self%pix2ind = -1
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
-       do j = 1, self%ndet
+       if (self%nhorn == 2) then
          do l = 1, self%nhorn
-          call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+            !call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              self%pix2ind(pix(k)) = 1
           end do
         end do
-       end do
+       else
+         do j = 1, self%ndet
+           do l = 1, self%nhorn
+            call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+            self%pix2ind(pix(1)) = 1
+            do k = 2, self%scans(i)%ntod
+               pix(k)  = pix(k-1)  + pix(k)
+               self%pix2ind(pix(k)) = 1
+            end do
+          end do
+         end do
+       end if
        deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
@@ -776,7 +807,9 @@ contains
     allocate(self%d(ndet), buffer_sp(n))
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
-       allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       end if
 
        allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
@@ -816,12 +849,16 @@ contains
        deallocate(xi_n)
 
        ! Read Huffman coded data arrays
-       if (nhorn == 2) then
+       if (nhorn == 2 .and. i == 1) then
+         ! For a single DA, this is redundant, so we are loading 4 times the
+         ! necessary pointing (and flags) information. Strictly speaking, this
+         ! would involve needing to have a self%pixA and self%pixB attribute for
+         ! WMAP only and not allocate self%d(i)%pix(j)
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
-       else
+       else if (nhorn .ne. 2) then
          do j = 1, nhorn
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
@@ -869,6 +906,18 @@ contains
 !!$                   self%d(i)%diode(k, :) = buffer_sp(1:m)
 !!$                end if
 !!$             end do
+!!$          end if
+!!$       end if
+
+!!$       if (tod%compressed_tod) then
+!!$          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+!!$       else
+!!$          allocate(self%d(i)%tod(m))
+!!$          call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
+!!$          if (tod%halfring_split == 2 )then
+!!$             self%d(i)%tod = buffer_sp(m+1:2*m)
+!!$          else
+!!$             self%d(i)%tod = buffer_sp(1:m)
 !!$          end if
 !!$       end if
     end do
@@ -970,7 +1019,7 @@ contains
             end if
          end if
        else ! ndiode > 1 per tod
-          if(tod%compressed_tod == .false.) then
+          if(tod%compressed_tod .eqv. .false.) then
              
           else
           end if
@@ -1318,6 +1367,9 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0', self%gain_sigma_0)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain_fknee', self%gain_fknee)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain_alpha', self%gain_alpha)
     end if
 
     call map%writeMapToHDF(chainfile, path, 'map')
@@ -1360,6 +1412,9 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
+!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
+!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
        !write(*,*) 'bp =', self%bp_delta
        ! Redefine gains; should be removed when proper initfiles are available
 !!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
@@ -1379,6 +1434,17 @@ contains
          & self%comm, ierr)
     call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
+!!$    call mpi_bcast(self%gain_sigma_0, size(self%gain_sigma_0), MPI_DOUBLE_PRECISION, 0, &
+!!$         & self%comm, ierr)
+!!$    call mpi_bcast(self%gain_fknee, size(self%gain_fknee), MPI_DOUBLE_PRECISION, 0, &
+!!$         & self%comm, ierr)
+!!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
+!!$         & self%comm, ierr)
+
+!!$    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
+!!$    do j = 1, self%ndet
+!!$       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.)
+!!$    end do
 
     do j = 1, self%ndet
        do i = 1, self%nscan
@@ -1386,7 +1452,7 @@ contains
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
-          if (output(k,j,5) == 0) then
+          if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
           end if
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.

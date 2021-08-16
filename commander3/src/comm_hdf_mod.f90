@@ -34,7 +34,7 @@ module comm_hdf_mod
   end type hdf_file
 
   type :: byte_pointer
-     byte, dimension(:), allocatable :: p 
+    byte, allocatable, dimension(:) :: p 
    ! contains
    !   final :: dealloc_byte_pointer
   end type byte_pointer
@@ -2536,8 +2536,9 @@ contains
   subroutine read_hdf_opaque(file, setname, val)
     implicit none
     type(hdf_file) :: file
-    character(len=*),                                    intent(in)  :: setname
+    character(len=*),                intent(in)  :: setname
     byte,     allocatable, dimension(:), target, intent(out) :: val
+    !byte,     dimension(:), pointer, intent(out) :: val
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
@@ -2567,7 +2568,8 @@ contains
     ! vl data
     TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
     TYPE(C_PTR) :: f_ptr
-    type(byte_pointer), allocatable, dimension(:) :: r_ptr
+    !type(byte_pointer2), allocatable, dimension(:) :: r_ptr
+    byte, pointer, dimension(:) :: r_ptr
     
     call open_hdf_set(file, setname)
     call h5dget_type_f(file%sethandle, filetype, hdferr)
@@ -2578,6 +2580,8 @@ contains
     allocate(rdata(dims(1)))    
     
     CALL h5tvlen_create_f(H5T_STD_U8LE, memtype, hdferr)
+    ! Get address of the C pointer corresponding 
+    ! to the first element of our data
     f_ptr = C_LOC(rdata(1))
     CALL h5dread_f(file%sethandle, memtype, f_ptr, hdferr)
     !
@@ -2586,9 +2590,12 @@ contains
     allocate(r_ptr(dims(1)))
     DO i = 1, dims(1)
        !WRITE(*,'(A,"(",I0,"):",/,"{")', ADVANCE="no") setname,i
-       CALL c_f_pointer(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
-       allocate(val(i)%p(size(r_ptr(i)%p)))
-       val(i)%p(:) = r_ptr(i)%p(:)
+       !CALL c_f_pointer(rdata(i)%p, r_ptr(i)%p, [rdata(i)%len] )
+       CALL c_f_pointer(rdata(i)%p, r_ptr, [rdata(i)%len] )
+       !allocate(val(i)%p(size(r_ptr(i)%p)))
+       allocate(val(i)%p(size(r_ptr)))
+       !val(i)%p(:) = r_ptr(i)%p(:)
+       val(i)%p(:) = r_ptr
        
        !DO j = 1, rdata(i)%len
        !   WRITE(*,'(1X,I0)', ADVANCE='no') val(i)%p(j)
@@ -2610,7 +2617,8 @@ contains
     CALL h5tclose_f(filetype, hdferr)
     call close_hdf_set(file)
     CALL h5tclose_f(memtype, hdferr)
-    deallocate(r_ptr, rdata)
+    !deallocate(r_ptr, rdata)
+    deallocate(rdata)
     !  deallocate(rdata)
     
   end subroutine read_hdf_vlen

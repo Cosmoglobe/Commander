@@ -172,14 +172,18 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_mask
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_nprop
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_proplen
+     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_mask
      character(len=512), allocatable, dimension(:,:)   :: cs_almsamp_init
      character(len=512), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
      real(dp),           allocatable, dimension(:,:,:) :: cs_spec_proplen_init
+     real(dp),           allocatable, dimension(:,:)   :: cs_spec_corr_limit
      real(dp),           allocatable, dimension(:,:,:,:) :: cs_theta_prior
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_uni_nprop
      logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_nprop
      logical(lgt),       allocatable, dimension(:,:,:) :: cs_spec_samp_proplen
+     logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_mono_combined
+     logical(lgt),       allocatable, dimension(:,:)   :: cs_spec_corr_convergence
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_npixreg
      integer(i4b),       allocatable, dimension(:)     :: cs_samp_samp_params_niter
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_lmax_ind_pol
@@ -684,6 +688,10 @@ contains
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
     allocate(cpar%cs_smooth_scale(n,MAXPAR), cpar%cs_apply_jeffreys(n))
+    allocate(cpar%cs_spec_mono_combined(n,MAXPAR),cpar%cs_spec_mono_mask(n,MAXPAR))
+    allocate(cpar%cs_spec_corr_convergence(MAXPAR,n),cpar%cs_spec_corr_limit(MAXPAR,n))
+    cpar%cs_spec_mono_combined=.false. !by default
+    cpar%cs_spec_corr_convergence=.false. !by default
 
     do i = 1, n
        call int2string(i, itext)
@@ -876,6 +884,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+                if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -972,6 +990,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
                 call get_parameter_hashtable(htbl, 'COMP_UMIN_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_UMIN_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+                if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_UNIM_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_UMIN_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_UMIN_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_UMIN_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1073,6 +1101,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+                if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1168,6 +1206,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
                 call get_parameter_hashtable(htbl, 'COMP_NU_P_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+                if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_NU_P_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1245,6 +1293,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(2,i))
+                call get_parameter_hashtable(htbl, 'COMP_ALPHA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(2,i))
+                if (cpar%cs_spec_corr_convergence(2,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_ALPHA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(2,i))
+                call get_parameter_hashtable(htbl, 'COMP_ALPHA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_ALPHA_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_ALPHA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
@@ -1344,6 +1402,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
                 call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+                if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_BETA_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1421,6 +1489,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(2,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(2,i))
+                if (cpar%cs_spec_corr_convergence(2,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(2,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
@@ -1531,6 +1609,16 @@ contains
                      & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
                 call get_parameter_hashtable(htbl, 'COMP_T_E_PROPLEN'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_E_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_corr_convergence(1,i))
+                if (cpar%cs_spec_corr_convergence(1,i))  call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_E_CORRELATION_CONVERGENCE_LIMIT'//itext, &
+                     & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(1,i))
+                call get_parameter_hashtable(htbl, 'COMP_T_E_COMBINED_MONOPOLE_SAMPLING'//itext, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_E_COMBINED_MONOPOLE_MASK'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_E_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -2051,6 +2139,8 @@ contains
           case ('power_law')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
           case ('physdust')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
@@ -2062,22 +2152,34 @@ contains
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))             
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
           case ('spindust2')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
+             if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,2)))
           case ('MBB')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(2,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
+             if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,2)))
           case ('freefree')
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(datadir)//trim(cpar%cs_input_ind(1,i)))             
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(datadir)//trim(cpar%cs_spec_mono_mask(i,1)))
           case ('line')
              call validate_file(trim(datadir)//trim(cpar%cs_SED_template(1,i)))
           end select
