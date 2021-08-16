@@ -49,7 +49,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)  :: diode          ! (ndiode, ntod) array of undifferenced data
-     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undeifferenced diode data, len (ndiode)
+     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn

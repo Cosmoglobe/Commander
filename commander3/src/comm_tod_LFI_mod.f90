@@ -175,11 +175,11 @@ contains
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
     constructor%ndiode          = 4
-    constructor%sample_L1_par   = .false.
+    constructor%sample_L1_par   = .true. !.false.
     constructor%compressed_tod  = .true.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
-    constructor%use_dpc_adc     = .true.
+    constructor%use_dpc_adc     = .false. !.true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
@@ -209,15 +209,15 @@ contains
     ! Define diode labels
     do i = 1, constructor%ndet
        if (index(constructor%label(i), 'M') /= 0) then
-          constructor%diode_names(i,1) = 'sky00'
-          constructor%diode_names(i,2) = 'sky01'
-          constructor%diode_names(i,3) = 'ref00'
-          constructor%diode_names(i,4) = 'ref01'
+          constructor%diode_names(i,1) = 'ref00'
+          constructor%diode_names(i,2) = 'sky00'
+          constructor%diode_names(i,3) = 'ref01'
+          constructor%diode_names(i,4) = 'sky01'
        else
-          constructor%diode_names(i,1) = 'sky10'
-          constructor%diode_names(i,2) = 'sky11'
-          constructor%diode_names(i,3) = 'ref10'
-          constructor%diode_names(i,4) = 'ref11'
+          constructor%diode_names(i,1) = 'ref10'
+          constructor%diode_names(i,2) = 'sky10'
+          constructor%diode_names(i,3) = 'ref11'
+          constructor%diode_names(i,4) = 'sky11'
        end if
     end do
 
@@ -313,6 +313,7 @@ contains
              do j = 1, constructor%ndiode
                 ! Build the actual adc correction tables (adc_in, adc_out)
                 name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+                if (constructor%myid == 0) write(*,*) '    Building table for '// trim(name)
                 call constructor%adc_corrections(i,j)%p%build_table(handle, name)
              end do
           end do
