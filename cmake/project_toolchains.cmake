@@ -295,6 +295,7 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 	endif()
 	# adding different flags depending on the compiler version
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
+			"-Wfatal-errors"
 			"-ffree-line-length-none" 
 			"-fno-range-check"
 		)

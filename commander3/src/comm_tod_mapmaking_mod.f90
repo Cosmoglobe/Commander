@@ -623,9 +623,6 @@ end subroutine bin_differential_TOD
      character(len=512),                      intent(in) :: prefix
      character(len=512),                      intent(in) :: postfix
 
-
-
-
      real(dp),     allocatable, dimension(:, :) :: m_buf
      integer(i4b)                               :: i_max, i_min, ierr, i
      real(dp)                                   :: delta_0

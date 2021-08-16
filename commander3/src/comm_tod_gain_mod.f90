@@ -286,6 +286,7 @@ contains
              & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
        end do
 !    end if
+
     ! Distribute and update results
     do j = 1, ndet
       call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
