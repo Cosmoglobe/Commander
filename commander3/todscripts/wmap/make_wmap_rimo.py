@@ -476,6 +476,14 @@ def create_rimo(fname, rot=0):
           s_lm_A = slmAs[beam_ind]
           s_lm_B = slmBs[beam_ind]
 
+
+          alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
+          b_lm_A = complex2realAlms(alm_A, lmax, mmax)
+
+          alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
+          b_lm_B = complex2realAlms(alm_B, lmax, mmax)
+
+
           b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
           b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
           DA = fname.split('_')[4]
@@ -515,6 +523,6 @@ def create_rimo(fname, rot=0):
 
 if __name__ == '__main__':
     fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
-    fname_out = 'test.h5'
+    #fname_out = 'test.h5'
     #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
     create_rimo(fname_out)
