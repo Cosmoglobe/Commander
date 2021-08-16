@@ -334,17 +334,20 @@ class commander_tod:
 
     def decompress(self, field, compression=''):
         comps = compression.split(' ')
-        data = self.outFile[field][:]
-        #print(data, len(data), len(data[0]), len(data[1]), comps)
         ndim = 1
+
+        matrix = False
         try:
             matrix = self.outFile[field].attrs['matrix']
         except KeyError:
             ndim = 1
 
         if(matrix):
-            ndim = len(data) 
-        
+            data = self.outFile[field][:]
+            ndim = len(data)        
+        else:
+            data = self.outFile[field]
+
         for i in range(ndim):
     
             if ndim > 1:
