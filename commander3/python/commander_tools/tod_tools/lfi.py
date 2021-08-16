@@ -33,7 +33,7 @@ class lfi(object):
     horns = {30:[27, 28], 44:[24, 25, 26], 70:[18, 19, 20, 21, 22, 23]}
     hornTypes = ['M', 'S']
     diodeTypes = {'M':['00', '01'], 'S':['10', '11']}
-    ods = np.arange(91, 1604)
+    ods = np.arange(91, 1540)
     npsi = 4096
     ntodsigma = 1
     nsides = {30:512, 44:512, 70:1024}
