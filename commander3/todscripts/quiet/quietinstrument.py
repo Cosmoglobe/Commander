@@ -1,5 +1,8 @@
 from astropy.io import fits
 """
+
+The instrument file should be one file with all the information below (LFI example)
+
 top level -- 30, 44, 70 <= frequencies for each of these there is a bandpass
 030                      Group
 044/                     Group
@@ -54,8 +57,17 @@ W
 ...
 common/
        version
+
+
+Need to use `commander_instrument.py` with following fields:
+    __init__(self, path, fileName, version, mode)
+    add_field(self, fieldName, data)
 """
 filepath = "/mn/stornext/u3/hke/quiet_data/auxilliary"
 data = fits.open(f'{filepath}/quiet_qband_temp_beam_140910.fits')
 print(data[0].header)
 print(data[1].header)
+
+
+version = '1.0.0'
+

@@ -41,7 +41,8 @@ module comm_hdf_mod
   end type byte_pointer
 #elif USE_GNU   
   type :: byte_pointer
-    pointer, dimension(:), allocatable :: p 
+    byte, dimension(:), pointer :: p 
+    !byte, dimension(:), allocatable :: p 
   end type byte_pointer
 #endif
 
@@ -2543,8 +2544,13 @@ contains
   subroutine read_hdf_opaque(file, setname, val)
     implicit none
     type(hdf_file) :: file
-    character(len=*),                                    intent(in)  :: setname
+    character(len=*),                            intent(in)  :: setname
+#ifdef USE_INTEL   
     byte,     allocatable, dimension(:), target, intent(out) :: val
+#elif USE_GNU
+    ! [Maksym]: Changed this from `allocatable` to `pointer`
+    byte,     dimension(:), pointer, intent(out) :: val
+#endif
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint

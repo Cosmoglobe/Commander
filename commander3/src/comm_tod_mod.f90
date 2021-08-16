@@ -987,7 +987,7 @@ contains
             end if
          end if
        else ! ndiode > 1 per tod
-          if(tod%compressed_tod == .false.) then
+          if(tod%compressed_tod .eqv. .false.) then
              
           else
           end if

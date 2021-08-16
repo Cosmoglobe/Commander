@@ -167,7 +167,7 @@ def make_od(level3_dir, level3_data_files,
     ctod.add_field(prefix + '/vsun', vsun)
     ctod.add_field(prefix + '/time', np.array([time_vals[0], 0, 0]))
     #---------------------------------------------
-    print("Running finalize_chunk on file: {level3_data_files[k]}")
+    print(f"Running finalize_chunk on file: {level3_data_files[k]}")
     ctod.finalize_chunk(f'{ces}'.zfill(6))
     print("finalize_chunk has finished")
     ctod.finalize_file()
