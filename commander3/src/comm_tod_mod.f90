@@ -113,12 +113,12 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
-     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
-     real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
-     real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
-     real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
-     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
-     real(dp), allocatable, dimension(:)     :: nu_c                                        ! Center frequency
+     real(dp), allocatable, dimension(:)     :: gain0                        ! Mean gain
+     real(dp), allocatable, dimension(:)     :: polang                       ! Detector polarization angle
+     real(dp), allocatable, dimension(:)     :: mbang                        ! Main beams angle
+     real(dp), allocatable, dimension(:)     :: mono                         ! Monopole
+     real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell          ! Beam parameter
+     real(dp), allocatable, dimension(:)     :: nu_c                         ! Center frequency
      real(dp), allocatable, dimension(:,:,:) :: prop_bp         ! proposal matrix, L(ndet,ndet,ndelta),  for bandpass sampler
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
