@@ -811,6 +811,8 @@ contains
     val = 0.d0
     n   = 0.d0
     do l = bin%lmin, bin%lmax
+       !write(*,*) l
+       !write(*,*) self%Dl(l,bin%spec)
        val = val + (2*l+1) * self%Dl(l,bin%spec)
        n   = n   + 2*l+1
     end do
@@ -828,8 +830,8 @@ contains
     class(comm_Cl), intent(inout) :: self
 
     integer(i4b) :: k
-
-    do k = 1, self%nbin2
+    !write(*,*) self%lmax
+    do k = 1, self%lmax  !nbin2
        call self%binCl2(self%bins2(k))
     end do
     
@@ -1038,7 +1040,7 @@ contains
           call sample_Dl_lookup(handle, ok)
        end if
 
-       do i = 1, self%nbin2
+       do i = 1, self%lmax  !nbin2
           call sample_Dl_bin(self%bins2(i), handle, ok)
 !          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
        end do
@@ -1156,6 +1158,7 @@ contains
       real(dp)     :: prior(2)
       
       !write(*,*) bin%lmin, bin%lmax, bin%spec
+      !write(*,*) self%Dl(bin%lmin,:)
 
       if (.not. ok) return
       if (bin%stat == 'S') then
@@ -1175,25 +1178,37 @@ contains
                   prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
                   prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
                case (4)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  if (self%Dl(l,1) /= 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  else
+                     prior(1) = max(prior(1), 0.d0)
+                  end if
+                  write(*,*) "EE", l
+                  write(*,*) prior
                case (5)
                   prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
                   prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
                case (6)
                   prior(1) = max(prior(1), 0.d0)
+                  write(*,*) "BB", l
+                  write(*,*) prior
                end select
             end do
          end if
          Dl_in(2) = self%Dl(bin%lmin,bin%spec)
+         !write(*,*) "Dl_in(2)", Dl_in(2)
          Dl_in(1) = max(Dl_in(2) - 3*bin%sigma, 0.5d0*(Dl_in(2)+prior(1)))
          Dl_in(3) = min(Dl_in(2) + 3*bin%sigma, 0.5d0*(Dl_in(2)+prior(2)))
+         !write(*,*) "Dl_in(1)", Dl_in(1)
+         !write(*,*) "Dl_in(3)", Dl_in(3)
+         write(*,*) "Dl_in:", Dl_in
 
          ! Draw sample
          lmin=bin%lmin; lmax=bin%lmax; spec=bin%spec; p1=bin%p1; p2=bin%p2
          Dl_prop = sample_InvSamp(handle, Dl_in, lnL_invWishart, prior, status)
       
          ! Update
-         write(*,*) lmin, lmax, Dl_prop, status
+         !write(*,*) lmin, lmax, Dl_prop, status
          !stop
          if (status == 0) then
             self%Dl(bin%lmin:bin%lmax,bin%spec) = Dl_prop
