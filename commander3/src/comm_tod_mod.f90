@@ -673,7 +673,7 @@ contains
     do i = 1, self%nscan
        do j = 1, self%ndet
           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
-          self%scans(i)%d(j)%baseline = 0d0
+          self%scans(i)%d(j)%baseline = 0.
        end do
     end do
 
@@ -1436,7 +1436,7 @@ contains
 
   end subroutine construct_dipole_template
 
-  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, horn, s_dip, &
+  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, horn_ind, s_dip, &
                                          &  factor)
     !construct a CMB dipole template in the time domain for differential data
     !
@@ -1464,7 +1464,7 @@ contains
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     logical(lgt),                      intent(in)    :: orbital
-    integer(i4b),                      intent(in)    :: horn
+    integer(i4b),                      intent(in)    :: horn_ind
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
     real(dp),               intent(in), optional     :: factor
 
@@ -1501,12 +1501,15 @@ contains
        ! Since the "det" index actually references which beam you're looking at,
        ! we need to reference horns A and B, which are ordered AABB in WMAP
        ! data.
-       if (horn == 1) then
+       if (horn_ind == 1) then
           call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
                & relativistic, self%orb_4pi_beam, P, s_dip(:,j), f)
-       else
+       else if (horn_ind == 2) then
           call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
                & relativistic, self%orb_4pi_beam, P, s_dip(:,j), f)
+       else
+          write(*,*) "Should only be 1 or 2"
+          stop
        end if
     end do
     deallocate(P)

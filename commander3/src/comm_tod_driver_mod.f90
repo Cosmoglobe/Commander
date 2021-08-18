@@ -346,6 +346,8 @@ contains
     ! This call calculates the dipole template assuming that all the detectors
     ! are pointing at pixel A. The next line assumes they're all pointing at
     ! pixel B.
+    ! The .true. refers to whether the orbital dipole (true) or solar dipole
+    ! (false) is used.
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), &
         & .true., 1, self%s_orbA, 1d3)
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), &
@@ -442,7 +444,7 @@ contains
   !  Sampling drivers etc.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
+  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang)
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -467,6 +469,7 @@ contains
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+    real(dp),                                  intent(in),   optional :: polang
 
     integer(i4b) :: i, j, ext(2), ierr
     real(dp)     :: t1, t2
@@ -496,7 +499,7 @@ contains
        if (tod%nhorn == 1) then
           call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        else
-          call sd%init_differential(tod, i, map_sky, procmask, procmask2)
+          call sd%init_differential(tod, i, map_sky, procmask, procmask2, polang=polang)
        end if
 
        ! Set up filtered calibration signal, conditional contribution and mask
@@ -510,14 +513,14 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
+          else if (trim(mode) == 'imbal' .and. tod%orb_abscal .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              ! Jarosik uses the orbital dipole for this.
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
                & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
+          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
@@ -614,7 +617,7 @@ contains
 
 
   ! Sample baseline
-  subroutine sample_baseline(tod, handle, map_sky, procmask, procmask2)
+  subroutine sample_baseline(tod, handle, map_sky, procmask, procmask2, polang)
     !   Subroutine that implements baseline subtraction, assuming a constant
     !   offset for each TOD.
     !
@@ -631,6 +634,7 @@ contains
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+    real(dp),                                  intent(in),   optional :: polang
 
     integer(i4b) :: i, j
     real(dp)     :: t1, t2
@@ -638,12 +642,15 @@ contains
 
     real(sp), allocatable, dimension(:,:) :: residual
     real(sp), allocatable, dimension(:)   :: r_fill
-    real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
+    real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf, s_buf2
     integer(i4b) :: ext(2)
 
     if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
 
 
+
+
+    ! Marginalized noise sampling
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
@@ -652,30 +659,35 @@ contains
        if (tod%nhorn == 1) then
           call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        else
-          call sd%init_differential(tod, i, map_sky, procmask, procmask2)
+          call sd%init_differential(tod, i, map_sky, procmask, procmask2, polang=polang)
        end if
 
        call tod%downsample_tod(sd%s_orb(:,1), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
+       allocate(s_buf2(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
        allocate(residual(ext(1):ext(2),tod%ndet))
        allocate(r_fill(sd%ntod))
 
        ! Calibrator is just a constant value
        s_buf = 1.
-
+        
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
           ! Return the data to its raw state
           sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
+          !if (i == 1 .and. j==1) write(*,*) 'i,j,before',tod%scans(i)%d(j)%baseline
 
           call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=0.9)
           call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
             & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
           call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
        end do
-       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       s_buf2 = s_invsqrtN
+       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, &
+         & pow=0.5d0, off=.true.)
+       ! s_invsqrtN is the same as N^{-1}_i T_i in the Gjerlow (2021) notation.
 
 
 
@@ -688,7 +700,9 @@ contains
             & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
           call tod%downsample_tod(r_fill, ext, residual(:,j))
        end do
-       call multiply_inv_N(tod, i, residual, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       s_buf = residual
+       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, &
+         & pow=0.5d0, off=.true.)
 
 
        do j = 1, tod%ndet
@@ -696,22 +710,59 @@ contains
             tod%scans(i)%d(j)%baseline = 0.
             cycle
           end if
-          tod%scans(i)%d(j)%baseline = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j)) &
-                                        &  / sum(s_invsqrtN(:,j) * mask_lowres(:,j))
+          tod%scans(i)%d(j)%baseline = sum(s_buf2(:,j) * residual(:,j) * mask_lowres(:,j)) &
+                                        &  / sum(s_buf2(:,j) * s_invsqrtN(:,j) * mask_lowres(:,j))
+          !if (i == 1 .and. j==1) write(*,*) 'i,j,after',tod%scans(i)%d(j)%baseline
           if (trim(tod%operation) == 'sample') then
             tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
-              &   + rand_gauss(handle) / sqrt(sum(s_invsqrtN(:,j) * mask_lowres(:,j)))
+              &   + rand_gauss(handle) / sqrt(sum(s_buf2(:,j) * s_invsqrtN(:,j) * mask_lowres(:,j)))
           end if
        end do
 
 
+
+
+
        ! Clean up
-       deallocate(s_invsqrtN, s_buf, mask_lowres, residual, r_fill)
+       deallocate(s_invsqrtN, s_buf, s_buf2, mask_lowres, residual, r_fill)
        call wall_time(t2)
        tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
        tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
        call sd%dealloc
     end do
+
+
+    !!Original
+    !do i = 1, tod%nscan
+    !   if (.not. any(tod%scans(i)%d%accept)) cycle
+    !   call wall_time(t1)
+
+    !   ! Prepare data
+    !   if (tod%nhorn == 1) then
+    !      call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+    !   else
+    !      call sd%init_differential(tod, i, map_sky, procmask, procmask2, polang=polang)
+    !   end if
+
+    !   do j = 1, tod%ndet
+    !      ! Return the data to its raw state
+    !      sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
+
+    !      ! Estimate the baseline and sample it if requested
+    !      tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
+    !        & *sd%mask(:,j))/sum(sd%mask(:,j))
+    !      if (trim(tod%operation) == 'sample') then
+    !        tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
+    !         &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
+    !      end if
+    !   end do
+
+    !   ! Clean up
+    !   call wall_time(t2)
+    !   tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
+    !   tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
+    !   call sd%dealloc
+    !end do
 
   end subroutine sample_baseline
 

@@ -372,7 +372,7 @@ contains
             self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                  & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                  & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-                 ! lmax nmaps, bmax, beam, map, optim
+                 ! lmax, nmaps, bmax, beam, map, optim
          end do
       end if
       ! In order to not completely break the rest of Commander, I am making the
@@ -388,11 +388,11 @@ contains
       ! Thinking about a test where I don't sample the parameters and just do
       ! the mapmaking for several iterations, maybe looping over the
       ! polarization angles in the sidelobe corrections.
-      call sample_baseline(self, handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
+      call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
 
 
 

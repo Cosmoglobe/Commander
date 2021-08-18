@@ -548,16 +548,18 @@ contains
   ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
   ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
   ! Here inp and res are assumed to be already allocated. 
-  subroutine multiply_inv_N(tod, scan, buffer, sampfreq, pow)
+  subroutine multiply_inv_N(tod, scan, buffer, sampfreq, pow, off)
     implicit none
     class(comm_tod),                     intent(in)     :: tod
     integer(i4b),                        intent(in)     :: scan
     real(sp),          dimension(:,:),   intent(inout)  :: buffer !input/output
     real(dp),                            intent(in), optional :: sampfreq, pow
+    logical(lgt),                        intent(in), optional :: off
     integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(sp)     :: nu, pow_
+    logical(lgt) :: off_
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     
@@ -567,6 +569,7 @@ contains
     m        = count(tod%scans(scan)%d%accept)
     n        = ntod + 1
     pow_     = 1.d0; if (present(pow)) pow_ = pow
+    off_     = .false.; if (present(off)) off_ = off
     samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
     
     allocate(dt(2*ntod,m), dv(0:n-1,m))
@@ -591,7 +594,7 @@ contains
        j = j+1
        noise    = tod%scans(scan)%d(i)%N_psd%sigma0**2 * samprate / tod%samprate
        
-       if (pow_ >= 0.d0) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
+       if (pow_ >= 0.d0 .and. .not. off_) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
        do l = 1, n-1                                                      
           nu      = l*(samprate/2)/(n-1)
           signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu) * samprate / tod%samprate
