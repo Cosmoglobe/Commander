@@ -586,22 +586,22 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
-          if (tod%compressed_tod) then
+!          if (tod%compressed_tod) then
             call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
-          else
-            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
-              & out=.true., mask_lowres=mask_lowres)
-          end if
+!!$          else
+!!$            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
+!!$              & out=.true., mask_lowres=mask_lowres)
+!!$          end if
        else
           ! Time-variable gain terms
-          if (tod%compressed_tod) then
+!          if (tod%compressed_tod) then
             call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
               & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
-          else
-            call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
-              & handle, mask_lowres=mask_lowres)
-          end if
+!!$          else
+!!$            call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
+!!$              & handle, mask_lowres=mask_lowres)
+!!$          end if
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))

@@ -284,6 +284,13 @@ contains
 !          sigma_0 = 0.002d0
           call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
              & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+!!$          if (j == 1) then
+!!$             open(58,file='dgain.dat')
+!!$             do k = 1, size(g,1)
+!!$                write(58,*) k, g(k,j,1)
+!!$             end do
+!!$             close(58)
+!!$          end if
        end do
 !    end if
     ! Distribute and update results
@@ -341,11 +348,11 @@ contains
           residual(:,j) = 0.
           cycle
        end if
-       if (present(tod_arr)) then
+!       if (present(tod_arr)) then
          r_fill = tod_arr(:,j) - s_sub(:,j)
-       else
-         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)
-       end if
+!!$       else
+!!$         r_fill = tod%scans(scan)%d(j)%tod - s_sub(:,j)
+!!$       end if
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', abs(real(tod%scans(scan)%d(j)%N_psd%sigma0, sp)), handle, tod%scans(scan)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
@@ -374,10 +381,12 @@ contains
        end if
 
        !if (tod%scanid(scan) == 30 .and. out) then
-       if (out .and. dA > 0.d0) then
-          !write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # absK', j
-         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-       end if
+!!$       if (out .and. dA > 0.d0) then
+!!$          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
+!!$         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
+!!$       else if (dA > 0.d0) then
+!!$          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # rel', j, tod%gain0(0), tod%scans(scan)%d(j)%gain
+!!$       end if
     end do
 
     deallocate(residual, r_fill)
@@ -473,7 +482,7 @@ contains
        if (tod%verbosity > 1) then
 !!$         write(*,*) 'A =', A
 !!$         write(*,*) 'b =', b
-!!$         write(*,*) 'relcal = ', real(x,sp)
+         write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -746,9 +755,12 @@ contains
         do i = 1, nscan
             fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
             b(i) = b(i) + fluctuations(i)
-            precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
          end do
       end if
+
+      do i = 1, nscan
+         precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
+      end do
 
 !      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
 !      precond = 1.d0
@@ -961,7 +973,7 @@ contains
          residual = new_residual
          z = new_z
          iterations = iterations + 1
-         if (mod(iterations, 100) == 0) then
+         if (.false. .and. mod(iterations, 100) == 0) then
             write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
 !            call int2string(iterations, itext)
 !            open(58, file='gain_cg_' // itext // '.dat')
@@ -1120,7 +1132,7 @@ contains
      real(dp), intent(in)                   :: sigma_0, fknee, alpha
      real(dp), dimension(size(freqs)+1)     :: calculate_invcov
 
-     calculate_invcov(1) = 0.d0
+     calculate_invcov(1) = 1d12 !0.d0
      calculate_invcov(2:size(freqs)+1) = 1.d0 / (sigma_0 ** 2 * (freqs/fknee) ** alpha)
 
   end function calculate_invcov
@@ -1312,20 +1324,20 @@ contains
     allocate(samples(5000, 2))
     samples = 0.d0
     call run_mh(fknee, alpha, propcov, sigma_0, 2000, samples, gain_ps, freqs, .true., handle)
-    open(58, file='samples_first.dat')
-    do i = 1, 2000
-      write(58, *) samples(i, 1), samples(i, 2)
-    end do
-    close(58)
+!!$    open(58, file='samples_first.dat')
+!!$    do i = 1, 2000
+!!$      write(58, *) samples(i, 1), samples(i, 2)
+!!$    end do
+!!$    close(58)
     call compute_covariance_matrix(samples(1000:2000, :), propcov)
     fknee = samples(2000, 1)
     alpha = samples(2000, 2)
     call run_mh(fknee, alpha, propcov, sigma_0, 5000, samples, gain_ps, freqs, .false., handle)
-    open(58, file='samples_second.dat')
-    do i = 1, 5000
-      write(58, *) samples(i, 1), samples(i, 2)
-    end do
-    close(58)
+!!$    open(58, file='samples_second.dat')
+!!$    do i = 1, 5000
+!!$      write(58, *) samples(i, 1), samples(i, 2)
+!!$    end do
+!!$    close(58)
     fknee = samples(5000, 1)
     alpha = samples(5000, 2)
     write(*, *) "Gain fknee and alpha, final values:", fknee, alpha
@@ -1397,7 +1409,7 @@ contains
     curr_vec(1) = fknee
     curr_vec(2) = alpha
     curr_lnL = psd_loglike(curr_vec(1), curr_vec(2), sigma_0, gain_ps, freqs)
-    write(*, *) "Curr_lnl: ", curr_lnL
+!!$    write(*, *) "Curr_lnl: ", curr_lnL
     sqrt_cov = propcov
     call compute_hermitian_root(sqrt_cov, 0.5d0)
     do i = 1, num_samples
@@ -1423,8 +1435,8 @@ contains
          end if
       end if
     end do
-    write(*, *) "Final acceptance rate: ", acc_rate
-    write(*, *) "Final scaling factor: ", scaling_factor
+!!$    write(*, *) "Final acceptance rate: ", acc_rate
+!!$    write(*, *) "Final scaling factor: ", scaling_factor
 
   end subroutine run_mh
 
