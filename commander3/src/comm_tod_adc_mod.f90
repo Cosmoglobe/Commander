@@ -157,7 +157,6 @@ contains
     
   end subroutine load_dpc
 
-
   function constructor_precomp(instfile, path, load)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
@@ -455,7 +454,7 @@ contains
        dummymask(:) = 1
 
        ! Mask bad bins and massive outliers       
-       call mask_bins(self%v_bins, self%rms_bins, self%nval, binmask,name)
+       call mask_bins(self%v_bins, self%rms_bins, self%nval, binmask)
 
        ! Remove the linear term from V vs RMS before fitting for the dips
        call return_linreg(self%v_bins, self%rms_bins, binmask, slope, offset,trim=.true.)
@@ -480,7 +479,7 @@ contains
        v_dips = return_dips(self%v_bins, flatrms, binmask, diprange)
 
        ! Return the Inverse Differential Response Function (idrf)
-       idrf = return_gaussian_idrf_dips(self%v_bins, flatrms, binmask, v_dips, handle,name)
+       idrf = return_gaussian_idrf_dips(self%v_bins, flatrms, binmask, self%nval, v_dips, handle,name)
 
        ! Also create a composition of our model to compare with the binned RMS
        model = linrms - idrf
@@ -519,7 +518,7 @@ contains
        self%adc_in  = self%v_bins
        self%adc_out = self%v_bins
        do i = 1, self%nbins
-          self%adc_out(i) = self%adc_out(i) + flatrirf(i)
+          self%adc_out(i) = self%adc_out(i) - flatrirf(i)
        end do
        
        ! Write to file binned rms, voltages, and response function to files
@@ -571,7 +570,7 @@ contains
     
   end subroutine build_table
 
-  subroutine mask_bins(vbins,rms,nval,mask,name)
+  subroutine mask_bins(vbins,rms,nval,mask)
     ! ====================================================================
     ! This subroutine iterates masks out bins with spuriously large deviations
     ! in the white noise level (spikes) and bins with 0 entries
@@ -603,9 +602,7 @@ contains
     real(sp)                                  :: m, b
     integer(i4b)                              :: i, j, k, leng, count
     real(sp),     dimension(:), allocatable   :: rms_flat
-
-    character(len=50),          intent(in)    :: name
-    real(sp) :: nval_mean, y_mean, y_std, y_var
+    real(sp)                                  :: nval_mean, y_mean, y_std, y_var
 
     ! Initialize the middle mean and std
     leng = size(vbins)
@@ -924,7 +921,7 @@ contains
     
   end function return_gaussian
 
-  function return_gaussian_idrf_dips(x, y, mask, dips, handle,name) result(idrf)
+  function return_gaussian_idrf_dips(x, y, mask, bincount, dips, handle, name) result(idrf)
     !=========================================================================
     ! Fits a gaussian function to each recognized dip in the 
     ! white noise level
@@ -953,6 +950,7 @@ contains
     
     real(sp), dimension(:),     intent(in)    :: x, y
     integer(i4b), dimension(:), intent(in)    :: mask
+    integer(i4b), dimension(:), intent(in)    :: bincount
     integer(i4b), dimension(:), intent(in)    :: dips
     type(planck_rng),           intent(inout) :: handle
     real(sp), allocatable, dimension(:)       :: idrf, newy, model
@@ -965,18 +963,19 @@ contains
     character(len=2)                          :: dip_str
     character(len=50),          intent(in)    :: name
 
-    real(sp), dimension(:), allocatable       :: x_tmp, y_tmp, ret_mod
+    real(sp), dimension(:), allocatable       :: x_tmp, y_tmp, count_tmp
+    integer(i4b), dimension(:), allocatable   :: mask_tmp
 
     integer(i4b)                              :: currpar, first, last, ngibbs, k
 
-    real(dp), dimension(2)                    :: P_par
-    real(dp), dimension(3)                    :: x_par
+    real(dp), dimension(2)                    :: P_uni
+    ! real(dp), dimension(3)                    :: x_par
     real(sp), dimension(3)                    :: pars
     real(sp), dimension(3)                    :: par_est
     
     ! declare the goodies
     fit_range = 30
-    ngibbs    = 10
+    ngibbs    = 25
     leng      = size(x)
     
     ! allocate all relevant arrays
@@ -1012,9 +1011,10 @@ contains
 
        ! allocate temporary array for voltage bins and rms bins
        allocate(x_tmp(last-first),y_tmp(last-first))
+       allocate(count_tmp(last-first))
+       allocate(mask_tmp(last-first))
 
        ! Flip the dip!
-
        do i = dips(j)-fit_range, dips(j)+fit_range
           ! skip over incides that are masked or outside the index range
           if (i < 1) cycle
@@ -1023,8 +1023,10 @@ contains
           newy(i)  = -1.0*y(i)
        end do
 
-       x_tmp(:) = x(first:last)
-       y_tmp(:) = newy(first:last)
+       x_tmp(:)     = x(first:last)
+       y_tmp(:)     = newy(first:last)
+       count_tmp(:) = bincount(first:last) 
+       mask_tmp(:)  = mask(first:last)
 
        write(dip_str,'(i0.2)') j
        
@@ -1045,82 +1047,44 @@ contains
        pars(2) = sigma
        pars(3) = amp
 
-       ! par_est = pars
+       par_est = pars
 
-       ! write(*,*) 'initial estimates:'
-       ! write(*,*) 'mean  = ', pars(1) 
-       ! write(*,*) 'sigma = ', pars(2) 
-       ! write(*,*) 'amp   = ', pars(3) 
-
-       ! With our estimates, let's sample for the parameters
-       ! allocate(ret_mod(last-first))
-       ! do k = 1, ngibbs
-       !    write(gibbstr,'(i0.3)') k
-       !    do i = 1, 1!3
-       !       currpar  = i
-       !       x_par(:) = 0.0
+       ! With our estimates, let's find the maximum likelihood values for the parameters
+       do k = 1, ngibbs
+          write(gibbstr,'(i0.3)') k
+          do i = 1, 3
+             currpar  = i
+             ! x_par(:) = 0.0
              
-       !       ! define parameter uniform prior ranges
-       !       if (i == 1) then
-       !          ! Ensure the mean value is within the dip range
-       !          P_par(1) = minval(x_tmp)
-       !          P_par(2) = maxval(x_tmp)
-       !       else if (i == 2) then
-       !          P_par(1) = 0.75*par_est(i)
-       !          P_par(2) = 1.25*par_est(i)
-       !       else if (i == 3) then
-       !          ! Ensure amplitude is always greater than 0
-       !          P_par(1) = 0.0
-       !          P_par(2) = maxval(y_tmp)*1.5
-       !       end if
+             ! define parameter uniform prior ranges
+             if (i == 1) then
+                ! Ensure the mean value is within the dip range
+                P_uni(1) = par_est(1) - 2.0*par_est(2)
+                P_uni(2) = par_est(1) + 2.0*par_est(2)
+             else if (i == 2) then
+                P_uni(1) = 0.75*par_est(2)
+                P_uni(2) = 1.25*par_est(2)
+             else if (i == 3) then
+                ! Ensure amplitude is always greater than 0
+                P_uni(1) = 0.0
+                P_uni(2) = 1.5*par_est(3)
+             end if
+
+             pars(i) = find_maxlike_gauss_par(i)
+          !    ! Grid out parameter estimates
+          !    x_par(1) = max(par_est(i) - 0.5 * abs(par_est(i)), P_uni(1))
+          !    x_par(3) = min(par_est(i) + 0.5 * abs(par_est(i)), P_uni(2))
+          !    x_par(3) = max(x_par(3), x_par(1)+1.d-3*(P_uni(2)-P_uni(1)))
+          !    x_par(2) = 0.5 * (x_par(1) + x_par(3))
              
-       !       ! Grid out parameter estimates
-       !       x_par(1) = max(par_est(i) - 0.5 * abs(par_est(i)), P_par(1))
-       !       x_par(3) = min(par_est(i) + 0.5 * abs(par_est(i)), P_par(2))
-       !       x_par(3) = max(x_par(3), x_par(1)+1.d-3*(P_par(2)-P_par(1)))
-       !       x_par(2) = 0.5 * (x_par(1) + x_par(3))
-             
-       !       pars(i) = real(sample_InvSamp(handle, x_par, lnL_dip_n, P_par))
+          !    pars(i) = real(sample_InvSamp(handle, x_par, lnL_dip_n, P_uni))
 
-       !    end do
-       !    write(*,*) 'from the inversion sampler: ',gibbstr
-       !    write(*,*) 'mean  = ', pars(1) 
-       !    write(*,*) 'sigma = ', pars(2) 
-       !    write(*,*) 'amp   = ', pars(3) 
-
-
-       !    ret_mod = return_gaussian(x_tmp,pars)
-       !    open(62,file='dip_model_'//dip_str//'_'//trim(name)//'_'//gibbstr//'.dat')
-       !    do i = 1, last-first
-       !       write(62,*) ret_mod(i)
-       !    end do
-       !    close(62)
-       ! end do
-
-
-       ! ! For overwriting the inversion sampling pars
-       ! ! pars(1) = x(dips(j))
-       ! ! pars(2) = max(2.0*(fwhm/2.355), 0.00001)
-       ! ! pars(3) = maxval(y_tmp)
-
-       ! ! write(*,*) 'Dip ', j
-       ! ! write(*,*) 'mean  = ', pars(1) 
-       ! ! write(*,*) 'sigma = ', pars(2) 
-       ! ! write(*,*) 'amp   = ', pars(3) 
-       ! ! write(*,*) '-----------------'
-       ! ! write(*,*) ''
-
-       ! open(60,file='dip_xs_'//dip_str//'_'//trim(name)//'.dat')
-       ! open(61,file='dip_ys_'//dip_str//'_'//trim(name)//'.dat')
-       ! do i = 1, last-first
-       !    write(60,*) x_tmp(i)
-       !    write(61,*) y_tmp(i)
-       ! end do
-       ! close(60)
-       ! close(61)
+          end do
+       end do
 
        deallocate(x_tmp,y_tmp)
-       ! deallocate(ret_mod)
+       deallocate(count_tmp)
+       deallocate(mask_tmp)
 
        if (amp < 0.0) cycle
        if (sigma < 0.0) cycle
@@ -1133,40 +1097,75 @@ contains
 
   contains
     
-    ! A function to evaluate the log-likelihood
-    function lnL_dip_n(samp)
+    ! Grid out and solve for maximum likelihood parameter value
+    function find_maxlike_gauss_par(par_i) result(gpar)
       use healpix_types
       implicit none
-      real(dp), intent(in) :: samp
-      real(dp)             :: lnL_dip_n
-      real(sp)             :: tmp
-
+      ! real(sp),   intent(inout) :: gpar
+      integer(i4b), intent(in)  :: par_i
+      real(sp), dimension(1000) :: lnL, grid
+      real(sp)                  :: gpar, tmp
+      integer(i4b)              :: l, i, ind
       real(sp), dimension(last-first) :: gauss
 
-      integer(i4b)         :: i
+      lnL(:) = 0.0
 
-      ! Save old parameter value
-      tmp = pars(currpar)
-      pars(currpar) = real(samp)
+      do l = 1, 1000
+         grid(l) = (P_uni(2)-P_uni(1))*(l-1)/1000 + P_uni(1)
+         
+         tmp = pars(par_i)
+         pars(par_i) = grid(l)
 
-      lnL_dip_n = 0.0
+         gauss = return_gaussian(x_tmp,pars)
+         do i = 1, last-first
+            if (mask_tmp(i) == 0) cycle
+            lnL(l) = lnL(l) - 0.50*(y_tmp(i) - gauss(i))**2/count_tmp(i)
+         end do
+         
+      end do
+      
+      ind = maxloc(lnL,dim=1)
 
-      ! Return the gaussian given the parameters
-      gauss = return_gaussian(x_tmp,pars)
+      gpar = grid(ind)
 
-      lnl_dip_n = -0.5d0 * dble(sum((y_tmp-gauss)**2))
+    end function find_maxlike_gauss_par
+    
+    ! ! A function to evaluate the log-likelihood
+    ! function lnL_dip_n(samp)
+    !   use healpix_types
+    !   implicit none
+    !   real(dp), intent(in) :: samp
+    !   real(dp)             :: lnL_dip_n
+    !   real(sp)             :: tmp
+    !   integer(i4b)         :: i
 
-      ! do i = 1, last-first
-      !    lnL_dip_n = lnL_dip_n -0.5d0*dble((y_tmp(i)-gauss(i))**2.0)
-      ! end do
+    !   real(sp), dimension(last-first) :: gauss
 
-      write(*,*) 'samp, lnl_dip_n'
-      write(*,*) samp, lnl_dip_n
+    !   if (samp < P_uni(1) .or. samp > P_uni(2)) then
+    !      lnL_dip_n = -1.d30
+    !      return
+    !   end if
 
-      ! Put that old value back
-      pars(currpar) = tmp
+    !   ! Save old parameter value
+    !   tmp = pars(currpar)
+    !   pars(currpar) = real(samp)
 
-    end function lnL_dip_n
+    !   lnL_dip_n = 0.0
+
+    !   ! Return the gaussian given the parameters
+    !   gauss = return_gaussian(x_tmp,pars)
+
+    !   do i = 1, last-first
+    !      lnL_dip_n = lnL_dip_n -0.5d0 * dble((y_tmp(i)-gauss(i))**2/count_tmp(i))
+    !   end do
+
+    !   write(*,*) 'samp, lnL_dip_n'
+    !   write(*,*)  samp, lnL_dip_n
+
+    !   ! Put that old value back
+    !   pars(currpar) = tmp
+
+    ! end function lnL_dip_n
   end function return_gaussian_idrf_dips
   
 end module comm_tod_adc_mod
