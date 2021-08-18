@@ -6,8 +6,9 @@ import h5py
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0001.h5', 'r')
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
-burn = 1000
-skip = 25
+burn = 2
+thin = 1
+burn = max(burn, thin)
 
 
 gain = {}
@@ -93,26 +94,28 @@ for band, labels in zip(bands, label_list):
     print(band, labels)
     for j in range(4):
         print('\n')
-        maxs =-np.ones(5)*np.inf
-        mins = np.ones(5)*np.inf
+        maxs =-np.ones(4)*np.inf
+        mins = np.ones(4)*np.inf
 
         inds = (data[str(0).zfill(6)+f'/tod/{band}/accept'][j] == 1)
         g = data[str(0).zfill(6)+f'/tod/{band}/gain'][j][inds]
-        mins[0] = min([g[0], g[-1]])
-        maxs[0] = max([g[0], g[-1]])
-        #for i in range(len(data.keys())-2, len(data.keys())-10, -1):
-        #for i in range(len(data.keys())-20, len(data.keys())-1):
-        for i in range(burn, len(data.keys())-1, skip):
+        #mins[0] = min([g[0], g[-1]])
+        #maxs[0] = max([g[0], g[-1]])
+        for i in range(burn, len(data.keys())-1, thin):
             inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
             (abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
             (data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
             inds = np.array(inds)
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
-            if min(g) < mins[0]:
-              mins[0] = min(g)
-            if max(g) > maxs[0]:
-              maxs[0] = max(g)
+            #if min(g) < mins[0]:
+            #  mins[0] = min(g)
+            #if max(g) > maxs[0]:
+            #  maxs[0] = max(g)
+            if min(b) < mins[0]:
+              mins[0] = min(b)
+            if max(b) > maxs[0]:
+              maxs[0] = max(b)
 
             if min(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds]) < mins[1]:
               mins[1] = min(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds])
@@ -124,22 +127,13 @@ for band, labels in zip(bands, label_list):
             if max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds]) > maxs[2]:
               maxs[2] = max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds])
 
-            #if min(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]) < mins[3]:
-            if min(b) < mins[3]:
-              #mins[3] = min(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds])
-              mins[3] = min(b)
-            #if max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]) > maxs[3]:
-            if max(b/g) > maxs[3]:
-              #maxs[3] = max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds])
-              maxs[3] = max(b)
+            if min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) < mins[3]:
+              mins[3] = min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
+            if max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) > maxs[3]:
+              maxs[3] = max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
 
-            if min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) < mins[4]:
-              mins[4] = min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
-            if max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) > maxs[4]:
-              maxs[4] = max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
-
-        for i in range(burn,len(data.keys())-1, skip):
-            fig, axes = plt.subplots(figsize=(8, 10), sharex=True, nrows=5)
+        for i in range(burn,len(data.keys())-1, thin):
+            fig, axes = plt.subplots(figsize=(8, 6), sharex=True, nrows=4)
             c = 'k'
             inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
             (abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
@@ -153,32 +147,29 @@ for band, labels in zip(bands, label_list):
 
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
-            axes[0].plot(t[inds], g, '.', color=c, ms=1)
+            #axes[0].plot(t[inds], g, '.', color=c, ms=1)
+            axes[0].plot(t[inds], b, '.', color=c, ms=1)
             axes[1].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds], '.', color=c, ms=1)
             axes[2].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds], '.', color=c, ms=1)
             #axes[3].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds], '.', color=c, ms=1)
-            axes[3].plot(t[inds], b, '.', color=c, ms=1)
-            axes[4].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds], color=c, ms=1)
+            axes[3].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds], color=c, ms=1)
     
-            axes[4].axhline(0, color='r', linestyle=':', lw=0.5)
+            axes[3].axhline(0, color='r', linestyle=':', lw=0.5)
    
             mu_chisq = np.mean(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds])
             mu_fknee = np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds])
             mu_alpha = np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds])
-            print(np.round(mu_chisq,2), np.round(mu_fknee*1e3, 3), np.round(mu_alpha,3))
+            print(np.round(mu_chisq,3), np.round(mu_fknee*1e3, 3), np.round(mu_alpha,3))
 
-            for num in range(5):
+            for num in range(4):
               axes[num].set_ylim(mins[num], maxs[num])
     
             axes[0].set_ylabel(r'$g$ [du/mK]')
             axes[1].set_ylabel(r'$f_\mathrm{k}$ [Hz]')
             axes[1].set_yscale('log')
             axes[2].set_ylabel(r'$\alpha$')
-            #axes[3].set_ylabel(r'$\sigma_0$ [du]')
-            #axes[4].set_ylabel(r'$\sigma_0$ [mK]')
-            axes[3].set_ylabel(r'$\Delta b/g$ [du]')
-            axes[4].set_ylabel(r'$(\chi^2-n_\mathrm{tod})/\sqrt{2n_\mathrm{tod}}$')
-            axes[4].set_xlabel('Scan number')
+            axes[3].set_ylabel(r'$(\chi^2-n_\mathrm{tod})/\sqrt{2n_\mathrm{tod}}$')
+            axes[3].set_xlabel('Scan number')
     
     
             plt.suptitle(i, size=16, ha='right')

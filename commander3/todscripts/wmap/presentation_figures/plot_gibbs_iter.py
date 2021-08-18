@@ -6,10 +6,9 @@ import h5py
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0001.h5', 'r')
 
 bands=['023-WMAP_K']
-burn = 2
-burn = 1000
-#burn = 200
+burn = 3
 thin = 25
+thin = 1
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #
