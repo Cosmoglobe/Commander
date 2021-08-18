@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of CFitsio on the host system.
 # If it fails to do so, it will download, compile and install CFitsio from source.
 # Together with cURL, CFitsio is required to successfully compile HEALPix.
@@ -100,6 +102,7 @@ if(NOT CFITSIO_FOUND)
 			cfitsio_${_lib_type_}
 			# Specifying that cfitsio depends on the curl project and should be built after it
 			DEPENDS						required_libraries
+												zlib
 												curl
 												cfitsio_src
 			PREFIX						"${LIBS_BUILD_DIR}"

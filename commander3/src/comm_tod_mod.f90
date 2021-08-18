@@ -36,6 +36,7 @@ module comm_tod_mod
   public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
 
 
+  ! Structure for individual detectors
   type :: comm_detscan
      character(len=10) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma        ! Gain; assumed constant over scan
@@ -49,7 +50,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
      byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
      real(sp),           allocatable, dimension(:,:)  :: diode          ! (ndiode, ntod) array of undifferenced data
-     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undeifferenced diode data, len (ndiode)
+     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
      type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
@@ -58,6 +59,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
   end type comm_detscan
 
+  ! Stores information about all detectors at once 
   type :: comm_scan
      integer(i4b)   :: ntod                                        ! Number of time samples
      integer(i4b)      :: ext_lowres(2)             ! Shape of downgraded TOD including padding
@@ -1017,7 +1019,7 @@ contains
             end if
          end if
        else ! ndiode > 1 per tod
-          if(tod%compressed_tod == .false.) then
+          if(tod%compressed_tod .eqv. .false.) then
              
           else
           end if

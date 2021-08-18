@@ -68,8 +68,8 @@ ExternalProject_Add(
 	SOURCE_DIR				"${CAMB_SOURCE_DIR}"
 	INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}" 
 	LOG_DIR						"${CMAKE_LOG_DIR}"
-	LOG_CONFIGURE			ON 
-	LOG_BUILD					ON 
+	LOG_CONFIGURE			ON
+	LOG_BUILD					ON
 	LOG_INSTALL				ON 
 	# Commadns to build the project
 	DOWNLOAD_COMMAND	""
@@ -82,6 +82,9 @@ ExternalProject_Add(
 		-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
 		-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 		-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+		-DMPI_Fortran_COMPILER=${MPI_Fortran_COMPILER}
+		-DMPI_C_COMPILER=${MPI_C_COMPILER}
+		-DMPI_CXX_COMPILER=${MPI_CXX_COMPILER}
 		# Check submodules during build
 		-DGIT_SUBMODULE:BOOL=ON
 		# CFitsIO paths
@@ -92,46 +95,14 @@ ExternalProject_Add(
 		-DHEALPIX_LIBRARIES:FILEPATH=${HEALPIX_LIBRARIES}
 		-DHEALPIX_INCLUDE_DIRS:PATH=${HEALPIX_INCLUDE_DIRS}
 	)
-#[==[
 #------------------------------------------------------------------------------
-# Getting CAMB from source
-#------------------------------------------------------------------------------
-ExternalProject_Add(
-	camb
-	DEPENDS					required_libraries 
-									curl
-									cfitsio
-									healpix	
-	GIT_REPOSITORY	"${camb_git_url}"
-	GIT_TAG					"${camb_git_tag}"
-	PREFIX					"${LIBS_BUILD_DIR}"
-	DOWNLOAD_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}"
-	SOURCE_DIR			"${CAMB_SOURCE_DIR}"
-	INSTALL_DIR			"${CMAKE_INSTALL_PREFIX}" 
-	LOG_DIR					"${CMAKE_LOG_DIR}"
-	LOG_DOWNLOAD		ON
-	LOG_CONFIGURE		ON 
-	LOG_BUILD				ON 
-	LOG_INSTALL			ON 
-	# Commadns to build the project
-	CMAKE_ARGS
-		-DCMAKE_BUILD_TYPE=Release
-		# Specifying installations paths for binaries and libraries
-		-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-		-DBUILD_SHARED_LIBS:BOOL=OFF
-		# Specifying compilers
-		-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
-		-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-		-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-		-DBUILD_SHARED_LIBS:BOOL=OFF
-		# Check submodules during build
-		-DGIT_SUBMODULE:BOOL=ON
-		# CFitsIO paths
-		#-DCFITSIO_FOUND:BOOL=TRUE
-		-DCFITSIO_LIBRARIES:FILEPATH=${CFITSIO_LIBRARIES}
-		-DCFITSIO_INCLUDE_DIRS:PATH=${CFITSIO_INCLUDE_DIRS}
-		# HEALPix Paths
-		-DHEALPIX_LIBRARIES:FILEPATH=${HEALPIX_LIBRARIES}
-		-DHEALPIX_INCLUDE_DIRS:PATH=${HEALPIX_INCLUDE_DIRS}
+# Including CAMB directories and Libraries
+set(CAMB_INCLUDE_DIR
+	"${CMAKE_INSTALL_PREFIX}/mod"
 	)
-#]==]
+set(CAMB_LIBRARIES
+	${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}camb${CMAKE_STATIC_LIBRARY_SUFFIX}
+	${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}forutils${CMAKE_STATIC_LIBRARY_SUFFIX}
+	)
+include_directories(${CAMB_INCLUDE_DIR})
+#------------------------------------------------------------------------------
