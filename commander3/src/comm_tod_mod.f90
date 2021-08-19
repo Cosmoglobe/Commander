@@ -86,6 +86,7 @@ module comm_tod_mod
      character(len=512) :: outdir
      character(len=512) :: sims_output_dir  !< simulation folder
      character(len=512) :: noise_psd_model  
+     character(len=512) :: level !which level of tod we want, L1 or L2
      logical(lgt) :: enable_tod_simulations !< simulation parameter to run commander3 in different regime
      logical(lgt) :: first_call
      logical(lgt) :: sample_L1_par                                ! If false, reduce L1 (diode) to L2 (detector) in precomputations
@@ -300,6 +301,7 @@ contains
     self%sims_output_dir = cpar%sims_output_dir
     self%apply_inst_corr = .false.
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%level        = cpar%ds_tod_level(id_abs)
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
@@ -327,13 +329,16 @@ contains
     self%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
     self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
 
-    if (.not. self%sample_L1_par) then
-       call int2string(self%myid, id)
-       unit        = getlun()
-       self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
-       inquire(file=trim(self%L2file), exist=self%L2_exist)
-    else
-       self%L2_exist = .false.
+    if(self%level == 'L1') then
+
+        if (.not. self%sample_L1_par) then
+          call int2string(self%myid, id)
+          unit        = getlun()
+          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
+          inquire(file=trim(self%L2file), exist=self%L2_exist)
+       else
+          self%L2_exist = .false.
+       end if
     end if
 
     call self%get_scan_ids(self%filelist)
@@ -1000,6 +1005,17 @@ contains
 
     call int2string(scan, slabel)
     call open_hdf_file(filename, file, "r")
+
+    call read_hdf(file, slabel // "/" // "common/ntod",   n)
+
+    if (tod%halfring_split == 0) then
+      m = get_closest_fft_magic_number(n)
+    else if (tod%halfring_split == 1 .or. tod%halfring_split == 2) then
+      m = get_closest_fft_magic_number(n/2)
+    else
+      write(*,*) "Unknown halfring_split value in read_hdf_scan"
+      stop
+    end if
 
     ! Find array sizes
     ! Read detector scans
