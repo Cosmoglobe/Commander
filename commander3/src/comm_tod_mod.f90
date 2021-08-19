@@ -1457,10 +1457,10 @@ contains
 !!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
 !!$         & self%comm, ierr)
 
-!!$    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
-!!$    do j = 1, self%ndet
-!!$       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.)
-!!$    end do
+    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
+    do j = 1, self%ndet
+       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.) - self%gain0(0)
+    end do
 
     do j = 1, self%ndet
        do i = 1, self%nscan
