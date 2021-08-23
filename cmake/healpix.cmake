@@ -97,6 +97,8 @@ if(NOT HEALPIX_FOUND)
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
 		"SHARP_COPT=${healpix_sharp2_C_FLAGS}"
+		# Variable introduced in v3.80  and it enables OMP by default -- we need to disble it.
+		"SHARP_PARAL=0"
 		"./configure" 
 		"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
 		#"--prefix=<INSTALL_DIR>" 
