@@ -54,9 +54,10 @@ module comm_tod_LFI_mod
      integer(i4b) :: nbin_spike
      integer(i4b) :: nbin_adc
      logical(lgt) :: use_dpc_adc
+     logical(lgt) :: use_dpc_gain_modulation
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
-     type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet
+     type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet, ndiode/2
      type(adc_pointer), allocatable, dimension(:,:)     :: adc_corrections ! ndet, n_diode
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
@@ -139,6 +140,7 @@ contains
        constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
 
        constructor%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
+       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
        constructor%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
@@ -152,6 +154,7 @@ contains
        constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
 
        constructor%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
        constructor%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
@@ -164,6 +167,7 @@ contains
        allocate(constructor%xi_n_P_rms(constructor%n_xi))
        constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
        constructor%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        constructor%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
     else
@@ -185,7 +189,8 @@ contains
     end if    
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
-    constructor%use_dpc_adc     = .false. !.true.
+    constructor%use_dpc_adc     = .true.
+    constructor%use_dpc_gain_modulation = .true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
@@ -270,6 +275,8 @@ contains
     constructor%spike_amplitude = 0.d0
 
     if(constructor%level == 'L1') then
+    ! Compute ADC correction tables for each diode
+    if (.not. constructor%L2_exist .and. .false.) then
 
         ! Compute ADC correction tables for each diode
         if (.not. constructor%L2_exist) then
@@ -415,6 +422,7 @@ contains
            call update_status(status, "ADC_table")
 
         end if
+      end if
     end if
 
     ! Allocate sidelobe convolution data structures
@@ -699,8 +707,11 @@ contains
 
     ! Clean up
     call binmap%dealloc()
+    call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     deallocate(map_sky, procmask, procmask2)
+    call update_status(status, "dealloc_sky_maps")
+
     if (self%correct_sl) then
        do i = 1, self%ndet
           call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
@@ -808,6 +819,8 @@ contains
     allocate(pix(self%scans(scan)%ntod,self%ndet,self%nhorn), psi(self%scans(scan)%ntod,self%ndet,self%nhorn), flag(self%scans(scan)%ntod,self%ndet))
     allocate(s_sky(self%scans(scan)%ntod, self%ndet), mask(self%scans(scan)%ntod, self%ndet))
 
+    diode_data = 0.0
+
     do i=1, self%ndet
       call self%decompress_pointing_and_flags(scan, i, pix(:,i,:), psi(:,i,:), flag(:,i))
     end do
@@ -838,32 +851,36 @@ contains
 
         ! Compute the gain modulation factors
 
-!!$        r1 = 0.d0
-!!$        r2 = 0.d0
-!!$        sum1 = 0.d0
-!!$        sum2 = 0.d0
-!!$        n_mask = 0
-!!$        n_unmask = 0
-!!$
-!!$        do k = 1, size(corrected_data(:,1))
-!!$          if (iand(flag(k), self%flag0) .ne. 0) cycle
-!!$
-!!$          sum1 = sum1 + corrected_data(k,1)
-!!$          sum2 = sum2 + corrected_data(k,3)
-!!$          n_unmask = n_unmask + 1
-!!$
-!!$          if (procmask(pix(k)) .ne. 0) then 
-!!$            r1 = r1 + corrected_data(k,2)
-!!$            r2 = r2 + corrected_data(k,4)
-!!$            n_mask = n_mask + 1
-!!$          end if
-!!$
-!!$        end do
-!!$
-!!$        if (r1 == 0.d0 .or. r2 == 0.d0 .or. sum1 == 0.d0 .or. sum2 == 0.d0) then
-!!$           self%scans(scan)%d(i)%accept = .false.
-!!$           cycle
-!!$        end if
+        if(self%use_dpc_gain_modulation) then
+
+          r1 = 0.d0
+          r2 = 0.d0
+          sum1 = 0.d0
+          sum2 = 0.d0
+          n_mask = 0
+          n_unmask = 0
+          
+          do k = 1, size(corrected_data(:,1))
+            if (mask(k,i) == 0.) cycle
+
+            sum1 = sum1 + corrected_data(k,1)
+            sum2 = sum2 + corrected_data(k,3)
+            n_unmask = n_unmask + 1
+
+            r1 = r1 + corrected_data(k,2)
+            r2 = r2 + corrected_data(k,4)
+            n_mask = n_mask + 1
+
+          end do
+!
+          if (r1 == 0.d0 .or. r2 == 0.d0 .or. sum1 == 0.d0 .or. sum2 == 0.d0) then
+             self%scans(scan)%d(i)%accept = .false.
+             cycle
+          end if
+          self%R(scan,i,1) = (r1/n_mask)/(sum1/n_unmask)
+          self%R(scan,i,2) = (r2/n_mask)/(sum2/n_unmask)
+    
+       else ! use fancy new gain modulation factor computation
 
         A = 0.d0
         b = 0.d0
@@ -903,9 +920,10 @@ contains
         call solve_system_real(A(:,:,2), x(:,2), b(:,2))
         
         ! average sky value/average load value
-        self%R(scan,i,1) = x(3,1) !(r1/n_mask)/(sum1/n_unmask)
-        self%R(scan,i,2) = x(3,2) !(r2/n_mask)/(sum2/n_unmask)
+        self%R(scan,i,1) = x(3,1)
+        self%R(scan,i,2) = x(3,2)
         !write(*,*) self%scanid(scan), i, real(self%R(scan,i,:),sp)
+      end if
 
         ! Compute output differenced TOD
 
@@ -1059,7 +1077,7 @@ contains
       nu           = ind2freq(j, fsamp, nfft) ! Current frequency
       upper        = nu                       ! Lower limit of first bin; init
       nsmooth      = 2                        ! Bin counter
-      do while (nu < fsamp/2)
+      do while (nu < fsamp/2 .and. nsmooth <= size(nu_out))
          upper           = min(upper*fbin, fsamp/2)
          nu_out(nsmooth) = nu    ! Start of bin
          subsum          = 0.d0  ! Summing variable
@@ -1207,7 +1225,7 @@ contains
           deallocate(ref_filter)
        end if
 
-       if (associated(self%adc_corrections(1,1)%p)) then
+       if (associated(self%adc_corrections(1,1)%p) .and. .not. self%use_dpc_adc) then
           allocate(adc_corr(size(self%adc_corrections(1,1)%p%adc_in),2,self%ndet,size(self%adc_corrections(1,:))))
           do i = 1, self%ndet
              do j = 1, size(self%adc_corrections(1,:))
@@ -1526,7 +1544,10 @@ contains
           n = self%scans(i)%ntod
           allocate(tod(n,self%ndet))
           do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle 
+             if (.not. self%scans(i)%d(j)%accept) then
+                tod(:,j) = 0.0
+                cycle
+             end if 
              tod(:,j) = self%scans(i)%d(j)%tod
           end do
           call write_hdf(h5_file, scantext, tod)
