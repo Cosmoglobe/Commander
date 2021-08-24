@@ -149,9 +149,9 @@ if(NOT HEALPIX_FOUND)
 		LOG_BUILD					ON
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
-		#CONFIGURE_COMMAND "${healpix_copy_configure_script}"
-		#COMMAND						"${healpix_configure_command}"
-		CONFIGURE_COMMAND	"${healpix_configure_command}"
+		CONFIGURE_COMMAND "${healpix_copy_configure_script}"
+		COMMAND						"${healpix_configure_command}"
+		#CONFIGURE_COMMAND	"${healpix_configure_command}"
 		# HEALPix doesn't have an install command 
 		INSTALL_COMMAND		""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
