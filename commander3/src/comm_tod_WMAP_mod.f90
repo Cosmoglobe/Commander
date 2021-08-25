@@ -172,7 +172,7 @@ contains
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
       constructor%correct_sl      = .false.
-      constructor%orb_4pi_beam    = .true.
+      constructor%orb_4pi_beam    = .false.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -306,6 +306,7 @@ contains
       real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
       class(map_ptr),     allocatable, dimension(:) :: outmaps
+      logical(lgt)                                  :: comp_S
 
       ! biconjugate gradient-stab parameters
       integer(i4b) :: num_cg_iters
@@ -361,7 +362,9 @@ contains
       deallocate(m_buf)
 
 
-
+      ! this is a flag for the spurious component, the "polarization
+      ! angle-independent polarization component" in the WMAP pipeline
+      comp_S = .false.
 
 
 
@@ -407,7 +410,11 @@ contains
       end if
 
       allocate (M_diag(0:npix-1, nmaps+1))
-      allocate ( b_map(0:npix-1, nmaps, self%output_n_maps))
+      if (comp_S) then
+         allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
+      else
+         allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
+      end if
       M_diag = 0d0
       b_map = 0d0
 
@@ -480,7 +487,7 @@ contains
          ! Bin TOD
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
            & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
-           & .false.)
+           & comp_S)
 
          ! Update scan list
          call wall_time(t2)
@@ -514,13 +521,19 @@ contains
       where (M_diag == 0d0)
          M_diag = 1d0
       end where
-      ! If we want to not do the "better preconditioning"
-      M_diag(:,4) = 0d0
+      if (.not. comp_S) then
+         ! If we want to not do the "better preconditioning"
+         M_diag(:,4) = 0d0
+      end if
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       call update_status(status, "Allocating cg arrays")
-      allocate (bicg_sol(0:npix-1, nmaps, self%output_n_maps))
-      allocate(m_buf(0:npix-1,nmaps))
+      if (comp_S) then
+        allocate (bicg_sol(0:npix-1, nmaps+1, self%output_n_maps))
+      else
+        allocate (bicg_sol(0:npix-1, nmaps,   self%output_n_maps))
+      end if
+      allocate (m_buf(0:npix-1,nmaps))
       call map_in(1,1)%p%bcast_fullsky_map(m_buf)
       bicg_sol = 0.0d0
       !bicg_sol(:,:,1) = m_buf
@@ -544,7 +557,7 @@ contains
            end if
            call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l, &
-                          & prefix, postfix)
+                          & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
       end if
