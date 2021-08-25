@@ -228,6 +228,36 @@ contains
 
    ! differential TOD computation, written with WMAP in mind.
    subroutine bin_differential_TOD(tod, data, pix, psi, flag, x_imarr, pmask, b, M_diag, scan, comp_S, b_mono)
+    ! Routine to bin differential time ordered data
+    ! Assumes white noise after correctiom from correlated noise and calibrated data
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:    
+    !         
+    ! scan:   integer
+    !         scan number
+    ! pix:    2-dimensional array
+    !         Number of pixels from scandata
+    ! psi:    2-dimensional array
+    !         Pointing angle pr pixel
+    ! flag:   2-dimensional array
+    !         Flagged data to be excluded from the mapmaking
+    ! data:   2-dim array
+    !         Array of calibrated data
+    ! comp_S: logical
+    !         Whether or not to explicitly solve for spurious component
+    ! b_mono: 2-dim array
+    !         not implemented
+    ! pmask:  1-dim array
+    !         Healpix map of good and bad values
+    ! x_imarr: 1-dim array
+    !          imbalance parameters, duplicated so it's (x_1, x_1, x_2, x_2)
+    ! Returns:
+    ! ----------
+    ! binmap: pointer
+    !         Pointer to array of binned map?
+    ! 
       implicit none
       class(comm_tod), intent(in)                               :: tod
       integer(i4b), intent(in)                                  :: scan
@@ -273,9 +303,15 @@ contains
             do i = 1, nout
                d = 0.d0
                p = 0.d0
+               ! d = (d13 + d14 + d23 + d24)/4
+               ! p = (d13 + d14 - d23 - d24)/4
                do det = 1, 4
                  d = d + data(i, t, det)/4
-                 p = p + data(i, t, det)/4*(-1)**((det + 1)/2 + 1)
+                 if (det < 3) then
+                    p = p + data(i, t, det)/4
+                 else
+                    p = p - data(i, t, det)/4
+                 end if
                end do
                ! T
                b(lpix, 1, i) = b(lpix, 1, i) + f_A*((1.d0+x_im)*d + dx_im*p)*inv_sigmasq
@@ -286,6 +322,11 @@ contains
                ! U
                b(lpix, 3, i) = b(lpix, 3, i) + f_A*((1.d0+x_im)*p + dx_im*d)*tod%sin2psi(lpsi)*inv_sigmasq
                b(rpix, 3, i) = b(rpix, 3, i) - f_B*((1.d0-x_im)*p - dx_im*d)*tod%sin2psi(rpsi)*inv_sigmasq
+               ! S
+               if (comp_S) then
+                 b(lpix, 4, i) = b(lpix, 4, i) + f_A*((1.d0+x_im)*p + dx_im*d)*inv_sigmasq
+                 b(rpix, 4, i) = b(rpix, 4, i) - f_B*((1.d0-x_im)*p - dx_im*d)*inv_sigmasq
+               end if
             end do
 
             M_diag(lpix, 1) = M_diag(lpix, 1) + f_A*inv_sigmasq
@@ -294,18 +335,22 @@ contains
             M_diag(rpix, 2) = M_diag(rpix, 2) + f_B*inv_sigmasq*tod%cos2psi(rpsi)**2
             M_diag(lpix, 3) = M_diag(lpix, 3) + f_A*inv_sigmasq*tod%sin2psi(lpsi)**2
             M_diag(rpix, 3) = M_diag(rpix, 3) + f_B*inv_sigmasq*tod%sin2psi(rpsi)**2
-
-            ! Not a true diagonal term, just the off-diagonal estimate of the
-            ! covariance for each pixel.
-            M_diag(lpix, 4) = M_diag(lpix, 4)+f_A*inv_sigmasq*tod%sin2psi(lpsi)*tod%cos2psi(lpsi)
-            M_diag(rpix, 4) = M_diag(rpix, 4)+f_B*inv_sigmasq*tod%sin2psi(rpsi)*tod%cos2psi(rpsi)
+            if (comp_S) then
+              M_diag(lpix, 4) = M_diag(lpix, 4) + f_A*inv_sigmasq
+              M_diag(rpix, 4) = M_diag(rpix, 4) + f_B*inv_sigmasq
+            else
+              ! Not a true diagonal term, just the off-diagonal estimate of the
+              ! covariance for each pixel.
+              M_diag(lpix, 4) = M_diag(lpix, 4)+f_A*inv_sigmasq*tod%sin2psi(lpsi)*tod%cos2psi(lpsi)
+              M_diag(rpix, 4) = M_diag(rpix, 4)+f_B*inv_sigmasq*tod%sin2psi(rpsi)*tod%cos2psi(rpsi)
+            end if
 
          end do
        end if
 
 end subroutine bin_differential_TOD
 
-   subroutine compute_Ax(tod, x_imarr, pmask, x_in, y_out)
+   subroutine compute_Ax(tod, x_imarr, pmask, comp_S, x_in, y_out)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
@@ -314,6 +359,7 @@ end subroutine bin_differential_TOD
       class(comm_tod),                 intent(in)              :: tod
       real(dp),     dimension(1:),     intent(in)              :: x_imarr
       real(sp),     dimension(0:),     intent(in)              :: pmask
+      logical(lgt), intent(in)                                 :: comp_S
       real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
       real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
 
@@ -386,6 +432,11 @@ end subroutine bin_differential_TOD
                ! U
                y(lpix, 3) = y(lpix, 3) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%sin2psi(lpsi)*inv_sigmasq
                y(rpix, 3) = y(rpix, 3) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%sin2psi(rpsi)*inv_sigmasq
+               ! S
+               if (comp_S) then
+                 y(lpix, 4) = y(lpix, 4) + f_A*((1.d0 + x_im)*p + dx_im*d) * inv_sigmasq
+                 y(rpix, 4) = y(rpix, 4) - f_B*((1.d0 - x_im)*p - dx_im*d) * inv_sigmasq
+               end if
             end do
          end if
          deallocate (pix, psi, flag)
@@ -552,7 +603,7 @@ end subroutine bin_differential_TOD
 
    end subroutine finalize_binned_map
 
-   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix)
+   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix, comp_S)
      !
      !
      !  Subroutine that runs the biconjugate gradient-stabilized mapmaking
@@ -576,6 +627,9 @@ end subroutine bin_differential_TOD
      !  b_map: real (dp)
      !
      !  l: int
+     ! 
+     ! comp_S: logical
+     !         Whether or not to explicitly solve for spurious component
      !
      !  Arguments (modified):
      !  ---------------------
@@ -601,6 +655,7 @@ end subroutine bin_differential_TOD
      integer(i4b),                            intent(in) :: l
      character(len=512),                      intent(in) :: prefix
      character(len=512),                      intent(in) :: postfix
+     logical(lgt), intent(in)                            :: comp_S
 
 
 
@@ -618,42 +673,56 @@ end subroutine bin_differential_TOD
      real(dp),        allocatable, dimension(:) :: determ
      character(len=512)                         :: i_str, l_str
 
-     ! Maybe update so that it's only output the first time?
-     !write_cg = .true.
-     write_cg = tod%first_call
+     write_cg = .false.
+     !write_cg = tod%first_call
 
      if (tod%myid==0) then
-        allocate (r     (0:npix-1, nmaps))
-        allocate (rhat  (0:npix-1, nmaps))
-        allocate (r0    (0:npix-1, nmaps))
-        allocate (q     (0:npix-1, nmaps))
-        allocate (p     (0:npix-1, nmaps))
-        allocate (s     (0:npix-1, nmaps))
-        allocate (shat  (0:npix-1, nmaps))
-        allocate (m_buf (0:npix-1, nmaps))
-        allocate (phat  (0:npix-1, nmaps))
-        allocate (v     (0:npix-1, nmaps))
-        allocate (determ(0:npix-1))
-        determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
-
-        i_max = 500
-        if (write_cg) then
-          i_min = 200
-          i_min = 0
+        if (comp_S) then
+           allocate (r     (0:npix-1, nmaps+1))
+           allocate (rhat  (0:npix-1, nmaps+1))
+           allocate (r0    (0:npix-1, nmaps+1))
+           allocate (q     (0:npix-1, nmaps+1))
+           allocate (p     (0:npix-1, nmaps+1))
+           allocate (s     (0:npix-1, nmaps+1))
+           allocate (shat  (0:npix-1, nmaps+1))
+           allocate (m_buf (0:npix-1, nmaps+1))
+           allocate (phat  (0:npix-1, nmaps+1))
+           allocate (v     (0:npix-1, nmaps+1))
         else
-          i_min = 0
+           allocate (r     (0:npix-1, nmaps))
+           allocate (rhat  (0:npix-1, nmaps))
+           allocate (r0    (0:npix-1, nmaps))
+           allocate (q     (0:npix-1, nmaps))
+           allocate (p     (0:npix-1, nmaps))
+           allocate (s     (0:npix-1, nmaps))
+           allocate (shat  (0:npix-1, nmaps))
+           allocate (m_buf (0:npix-1, nmaps))
+           allocate (phat  (0:npix-1, nmaps))
+           allocate (v     (0:npix-1, nmaps))
+           allocate (determ(0:npix-1))
         end if
 
+        i_max = 500
+        i_min = 0
+
         if (.false. .and. l == 1) then
-           call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, bicg_sol(:,:,1), v)
            r = b_map(:, :, l) - v 
         else
            r = b_map(:, :, l)
         end if
         r0 = b_map(:, :, l)
-        rhat(:,1) =  r(:,1)/M_diag(:,1)
-        rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
-        rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+        ! This is if we are not solving for S
+        ! In this case, M_diag(:,4) is the QU covariance term
+        if (comp_S) then
+          rhat =  r/M_diag
+        else
+          determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+          rhat(:,1) =  r(:,1)/M_diag(:,1)
+          rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+          rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+        end if
+        
         delta_r = sum(r*rhat)
         delta_0 = delta_r
         delta_s = delta_s
@@ -682,20 +751,29 @@ end subroutine bin_differential_TOD
               beta = (rho_new/rho_old) * (alpha/omega)
               p = r + beta*(p - omega*v)
            end if
-           phat(:,1) =  p(:,1)/M_diag(:,1)
-           phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
-           phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
+
+           if (comp_S) then
+             phat =  p/M_diag
+           else
+             phat(:,1) =  p(:,1)/M_diag(:,1)
+             phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
+             phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
+           end if
            
            call update_status(status, 'v=A phat')
-           call compute_Ax(tod, tod%x_im, procmask, phat, v)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, phat, v)
            call update_status(status, 'done')
            num_cg_iters = num_cg_iters + 1
 
            alpha         = rho_new/sum(r0*v)
            s             = r - alpha*v
-           shat(:,1) =  s(:,1)/M_diag(:,1)
-           shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
-           shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
+           if (comp_S) then
+             shat =  s/M_diag
+           else
+             shat(:,1) =  s(:,1)/M_diag(:,1)
+             shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
+             shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
+           end if
            delta_s       = sum(s*shat)
 
            if (tod%verbosity > 1) then 
@@ -722,7 +800,7 @@ end subroutine bin_differential_TOD
            end if
 
            call update_status(status, 'q=A shat')
-           call compute_Ax(tod, tod%x_im, procmask, shat, q)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, shat, q)
            call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
@@ -738,7 +816,7 @@ end subroutine bin_differential_TOD
 
            if (mod(i, 10) == 1 .or. beta > 1.d8) then
               call update_status(status, 'A xhat')
-              call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,l), r)
+              call compute_Ax(tod, tod%x_im, procmask, comp_S, bicg_sol(:,:,l), r)
               call update_status(status, 'done')
               r = b_map(:, :, l) - r
            else
@@ -754,9 +832,15 @@ end subroutine bin_differential_TOD
                           & r)
            end if
 
-           rhat(:,1) =  r(:,1)/M_diag(:,1)
-           rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
-           rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+           ! If you are not solving for S
+           ! If you are solving for S
+           if (comp_S) then
+             rhat = r/M_diag
+           else
+             rhat(:,1) =  r(:,1)/M_diag(:,1)
+             rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
+             rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+           end if
            delta_r      = sum(r*rhat)
            num_cg_iters = num_cg_iters + 1
 
@@ -798,10 +882,11 @@ end subroutine bin_differential_TOD
         loop: do while (.true.) 
            call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
            if (finished) exit loop
-           call compute_Ax(tod, tod%x_im, procmask)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S)
         end do loop
      end if
-     if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
+     if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf)
+     if (tod%myid == 0 .and. .not. comp_S) deallocate (determ)
 
    end subroutine run_bicgstab
 
