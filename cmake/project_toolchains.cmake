@@ -138,17 +138,17 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 			"-O3"
-			"-xHost" 
+			"-xhost" 
 			"-fpe0"
 			"-fPIC"
 			"-fp-model" "strict"
 			"-traceback" 
 			"-qopenmp" 
 			"-assume" "byterecl" # for I/O operations 
+			#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 			#"-DNDEBUG"
 			#"-ipo" #  
 			#"-parallel" 
-			#"-qopt-matmul" 
 			#"-heap-arrays" "16384"
 			)
 	endif()
@@ -174,12 +174,13 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
 			"-O2"
-			"-xHost" 
+			"-xhost" 
 			"-fpe0"
 			"-fPIC"
 			"-fp-model" "strict"
 			"-qopenmp" 
 			"-assume" "byterecl" # for I/O operations 
+			#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 			"-g" 
 			"-traceback" 
 			#

@@ -466,6 +466,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
+    !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -484,6 +485,7 @@ contains
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
+    !
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     character(len=*),                             intent(in)    :: mode
@@ -684,6 +686,7 @@ contains
   end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
+    !
     !   Perform data selection on TOD object
     !
     !   Arguments:
@@ -695,6 +698,7 @@ contains
     !             Local scan ID for the current core 
     !   flag:     int (ntod x ndet array)
     !             Array with data quality flags
+    !
     implicit none
     class(comm_tod),                   intent(inout) :: tod
     integer(i4b),    dimension(1:,1:), intent(in)    :: flag

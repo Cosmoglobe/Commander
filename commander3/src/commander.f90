@@ -228,7 +228,7 @@ program commander
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') ' Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a,i4,a,i8)') ' | Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
