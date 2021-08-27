@@ -137,23 +137,24 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	# If user has not specified compilation flag, we use default configuration
 	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-Ofast"# -traceback -ipo -xHost -parallel -qopenmp -qopt-matmul -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
-			"-DNDEBUG"
-			"-traceback" 
-			"-ipo" 
+			"-O3"
 			"-xHost" 
-			"-parallel" 
-			"-qopenmp" 
-			"-qopt-matmul" 
-			"-assume" "byterecl" 
-			"-heap-arrays" "16384"
 			"-fpe0"
 			"-fPIC"
+			"-fp-model" "strict"
+			"-traceback" 
+			"-qopenmp" 
+			"-assume" "byterecl" # for I/O operations 
+			#"-DNDEBUG"
+			#"-ipo" #  
+			#"-parallel" 
+			#"-qopt-matmul" 
+			#"-heap-arrays" "16384"
 			)
 	endif()
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0"# -g -traceback -parallel -qopenmp -C -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
+			"-O0"  
 			"-g" 
       "-debug" "all"
       "-check" "all,noarg_temp_created"
@@ -172,18 +173,28 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	endif()
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-			"-O2"# -g -traceback -DNDEBUG -parallel -qopenmp -C -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
-			"-g" 
-			"-traceback" 
-			"-DNDEBUG" 
-			"-parallel" 
-			"-qopenmp"
-			"-qopt-matmul"
-			"-C"
-			"-assume" "byterecl" 
-			"-heap-arrays" "16384"
+			"-O2"
+			"-xHost" 
 			"-fpe0"
 			"-fPIC"
+			"-fp-model" "strict"
+			"-qopenmp" 
+			"-assume" "byterecl" # for I/O operations 
+			"-g" 
+			"-traceback" 
+			#
+			#"-O2"  
+			#"-g" 
+			#"-traceback" 
+			#"-DNDEBUG" 
+			#"-parallel" 
+			#"-qopenmp"
+			#"-qopt-matmul"
+			#"-C"
+			#"-assume" "byterecl" 
+			#"-heap-arrays" "16384"
+			#"-fpe0"
+			#"-fPIC"
 			)
 	endif()
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
