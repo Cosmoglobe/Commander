@@ -1476,6 +1476,10 @@ contains
 !!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
 !!$         & self%comm, ierr)
 
+!!$    where (output(:,:,1)>0.)
+!!$       output(:,:,1) = 0.05
+!!$    end where
+
     self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
     do j = 1, self%ndet
        self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.) - self%gain0(0)
