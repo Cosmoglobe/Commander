@@ -278,16 +278,29 @@ contains
                temp_gain(k) = g(k, j, 1) / g(k, j, 2)
             end if
           end do
-          if (tod%gain_sigma_0(j) < 0.d0) then
-             tod%gain_sigma_0(j) = calc_sigma_0(temp_gain)
-          end if
+!!$          if (tod%gain_sigma_0(j) < 0.d0) then
+!!$             tod%gain_sigma_0(j) = calc_sigma_0(temp_gain)
+!!$          end if
 !          sigma_0 = 0.002d0
+!!$          if (j == 1) then
+!!$             open(58,file='gain_in.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
+!!$             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+!!$          end if
+
           call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
              & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
 !!$          if (j == 1) then
-!!$             open(58,file='dgain.dat')
+!!$             open(58,file='gain_out.dat')
 !!$             do k = 1, size(g,1)
-!!$                write(58,*) k, g(k,j,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+!!$                end if
 !!$             end do
 !!$             close(58)
 !!$          end if
@@ -295,8 +308,8 @@ contains
 !    end if
     ! Distribute and update results
     do j = 1, ndet
-      call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
-           & mod(j-1,tod%numprocs), tod%comm, ierr)
+      !call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
+      !     & mod(j-1,tod%numprocs), tod%comm, ierr)
       call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
     end do
     do j = 1, ndet
@@ -975,12 +988,12 @@ contains
          iterations = iterations + 1
          if (.false. .and. mod(iterations, 100) == 0) then
             write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
-!            call int2string(iterations, itext)
-!            open(58, file='gain_cg_' // itext // '.dat')
-!            do i = 1, nscan
-!               write(58, *) prop_sol(i)
-!            end do
-!            close(58)
+            call int2string(iterations, itext)
+            open(58, file='gain_cg_' // itext // '.dat')
+            do i = 1, nscan
+               write(58, *) prop_sol(i)
+            end do
+            close(58)
          end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
@@ -1133,6 +1146,7 @@ contains
      real(dp), dimension(size(freqs)+1)     :: calculate_invcov
 
      calculate_invcov(1) = 1d12 !0.d0
+     write(*,*) sigma_0, fknee, alpha
      calculate_invcov(2:size(freqs)+1) = 1.d0 / (sigma_0 ** 2 * (freqs/fknee) ** alpha)
 
   end function calculate_invcov
@@ -1257,9 +1271,11 @@ contains
 !       inv_N_corr = calculate_invcov(tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), freqs)
       call sample_psd_params_by_mh(gain_ps, freqs, &
          & tod%gain_sigma_0(j), tod%gain_fknee(j), tod%gain_alpha(j), &
-         & tod%gain_fknee_std, tod%gain_alpha_std, handle)
+         & tod%gain_sigma0_std, tod%gain_fknee_std, tod%gain_alpha_std, handle)
     end do
     do j = 1, ndet
+      call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
+           & mod(j-1,tod%numprocs), tod%comm, ierr)
       call mpi_bcast(tod%gain_fknee(j), 1, MPI_DOUBLE_PRECISION, &
            & mod(j-1,tod%numprocs), tod%comm, ierr)
       call mpi_bcast(tod%gain_alpha(j), 1, MPI_DOUBLE_PRECISION, &
@@ -1270,7 +1286,7 @@ contains
   end subroutine sample_gain_psd
 
   subroutine sample_psd_params_by_mh(gain_ps, freqs, sigma_0, fknee, alpha, &
-     & fknee_std, alpha_std, handle)
+     & sigma0_std, fknee_std, alpha_std, handle)
     ! 
     ! Uses the Metropolis-Hastings algorithm to draw a sample of the gain PSD
     ! parameters given the current gain solution.
@@ -1308,43 +1324,45 @@ contains
 
     real(dp), dimension(:), intent(in)      :: gain_ps
     real(dp), dimension(:), intent(in)      :: freqs
-    real(dp), intent(inout)                 :: fknee, alpha
-    real(dp), intent(in)                    :: sigma_0
-    real(dp), intent(in)                    :: fknee_std, alpha_std
+    real(dp), intent(inout)                 :: sigma_0, fknee, alpha
+    real(dp), intent(in)                    :: sigma0_std, fknee_std, alpha_std
     type(planck_rng),                  intent(inout)  :: handle
 
-    real(dp), dimension(2, 2)               :: propcov
+    real(dp), dimension(3, 3)               :: propcov
     real(dp), allocatable, dimension(:, :)  :: samples
     integer(i4b)        :: i
 
     propcov = 0.d0
-    propcov(1, 1) = fknee_std ** 2
-    propcov(2, 2) = alpha_std ** 2
+    propcov(1, 1) = sigma0_std ** 2
+    propcov(2, 2) = fknee_std ** 2
+    propcov(3, 3) = alpha_std ** 2
 
-    allocate(samples(5000, 2))
+    allocate(samples(5000, 3))
     samples = 0.d0
-    call run_mh(fknee, alpha, propcov, sigma_0, 2000, samples, gain_ps, freqs, .true., handle)
+    call run_mh(sigma_0, fknee, alpha, propcov, 2000, samples, gain_ps, freqs, .true., handle)
 !!$    open(58, file='samples_first.dat')
 !!$    do i = 1, 2000
 !!$      write(58, *) samples(i, 1), samples(i, 2)
 !!$    end do
 !!$    close(58)
     call compute_covariance_matrix(samples(1000:2000, :), propcov)
-    fknee = samples(2000, 1)
-    alpha = samples(2000, 2)
-    call run_mh(fknee, alpha, propcov, sigma_0, 5000, samples, gain_ps, freqs, .false., handle)
+    sigma_0 = samples(2000, 1)
+    fknee = samples(2000, 2)
+    alpha = samples(2000, 3)
+    call run_mh(sigma_0, fknee, alpha, propcov, 5000, samples, gain_ps, freqs, .false., handle)
 !!$    open(58, file='samples_second.dat')
 !!$    do i = 1, 5000
 !!$      write(58, *) samples(i, 1), samples(i, 2)
 !!$    end do
 !!$    close(58)
-    fknee = samples(5000, 1)
-    alpha = samples(5000, 2)
-    write(*, *) "Gain fknee and alpha, final values:", fknee, alpha
+    sigma_0 = samples(5000, 1)
+    fknee = samples(5000, 2)
+    alpha = samples(5000, 3)
+    write(*,fmt='(a,2f16.8,f8.3)') "Gain PSD {sigma0,fknee,alpha}:", sigma_0, fknee, alpha
 
   end subroutine sample_psd_params_by_mh
 
-  subroutine run_mh(fknee, alpha, propcov, sigma_0, num_samples, samples, &
+  subroutine run_mh(sigma_0, fknee, alpha, propcov, num_samples, samples, &
      & gain_ps, freqs, adjust_scaling_full, handle)
   !
   ! The core Metropolis-Hastings routine used for gain PSD sampling.
@@ -1385,7 +1403,7 @@ contains
     implicit none
 
     real(dp), intent(in)       :: fknee, alpha, sigma_0
-    real(dp), dimension(2, 2), intent(in)  :: propcov
+    real(dp), dimension(3, 3), intent(in)  :: propcov
     integer(i4b), intent(in)       :: num_samples
     real(dp), dimension(:, :), intent(out) :: samples
     real(dp), dimension(:),    intent(in)  :: freqs  
@@ -1396,8 +1414,8 @@ contains
 
     integer(i4b)       :: i, accepted
     real(dp)                :: scaling_factor
-    real(dp), dimension(2, 2)   :: sqrt_cov
-    real(dp), dimension(2)  :: curr_vec, prop_vec, eta
+    real(dp), dimension(3, 3)   :: sqrt_cov
+    real(dp), dimension(3)  :: curr_vec, prop_vec, eta
     real(dp)                :: curr_lnl, prop_lnl, acc_rate
 
     samples = 0.d0
@@ -1406,17 +1424,18 @@ contains
     accepted = 0
     scaling_factor = 1.d0
     
-    curr_vec(1) = fknee
-    curr_vec(2) = alpha
-    curr_lnL = psd_loglike(curr_vec(1), curr_vec(2), sigma_0, gain_ps, freqs)
+    curr_vec(1) = sigma_0
+    curr_vec(2) = fknee
+    curr_vec(3) = alpha
+    curr_lnL = psd_loglike(curr_vec(1), curr_vec(2), curr_vec(3), gain_ps, freqs)
 !!$    write(*, *) "Curr_lnl: ", curr_lnL
     sqrt_cov = propcov
     call compute_hermitian_root(sqrt_cov, 0.5d0)
     do i = 1, num_samples
-      eta = [rand_gauss(handle), rand_gauss(handle)]
+      eta = [rand_gauss(handle), rand_gauss(handle), rand_gauss(handle)]
       prop_vec = curr_vec + scaling_factor * matmul(sqrt_cov, eta)
-      prop_lnL = psd_loglike(prop_vec(1), prop_vec(2), sigma_0, gain_ps, freqs)
-!      write(*, *) "prop_lnL", prop_lnL
+      prop_lnL = psd_loglike(prop_vec(1), prop_vec(2), prop_vec(3), gain_ps, freqs)
+      write(*, *) "prop_lnL", prop_lnL
 !      if (prop_lnL /= -1d30 .and. rand_uni(handle) <= exp(prop_lnL - curr_lnL)) then
       if (log(rand_uni(handle)) <= prop_lnL - curr_lnL) then
          curr_vec = prop_vec
@@ -1440,7 +1459,7 @@ contains
 
   end subroutine run_mh
 
-  function psd_loglike(fknee, alpha, sigma_0, gain_ps, freqs)
+  function psd_loglike(sigma_0, fknee, alpha, gain_ps, freqs)
      !
      ! Calculates the log-likelihood given the gain and psd parameters.
      !
@@ -1476,12 +1495,12 @@ contains
 
      real(dp), dimension(size(gain_ps))  :: inv_N_corr
 
-     if (alpha > 0.d0 .or. fknee <= 0.d0) then
+     if (sigma_0 <= 0.d0 .or. alpha > 0.d0 .or. alpha < -3.d0 .or. fknee <= 0.d0) then
         psd_loglike = -1d30
         return
      end if
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
-     psd_loglike = -sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))
+     psd_loglike = -sum(gain_ps(2:) * inv_N_corr(2:) + log(inv_N_corr(2:)))
 
   end function psd_loglike
     

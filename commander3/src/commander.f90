@@ -255,6 +255,11 @@ program commander
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
+     if (cpar%enable_tod_simulations) then
+        ! Skip other steps if TOD simulations
+        exit
+     end if
+
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
@@ -360,7 +365,7 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (mod(iter,2) == 0) then
+                   if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
                    !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
