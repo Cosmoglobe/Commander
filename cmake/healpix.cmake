@@ -45,13 +45,13 @@ if(NOT HEALPIX_FOUND)
 	endif()
 	#------------------------------------------------------------------------------
 	# Copying modyfied configure script to healpix root
-	#list(APPEND healpix_copy_configure_script 
-	#	"${CMAKE_COMMAND}" "-E" "copy"
-	#	"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
-	#	#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
-	#	"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
-	#	#"&&"
-	#	)
+	list(APPEND healpix_copy_configure_script 
+		"${CMAKE_COMMAND}" "-E" "copy"
+		"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
+		#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
+		"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
+		#"&&"
+		)
 	# Creating configure command for HEALPix
 	list(APPEND healpix_configure_command 
 		"${CMAKE_COMMAND}" "-E" "env" 
@@ -98,7 +98,7 @@ if(NOT HEALPIX_FOUND)
 		"CC=${MPI_C_COMPILER}" 
 		"SHARP_COPT=${healpix_sharp2_C_FLAGS}"
 		# Variable introduced in v3.80  and it enables OMP by default -- we need to disble it.
-		"SHARP_PARAL=0"
+		#"SHARP_PARAL=0"
 		"./configure" 
 		"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
 		#"--prefix=<INSTALL_DIR>" 
@@ -149,9 +149,9 @@ if(NOT HEALPIX_FOUND)
 		LOG_BUILD					ON
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
-		#CONFIGURE_COMMAND "${healpix_copy_configure_script}"
-		#COMMAND						"${healpix_configure_command}"
-		CONFIGURE_COMMAND	"${healpix_configure_command}"
+		CONFIGURE_COMMAND "${healpix_copy_configure_script}"
+		COMMAND						"${healpix_configure_command}"
+		#CONFIGURE_COMMAND	"${healpix_configure_command}"
 		# HEALPix doesn't have an install command 
 		INSTALL_COMMAND		""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
