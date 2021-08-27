@@ -273,6 +273,7 @@ contains
     self%s_orb  = 0.
     self%s_orbA = 0.
     self%s_orbB = 0.
+    self%s_bp   = 0.
 
     allocate(s_bufA(self%ntod, self%ndet))
     allocate(s_bufB(self%ntod, self%ndet))
