@@ -6,8 +6,8 @@ import h5py
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0001.h5', 'r')
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
-burn = 2
-thin = 1
+burn = 1
+thin = 10
 burn = max(burn, thin)
 
 
@@ -67,27 +67,27 @@ label_list = [
          ['K113', 'K114', 'K123', 'K124']]
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_opt/chain_c0001.h5', 'r')
-#bands=['023-WMAP_K', 
-#       '030-WMAP_Ka',
-#       '040-WMAP_Q1',
-#       '040-WMAP_Q2',
-#       '060-WMAP_V1',
-#       '060-WMAP_V2',
-#       '090-WMAP_W1',
-#       '090-WMAP_W2',
-#       '090-WMAP_W3',
-#       '090-WMAP_W4']
-#label_list = [
-#         ['K113', 'K114', 'K123', 'K124'],
-#         ['Ka113', 'Ka114', 'Ka123', 'Ka124'],
-#         ['Q113', 'Q114', 'Q123', 'Q124'],
-#         ['Q213', 'Q214', 'Q223', 'Q224'],
-#         ['V113', 'V114', 'V123', 'V124'],
-#         ['V213', 'V214', 'V223', 'V224'],
-#         ['W113', 'W114', 'W123', 'W124'],
-#         ['W213', 'W214', 'W223', 'W224'],
-#         ['W313', 'W314', 'W323', 'W324'],
-#         ['W413', 'W414', 'W423', 'W424']]
+bands=['023-WMAP_K', 
+       '030-WMAP_Ka',
+       '040-WMAP_Q1',
+       '040-WMAP_Q2',
+       '060-WMAP_V1',
+       '060-WMAP_V2']
+       #'090-WMAP_W1',
+       #'090-WMAP_W2',
+       #'090-WMAP_W3',
+       #'090-WMAP_W4']
+label_list = [
+         ['K113', 'K114', 'K123', 'K124'],
+         ['Ka113', 'Ka114', 'Ka123', 'Ka124'],
+         ['Q113', 'Q114', 'Q123', 'Q124'],
+         ['Q213', 'Q214', 'Q223', 'Q224'],
+         ['V113', 'V114', 'V123', 'V124'],
+         ['V213', 'V214', 'V223', 'V224']]
+         #['W113', 'W114', 'W123', 'W124'],
+         #['W213', 'W214', 'W223', 'W224'],
+         #['W313', 'W314', 'W323', 'W324'],
+         #['W413', 'W414', 'W423', 'W424']]
 for band, labels in zip(bands, label_list):
     data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
     print('\n')
@@ -108,14 +108,14 @@ for band, labels in zip(bands, label_list):
             inds = np.array(inds)
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
-            #if min(g) < mins[0]:
-            #  mins[0] = min(g)
-            #if max(g) > maxs[0]:
-            #  maxs[0] = max(g)
-            if min(b) < mins[0]:
-              mins[0] = min(b)
-            if max(b) > maxs[0]:
-              maxs[0] = max(b)
+            if min(g) < mins[0]:
+              mins[0] = min(g)
+            if max(g) > maxs[0]:
+              maxs[0] = max(g)
+            #if min(b) < mins[0]:
+            #  mins[0] = min(b)
+            #if max(b) > maxs[0]:
+            #  maxs[0] = max(b)
 
             if min(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds]) < mins[1]:
               mins[1] = min(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds])
@@ -147,8 +147,8 @@ for band, labels in zip(bands, label_list):
 
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
-            #axes[0].plot(t[inds], g, '.', color=c, ms=1)
-            axes[0].plot(t[inds], b, '.', color=c, ms=1)
+            axes[0].plot(t[inds], g, '.', color=c, ms=1)
+            #axes[0].plot(t[inds], b, '.', color=c, ms=1)
             axes[1].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds], '.', color=c, ms=1)
             axes[2].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds], '.', color=c, ms=1)
             #axes[3].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds], '.', color=c, ms=1)
@@ -162,7 +162,7 @@ for band, labels in zip(bands, label_list):
             print(np.round(mu_chisq,3), np.round(mu_fknee*1e3, 3), np.round(mu_alpha,3))
 
             for num in range(4):
-              axes[num].set_ylim(mins[num], maxs[num])
+                axes[num].set_ylim(mins[num], maxs[num])
     
             axes[0].set_ylabel(r'$g$ [du/mK]')
             axes[1].set_ylabel(r'$f_\mathrm{k}$ [Hz]')
