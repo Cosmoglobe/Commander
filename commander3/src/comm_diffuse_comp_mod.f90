@@ -85,6 +85,7 @@ module comm_diffuse_comp_mod
      class(map_ptr),     allocatable, dimension(:)     :: pol_nprop
      class(map_ptr),     allocatable, dimension(:)     :: spec_mono_mask
      logical(lgt),       allocatable, dimension(:)     :: spec_mono_combined
+     character(len=512), allocatable, dimension(:)     :: spec_mono_type
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
@@ -541,7 +542,7 @@ contains
     !allocating and setting up default correlation limits for sampled spectral parameters, local sampling
     allocate(self%spec_corr_convergence(self%npar),self%spec_corr_limit(self%npar))
     self%spec_corr_convergence(:)=.false. !do not push back (add extra samples) during local sampling by default
-    self%spec_corr_limit(i)=0.1d0 !assign a default correlation limit if non is defined 
+    self%spec_corr_limit(:)=0.1d0 !assign a default correlation limit if non is defined 
 
     allocate(self%pol_pixreg_type(3,self%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
     allocate(self%nprop_uni(2,self%npar))          ! {integer}: upper and lower limits on nprop
@@ -706,6 +707,7 @@ contains
     allocate(self%ind_pixreg_map(self%npar))   ! pixel region map per spectral index (all poltypes)
     allocate(self%spec_mono_combined(self%npar)) !logical array, combined monopole and spectral parameter sampling
     allocate(self%spec_mono_mask(self%npar)) !map pointer array, monopole sampling mask
+    allocate(self%spec_mono_type(self%npar)) !map pointer array, monopole sampling mask
 
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
@@ -725,6 +727,7 @@ contains
        call update_status(status, "initPixreg_spec_monopole_mask")
        self%spec_mono_combined(i)=cpar%cs_spec_mono_combined(id_abs,i)
        if (self%spec_mono_combined(i)) then
+          self%spec_mono_type(i)=trim(cpar%cs_spec_mono_type(id_abs,i))
           info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
                & self%nmaps, self%pol)
 
@@ -4211,6 +4214,7 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
+    
     if (trim(self%mono_prior_type) == 'monopole') then        ! Set monopole to zero outside user-specified mask
 
        ! Compute mean outside mask; no noise weighting for now at least
@@ -4219,13 +4223,14 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        mu(0) = a / b
+       mu(1:3) = 0.d0 !in order to not subtract any dipole in alm space!
 
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
        if (self%x%info%myid == 0) write(*,fmt='(a,f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu(0)
 
-    else if (trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole and dipole to zero outside user-specified mask
+    else if (trim(self%mono_prior_type) == 'monopole-dipole' .or. trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole or monopole+dipole to zero outside user-specified mask. In both cases the dipole is computed, but only in the monopole+dipole case it is removed
        ! Generate real-space component map
 
        ! Compute mean outside mask; no noise weighting for now at least
@@ -4245,14 +4250,22 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, bmat,  4, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call solve_system_real(Amat, mu, bmat)
 
-       ! Subtract mean and dipole in real space
-       do i = 0, self%x%info%np-1
-          v(0) = 1.d0
-          call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
-          self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
-       end do
+       ! Subtract mean (and dipole) in real space
+       if (trim(self%mono_prior_type) == 'monopole-dipole') then
+          ! Subtract mean in real space 
+          self%x%map(:,1) = self%x%map(:,1) - mu(0)
+          if (self%x%info%myid == 0) write(*,fmt='(a,f10.3,a,3f10.3,a)') '   Monopole prior correction (with dipole estimate) for '//trim(self%label)//': ', mu(0),'  ( ',mu(1:3), ' )'
+          mu(1:3)=0.d0 !in order to not subtract the dipole in alm space!
+       else
+          ! Subtract mean and dipole in real space
+          do i = 0, self%x%info%np-1
+             v(0) = 1.d0
+             call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
+             self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
+          end do
+          if (self%x%info%myid == 0) write(*,fmt='(a,4f10.3)') '   Monopole+dipole prior correction for '//trim(self%label)//': ', mu
+       end if
 
-       if (self%x%info%myid == 0) write(*,fmt='(a,4f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu
 
     else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
        write(*,*) 'Error: Cross-correlation monopole prior not implemented yet'

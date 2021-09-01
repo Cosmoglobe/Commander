@@ -1638,7 +1638,7 @@ contains
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
     logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop
-    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt
+    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt, monocorr_type
     character(len=6) :: itext
     character(len=4) :: ctext
     character(len=2) :: pind_txt
@@ -1671,6 +1671,11 @@ contains
     real(dp),      allocatable, dimension(:) :: old_mono, new_mono
     logical(lgt),  allocatable, dimension(:) :: monopole_active
     real(dp),    allocatable, dimension(:,:) :: reduced_data
+    real(dp),    allocatable, dimension(:,:) :: harmonics, harmonics2
+    real(dp),                 dimension(0:3) :: multipoles, md_b   
+    real(dp),             dimension(0:3,0:3) :: md_A
+    real(dp),                 dimension(3)   :: vector
+    integer(i4b) :: i_md, j_md, k_md
 
     c           => compList     ! Extremely ugly hack...
     do while (comp_id /= c%id)
@@ -1756,11 +1761,39 @@ contains
        allocate(monopole_rms(numband))
        allocate(monopole_mixing(numband))
        allocate(monopole_active(numband))
+       monocorr_type=trim(c_lnL%spec_mono_type(par_id))
        monopole_active=.false.
        monopole_val=0.d0
        monopole_mu=0.d0
        monopole_rms=0.d0
        monopole_mixing=0.d0
+
+       !ud_grade monopole mask (if it is not same nside as smoothing scale)
+       mask_mono => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
+       where (mask_mono%map > 0.5d0)
+          mask_mono%map=1.d0
+       elsewhere
+          mask_mono%map=0.d0
+       end where
+
+       !set up harmonics matrices for solving mono- and dipole estimates
+       allocate(harmonics(0:np_lr-1,0:3)) !harmonics without mixing scaling (will not chainge)
+       allocate(harmonics2(0:np_lr-1,0:3)) !harmonics with mixing (will change)
+       do i = 0, np_lr-1
+          call pix2vec_ring(info_lr%nside, info_lr%pix(i+1), vector) !important to get the correct pixel number, i.e. "info_lr%pix(+1i)", not "i". The +1 is because the pix array starts from index 1 (not 0)
+          
+          if (mask_mono%map(i,1) > 0.5d0) then
+             harmonics(i,0) = 1.d0
+             harmonics(i,1) = vector(1)
+             harmonics(i,2) = vector(2)
+             harmonics(i,3) = vector(3)
+          else
+             harmonics(i,:) = 0.d0
+          end if
+
+       end do
+
     end if
 
     band_count=0
@@ -1910,14 +1943,6 @@ contains
              theta_lr_hole%map(:,1) = theta_fr%map(:,1)
           end if
 
-          !ud_grade monopole mask (if it is not same nside as smoothing scale)
-          mask_mono => comm_map(info_lr)
-          call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
-          where (mask_mono%map > 0.5d0)
-             mask_mono%map=1.d0
-          elsewhere
-             mask_mono%map=0.d0
-          end where
 
           ! produce reduced data sets of the active bands in Temperature with active monopole
           ! then sample a new monopole
@@ -1948,31 +1973,69 @@ contains
                         & c_lnL%x_smooth%map(pix,1) + monopole_mixing(j)*monopole_val(j)
                 end do
 
-                ! resample the monopole given the new reduced data
-                a=0.d0
-                b=0.d0
-                do pix = 0,np_lr-1
-                   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                      b = b + monopole_mixing(j)*reduced_data(pix,1) * (rms_smooth(j)%p%siN%map(pix,1))**2
-                   end if
-                end do
+                if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                     & trim(monocorr_type) == 'monopole-dipole') then
+                   ! resample the monopole (and dipole) given the new reduced data
+                   md_A = 0.d0
+                   md_b = 0.d0
+                   harmonics2=harmonics*monopole_mixing(j)
+                   do j_md = 0, 3
+                      do k_md = 0, 3
+                         md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
+                      end do
 
-                !gather a and b
-                call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                     & MPI_SUM, info_lr%comm, ierr)
-                call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                     & MPI_SUM, info_lr%comm, ierr)
-                
-                if (info_lr%myid == 0) then
+                      md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
+                   end do
+                   !we need to run an MPI reduce to get all harmonics for md_A and md_b
+                   call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                   !solve the mono-/dipole system
+                   call solve_system_real(md_A, multipoles, md_b) 
+
+                   ! Need to get the statistical power for when adding the monopole prior
+                   a=0.d0
+                   do pix = 0,np_lr-1
+                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                      end if
+                   end do
+
+                   !gather a
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+
+                else if (trim(monocorr_type) == 'monopole') then
+                   a=0.d0
+                   b=0.d0
+                   do pix = 0,np_lr-1
+                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                         b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                      end if
+                   end do
+
+                   !gather a and b
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
                    if (a > 0.d0) then
-                      mu = b/a
+                      multipoles(0) = b/a
+                   else
+                      multipoles(0) = 0.d0
+                   end if
+                end if
+
+                if (info_lr%myid == 0) then
+
+                   if (a > 0.d0) then !we have statistical power to estimate a monopole
                       sigma=sqrt(a)
+                      mu = multipoles(0)
                    else if (monopole_rms(j) > 0.d0) then !this will effectively set monopole to prior mean
-                      mu = 0
+                      mu=0.d0
                       sigma = 0.d0
                    else
-                      mu = monopole_mu(j) !just set to prior mean
+                      mu=0.d0
                       sigma = 0.d0
                    end if
 
@@ -2034,6 +2097,9 @@ contains
        if (allocated(monopole_active)) deallocate(monopole_active)
        if (allocated(reduced_data)) deallocate(reduced_data)
        if (allocated(all_thetas)) deallocate(all_thetas)
+       if (allocated(harmonics)) deallocate(harmonics)
+       if (allocated(harmonics2)) deallocate(harmonics2)
+
 
        !###################################################################################################
 
@@ -2100,14 +2166,6 @@ contains
        allocate(old_mono(numband),new_mono(numband))
        old_mono=monopole_val
        new_mono=old_mono
-       !ud_grade monopole mask (if it is not same nside as smoothing scale)
-       mask_mono => comm_map(info_lr)
-       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono)
-       where (mask_mono%map > 0.5d0)
-          mask_mono%map=1.d0
-       elsewhere
-          mask_mono%map=0.d0
-       end where
     end if
 
     !This is used for fullres chisq
@@ -2322,33 +2380,73 @@ contains
                       
                       !create reduced map from original reduced data (residual+component) and original monopole
                       reduced_data(:,k) = reduced_data(:,k) + monopole_mixing(band_i(k))*monopole_val(band_i(k))
-                      
-                      !calculate new monopole value
-                      a=0.d0
-                      b=0.d0
-                      do pix = 0,np_lr-1
-                         if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                            a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                            b = b + monopole_mixing(band_i(k))*reduced_data(pix,k) * &
-                                 & (rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                         end if
-                      end do
+                                            
+                      if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                           & trim(monocorr_type) == 'monopole-dipole') then
+                         ! resample the monopole (and dipole) given the new reduced data
+                         md_A = 0.d0
+                         md_b = 0.d0
+                         harmonics2=harmonics*monopole_mixing(j)
+                         do j_md = 0, 3
+                            do k_md = 0, 3
+                               md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
+                            end do
 
-                      !gather a and b
-                      call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                           & MPI_SUM, info_lr%comm, ierr)
-                      call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                           & MPI_SUM, info_lr%comm, ierr)
-                
-                      if (info_lr%myid == 0) then
+                            md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
+                         end do
+                         !we need to run an MPI reduce to get all harmonics for md_A and md_b
+                         call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                         !solve the mono-/dipole system
+                         call solve_system_real(md_A, multipoles, md_b) 
+
+                         ! Need to get the statistical power for when adding the monopole prior
+                         a=0.d0
+                         do pix = 0,np_lr-1
+                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                               a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                            end if
+                         end do
+
+                         !gather a
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+
+                      else if (trim(monocorr_type) == 'monopole') then
+                         a=0.d0
+                         b=0.d0
+                         do pix = 0,np_lr-1
+                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                               a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                               b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                            end if
+                         end do
+
+                         !gather a and b
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
                          if (a > 0.d0) then
-                            mu = b/a
+                            multipoles(0) = b/a
+                         else
+                            multipoles(0) = 0.d0
+                         end if
+                      end if
+
+                      
+                      if (info_lr%myid == 0) then
+                         !solve the mono-/dipole system
+                         call solve_system_real(md_A, multipoles, md_b) 
+
+                         if (a > 0.d0) then !we have statistical power to estimate a monopole
                             sigma=sqrt(a)
+                            mu = multipoles(0)
                          else if (monopole_rms(band_i(k)) > 0.d0) then
-                            mu = 0
+                            mu=0.d0
                             sigma = 0.d0
                          else
-                            mu = monopole_mu(band_i(k))
+                            mu=0.d0
                             sigma = 0.d0
                          end if
 
@@ -3100,6 +3198,8 @@ contains
     if (allocated(monopole_active)) deallocate(monopole_active)
     if (allocated(old_mono)) deallocate(old_mono)
     if (allocated(new_mono)) deallocate(new_mono)
+    if (allocated(harmonics)) deallocate(harmonics)
+    if (allocated(harmonics2)) deallocate(harmonics2)
 
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
