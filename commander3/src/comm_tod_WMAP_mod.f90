@@ -585,6 +585,12 @@ contains
         call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
       end do
 
+      ! Testing that we can actually write out the various maps okay
+      do i = 1, self%ndet
+        call int2string(i, ctext)
+        call map_in(i,1)%p%writeFITS(trim(prefix)//'det'//trim(adjustl(ctext))//trim(postfix))
+      end do
+
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
          call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
