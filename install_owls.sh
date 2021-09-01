@@ -68,7 +68,7 @@ then
 	#------------------------------------------------------------------------------
 	# (Re)loading necessary modules
 	module purge
-	module load gnu git/2.30.1 Intel_parallel_studio/2020/4.912 #Intel_parallel_studio/2018/3.051
+	module load gnu git/2.30.1 Intel_parallel_studio/2018/3.051
 	echo "(Re)loaded the following modules:"
 	echo "$(module list)"
 	#------------------------------------------------------------------------------
