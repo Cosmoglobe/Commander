@@ -466,7 +466,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.true. .and. i==1 .and. mod(iter,10) == 0 .and. self%myid == 0) then
+         if (.true. .and. i==1 .and. self%first_call) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
@@ -586,10 +586,12 @@ contains
       end do
 
       ! Testing that we can actually write out the various maps okay
-      do i = 1, self%ndet
-        call int2string(i, ctext)
-        call map_in(i,1)%p%writeFITS(trim(prefix)//'det'//trim(adjustl(ctext))//trim(postfix))
-      end do
+      if (self%first_call) then
+        do i = 1, self%ndet
+          call int2string(i, ctext)
+          call map_in(i,1)%p%writeFITS(trim(prefix)//'det'//trim(adjustl(ctext))//trim(postfix))
+        end do
+      end if
 
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
