@@ -7,7 +7,7 @@ data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0
 
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 burn = 1
-thin = 10
+thin = 1
 burn = max(burn, thin)
 
 
@@ -102,9 +102,9 @@ for band, labels in zip(bands, label_list):
         #mins[0] = min([g[0], g[-1]])
         #maxs[0] = max([g[0], g[-1]])
         for i in range(burn, len(data.keys())-1, thin):
-            inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
-            (abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
-            (data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
+            inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1)# & \
+            #(abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
+            #(data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
             inds = np.array(inds)
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
