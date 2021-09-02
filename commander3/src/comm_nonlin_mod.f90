@@ -1637,15 +1637,16 @@ contains
     integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
-    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop
+    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop, sample_accepted
     character(len=512) :: filename, postfix, fmt_pix, npixreg_txt, monocorr_type
     character(len=6) :: itext
     character(len=4) :: ctext
     character(len=2) :: pind_txt
     real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: theta_corr_arr
     real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth, dlnL_arr
-    real(dp),    allocatable, dimension(:,:) :: theta_MC_arr
+    real(dp),  allocatable, dimension(:,:,:) :: theta_MC_arr
     integer(i4b),  allocatable, dimension(:) :: band_i, pol_j, accept_arr
     class(comm_mapinfo),             pointer :: info_fr => null() !full resolution
     class(comm_mapinfo),             pointer :: info_fr_single => null() !full resolution, nmaps=1
@@ -1669,13 +1670,14 @@ contains
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
     real(dp),      allocatable, dimension(:) :: old_mono, new_mono
+    real(dp), allocatable, dimension(:,:,:,:) :: multipoles_trace !trace for proposed and accepted multipoles. (2,Nsamp,numband,0:3), the final dimension can be adjusted if only monopoles are estimated
     logical(lgt),  allocatable, dimension(:) :: monopole_active
     real(dp),    allocatable, dimension(:,:) :: reduced_data
     real(dp),    allocatable, dimension(:,:) :: harmonics, harmonics2
     real(dp),                 dimension(0:3) :: multipoles, md_b   
     real(dp),             dimension(0:3,0:3) :: md_A
     real(dp),                 dimension(3)   :: vector
-    integer(i4b) :: i_md, j_md, k_md
+    integer(i4b) :: i_md, j_md, k_md, max_prop
 
     c           => compList     ! Extremely ugly hack...
     do while (comp_id /= c%id)
@@ -2194,9 +2196,14 @@ contains
        do pr = 1, npixreg
           if (c_lnL%nprop_pixreg(pr,p,id) > N_theta_MC ) N_theta_MC = c_lnL%nprop_pixreg(pr,p,id)
        end do
-       allocate(theta_MC_arr(N_theta_MC+1,npixreg))
+       allocate(theta_MC_arr(N_theta_MC+1,npixreg,2))
        theta_MC_arr = 0.d0
+       if (c_lnL%spec_mono_combined(par_id)) then 
+          allocate(multipoles_trace(2,N_theta_MC+1,numband,0:3))
+          multipoles_trace=0.d0
+       end if
     end if
+    max_prop = 0
 
     do pr = 1,npixreg
 
@@ -2386,7 +2393,7 @@ contains
                          ! resample the monopole (and dipole) given the new reduced data
                          md_A = 0.d0
                          md_b = 0.d0
-                         harmonics2=harmonics*monopole_mixing(j)
+                         harmonics2=harmonics*monopole_mixing(band_i(k))
                          do j_md = 0, 3
                             do k_md = 0, 3
                                md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
@@ -2404,7 +2411,7 @@ contains
                          a=0.d0
                          do pix = 0,np_lr-1
                             if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(j)%p%siN%map(pix,1))**2
                             end if
                          end do
 
@@ -2417,8 +2424,8 @@ contains
                          b=0.d0
                          do pix = 0,np_lr-1
                             if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                               b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(j)%p%siN%map(pix,1))**2
+                               b = b + reduced_data(pix,1) * monopole_mixing(band_i(k)) * (rms_smooth(j)%p%siN%map(pix,1))**2
                             end if
                          end do
 
@@ -2461,6 +2468,15 @@ contains
                       ! bcast new monopole to other processors
                       call mpi_bcast(mu, 1, MPI_DOUBLE_PRECISION, 0, info_lr%comm, ierr)
                       new_mono(band_i(k)) = mu
+
+                      if (myid_pix == 0) then
+                         !trace multipoles
+                         multipoles_trace(1,j,band_i(k),0) = mu
+                         if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                              & trim(monocorr_type) == 'monopole-dipole') &
+                              & multipoles_trace(1,j,band_i(k),1:3) = multipoles(1:3)
+                      end if
+
 
                       !update the reduced data map with the new monopole
                       reduced_data(:,k) = res_smooth(band_i(k))%p%map(:,pol_j(k)) + &
@@ -2684,6 +2700,7 @@ contains
              if (c_lnL%spec_mono_combined(par_id)) then
                 old_mono=new_mono
              end if
+             sample_accepted=.true.
           else if (myid_pix == 0) then
              !accept/reject new spec ind
              delta_lnL = lnL_new-lnL_old
@@ -2716,6 +2733,7 @@ contains
                    a = rand_uni(handle) !draw uniform number from 0 to 1
                    if (exp(delta_lnL) > a) then
                       !accept
+                      sample_accepted=.true.
                       old_theta = new_theta
                       lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
                       n_accept = n_accept + 1
@@ -2724,12 +2742,16 @@ contains
                          old_mono=new_mono
                       end if
                    else
+                      sample_accepted=.false.
                       accept_arr(arr_ind) = 0 !reject
                    end if
                 else
+                   sample_accepted=.false.
                    accept_arr(arr_ind) = 0 !reject if running optimize
                 end if
              else
+                sample_accepted=.true.
+
                 !accept new sample, higher likelihood
                 old_theta = new_theta
                 lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
@@ -2740,12 +2762,22 @@ contains
                 end if
              end if
              
-             if (j <= N_theta_MC) theta_MC_arr(j,pr) = old_theta
-
+             if (j <= N_theta_MC) then
+                if (j > max_prop) max_prop = j
+                theta_MC_arr(j,pr,1) = new_theta
+                theta_MC_arr(j,pr,2) = old_theta
+                if (c_lnL%spec_mono_combined(par_id)) then
+                   if (sample_accepted) then
+                      multipoles_trace(2,j,:,:) = multipoles_trace(1,j,:,:) !accept new multipoles for the trace
+                   else
+                      if (j > 1) multipoles_trace(2,j,:,:) = multipoles_trace(2,j-1,:,:) !copy the previous sample multipoles as the "accepted" ones
+                   end if
+                end if
+             end if
              !compute the running acceptance and correlation coefficient values
              running_accept = (1.d0*sum(accept_arr(1:min(n_spec_prop,n_prop_limit))))/max(min(n_spec_prop,n_prop_limit),1)
-             theta_corr_arr(arr_ind) = old_theta
-             running_correlation=calc_corr_coeff(theta_corr_arr,min(n_spec_prop,n_prop_limit))
+             theta_corr_arr(arr_ind) = old_theta !keeping track of accepted thetas
+             running_correlation=calc_corr_coeff(theta_corr_arr(:),min(n_spec_prop,n_prop_limit))
 
              if (j-1 > burn_in) burned_in = .true.
              ! evaluate proposal_length, then correlation length. 
@@ -2830,7 +2862,7 @@ contains
                    n_corr_prop = 0
                    first_nprop = .false. !make sure not to reset again for this pixel region
                    j = -1 !reset while loop counter
-                   theta_MC_arr(:,pr) = 0.d0
+                   theta_MC_arr(:,pr,:) = 0.d0
                 end if
 
                 n_corr_prop = n_corr_prop + 1
@@ -2934,6 +2966,63 @@ contains
        call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
        theta_single_lr => null()
        theta_lr_hole => null()
+       
+       !print MC multipoles to file, (partially debug)
+       if (.true. .and. c_lnL%spec_mono_combined(par_id) .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
+          call int2string(iter,         itext)
+          call int2string(p,         pind_txt)
+          call int2string(cpar%mychain, ctext)
+          postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
+          call int2string(pr,         pind_txt)
+          postfix = trim(postfix)//'_pixreg'//pind_txt
+          unit = getlun()
+          do k_md = 1,numband
+             if (.not. monopole_active(k_md)) cycle
+             call int2string(k_md,         pind_txt)
+             if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                  & trim(monocorr_type) == 'monopole-dipole') then
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_accepted_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, 4e14.5)') i_md, multipoles_trace(2,i_md,k_md,:)
+                end do
+                close(unit)
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_proposed_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, 4e14.5)') i_md, multipoles_trace(1,i_md,k_md,:)
+                end do
+                close(unit)
+             else
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_accepted_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, e14.5)') i_md, multipoles_trace(2,i_md,k_md,0)
+                end do
+                close(unit)
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_proposed_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, e14.5)') i_md, multipoles_trace(1,i_md,k_md,0)
+                end do
+                close(unit)
+             end if
+          end do
+          multipoles_trace=0.d0
+       end if
+
 
     end do !pr = 1,max_pr
 
@@ -3022,18 +3111,17 @@ contains
     !print MC theta to file, (partially debug)
     if (.true. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
        unit = getlun()
-       filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
-            & '_theta_MC_'//trim(postfix)//'.dat'
-       open(unit,file=trim(filename))
-       !read(npixreg_txt,*) npixreg
-       !fmt_pix=trim(npixreg_txt)//'f12.6'
-       !write(*,*) fmt_pix
-       do i = 1,10000
-          !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          !write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
-          write(unit,*) i,theta_MC_arr(i,:)
+       do pr = 1,npixreg
+          call int2string(pr,         pind_txt)
+       
+          filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
+               & '_theta_MC_'//trim(postfix)//'_pixreg'//pind_txt//'.dat'
+          open(unit,file=trim(filename))
+          do i = 1,min(max_prop,N_theta_MC)
+             write(unit,fmt='(i7, 2e14.5)') i,theta_MC_arr(i,pr,:)
+          end do
+          close(unit)
        end do
-       close(unit)
        deallocate(theta_MC_arr)
     end if
 
@@ -3200,6 +3288,7 @@ contains
     if (allocated(new_mono)) deallocate(new_mono)
     if (allocated(harmonics)) deallocate(harmonics)
     if (allocated(harmonics2)) deallocate(harmonics2)
+    if (allocated(multipoles_trace)) deallocate(multipoles_trace)
 
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
