@@ -1690,6 +1690,8 @@ contains
 
     id = par_id !hack to not rewrite too much from diffuse_comp_mod
 
+    call update_status(status, "nonlin pixreg samling start " // trim(c_lnL%label)// ' ' // trim(c_lnL%indlabel(par_id)))
+
     info_fr  => comm_mapinfo(c_lnL%theta(id)%p%info%comm, c_lnL%theta(id)%p%info%nside, &
          & c_lnL%B_pp_fr(id)%p%info%lmax, c_lnL%theta(id)%p%info%nmaps, c_lnL%theta(id)%p%info%pol)
 
@@ -1988,9 +1990,11 @@ contains
 
                       md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
                    end do
+                   multipoles=0.d0
                    !we need to run an MPI reduce to get all harmonics for md_A and md_b
                    call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
                    call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+
                    !solve the mono-/dipole system
                    call solve_system_real(md_A, multipoles, md_b) 
 
@@ -2199,7 +2203,7 @@ contains
        allocate(theta_MC_arr(N_theta_MC+1,npixreg,2))
        theta_MC_arr = 0.d0
        if (c_lnL%spec_mono_combined(par_id)) then 
-          allocate(multipoles_trace(2,N_theta_MC+1,numband,0:3))
+          allocate(multipoles_trace(2,0:N_theta_MC+1,numband,0:3))
           multipoles_trace=0.d0
        end if
     end if
@@ -2404,6 +2408,7 @@ contains
                          !we need to run an MPI reduce to get all harmonics for md_A and md_b
                          call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
                          call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+
                          !solve the mono-/dipole system
                          call solve_system_real(md_A, multipoles, md_b) 
 
@@ -2411,7 +2416,7 @@ contains
                          a=0.d0
                          do pix = 0,np_lr-1
                             if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(j)%p%siN%map(pix,1))**2
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
                             end if
                          end do
 
@@ -2424,8 +2429,8 @@ contains
                          b=0.d0
                          do pix = 0,np_lr-1
                             if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(j)%p%siN%map(pix,1))**2
-                               b = b + reduced_data(pix,1) * monopole_mixing(band_i(k)) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                               b = b + reduced_data(pix,1) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
                             end if
                          end do
 
@@ -2443,8 +2448,6 @@ contains
 
                       
                       if (info_lr%myid == 0) then
-                         !solve the mono-/dipole system
-                         call solve_system_real(md_A, multipoles, md_b) 
 
                          if (a > 0.d0) then !we have statistical power to estimate a monopole
                             sigma=sqrt(a)
@@ -3290,6 +3293,7 @@ contains
     if (allocated(harmonics2)) deallocate(harmonics2)
     if (allocated(multipoles_trace)) deallocate(multipoles_trace)
 
+    call update_status(status, "nonlin pixreg samling end " // trim(c_lnL%label)// ' ' // trim(c_lnL%indlabel(par_id)))
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
 
