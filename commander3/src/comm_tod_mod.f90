@@ -112,6 +112,7 @@ module comm_tod_mod
      logical(lgt) :: orb_abscal
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
+     logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
@@ -171,6 +172,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: gain_sigma_0  ! size(ndet), the estimated white noise level of that scan. Not truly a white noise since our model is sigma_0**2 * (f/fknee)**alpha instead of sigma_0 ** 2 (1 + f/fknee ** alpha)
      real(dp), allocatable, dimension(:)    :: gain_fknee ! size(ndet)
      real(dp), allocatable, dimension(:)    :: gain_alpha ! size(ndet)
+     real(dp) :: gain_sigma0_std ! std for metropolis-hastings sampling
      real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
    contains
@@ -302,6 +304,7 @@ contains
     self%apply_inst_corr = .false.
     self%enable_tod_simulations = cpar%enable_tod_simulations
     self%level        = cpar%ds_tod_level(id_abs)
+    self%sample_abs_bp   = .false.
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
@@ -389,11 +392,12 @@ contains
     !Allocate and initialize gain structures
     allocate(self%gain_sigma_0(self%ndet))
     ! To be initialized at first call
-    self%gain_sigma_0 = -1.d0
     allocate(self%gain_fknee(self%ndet))
     allocate(self%gain_alpha(self%ndet))
+    self%gain_sigma_0 = 3d-4
     self%gain_fknee =  0.002d0 / (60.d0 * 60.d0) ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
     self%gain_alpha =  -1.d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_sigma0_std = abs(self%gain_sigma_0(1) * 0.01)
     self%gain_fknee_std = abs(self%gain_fknee(1) * 0.01)
     self%gain_alpha_std = abs(self%gain_alpha(1) * 0.01)
 
@@ -1105,8 +1109,9 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q
     real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
+    character(len=6)   :: fileid
     character(len=512) :: infile
     real(dp),           allocatable, dimension(:)   :: weight, sid
     real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
@@ -1215,35 +1220,46 @@ contains
 !!$       end do
 !!$       deallocate(id, pweight, weight)
 
-       ! Sort according to scan id
-         proc    = -1
-         call QuickSort(id, sid)
+
          w_tot = sum(weight)
-         w_curr = 0.d0
-         j     = 1
-         do i = np-1, 1, -1
-            w = 0.d0
-            do k = 1, n_tot
-               if (proc(k) == i) w = w + weight(k) 
+         if (self%enable_tod_simulations) then
+            do i = 1, n_tot
+               infile = filename(i)
+               q = len(trim(infile))
+               read(infile(q-8:q-3),*) q
+               proc(i) = mod(q,np)
             end do
-            do while (w < w_tot/np .and. j <= n_tot)
-               proc(id(j)) = i
-               w           = w + weight(id(j))
-               if (w > 1.2d0*w_tot/np) then
-                  ! Assign large scans to next core
-                  proc(id(j)) = i-1
-                  w           = w - weight(id(j))
-               end if
-               j           = j+1
-            end do
+         else
+            ! Sort according to scan id
+            proc    = -1
+            call QuickSort(id, sid)
+            w_curr = 0.d0
+            j     = 1
+            do i = np-1, 1, -1
+               w = 0.d0
+               do k = 1, n_tot
+                  if (proc(k) == i) w = w + weight(k) 
+               end do
+               do while (w < w_tot/np .and. j <= n_tot)
+                  proc(id(j)) = i
+                  w           = w + weight(id(j))
+                  if (w > 1.2d0*w_tot/np) then
+                     ! Assign large scans to next core
+                     proc(id(j)) = i-1
+                     w           = w - weight(id(j))
+                  end if
+                  j           = j+1
+               end do
 !!$            if (w_curr > i*w_tot/np) then
 !!$               proc(id(j-1)) = i-1
 !!$            end if
-         end do
-         do while (j <= n_tot)
-            proc(id(j)) = 0
-            j = j+1
-         end do
+            end do
+            do while (j <= n_tot)
+               proc(id(j)) = 0
+               j = j+1
+            end do
+         end if
+
          pweight = 0.d0
          do k = 1, n_tot
             pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
@@ -1428,6 +1444,9 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+!!$       if (trim(self%freq) .ne. '030') then
+!!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
+!!$       end if
 !!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
 !!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
 !!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
@@ -1456,6 +1475,10 @@ contains
 !!$         & self%comm, ierr)
 !!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
 !!$         & self%comm, ierr)
+
+!!$    where (output(:,:,1)>0.)
+!!$       output(:,:,1) = 0.05
+!!$    end where
 
     self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
     do j = 1, self%ndet

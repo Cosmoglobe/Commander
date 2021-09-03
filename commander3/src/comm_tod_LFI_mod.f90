@@ -133,6 +133,7 @@ contains
     ! Set up noise PSD type and priors
     constructor%freq            = cpar%ds_label(id_abs)    
     if (trim(constructor%freq) == '030') then
+       constructor%sample_abs_bp   = .true.
        constructor%n_xi            = 6
        constructor%noise_psd_model = 'oof_gauss'    
        allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -147,6 +148,7 @@ contains
        constructor%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        constructor%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(constructor%freq) == '044') then
+       constructor%sample_abs_bp   = .false.
        constructor%n_xi            = 6
        constructor%noise_psd_model = 'oof_gauss'
        allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -161,6 +163,7 @@ contains
        constructor%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        constructor%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(constructor%freq) == '070') then
+       constructor%sample_abs_bp   = .false.
        constructor%n_xi            = 3
        constructor%noise_psd_model = 'oof'
        allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -496,7 +499,6 @@ contains
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
-    real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
@@ -505,8 +507,9 @@ contains
     call update_status(status, "tod_start"//ctext)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = size(delta,3) > 1! .and. mod(iter,2) == 0     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   = .false. !size(delta,3) > 1 .and. mod(iter,2) == 1     ! don't sample absolute bandpasses
+    sample_rel_bandpass   = .not. self%sample_abs_bp .or.(size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! don't sample absolute bandpasses
+
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
@@ -574,10 +577,12 @@ contains
     end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
-    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
-    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
-    call sample_gain_psd(self, handle)
+    if (.not. self%enable_tod_simulations) then
+       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_gain_psd(self, handle)
+    end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -607,7 +612,6 @@ contains
        else
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
-       allocate(s_buf(sd%ntod,sd%ndet))
 
        ! Calling Simulation Routine
        if (self%enable_tod_simulations) then
@@ -620,7 +624,7 @@ contains
        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -669,9 +673,19 @@ contains
 
        ! Clean up
        call sd%dealloc
-       deallocate(s_buf, d_calib)
+       deallocate(d_calib)
 
     end do
+
+    if (self%enable_tod_simulations) then
+       ! Clean up
+       call binmap%dealloc()
+       call update_status(status, "dealloc_binned_map")
+       if (allocated(slist)) deallocate(slist)
+       deallocate(map_sky, procmask, procmask2)
+       call update_status(status, "dealloc_sky_maps")
+       return
+    end if
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
