@@ -505,8 +505,8 @@ contains
     call update_status(status, "tod_start"//ctext)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = size(delta,3) > 1 .and. mod(iter,2) == 0     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   = size(delta,3) > 1 .and. mod(iter,2) == 1     ! don't sample absolute bandpasses
+    sample_rel_bandpass   = size(delta,3) > 1! .and. mod(iter,2) == 0     ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   = .false. !size(delta,3) > 1 .and. mod(iter,2) == 1     ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 

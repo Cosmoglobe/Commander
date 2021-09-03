@@ -30,7 +30,7 @@ program commander
   use comm_tod_simulations_mod
   implicit none
 
-  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
+  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
   logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
@@ -159,8 +159,8 @@ program commander
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
+  
 
-  ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
   if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(ok)
@@ -212,6 +212,11 @@ program commander
 
   !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
+  !do i=1,numband
+  !   do j=0, data(i)%ndet
+  !      data(i)%bp(j)%p%delta = 0.d0
+  !   end do
+  !end do
 
   ! Run Gibbs loop
   iter  = first_sample
@@ -269,7 +274,7 @@ program commander
                    & samp_group, ' of ', cpar%cg_num_user_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
-
+           
            if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
         end do
@@ -360,7 +365,8 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (mod(iter,2) == 0) then
+                   if (.true.) then
+                   !if (mod(iter,2) == 0) then
                    !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant

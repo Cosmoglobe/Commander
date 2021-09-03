@@ -60,7 +60,7 @@ contains
           end if
        end do
        do k = 1, ndelta
-          write(*,*) '   BP delta = ', real(delta(0:1,1,k),sp), sum(chisq_S(:,k))
+          write(*,*) '   BP delta = ', real(delta(:,1,k),sp), sum(chisq_S(:,k))
        end do
        write(*,fmt='(a,f16.1,a,l3)') '    BP chisq diff = ', cc-c0, ', accept = ', current /= 1
     end if
