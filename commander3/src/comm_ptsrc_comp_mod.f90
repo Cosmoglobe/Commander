@@ -957,7 +957,7 @@ contains
     TYPE(h5o_info_t) :: object_info    
     character(len=128) :: itext
     integer(i4b), allocatable, dimension(:)   :: ind
-    real(dp),     allocatable, dimension(:,:) :: beam
+    real(dp),     allocatable, dimension(:,:) :: beam, buffer
     integer(i4b), dimension(MPI_STATUS_SIZE) :: status
 
     inquire(file=trim(filename), exist=exist)
@@ -994,8 +994,12 @@ contains
                 if (m > 0) then
                    call mpi_recv(ind(n+1:n+m), m, MPI_DOUBLE_PRECISION, j, &
                         & 61, comm_pre, status, ierr)
-                   call mpi_recv(beam(n+1:n+m,:), m*nmaps, MPI_DOUBLE_PRECISION, j, &
+                   allocate(buffer(m, nmaps))
+                   buffer = beam(n+1:n+m,:)
+                   call mpi_recv(buffer, m*nmaps, MPI_DOUBLE_PRECISION, j, &
                         & 61, comm_pre, status, ierr)
+                   beam(n+1:n+m,:) = buffer
+                   deallocate(buffer)
                 end if
                 n = n+m
              end do
