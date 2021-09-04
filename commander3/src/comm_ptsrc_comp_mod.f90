@@ -810,7 +810,7 @@ contains
     integer(i4b), allocatable, dimension(:,:) :: mypix
     real(dp),     allocatable, dimension(:)   :: b_in
     real(dp),     allocatable, dimension(:,:) :: b, mybeam
-    real(dp),     allocatable, dimension(:)   :: buffer
+    real(dp),     allocatable, dimension(:,:)   :: buffer
 
     if (myid_pre == 0) then
        ! Find center pixel number for current source
@@ -854,7 +854,7 @@ contains
        else if (T%nside < T%nside_febecop) then
           q = (T%nside_febecop/T%nside)**2
           n = 0
-          allocate(ind(m), b(m,T%nmaps), nsamp(m))
+          allocate(ind(m), b(m,T%nmaps), nsamp(m), buffer(m, T%nmaps))
           nsamp = 0
           b     = 0.d0
           do i = 1, m
@@ -894,10 +894,13 @@ contains
        call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
     else
        call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
-       allocate(ind(n), b(n,T%nmaps))
+       allocate(ind(n), b(n,T%nmaps), buffer(n, T%nmaps))
     end if
     call mpi_bcast(ind(1:n), n,         MPI_INTEGER,          0, comm_pre, ierr)
-    call mpi_bcast(b(1:n,:), n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+    buffer = b(1:n, :)
+    call mpi_bcast(buffer, n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+    b(1:n, :) = buffer
+    deallocate(buffer)
 
     ! Find number of pixels belonging to current processor
     allocate(mypix(n,2), mybeam(n,T%nmaps))
