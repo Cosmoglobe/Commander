@@ -3,10 +3,9 @@ import numpy as np
 
 import h5py
 
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/chain_c0001.h5', 'r')
-
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
-burn = 1
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
+burn = 3
 thin = 1
 burn = max(burn, thin)
 
@@ -67,29 +66,28 @@ label_list = [
          ['K113', 'K114', 'K123', 'K124']]
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_opt/chain_c0001.h5', 'r')
-bands=['023-WMAP_K', 
-       '030-WMAP_Ka',
-       '040-WMAP_Q1',
-       '040-WMAP_Q2',
-       '060-WMAP_V1',
-       '060-WMAP_V2']
-       #'090-WMAP_W1',
-       #'090-WMAP_W2',
-       #'090-WMAP_W3',
-       #'090-WMAP_W4']
+bands=[#'023-WMAP_K', 
+       #'030-WMAP_Ka',
+       #'040-WMAP_Q1',
+       #'040-WMAP_Q2',
+       #'060-WMAP_V1',
+       #'060-WMAP_V2']
+       '090-WMAP_W1',
+       '090-WMAP_W2',
+       '090-WMAP_W3',
+       '090-WMAP_W4']
 label_list = [
-         ['K113', 'K114', 'K123', 'K124'],
-         ['Ka113', 'Ka114', 'Ka123', 'Ka124'],
-         ['Q113', 'Q114', 'Q123', 'Q124'],
-         ['Q213', 'Q214', 'Q223', 'Q224'],
-         ['V113', 'V114', 'V123', 'V124'],
-         ['V213', 'V214', 'V223', 'V224']]
-         #['W113', 'W114', 'W123', 'W124'],
-         #['W213', 'W214', 'W223', 'W224'],
-         #['W313', 'W314', 'W323', 'W324'],
-         #['W413', 'W414', 'W423', 'W424']]
+         #['K113', 'K114', 'K123', 'K124'],
+         #['Ka113', 'Ka114', 'Ka123', 'Ka124'],
+         #['Q113', 'Q114', 'Q123', 'Q124'],
+         #['Q213', 'Q214', 'Q223', 'Q224'],
+         #['V113', 'V114', 'V123', 'V124'],
+         #['V213', 'V214', 'V223', 'V224']]
+         ['W113', 'W114', 'W123', 'W124'],
+         ['W213', 'W214', 'W223', 'W224'],
+         ['W313', 'W314', 'W323', 'W324'],
+         ['W413', 'W414', 'W423', 'W424']]
 for band, labels in zip(bands, label_list):
-    data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
     print('\n')
     print(band, labels)
     for j in range(4):
