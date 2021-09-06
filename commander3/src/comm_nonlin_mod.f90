@@ -2763,6 +2763,7 @@ contains
 
           ! if j has been reset/changed by master proc (myid_pix==0), then the others need to know. Same with first_sample logical flag
           call mpi_bcast(j, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
+          call mpi_bcast(n_spec_prop, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
           call mpi_bcast(first_sample, 1, MPI_LOGICAL, 0, info_fr%comm, ierr)
 
           !bcast the running correlation coefficient for the pushback check, else the other procs are going to run aditional times and get stuck in some bcats/mpi_allreduce call
@@ -2796,7 +2797,6 @@ contains
              end if
           end if
        end do !while j < nprop
-
        if (pr == 1) lnl_total_init = lnl_init
 
        call wall_time(t2)
