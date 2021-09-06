@@ -45,27 +45,28 @@ message(STATUS "---------------------------------------------------------------"
 #			)
 #else()
 #if(NOT (BLAS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-if(USE_SYSTEM_BLAS AND USE_SYSTEM_LIBS)
+#if(USE_SYSTEM_BLAS AND USE_SYSTEM_LIBS)
 	# This works for OpenBLAS
 	# Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
 	# for some weird reason. In this case it is a good idea to logout and login
 	# to refresh terminal.
-	set($ENV{BLA_VENDOR} 
-			OpenBLAS
-			Intel10_32
-			Intel10_64lp
-			Intel10_64lp_seq
-			Intel10_64ilp
-			Intel10_64ilp_seq
-			Intel10_64_dyn
-			)
-	find_package(BLAS) #REQUIRED)
-	find_package(LAPACK) #REQUIRED)
-endif()
+#	set($ENV{BLA_VENDOR} 
+#			OpenBLAS
+#			Intel10_32
+#			Intel10_64lp
+#			Intel10_64lp_seq
+#			Intel10_64ilp
+#			Intel10_64ilp_seq
+#			Intel10_64_dyn
+#			)
+#	find_package(BLAS) #REQUIRED)
+#	find_package(LAPACK) #REQUIRED)
+#endif()
 
 # Download OpenBLAS from source if neither MKL or OpenBLAS
 # were found on the host system.
-if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+#if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+if(COMPILE_BLAS)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.

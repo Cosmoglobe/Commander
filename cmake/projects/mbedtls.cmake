@@ -27,12 +27,12 @@
 #================================================================================
 
 if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
-	message(STATUS "---------------------------------------------------------------")
-	if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
-		find_package(MBEDTLS)
-	endif()
+	#message(STATUS "---------------------------------------------------------------")
+	#if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
+	#	find_package(MBEDTLS)
+	#endif()
 
-	if(NOT MBEDTLS_FOUND) 
+	if(COMPILE_MBEDTLS) 
 		#------------------------------------------------------------------------------
 		# Note: the explicit splitting for download and install step is done on purpose
 		# to avoid errors when you want to recompile libraries for different owls etc.

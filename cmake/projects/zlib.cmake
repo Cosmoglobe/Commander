@@ -25,13 +25,13 @@
 # ZLib is (not strictly) required by OpenSSL, LibSSH2, cURL, and HDF5.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
+#
+#if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
+#	find_package(ZLIB 1.2.11)
+#endif()
 
-if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
-	find_package(ZLIB 1.2.11)
-endif()
-
-if(NOT ZLIB_FOUND)
+if(COMPILE_ZLIB)
 	message(STATUS "Required version -- 1.2.11 -- will be compiled from source.")
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose

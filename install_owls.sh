@@ -5,9 +5,9 @@
 # Global configuration:
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
-# Possible values: gnu, intel
-toolchain="intel"
-buildtype="Release" #"RelWithDebInfo"
+# Possible values: nvidia, flang, gnu, intel
+toolchain="gnu"
+buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -91,8 +91,8 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		#module load Intel_parallel_studio/2020/4.912
-		module load Intel_parallel_studio/2018/3.051
+		module load Intel_parallel_studio/2020/4.912
+		#module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -105,6 +105,31 @@ then
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
 	  module load foss/10.3.0 # custom GNU GCC + OpenMPI 
+		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
+	elif [[ "$toolchain" =~ "flang" ]]
+	then
+		# Compilers
+		fc="flang"
+		cc="clang"
+		cxx="clang++"
+		# MPI compilers
+		mpifc="mpifort" 
+		mpicc="mpicc"
+		mpicxx="mpicxx"
+		printf "Using AOCC:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+		module load openmpi/aocc/4.0.5 AMD/aocc/3.0.0
+	elif [[ "$toolchain" =~ "nvidia" ]]
+	then
+		# Compilers
+		fc="nvfortran"
+		cc="nvc"
+		cxx="nvc++"
+		# MPI compilers
+		mpifc="mpifort" 
+		mpicc="mpicc"
+		mpicxx="mpicxx"
+		printf "Using NVIDIA:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+		module load nvhpc/21.7 
 	fi
 	# Printing Loaded modules
 	printf "\n"
@@ -138,13 +163,13 @@ then
 	-DCFITSIO_USE_CURL:BOOL=OFF \
 	-DUSE_SYSTEM_FFTW:BOOL=OFF \
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	-DUSE_SYSTEM_HDF5:BOOL=OFF \
+	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
 	-S $comm3_root_dir -B $abs_path_to_build
-	##------------------------------------------------------------------------------
+	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount -v 
+	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON OWL!"
 fi

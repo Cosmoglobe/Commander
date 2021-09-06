@@ -22,13 +22,13 @@
 # If it fails to do so, it will download, compile and install HEALPix from source.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
-if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
-	#find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
-	find_package(HEALPIX COMPONENTS SHARP Fortran)
-endif()
+#message(STATUS "---------------------------------------------------------------")
+#if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
+#	#find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
+#	find_package(HEALPIX COMPONENTS SHARP Fortran)
+#endif()
 
-if(NOT HEALPIX_FOUND)
+if(COMPILE_HEALPIX)
 	# Writing this to be consistent with fftw.cmake, otherwise 
 	# the if statement is unnecessary.
 	if(NOT HEALPIX_Fortran_FOUND)
@@ -42,16 +42,20 @@ if(NOT HEALPIX_FOUND)
 		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+	#elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
+		#set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+	elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
+		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
 	endif()
 	#------------------------------------------------------------------------------
 	# Copying modyfied configure script to healpix root
-	list(APPEND healpix_copy_configure_script 
-		"${CMAKE_COMMAND}" "-E" "copy"
-		"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
-		#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
-		"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
-		#"&&"
-		)
+	#list(APPEND healpix_copy_configure_script 
+	#	"${CMAKE_COMMAND}" "-E" "copy"
+	#	"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
+	#	#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
+	#	"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
+	#	#"&&"
+	#	)
 	# Creating configure command for HEALPix
 	list(APPEND healpix_configure_command 
 		"${CMAKE_COMMAND}" "-E" "env" 
@@ -143,13 +147,13 @@ if(NOT HEALPIX_FOUND)
 		BINARY_DIR				"${HEALPIX_SOURCE_DIR}" 
 		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			ON
-		LOG_BUILD					ON
+		LOG_CONFIGURE			OFF
+		LOG_BUILD					OFF
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
-		CONFIGURE_COMMAND "${healpix_copy_configure_script}"
-		COMMAND						"${healpix_configure_command}"
-		#CONFIGURE_COMMAND	"${healpix_configure_command}"
+		#CONFIGURE_COMMAND "${healpix_copy_configure_script}"
+		#COMMAND						"${healpix_configure_command}"
+		CONFIGURE_COMMAND	"${healpix_configure_command}"
 		# HEALPix doesn't have an install command 
 		INSTALL_COMMAND		""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory

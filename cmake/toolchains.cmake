@@ -39,19 +39,44 @@ if(NOT CMAKE_BUILD_TYPE)
 		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: Release." FORCE)
 endif()
 #------------------------------------------------------------------------------
-# Currently supported Compilers (CMake v3.17).
-# More details in: 
-# - AppleClang: Apple Clang for Xcode versions 4.4+.
-# - Clang: Clang compiler versions 2.9+.
-# - GNU: GNU compiler versions 4.4+.
-# - MSVC: Microsoft Visual Studio versions 2010+.
-# - SunPro: Oracle SolarisStudio versions 12.4+.
-# - Intel: Intel compiler versions 12.1+.
-# - Cray: Cray Compiler Environment version 8.1+.
-# - PGI: PGI version 12.10+.
-# - XL: IBM XL version 10.1+.
+# Currently supported Compilers (CMake v3.21):
+# https://cmake.org/cmake/help/v3.21/variable/CMAKE_LANG_COMPILER_ID.html
+#
+# - Absoft = Absoft Fortran (absoft.com)
+# - ADSP = Analog VisualDSP++ (analog.com)
+# - AppleClang = Apple Clang (apple.com)
+# - ARMCC = ARM Compiler (arm.com)
+# - ARMClang = ARM Compiler based on Clang (arm.com)
+# - Bruce = Bruce C Compiler
+# - CCur = Concurrent Fortran (ccur.com)
+# - Clang = LLVM Clang (clang.llvm.org)
+# - Cray = Cray Compiler (cray.com)
+# - Embarcadero, Borland = Embarcadero (embarcadero.com)
+# - Flang = Flang LLVM Fortran Compiler
+# - Fujitsu = Fujitsu HPC compiler (Trad mode)
+# - FujitsuClang = Fujitsu HPC compiler (Clang mode)
+# - G95 = G95 Fortran (g95.org)
+# - GNU = GNU Compiler Collection (gcc.gnu.org)
+# - GHS = Green Hills Software (www.ghs.com)
+# - HP = Hewlett-Packard Compiler (hp.com)
+# - IAR = IAR Systems (iar.com)
+# - Intel = Intel Compiler (intel.com)
+# - IntelLLVM = Intel LLVM-Based Compiler (intel.com)
+# - MSVC = Microsoft Visual Studio (microsoft.com)
+# - NVHPC = NVIDIA HPC SDK Compiler (nvidia.com)
+# - NVIDIA = NVIDIA CUDA Compiler (nvidia.com)
+# - OpenWatcom = Open Watcom (openwatcom.org)
+# - PGI = The Portland Group (pgroup.com)
+# - PathScale = PathScale (pathscale.com)
+# - ROCMClang = ROCm Toolkit Clang-based Compiler (rocmdocs.amd.com)
+# - SDCC = Small Device C Compiler (sdcc.sourceforge.net)
+# - SunPro = Oracle Solaris Studio (oracle.com)
+# - TI = Texas Instruments (ti.com)
+# - TinyCC = Tiny C Compiler (tinycc.org)
+# - XL, VisualAge, zOS = IBM XL (ibm.com)
+# - XLClang = IBM Clang-based XL (ibm.com)
 #------------------------------------------------------------------------------
-# setting custom compile/link flags for each release type. These are
+# Setting custom compile/link flags for each release type. These are
 # additional flags, which user can define if he/she is not satisfied
 # with the existing ones.
 #------------------------------------------------------------------------------
@@ -133,207 +158,36 @@ endif()
 # The PGI compilers by default use the highest available instruction set, so no additional flags are necessary.
 #------------------------------------------------------------------------------
 if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-	# Compiler flags
-	# If user has not specified compilation flag, we use default configuration
-	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-O3"
-			"-xhost" 
-			"-fpe0"
-			"-fPIC"
-			"-fp-model" "strict"
-			"-traceback" 
-			"-qopenmp" 
-			"-assume" "byterecl" # for I/O operations 
-			#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
-			#"-DNDEBUG"
-			#"-ipo" #  
-			#"-parallel" 
-			#"-heap-arrays" "16384"
-			)
-	endif()
+	include(intel)
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+	include(gnu)
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVHPC)
+	include(nvhpc)
+#------------------------------------------------------------------------------
+# AOCC Flang
+#------------------------------------------------------------------------------
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
 	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0"  
+			"-O0" 
 			"-g" 
-      "-debug" "all"
-      "-check" "all,noarg_temp_created"
-      #"-warn" "all"
-      "-fp-stack-check"
-      "-fstack-protector-all"
-			"-traceback" 
-			"-parallel" 
-			"-qopenmp"
-			"-C" 
-			"-assume" "byterecl" 
-			"-heap-arrays" "16384"
-			"-fpe0"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-			"-O2"
-			"-xhost" 
-			"-fpe0"
-			"-fPIC"
-			"-fp-model" "strict"
-			"-qopenmp" 
-			"-assume" "byterecl" # for I/O operations 
-			#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
-			"-g" 
-			"-traceback" 
-			#
-			#"-O2"  
-			#"-g" 
-			#"-traceback" 
-			#"-DNDEBUG" 
-			#"-parallel" 
-			#"-qopenmp"
-			#"-qopt-matmul"
-			#"-C"
-			#"-assume" "byterecl" 
-			#"-heap-arrays" "16384"
-			#"-fpe0"
+			#"-fno-strict-aliasing"
+			#"-fopenmp" 
+			#"-fbacktrace" 
+			#"-fexternal-blas"
+			#"-C" 
+			#"-Wall" 
+			#"-Wextra" 
+			#"-Warray-temporaries"
+			#"-Wconversion-extra" 
+			#"-pedantic" 
+			#"-fcheck=all" 
+			#"-ffpe-trap=invalid,zero,overflow,underflow" 
+			#"-ffunction-sections" 
+			#"-pipe"
+			#"-ffpe-trap=zero"
 			#"-fPIC"
 			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
-			"-Os"# -traceback -DNDEBUG -parallel -qopenmp -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
-			"-traceback" 
-			"-DNDEBUG" 
-			"-parallel" 
-			"-qopenmp" 
-			"-C"
-			"-assume" "byterecl" 
-			"-heap-arrays" "16384"
-			"-fpe0"
-			"-fPIC"
-			)
-	endif()
-
-	# Linker flags
-	# the same logic as with compiler flags
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-qopt-matmul")
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
-	endif()
-#------------------------------------------------------------------------------
-# GNU - 9.3 - 10.x needs different flags
-# setting different flags for different version
-#------------------------------------------------------------------------------
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
-	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-O3"# -fno-strict-aliasing -march=native -flto -fopenmp -fbacktrace -fexternal-blas -ffpe-trap=zero -fPIC" 
-			"-DNDEBUG"
-			"-fno-strict-aliasing"
-			"-march=native" 
-			"-flto" 
-			"-fopenmp"
-			"-fbacktrace" 
-			"-fexternal-blas"
-			"-ffpe-trap=zero"
-			"-fPIC"
-			"-C"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0"# -g3 -fno-strict-aliasing -fopenmp -fbacktrace -fexternal-blas -C -Wall -Wextra -Warray-temporaries -Wconversion-extra -pedantic -fcheck=all -ffpe-trap=invalid,zero,overflow,underflow -ffunction-sections -pipe -ffpe-trap=zero -fPIC" 
-			"-g3" 
-			"-fno-strict-aliasing"
-			"-fopenmp" 
-			"-fbacktrace" 
-			"-fexternal-blas"
-			"-C" 
-			"-Wall" 
-			"-Wextra" 
-			"-Warray-temporaries"
-			"-Wconversion-extra" 
-			"-pedantic" 
-			"-fcheck=all" 
-			"-ffpe-trap=invalid,zero,overflow,underflow" 
-			"-ffunction-sections" 
-			"-pipe"
-			"-ffpe-trap=zero"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-			"-O2"# -g3 -fno-strict-aliasing -fopenmp -fbacktrace -fexternal-blas -C -Wall -Wextra -Warray-temporaries -Wconversion-extra -pedantic -fcheck=all -ffpe-trap=invalid,zero,overflow,underflow -ffunction-sections -pipe -ffpe-trap=zero -fPIC" 
-			"-g3" 
-			"-fno-strict-aliasing"
-			"-DNDEBUG" 
-			"-fopenmp" 
-			"-fbacktrace" 
-			"-fexternal-blas"
-			"-C"
-			"-Wall" 
-			"-Wextra" 
-			"-Warray-temporaries"
-			"-Wconversion-extra" 
-			"-pedantic" 
-			"-fcheck=all" 
-			"-ffpe-trap=invalid,zero,overflow,underflow" 
-			"-ffunction-sections" 
-			"-pipe"
-			"-ffpe-trap=zero"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
-			"-Os"# -fno-strict-aliasing -DNDEBUG -fopenmp -fbacktrace -C -fexternal-blas -ffpe-trap=zero -fPIC" 
-			"-fno-strict-aliasing"
-			"-DNDEBUG" 
-			"-fopenmp" 
-			"-fbacktrace" 
-			"-C"
-			"-fexternal-blas"
-			"-ffpe-trap=zero"
-			"-fPIC"
-			)
-	endif()
-	# adding different flags depending on the compiler version
-	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-Wfatal-errors"
-			"-ffree-line-length-none" 
-			"-fno-range-check"
-		)
-	if (${CMAKE_Fortran_COMPILER_VERSION} VERSION_GREATER_EQUAL "10")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-fallow-argument-mismatch"
-			)
-	else()
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-Wno-argument-mismatch"
-			)
-	endif()
-
-	# Linker flags
-	# the same logic as with compiler flags
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "-flto")
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 	endif()
 #------------------------------------------------------------------------------
 # PGI	
@@ -423,6 +277,102 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 # NVIDIA bought PGI compilers and now they are NVIDIA CUDA compilers
 #elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
 #	message(STATUS "This is a DEBUG MESSAGE FO NVIDIA COMPILERS")
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
+	# Compiler flags
+	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
+			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
+			"-DNDEBUG"
+			"-fast" 
+			"-mp=all"
+			"-traceback" 
+			"-Mconcur"
+			"-fPIC"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+			"-O0" # -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+			"-mp=all"
+			"-gopt" 
+			"-fast" 
+			"-traceback" 
+			"-Minfo" 
+			"-Mconcur"
+			"-C"
+			"-fPIC"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
+			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+			"-DNDEBUG"
+			"-mp=all"
+			"-gopt" 
+			"-fast" 
+			"-traceback" 
+			"-Minfo" 
+			"-Mconcur"
+			"-C"
+			"-fPIC"
+			)
+	endif()
+	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
+			"-O0"# -mp=all -fast -traceback -Mconcur -fPIC" 
+			"-mp=all"
+			"-fast" 
+			"-traceback" 
+			"-Mconcur"
+			"-C"
+			"-fPIC"
+			)
+	endif()
+
+	# Linker flags
+	# the same logic as with compiler flags
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE 
+			"-mp=all"# -gopt -Mconcur"
+			"-gopt" 
+			"-Mconcur"
+			)
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG 
+			"-mp=all"# -gopt -Mconcur"
+			"-gopt" 
+			"-Mconcur"
+			)
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO 
+			"-mp=all"# -Mconcur"
+			"-Mconcur"
+			)
+	endif()
+	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
+		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL 
+			"-mp=all"# -Mconcur"
+			"-Mconcur"
+			)
+	endif()
+#------------------------------------------------------------------------------
+# Flang
+# TODO: need to figure out why healpix doesn't compile with flang
+# and then add support for flang
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
+#	# Compiler flags
+#	#list(APPEND COMMANDER3_COMPILER_FLAGS "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO "")
+#	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL "")
+#	# Linker flags
+#	#list(APPEND COMMANDER3_LINKER_FLAGS "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG "")
+#	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
 #------------------------------------------------------------------------------
 # Flang
 # TODO: need to figure out why healpix doesn't compile with flang

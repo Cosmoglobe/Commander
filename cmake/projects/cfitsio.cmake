@@ -32,7 +32,8 @@ if(USE_SYSTEM_CFITSIO AND USE_SYSTEM_LIBS)
 	find_package(CFITSIO 3.470)
 endif()
 
-if(NOT CFITSIO_FOUND)
+#if(NOT CFITSIO_FOUND)
+if(COMPILE_CFITSIO)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.

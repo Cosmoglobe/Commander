@@ -25,20 +25,20 @@
 # LibAEC is (not strictly) required by HDF5.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
+#
+#if(USE_SYSTEM_LIBAEC AND USE_SYSTEM_LIBS AND NOT USE_SYSTEM_HDF5)
+#	# TODO: Add maybe SZip with find_package or something like that.
+#	# Need to have a proper find package or something like that for SZip/LibAEC
+#	#set(zlib_minimal_accepted_version "1.2.11")
+#	#find_package(ZLIB 1.2.11)
+#	# Require ZLib to be of the most recent version
+#	#if(ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_accepted_version)
+#	#	message(STATUS "Required version -- ${zlib_minimal_accepted_version} -- will be compiled from source.")
+#	#endif()
+#endif()
 
-if(USE_SYSTEM_LIBAEC AND USE_SYSTEM_LIBS AND NOT USE_SYSTEM_HDF5)
-	# TODO: Add maybe SZip with find_package or something like that.
-	# Need to have a proper find package or something like that for SZip/LibAEC
-	#set(zlib_minimal_accepted_version "1.2.11")
-	#find_package(ZLIB 1.2.11)
-	# Require ZLib to be of the most recent version
-	#if(ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_accepted_version)
-	#	message(STATUS "Required version -- ${zlib_minimal_accepted_version} -- will be compiled from source.")
-	#endif()
-endif()
-
-if(NOT (HDF5_FOUND AND LIBAEC_FOUND))
+if(COMPILE_LIBAEC)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.

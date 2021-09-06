@@ -32,16 +32,16 @@ message(STATUS "---------------------------------------------------------------"
 # also ensure that if hdf5 wasn't compiled with autotools
 # it still be working as before.
 #if(NOT (HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-if(USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
-	# Using static linking instead of dynamic
-	set(HDF5_USE_STATIC_LIBRARIES FALSE)#TRUE)
-	# Using parallel build instead of serial
-	set(HDF5_PREFER_PARALLEL TRUE)
-	#find_package(HDF5 1.10.0 COMPONENTS Fortran) # Fortran_HL)
-	find_package(HDF5 1.12.0 COMPONENTS Fortran Fortran_HL)
-endif()
+#if(USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
+#	# Using static linking instead of dynamic
+#	set(HDF5_USE_STATIC_LIBRARIES FALSE)#TRUE)
+#	# Using parallel build instead of serial
+#	set(HDF5_PREFER_PARALLEL TRUE)
+#	#find_package(HDF5 1.10.0 COMPONENTS Fortran) # Fortran_HL)
+#	find_package(HDF5 1.12.0 COMPONENTS Fortran Fortran_HL)
+#endif()
 
-if(NOT HDF5_FOUND)
+if(COMPILE_HDF5)
 	if(NOT HDF5_Fortran_FOUND)
 		message(STATUS "Missing component -- Fortran -- will be compiled from source.")	
 	endif()

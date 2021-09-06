@@ -26,20 +26,20 @@
 # separetely), that is why in the ned I have FFTW3_LIBRARIES instead of 
 # FFTW_LIBRARIES. Perhaps this is incorrect? Need to take a look into FindFFTW.cmake
 # and rewrite it if necessary.
-message(STATUS "---------------------------------------------------------------")
-if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
-	find_package(FFTW 
-		COMPONENTS 
-		DOUBLE 
-		DOUBLE_THREADS
-		FLOAT 
-		#FLOAT_MPI 
-		FLOAT_OPENMP
-		FLOAT_THREADS
-		)
-endif()
+#message(STATUS "---------------------------------------------------------------")
+#if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
+#	find_package(FFTW 
+#		COMPONENTS 
+#		DOUBLE 
+#		DOUBLE_THREADS
+#		FLOAT 
+#		#FLOAT_MPI 
+#		FLOAT_OPENMP
+#		FLOAT_THREADS
+#		)
+#endif()
 # Is TRUE if one of the components were missing
-if(NOT FFTW_FOUND)
+if(COMPILE_FFTW)
 	#------------------------------------------------------------------------------
 	# Splitting the project into 5 steps:
 	# 1. To download the project

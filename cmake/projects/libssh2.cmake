@@ -26,12 +26,12 @@
 #================================================================================
 
 if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
-	message(STATUS "---------------------------------------------------------------")
-	if(USE_SYSTEM_LIBSSH2 AND USE_SYSTEM_LIBS)
-		find_package(LibSSH2)
-	endif()
+	#message(STATUS "---------------------------------------------------------------")
+	#if(USE_SYSTEM_LIBSSH2 AND USE_SYSTEM_LIBS)
+	#	find_package(LibSSH2)
+	#endif()
 
-	if(NOT LIBSSH2_FOUND) 
+	if(COMPILE_LIBSSH2) 
 		#------------------------------------------------------------------------------
 		# Note: the explicit splitting for download and install step is done on purpose
 		# to avoid errors when you want to recompile libraries for different owls etc.
