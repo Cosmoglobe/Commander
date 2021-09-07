@@ -69,11 +69,11 @@ set(sources
   ${COMMANDER3_SOURCE_DIR}/comm_tod_LB_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_smod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
-	${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_smod.f90
 	#
 	${COMMANDER3_SOURCE_DIR}/comm_F_int_1D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_output_mod.f90
@@ -140,7 +140,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/spline_2D_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
+	#${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)
