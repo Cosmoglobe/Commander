@@ -54,6 +54,10 @@ module comm_diffuse_comp_mod
      integer(i4b), allocatable, dimension(:,:)   :: corrlen     
      logical(lgt),    dimension(:), allocatable :: L_read, L_calculated
 
+     integer(i4b)       :: cg_samp_group_md         ! in the case we prior sample the monopole of the component amplitude
+                                                    ! we will need to re-estimate the monopoles afterwards. This parameter
+                                                    ! stores the CG sampling group number for the CG group with "md" and 
+                                                    ! nothing more. (= -1 if no pure "md" CG group)
      real(dp)           :: cg_scale(1:3)                                  ! make the cg_scale vary between T and P
      real(dp)           :: latmask, fwhm_def, test
      real(dp),           allocatable, dimension(:,:)   :: cls
@@ -90,6 +94,9 @@ module comm_diffuse_comp_mod
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
      character(len=512) :: mono_prior_type
+     real(dp)           :: mono_prior_gaussian_mean, mono_prior_gaussian_rms, mono_prior_fwhm
+     integer(i4b)       :: mono_prior_nside, mono_prior_Nthresh
+     real(dp), allocatable, dimension(:) :: mono_prior_threshold
      class(comm_map),               pointer     :: mono_prior_map => null()
      class(comm_map),               pointer     :: mask => null()
      class(comm_map),               pointer     :: procmask => null()
@@ -100,6 +107,7 @@ module comm_diffuse_comp_mod
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
      class(comm_B),                 pointer     :: B_out => null()       ! Output beam
+     class(comm_B),                 pointer     :: B_mono_prior => null() ! monopole prior beam
      class(comm_Cl),                pointer     :: Cl => null()          ! Power spectrum
      class(map_ptr),  dimension(:), allocatable :: theta        ! Spectral parameters
      class(map_ptr),  dimension(:), allocatable :: theta_smooth ! Spectral parameters
@@ -191,8 +199,10 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    integer(i4b) :: i, j, l, m, ntot, nloc, p
-    real(dp) :: fwhm_prior, sigma_prior
+    character(len=512) :: temp_filename
+    character(len=512), dimension(1000) :: tokens
+    integer(i4b) :: i, j, k, l, m, ntot, nloc, p
+    real(dp) :: fwhm_prior, sigma_prior, param_dp
     logical(lgt) :: exist
     type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud
     class(comm_map), pointer :: indmask, mask_ud
@@ -381,8 +391,58 @@ contains
     ! Set up monopole prior
     self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
     if (trim(self%mono_prior_type) /= 'none') then
-       filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
-       self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+       self%cg_samp_group_md = cpar%cg_samp_group_md
+       temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
+       call get_tokens(temp_filename, ",", tokens, i)
+       
+       if (trim(self%mono_prior_type) == 'lower_value_prior') then
+          if (i < 4) then
+             call report_error('monopole lower_value_prior needs filename,mean,rms,fwhm as input. Not enough inputs found')
+          end if
+          filename = trim(tokens(1))
+          read(tokens(2),*) self%mono_prior_gaussian_mean
+          if (self%mono_prior_gaussian_mean < 0.d0) call report_error('Lower value monopole prior requires a non-negative prior mean. component '//trim(self%label))
+          read(tokens(3),*) self%mono_prior_gaussian_rms
+          if (self%mono_prior_gaussian_rms < 0.d0) call report_error('Lower value monopole prior requires a non-negative prior RMS. component '//trim(self%label))
+          read(tokens(4),*) self%mono_prior_fwhm
+          if (self%mono_prior_fwhm <= 0.d0) call report_error('Lower value monopole prior requires a positive FWHM. component '//trim(self%label))
+          self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+
+          !scale prior mean and rms by cg_scale to make sure units match during correction
+          self%mono_prior_gaussian_mean = self%mono_prior_gaussian_mean/self%cg_scale(1)
+          self%mono_prior_gaussian_rms = self%mono_prior_gaussian_rms/self%cg_scale(1)
+
+          !init smoothing beam for the component amplitude, to be used for monopole prior correction
+          self%B_mono_prior => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=self%mono_prior_fwhm, nside=self%nside,&
+               & init_realspace=.false.)
+       else if (trim(self%mono_prior_type) == 'crosscorr') then
+          if (i < 4) then
+             call report_error('monopole crosscorr prior needs filename,nside,fwhm,threshold(s) as input. Not enough inputs found. component '//trim(self%label))
+          end if
+          filename = trim(tokens(1))
+          read(tokens(2),*) self%mono_prior_nside
+          read(tokens(3),*) self%mono_prior_fwhm
+          self%mono_prior_Nthresh=i-3
+          allocate(self%mono_prior_threshold(self%mono_prior_Nthresh))
+          k = 0
+          do j = 4,i
+             k=k+1
+             read(tokens(j),*) param_dp
+             self%mono_prior_threshold(k)=param_dp
+          end do
+
+          !read crosscorr map
+          info      => comm_mapinfo(cpar%comm_chain, self%mono_prior_nside, &
+               & -1, self%x%info%nmaps, self%x%info%pol)
+          self%mono_prior_map => comm_map(info, trim(cpar%datadir)//'/'//trim(filename))
+          !init smoothing beam for the component amplitude, to be used for monopole prior correction
+          self%B_mono_prior => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=self%mono_prior_fwhm, nside=self%nside,&
+               & init_realspace=.false.)
+          
+       else          
+          filename = get_token(temp_filename, ",", 1)
+          self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+       end if
     end if
 
     call update_status(status, "init_diffuse_end")
@@ -4191,13 +4251,17 @@ contains
 
   end subroutine setup_needlets
 
-  subroutine applyMonoDipolePrior(self)
+  subroutine applyMonoDipolePrior(self, handle)
     implicit none
     class(comm_diffuse_comp), intent(inout)          :: self
+    type(planck_rng),         intent(inout)          :: handle
 
     integer(i4b) :: i, j, k, l, m, ierr
-    real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3)
-    class(comm_map), pointer :: map 
+    real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
+    class(comm_map), pointer :: map, lr_map 
+    class(comm_mapinfo), pointer :: info => null()
+    real(dp), dimension(:), allocatable :: mask_list, corr_list, amp_list, intersect
+    real(dp)     :: mean_intersect, std_intersect
 
     if (trim(self%mono_prior_type) == 'none') then ! No active monopole prior
        return
@@ -4208,11 +4272,16 @@ contains
 
     ! Generate real-space component map
     map => comm_map(self%x)
-    call self%B_out%conv(trans=.false., map=map)
+    if (trim(self%mono_prior_type) == 'crosscorr' .or. trim(self%mono_prior_type) == 'lower_value_prior') then
+       call self%B_mono_prior%conv(trans=.false., map=map) !smooth to prior specific FWHM
+    else
+       call self%B_out%conv(trans=.false., map=map) !smooth to output FWHM of component
+    end if
     call map%Y
 !!$    call map%writeFITS('ff.fits')
 !!$    call mpi_finalize(ierr)
 !!$    stop
+
 
     
     if (trim(self%mono_prior_type) == 'monopole') then        ! Set monopole to zero outside user-specified mask
@@ -4268,8 +4337,165 @@ contains
 
 
     else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
-       write(*,*) 'Error: Cross-correlation monopole prior not implemented yet'
-       stop
+       !ud-grade amplitude map if necessary
+       info     => comm_mapinfo(self%comm, self%mono_prior_nside, -1, self%nmaps, self%pol)
+       lr_map => comm_map(info)
+
+       call map%udgrade(lr_map)
+
+       allocate(mask_list(0:lr_map%info%npix-1))
+       allocate(corr_list(0:lr_map%info%npix-1))
+       allocate(amp_list(0:lr_map%info%npix-1))
+
+       !1. for each threshold:
+       allocate(intersect(self%mono_prior_Nthresh))
+       m = 0
+       do i = 1,self%mono_prior_Nthresh
+          !resetting the lists
+          mask_list = 0.d0
+          corr_list = 0.d0
+          amp_list = 0.d0
+
+          !creating mask
+          do j = 0,lr_map%info%np-1
+             !    1: mask pixels above threshold
+             if (self%mono_prior_map%map(j,1) > self%mono_prior_threshold(i)) then
+                mask_list(self%mono_prior_map%info%pix(j+1)) = 0.d0
+             else
+                mask_list(self%mono_prior_map%info%pix(j+1)) = 1.d0
+             end if
+          end do
+          !    2: set up a pixel list for the corr-map and comp. amplitude (like ud-grade) in order to gather all values
+          corr_list(self%mono_prior_map%info%pix) = self%mono_prior_map%map(:,1)
+          amp_list(lr_map%info%pix) = lr_map%map(:,1)
+          call mpi_allreduce(MPI_IN_PLACE, mask_list, lr_map%info%npix, MPI_DOUBLE_PRECISION, MPI_SUM, lr_map%info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, corr_list, lr_map%info%npix, MPI_DOUBLE_PRECISION, MPI_SUM, lr_map%info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, amp_list, lr_map%info%npix, MPI_DOUBLE_PRECISION, MPI_SUM, lr_map%info%comm, ierr)
+
+          !    4: root processor computes the intersection (and slope and correlation coefficient) and stores value to a list
+          !restructure so that we only have unmasked pixels, only 1 proc needs to do this
+          if (lr_map%info%myid == 0) then
+             k=-1
+             do j = 0,lr_map%info%npix-1
+                if (mask_list(j) > 0.5d0) then
+                   k = k + 1
+                   corr_list(k) = corr_list(j)
+                   amp_list(k) = amp_list(j)
+                end if
+             end do
+
+             !calculate intersection 
+             corr_res = calc_linear_regression(corr_list(0:k), amp_list(0:k))
+             write(*,*) 'threshold',self%mono_prior_threshold(i),'corr_res', corr_res
+
+             if (corr_res(3) <= 1.0d0 .and. corr_res(3) >= -1.0d0) then
+                m = m + 1
+                intersect(m) = corr_res(1)
+             end if
+          end if
+       end do !i = 1,self%mono_prior_Nthresh
+
+       ! calculate mean and std of intersect values from regression 
+       if (lr_map%info%myid == 0) then
+          if (m <= 0) call report_error("No intersection value found from crosscorrelation, monopole prior component "//trim(self%label))
+          if (m == 1) then
+             mu(0) = intersect(1)
+          else
+             mean_intersect = sum(intersect(1:m))/m
+             std_intersect = sqrt(sum((intersect(1:m)-mean_intersect)**2)/m)
+
+             if (std_intersect > 0.d0) then
+                a = rand_gauss(handle)     
+                mu(0) = mean_intersect + std_intersect * a
+             else
+                mu(0) = mean_intersect
+             end if
+          end if
+       end if
+
+
+       ! bcast drawn monopole value/intersection value
+       call mpi_bcast(mu(0), 1, MPI_DOUBLE_PRECISION, 0, lr_map%info%comm, ierr)
+       call mpi_bcast(mean_intersect, 1, MPI_DOUBLE_PRECISION, 0, lr_map%info%comm, ierr)
+       call mpi_bcast(std_intersect, 1, MPI_DOUBLE_PRECISION, 0, lr_map%info%comm, ierr)
+       
+       mu(1:3) = 0.d0
+
+       ! Subtract mean in real space 
+       self%x%map(:,1) = self%x%map(:,1) - mu(0)
+       if (self%x%info%myid == 0) write(*,fmt='(a,f14.3,a,2f14.3)') '   cross-correlation prior correction for '//trim(self%label)//': ', mu(0), ' from normal distribution with following mean and RMS', mean_intersect, std_intersect
+  
+       deallocate(intersect)
+       deallocate(mask_list)
+       deallocate(amp_list)
+       deallocate(corr_list)
+       call lr_map%dealloc(); deallocate(lr_map)
+
+    else if (trim(self%mono_prior_type) == 'lower_value_prior') then
+       
+       !allocate map lists for the mask and smoothed amplitude map
+       allocate(mask_list(0:map%info%npix-1))
+       allocate(amp_list(0:map%info%npix-1))
+       mask_list = 0.d0
+       amp_list = 0.d0
+
+       do j = 0,map%info%np-1
+          !    1: mask pixels above threshold
+          if (self%mono_prior_map%map(j,1) > 0.5d0) then
+             mask_list(self%mono_prior_map%info%pix(j+1)) = 1.d0
+          else
+             mask_list(self%mono_prior_map%info%pix(j+1)) = 0.d0
+          end if
+       end do
+       amp_list(map%info%pix) = map%map(:,1)
+       call mpi_allreduce(MPI_IN_PLACE, mask_list, map%info%npix, MPI_DOUBLE_PRECISION, MPI_SUM, map%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, amp_list, map%info%npix, MPI_DOUBLE_PRECISION, MPI_SUM, map%info%comm, ierr)
+
+       !    4: root processor calculates the lowest value inside the mask, draws a new value from the input prior and finds the monopole needed to make the lowest value equal to the drawn value
+
+       if (map%info%myid == 0) then
+          k=-1
+          do j = 0,map%info%npix-1
+             if (mask_list(j) > 0.5d0) then
+                if (k < 0) then
+                   k = j
+                else
+                   if (amp_list(j) < amp_list(k)) k = j
+                end if
+             end if
+          end do
+          !amp_list(k) is now the lowest value in the smoothed map (inside the mask)
+
+          if (k < 0) call report_error("No lower value found from lowest value prior on amplitude monopole prior correction. All pixels masked. Component "//trim(self%label))
+          !Draw new lower value
+          if (self%mono_prior_gaussian_rms > 0.d0 ) then
+             mean_intersect = -1.d0
+             do while (mean_intersect < 0.d0)
+                a = rand_gauss(handle)     
+                mean_intersect = self%mono_prior_gaussian_mean + &
+                     & self%mono_prior_gaussian_rms * a
+             end do
+          else
+             mean_intersect = self%mono_prior_gaussian_mean
+          end if
+          mu(0) = amp_list(k) - mean_intersect 
+          !when subrtracting this mu(0), the lowest value in the map becomes mean_intersect 
+       end if
+
+
+       ! bcast drawn monopole value/intersection value
+       call mpi_bcast(mu(0), 1, MPI_DOUBLE_PRECISION, 0, map%info%comm, ierr)
+       call mpi_bcast(mean_intersect, 1, MPI_DOUBLE_PRECISION, 0, map%info%comm, ierr)
+       
+       mu(1:3) = 0.d0
+
+       ! Subtract mean in real space 
+       self%x%map(:,1) = self%x%map(:,1) - mu(0)
+       if (self%x%info%myid == 0) write(*,fmt='(a,f14.3,a,f14.3)') '   lowest value prior correction for '//trim(self%label)//': ', mu(0)*self%cg_scale(1), ' to give a minimim smoothed amplitude of ', mean_intersect*self%cg_scale(1)
+  
+       deallocate(mask_list)
+       deallocate(amp_list)
+       
     end if
     
     ! Subtract mean in harmonic space

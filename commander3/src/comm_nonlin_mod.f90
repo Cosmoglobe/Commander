@@ -136,14 +136,23 @@ contains
           if (c%p_gauss(2,j) == 0.d0) cycle
           select type (c)
           class is (comm_diffuse_comp)
+
+             !check if any poltype has been sampled in a way that breaks the Gibbs chain
+             samp_cg = .false.
+
              !lmax_ind_pol is the lmax of poltype index p, for spec. ind. j 
-             if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) &
-                  & call sample_specind_alm(cpar, iter, handle, c%id, j)
+             if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) then
+                call sample_specind_alm(cpar, iter, handle, c%id, j)
+                if (cpar%almsamp_pixreg) then
+                   if (cpar%almsamp_priorsamp_frozen .and. &
+                        & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
+                      samp_cg = .true.
+                   end if
+                end if
+             end if
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
 
-                !check if any poltype has been sampled with ridge/marginal lnL
-                samp_cg = .false.
                 if (cpar%myid == cpar%root) write(*,*) 'Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
@@ -162,26 +171,29 @@ contains
                          end if
                       end if
                       samp_cg = .true.
-                   else
-                      if (cpar%almsamp_pixreg) then
-                         if (cpar%almsamp_priorsamp_frozen .and. &
-                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
-                            samp_cg = .true.
-                         end if
-                      end if
                    end if
                 end do
-
-                if (samp_cg) then !need to resample amplitude
-                   !call sample amplitude for the component specific cg_sample group
-                   if (cpar%myid == cpar%root) then
-                      write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
-                           & trim(c%indlabel(j))
-                   end if
-                   call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
-                end if
-                !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
              end if !any local sampling
+
+             if (samp_cg) then !need to resample amplitude
+                !call sample amplitude for the component specific cg_sample group
+                if (cpar%myid == cpar%root) then
+                   write(*,*) 'Sampling component amplitude of '//trim(c%label)//' after spectral index sampling of '// &
+                        & trim(c%indlabel(j))
+                end if
+                call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+
+                ! need to check if the monopole prior is active, if so we need to re-estimate the mono-/dipoles
+                if (trim(c%mono_prior_type) /= 'none') then
+                   ! can only estimate if there is a pure (and full) mono/-dipole CG sampling group 
+                   if (c%cg_samp_group_md > 0) then
+                      write(*,*) 'Sampling monopoles of band after prior correcting monopole of '//trim(c%label)//' amplitude'
+                      call sample_amps_by_CG(cpar, c%cg_samp_group_md, handle, handle_noise)
+                   end if
+                end if
+             end if
+             !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
+             
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
@@ -2896,6 +2908,7 @@ contains
 
           ! if j has been reset/changed by master proc (myid_pix==0), then the others need to know. Same with first_sample logical flag
           call mpi_bcast(j, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
+          call mpi_bcast(n_spec_prop, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
           call mpi_bcast(first_sample, 1, MPI_LOGICAL, 0, info_fr%comm, ierr)
 
           !bcast the running correlation coefficient for the pushback check, else the other procs are going to run aditional times and get stuck in some bcats/mpi_allreduce call

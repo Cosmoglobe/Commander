@@ -87,7 +87,7 @@ module comm_param_mod
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq
+     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
@@ -2595,6 +2595,11 @@ contains
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
           if (trim(comp_label(j)) == 'md') then
+             if (n==1) then
+                cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
+             else
+                cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
+             end if
              do k = 1, cpar%numband
                 if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
              end do
