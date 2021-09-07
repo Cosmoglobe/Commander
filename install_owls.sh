@@ -6,8 +6,8 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel
-toolchain="gnu"
-buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
+toolchain="intel"
+buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -91,8 +91,8 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load Intel_parallel_studio/2020/4.912
-		#module load Intel_parallel_studio/2018/3.051
+		#module load Intel_parallel_studio/2020/4.912
+		module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -104,8 +104,12 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-	  module load foss/10.3.0 # custom GNU GCC + OpenMPI 
+	  #module load foss/10.3.0 # custom GNU GCC + OpenMPI 
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
+		source /opt/rh/devtoolset-9/enable
+		#export PATH="/usr/local/opt/openmpi-4.0.5/bin:$PATH"
+		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
+		module load myopenmpi/4.0.3
 	elif [[ "$toolchain" =~ "flang" ]]
 	then
 		# Compilers
@@ -169,6 +173,7 @@ then
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
+	#cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON OWL!"

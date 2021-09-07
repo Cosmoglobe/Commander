@@ -26,7 +26,6 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_bp       ! Bandpass correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop  ! Bandpass correction proposal     
      real(sp),     allocatable, dimension(:,:)     :: s_zodi     ! Zodiacal light
-     real(sp),     allocatable, dimension(:,:)     :: s_inst     ! Instrument-specific correction template
      real(sp),     allocatable, dimension(:,:)     :: s_tot      ! Total signal
      real(sp),     allocatable, dimension(:,:)     :: mask       ! TOD mask (flags + main processing mask)
      real(sp),     allocatable, dimension(:,:)     :: mask2      ! Small TOD mask, for bandpass sampling
@@ -100,13 +99,11 @@ contains
     allocate(self%pix(self%ntod, self%ndet, self%nhorn))
     allocate(self%psi(self%ntod, self%ndet, self%nhorn))
     allocate(self%flag(self%ntod, self%ndet))
-    if (init_s_sky_prop_)    allocate(self%s_sky_prop(self%ntod, self%ndet, 2:self%ndelta))
-    if (init_s_bp_prop_)     allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
-    if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
-    if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
-    if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
-    if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
-    !call update_status(status, "todinit_alloc")
+    if (init_s_sky_prop_)   allocate(self%s_sky_prop(self%ntod, self%ndet, 2:self%ndelta))
+    if (init_s_bp_prop_)    allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
+    if (init_s_sky_prop_)   allocate(self%mask2(self%ntod, self%ndet))
+    if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
+    if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
 
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -116,26 +113,19 @@ contains
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
     end do
-    !call update_status(status, "todinit_decomp")
     !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
-    !call update_status(status, "todinit_symmflag")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Prepare TOD
-    if (tod%ndiode == 1) then
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          if (tod%compressed_tod) then
-             call tod%decompress_tod(scan, j, self%tod(:,j))
-          else
-             self%tod(:,j) = tod%scans(scan)%d(j)%tod
-          end if
-       end do
-    else
-       call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
-    end if
-    !call update_status(status, "todinit_tod")
+    do j = 1, self%ndet
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       if (tod%compressed_tod) then
+          call tod%decompress_tod(scan, j, self%tod(:,j))
+       else
+          self%tod(:,j) = tod%scans(scan)%d(j)%tod
+       end if
+    end do
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
@@ -146,7 +136,6 @@ contains
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask)
     end if
-    !call update_status(status, "todinit_sky")
     !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
@@ -163,7 +152,6 @@ contains
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
-    !call update_status(status, "todinit_bp")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
     !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
     !if (.true. .or. tod%myid == 78) write(*,*) 'c73', tod%myid, tod%slconv(1)%p%psires
@@ -174,12 +162,10 @@ contains
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
        if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
-    !call update_status(status, "todinit_sanity")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
     call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
-    !call update_status(status, "todinit_dipole")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
@@ -204,7 +190,6 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
-    !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
     if (tod%sample_mono) then
@@ -215,29 +200,18 @@ contains
        end do
     end if
 
-    ! Generate and apply instrument-specific correction template
-    if (tod%apply_inst_corr) then
-       call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
-       end do
-    end if
-    !call update_status(status, "todinit_instcorr")
-
     ! Construct total sky signal
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
     end do
-    !call update_status(status, "todinit_stot")
 
   end subroutine init_scan_data_singlehorn
 
 
   subroutine init_scan_data_differential(self, tod, scan, map_sky, procmask, procmask2, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang)
     implicit none
     class(comm_scandata),                      intent(inout)          :: self    
     class(comm_tod),                           intent(inout)          :: tod
@@ -248,6 +222,7 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
+    real(dp),                                  intent(in),   optional :: polang
 
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
@@ -262,8 +237,8 @@ contains
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
     init_s_bp_prop_ = .false.
     if (present(init_s_bp_prop)) then
-       init_s_bp_prop_  = init_s_bp_prop
-       init_s_sky_prop_ = init_s_bp_prop
+       init_s_bp_prop_ = init_s_bp_prop
+       init_s_sky_prop_ = init_s_sky_prop
     end if
 
     self%ntod   = tod%scans(scan)%ntod
@@ -311,18 +286,15 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    if (tod%ndiode == 1) then
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          if (tod%compressed_tod) then
-             call tod%decompress_tod(scan, j, self%tod(:,j))
-          else
-             self%tod(:,j) = tod%scans(scan)%d(j)%tod
-          end if
-       end do
-    else
-       call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
-    end if
+    do j = 1, self%ndet
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+       if (tod%compressed_tod) then
+          call tod%decompress_tod(scan, j, self%tod(:,j))
+       else
+          self%tod(:,j) = tod%scans(scan)%d(j)%tod
+       end if
+       self%tod(:,j) = self%tod(:,j) - tod%scans(scan)%d(j)%baseline
+    end do
 
     ! Construct sky signal template
     if (init_s_bp_) then
@@ -403,14 +375,14 @@ contains
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
-          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
-          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
-          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
-          self%s_sl(:,j)  = 2.*((1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j))
+          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
+          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
+          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
+          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
+          self%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
-          self%s_totA(:,j) = self%s_totA(:,j) + 2.*s_bufA(:,j)
-          self%s_totB(:,j) = self%s_totB(:,j) + 2.*s_bufB(:,j)
+          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
+          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
     else
        self%s_sl = 0.
@@ -454,7 +426,6 @@ contains
     if (allocated(self%s_zodi))      deallocate(self%s_zodi)
     if (allocated(self%s_totA))      deallocate(self%s_totA)
     if (allocated(self%s_totB))      deallocate(self%s_totB)
-    if (allocated(self%s_inst))      deallocate(self%s_inst)
     if (allocated(self%s_orbA))      deallocate(self%s_orbA)
     if (allocated(self%s_orbB))      deallocate(self%s_orbB)
 
@@ -466,7 +437,6 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
-    !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -485,7 +455,6 @@ contains
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
-    !
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     character(len=*),                             intent(in)    :: mode
@@ -686,7 +655,6 @@ contains
   end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
-    !
     !   Perform data selection on TOD object
     !
     !   Arguments:
@@ -698,7 +666,6 @@ contains
     !             Local scan ID for the current core 
     !   flag:     int (ntod x ndet array)
     !             Array with data quality flags
-    !
     implicit none
     class(comm_tod),                   intent(inout) :: tod
     integer(i4b),    dimension(1:,1:), intent(in)    :: flag
@@ -741,11 +708,11 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        s_buf(:,j) =  sd%s_sl(:,j) + sd%s_orb(:,j)
        call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky(:,j), &
-            & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
+            & s_buf(:,j), sd%n_corr(:,j), absbp=.true.)
        chisq(j,1) = chisq(j,1) + tod%scans(scan)%d(j)%chisq_prop
-       do k = 2, tod%n_bp_prop+1
+       do k = 2, size(sd%s_sky_prop)
           call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky_prop(:,j,k), &
-               & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
+               & s_buf(:,j), sd%n_corr(:,j), absbp=.true.)
           chisq(j,k) = chisq(j,k) + tod%scans(scan)%d(j)%chisq_prop
        end do
     end do
@@ -787,7 +754,7 @@ contains
     type(comm_scandata),                   intent(in)   :: sd
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
 
-    integer(i4b) :: i, j, nout
+    integer(i4b) :: j, nout
     real(dp)     :: inv_gain
 
     nout = size(d_calib,1)
@@ -801,24 +768,18 @@ contains
         d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        end if
-       if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
-       if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
-       if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
-       if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
-       if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
-       if (tod%output_n_maps > 6) then
+       if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
+       if (nout > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
+       if (nout > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
+       if (nout > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
+       if (nout > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
+       if (nout > 6) then
           if (allocated(sd%s_zodi)) then
              d_calib(7,:,j) = sd%s_zodi(:,j)                                                     ! zodi
           else
              d_calib(7,:,j) = 0.
           end if
        end if
-       
-       !Bandpass proposals
-       do i = 1, nout-tod%output_n_maps
-          d_calib(tod%output_n_maps+i,:,j) = d_calib(1,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
-       end do
-
     end do
 
   end subroutine compute_calibrated_data

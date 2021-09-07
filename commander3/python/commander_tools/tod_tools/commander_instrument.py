@@ -21,7 +21,6 @@
 
 import h5py
 import os
-import numpy as np
 
 class commander_instrument:
 
@@ -31,31 +30,16 @@ class commander_instrument:
         self.h5file = h5py.File(os.path.join(path, fileName), mode)
         
     #Raw field writing
-    def add_field(self, fieldName, data):
-        self.h5file.create_dataset(fieldName, data=data)
-
-    #Write a matrix field with info about the column names
-    def add_matrix(self, fieldName, data, columnInfo):
-        dims = np.shape(data)
-
-        if(len(dims) != 2):
-            raise TypeError('Call to add matrix with an object of shape ' + str(shape))
-
-        if(dims[0] != len(columnInfo)):
-            if(dims[1] == len(columnInfo)):
-                data = np.transpose(data)
-            else:
-                raise ValueError('Data is shape ' + str(shape) + ' but column headers have length ' + str(len(columnInfo)))
-
-        #print(fieldName, np.array(data[1][1000:3000]))
-        self.h5file.create_dataset(fieldName, data=data)
-        self.h5file[fieldName].attrs['index'] = columnInfo
-
+    def add_field(self, fieldName, data, compression=None):
+        if(compression is None):
+            self.h5file.create_dataset(fieldName, data=data)
+        else:
+            raise ValueError('Compression type ' + compression + ' is not supported')
     
     #add bandpass data for detector det
     def add_bandpass(self, det, freqs, response):
-        if len(freqs) != len(response):
-            raise ValueError('Bandpass frequency x and f(x) must be the same length, len(freqs): ' + str(len(freqs)) + ' len(f(x)): ' + str(len(response)))
+        if len(freqs) is not len(response):
+            raise ValueError('Bandpass frequency x and f(x) must be the same length')
         det = self.parse_det(det)
 
         self.add_field(det + '/bandpassx', freqs)
@@ -67,12 +51,8 @@ class commander_instrument:
             mmax = lmax
  
         nalm = self.nalm(lmax, mmax)
-        if (len(T) != nalm) or (E is not None and len(E) != nalm) or (B is not None and len(B) != nalm):
-            errstr = 'Length of alms is wrong for lmax=' + str(lmax) + ', mmax=' +str(mmax) + '. nalm = ' + str(nalm) + ' Lengths: ' + str(len(T))
-            if(E is not None and B is not None):
-                errstr += ', ' + str(len(E)) + ', ' + str(len(B))
-
-            raise ValueError(errstr)
+        if (len(T) != nalm) or (len(E) != nalm) or (len(B) != nalm):
+            raise ValueError('Length of alms is wrong for lmax=' + str(lmax) + ', mmax=' +str(mmax) + '. Lengths: ' + str(len(T)) + ', ' + str(len(E)) + ', ' + str(len(B)) + ' nalm= ' + str(nalm))
                
         det = self.parse_det(det) 
 

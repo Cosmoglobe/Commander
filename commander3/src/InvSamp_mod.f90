@@ -107,7 +107,7 @@ contains
        end if
 
        lnL0  = lnL(prior_(2))
-       x_new = prior_(2) - 1d-6*dpr
+       x_new = prior_(1) - 1d-6*dpr
        y_new = lnL(x_new)
        if (lnL0 > y_new) then
           call update_InvSamp_sample_set(prior_(2), lnL0, x_n, S_n, n, stat)

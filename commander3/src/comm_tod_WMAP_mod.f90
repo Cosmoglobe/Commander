@@ -56,7 +56,11 @@ module comm_tod_WMAP_mod
    type, extends(comm_tod) :: comm_WMAP_tod
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
    contains
-      procedure     :: process_tod           => process_WMAP_tod
+      procedure     :: process_tod    => process_WMAP_tod
+      procedure     :: read_tod_inst  => read_tod_inst_WMAP
+      procedure     :: read_scan_inst => read_scan_inst_WMAP
+      procedure     :: initHDF_inst   => initHDF_WMAP
+      procedure     :: dumpToHDF_inst => dumpToHDF_WMAP
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
@@ -165,11 +169,10 @@ contains
       ! Set up WMAP specific parameters
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn           = 2
-      constructor%ndiode          = 1
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
       constructor%correct_sl      = .false.
-      constructor%orb_4pi_beam    = .false.
+      constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -310,6 +313,15 @@ contains
       real(dp), allocatable, dimension(:)       :: map_full
 
 
+      ! Parameters used for testing
+      real(dp) :: polang
+      real(dp), parameter :: pi = 4d0*atan(1d0)
+
+      !polang = mod(2*PI*iter/12, 2*PI)
+      polang = 0d0
+      write(*,*) pi
+
+
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
 
@@ -317,13 +329,11 @@ contains
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       select_data           = .false.                ! only perform data selection the first time
-      ! The first couple of iterations have quite bad chi-square for certain
-      ! detectors, but it quickly settles down.
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
       ! Initialize local variables
       ndelta          = size(delta,3)
-      self%n_bp_prop  = ndelta-1
+      self%n_bp_prop  = ndelta
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
@@ -373,12 +383,15 @@ contains
       !------------------------------------
       ! Perform main sampling steps
       !------------------------------------
+
+      ! Thinking about a test where I don't sample the parameters and just do
+      ! the mapmaking for several iterations, maybe looping over the
+      ! polarization angles in the sidelobe corrections.
       call sample_baseline(self, handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
-      ! Write out the way that WMAP calculated the imbalance parameters.
 
 
 
@@ -410,23 +423,15 @@ contains
          ! Prepare data
          if (sample_rel_bandpass) then
             call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true., init_s_bp_prop=.true.)
+              & init_s_bp=.true., init_s_bp_prop=.true., polang=polang)
          else if (sample_abs_bandpass) then
             call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true., init_s_sky_prop=.true.)
+              & init_s_bp=.true., init_s_sky_prop=.true., polang=polang)
          else
             call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true.)
+              & init_s_bp=.true., polang=polang)
          end if
          allocate(s_buf(sd%ntod,sd%ndet))
-
-         ! Calling Simulation Routine
-         ! Not implemented for differential
-         !if (self%enable_tod_simulations) then
-         !   call simulate_tod(self, i, sd%s_tot, handle)
-         !   call sd%dealloc
-         !   cycle
-         !end if
 
          ! Sample correlated noise
          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
@@ -439,11 +444,8 @@ contains
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-              & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+              & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
          end do
-         ! Should we be computing the chisq of the sums and differences?
-         ! I also think I just need to double check the chisq calculation,
-         ! because to me, the fit looks quite good.
 
          ! Select data
          if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -454,15 +456,16 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. mod(iter,10) == 0) then
+         if (.true. .and. i==1 .and. mod(iter,10) == 0 .and. self%myid == 0) then
             call int2string(self%scanid(i), scantext)
-            if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
+            if (self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
                open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
                write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
                     & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
                do j = 1, sd%ntod
                   write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
+                   &  sd%s_sky(j,k), &
                    &  sd%s_totA(j,k), sd%s_orbA(j,k), &
                    &  sd%s_totB(j,k), sd%s_orbB(j,k), &
                    &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
@@ -473,22 +476,6 @@ contains
             end do
          end if
          
-         ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-         ! if (self%output_4D_map > 0) then
-         !    if (mod(iter-1,self%output_4D_map) == 0) then
-         !       allocate(sigma0(sd%ndet))
-         !       do j = 1, sd%ndet
-         !          sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-         !       end do
-         !       call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-         !            & samptext, self%scanid(i), self%nside, self%npsi, &
-         !            & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-         !            & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-         !            & self%scans(i)%d(:)%accept)
-         !       deallocate(sigma0)
-         !    end if
-         ! end if
-
          ! Bin TOD
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
            & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
@@ -510,7 +497,7 @@ contains
 
       end do
 
-      if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
+      if (self%myid == 0) write(*,*) '   --> Finalizing binned maps'
 
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
@@ -620,6 +607,101 @@ contains
 
    end subroutine process_WMAP_tod
 
+
+  subroutine read_tod_inst_WMAP(self, file)
+    ! 
+    ! Reads WMAP-specific common fields from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_WMAP_tod)
+    !           WMAP-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle; only root includes this
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates self
+    !
+    implicit none
+    class(comm_WMAP_tod),                intent(inout)          :: self
+    type(hdf_file),                      intent(in),   optional :: file
+  end subroutine read_tod_inst_WMAP
+  
+  subroutine read_scan_inst_WMAP(self, file, slabel, detlabels, scan)
+    ! 
+    ! Reads WMAP-specific scan information from TOD fileset
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_WMAP_tod)
+    !           WMAP-specific TOD object
+    ! file:     derived type (hdf_file)
+    !           Already open HDF file handle
+    ! slabel:   string
+    !           Scan label, e.g., "000001/"
+    ! detlabels: string (array)
+    !           Array of detector labels, e.g., ["27M", "27S"]
+    ! scan:     derived class (comm_scan)
+    !           Scan object
+    !
+    ! Returns
+    ! ----------
+    ! None, but updates scan object
+    !
+    implicit none
+    class(comm_WMAP_tod),                intent(in)    :: self
+    type(hdf_file),                      intent(in)    :: file
+    character(len=*),                    intent(in)    :: slabel
+    character(len=*), dimension(:),      intent(in)    :: detlabels
+    class(comm_scan),                    intent(inout) :: scan
+  end subroutine read_scan_inst_WMAP
+
+  subroutine initHDF_WMAP(self, chainfile, path)
+    ! 
+    ! Initializes WMAP-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_WMAP_tod)
+    !           WMAP-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_WMAP_tod),                intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_WMAP
+  
+  subroutine dumpToHDF_WMAP(self, chainfile, path)
+    ! 
+    ! Writes WMAP-specific TOD parameters to existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_WMAP_tod)
+    !           WMAP-specific TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_WMAP_tod),                intent(in)     :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine dumpToHDF_WMAP
 
 
 end module comm_tod_WMAP_mod

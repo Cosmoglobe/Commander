@@ -129,7 +129,6 @@ class Huffman:
         if(node.symbol != None):
             self.encoding[node.symbol] = code
             self.decoding[code] = node.symbol
-            #print(node.symbol, node.weight, code)
             return
         self.PrintCode(node.left, code + "0")
         self.PrintCode(node.right, code + "1")
@@ -139,7 +138,6 @@ class Huffman:
         text_bin = "".join(self.encoding[d] for d in array)
         padding = 8 - len(text_bin) % 8
         text_bin += padding*"0"
-        # this tells you how many bits of padding there is apparently
         text_bin = "{0:08b}".format(padding) + text_bin
 
         b = bytearray()
@@ -160,6 +158,7 @@ class Huffman:
             heapq.heappush(self.queue, node)
             self.symbols.append(d)
     
+
         while(len(self.queue)>1):
             left_child = heapq.heappop(self.queue)
             right_child = heapq.heappop(self.queue)
@@ -173,10 +172,7 @@ class Huffman:
             self.right_nodes.append(right_child.node_number)
 
         node = heapq.heappop(self.queue)
-        if(node.left == None and node.right == None): #case where there was just one symbol
-            self.PrintCode(node, code='0')
-        else:
-            self.PrintCode(node)
+        self.PrintCode(node)
 
         self.node_max = node.node_number
         _node_number = 0

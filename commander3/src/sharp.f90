@@ -223,7 +223,6 @@ contains
        if (geom_info%n_local > 0) map_ptr(k) = c_loc(map(0, k))
     end do
 
-    write(*,*) "Debug statemenet ", type, mod_flags
     if (present(comm)) then
       call c_sharp_execute_mpi(comm, type, spin, alm_ptr, map_ptr, &
           geom_info=geom_info%handle, &

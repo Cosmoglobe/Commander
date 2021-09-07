@@ -541,7 +541,7 @@ contains
     !allocating and setting up default correlation limits for sampled spectral parameters, local sampling
     allocate(self%spec_corr_convergence(self%npar),self%spec_corr_limit(self%npar))
     self%spec_corr_convergence(:)=.false. !do not push back (add extra samples) during local sampling by default
-    self%spec_corr_limit(i)=0.1d0 !assign a default correlation limit if non is defined 
+    self%spec_corr_limit(:)=0.1d0 !assign a default correlation limit if non is defined 
 
     allocate(self%pol_pixreg_type(3,self%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
     allocate(self%nprop_uni(2,self%npar))          ! {integer}: upper and lower limits on nprop

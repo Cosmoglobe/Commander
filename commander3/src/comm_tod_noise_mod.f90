@@ -144,7 +144,7 @@ contains
        end if
 
        ! Identify spikes
-       if (self%first_call .and. .not. (present(dospike))) call find_d_prime_spikes(self, scan, i, d_prime, pix)
+       if (self%first_call .and. not(present(dospike))) call find_d_prime_spikes(self, scan, i, d_prime, pix)
 
        !alpha    = self%scans(scan)%d(i)%N_psd%alpha
        !nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
@@ -421,7 +421,7 @@ contains
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
 
     integer*8    :: plan_fwd
-    integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs
+    integer(i4b) :: i, j, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar
     integer(i4b) :: ndet
     real(sp)     :: f
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n
@@ -436,7 +436,6 @@ contains
     nomp     = 1 !omp_get_max_threads()
     n        = ntod/2 + 1
     samprate = self%samprate
-    n_gibbs  = 1
 
     ! Sample sigma_0 from pairwise differenced TOD
     do i = 1, ndet
@@ -475,22 +474,19 @@ contains
        end do
 
        ! Perform sampling over all non-linear parameters
-       do k = 1, n_gibbs
-          do j = 2, self%scans(scan)%d(i)%N_psd%npar
-             P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
-             if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
+       do j = 2, self%scans(scan)%d(i)%N_psd%npar
+          P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
+          if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 
-             currpar = j
-             xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
-             x_in(1) = max(xi_n - 0.5 * abs(xi_n), P_uni(1))
-             x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
-             x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
-             x_in(2) = 0.5 * (x_in(1) + x_in(3))
+          currpar = j
+          xi_n    = self%scans(scan)%d(i)%N_psd%xi_n(j)
+          x_in(1) = max(xi_n - 0.5 * abs(xi_n), P_uni(1))
+          x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
+          x_in(2) = 0.5 * (x_in(1) + x_in(3))
 
-             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni)
-             xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
-             self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
-          end do
+          xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni)
+          xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
+          self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
        end do
     end do
     deallocate(dt, dv)

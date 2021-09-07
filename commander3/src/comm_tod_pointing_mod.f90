@@ -44,21 +44,30 @@ contains
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
+!      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
       do det = 1, tod%ndet
+!         if (tod%myid == 78) write(*,*) 'c6111', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
          if (.not. tod%scans(scan_id)%d(det)%accept) then
             s_sky(:, det) = 0.d0
             tmask(:, det) = 0.d0
             cycle
          end if
+         !if (tod%myid == 78) write(*,*) 'c6112', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
          do i = 1, tod%scans(scan_id)%ntod
             p = tod%pix2ind(pix(i,det))
+            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             s_sky(i,det) = map(1,p,det) + &
                          & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
+            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             tmask(i,det) = pmask(pix(i,det))
+            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61123', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
+            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61124', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
          end do
+         !if (tod%myid == 78) write(*,*) 'c6113', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
       end do
+      !if (tod%myid == 78) write(*,*) 'c612', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
       if (present(s_bp)) then
          do det = 1, tod%ndet
@@ -75,6 +84,7 @@ contains
             end do
          end do
       end if
+      !if (tod%myid == 78) write(*,*) 'c613', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
    end subroutine project_sky
 

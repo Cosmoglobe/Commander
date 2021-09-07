@@ -46,12 +46,6 @@ program commander
   character(len=32)           :: arg
   integer                     :: arg_indx
 
-!!$  type(byte_pointer), allocatable, dimension(:) :: arr
-!!$  integer(i4b) :: n, q
-
-
-
-
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
     call get_command_argument(arg_indx, arg)
@@ -84,6 +78,7 @@ program commander
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
   
   cpar%root = 0
+    
   
   if (cpar%myid == cpar%root) call wall_time(t1)
   call read_comm_params(cpar)
@@ -93,28 +88,6 @@ program commander
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid_chain == 0 !.false.
-
-!!$  n = 100000
-!!$  q = 100000
-!!$  allocate(arr(n))
-!!$  do i = 1, n
-!!$     allocate(arr(i)%p(q))
-!!$     arr(i)%p = i
-!!$     if (mod(i,1000) == 0) then
-!!$        write(*,*) 'up', arr(i)%p(6)
-!!$        call update_status(status, "debug")
-!!$     end if
-!!$  end do
-!!$
-!!$  do i = 1, n
-!!$     deallocate(arr(i)%p)
-!!$     if (mod(i,1000) == 0) then
-!!$        write(*,*) 'down', i
-!!$        call update_status(status, "debug2")
-!!$     end if
-!!$  end do
-!!$  deallocate(arr)
-!!$  stop
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -228,7 +201,7 @@ program commander
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') ' | Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a,i4,a,i8)') ' Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -251,7 +224,7 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -344,11 +317,6 @@ contains
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
-       if (cpar%myid == 0) then
-          write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
-       end if
-
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -360,8 +328,7 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (mod(iter,2) == 0) then
-                   !if (.true. .or. mod(iter,2) == 0) then
+                   if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)

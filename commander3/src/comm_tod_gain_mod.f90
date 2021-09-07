@@ -182,7 +182,7 @@ contains
   end subroutine calculate_gain_mean_std_per_scan
 
 
-! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
+  ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
   subroutine sample_smooth_gain(tod, handle, dipole_mods)
@@ -286,7 +286,6 @@ contains
              & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
        end do
 !    end if
-
     ! Distribute and update results
     do j = 1, ndet
       call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
@@ -310,11 +309,12 @@ contains
 
   end subroutine sample_smooth_gain
 
+
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
   subroutine accumulate_abscal(tod, scan, mask, s_sub, s_invsqrtN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
     implicit none
-    class(comm_tod),                   intent(inout)  :: tod
+    class(comm_tod),                   intent(in)     :: tod
     integer(i4b),                      intent(in)     :: scan
     real(sp),          dimension(:,:), intent(in)     :: mask, s_sub
     real(sp),          dimension(:,:), intent(in)     :: s_invsqrtN
@@ -327,7 +327,7 @@ contains
  
     real(sp), allocatable, dimension(:,:)     :: residual
     real(sp), allocatable, dimension(:)       :: r_fill
-    real(dp)     :: A, b, scale, dA, db
+    real(dp)     :: A, b, scale
     integer(i4b) :: i, j, ext(2), ndet, ntod
     character(len=5) :: itext
 
@@ -356,28 +356,11 @@ contains
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (present(mask_lowres)) then
-          dA = sum(s_invsqrtN(:,j) ** 2    * mask_lowres(:,j))
-          db = sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
+          A_abs(j) = A_abs(j) + sum(s_invsqrtN(:,j) ** 2    * mask_lowres(:,j))
+          b_abs(j) = b_abs(j) + sum(s_invsqrtN(:,j) * residual(:,j) * mask_lowres(:,j))
        else
-          dA = sum(s_invsqrtN(:,j) ** 2)
-          db = sum(s_invsqrtN(:,j) * residual(:,j))
-       end if
-
-       if (dA == 0.) then
-          tod%scans(scan)%d(j)%accept = .false.
-          write(*,*) 'Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j, dA
-       else if (abs(db/sqrt(dA)) > 1000. .or. 1/sqrt(dA) < 1d-6) then
-          tod%scans(scan)%d(j)%accept = .false.
-          write(*,*) 'Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
-       else 
-          A_abs(j) = A_abs(j) + dA
-          b_abs(j) = b_abs(j) + db
-       end if
-
-       !if (tod%scanid(scan) == 30 .and. out) then
-       if (out .and. dA > 0.d0) then
-          !write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # absK', j
-         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
+          A_abs(j) = A_abs(j) + sum(s_invsqrtN(:,j) ** 2)
+          b_abs(j) = b_abs(j) + sum(s_invsqrtN(:,j) * residual(:,j))
        end if
     end do
 
@@ -410,8 +393,8 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.5)') '      Abscal = ', tod%gain0(0)
-         !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
+         write(*,*) 'abscal = ', tod%gain0(0)
+         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
@@ -472,9 +455,9 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-!!$         write(*,*) 'A =', A
-!!$         write(*,*) 'b =', b
-!!$         write(*,*) 'relcal = ', real(x,sp)
+         write(*,*) 'A =', A
+         write(*,*) 'b =', b
+         write(*,*) 'relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -563,7 +546,7 @@ contains
          ! 1. Calibrating against the total sky signal versus orbital dipole
          ! 2. A difference in how x_im is determined algorithmically
          ! 3. A typo in my implementation of the imbalance sampling.
-         !
+         ! 
          ! To me, these are in reverse order of likelihood. I also wonder if
          ! there is some degeneracy with x_im and the gain. The best way to
          ! determine this is to see if this difference still exists with
@@ -988,7 +971,7 @@ contains
 !     else
 !        write(*, *) "Without preconditioner"
 !     end if
-     !write(*, *) "Gain CG iterations: ", iterations
+     write(*, *) "Gain CG iterations: ", iterations
      solve_cg_gain = prop_sol
 
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
