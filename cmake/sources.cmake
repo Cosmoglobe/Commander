@@ -1,64 +1,3 @@
-#================================================================================
-#
-# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
-#
-# This file is part of Commander3.
-#
-# Commander3 is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# Commander3 is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
-#
-#================================================================================
-# Description: This script contains general instructions on how to fetch and build 
-# Commander3 and all its dependencies. It is split into three parts, each containing 
-# its set of instaructions/variables. It is done for easier maintenance. 
-#================================================================================
-
-# TODO:
-# [x] Split this file into several different files, containing corresponding instructions (versions, variables, toolchains etc.);
-# [ ] Change URL_MD5 to URL_HASH of every project;
-# [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
-# [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
-# [ ] Add one variable which will force all libraries to be recompiled;
-
-#------------------------------------------------------------------------------
-# including compiler definitions
-include(project_toolchains)
-# including project defined variables
-include(project_variables)
-#------------------------------------------------------------------------------
-
-#==============================================================================
-# MAIN PROJECT DEPENDENCIES
-#==============================================================================
-
-unset(projects)
-# project names <= order matters
-list(APPEND projects 
-	required_libraries
-	zlib
-	libaec
-	mbedtls
-	libssh2
-	curl
-	cfitsio
-	blas # blas-lapack module 
-	##sharp2
-	fftw
-	hdf5
-	doxygen
-	healpix
-	commander3
-	)
 #==============================================================================
 # PROJECTS' URL SOURCES, MD5 HASHES AND CONFIGURE COMMANDS
 #==============================================================================
@@ -107,7 +46,8 @@ set(libssh2_git_tag "42d37aa63129a1b2644bf6495198923534322d64")
 # It seems that 7.74 is much better in terms of CMake support than version 7.69.
 #set(curl_url "https://github.com/curl/curl/releases/download/curl-7_69_0/curl-7.69.0.zip")
 set(curl_git_url "https://github.com/curl/curl.git")
-set(curl_git_tag "e052859759b34d0e05ce0f17244873e5cd7b457b")
+#set(curl_git_tag "e052859759b34d0e05ce0f17244873e5cd7b457b")
+set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 #------------------------------------------------------------------------------
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
@@ -140,7 +80,8 @@ set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 # CFitsio
 #------------------------------------------------------------------------------
 #set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.47.tar.gz")
-set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
+#set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49.tar.gz")
+set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.0.tar.gz")
 #------------------------------------------------------------------------------
 # HEALPix
 #------------------------------------------------------------------------------
@@ -148,28 +89,19 @@ set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-3.49
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
 set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
 #set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
 #set(healpix_md5 "540b243406596205a7a82434d99af41e")
 #set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
 set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
+#set(healpix_md5 "923d31845716014e38f34c4de59264e1")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #------------------------------------------------------------------------------
-# Doxygen
+# CAMB
 #------------------------------------------------------------------------------
-# there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
-set(doxygen_url "https://github.com/doxygen/doxygen/archive/Release_1_8_16.tar.gz")#"https://github.com/doxygen/doxygen/archive/Release_1_8_18.tar.gz")#"https://github.com/doxygen/doxygen.git")
-# compile doxygen with cmake itself, so no need to specify configure options here
-set(flex_url "http://sourceforge.net/projects/flex/files/flex-2.5.39.tar.gz/download")#"https://sourceforge.net/projects/flex/files/flex-2.6.0.tar.xz/download")
-set(bison_url "http://ftp.gnu.org/gnu/bison/bison-3.6.tar.gz")#"http://ftp.gnu.org/gnu/bison/bison-3.6.2.tar.gz")
+# CAMB with custom CMake support
+set(camb_git_url "https://github.com/maksymbrl/CAMB.git")
+set(camb_git_tag "f056440afde31e3ec63074b626257a5c500e6097")
 #------------------------------------------------------------------------------
-
-# Include all project configuration files
-foreach(project ${projects})
-	include("${project}")
-endforeach()
-# TODO: use target_include_directories instead (for each subproject if necessary). 
-include_directories(${CMAKE_INSTALL_PREFIX}/include)
-message(STATUS "Finished looking for packages.")
-message(STATUS "---------------------------------------------------------------")

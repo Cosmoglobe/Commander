@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of MbedTLS on the host system.
 # If it fails to do so, it will download, compile and install MbedTLS from source.
 # MbedTLS is (not strictly) required by cURL. If either CFITSIO and/or cURL were 
@@ -25,38 +27,66 @@
 #================================================================================
 
 if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
-	message(STATUS "---------------------------------------------------------------")
-	#if(NOT (MBEDTLS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-	if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
-		find_package(MbedTLS)
-	endif()
+	#message(STATUS "---------------------------------------------------------------")
+	#if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
+	#	find_package(MBEDTLS)
+	#endif()
 
-	if(NOT MBEDTLS_FOUND) 
+	if(COMPILE_MBEDTLS) 
+		#------------------------------------------------------------------------------
+		# Note: the explicit splitting for download and install step is done on purpose
+		# to avoid errors when you want to recompile libraries for different owls etc.
+		# In addition, this will allow us to download sources only once and then just 
+		# reuse it whenever possible.
+		#------------------------------------------------------------------------------
+		# Getting MbedTLS from source.
+		#------------------------------------------------------------------------------
+		# Checking whether we have source directory and this directory is not empty.
+		if(NOT EXISTS "${MBEDTLS_SOURCE_DIR}/CMakeLists.txt")
+			message(STATUS "No MBEDTLS sources were found; thus, will download it from source:\n${mbedtls_git_url}")
+			ExternalProject_Add(
+				mbedtls_src
+				GIT_REPOSITORY		"${mbedtls_git_url}"
+				GIT_TAG						"${mbedtls_git_tag}"
+				PREFIX						"${LIBS_BUILD_DIR}"
+				DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+				SOURCE_DIR				"${MBEDTLS_SOURCE_DIR}"
+				LOG_DIR						"${CMAKE_LOG_DIR}"
+				LOG_DOWNLOAD			ON
+				CONFIGURE_COMMAND ""
+				BUILD_COMMAND			""
+				INSTALL_COMMAND		""
+				)
+		else()
+			message(STATUS "Found an existing MBEDTLS sources inside:\n${MBEDTLS_SOURCE_DIR}")
+			add_custom_target(mbedtls_src
+				ALL ""
+				)
+		endif()
 		#------------------------------------------------------------------------------
 		# Getting MbedTLS from source and compiling both static and shared libraries.
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(mbedtls
-			DEPENDS required_libraries
-							zlib
-			GIT_REPOSITORY "${mbedtls_git_url}"
-			GIT_TAG "${mbedtls_git_tag}"
-			# PREFIX should be present, otherwise it will pull it into "build" dir
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/mbedtls"
-			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/mbedtls/src/mbedtls"
-			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_DOWNLOAD ON
-			LOG_CONFIGURE ON
-			LOG_BUILD ON
-			LOG_INSTALL ON
+		ExternalProject_Add(
+			mbedtls
+			DEPENDS						required_libraries
+												zlib
+												mbedtls_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${MBEDTLS_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			ON
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
 			# commands how to build the project
+			DOWNLOAD_COMMAND ""
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release
 				# Specifying installations paths for binaries and libraries
 				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 				# ensuring that the lib name would be lib and not lib64
-				-DLIB_INSTALL_DIR=lib
+				#-DLIB_INSTALL_DIR=lib
+				-DLIB_INSTALL_DIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 				# Specifying compilers
 				-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 				# There are some problems with generated programs
@@ -76,7 +106,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		# Note: we need to define all these libraries separately to sucessfully compile
 		# LibSSH2, as it fails to detect MbedTLS.
 		# Use static library linking otherwise we need to add these to LD_LIBRARY_PATH.
-		# In this case getitng libmbedcrypto.a(bignum.c.o): relocation R_X86_64_32S 
+		# Note2: In this case getitng libmbedcrypto.a(bignum.c.o): relocation R_X86_64_32S 
 		# against `.rodata' can not be used when making a shared object; recompile with -fPIC
 		set(MBEDTLS_LIBRARY
 			"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}mbedtls${CMAKE_SHARED_LIBRARY_SUFFIX}" 
@@ -105,7 +135,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 	else()
 		# If mbedtls exists on the system, we just use this version instead.
-		add_custom_target(${project} ALL "")
+		add_custom_target(mbedtls ALL "")
 		#------------------------------------------------------------------------------
 		message(STATUS "MbedTLS LIBRARIES are: ${MBEDTLS_LIBRARIES}")
 		message(STATUS "MbedTLS INCLUDE DIRS are: ${MBEDTLS_INCLUDE_DIRS}")

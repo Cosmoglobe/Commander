@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of BLAS/LAPACK on the host system.
 # If it fails to do so, it will download, compile and install OpenBLAS from source.
 #================================================================================
@@ -79,19 +81,25 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 		#"PREFIX=${CMAKE_INSTALL_PREFIX}"
 		#"install"
 		#)
-	ExternalProject_Add(blas
-		DEPENDS required_libraries
-		URL "${blas_url}"
-		URL_MD5 "${blas_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/blas"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/blas/src/blas"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
+	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
+	ExternalProject_Add(
+		blas
+		DEPENDS				required_libraries
+		URL						"${blas_url}"
+		URL_MD5				"${blas_md5}"
+		PREFIX				"${CMAKE_DOWNLOAD_DIRECTORY}/blas"
+		DOWNLOAD_DIR	"${CMAKE_DOWNLOAD_DIRECTORY}"
+		SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/blas/src/blas"
+		INSTALL_DIR		"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR				"${CMAKE_LOG_DIR}"
+		LOG_DOWNLOAD	ON
 		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+		LOG_BUILD			ON
+		LOG_INSTALL		ON
 		# commands how to build the project
 		#COMMAND "${${project}_configure_command}" 
 		#CONFIGURE_COMMAND "${${project}_configure_command}"
