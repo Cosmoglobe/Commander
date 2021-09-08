@@ -4394,7 +4394,7 @@ contains
 
              !calculate intersection 
              corr_res = calc_linear_regression(corr_list(0:k), amp_list(0:k))
-             write(*,*) 'threshold',self%mono_prior_threshold(i),'corr_res', corr_res
+             !write(*,*) 'threshold',self%mono_prior_threshold(i),'corr_res', corr_res
 
              if (corr_res(3) <= 1.0d0 .and. corr_res(3) >= -1.0d0) then
                 m = m + 1
@@ -4499,7 +4499,7 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) write(*,fmt='(a,f14.3,a,f14.3)') '   lowest value prior correction for '//trim(self%label)//': ', mu(0)*self%cg_scale(1), ' to give a minimim smoothed amplitude of ', mean_intersect*self%cg_scale(1)
+       if (self%x%info%myid == 0) write(*,fmt='(a,f14.3,a,f14.3)') '   lowest value prior correction for '//trim(self%label)//': ', mu(0)*self%cg_scale(1), ' to give the smoothed amplitude a lower value of ', mean_intersect*self%cg_scale(1)
   
        deallocate(mask_list)
        deallocate(amp_list)
