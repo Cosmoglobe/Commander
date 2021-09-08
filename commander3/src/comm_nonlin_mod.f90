@@ -1992,6 +1992,7 @@ contains
                 if (trim(monocorr_type) == 'monopole+dipole' .or. &
                      & trim(monocorr_type) == 'monopole-dipole') then
                    ! resample the monopole (and dipole) given the new reduced data
+
                    md_A = 0.d0
                    md_b = 0.d0
                    harmonics2=harmonics*monopole_mixing(j)
@@ -2002,6 +2003,7 @@ contains
 
                       md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
                    end do
+
                    multipoles=0.d0
                    !we need to run an MPI reduce to get all harmonics for md_A and md_b
                    call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
@@ -2023,6 +2025,7 @@ contains
                         & MPI_SUM, info_lr%comm, ierr)
 
                 else if (trim(monocorr_type) == 'monopole') then
+
                    a=0.d0
                    b=0.d0
                    do pix = 0,np_lr-1
@@ -2042,6 +2045,7 @@ contains
                    else
                       multipoles(0) = 0.d0
                    end if
+
                 end if
 
                 if (info_lr%myid == 0) then
@@ -2094,7 +2098,6 @@ contains
 
                    c2 => c2%next()
                 end do
-
 
              end if
           end do

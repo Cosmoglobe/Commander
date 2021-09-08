@@ -788,8 +788,16 @@ contains
        self%spec_mono_combined(i)=cpar%cs_spec_mono_combined(id_abs,i)
        if (self%spec_mono_combined(i)) then
           self%spec_mono_type(i)=trim(cpar%cs_spec_mono_type(id_abs,i))
-          info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
-               & self%nmaps, self%pol)
+          if (self%spec_mono_type(i) == 'monopole' .or. self%spec_mono_type(i) == 'monopole+dipole' .or. &
+               & self%spec_mono_type(i) == 'monopole-dipole') then
+             
+             info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
+                  & self%nmaps, self%pol)
+          else
+             call report_error('Invalid monopole correction type for the combined monopole sampling of '&
+                  & //trim(self%label)//' '//trim(self%indlabel(i))//': '//trim(self%spec_mono_type(i)))
+          end if
+
 
           if (trim(cpar%cs_spec_mono_mask(id_abs,i)) == 'fullsky') then
              self%spec_mono_mask(i)%p => comm_map(info2)
