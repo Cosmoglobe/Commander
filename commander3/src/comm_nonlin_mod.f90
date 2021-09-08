@@ -187,7 +187,11 @@ contains
                 if (trim(c%mono_prior_type) /= 'none') then
                    ! can only estimate if there is a pure (and full) mono/-dipole CG sampling group 
                    if (c%cg_samp_group_md > 0) then
-                      write(*,*) 'Sampling monopoles of band after prior correcting monopole of '//trim(c%label)//' amplitude'
+                      if (cpar%myid == cpar%root) then
+                         write(*,*) 'Sampling monopoles of band after prior correcting monopole of '//&
+                              & trim(c%label)//' amplitude'
+                         write(*,*) 'Using CG sampling group:',c%cg_samp_group_md
+                      end if
                       call sample_amps_by_CG(cpar, c%cg_samp_group_md, handle, handle_noise)
                    end if
                 end if
@@ -1654,6 +1658,7 @@ contains
     character(len=6) :: itext
     character(len=4) :: ctext
     character(len=2) :: pind_txt
+    character(len=512), dimension(1000) :: tokens
     real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
     real(dp),      allocatable, dimension(:) :: old_thetas, new_thetas, init_thetas, sum_theta
     real(dp),      allocatable, dimension(:) :: theta_corr_arr
@@ -1836,7 +1841,7 @@ contains
              select type (c2)
              class is (comm_md_comp)
                 c_mono => c2 !to be able to access all diffuse comp parameters through c_lnL
-                if (trim(c_mono%label) == data(k)%label) then
+                if (trim(c_mono%label) == trim(data(k)%label)) then
                    do i_mono = 0, c_mono%x%info%nalm-1
                       call c_mono%x%info%i2lm(i_mono,l_mono,m_mono)
                       if (l_mono == 0) then ! Monopole
@@ -1848,6 +1853,13 @@ contains
                    monopole_mixing(k)=c_mono%RJ2unit_(1)
                    monopole_active(k)=.true.
                    if (c_mono%mono_from_prior) monopole_active(k)=.false. !we should not sample monopoles that are sampled from prior
+                   call get_tokens(trim(c_lnL%spec_mono_freeze(id)), ",", tokens, n)
+                   do i_mono = 1, n
+                      if (trim(data(k)%label) == trim(tokens(i_mono)) ) then
+                         monopole_active(k)=.false. !we freeze monopoles the user wants to freeze
+                         exit
+                      end if
+                   end do
                    exit !exit the while-assiciated-loop, we have found the necessary information
                 end if
              end select

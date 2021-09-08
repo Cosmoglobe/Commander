@@ -90,6 +90,7 @@ module comm_diffuse_comp_mod
      class(map_ptr),     allocatable, dimension(:)     :: spec_mono_mask
      logical(lgt),       allocatable, dimension(:)     :: spec_mono_combined
      character(len=512), allocatable, dimension(:)     :: spec_mono_type
+     character(len=512), allocatable, dimension(:)     :: spec_mono_freeze
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
@@ -768,6 +769,7 @@ contains
     allocate(self%spec_mono_combined(self%npar)) !logical array, combined monopole and spectral parameter sampling
     allocate(self%spec_mono_mask(self%npar)) !map pointer array, monopole sampling mask
     allocate(self%spec_mono_type(self%npar)) !map pointer array, monopole sampling mask
+    allocate(self%spec_mono_freeze(self%npar)) !map pointer array, monopole sampling mask
 
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
@@ -788,6 +790,7 @@ contains
        self%spec_mono_combined(i)=cpar%cs_spec_mono_combined(id_abs,i)
        if (self%spec_mono_combined(i)) then
           self%spec_mono_type(i)=trim(cpar%cs_spec_mono_type(id_abs,i))
+          self%spec_mono_freeze(i)=trim(cpar%cs_spec_mono_freeze(id_abs,i))
           if (self%spec_mono_type(i) == 'monopole' .or. self%spec_mono_type(i) == 'monopole+dipole' .or. &
                & self%spec_mono_type(i) == 'monopole-dipole') then
              

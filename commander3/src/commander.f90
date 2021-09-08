@@ -229,7 +229,7 @@ program commander
      end if
 
      ! Sample non-linear parameters
-     if (iter > 1 .and. cpar%sample_specind) then
+     if (iter > 0 .and. cpar%sample_specind) then
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
      end if
 
