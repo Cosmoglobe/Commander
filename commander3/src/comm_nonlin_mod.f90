@@ -1849,11 +1849,14 @@ contains
                          monopole_mu(k)=c_mono%mu%alm(i_mono,1) / sqrt(4.d0*pi)
                       end if
                    end do
+
                    monopole_rms(k)=sqrt(c_mono%Cl%Dl(0,1) / (4.d0*pi))
                    monopole_mixing(k)=c_mono%RJ2unit_(1)
                    monopole_active(k)=.true.
                    if (c_mono%mono_from_prior) monopole_active(k)=.false. !we should not sample monopoles that are sampled from prior
-                   call get_tokens(trim(c_lnL%spec_mono_freeze(id)), ",", tokens, n)
+
+                   call get_tokens(trim(c_lnL%spec_mono_freeze(par_id)), ",", tokens, n)
+
                    do i_mono = 1, n
                       if (trim(data(k)%label) == trim(tokens(i_mono)) ) then
                          monopole_active(k)=.false. !we freeze monopoles the user wants to freeze
@@ -1866,7 +1869,7 @@ contains
 
              c2 => c2%next()
           end do
-
+          
        end if
 
     end do
@@ -1877,13 +1880,13 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, monopole_val, numband, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, monopole_mu, numband, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
 
-       if (.false.) then !debugging
+       if (.true.) then !debugging
           if (cpar%verbosity>2 .and. myid_pix==0) then
              write(*,*) '  Monopoles of active bands in sampling '
              write(*,*) '  label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
              do i = 1,numband
                 if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
-                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i),myid_pix
+                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
              end do
 
              write(*,*) '  '
@@ -1892,7 +1895,7 @@ contains
              do i = 1,numband
                 if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3, i6)') &
                      & trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
-                     & monopole_rms(i)*monopole_mixing(i),myid_pix
+                     & monopole_rms(i)*monopole_mixing(i)
              end do
 
           end if
@@ -2147,10 +2150,17 @@ contains
     else
        if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
        if (cpar%verbosity>3 .and. myid_pix == 0) then
-             write(*,fmt='(a)') '  Active bands'
+          write(*,fmt='(a)') '  Active bands'
           do k = 1,band_count
              write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
           end do
+
+          if (c_lnL%spec_mono_combined(par_id)) then
+             write(*,fmt='(a)') '  Active monopoles'
+             do k = 1,numband
+                if (monopole_active(k)) write(*,fmt='(a,i1)') '   band: '//trim(data(k)%label)
+             end do
+          end if
        end if
        if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .false.) then !debug chisq (RMS scaling) for smoothing scale
           allocate(lr_chisq(band_count))
@@ -2160,6 +2170,7 @@ contains
           end do
        end if
     end if
+
 
     !allocate and assign low resolution reduced data maps
     allocate(reduced_data(0:np_lr-1,band_count))
@@ -2384,6 +2395,7 @@ contains
                      & theta_min," -- max: ", theta_max
                 write(*,fmt='(a, f10.5)') "    Proposed ind ",new_theta
              end if
+             loop_exit = .true.
           else
 
              !set up the new theta map
@@ -2415,8 +2427,10 @@ contains
                          reduced_data(pix,k) = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
                       end do
-                      
-                      !create reduced map from original reduced data (residual+component) and original monopole
+                      !reduced_data is now the original residual map
+
+                      !create reduced data map for monopole estimation from original residual
+                      !i.e. a (residual+monopole)-map, add the original (input) monopole to the residual
                       reduced_data(:,k) = reduced_data(:,k) + monopole_mixing(band_i(k))*monopole_val(band_i(k))
                                             
                       if (trim(monocorr_type) == 'monopole+dipole' .or. &
@@ -2430,7 +2444,7 @@ contains
                                md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
                             end do
 
-                            md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
+                            md_b(j_md) = sum(reduced_data(:,k) * harmonics2(:,j_md)) !is to be set later, this will change
                          end do
                          !we need to run an MPI reduce to get all harmonics for md_A and md_b
                          call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
@@ -2457,7 +2471,7 @@ contains
                          do pix = 0,np_lr-1
                             if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
                                a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                               b = b + reduced_data(pix,1) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                               b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
                             end if
                          end do
 

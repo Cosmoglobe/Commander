@@ -548,6 +548,7 @@ contains
     real(dp)           :: par_dp
     character(len=16),         dimension(1000) :: pixreg_label
     character(len=16),         dimension(1000) :: pixreg_prior
+    character(len=512),        dimension(1000) :: tokens
     integer(i4b), allocatable, dimension(:)    :: sum_pix
     real(dp),     allocatable, dimension(:)    :: sum_theta, sum_proplen, sum_nprop
     real(dp),     allocatable, dimension(:,:)  :: m_in, m_out, buffer
@@ -791,6 +792,7 @@ contains
        if (self%spec_mono_combined(i)) then
           self%spec_mono_type(i)=trim(cpar%cs_spec_mono_type(id_abs,i))
           self%spec_mono_freeze(i)=trim(cpar%cs_spec_mono_freeze(id_abs,i))
+
           if (self%spec_mono_type(i) == 'monopole' .or. self%spec_mono_type(i) == 'monopole+dipole' .or. &
                & self%spec_mono_type(i) == 'monopole-dipole') then
              
