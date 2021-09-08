@@ -306,14 +306,16 @@ contains
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
     real(dp)     :: t1, t2, dnu_prop
-    real(dp),      allocatable, dimension(:)     :: eta
+    real(dp),      allocatable, dimension(:)     :: eta ! random variable for bandpass
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky
     class(comm_map), pointer :: rms => null()
 
+    ! number of bandpass shifts
     ndelta      = cpar%num_bp_prop + 1
 
+    ! For each band (e.g. Planck 30, 44, 70)
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
@@ -372,11 +374,8 @@ contains
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
-             !s_sky(j,k)%p => comm_map(data(i)%info)
-             !call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
+             ! Evaluating sky signal (BMa part) of eq. 47 in BeyondPlanck paper 1. 
              call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false., cmb_pol=.false.) 
-             !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
-             !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
 
        end do
@@ -390,6 +389,7 @@ contains
        if (cpar%myid_chain == 0) then
          write(*,*) 'Processing ', trim(data(i)%label)
        end if
+       ! Actually doing TOD processing (for Planck, WMAP, QUIET etc.)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
        if (cpar%myid_chain == 0) then
          write(*,*) 'Finished processing ', trim(data(i)%label)
