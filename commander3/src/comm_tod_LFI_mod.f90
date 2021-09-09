@@ -179,7 +179,7 @@ contains
     constructor%compressed_tod  = .true.
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
-    constructor%use_dpc_adc     = .false. !.true.
+    constructor%use_dpc_adc     = .true. !.true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
@@ -320,6 +320,49 @@ contains
           call update_status(status, "ADC_table")
        end if
 
+       !==============================================================
+       ! TESTING BLOCK
+       !==============================================================
+       ! Correct tods, and bin rms again
+       ! if (constructor%myid == 0) write(*,*) 'Correct and bin'
+       do i = 1, constructor%ndet
+          do j = 1, constructor%ndiode
+             constructor%adc_corrections(i,j)%p%myid   = cpar%myid_chain
+             constructor%adc_corrections(i,j)%p%comm   = cpar%comm_chain
+             constructor%adc_corrections(i,j)%p%outdir = cpar%outdir
+             constructor%adc_corrections(i,j)%p%nbins  = 500
+             call constructor%adc_corrections(i,j)%p%construct_voltage_bins
+          end do
+       end do
+       do k = 1,1!constructor%nscan
+          if (constructor%myid == 0) write(*,*) 'Test the spline'
+          allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
+          allocate(flag(constructor%scans(k)%ntod))
+          do i = 1, constructor%ndet
+             if (.not. constructor%scans(k)%d(i)%accept) cycle
+             call constructor%decompress_diodes(k, i, diode_data, flag)
+             do j = 1, constructor%ndiode
+                name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+                call constructor%adc_corrections(i,j)%p%spline_check(name)
+                ! call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
+                ! call constructor%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,constructor%flag0, corr=.true.) 
+             end do
+          end do
+          deallocate(diode_data, flag, corrected_data)
+          stop
+       end do
+       call mpi_barrier(cpar%comm_chain,ierr)
+       if (constructor%myid == 0) write(*,*) '    Output corrected rms tables'
+       do i = 1, constructor%ndet
+          do j = 1, constructor%ndiode
+             name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+             if (constructor%myid == 0) write(*,*) trim(name)
+             call constructor%adc_corrections(i,j)%p%corr_rms_out(name)
+          end do
+       end do
+       !==============================================================
+    ! end if
+    
        ! Compute reference load filter spline
        if (constructor%myid == 0) write(*,*) '   Build reference load filter'
        nsmooth = constructor%get_nsmooth()
@@ -357,9 +400,6 @@ contains
              if (ierr == 0) filter_count = filter_count + 1
              
              deallocate(diode_data, corrected_data)
-
-
-
 
           end do
 
@@ -403,7 +443,6 @@ contains
        end do
 
        end do
-       call update_status(status, "ADC_table")
 
     end if
 
@@ -745,7 +784,8 @@ contains
     self%diode_weights(band,1) = weight
     self%diode_weights(band,2) = 1.d0 - weight
 
-    if (self%use_dpc_adc .and. .not. self%L2_exist) then
+    ! if (self%use_dpc_adc .and. .not. self%L2_exist) then
+    if (.true.) then
        ! Read ADC corrections
        path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'0'
        self%adc_corrections(band,1)%p => comm_adc(instfile, path, .true.) !first half, load
