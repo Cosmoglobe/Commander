@@ -157,6 +157,12 @@ module comm_tod_mod
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
+     ! Gain parameters
+     real(dp), allocatable, dimension(:)     :: gain_sigma_0  ! size(ndet), the estimated white noise level of that scan. Not truly a white noise since our model is sigma_0**2 * (f/fknee)**alpha instead of sigma_0 ** 2 (1 + f/fknee ** alpha)
+     real(dp), allocatable, dimension(:)    :: gain_fknee ! size(ndet)
+     real(dp), allocatable, dimension(:)    :: gain_alpha ! size(ndet)
+     real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
+     real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
    contains
      procedure                           :: read_tod
      procedure(read_tod_inst), deferred  :: read_tod_inst
@@ -380,6 +386,17 @@ contains
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
 
+    !Allocate and initialize gain structures
+    allocate(self%gain_sigma_0(self%ndet))
+    ! To be initialized at first call
+    self%gain_sigma_0 = -1.d0
+    allocate(self%gain_fknee(self%ndet))
+    allocate(self%gain_alpha(self%ndet))
+    self%gain_fknee =  0.002d0 / (60.d0 * 60.d0) ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_alpha =  -1.d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_fknee_std = abs(self%gain_fknee(1) * 0.01)
+    self%gain_alpha_std = abs(self%gain_alpha(1) * 0.01)
+
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
@@ -418,16 +435,27 @@ contains
     self%pix2ind = -1
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
-       do j = 1, self%ndet
+       if (self%nhorn == 2) then
          do l = 1, self%nhorn
-          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              pix(k)  = pix(k-1)  + pix(k)
              self%pix2ind(pix(k)) = 1
           end do
         end do
-       end do
+       else
+         do j = 1, self%ndet
+           do l = 1, self%nhorn
+            call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+            self%pix2ind(pix(1)) = 1
+            do k = 2, self%scans(i)%ntod
+               pix(k)  = pix(k-1)  + pix(k)
+               self%pix2ind(pix(k)) = 1
+            end do
+          end do
+         end do
+       end if
        deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
@@ -747,7 +775,9 @@ contains
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
     do i = 1, ndet
-       allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+       end if
 
        allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
@@ -769,12 +799,16 @@ contains
        deallocate(xi_n)
 
        ! Read Huffman coded data arrays
-       if (nhorn == 2) then
+       if (nhorn == 2 .and. i == 1) then
+         ! For a single DA, this is redundant, so we are loading 4 times the
+         ! necessary pointing (and flags) information. Strictly speaking, this
+         ! would involve needing to have a self%pixA and self%pixB attribute for
+         ! WMAP only and not allocate self%d(i)%pix(j)
          do j = 1, nhorn 
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix" // achar(j+64),  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi" // achar(j+64),  self%d(i)%psi(j)%p)
          end do
-       else
+       else if (nhorn .ne. 2) then
          do j = 1, nhorn
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/pix",  self%d(i)%pix(j)%p)
            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/psi",  self%d(i)%psi(j)%p)
@@ -783,7 +817,7 @@ contains
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        if (tod%compressed_tod) then
-          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
        else
           allocate(self%d(i)%tod(m))
           call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -953,45 +987,45 @@ contains
          end do
 
        ! Sort according to weight
-       pweight = 0.d0
-       w_tot = sum(weight)
-       call QuickSort(id, weight)
-       do i = n_tot, 1, -1
-          ind             = minloc(pweight)-1
-          proc(id(i))     = ind(1)
-          pweight(ind(1)) = pweight(ind(1)) + weight(i)
-       end do
+!!$       pweight = 0.d0
+!!$       w_tot = sum(weight)
+!!$       call QuickSort(id, weight)
+!!$       do i = n_tot, 1, -1
+!!$          ind             = minloc(pweight)-1
+!!$          proc(id(i))     = ind(1)
+!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
+!!$       end do
 !!$       deallocate(id, pweight, weight)
 
        ! Sort according to scan id
-!!$         proc    = -1
-!!$         call QuickSort(id, sid)
-!!$         w_tot = sum(weight)
-!!$         w_curr = 0.d0
-!!$         j     = 1
-!!$         do i = np-1, 1, -1
-!!$            w = 0.d0
-!!$            do k = 1, n_tot
-!!$               if (proc(k) == i) w = w + weight(k) 
-!!$            end do
-!!$            do while (w < real(np-1,sp)/real(np,sp)*w_tot/np .and. j <= n_tot)
-!!$               proc(id(j)) = i
-!!$               w           = w + weight(id(j))
-!!$               if (w > 1.2d0*w_tot/np) then
-!!$                  ! Assign large scans to next core
-!!$                  proc(id(j)) = i-1
-!!$                  w           = w - weight(id(j))
-!!$               end if
-!!$               j           = j+1
-!!$            end do
+         proc    = -1
+         call QuickSort(id, sid)
+         w_tot = sum(weight)
+         w_curr = 0.d0
+         j     = 1
+         do i = np-1, 1, -1
+            w = 0.d0
+            do k = 1, n_tot
+               if (proc(k) == i) w = w + weight(k) 
+            end do
+            do while (w < w_tot/np .and. j <= n_tot)
+               proc(id(j)) = i
+               w           = w + weight(id(j))
+               if (w > 1.2d0*w_tot/np) then
+                  ! Assign large scans to next core
+                  proc(id(j)) = i-1
+                  w           = w - weight(id(j))
+               end if
+               j           = j+1
+            end do
 !!$            if (w_curr > i*w_tot/np) then
 !!$               proc(id(j-1)) = i-1
 !!$            end if
-!!$         end do
-!!$         do while (j <= n_tot)
-!!$            proc(id(j)) = 0
-!!$            j = j+1
-!!$         end do
+         end do
+         do while (j <= n_tot)
+            proc(id(j)) = 0
+            j = j+1
+         end do
          pweight = 0.d0
          do k = 1, n_tot
             pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
@@ -1131,6 +1165,9 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
        call write_hdf(chainfile, trim(adjustl(path))//'mono',   self%mono)
        call write_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0', self%gain_sigma_0)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain_fknee', self%gain_fknee)
+       call write_hdf(chainfile, trim(adjustl(path))//'gain_alpha', self%gain_alpha)
     end if
 
     call map%writeMapToHDF(chainfile, path, 'map')
@@ -1171,6 +1208,9 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
        !write(*,*) 'bp =', self%bp_delta
        ! Redefine gains; should be removed when proper initfiles are available
 !!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
@@ -1189,6 +1229,12 @@ contains
     call mpi_bcast(self%mono, size(self%mono), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
     call mpi_bcast(self%gain0, size(self%gain0), MPI_DOUBLE_PRECISION, 0, &
+         & self%comm, ierr)
+    call mpi_bcast(self%gain_sigma_0, size(self%gain_sigma_0), MPI_DOUBLE_PRECISION, 0, &
+         & self%comm, ierr)
+    call mpi_bcast(self%gain_fknee, size(self%gain_fknee), MPI_DOUBLE_PRECISION, 0, &
+         & self%comm, ierr)
+    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
 
     do j = 1, self%ndet
@@ -1669,21 +1715,20 @@ contains
     real(sp),        dimension(:,:), intent(in), optional :: tod_arr
 
     
-    real(dp)     :: chisq, d0, g, b
+    real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
-    b           = self%scans(scan)%d(det)%baseline
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
        if (present(tod_arr)) then
-         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i) + b)
+         d0    = tod_arr(i, det) - (g * s_spur(i) + n_corr(i))
        else
          d0    = self%scans(scan)%d(det)%tod(i) - &
-           &  (g * s_spur(i) + n_corr(i) + b)
+           &  (g * s_spur(i) + n_corr(i))
        end if
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2

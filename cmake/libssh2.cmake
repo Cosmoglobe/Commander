@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script determines the location of LibSSH2 on the host system.
 # If it fails to do so, it will download, compile and install LibSSH2 from source.
 # LibSSH2 is (not strictly) required by cURL.
@@ -36,21 +34,28 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Getting LibSSH2 from source.
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(libssh2_src
-			DEPENDS required_libraries 
-							zlib
-							mbedtls
-			GIT_REPOSITORY "${libssh2_git_url}"
-			GIT_TAG "${libssh2_git_tag}"
-			# PREFIX should be present, otherwise it will pull it into "build" dir
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/libssh2"
-			DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_DOWNLOAD ON
-			CONFIGURE_COMMAND ""
-			BUILD_COMMAND ""
-			INSTALL_COMMAND ""
-			)
+		# Checking whether we have source directory and this directory is not empty.
+		if(NOT EXISTS "${LIBSSH2_SOURCE_DIR}/CMakeLists.txt")
+			message(STATUS "No LIBSSH2 sources were found; thus, will download it from source:\n${libssh2_git_url}")
+			ExternalProject_Add(
+				libssh2_src
+				GIT_REPOSITORY		"${libssh2_git_url}"
+				GIT_TAG						"${libssh2_git_tag}"
+				PREFIX						"${LIBS_BUILD_DIR}"
+				SOURCE_DIR				"${LIBSSH2_SOURCE_DIR}"
+				DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+				LOG_DIR						"${CMAKE_LOG_DIR}"
+				LOG_DOWNLOAD			ON
+				CONFIGURE_COMMAND ""
+				BUILD_COMMAND			""
+				INSTALL_COMMAND		""
+				)
+		else()
+			message(STATUS "Found an existing LIBSSH2 sources inside:\n${LIBSSH2_SOURCE_DIR}")
+			add_custom_target(libssh2_src
+				ALL ""
+				)
+		endif()
 		#------------------------------------------------------------------------------
 		# Building both -- static and shared -- versions of the library.
 		# Building is done consequently, i.e. first it will install static
@@ -60,20 +65,20 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Building Static LibSSH2
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(libssh2_static
-			DEPENDS zlib 
-							mbedtls
-							libssh2_src
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/libssh2"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/libssh2/src/libssh2_src"
-			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_CONFIGURE ON
-			LOG_BUILD ON
-			LOG_INSTALL ON
+		ExternalProject_Add(
+			libssh2_static
+			DEPENDS						zlib 
+												mbedtls
+												libssh2_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${LIBSSH2_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			ON
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
 			# Disabling download
-			DOWNLOAD_COMMAND ""
-			#COMMAND ${CMAKE_COMMAND} -E env mbedTLS_ROOT=$ENV{MBEDTLS_ROOT} 
+			DOWNLOAD_COMMAND	""
 			# commands how to build the project
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release
@@ -106,20 +111,20 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Building Shared LibSSH2
 		#------------------------------------------------------------------------------
-		ExternalProject_Add(libssh2_shared
-			DEPENDS zlib 
-							mbedtls
-							libssh2_src 
-							libssh2_static
-			PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/libssh2"
-			SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/libssh2/src/libssh2_src"
-			INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-			LOG_DIR "${CMAKE_LOG_DIR}"
-			LOG_CONFIGURE ON
-			LOG_BUILD ON
-			LOG_INSTALL ON
+		ExternalProject_Add(
+			libssh2_shared
+			DEPENDS						zlib 
+												mbedtls
+												libssh2_src
+			PREFIX						"${LIBS_BUILD_DIR}"
+			SOURCE_DIR				"${LIBSSH2_SOURCE_DIR}"
+			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_CONFIGURE			ON
+			LOG_BUILD					ON
+			LOG_INSTALL				ON
 			# Disabling download
-			DOWNLOAD_COMMAND ""
+			DOWNLOAD_COMMAND	""
 			# commands how to build the project
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release

@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Description: This script determines the location of ZLib on the host system.
 # If it fails to do so, it will download, compile and install ZLib from source.
 # ZLib is (not strictly) required by OpenSSL, LibSSH2, cURL, and HDF5.
@@ -38,25 +36,56 @@ if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
 	#endif()
 endif()
 
-if(NOT ZLIB_FOUND) #OR (ZLIB_VERSION_STRING VERSION_LESS_EQUAL zlib_minimal_accepted_version)) 
+if(NOT ZLIB_FOUND)
 	message(STATUS "Required version -- 1.2.11 -- will be compiled from source.")
+	#------------------------------------------------------------------------------
+	# Note: the explicit splitting for download and install step is done on purpose
+	# to avoid errors when you want to recompile libraries for different owls etc.
+	# In addition, this will allow us to download sources only once and then just 
+	# reuse it whenever possible.
 	#------------------------------------------------------------------------------
 	# Getting ZLib from source.
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(zlib
-		DEPENDS required_libraries
-		URL "${zlib_url}"
-		URL_MD5 "${zlib_md5}"
-		PREFIX "${CMAKE_DOWNLOAD_DIRECTORY}/zlib"
-		DOWNLOAD_DIR "${CMAKE_DOWNLOAD_DIRECTORY}"
-		SOURCE_DIR "${CMAKE_DOWNLOAD_DIRECTORY}/zlib/src/zlib"
-		INSTALL_DIR "${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR "${CMAKE_LOG_DIR}"
-		LOG_DOWNLOAD ON
-		LOG_CONFIGURE ON
-		LOG_BUILD ON
-		LOG_INSTALL ON
+	# Checking whether we have source directory and this directory is not empty.
+	if(NOT EXISTS "${ZLIB_SOURCE_DIR}/CMakeLists.txt")
+		message(STATUS "No ZLIB sources were found; thus, will download it from source:\n${zlib_url}")
+		ExternalProject_Add(
+			zlib_src
+			DEPENDS						required_libraries
+			URL								"${zlib_url}"
+			URL_MD5						"${zlib_md5}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+			SOURCE_DIR				"${ZLIB_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+		message(STATUS "Found an existing ZLIB sources inside:\n${ZLIB_SOURCE_DIR}")
+		add_custom_target(zlib_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+	# Compiling and installing ZLib
+	#------------------------------------------------------------------------------
+	ExternalProject_Add(
+		zlib
+		DEPENDS						required_libraries
+											zlib_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+		SOURCE_DIR				"${ZLIB_SOURCE_DIR}"
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+		LOG_CONFIGURE 		ON
+		LOG_BUILD					ON
+		LOG_INSTALL				ON
 		# commands how to build the project
+		DOWNLOAD_COMMAND	""
 		CMAKE_ARGS
 			-DCMAKE_BUILD_TYPE=Release
 			# Specifying installations paths for binaries and libraries

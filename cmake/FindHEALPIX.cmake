@@ -18,8 +18,6 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
-# Author: Maksym Brilenkov
-#================================================================================
 # Module to find HEALPix on the system
 # It looks for HEALPix components, such as:
 # sharp, f90, cxx, c 
@@ -37,6 +35,8 @@
 #   HEALPIX_[COMPONENT]_LIB     full path to one of the components;
 #   HEALPIX_INCLUDE_DIRS        HEALPIX include directory paths; 
 #================================================================================
+# TODO: This file doesn't really work because we need to add *.mod and *.o files
+# into includes (aka Fortran includes).
 # Reference to CMake docs:
 # https://cmake.org/cmake/help/v3.17/module/FindPackageHandleStandardArgs.html
 include(FindPackageHandleStandardArgs)
