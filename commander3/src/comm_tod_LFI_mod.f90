@@ -54,9 +54,10 @@ module comm_tod_LFI_mod
      integer(i4b) :: nbin_spike
      integer(i4b) :: nbin_adc
      logical(lgt) :: use_dpc_adc
+     logical(lgt) :: use_dpc_gain_modulation
      real(dp),          allocatable, dimension(:)       :: mb_eff
      real(dp),          allocatable, dimension(:,:)     :: diode_weights
-     type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet
+     type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet, ndiode/2
      type(adc_pointer), allocatable, dimension(:,:)     :: adc_corrections ! ndet, n_diode
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
@@ -132,6 +133,7 @@ contains
     ! Set up noise PSD type and priors
     constructor%freq            = cpar%ds_label(id_abs)    
     if (trim(constructor%freq) == '030') then
+       constructor%sample_abs_bp   = .true.
        constructor%n_xi            = 6
        constructor%noise_psd_model = 'oof_gauss'    
        allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -139,12 +141,14 @@ contains
        constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
 
        constructor%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
+       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
        constructor%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
        constructor%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        constructor%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(constructor%freq) == '044') then
+       constructor%sample_abs_bp   = .false.
        constructor%n_xi            = 6
        constructor%noise_psd_model = 'oof_gauss'
        allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -152,18 +156,21 @@ contains
        constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
 
        constructor%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
        constructor%xi_n_P_uni(4,:) = [0.0d0,   1d0]     ! g_amp
        constructor%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        constructor%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(constructor%freq) == '070') then
+       constructor%sample_abs_bp   = .false.
        constructor%n_xi            = 3
        constructor%noise_psd_model = 'oof'
        allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
        allocate(constructor%xi_n_P_rms(constructor%n_xi))
        constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
        constructor%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
+       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        constructor%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
     else
@@ -174,16 +181,24 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%ndiode          = 4
-    constructor%sample_L1_par   = .true. !.false.
-    constructor%compressed_tod  = .true.
+    constructor%sample_L1_par   = .true.
+    constructor%level           = cpar%ds_tod_level(id_abs)
+    if(constructor%level == 'L1') then
+      constructor%compressed_tod = .true.
+      constructor%ndiode          = 4
+    else
+      constructor%compressed_tod = .false.
+      constructor%ndiode          = 1
+    end if    
     constructor%correct_sl      = .true.
     constructor%orb_4pi_beam    = .true.
-    constructor%use_dpc_adc     = .true. !.true.
+    constructor%use_dpc_adc     = .true.
+    constructor%use_dpc_gain_modulation = .true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -206,20 +221,23 @@ contains
        constructor%horn_id(i) = (i+1)/2
     end do
 
-    ! Define diode labels
-    do i = 1, constructor%ndet
-       if (index(constructor%label(i), 'M') /= 0) then
-          constructor%diode_names(i,1) = 'ref00'
-          constructor%diode_names(i,2) = 'sky00'
-          constructor%diode_names(i,3) = 'ref01'
-          constructor%diode_names(i,4) = 'sky01'
-       else
-          constructor%diode_names(i,1) = 'ref10'
-          constructor%diode_names(i,2) = 'sky10'
-          constructor%diode_names(i,3) = 'ref11'
-          constructor%diode_names(i,4) = 'sky11'
-       end if
-    end do
+    if(constructor%level == 'L1') then
+
+      ! Define diode labels
+      do i = 1, constructor%ndet
+         if (index(constructor%label(i), 'M') /= 0) then
+            constructor%diode_names(i,1) = 'ref00'
+            constructor%diode_names(i,2) = 'sky00'
+            constructor%diode_names(i,3) = 'ref01'
+            constructor%diode_names(i,4) = 'sky01'
+         else
+            constructor%diode_names(i,1) = 'ref10'
+            constructor%diode_names(i,2) = 'sky10'
+            constructor%diode_names(i,3) = 'ref11'
+            constructor%diode_names(i,4) = 'sky11'
+         end if
+      end do
+    end if
 
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
@@ -245,208 +263,200 @@ contains
     allocate(constructor%diode_weights(constructor%ndet, 2))
     allocate(constructor%spike_templates(0:constructor%nbin_spike-1, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
-    allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode))
-    allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
-    allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
+    if(constructor%level == 'L1') then
+      allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode))
+      allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
+      allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
+    end if
 
     ! Declare adc_mode 
     constructor%adc_mode = 'gauss'
-    constructor%nbin_adc = 500
+    constructor%nbin_adc = 100
+
 
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
     constructor%spike_amplitude = 0.d0
 
-    ! Compute ADC correction tables for each diode
-    if (.not. constructor%L2_exist) then
-
-       if (.not. constructor%use_dpc_adc) then
-          if (constructor%myid == 0) write(*,*) '   Building ADC correction tables'
-
-          ! Determine v_min and v_max for each diode
-          call update_status(status, "ADC_start")
-          do i = 1, constructor%ndet
-
-             do j=1, constructor%ndiode ! init the adc correction structures
-                constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
+    if(constructor%level == 'L1') then
+       ! Compute ADC correction tables for each diode
+       ! Compute ADC correction tables for each diode
+       if (.not. constructor%L2_exist) then
+          if (.not. constructor%use_dpc_adc) then
+             if (constructor%myid == 0) write(*,*) '   Building ADC correction tables'
+             
+             ! Determine v_min and v_max for each diode
+             call update_status(status, "ADC_start")
+             do i = 1, constructor%ndet
+                
+                do j=1, constructor%ndiode ! init the adc correction structures
+                   constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
+                end do
+                
+                do k = 1, constructor%nscan ! determine vmin and vmax for each diode
+                   if (.not. constructor%scans(k)%d(i)%accept) cycle
+                   allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
+                   allocate(flag(constructor%scans(k)%ntod))
+                   call constructor%decompress_diodes(k, i, diode_data, flag=flag)
+                   do j = 1, constructor%ndiode
+                      call constructor%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,constructor%flag0)
+                   end do
+                   deallocate(diode_data, flag)
+                   
+                end do ! end loop over scans
+                
+                do j = 1, constructor%ndiode ! allreduce vmin and vmax
+                   ! All reduce min and max
+                   call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)
+                   call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,constructor%comm,ierr)
+                   call constructor%adc_corrections(i,j)%p%construct_voltage_bins
+                end do
              end do
-
-             do k = 1, constructor%nscan ! determine vmin and vmax for each diode
-                if (.not. constructor%scans(k)%d(i)%accept) cycle
+             call update_status(status, "ADC_range")
+             
+             ! Now bin rms for all scans and compute the correction table
+             if (constructor%myid == 0) write(*,*) '    Bin RMS for ADC corrections'
+             do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
                 allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
                 allocate(flag(constructor%scans(k)%ntod))
-                call constructor%decompress_diodes(k, i, diode_data, flag=flag)
-                do j = 1, constructor%ndiode
-                   call constructor%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,constructor%flag0)
+                do i = 1, constructor%ndet
+                   if (.not. constructor%scans(k)%d(i)%accept) cycle
+                   call constructor%decompress_diodes(k, i, diode_data, flag)
+                   do j = 1, constructor%ndiode
+                      call constructor%adc_corrections(i,j)%p%bin_scan_rms(diode_data(:,j), flag,constructor%flag0) 
+                   end do
                 end do
                 deallocate(diode_data, flag)
-
-             end do ! end loop over scans
-
-             do j = 1, constructor%ndiode ! allreduce vmin and vmax
-                ! All reduce min and max
-                call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)
-                call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,constructor%comm,ierr)
-                call constructor%adc_corrections(i,j)%p%construct_voltage_bins
              end do
-          end do
-          call update_status(status, "ADC_range")
-
-          ! Now bin rms for all scans and compute the correction table
-          if (constructor%myid == 0) write(*,*) '    Bin RMS for ADC corrections'
-          do k = 1, constructor%nscan ! compute and bin the rms as a function of voltage for each scan
-             allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
-             allocate(flag(constructor%scans(k)%ntod))
+             call update_status(status, "ADC_bin")
+             
+             if (constructor%myid == 0) write(*,*) '    Generate ADC correction tables'
              do i = 1, constructor%ndet
-                if (.not. constructor%scans(k)%d(i)%accept) cycle
-                call constructor%decompress_diodes(k, i, diode_data, flag)
                 do j = 1, constructor%ndiode
-                   call constructor%adc_corrections(i,j)%p%bin_scan_rms(diode_data(:,j), flag,constructor%flag0) 
+                   ! Build the actual adc correction tables (adc_in, adc_out)
+                   name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+                   if (constructor%myid == 0) write(*,*) '    Building table for '// trim(name)
+                   call constructor%adc_corrections(i,j)%p%build_table(handle, name)
                 end do
              end do
-             deallocate(diode_data, flag)
-          end do
-          call update_status(status, "ADC_bin")
-
-          if (constructor%myid == 0) write(*,*) '    Generate ADC correction tables'
-          do i = 1, constructor%ndet
-             do j = 1, constructor%ndiode
-                ! Build the actual adc correction tables (adc_in, adc_out)
-                name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-                if (constructor%myid == 0) write(*,*) '    Building table for '// trim(name)
-                call constructor%adc_corrections(i,j)%p%build_table(handle, name)
+             call update_status(status, "ADC_table")
+          end if
+          
+          ! !================================================================
+          ! ! Testing block
+          ! !================================================================
+          ! if (constructor%use_dpc_adc) then
+          !    if (constructor%myid == 0) write(*,*) 'use_dpc_adc'
+          !    call constructor%adc_corrections(i,j)%p%construct_voltage_bins
+          !    do k = 1, constructor%nscan
+          !       allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
+          !       allocate(flag(constructor%scans(k)%ntod))
+          !       do i=1, constructor%ndet
+          !          if (.not. constructor%scans(k)%d(i)%accept) cycle
+          !          call constructor%decompress_diodes(k, i, diode_data)
+          !          ! corrected_data = diode_data
+          !          do j = 1, constructor%ndiode
+          !             call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
+          !             call constructor%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,constructor%flag0,corr=.true.) 
+          !          end do
+          !       end do
+          !       deallocate(diode_data,corrected_data)
+          !       deallocate(flag)
+          !    end do
+          !    do i = 1, constructor%ndet
+          !       do j = 1, constructor%ndiode
+          !          name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+          !          call constructor%adc_corrections(i,j)%p%corr_rms_out(name)
+          !       end do
+          !    end do
+          ! end if
+          ! stop
+          ! !================================================================
+          
+          ! Compute reference load filter spline
+          if (constructor%myid == 0) write(*,*) '   Build reference load filter'
+          nsmooth = constructor%get_nsmooth()
+          allocate(filter_sum(constructor%ndiode/2,nsmooth))
+          allocate(nu_saved(nsmooth))
+          nu_saved = 0.d0
+          do i=1, constructor%ndet
+             filter_count = 0
+             filter_sum   = 0.d0
+             do k = 1, constructor%nscan
+                if (.not. constructor%scans(k)%d(i)%accept) cycle
+                
+                allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
+                call constructor%decompress_diodes(k, i, diode_data)
+                
+                if (any(diode_data == 0.)) then
+                   write(*,*) 'Contains zeros', constructor%scanid(k), i
+                   constructor%scans(k)%d(i)%accept = .false.
+                   deallocate(diode_data, corrected_data)
+                   cycle
+                end if
+                
+                ! corrected_data = diode_data
+                do j = 1, constructor%ndiode
+                   call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
+                end do
+                if (any(abs(corrected_data(:,[1,3])) > 10)) then
+                   constructor%scans(k)%d(i)%accept = .false.
+                   deallocate(diode_data, corrected_data)
+                   cycle
+                end if
+                
+                ! compute the ref load transfer function
+                call constructor%compute_ref_load_filter(corrected_data, filter_sum, nu_saved, ierr)
+                if (ierr == 0) filter_count = filter_count + 1
+                
+                deallocate(diode_data, corrected_data)
              end do
+             
+             ! Mpi average the load filter over all cores, save as a spline
+             call mpi_allreduce(MPI_IN_PLACE, filter_count, 1, MPI_INTEGER, MPI_SUM, constructor%info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, nu_saved,   size(nu_saved), MPI_DOUBLE_PRECISION, MPI_MAX, constructor%info%comm, ierr)
+             
+             ! Remove empty bins
+             j = 1
+             do while (j <= nsmooth)
+                if (filter_sum(1,j) == 0.d0) then
+                   filter_sum(:,j+1:nsmooth) = filter_sum(:,j:nsmooth-1)
+                   nu_saved(j+1:nsmooth)     = nu_saved(j:nsmooth-1)
+                   nsmooth                   = nsmooth-1
+                else
+                   j = j+1
+                end if
+             end do
+             
+             ! HKE: Should probably manually add a regularization bin at the end, so that the spline doesn't go crazy for frequencies between the last bin center and fsamp/2
+             if (filter_count > 0) then
+                filter_sum = filter_sum/filter_count
+             else
+                filter_sum = 1.d0
+                do j = 1, size(nu_saved)
+                   nu_saved(j) = constructor%samprate/2 * (j-1)/real(size(nu_saved)-1,dp)
+                end do
+             end if
+             !if (constructor%myid == 0) write(*,*) nu_saved
+             do j=1, constructor%ndiode/2
+                call spline_simple(constructor%ref_splint(i,j), nu_saved, filter_sum(j,:))
+                !if (constructor%myid == 0) then
+                !  open(100, file=trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j+2))//'.dat')
+                !  do k = 1, size(nu_saved)
+                !    write(100, fmt='(f30.8,f30.8)') nu_saved(k), filter_sum(j,k)
+                !  end do
+                !  close(100)
+                !  write(*,*) 'Writing file ', trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))//'.dat'
+                !end if
+             end do
+             
           end do
           call update_status(status, "ADC_table")
-       end if
-
-       !==============================================================
-       ! TESTING BLOCK
-       !==============================================================
-       ! Correct tods, and bin rms again
-       ! if (constructor%myid == 0) write(*,*) 'Correct and bin'
-       do i = 1, constructor%ndet
-          do j = 1, constructor%ndiode
-             constructor%adc_corrections(i,j)%p%myid   = cpar%myid_chain
-             constructor%adc_corrections(i,j)%p%comm   = cpar%comm_chain
-             constructor%adc_corrections(i,j)%p%outdir = cpar%outdir
-             constructor%adc_corrections(i,j)%p%nbins  = 500
-             call constructor%adc_corrections(i,j)%p%construct_voltage_bins
-          end do
-       end do
-       do k = 1,1!constructor%nscan
-          if (constructor%myid == 0) write(*,*) 'Test the spline'
-          allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
-          allocate(flag(constructor%scans(k)%ntod))
-          do i = 1, constructor%ndet
-             if (.not. constructor%scans(k)%d(i)%accept) cycle
-             call constructor%decompress_diodes(k, i, diode_data, flag)
-             do j = 1, constructor%ndiode
-                name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-                call constructor%adc_corrections(i,j)%p%spline_check(name)
-                ! call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
-                ! call constructor%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,constructor%flag0, corr=.true.) 
-             end do
-          end do
-          deallocate(diode_data, flag, corrected_data)
-          stop
-       end do
-       call mpi_barrier(cpar%comm_chain,ierr)
-       if (constructor%myid == 0) write(*,*) '    Output corrected rms tables'
-       do i = 1, constructor%ndet
-          do j = 1, constructor%ndiode
-             name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-             if (constructor%myid == 0) write(*,*) trim(name)
-             call constructor%adc_corrections(i,j)%p%corr_rms_out(name)
-          end do
-       end do
-       !==============================================================
-    ! end if
-    
-       ! Compute reference load filter spline
-       if (constructor%myid == 0) write(*,*) '   Build reference load filter'
-       nsmooth = constructor%get_nsmooth()
-       allocate(filter_sum(constructor%ndiode/2,nsmooth))
-       allocate(nu_saved(nsmooth))
-       nu_saved = 0.d0
-       do i=1, constructor%ndet
-          filter_count = 0
-          filter_sum   = 0.d0
-          do k = 1, constructor%nscan
-             if (.not. constructor%scans(k)%d(i)%accept) cycle
-
-             allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
-             call constructor%decompress_diodes(k, i, diode_data)
-
-             if (any(diode_data == 0.)) then
-                write(*,*) 'Contains zeros', constructor%scanid(k), i
-                constructor%scans(k)%d(i)%accept = .false.
-                deallocate(diode_data, corrected_data)
-                cycle
-             end if
-
-             ! corrected_data = diode_data
-             do j = 1, constructor%ndiode
-                call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
-             end do
-             if (any(abs(corrected_data(:,[1,3])) > 10)) then
-                constructor%scans(k)%d(i)%accept = .false.
-                deallocate(diode_data, corrected_data)
-                cycle
-             end if
-
-             ! compute the ref load transfer function
-             call constructor%compute_ref_load_filter(corrected_data, filter_sum, nu_saved, ierr)
-             if (ierr == 0) filter_count = filter_count + 1
              
-             deallocate(diode_data, corrected_data)
-
-          end do
-
-             ! Mpi average the load filter over all cores, save as a spline
-       call mpi_allreduce(MPI_IN_PLACE, filter_count, 1, MPI_INTEGER, MPI_SUM, constructor%info%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum), MPI_DOUBLE_PRECISION, MPI_SUM, constructor%info%comm, ierr)
-       call mpi_allreduce(MPI_IN_PLACE, nu_saved,   size(nu_saved), MPI_DOUBLE_PRECISION, MPI_MAX, constructor%info%comm, ierr)
-
-       ! Remove empty bins
-       j = 1
-       do while (j <= nsmooth)
-          if (filter_sum(1,j) == 0.d0) then
-             filter_sum(:,j+1:nsmooth) = filter_sum(:,j:nsmooth-1)
-             nu_saved(j+1:nsmooth)     = nu_saved(j:nsmooth-1)
-             nsmooth                   = nsmooth-1
-          else
-             j = j+1
-          end if
-       end do
-
-       ! HKE: Should probably manually add a regularization bin at the end, so that the spline doesn't go crazy for frequencies between the last bin center and fsamp/2
-       if (filter_count > 0) then
-          filter_sum = filter_sum/filter_count
-       else
-          filter_sum = 1.d0
-          do j = 1, size(nu_saved)
-             nu_saved(j) = constructor%samprate/2 * (j-1)/real(size(nu_saved)-1,dp)
-          end do
        end if
-       !if (constructor%myid == 0) write(*,*) nu_saved
-       do j=1, constructor%ndiode/2
-          call spline_simple(constructor%ref_splint(i,j), nu_saved, filter_sum(j,:))
-         !if (constructor%myid == 0) then
-        !  open(100, file=trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j+2))//'.dat')
-        !  do k = 1, size(nu_saved)
-        !    write(100, fmt='(f30.8,f30.8)') nu_saved(k), filter_sum(j,k)
-        !  end do
-        !  close(100)
-        !  write(*,*) 'Writing file ', trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))//'.dat'
-        !end if
-       end do
-
-       end do
-
     end if
-
-
+    
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
@@ -518,7 +528,6 @@ contains
     character(len=512)  :: prefix, postfix, prefix4D, filename, Sfilename
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
-    real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
@@ -527,8 +536,8 @@ contains
     call update_status(status, "tod_start"//ctext)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = size(delta,3) > 1 .and. mod(iter,2) == 0     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   = size(delta,3) > 1 .and. mod(iter,2) == 1     ! don't sample absolute bandpasses
+    sample_rel_bandpass   = .not. self%sample_abs_bp .or.(size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
@@ -591,13 +600,17 @@ contains
 
 
     ! Sample 1Hz spikes
-    call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
+    if(self%level == 'L1') then
+      call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
+    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
-    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
-    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
-    call sample_gain_psd(self, handle)
+    if (.not. self%enable_tod_simulations) then
+       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_gain_psd(self, handle)
+    end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -627,7 +640,6 @@ contains
        else
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
-       allocate(s_buf(sd%ntod,sd%ndet))
 
        ! Calling Simulation Routine
        if (self%enable_tod_simulations) then
@@ -640,7 +652,7 @@ contains
        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -689,9 +701,19 @@ contains
 
        ! Clean up
        call sd%dealloc
-       deallocate(s_buf, d_calib)
+       deallocate(d_calib)
 
     end do
+
+    if (self%enable_tod_simulations) then
+       ! Clean up
+       call binmap%dealloc()
+       call update_status(status, "dealloc_binned_map")
+       if (allocated(slist)) deallocate(slist)
+       deallocate(map_sky, procmask, procmask2)
+       call update_status(status, "dealloc_sky_maps")
+       return
+    end if
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
@@ -727,8 +749,11 @@ contains
 
     ! Clean up
     call binmap%dealloc()
+    call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
     deallocate(map_sky, procmask, procmask2)
+    call update_status(status, "dealloc_sky_maps")
+
     if (self%correct_sl) then
        do i = 1, self%ndet
           call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
@@ -768,33 +793,34 @@ contains
     character(len=1) :: id
     character(len=512) :: path
 
-    if(index(self%label(band), 'M') /= 0) then
-       self%diode_names(band,:) = ['ref00','sky00','ref01','sky01']
-       id = '0'
-    else
-       self%diode_names(band,:) = ['ref10','sky10','ref11','sky11']
-       id = '1'
-    end if
-
     ! Read in mainbeam_eff
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
 
-    ! read in the diode weights
-    call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', weight)
-    self%diode_weights(band,1) = weight
-    self%diode_weights(band,2) = 1.d0 - weight
 
-    ! if (self%use_dpc_adc .and. .not. self%L2_exist) then
-    if (.true.) then
-       ! Read ADC corrections
-       path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'0'
-       self%adc_corrections(band,1)%p => comm_adc(instfile, path, .true.) !first half, load
-       self%adc_corrections(band,2)%p => comm_adc(instfile, path, .false.) !first half, load
-       path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'1'
-       self%adc_corrections(band,3)%p => comm_adc(instfile, path, .true.) !first half, load
-       self%adc_corrections(band,4)%p => comm_adc(instfile, path, .false.) !first half, load
-    end if
+    if(self%level == 'L1') then
+      if(index(self%label(band), 'M') /= 0) then
+       self%diode_names(band,:) = ['ref00','sky00','ref01','sky01']
+       id = '0'
+      else
+       self%diode_names(band,:) = ['ref10','sky10','ref11','sky11']
+       id = '1'
+      end if
 
+      ! read in the diode weights
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', weight)
+      self%diode_weights(band,1) = weight
+      self%diode_weights(band,2) = 1.d0 - weight
+
+      if (self%use_dpc_adc .and. .not. self%L2_exist) then
+        ! Read ADC corrections
+        path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'0'
+        self%adc_corrections(band,1)%p => comm_adc(instfile, path, .true.) !first half, load
+        self%adc_corrections(band,2)%p => comm_adc(instfile, path, .false.) !first half, load
+        path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'1'
+        self%adc_corrections(band,3)%p => comm_adc(instfile, path, .true.) !first half, load
+        self%adc_corrections(band,4)%p => comm_adc(instfile, path, .false.) !first half, load
+      end if
+   end if
 
   end subroutine load_instrument_LFI
   
@@ -834,6 +860,8 @@ contains
     allocate(pix(self%scans(scan)%ntod,self%ndet,self%nhorn), psi(self%scans(scan)%ntod,self%ndet,self%nhorn), flag(self%scans(scan)%ntod,self%ndet))
     allocate(s_sky(self%scans(scan)%ntod, self%ndet), mask(self%scans(scan)%ntod, self%ndet))
 
+    diode_data = 0.0
+
     do i=1, self%ndet
       call self%decompress_pointing_and_flags(scan, i, pix(:,i,:), psi(:,i,:), flag(:,i))
     end do
@@ -864,32 +892,36 @@ contains
 
         ! Compute the gain modulation factors
 
-!!$        r1 = 0.d0
-!!$        r2 = 0.d0
-!!$        sum1 = 0.d0
-!!$        sum2 = 0.d0
-!!$        n_mask = 0
-!!$        n_unmask = 0
-!!$
-!!$        do k = 1, size(corrected_data(:,1))
-!!$          if (iand(flag(k), self%flag0) .ne. 0) cycle
-!!$
-!!$          sum1 = sum1 + corrected_data(k,1)
-!!$          sum2 = sum2 + corrected_data(k,3)
-!!$          n_unmask = n_unmask + 1
-!!$
-!!$          if (procmask(pix(k)) .ne. 0) then 
-!!$            r1 = r1 + corrected_data(k,2)
-!!$            r2 = r2 + corrected_data(k,4)
-!!$            n_mask = n_mask + 1
-!!$          end if
-!!$
-!!$        end do
-!!$
-!!$        if (r1 == 0.d0 .or. r2 == 0.d0 .or. sum1 == 0.d0 .or. sum2 == 0.d0) then
-!!$           self%scans(scan)%d(i)%accept = .false.
-!!$           cycle
-!!$        end if
+        if(self%use_dpc_gain_modulation) then
+
+          r1 = 0.d0
+          r2 = 0.d0
+          sum1 = 0.d0
+          sum2 = 0.d0
+          n_mask = 0
+          n_unmask = 0
+          
+          do k = 1, size(corrected_data(:,1))
+            if (mask(k,i) == 0.) cycle
+
+            sum1 = sum1 + corrected_data(k,1)
+            sum2 = sum2 + corrected_data(k,3)
+            n_unmask = n_unmask + 1
+
+            r1 = r1 + corrected_data(k,2)
+            r2 = r2 + corrected_data(k,4)
+            n_mask = n_mask + 1
+
+          end do
+!
+          if (r1 == 0.d0 .or. r2 == 0.d0 .or. sum1 == 0.d0 .or. sum2 == 0.d0) then
+             self%scans(scan)%d(i)%accept = .false.
+             cycle
+          end if
+          self%R(scan,i,1) = (r1/n_mask)/(sum1/n_unmask)
+          self%R(scan,i,2) = (r2/n_mask)/(sum2/n_unmask)
+    
+       else ! use fancy new gain modulation factor computation
 
         A = 0.d0
         b = 0.d0
@@ -929,9 +961,10 @@ contains
         call solve_system_real(A(:,:,2), x(:,2), b(:,2))
         
         ! average sky value/average load value
-        self%R(scan,i,1) = x(3,1) !(r1/n_mask)/(sum1/n_unmask)
-        self%R(scan,i,2) = x(3,2) !(r2/n_mask)/(sum2/n_unmask)
+        self%R(scan,i,1) = x(3,1)
+        self%R(scan,i,2) = x(3,2)
         !write(*,*) self%scanid(scan), i, real(self%R(scan,i,:),sp)
+      end if
 
         ! Compute output differenced TOD
 
@@ -1085,7 +1118,7 @@ contains
       nu           = ind2freq(j, fsamp, nfft) ! Current frequency
       upper        = nu                       ! Lower limit of first bin; init
       nsmooth      = 2                        ! Bin counter
-      do while (nu < fsamp/2)
+      do while (nu < fsamp/2 .and. nsmooth <= size(nu_out))
          upper           = min(upper*fbin, fsamp/2)
          nu_out(nsmooth) = nu    ! Start of bin
          subsum          = 0.d0  ! Summing variable
@@ -1215,7 +1248,7 @@ contains
     R(self%scanid,:,:) = self%R
     call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-    if (self%myid == 0) then
+    if (self%myid == 0 .and. self%level == 'L1') then
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
        call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
@@ -1233,7 +1266,7 @@ contains
           deallocate(ref_filter)
        end if
 
-       if (associated(self%adc_corrections(1,1)%p)) then
+       if (associated(self%adc_corrections(1,1)%p) .and. .not. self%use_dpc_adc) then
           allocate(adc_corr(size(self%adc_corrections(1,1)%p%adc_in),2,self%ndet,size(self%adc_corrections(1,:))))
           do i = 1, self%ndet
              do j = 1, size(self%adc_corrections(1,:))
@@ -1552,7 +1585,10 @@ contains
           n = self%scans(i)%ntod
           allocate(tod(n,self%ndet))
           do j = 1, self%ndet
-             if (.not. self%scans(i)%d(j)%accept) cycle 
+             if (.not. self%scans(i)%d(j)%accept) then
+                tod(:,j) = 0.0
+                cycle
+             end if 
              tod(:,j) = self%scans(i)%d(j)%tod
           end do
           call write_hdf(h5_file, scantext, tod)

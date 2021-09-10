@@ -37,7 +37,7 @@ module comm_tod_adc_mod
   public comm_adc, adc_pointer
 
   type :: comm_adc
-    real(sp),          allocatable, dimension(:) :: adc_in, adc_out, rms_bins, v_bins, vbin_edges
+    real(sp),          allocatable, dimension(:) :: adc_in, adc_out, rms_bins, rms2_bins, v_bins, vbin_edges
     real(sp),          allocatable, dimension(:) :: dpc_in, dpc_out
     integer(i4b),      allocatable, dimension(:) :: nval
     integer(i4b)                                 :: comm, myid, nbins, window
@@ -53,7 +53,6 @@ module comm_tod_adc_mod
     procedure :: adc_correct
     procedure :: build_table
     procedure :: bin_scan_rms
-    procedure :: load_dpc
     procedure :: find_horn_min_max
     procedure :: construct_voltage_bins
     
@@ -116,6 +115,7 @@ contains
     
     allocate(constructor_internal%adc_in(constructor_internal%nbins), constructor_internal%adc_out(constructor_internal%nbins))
     allocate(constructor_internal%rms_bins(constructor_internal%nbins), constructor_internal%v_bins(constructor_internal%nbins))
+    allocate(constructor_internal%rms2_bins(constructor_internal%nbins))
     allocate(constructor_internal%nval(constructor_internal%nbins), constructor_internal%vbin_edges(constructor_internal%nbins+1))
 
     ! For the corrected stuffs
@@ -127,6 +127,7 @@ contains
     constructor_internal%vbin_edges(:) = 0.0
     constructor_internal%v_bins(:)     = 0.0
     constructor_internal%rms_bins(:)   = 0.0
+    constructor_internal%rms2_bins(:)  = 0.0
     constructor_internal%nval(:)       = 0
 
     ! Initialize v_min and v_max on obscenely wrong numbers
@@ -134,39 +135,6 @@ contains
     constructor_internal%v_min = 100000.0
 
   end function constructor_internal
-
-  subroutine load_dpc(self, table_in, table_out)
-    !=========================================================================
-    ! Load the dpc correction tables into the diode adc object
-    ! 
-    ! Inputs:
-    !
-    ! self    : comm_adc object
-    !    
-    ! dpc_in  : float array
-    !           dpc voltage in grid
-    ! dpc_out : float array
-    !           dpc voltage out grid
-    ! ====================================================================
-    implicit none
-    class(comm_adc),        intent(inout) :: self
-    real(dp), dimension(:), intent(in)    :: table_in
-    real(dp), dimension(:), intent(in)    :: table_out
-
-    integer(i4b)                          :: leng, ierr
-
-    leng = size(table_in)
-
-    allocate(self%dpc_in(leng))
-    allocate(self%dpc_out(leng))
-
-    self%dpc_in(:)  = real(table_in(:))
-    self%dpc_out(:) = real(table_out(:))
-
-    ! call mpi_bcast(self%dpc_in,  leng, MPI_REAL, 0, self%comm, ierr)
-    ! call mpi_bcast(self%dpc_out, leng, MPI_REAL, 0, self%comm, ierr)
-    
-  end subroutine load_dpc
 
   function constructor_precomp(instfile, path, load)
     ! ====================================================================
@@ -215,10 +183,12 @@ contains
     allocate(constructor_precomp%adc_in(ext(1)))
     allocate(constructor_precomp%adc_out(ext(1)))
 
-    allocate(constructor_precomp%rms_bins2(500))
-    allocate(constructor_precomp%nval2(500))
-    allocate(constructor_precomp%v_bins(500))
-    allocate(constructor_precomp%vbin_edges(501))
+    constructor_precomp%nbins = 100
+
+    allocate(constructor_precomp%rms_bins2(100))
+    allocate(constructor_precomp%nval2(100))
+    allocate(constructor_precomp%v_bins(100))
+    allocate(constructor_precomp%vbin_edges(101))
 
 
     constructor_precomp%adc_in  = buffer(1:ext(1),col)
@@ -226,7 +196,7 @@ contains
     constructor_precomp%v_min   = constructor_precomp%adc_in(1)
     constructor_precomp%v_max   = constructor_precomp%adc_in(ext(1))
     deallocate(buffer)
-    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_in,dp), real(constructor_precomp%adc_out,dp))
+    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp))
 
   end function constructor_precomp
 
@@ -315,8 +285,6 @@ contains
 
     if (self%myid == 0) then
 
-       write(*,*) 'make da bins'
-
        ! Declare bin edges
        do i = 1, self%nbins+1
           self%vbin_edges(i) = (self%v_max-self%v_min)*(i-1)/self%nbins + self%v_min
@@ -378,7 +346,7 @@ contains
 
   end subroutine find_horn_min_max
 
-  subroutine bin_scan_rms(self,tod_in,flag,flag0,corr,name)
+  subroutine bin_scan_rms(self,tod_in,flag,flag0,corr)
     ! ====================================================================
     ! This subroutine takes in a chunk of data (from wherever it lives) and puts
     ! it in the appropriate bins
@@ -407,21 +375,20 @@ contains
     integer(i4b), dimension(:),    intent(in)    :: flag
     integer(i4b),                  intent(in)    :: flag0
 
-    logical(lgt),      optional,   intent(in)    :: corr
-    character(len=50), optional,   intent(in)    :: name
+    logical(lgt),      optional,   intent(in)    :: corr ! follow slightly different procedure if data is corrected
 
-    real(sp),          dimension(:), allocatable :: rt, rms, tod_trim
+    real(sp),          dimension(:), allocatable :: rt, dV, tod_trim
     real(sp)                                     :: sum
     integer(i4b)                                 :: leng, i, j, j_min, j_max
     
     leng = size(tod_in)
     
     allocate(rt(leng-1))
-    allocate(rms(leng-1-self%window))
+    allocate(dV(leng-1-self%window))
     allocate(tod_trim(leng-1-self%window))
     
     ! Trim the data according to account for windows - this is used for pointing to the correct bins 
-    ! This ensures that tod_trim(i) corresponds to rms(i)
+    ! This ensures that tod_trim(i) corresponds to dV(i)
     tod_trim = tod_in(int(self%window/2):leng-1-int(self%window/2))
     
     ! Compute pair-wise difference
@@ -429,7 +396,7 @@ contains
        rt(i) = tod_in(i+1)-tod_in(i)
     end do
        
-    ! Compute the rms within a window around each rt sample (excluding the ends)
+    ! Compute the dV within a window around each rt sample (excluding the ends)
     do i = int(self%window/2)+1, leng-1-int(self%window/2)
        sum = 0.d0
        j_min = max(i-int(self%window/2),1)
@@ -438,16 +405,16 @@ contains
           if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
           sum = sum + rt(j)**2
        end do
-       rms(i-int(self%window/2)) = sqrt(sum/(j_max-j_min+1))
+       dV(i-int(self%window/2)) = sqrt(sum/(j_max-j_min+1))
     end do
     
-    ! Bin the rms values as a function of input voltage, and take the mean
+    ! Bin the dV values as a function of input voltage, and take the mean
     if (present(corr)) then
        do i = 1, leng-1-self%window
           do j = 1, self%nbins
              if (tod_trim(i) .ge. self%vbin_edges(j) .and. tod_trim(i) .lt. self%vbin_edges(j+1)) then
                 self%nval2(j)     = self%nval2(j) + 1
-                self%rms_bins2(j) = self%rms_bins2(j) + rms(i)
+                self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
              end if
           end do
        end do
@@ -455,15 +422,16 @@ contains
        do i = 1, leng-1-self%window
           do j = 1, self%nbins
              if (tod_trim(i) .ge. self%vbin_edges(j) .and. tod_trim(i) .lt. self%vbin_edges(j+1)) then
-                self%nval(j)     = self%nval(j) + 1
-                self%rms_bins(j) = self%rms_bins(j) + rms(i)
+                self%nval(j)      = self%nval(j) + 1
+                self%rms_bins(j)  = self%rms_bins(j) + dV(i)
+                self%rms2_bins(j) = self%rms2_bins(j) + dV(i)**2
              end if
           end do
        end do
     end if
 
     deallocate(rt)
-    deallocate(rms)
+    deallocate(dV)
     deallocate(tod_trim)
     
   end subroutine bin_scan_rms
@@ -540,15 +508,32 @@ contains
 
     logical(lgt) :: steamroll 
 
-    steamroll = .true.
+    steamroll = .false.!.true.
 
     ! Combine together all of the bins determined from chunk adding
 
     call mpi_allreduce(mpi_in_place,self%rms_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
+    call mpi_allreduce(mpi_in_place,self%rms2_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(mpi_in_place,self%nval,self%nbins,MPI_INTEGER, MPI_SUM, self%comm, ierr)
     
     ! The rest should be light enough to do on a single core
     if (self%myid == 0) then
+
+       open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
+       open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
+       open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
+       open(47, file=trim(self%outdir)//'/adc_vb_'//trim(name)//'.dat')
+       do i = 1, self%nbins
+          write(44, fmt='(e30.8)') self%rms_bins(i)
+          write(45, fmt='(e30.8)') self%rms2_bins(i)
+          write(46, fmt='(i9)') self%nval(i)
+          write(47, fmt='(e30.8)') self%v_bins(i)
+       end do
+       close(44)
+       close(45)
+       close(46)
+       close(47)
+
        allocate(binmask(self%nbins))
        allocate(dummymask(self%nbins))
 
@@ -706,7 +691,8 @@ contains
     call mpi_bcast(self%adc_in,  self%nbins, MPI_REAL, 0, self%comm, ierr) 
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
 
-    call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp), regular=.true.)
+    ! call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp), regular=.true.)
+    call spline(self%sadc, real(self%adc_out,dp), real(self%adc_in,dp), regular=.true.)
     
   end subroutine build_table
 

@@ -311,7 +311,7 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    if (tod%ndiode == 1) then
+    if (tod%ndiode == 1 .or. tod%level == 'L2') then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -880,6 +880,7 @@ contains
     real(sp) :: N_c
     real(sp) :: samprate
     real(sp) :: fft_norm
+    real(dp) :: chisq
     integer(i4b)                          :: ntod !< total amount of ODs
     integer(i4b)                          :: ndet !< total amount of detectors
     ! HDF5 variables
@@ -906,6 +907,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     character(len=10) :: processor_label   !< to have a nice output to screen
+
+    write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
 
     ! shortcuts
     ntod = self%scans(scan_id)%ntod
@@ -948,7 +951,7 @@ contains
       end do
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-      dt = dt / nfft
+      dt = dt / sqrt(1.d0*nfft)
       n_corr(:, j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
@@ -960,6 +963,7 @@ contains
 
     ! Allocating main simulations' array
     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
+    tod_per_detector = NaN
 
     ! Main simulation loop
     do i = 1, ntod
@@ -973,10 +977,15 @@ contains
         sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
         !write(*,*) "sigma0 ", sigma0
         ! Simulating tods
+        !tod_per_detector(i,j) = n_corr(i, j) + sigma0 * rand_gauss(handle)
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
+        !tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
+        !tod_per_detector(i,j) = sigma0 * rand_gauss(handle)
         !tod_per_detector(i,j) = 0
       end do
     end do
+
+    write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file

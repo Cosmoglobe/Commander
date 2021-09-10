@@ -2568,7 +2568,7 @@ contains
     ! vl data
     TYPE(hvl_t), dimension(:), allocatable, target :: rdata ! Pointer to vlen structures
     TYPE(C_PTR) :: f_ptr
-    !type(byte_pointer2), allocatable, dimension(:) :: r_ptr
+    !type(byte_pointer), allocatable, dimension(:) :: r_ptr
     byte, pointer, dimension(:) :: r_ptr
     
     call open_hdf_set(file, setname)
