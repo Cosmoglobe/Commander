@@ -2971,7 +2971,6 @@ contains
              end if
           end if
        end do !while j < nprop
-
        if (pr == 1) lnl_total_init = lnl_init
 
        call wall_time(t2)
