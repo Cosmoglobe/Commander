@@ -370,7 +370,7 @@ contains
           rms => comm_map(data(i)%info)
           select type (N)
           class is (comm_N_rms)
-             if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
+             if (trim(data(i)%tod%init_from_HDF) == 'default' .and. present(init_from_output)) then
                 call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
              else
                 call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
