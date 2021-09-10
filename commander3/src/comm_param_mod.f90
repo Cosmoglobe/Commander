@@ -87,7 +87,7 @@ module comm_param_mod
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq
+     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
@@ -173,6 +173,8 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_nprop
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_proplen
      character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_mask
+     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_freeze
+     character(len=512), allocatable, dimension(:,:)   :: cs_spec_mono_type
      character(len=512), allocatable, dimension(:,:)   :: cs_almsamp_init
      character(len=512), allocatable, dimension(:,:)   :: cs_pixreg_init_theta
      integer(i4b),       allocatable, dimension(:,:,:) :: cs_spec_nprop_init
@@ -688,8 +690,9 @@ contains
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
     allocate(cpar%cs_smooth_scale(n,MAXPAR), cpar%cs_apply_jeffreys(n))
-    allocate(cpar%cs_spec_mono_combined(n,MAXPAR),cpar%cs_spec_mono_mask(n,MAXPAR))
+    allocate(cpar%cs_spec_mono_combined(n,MAXPAR),cpar%cs_spec_mono_mask(n,MAXPAR),cpar%cs_spec_mono_type(n,MAXPAR))
     allocate(cpar%cs_spec_corr_convergence(MAXPAR,n),cpar%cs_spec_corr_limit(MAXPAR,n))
+    allocate(cpar%cs_spec_mono_freeze(n,MAXPAR))
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
 
@@ -894,6 +897,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
                      & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1000,6 +1009,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
                      & 'COMP_UMIN_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_UMIN_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_UMIN_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_UMIN_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1111,6 +1126,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
                      & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1216,6 +1237,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
                      & 'COMP_NU_P_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_NU_P_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_NU_P_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1299,10 +1326,16 @@ contains
                      & 'COMP_ALPHA_CORRELATION_CONVERGENCE_LIMIT'//itext, &
                      & len_itext=len_itext, par_dp=cpar%cs_spec_corr_limit(2,i))
                 call get_parameter_hashtable(htbl, 'COMP_ALPHA_COMBINED_MONOPOLE_SAMPLING'//itext, &
-                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,1))
-                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & len_itext=len_itext, par_lgt=cpar%cs_spec_mono_combined(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
                      & 'COMP_ALPHA_COMBINED_MONOPOLE_MASK'//itext, &
-                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_ALPHA_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_ALPHA_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,2))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_ALPHA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
@@ -1412,6 +1445,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
                      & 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_BETA_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_BETA_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -1499,6 +1538,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
                      & 'COMP_T_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,2))
+                if (cpar%cs_spec_mono_combined(i,2)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,2))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(2,i))
@@ -1619,6 +1664,12 @@ contains
                 if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
                      & 'COMP_T_E_COMBINED_MONOPOLE_MASK'//itext, &
                      & len_itext=len_itext, par_string=cpar%cs_spec_mono_mask(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_E_COMBINED_MONOPOLE_TYPE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_type(i,1))
+                if (cpar%cs_spec_mono_combined(i,1)) call get_parameter_hashtable(htbl, &
+                     & 'COMP_T_E_COMBINED_MONOPOLE_FREEZE'//itext, &
+                     & len_itext=len_itext, par_string=cpar%cs_spec_mono_freeze(i,1))
              end if
              call get_parameter_hashtable(htbl, 'COMP_INPUT_T_E_MAP'//itext, len_itext=len_itext,        &
                   & par_string=cpar%cs_input_ind(1,i))
@@ -2566,10 +2617,15 @@ contains
     end do
 
     ! Expand md type if present
+    cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
     do i = 1, cpar%cg_num_samp_groups
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
           if (trim(comp_label(j)) == 'md') then
+             if (n==1 .and. cpar%cg_samp_group_md < 0) then
+                cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
+             else
+             end if
              do k = 1, cpar%numband
                 if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
              end do

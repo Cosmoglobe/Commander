@@ -189,7 +189,7 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior
+          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle)
        end select
        c => c%next()
     end do
