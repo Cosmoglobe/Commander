@@ -136,14 +136,23 @@ contains
           if (c%p_gauss(2,j) == 0.d0) cycle
           select type (c)
           class is (comm_diffuse_comp)
+
+             !check if any poltype has been sampled in a way that breaks the Gibbs chain
+             samp_cg = .false.
+
              !lmax_ind_pol is the lmax of poltype index p, for spec. ind. j 
-             if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) &
-                  & call sample_specind_alm(cpar, iter, handle, c%id, j)
+             if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) then
+                call sample_specind_alm(cpar, iter, handle, c%id, j)
+                if (cpar%almsamp_pixreg) then
+                   if (cpar%almsamp_priorsamp_frozen .and. &
+                        & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
+                      samp_cg = .true.
+                   end if
+                end if
+             end if
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
 
-                !check if any poltype has been sampled with ridge/marginal lnL
-                samp_cg = .false.
                 if (cpar%myid == cpar%root) write(*,*) 'Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
@@ -162,26 +171,33 @@ contains
                          end if
                       end if
                       samp_cg = .true.
-                   else
-                      if (cpar%almsamp_pixreg) then
-                         if (cpar%almsamp_priorsamp_frozen .and. &
-                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
-                            samp_cg = .true.
-                         end if
-                      end if
                    end if
                 end do
-
-                if (samp_cg) then !need to resample amplitude
-                   !call sample amplitude for the component specific cg_sample group
-                   if (cpar%myid == cpar%root) then
-                      write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
-                           & trim(c%indlabel(j))
-                   end if
-                   call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
-                end if
-                !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
              end if !any local sampling
+
+             if (samp_cg) then !need to resample amplitude
+                !call sample amplitude for the component specific cg_sample group
+                if (cpar%myid == cpar%root) then
+                   write(*,*) 'Sampling component amplitude of '//trim(c%label)//' after spectral index sampling of '// &
+                        & trim(c%indlabel(j))
+                end if
+                call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+
+                ! need to check if the monopole prior is active, if so we need to re-estimate the mono-/dipoles
+                if (trim(c%mono_prior_type) /= 'none') then
+                   ! can only estimate if there is a pure (and full) mono/-dipole CG sampling group 
+                   if (c%cg_samp_group_md > 0) then
+                      if (cpar%myid == cpar%root) then
+                         write(*,*) 'Sampling monopoles of band after prior correcting monopole of '//&
+                              & trim(c%label)//' amplitude'
+                         write(*,*) 'Using CG sampling group:',c%cg_samp_group_md
+                      end if
+                      call sample_amps_by_CG(cpar, c%cg_samp_group_md, handle, handle_noise)
+                   end if
+                end if
+             end if
+             !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
+             
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
@@ -1637,15 +1653,17 @@ contains
     integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
-    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop
-    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt
+    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop, sample_accepted
+    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt, monocorr_type
     character(len=6) :: itext
     character(len=4) :: ctext
     character(len=2) :: pind_txt
+    character(len=512), dimension(1000) :: tokens
     real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: theta_corr_arr
     real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth, dlnL_arr
-    real(dp),    allocatable, dimension(:,:) :: theta_MC_arr
+    real(dp),  allocatable, dimension(:,:,:) :: theta_MC_arr
     integer(i4b),  allocatable, dimension(:) :: band_i, pol_j, accept_arr
     class(comm_mapinfo),             pointer :: info_fr => null() !full resolution
     class(comm_mapinfo),             pointer :: info_fr_single => null() !full resolution, nmaps=1
@@ -1669,8 +1687,14 @@ contains
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
     real(dp),      allocatable, dimension(:) :: old_mono, new_mono
+    real(dp), allocatable, dimension(:,:,:,:) :: multipoles_trace !trace for proposed and accepted multipoles. (2,Nsamp,numband,0:3), the final dimension can be adjusted if only monopoles are estimated
     logical(lgt),  allocatable, dimension(:) :: monopole_active
     real(dp),    allocatable, dimension(:,:) :: reduced_data
+    real(dp),    allocatable, dimension(:,:) :: harmonics, harmonics2
+    real(dp),                 dimension(0:3) :: multipoles, md_b   
+    real(dp),             dimension(0:3,0:3) :: md_A
+    real(dp),                 dimension(3)   :: vector
+    integer(i4b) :: i_md, j_md, k_md, max_prop
 
     c           => compList     ! Extremely ugly hack...
     do while (comp_id /= c%id)
@@ -1682,6 +1706,8 @@ contains
     end select
 
     id = par_id !hack to not rewrite too much from diffuse_comp_mod
+
+    call update_status(status, "nonlin pixreg samling start " // trim(c_lnL%label)// ' ' // trim(c_lnL%indlabel(par_id)))
 
     info_fr  => comm_mapinfo(c_lnL%theta(id)%p%info%comm, c_lnL%theta(id)%p%info%nside, &
          & c_lnL%B_pp_fr(id)%p%info%lmax, c_lnL%theta(id)%p%info%nmaps, c_lnL%theta(id)%p%info%pol)
@@ -1756,11 +1782,39 @@ contains
        allocate(monopole_rms(numband))
        allocate(monopole_mixing(numband))
        allocate(monopole_active(numband))
+       monocorr_type=trim(c_lnL%spec_mono_type(par_id))
        monopole_active=.false.
        monopole_val=0.d0
        monopole_mu=0.d0
        monopole_rms=0.d0
        monopole_mixing=0.d0
+
+       !ud_grade monopole mask (if it is not same nside as smoothing scale)
+       mask_mono => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
+       where (mask_mono%map > 0.5d0)
+          mask_mono%map=1.d0
+       elsewhere
+          mask_mono%map=0.d0
+       end where
+
+       !set up harmonics matrices for solving mono- and dipole estimates
+       allocate(harmonics(0:np_lr-1,0:3)) !harmonics without mixing scaling (will not chainge)
+       allocate(harmonics2(0:np_lr-1,0:3)) !harmonics with mixing (will change)
+       do i = 0, np_lr-1
+          call pix2vec_ring(info_lr%nside, info_lr%pix(i+1), vector) !important to get the correct pixel number, i.e. "info_lr%pix(+1i)", not "i". The +1 is because the pix array starts from index 1 (not 0)
+          
+          if (mask_mono%map(i,1) > 0.5d0) then
+             harmonics(i,0) = 1.d0
+             harmonics(i,1) = vector(1)
+             harmonics(i,2) = vector(2)
+             harmonics(i,3) = vector(3)
+          else
+             harmonics(i,:) = 0.d0
+          end if
+
+       end do
+
     end if
 
     band_count=0
@@ -1787,7 +1841,7 @@ contains
              select type (c2)
              class is (comm_md_comp)
                 c_mono => c2 !to be able to access all diffuse comp parameters through c_lnL
-                if (trim(c_mono%label) == data(k)%label) then
+                if (trim(c_mono%label) == trim(data(k)%label)) then
                    do i_mono = 0, c_mono%x%info%nalm-1
                       call c_mono%x%info%i2lm(i_mono,l_mono,m_mono)
                       if (l_mono == 0) then ! Monopole
@@ -1795,17 +1849,27 @@ contains
                          monopole_mu(k)=c_mono%mu%alm(i_mono,1) / sqrt(4.d0*pi)
                       end if
                    end do
+
                    monopole_rms(k)=sqrt(c_mono%Cl%Dl(0,1) / (4.d0*pi))
                    monopole_mixing(k)=c_mono%RJ2unit_(1)
                    monopole_active(k)=.true.
                    if (c_mono%mono_from_prior) monopole_active(k)=.false. !we should not sample monopoles that are sampled from prior
+
+                   call get_tokens(trim(c_lnL%spec_mono_freeze(par_id)), ",", tokens, n)
+
+                   do i_mono = 1, n
+                      if (trim(data(k)%label) == trim(tokens(i_mono)) ) then
+                         monopole_active(k)=.false. !we freeze monopoles the user wants to freeze
+                         exit
+                      end if
+                   end do
                    exit !exit the while-assiciated-loop, we have found the necessary information
                 end if
              end select
 
              c2 => c2%next()
           end do
-
+          
        end if
 
     end do
@@ -1816,13 +1880,13 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, monopole_val, numband, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, monopole_mu, numband, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
 
-       if (.false.) then !debugging
+       if (.true.) then !debugging
           if (cpar%verbosity>2 .and. myid_pix==0) then
              write(*,*) '  Monopoles of active bands in sampling '
              write(*,*) '  label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
              do i = 1,numband
                 if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
-                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i),myid_pix
+                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
              end do
 
              write(*,*) '  '
@@ -1831,7 +1895,7 @@ contains
              do i = 1,numband
                 if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3, i6)') &
                      & trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
-                     & monopole_rms(i)*monopole_mixing(i),myid_pix
+                     & monopole_rms(i)*monopole_mixing(i)
              end do
 
           end if
@@ -1910,14 +1974,6 @@ contains
              theta_lr_hole%map(:,1) = theta_fr%map(:,1)
           end if
 
-          !ud_grade monopole mask (if it is not same nside as smoothing scale)
-          mask_mono => comm_map(info_lr)
-          call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
-          where (mask_mono%map > 0.5d0)
-             mask_mono%map=1.d0
-          elsewhere
-             mask_mono%map=0.d0
-          end where
 
           ! produce reduced data sets of the active bands in Temperature with active monopole
           ! then sample a new monopole
@@ -1948,31 +2004,75 @@ contains
                         & c_lnL%x_smooth%map(pix,1) + monopole_mixing(j)*monopole_val(j)
                 end do
 
-                ! resample the monopole given the new reduced data
-                a=0.d0
-                b=0.d0
-                do pix = 0,np_lr-1
-                   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                      b = b + monopole_mixing(j)*reduced_data(pix,1) * (rms_smooth(j)%p%siN%map(pix,1))**2
-                   end if
-                end do
+                if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                     & trim(monocorr_type) == 'monopole-dipole') then
+                   ! resample the monopole (and dipole) given the new reduced data
 
-                !gather a and b
-                call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                     & MPI_SUM, info_lr%comm, ierr)
-                call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                     & MPI_SUM, info_lr%comm, ierr)
-                
-                if (info_lr%myid == 0) then
+                   md_A = 0.d0
+                   md_b = 0.d0
+                   harmonics2=harmonics*monopole_mixing(j)
+                   do j_md = 0, 3
+                      do k_md = 0, 3
+                         md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
+                      end do
+
+                      md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
+                   end do
+
+                   multipoles=0.d0
+                   !we need to run an MPI reduce to get all harmonics for md_A and md_b
+                   call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+
+                   !solve the mono-/dipole system
+                   call solve_system_real(md_A, multipoles, md_b) 
+
+                   ! Need to get the statistical power for when adding the monopole prior
+                   a=0.d0
+                   do pix = 0,np_lr-1
+                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                      end if
+                   end do
+
+                   !gather a
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+
+                else if (trim(monocorr_type) == 'monopole') then
+
+                   a=0.d0
+                   b=0.d0
+                   do pix = 0,np_lr-1
+                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                         b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                      end if
+                   end do
+
+                   !gather a and b
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
                    if (a > 0.d0) then
-                      mu = b/a
+                      multipoles(0) = b/a
+                   else
+                      multipoles(0) = 0.d0
+                   end if
+
+                end if
+
+                if (info_lr%myid == 0) then
+
+                   if (a > 0.d0) then !we have statistical power to estimate a monopole
                       sigma=sqrt(a)
+                      mu = multipoles(0)
                    else if (monopole_rms(j) > 0.d0) then !this will effectively set monopole to prior mean
-                      mu = 0
+                      mu=0.d0
                       sigma = 0.d0
                    else
-                      mu = monopole_mu(j) !just set to prior mean
+                      mu=0.d0
                       sigma = 0.d0
                    end if
 
@@ -2014,7 +2114,6 @@ contains
                    c2 => c2%next()
                 end do
 
-
              end if
           end do
 
@@ -2034,6 +2133,9 @@ contains
        if (allocated(monopole_active)) deallocate(monopole_active)
        if (allocated(reduced_data)) deallocate(reduced_data)
        if (allocated(all_thetas)) deallocate(all_thetas)
+       if (allocated(harmonics)) deallocate(harmonics)
+       if (allocated(harmonics2)) deallocate(harmonics2)
+
 
        !###################################################################################################
 
@@ -2048,10 +2150,17 @@ contains
     else
        if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
        if (cpar%verbosity>3 .and. myid_pix == 0) then
-             write(*,fmt='(a)') '  Active bands'
+          write(*,fmt='(a)') '  Active bands'
           do k = 1,band_count
              write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
           end do
+
+          if (c_lnL%spec_mono_combined(par_id)) then
+             write(*,fmt='(a)') '  Active monopoles'
+             do k = 1,numband
+                if (monopole_active(k)) write(*,fmt='(a,i1)') '   band: '//trim(data(k)%label)
+             end do
+          end if
        end if
        if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .false.) then !debug chisq (RMS scaling) for smoothing scale
           allocate(lr_chisq(band_count))
@@ -2061,6 +2170,7 @@ contains
           end do
        end if
     end if
+
 
     !allocate and assign low resolution reduced data maps
     allocate(reduced_data(0:np_lr-1,band_count))
@@ -2100,14 +2210,6 @@ contains
        allocate(old_mono(numband),new_mono(numband))
        old_mono=monopole_val
        new_mono=old_mono
-       !ud_grade monopole mask (if it is not same nside as smoothing scale)
-       mask_mono => comm_map(info_lr)
-       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono)
-       where (mask_mono%map > 0.5d0)
-          mask_mono%map=1.d0
-       elsewhere
-          mask_mono%map=0.d0
-       end where
     end if
 
     !This is used for fullres chisq
@@ -2136,9 +2238,14 @@ contains
        do pr = 1, npixreg
           if (c_lnL%nprop_pixreg(pr,p,id) > N_theta_MC ) N_theta_MC = c_lnL%nprop_pixreg(pr,p,id)
        end do
-       allocate(theta_MC_arr(N_theta_MC+1,npixreg))
+       allocate(theta_MC_arr(N_theta_MC+1,npixreg,2))
        theta_MC_arr = 0.d0
+       if (c_lnL%spec_mono_combined(par_id)) then 
+          allocate(multipoles_trace(2,0:N_theta_MC+1,numband,0:3))
+          multipoles_trace=0.d0
+       end if
     end if
+    max_prop = 0
 
     do pr = 1,npixreg
 
@@ -2288,6 +2395,7 @@ contains
                      & theta_min," -- max: ", theta_max
                 write(*,fmt='(a, f10.5)') "    Proposed ind ",new_theta
              end if
+             loop_exit = .true.
           else
 
              !set up the new theta map
@@ -2319,36 +2427,77 @@ contains
                          reduced_data(pix,k) = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
                       end do
-                      
-                      !create reduced map from original reduced data (residual+component) and original monopole
-                      reduced_data(:,k) = reduced_data(:,k) + monopole_mixing(band_i(k))*monopole_val(band_i(k))
-                      
-                      !calculate new monopole value
-                      a=0.d0
-                      b=0.d0
-                      do pix = 0,np_lr-1
-                         if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                            a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                            b = b + monopole_mixing(band_i(k))*reduced_data(pix,k) * &
-                                 & (rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                         end if
-                      end do
+                      !reduced_data is now the original residual map
 
-                      !gather a and b
-                      call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                           & MPI_SUM, info_lr%comm, ierr)
-                      call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                           & MPI_SUM, info_lr%comm, ierr)
-                
-                      if (info_lr%myid == 0) then
+                      !create reduced data map for monopole estimation from original residual
+                      !i.e. a (residual+monopole)-map, add the original (input) monopole to the residual
+                      reduced_data(:,k) = reduced_data(:,k) + monopole_mixing(band_i(k))*monopole_val(band_i(k))
+                                            
+                      if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                           & trim(monocorr_type) == 'monopole-dipole') then
+                         ! resample the monopole (and dipole) given the new reduced data
+                         md_A = 0.d0
+                         md_b = 0.d0
+                         harmonics2=harmonics*monopole_mixing(band_i(k))
+                         do j_md = 0, 3
+                            do k_md = 0, 3
+                               md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
+                            end do
+
+                            md_b(j_md) = sum(reduced_data(:,k) * harmonics2(:,j_md)) !is to be set later, this will change
+                         end do
+                         !we need to run an MPI reduce to get all harmonics for md_A and md_b
+                         call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+
+                         !solve the mono-/dipole system
+                         call solve_system_real(md_A, multipoles, md_b) 
+
+                         ! Need to get the statistical power for when adding the monopole prior
+                         a=0.d0
+                         do pix = 0,np_lr-1
+                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                            end if
+                         end do
+
+                         !gather a
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+
+                      else if (trim(monocorr_type) == 'monopole') then
+                         a=0.d0
+                         b=0.d0
+                         do pix = 0,np_lr-1
+                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                               b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                            end if
+                         end do
+
+                         !gather a and b
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
                          if (a > 0.d0) then
-                            mu = b/a
+                            multipoles(0) = b/a
+                         else
+                            multipoles(0) = 0.d0
+                         end if
+                      end if
+
+                      
+                      if (info_lr%myid == 0) then
+
+                         if (a > 0.d0) then !we have statistical power to estimate a monopole
                             sigma=sqrt(a)
+                            mu = multipoles(0)
                          else if (monopole_rms(band_i(k)) > 0.d0) then
-                            mu = 0
+                            mu=0.d0
                             sigma = 0.d0
                          else
-                            mu = monopole_mu(band_i(k))
+                            mu=0.d0
                             sigma = 0.d0
                          end if
 
@@ -2363,6 +2512,15 @@ contains
                       ! bcast new monopole to other processors
                       call mpi_bcast(mu, 1, MPI_DOUBLE_PRECISION, 0, info_lr%comm, ierr)
                       new_mono(band_i(k)) = mu
+
+                      if (myid_pix == 0) then
+                         !trace multipoles
+                         multipoles_trace(1,j,band_i(k),0) = mu
+                         if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                              & trim(monocorr_type) == 'monopole-dipole') &
+                              & multipoles_trace(1,j,band_i(k),1:3) = multipoles(1:3)
+                      end if
+
 
                       !update the reduced data map with the new monopole
                       reduced_data(:,k) = res_smooth(band_i(k))%p%map(:,pol_j(k)) + &
@@ -2586,6 +2744,7 @@ contains
              if (c_lnL%spec_mono_combined(par_id)) then
                 old_mono=new_mono
              end if
+             sample_accepted=.true.
           else if (myid_pix == 0) then
              !accept/reject new spec ind
              delta_lnL = lnL_new-lnL_old
@@ -2618,6 +2777,7 @@ contains
                    a = rand_uni(handle) !draw uniform number from 0 to 1
                    if (exp(delta_lnL) > a) then
                       !accept
+                      sample_accepted=.true.
                       old_theta = new_theta
                       lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
                       n_accept = n_accept + 1
@@ -2626,12 +2786,16 @@ contains
                          old_mono=new_mono
                       end if
                    else
+                      sample_accepted=.false.
                       accept_arr(arr_ind) = 0 !reject
                    end if
                 else
+                   sample_accepted=.false.
                    accept_arr(arr_ind) = 0 !reject if running optimize
                 end if
              else
+                sample_accepted=.true.
+
                 !accept new sample, higher likelihood
                 old_theta = new_theta
                 lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
@@ -2642,12 +2806,22 @@ contains
                 end if
              end if
              
-             if (j <= N_theta_MC) theta_MC_arr(j,pr) = old_theta
-
+             if (j <= N_theta_MC) then
+                if (j > max_prop) max_prop = j
+                theta_MC_arr(j,pr,1) = new_theta
+                theta_MC_arr(j,pr,2) = old_theta
+                if (c_lnL%spec_mono_combined(par_id)) then
+                   if (sample_accepted) then
+                      multipoles_trace(2,j,:,:) = multipoles_trace(1,j,:,:) !accept new multipoles for the trace
+                   else
+                      if (j > 1) multipoles_trace(2,j,:,:) = multipoles_trace(2,j-1,:,:) !copy the previous sample multipoles as the "accepted" ones
+                   end if
+                end if
+             end if
              !compute the running acceptance and correlation coefficient values
              running_accept = (1.d0*sum(accept_arr(1:min(n_spec_prop,n_prop_limit))))/max(min(n_spec_prop,n_prop_limit),1)
-             theta_corr_arr(arr_ind) = old_theta
-             running_correlation=calc_corr_coeff(theta_corr_arr,min(n_spec_prop,n_prop_limit))
+             theta_corr_arr(arr_ind) = old_theta !keeping track of accepted thetas
+             running_correlation=calc_corr_coeff(theta_corr_arr(:),min(n_spec_prop,n_prop_limit))
 
              if (j-1 > burn_in) burned_in = .true.
              ! evaluate proposal_length, then correlation length. 
@@ -2732,7 +2906,7 @@ contains
                    n_corr_prop = 0
                    first_nprop = .false. !make sure not to reset again for this pixel region
                    j = -1 !reset while loop counter
-                   theta_MC_arr(:,pr) = 0.d0
+                   theta_MC_arr(:,pr,:) = 0.d0
                 end if
 
                 n_corr_prop = n_corr_prop + 1
@@ -2836,6 +3010,63 @@ contains
        call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
        theta_single_lr => null()
        theta_lr_hole => null()
+       
+       !print MC multipoles to file, (partially debug)
+       if (.true. .and. c_lnL%spec_mono_combined(par_id) .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
+          call int2string(iter,         itext)
+          call int2string(p,         pind_txt)
+          call int2string(cpar%mychain, ctext)
+          postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
+          call int2string(pr,         pind_txt)
+          postfix = trim(postfix)//'_pixreg'//pind_txt
+          unit = getlun()
+          do k_md = 1,numband
+             if (.not. monopole_active(k_md)) cycle
+             call int2string(k_md,         pind_txt)
+             if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                  & trim(monocorr_type) == 'monopole-dipole') then
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_accepted_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, 4e14.5)') i_md, multipoles_trace(2,i_md,k_md,:)
+                end do
+                close(unit)
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_proposed_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, 4e14.5)') i_md, multipoles_trace(1,i_md,k_md,:)
+                end do
+                close(unit)
+             else
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_accepted_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, e14.5)') i_md, multipoles_trace(2,i_md,k_md,0)
+                end do
+                close(unit)
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_proposed_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, e14.5)') i_md, multipoles_trace(1,i_md,k_md,0)
+                end do
+                close(unit)
+             end if
+          end do
+          multipoles_trace=0.d0
+       end if
+
 
     end do !pr = 1,max_pr
 
@@ -2924,18 +3155,17 @@ contains
     !print MC theta to file, (partially debug)
     if (.true. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
        unit = getlun()
-       filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
-            & '_theta_MC_'//trim(postfix)//'.dat'
-       open(unit,file=trim(filename))
-       !read(npixreg_txt,*) npixreg
-       !fmt_pix=trim(npixreg_txt)//'f12.6'
-       !write(*,*) fmt_pix
-       do i = 1,10000
-          !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          !write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
-          write(unit,*) i,theta_MC_arr(i,:)
+       do pr = 1,npixreg
+          call int2string(pr,         pind_txt)
+       
+          filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
+               & '_theta_MC_'//trim(postfix)//'_pixreg'//pind_txt//'.dat'
+          open(unit,file=trim(filename))
+          do i = 1,min(max_prop,N_theta_MC)
+             write(unit,fmt='(i7, 2e14.5)') i,theta_MC_arr(i,pr,:)
+          end do
+          close(unit)
        end do
-       close(unit)
        deallocate(theta_MC_arr)
     end if
 
@@ -3100,7 +3330,11 @@ contains
     if (allocated(monopole_active)) deallocate(monopole_active)
     if (allocated(old_mono)) deallocate(old_mono)
     if (allocated(new_mono)) deallocate(new_mono)
+    if (allocated(harmonics)) deallocate(harmonics)
+    if (allocated(harmonics2)) deallocate(harmonics2)
+    if (allocated(multipoles_trace)) deallocate(multipoles_trace)
 
+    call update_status(status, "nonlin pixreg samling end " // trim(c_lnL%label)// ' ' // trim(c_lnL%indlabel(par_id)))
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
 
