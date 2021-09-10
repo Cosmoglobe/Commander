@@ -44,7 +44,7 @@ BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_Ka_r9_9yr_v5.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
 BAND_TOD_BP_INIT_PROP&&&       = bp_init_Ka_023_v1.dat
 BAND_TOD_RIMO&&&               = WMAP_instrument_v9.h5
-BAND_TOD_FILELIST&&&           = filelist_W4_v42.txt
+BAND_TOD_FILELIST&&&           = filelist_W4_v43.txt
 BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_START_SCANID&&&       = 0
 BAND_TOD_END_SCANID&&&         = 468  # <= BAND_TOD_TOT_NUMSCAN
