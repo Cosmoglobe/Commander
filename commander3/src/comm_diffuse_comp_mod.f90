@@ -132,9 +132,6 @@ module comm_diffuse_comp_mod
      procedure :: dumpFITS      => dumpDiffuseToFITS
      procedure :: initHDF       => initDiffuseHDF
      procedure :: sampleSpecInd => sampleDiffuseSpecInd
-     procedure :: sampleDiffuseSpecIndFullsky
-     procedure :: sampleDiffuseSpecIndSinglePix
-     procedure :: sampleDiffuseSpecIndPixReg
      procedure :: updateLowlPrecond
      procedure :: applyLowlPrecond
      procedure :: updateDeflatePrecond
@@ -3174,115 +3171,6 @@ contains
     return 
 
   end subroutine sampleDiffuseSpecInd
-
-  ! This subroutine is obsolete, it is defined and used in comm_nonlin_mod instead
-  subroutine sampleDiffuseSpecIndSinglePix(self, handle, id, p, iter)
-    implicit none
-    class(comm_diffuse_comp),                intent(inout)        :: self
-    type(planck_rng),                        intent(inout)        :: handle
-    integer(i4b),                            intent(in)           :: id
-    integer(i4b),                            intent(in)           :: p       !incoming polarization
-    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
-
-    integer(i4b) :: i, j, k, l, n, q, pix, ierr, ind(1), counter, n_ok
-    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
-    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
-    real(dp)     :: x(1), theta_min, theta_max
-    logical(lgt) :: ok
-    logical(lgt), save :: first_call = .true.
-    class(comm_comp), pointer :: c => null()
-    real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
-    real(dp),     allocatable, dimension(:,:) :: amp, buffer, alm_old
-    !Following is for the local sampler
-    real(dp)     :: old_theta, new_theta, mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL
-    real(dp)     :: accept_rate, accept_scale, lnL_sum, sum_proplen, sum_accept
-    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, burn_in, count_accept
-    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len
-    logical(lgt) :: first_sample, use_det, burned_in
-    real(dp),     allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),     allocatable, dimension(:) :: theta_corr_arr
-    integer(i4b), allocatable, dimension(:) :: band_i, pol_j
-    class(comm_mapinfo),            pointer :: info => null()
-
-
-    return
-
-  end subroutine sampleDiffuseSpecIndSinglePix
-
-  !  This subroutine is obsolete, it is defined and used in comm_nonlin_mod instead
-  subroutine sampleDiffuseSpecIndFullsky(self, handle, id, p, iter)
-    implicit none
-    class(comm_diffuse_comp),                intent(inout)        :: self
-    type(planck_rng),                        intent(inout)        :: handle
-    integer(i4b),                            intent(in)           :: id
-    integer(i4b),                            intent(in)           :: p       !incoming polarization
-    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
-
-    integer(i4b) :: i, j, k, l, n, q, pix, ierr, ind(1), counter, n_ok
-    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
-    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
-    real(dp)     :: buff1_r(1), buff2_r(1), theta_min, theta_max
-    logical(lgt) :: ok
-    logical(lgt), save :: first_call = .true.
-    class(comm_comp), pointer :: c => null()
-    !Following is for the local sampler
-    real(dp)     :: old_theta, new_theta, mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL
-    real(dp)     :: accept_rate, accept_scale, lnL_sum, init_theta
-    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
-    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
-    logical(lgt) :: first_sample, loop_exit, use_det, burned_in
-    real(dp),     allocatable, dimension(:)   :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),     allocatable, dimension(:)   :: theta_corr_arr
-    integer(i4b), allocatable, dimension(:)   :: band_i, pol_j
-    class(comm_mapinfo),            pointer   :: info => null()
-
-
-    return
-
-  end subroutine sampleDiffuseSpecIndFullsky
-
-  ! This subroutine is obsolete, it is defined and used in comm_nonlin_mod instead
-  subroutine sampleDiffuseSpecIndPixReg(self, cpar, handle, id, p, iter)
-    implicit none
-    class(comm_diffuse_comp),                intent(inout)        :: self
-    type(comm_params),                       intent(in)           :: cpar
-    type(planck_rng),                        intent(inout)        :: handle
-    integer(i4b),                            intent(in)           :: id
-    integer(i4b),                            intent(in)           :: p       !incoming polarization
-    integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
-
-    integer(i4b) :: i, j, k, l, n, q, pix, ierr, ind(1), counter, n_ok
-    integer(i4b) :: i_min, i_max, status, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
-    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
-    real(dp)     :: buff1_r(1), buff2_r(1), theta_min, theta_max
-    logical(lgt) :: ok
-    logical(lgt), save :: first_call = .true.
-    class(comm_comp), pointer :: c => null()
-    !Following is for the local sampler
-    real(dp)     :: mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, lnL_prior, lnL_init
-    real(dp)     :: accept_rate, accept_scale, lnL_sum, proplen, chisq_jeffreys
-    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
-    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
-    integer(i4b) :: npixreg, smooth_scale
-    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen
-    real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas
-    real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth
-    integer(i4b),  allocatable, dimension(:) :: band_i, pol_j
-    class(comm_mapinfo),             pointer :: info => null()
-    class(comm_map),                 pointer :: theta_single_pol => null() ! Spectral parameter of polt_id index
-    class(comm_map),                 pointer :: theta_single_pol_smooth => null() ! smoothed spec. ind. of polt_id index
-    type(map_ptr), allocatable, dimension(:) :: df
-
-
-    return
-
-  end subroutine sampleDiffuseSpecIndPixReg
-
-
 
   function lnL_diffuse_multi(p)
     use healpix_types
