@@ -354,6 +354,9 @@ end subroutine bin_differential_TOD
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
+      ! Explicitly removes the monopole in temperature, since this mode is
+      ! formally solvable for due to transmission imbalance, but takes the
+      ! majority of the BICG-Stab iterations to solve for.
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       implicit none
       class(comm_tod),                 intent(in)              :: tod
@@ -613,6 +616,9 @@ end subroutine bin_differential_TOD
      !  Subroutine that runs the biconjugate gradient-stabilized mapmaking
      !  routine on differential data, solving the P_m^T N^-1 P x = P_m^T N^-1 d
      !  mapmaking equation, where P_m takes into account the asymmetric masking
+     !  
+     !  Explicitly removes the monople from P_m^T N^-1 d, so that it is not
+     !  for in the routine, which wastes many CG iterations.
      !
      !  Arguments (fixed):
      !  ------------------
@@ -664,6 +670,7 @@ end subroutine bin_differential_TOD
 
 
 
+     integer(i4b)                               :: recomp_freq = 10
      real(dp),     allocatable, dimension(:, :) :: m_buf
      integer(i4b)                               :: i_max, i_min, ierr, i
      real(dp)                                   :: delta_0
@@ -821,7 +828,7 @@ end subroutine bin_differential_TOD
              exit bicg
            end if
 
-           if (mod(i, 10) == 1 .or. beta > 1.d8) then
+           if (mod(i, recomp_freq) == 1 .or. beta > 1.d8) then
               call update_status(status, 'A xhat')
               call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol(:,:,l), r)
               call update_status(status, 'done')
