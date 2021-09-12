@@ -350,7 +350,7 @@ contains
 
 end subroutine bin_differential_TOD
 
-   subroutine compute_Ax(tod, x_imarr, pmask, comp_S, x_in, y_out)
+   subroutine compute_Ax(tod, x_imarr, pmask, comp_S, M_diag, x_in, y_out)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
@@ -360,6 +360,7 @@ end subroutine bin_differential_TOD
       real(dp),     dimension(1:),     intent(in)              :: x_imarr
       real(sp),     dimension(0:),     intent(in)              :: pmask
       logical(lgt), intent(in)                                 :: comp_S
+      real(dp),                dimension(:,:), intent(in) :: M_diag
       real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
       real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
 
@@ -369,7 +370,7 @@ end subroutine bin_differential_TOD
       logical(lgt) :: finished
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
       integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
-      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im
+      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, monopole
       real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
       ndet  = tod%ndet
@@ -445,6 +446,9 @@ end subroutine bin_differential_TOD
       if (tod%myid == 0) then
          call mpi_reduce(y, y_out, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
+         monopole = sum(y_out(:,1)*M_diag(:,1)*pmask) &
+                & / sum(M_diag(:,1)*pmask)
+         y_out(:,1) = y_out(:,1) - monopole
       else
          call mpi_reduce(y, y,     size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
@@ -706,12 +710,15 @@ end subroutine bin_differential_TOD
         i_min = 0
 
         if (.false. .and. l == 1) then
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, bicg_sol(:,:,1), v)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol(:,:,1), v)
            r = b_map(:, :, l) - v 
         else
            r = b_map(:, :, l)
         end if
+        monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
+               & / sum(M_diag(:,1)*procmask)
         r0 = b_map(:, :, l)
+        r0(:, 1) = b_map(:, 1, l) - monopole
         ! This is if we are not solving for S
         ! In this case, M_diag(:,4) is the QU covariance term
         if (comp_S) then
@@ -761,7 +768,7 @@ end subroutine bin_differential_TOD
            end if
            
            call update_status(status, 'v=A phat')
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, phat, v)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, phat, v)
            call update_status(status, 'done')
            num_cg_iters = num_cg_iters + 1
 
@@ -800,7 +807,7 @@ end subroutine bin_differential_TOD
            end if
 
            call update_status(status, 'q=A shat')
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, shat, q)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, shat, q)
            call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
@@ -816,9 +823,12 @@ end subroutine bin_differential_TOD
 
            if (mod(i, 10) == 1 .or. beta > 1.d8) then
               call update_status(status, 'A xhat')
-              call compute_Ax(tod, tod%x_im, procmask, comp_S, bicg_sol(:,:,l), r)
+              call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol(:,:,l), r)
               call update_status(status, 'done')
-              r = b_map(:, :, l) - r
+              r(:,1) = b_map(:,1,l) - monopole - r(:,1)
+              r(:,2) = b_map(:,2,l)  - r(:,2)
+              r(:,3) = b_map(:,3,l)  - r(:,3)
+              if (comp_S)  r(:,4) = b_map(:,4,l)  - r(:,4)
            else
               r = s - omega*q
            end if
@@ -882,7 +892,7 @@ end subroutine bin_differential_TOD
         loop: do while (.true.) 
            call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
            if (finished) exit loop
-           call compute_Ax(tod, tod%x_im, procmask, comp_S)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag)
         end do loop
      end if
      if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf)
