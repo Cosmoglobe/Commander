@@ -74,11 +74,11 @@ contains
       
     implicit none
     class(comm_tod),                      intent(inout) :: tod
+    real(sp),             dimension(:,:), intent(in)    :: tod_arr
     real(sp),             dimension(:,:), intent(in)    :: s_invsqrtN, mask, s_tot
     integer(i4b),                         intent(in)    :: scan_id
-    type(planck_rng),                     intent(inout)  :: handle
+    type(planck_rng),                     intent(inout) :: handle
     real(sp),             dimension(:,:), intent(in), optional :: mask_lowres
-    real(sp),             dimension(:,:), intent(in), optional :: tod_arr
 
 
     real(sp), allocatable, dimension(:,:) :: residual
@@ -97,11 +97,7 @@ contains
           residual(:,j) = 0.d0
           cycle
        end if
-       if (present(tod_arr)) then
-         r_fill = tod_arr(:, j) - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
-       else
-         r_fill = tod%scans(scan_id)%d(j)%tod - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
-       end if
+       r_fill = tod_arr(:, j) - (tod%gain0(0) + tod%gain0(j)) * s_tot(:,j)
        call fill_all_masked(r_fill, mask(:,j), ntod, trim(tod%operation) == 'sample', real(tod%scans(scan_id)%d(j)%N_psd%sigma0, sp), handle, tod%scans(scan_id)%chunk_num)
        call tod%downsample_tod(r_fill, ext, residual(:,j))
     end do
@@ -159,23 +155,14 @@ contains
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-          else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
-          end if
+          write(58,*) i, tod_arr(i, 1) - (tod%gain0(0) +  tod%gain0(1)) * s_tot(i,1)
        end do
        write(58,*)
        do i = 1, size(s_tot,1)
-          if (present(tod_arr)) then
-            write(58,*) i, tod_arr(i, 1)
-          else
-            write(58,*) i, tod%scans(scan_id)%d(1)%tod(i)
-          end if
+          write(58,*) i, tod_arr(i, 1)
        end do
        close(58)
     end if
-
 
     deallocate(residual, r_fill)
 
@@ -193,16 +180,16 @@ contains
 
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
-    integer(i4b) :: i, j, k, ndet, nscan_tot, ierr, ind(1)
+    integer(i4b) :: i, j, k, l, ndet, nscan_tot, ierr, ind(1)
     integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
-    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha, invvar, minvar, var
     real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
-    real(dp), allocatable, dimension(:)     :: temp_gain, temp_invsigsquared
+    real(dp), allocatable, dimension(:)     :: g_over_s, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
     real(dp), allocatable, dimension(:,:)   :: pidrange_gainarr
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
-    integer(i4b), save :: count = 0
+    integer(i4b), save :: cnt = 0
     character(len=128)  :: kernel_type
 
     ndet       = tod%ndet
@@ -210,7 +197,7 @@ contains
 
     ! Collect all gain estimates on the root processor
     allocate(g(nscan_tot,ndet,2))
-    allocate(temp_gain(nscan_tot))
+    allocate(g_over_s(nscan_tot))
     allocate(lhs(nscan_tot), rhs(nscan_tot))
     g = 0.d0
     do j = 1, ndet
@@ -270,40 +257,59 @@ contains
          if (all(g(:, j, 1) == 0)) continue
 !          fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
 !          alpha = -1.d0
-          temp_gain = 0.d0
-          ! This is not completely correct - should probably truncate, or
-          ! something.
-          do k = 1, nscan_tot
-            if (g(k, j, 2) > 0.d0) then
-               temp_gain(k) = g(k, j, 1) / g(k, j, 2)
-            end if
-          end do
-!!$          if (tod%gain_sigma_0(j) < 0.d0) then
-!!$             tod%gain_sigma_0(j) = calc_sigma_0(temp_gain)
-!!$          end if
-!          sigma_0 = 0.002d0
-!!$          if (j == 1) then
-!!$             open(58,file='gain_in.dat')
-!!$             do k = 1, size(g,1)
-!!$                if (g(k,j,2) > 0) then
-!!$                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
-!!$                end if
-!!$             end do
-!!$             close(58)
-!!$             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
-!!$          end if
+      
+          ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
+          call normalize_gain_variance(g(:,j,1), g(:,j,2), tod%gain_sigma_0(j))
+          tod%gain_alpha(j) = -1.d0             ! Physically motivated value
+          tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
+
+          if (j == 1) then
+             open(58,file='gain_in.dat')
+             do k = 1, size(g,1)
+                if (g(k,j,2) > 0) then
+                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+                end if
+             end do
+             close(58)
+             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+
+             open(68,file='g.unf', form='unformatted')
+             write(68) size(g,1)
+             write(68) g(:,j,1)
+             write(68) g(:,j,2)
+             write(68) tod%gain_sigma_0(j)
+             write(68) tod%gain_alpha(j)
+             write(68) tod%gain_fknee(j)
+             close(68)
+          end if
 
           call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
              & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
-!!$          if (j == 1) then
-!!$             open(58,file='gain_out.dat')
-!!$             do k = 1, size(g,1)
-!!$                if (g(k,j,2) > 0) then
-!!$                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
-!!$                end if
-!!$             end do
-!!$             close(58)
-!!$          end if
+
+         ! Force noise-weighted average to zero
+         mu = 0.d0
+         denom = 0.d0
+         do k = 1, nscan_tot
+            if (g(k, j, 2) > 0.d0) then
+               mu    = mu + g(k,j,1)/g(k,j,2)
+               denom = denom + g(k,j,2)
+            end if
+         end do
+         mu = mu / denom
+         write(*,*) 'g = ', mu
+         where(g(:,j,2) > 0.d0) 
+            g(:,j,1) = g(:,j,1) - mu * g(:,j,2)
+         end where
+
+          if (j == 1) then
+             open(58,file='gain_out.dat')
+             do k = 1, size(g,1)
+                if (g(k,j,2) > 0) then
+                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+                end if
+             end do
+             close(58)
+          end if
        end do
 !    end if
     ! Distribute and update results
@@ -325,9 +331,68 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    deallocate(g, lhs, rhs)
+    deallocate(g, lhs, rhs, g_over_s)
 
   end subroutine sample_smooth_gain
+
+  subroutine normalize_gain_variance(g1, g2, sigma0)
+    implicit none
+    real(dp), dimension(:), intent(inout) :: g1
+    real(dp), dimension(:), intent(inout) :: g2
+    real(dp),               intent(out)   :: sigma0
+
+    integer(i4b) :: k, l, nscan_tot, window
+    real(dp)     :: var, minvar, invvar
+    real(dp), allocatable, dimension(:)   :: g_over_s
+
+    nscan_tot = size(g1)
+    allocate(g_over_s(nscan_tot))
+
+    ! Rescale uncertainties to have local unit reduced variance
+    where (g2 > 0) 
+       g_over_s = g1/sqrt(g2)  ! gain / stddev
+    elsewhere
+       g_over_s = 0.d0
+    end where
+    var = 0.
+    do k = 1, nscan_tot-1
+       if (g_over_s(k) /= 0.d0 .and. g_over_s(k+1) /= 0.d0) then
+          g_over_s(k) = (g_over_s(k+1)-g_over_s(k))/sqrt(2.d0)
+          var         = var + g_over_s(k)**2
+       end if
+    end do
+    if (count(g_over_s > 0) > 0) then
+       var = var/count(g_over_s > 0)
+       write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
+       g2 = g2 / var
+       g1 = g1 / var
+    end if
+
+    ! Compute minimum variance 
+    window = 100
+    minvar = 0.d0
+    do k = window+1, nscan_tot-window ! First, compute the minimum variance, as estimated over a gliding window
+       invvar = 0.d0
+       do l = -window, window
+          if (g2(k+l) > 0) then
+             invvar = invvar + g2(k+1)
+          end if
+       end do
+       if (count(g2(k-window:k+window) > 0) > 0) then
+          invvar = invvar / count(g2(k-window:k+window) > 0)
+          if (invvar > minvar) minvar = invvar
+       end if
+    end do
+    sigma0 = 1/sqrt(minvar)
+    write(*,*) ' New sigma0 = ', sigma0
+!!$    where (g2 > 0) 
+!!$       g2 = 1.d0/(1.d0/g2 - 0.9d0/minvar)  ! Note that g(:,:,2) is the inverse variance
+!!$    end where
+
+    deallocate(g_over_s)
+
+  end subroutine normalize_gain_variance
+
 
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
@@ -385,9 +450,9 @@ contains
        if (dA == 0.) then
           tod%scans(scan)%d(j)%accept = .false.
           write(*,*) 'Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j, dA
-       else if (abs(db/sqrt(dA)) > 1000. .or. 1/sqrt(dA) < 1d-6) then
-          tod%scans(scan)%d(j)%accept = .false.
-          write(*,*) 'Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
+!!$       else if (abs(db/sqrt(dA)) > 1000. .or. 1/sqrt(dA) < 1d-6) then
+!!$          tod%scans(scan)%d(j)%accept = .false.
+!!$          write(*,*) 'Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
        else 
           A_abs(j) = A_abs(j) + dA
           b_abs(j) = b_abs(j) + db
@@ -431,7 +496,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.5)') '      Abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.8)') '      Abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -719,10 +784,9 @@ contains
      complex(dpc), allocatable, dimension(:) :: fourier_fluctuations
      integer*8          :: plan_fwd, plan_back
      integer(i4b)       :: nscan, nfft, n, nomp, err
-     real(dp)           :: samprate
+     real(dp)           :: samprate, sigma0_wn
 
      integer(i4b)   :: i
-
 
      nscan = size(b)
 !     nfft = 2 * nscan
@@ -748,6 +812,7 @@ contains
      allocate(fluctuations(nscan))
 !     allocate(temp(nscan))
      allocate(precond(nscan))
+     !allocate(precond(n))
      allocate(fourier_fluctuations(n))
 
      !write(*, *) 'Sigma_0: ', sigma_0
@@ -756,24 +821,29 @@ contains
 
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
      if (sample) then
-        do i = 1, nscan
-            fluctuations(i) = rand_gauss(handle)
+        fourier_fluctuations(1) = 0.d0
+        do i = 2, n
+            fourier_fluctuations(i) = cmplx(rand_gauss(handle),rand_gauss(handle))/sqrt(2.d0) * sqrt(inv_N_corr(i))
         end do
-        call timev_to_fourier(fluctuations, fourier_fluctuations, plan_fwd)
-        do i = 1, n
-            fourier_fluctuations(i) = fourier_fluctuations(i) * sqrt(inv_N_corr(i))
-        end do
-        call fourierv_to_time(fourier_fluctuations, fluctuations, plan_back)
+        call fft_back(fourier_fluctuations, fluctuations, plan_back)
 
         do i = 1, nscan
-            fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
-            b(i) = b(i) + fluctuations(i)
+           if (inv_N_wn(i) > 0) then
+              fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
+              !fluctuations(i) = sqrt(inv_N_wn(i)) * rand_gauss(handle)
+           end if
+           b(i) = b(i) + fluctuations(i)
+           !b(i) = fluctuations(i)
          end do
       end if
 
-      do i = 1, nscan
-         precond(i) = inv_N_wn(i) + 1 / sigma_0 ** 2
+      do i = 1, n
+         precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn))
+         !precond(i) = 1.d0/inv_N_wn(i)
       end do
+!!$      do i = 1, nscan
+!!$         precond(i) = inv_N_wn(i) + 1.d0 / sigma_0 ** 2
+!!$      end do
 
 !      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
 !      precond = 1.d0
@@ -786,7 +856,7 @@ contains
 
   end subroutine wiener_filtered_gain
 
-  subroutine timev_to_fourier(vector, fourier_vector, plan_fwd)
+  subroutine fft_fwd(dt, dv, plan_fwd)
      !
      ! Given a fft plan, transforms a vector from time domain to Fourier domain.
      !
@@ -805,38 +875,25 @@ contains
      !                  At exit will contain the Fourier domain vector.
 
      implicit none
-     real(dp), dimension(:), intent(in)         :: vector
-     complex(dpc), dimension(:), intent(out)    :: fourier_vector
-     integer*8             , intent(in)     :: plan_fwd
+     real(dp),     dimension(:), intent(in)     :: dt
+     complex(dpc), dimension(:), intent(out)    :: dv
+     integer*8,                  intent(in)     :: plan_fwd
 
-     real(dp), allocatable, dimension(:)                 :: dt
-     complex(dpc), allocatable, dimension(:)             :: dv
-     integer(i4b)   :: nfft, n
-
-!     nfft = size(vector) * 2
-     nfft = size(vector)
-     n = nfft / 2 + 1
-
-     allocate(dt(nfft), dv(0:n-1))
-     dt(1:nfft) = vector
-!     dt(nfft:nfft/2+1:-1) = dt(1:nfft/2)
      call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
-     !Normalization
-     dv = dv / sqrt(real(nfft, dp))
-     fourier_vector(1:n) = dv(0:n-1)
-     deallocate(dt, dv)
+     dv = dv/sqrt(real(size(dt),dp))
+     !dv = dv/size(dt)
 
-  end subroutine timev_to_fourier
+   end subroutine fft_fwd
 
-  subroutine fourierv_to_time(fourier_vector, vector, plan_back)
+  subroutine fft_back(dv, dt, plan_back, norm)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
      ! Arguments:
      ! ----------
-     ! fourier_vector:  complex(dpc) array
+     ! dv:              complex(dpc) array
      !                  The original Fourier domain vector.
-     ! vector:          real(dp) array
+     ! dt:              real(dp) array
      !                  The vector that will contain the transformed vector.
      ! plan_back:       integer*8
      !                  The fft plan to carry out the transformation.
@@ -846,26 +903,25 @@ contains
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(:), intent(in)     :: fourier_vector
-     real(dp), dimension(:), intent(out)    :: vector
-     integer*8             , intent(in)     :: plan_back
+     complex(dpc), dimension(:), intent(in)     :: dv
+     real(dp),     dimension(:), intent(out)    :: dt
+     integer*8,                  intent(in)     :: plan_back
+     character(len=*),           intent(in), optional :: norm
 
-     real(dp), allocatable, dimension(:)                 :: dt
-     complex(dpc), allocatable, dimension(:)             :: dv
-     integer(i4b)   :: nfft, n
-
-     nfft = size(vector)
-     n = nfft / 2 + 1
-
-     allocate(dt(nfft), dv(0:n-1))
-     dv(0:n-1) = fourier_vector(1:n)
      call dfftw_execute_dft_c2r(plan_back, dv, dt)
-     ! Normalization
-     dt = dt / sqrt(real(nfft, dp))
-     vector = dt(1:nfft)
-     deallocate(dt, dv)
+     dt = dt/sqrt(real(size(dt),dp))
 
-  end subroutine fourierv_to_time
+!!$     ! Normalization factor
+!!$     if (.not. present(norm)) return
+!!$     if (trim(norm) == 'none') then
+!!$     else if (trim(norm) == 'transpose') then
+!!$        dt = dt / real(size(dt), dp)
+!!$     else
+!!$        write(*,*) 'fft_back:  Unsupported normalization type: ', trim(norm)
+!!$        stop
+!!$     end if
+
+   end subroutine fft_back
 
   function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
 !     & with_precond)
@@ -926,7 +982,8 @@ contains
      residual = b - tot_mat_mul_by_vector(inv_N_wn, inv_N_corr, prop_sol, &
         & plan_fwd, plan_back)
      orig_residual = sum(abs(residual))
-     z = residual / precond
+     !z = residual / precond
+     call apply_cg_precond(residual, z, precond, plan_fwd, plan_back)
 !      open(58, file='gain_cg_residual.dat')
 !      do i = 1, nscan
 !         write(58, *) residual(i)
@@ -967,11 +1024,13 @@ contains
 !            close(58)
 !         end if
 
-         if (sum(abs(new_residual))/orig_residual < 1e-12) then 
+         !if (mod(iterations,1000) == 0) write(*,*) iterations, sum(abs(new_residual))/orig_residual
+         if (sum(abs(new_residual))/orig_residual < 1e-6) then 
             converged = .true.
             exit
          end if
-         new_z = new_residual / precond
+         !new_z = new_residual / precond
+         call apply_cg_precond(new_residual, new_z, precond, plan_fwd, plan_back)
          beta = sum(new_residual * new_z) / sum(residual * z)
          p = new_z + beta * p
 !         if (iterations == 0) then
@@ -986,14 +1045,14 @@ contains
          residual = new_residual
          z = new_z
          iterations = iterations + 1
-         if (.false. .and. mod(iterations, 100) == 0) then
-            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
-            call int2string(iterations, itext)
-            open(58, file='gain_cg_' // itext // '.dat')
-            do i = 1, nscan
-               write(58, *) prop_sol(i)
-            end do
-            close(58)
+         if (.true. .and. mod(iterations, 1) == 0) then
+!!$            write(*, *) "Gain CG search res: ", sum(abs(new_residual))/orig_residual, sum(abs(new_residual))
+!!$            call int2string(iterations, itext)
+!!$            open(58, file='gain_cg_' // itext // '.dat')
+!!$            do i = 1, nscan
+!!$               write(58, *) prop_sol(i)
+!!$            end do
+!!$            close(58)
          end if
 !         if (iterations == 1) then
 !            open(58, file='gain_cg_' // itext // '.dat')
@@ -1018,6 +1077,23 @@ contains
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
 
   end function solve_cg_gain
+
+  subroutine apply_cg_precond(vec_in, vec_out, precond, plan_fwd, plan_back)
+    implicit none
+    real(dp), dimension(:), intent(in)  :: vec_in, precond
+    real(dp), dimension(:), intent(out) :: vec_out
+    integer*8             , intent(in)  :: plan_fwd, plan_back    
+
+    integer(i4b) :: i
+    complex(dpc), dimension(size(precond))        :: fourier_vector
+
+    call fft_fwd(vec_in, fourier_vector, plan_fwd)
+    fourier_vector = fourier_vector * precond
+    call fft_back(fourier_vector, vec_out, plan_back)
+
+    !vec_out = vec_in !* precond
+
+  end subroutine apply_cg_precond
 
   function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
      & plan_back, filewrite)
@@ -1076,7 +1152,7 @@ contains
 !         close(58)
 !      end if
 
-     call timev_to_fourier(vector, fourier_vector, plan_fwd)
+     call fft_fwd(vector, fourier_vector, plan_fwd)
 !     if (write_file) then
 !         open(58, file='gain_cg_fourier_vector.dat')
 !         do i = 1, size(fourier_vector)
@@ -1095,7 +1171,8 @@ contains
 !      end if
 
 
-     call fourierv_to_time(fourier_vector, temp_vector, plan_back)
+     call fft_back(fourier_vector, temp_vector, plan_back, norm='transpose')
+     !call fft_back(fourier_vector, temp_vector, plan_back, norm='transpose')
 !     if (write_file) then
 !         open(58, file='gain_cg_vector_after_fourier.dat')
 !         do i = 1, size(temp_vector)
@@ -1112,7 +1189,13 @@ contains
 !         close(58)
 !      end if
 
+     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + size(vector)**4*temp_vector
+     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + temp_vector
+     !write(*,*) 'a', real(vector(1:4) * time_mat(1:4),sp)
+     !write(*,*) 'b', real(temp_vector(1:4),sp)
+
      tot_mat_mul_by_vector = vector * time_mat + temp_vector
+     !tot_mat_mul_by_vector = vector * time_mat
 
   end function tot_mat_mul_by_vector
 
@@ -1146,8 +1229,7 @@ contains
      real(dp), dimension(size(freqs)+1)     :: calculate_invcov
 
      calculate_invcov(1) = 1d12 !0.d0
-     write(*,*) sigma_0, fknee, alpha
-     calculate_invcov(2:size(freqs)+1) = 1.d0 / (sigma_0 ** 2 * (freqs/fknee) ** alpha)
+     calculate_invcov(2:size(freqs)+1) = 1.d0 / (sigma_0 ** 2 * (1+(freqs/fknee) ** alpha))
 
   end function calculate_invcov
 
@@ -1266,7 +1348,7 @@ contains
 !         k        = tod%scanid(i)
 !         currgain(k) = tod%scans(i)%d(j)%gain
 !      end do
-      call timev_to_fourier(g(:, j), gain_fourier, plan_fwd)
+      call fft_fwd(g(:, j), gain_fourier, plan_fwd)
       gain_ps = abs(gain_fourier) ** 2
 !       inv_N_corr = calculate_invcov(tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), freqs)
       call sample_psd_params_by_mh(gain_ps, freqs, &
@@ -1330,35 +1412,39 @@ contains
 
     real(dp), dimension(3, 3)               :: propcov
     real(dp), allocatable, dimension(:, :)  :: samples
-    integer(i4b)        :: i
+    integer(i4b)        :: i, nsamp_tot, nsamp_tune, nsamp_burnin
+
+    nsamp_tot  = 5000
+    nsamp_tune = 2000
+    nsamp_burnin = 1000
 
     propcov = 0.d0
     propcov(1, 1) = sigma0_std ** 2
     propcov(2, 2) = fknee_std ** 2
     propcov(3, 3) = alpha_std ** 2
 
-    allocate(samples(5000, 3))
+    allocate(samples(nsamp_tot, 3))
     samples = 0.d0
-    call run_mh(sigma_0, fknee, alpha, propcov, 2000, samples, gain_ps, freqs, .true., handle)
-!!$    open(58, file='samples_first.dat')
-!!$    do i = 1, 2000
-!!$      write(58, *) samples(i, 1), samples(i, 2)
-!!$    end do
-!!$    close(58)
-    call compute_covariance_matrix(samples(1000:2000, :), propcov)
-    sigma_0 = samples(2000, 1)
-    fknee = samples(2000, 2)
-    alpha = samples(2000, 3)
-    call run_mh(sigma_0, fknee, alpha, propcov, 5000, samples, gain_ps, freqs, .false., handle)
-!!$    open(58, file='samples_second.dat')
-!!$    do i = 1, 5000
-!!$      write(58, *) samples(i, 1), samples(i, 2)
-!!$    end do
-!!$    close(58)
-    sigma_0 = samples(5000, 1)
-    fknee = samples(5000, 2)
-    alpha = samples(5000, 3)
-    write(*,fmt='(a,2f16.8,f8.3)') "Gain PSD {sigma0,fknee,alpha}:", sigma_0, fknee, alpha
+    call run_mh(sigma_0, fknee, alpha, propcov, nsamp_tune, samples, gain_ps, freqs, .true., handle)
+    open(58, file='samples_first.dat')
+    do i = 1, nsamp_tune
+      write(58, *) real(samples(i, :),sp)
+    end do
+    close(58)
+    call compute_covariance_matrix(samples(nsamp_burnin+1:nsamp_tune, :), propcov)
+    sigma_0 = samples(nsamp_tune, 1)
+    fknee = samples(nsamp_tune, 2)
+    alpha = samples(nsamp_tune, 3)
+    call run_mh(sigma_0, fknee, alpha, propcov, nsamp_tot, samples, gain_ps, freqs, .false., handle)
+    open(58, file='samples_second.dat')
+    do i = 1, nsamp_tot
+      write(58, *) real(samples(i, :),sp)
+    end do
+    close(58)
+    sigma_0 = samples(nsamp_tot, 1)
+    fknee = samples(nsamp_tot, 2)
+    alpha = samples(nsamp_tot, 3)
+    write(*,fmt='(a,2f18.12,f8.3)') "Gain PSD {sigma0,fknee,alpha}:", sigma_0, fknee, alpha
 
   end subroutine sample_psd_params_by_mh
 
@@ -1430,17 +1516,21 @@ contains
     curr_lnL = psd_loglike(curr_vec(1), curr_vec(2), curr_vec(3), gain_ps, freqs)
 !!$    write(*, *) "Curr_lnl: ", curr_lnL
     sqrt_cov = propcov
-    call compute_hermitian_root(sqrt_cov, 0.5d0)
+    call compute_hermitian_root_with_mask(sqrt_cov, 0.5d0)
     do i = 1, num_samples
       eta = [rand_gauss(handle), rand_gauss(handle), rand_gauss(handle)]
       prop_vec = curr_vec + scaling_factor * matmul(sqrt_cov, eta)
       prop_lnL = psd_loglike(prop_vec(1), prop_vec(2), prop_vec(3), gain_ps, freqs)
-      write(*, *) "prop_lnL", prop_lnL
+      !write(*, *) "prop_lnL", prop_lnL
 !      if (prop_lnL /= -1d30 .and. rand_uni(handle) <= exp(prop_lnL - curr_lnL)) then
+      !write(*,*) prop_vec
       if (log(rand_uni(handle)) <= prop_lnL - curr_lnL) then
+         !write(*,*) prop_lnL, curr_lnL, 'accept'
          curr_vec = prop_vec
          curr_lnL = prop_lnL
          accepted = accepted + 1
+      else
+         !write(*,*) prop_lnL, curr_lnL, 'reject'
       end if
       samples(i, :) = curr_vec
       if (mod(i, 100) == 0) then
@@ -1493,14 +1583,18 @@ contains
      real(dp)        :: fknee, alpha, sigma_0
      real(dp), dimension(:)  :: gain_ps, freqs
 
+     real(dp) :: lambda
      real(dp), dimension(size(gain_ps))  :: inv_N_corr
 
-     if (sigma_0 <= 0.d0 .or. alpha > 0.d0 .or. alpha < -3.d0 .or. fknee <= 0.d0) then
+     if (sigma_0 <= 0.d0 .or. fknee <= 0.d0 .or. alpha < -3.d0) then
         psd_loglike = -1d30
         return
      end if
+     !lambda = 1e8
      inv_N_corr = calculate_invcov(sigma_0, alpha, fknee, freqs)
-     psd_loglike = -sum(gain_ps(2:) * inv_N_corr(2:) + log(inv_N_corr(2:)))
+     
+     psd_loglike = -sum(gain_ps(2:2000) * inv_N_corr(2:2000) - log(inv_N_corr(2:2000))) !- lambda*sigma_0
+     !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike
     

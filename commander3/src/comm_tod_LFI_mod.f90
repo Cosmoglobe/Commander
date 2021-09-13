@@ -183,7 +183,7 @@ contains
     constructor%nhorn           = 1
     constructor%sample_L1_par   = .false.
     constructor%level           = cpar%ds_tod_level(id_abs)
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
       constructor%compressed_tod = .true.
       constructor%ndiode          = 4
     else
@@ -221,7 +221,7 @@ contains
        constructor%horn_id(i) = (i+1)/2
     end do
 
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
 
       ! Define diode labels
       do i = 1, constructor%ndet
@@ -263,7 +263,7 @@ contains
     allocate(constructor%diode_weights(constructor%ndet, 2))
     allocate(constructor%spike_templates(0:constructor%nbin_spike-1, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
       allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode))
       allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
       allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
@@ -277,7 +277,7 @@ contains
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
     constructor%spike_amplitude = 0.d0
 
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
     ! Compute ADC correction tables for each diode
     if (.not. constructor%L2_exist .and. .false.) then
 
@@ -571,7 +571,7 @@ contains
 
 
     ! Sample 1Hz spikes
-    if(self%level == 'L1') then
+    if(trim(self%level) == 'L1') then
       call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
     end if
 
@@ -580,7 +580,7 @@ contains
        call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
        call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
        call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
-       call sample_gain_psd(self, handle)
+       !call sample_gain_psd(self, handle)
     end if
 
     ! Prepare intermediate data structures
@@ -621,6 +621,8 @@ contains
 
        ! Sample correlated noise
        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       !sd%n_corr = 0.
+       !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
        !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -768,7 +770,7 @@ contains
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
 
 
-    if(self%level == 'L1') then
+    if(trim(self%level) == 'L1') then
       if(index(self%label(band), 'M') /= 0) then
        self%diode_names(band,:) = ['ref00','sky00','ref01','sky01']
        id = '0'
@@ -1215,12 +1217,14 @@ contains
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-    allocate(R(self%nscan_tot,self%ndet,size(self%R,3)),R_tot(self%nscan_tot,self%ndet,size(self%R,3)))
-    R = 0.d0
-    R(self%scanid,:,:) = self%R
-    call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    if (trim(self%level) == 'L1') then
+       allocate(R(self%nscan_tot,self%ndet,size(self%R,3)),R_tot(self%nscan_tot,self%ndet,size(self%R,3)))
+       R = 0.d0
+       R(self%scanid,:,:) = self%R
+       call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    end if
 
-    if (self%myid == 0 .and. self%level == 'L1') then
+    if (self%myid == 0 .and. trim(self%level) == 'L1') then
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
        call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
@@ -1251,7 +1255,8 @@ contains
        end if
     end if
 
-    deallocate(amp, amp_tot, R, R_tot)
+    deallocate(amp, amp_tot)
+    if (trim(self%level) == 'L1') deallocate(R, R_tot)
 
   end subroutine dumpToHDF_LFI
 
