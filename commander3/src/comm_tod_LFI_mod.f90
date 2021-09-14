@@ -62,6 +62,7 @@ module comm_tod_LFI_mod
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
+     type(double_pointer), allocatable, dimension(:)    :: gmf_splits      ! ndet
      character(len=10)                                  :: adc_mode        ! gauss, dpc, none
    contains
      procedure     :: process_tod             => process_LFI_tod
@@ -78,6 +79,10 @@ module comm_tod_LFI_mod
   interface comm_LFI_tod
      procedure constructor
   end interface comm_LFI_tod
+
+  type double_pointer
+    real(dp), pointer, dimension(:) :: p => null() 
+  end type double_pointer
 
 contains
 
@@ -195,7 +200,7 @@ contains
     constructor%use_dpc_adc     = .true.
     constructor%use_dpc_gain_modulation = .false.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 20.d6 ! 9.d0
+    constructor%chisq_threshold = 1000.d0 !9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
@@ -267,6 +272,7 @@ contains
       allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode))
       allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
       allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
+      allocate(constructor%gmf_splits(constructor%ndet))
     end if
 
     ! Declare adc_mode 
@@ -279,9 +285,9 @@ contains
     constructor%spike_amplitude = 0.d0
 
     if(constructor%level == 'L1') then
-       ! Compute ADC correction tables for each diode
-       ! Compute ADC correction tables for each diode
-       if (.not. constructor%L2_exist) then
+
+        ! Compute ADC correction tables for each diode
+        if (.not. constructor%L2_exist) then
           if (.not. constructor%use_dpc_adc) then
              if (constructor%myid == 0) write(*,*) '   Building ADC correction tables'
              
@@ -439,6 +445,7 @@ contains
                 end do
              end if
              !if (constructor%myid == 0) write(*,*) nu_saved
+
              do j=1, constructor%ndiode/2
                 call spline_simple(constructor%ref_splint(i,j), nu_saved, filter_sum(j,:))
                 !if (constructor%myid == 0) then
@@ -792,8 +799,10 @@ contains
 
     integer(i4b) :: i, j
     real(dp) :: weight
+    integer(i4b), dimension(1) :: n_gmf
     character(len=1) :: id
     character(len=512) :: path
+    real(dp), dimension(:), pointer :: gmf_s
 
     ! Read in mainbeam_eff
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
@@ -808,6 +817,15 @@ contains
        id = '1'
       end if
 
+      ! read in the r checkpoints
+      call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'gmfSplits', n_gmf)
+
+      allocate(gmf_s(n_gmf(1)))
+
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'gmfSplits', gmf_s) 
+      self%gmf_splits(band)%p => gmf_s
+
+      if(self%myid == 0) write(*,*) trim(self%label(band)), gmf_s
       ! read in the diode weights
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', weight)
       self%diode_weights(band,1) = weight
@@ -855,7 +873,8 @@ contains
     real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data, s_sky, mask
     integer(i4b), allocatable, dimension(:,:,:) :: pix, psi
     integer(i4b), allocatable, dimension(:,:)   :: flag
-    real(dp) :: r1, r2, sum1, sum2, A(3,3,2), b(3,2), x(3,2)
+    real(dp) :: r1, r2, sum1, sum2, A(3,3,2), b(3,2), x(3,2), t1
+    logical(lgt) :: gmf_split
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
@@ -873,6 +892,24 @@ contains
     do i=1, self%ndet
 
        if (.not. self%scans(scan)%d(i)%accept) cycle
+
+       ! check if this is one of the weird chunks with 2 gain modulation factors
+       gmf_split = .false.
+
+       t1 = self%scans(scan)%t0(2) + 2**16 * self%scans(scan)%ntod / self%samprate
+       do k = 1, size(self%gmf_splits(i)%p)
+        !write(*,*) "Time", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), self%samprate, self%scans(scan)%ntod, size(self%gmf_splits(i)%p)
+        if (self%gmf_splits(i)%p(k) > self%scans(scan)%t0(2) .and. self%gmf_splits(i)%p(k) < t1) then
+          gmf_split = .true.
+          exit
+        end if
+       end do
+
+       if(gmf_split) then 
+        !self%scans(scan)%d(i)%accept = .false.
+        write(*,*) trim(self%label(i)), " Not cutting scan", self%scans(scan)%chunk_num, "because of gmf split", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), k, size(self%gmf_splits(i)%p) 
+        cycle
+       end if
 
         ! Decompress diode TOD for current scan
         call self%decompress_diodes(scan, i, diode_data)
@@ -950,10 +987,10 @@ contains
           b(2,2)   = b(2,2)   + s_sky(k,i)          * corrected_data(k,4)
           b(3,2)   = b(3,2)   + corrected_data(k,3) * corrected_data(k,4)
        end do
-       if (A(1,1,1) == 0.d0) then
-           self%scans(scan)%d(i)%accept = .false.
-           cycle
-        end if        
+       !if (A(1,1,1) == 0.d0) then
+       !    self%scans(scan)%d(i)%accept = .false.
+       !    cycle
+       ! end if        
         do j = 1, 3
            do k = j+1, 3
               A(k,j,:) = A(j,k,:)
@@ -965,7 +1002,9 @@ contains
         ! average sky value/average load value
         self%R(scan,i,1) = x(3,1)
         self%R(scan,i,2) = x(3,2)
-        !write(*,*) self%scanid(scan), i, real(self%R(scan,i,:),sp)
+        !if( self%scanid(scan) == 27676) then
+        !  write(*,*) "new, old:", x(3,1), x(3,2), (r1/n_mask)/(sum1/n_unmask), (r2/n_mask)/(sum2/n_unmask) 
+        !end if
       end if
 
         ! Compute output differenced TOD
@@ -995,17 +1034,18 @@ contains
         
 
         !stop
-        
+        tod(:,i) = tod(:,i) - (sum(tod(:,i))/size(tod(:,i)))
+ 
     end do
 !    stop
 
-    if (self%scanid(scan) == 3) then
-        open(58,file='comm3_L2fromL1_030_pid3.dat', recl=1024)
-        do j = 1, size(tod,1)
-           write(58,*) j, tod(j,:), diode_data(j,:)!, corrected_data(j,:)
-        end do
-        close(58)
-     end if
+    !if (self%scanid(scan) == 3) then
+    !    open(58,file='comm3_L2fromL1_030_pid3.dat', recl=1024)
+    !    do j = 1, size(tod,1)
+    !       write(58,*) j, tod(j,:), diode_data(j,:)!, corrected_data(j,:)
+    !    end do
+    !    close(58)
+    ! end if
 
     deallocate(diode_data, corrected_data, pix, psi, flag, s_sky, mask)
 

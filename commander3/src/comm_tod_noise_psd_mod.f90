@@ -315,6 +315,8 @@ contains
     allocate(constructor_oof_gauss%P_lognorm(constructor_oof_gauss%npar))
 
     constructor_oof_gauss%xi_n          = P_active_mean
+    !write(*,*) size(constructor_oof_gauss%P_uni, 1), size(constructor_oof_gauss%P_uni, 2), size(P_uni, 1), size(P_uni,2)
+    !write(*,*) P_uni
     constructor_oof_gauss%P_uni         = P_uni
     constructor_oof_gauss%P_active(:,1) = P_active_mean
     constructor_oof_gauss%P_active(:,2) = P_active_rms

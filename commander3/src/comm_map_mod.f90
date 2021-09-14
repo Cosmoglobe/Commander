@@ -705,7 +705,7 @@ contains
           if (present(hdffile) .and. self%info%lmax == -1) then
              call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
           end if
-          !call update_status(status, "fits3")
+          call update_status(status, "fits3")
        end if
 
        if (present(hdffile) .and. self%info%lmax >= 0) then

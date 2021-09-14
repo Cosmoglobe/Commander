@@ -338,7 +338,7 @@ contains
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
           unit        = getlun()
-          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
+          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'_dpc.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
        else
           self%L2_exist = .false.
@@ -1704,7 +1704,7 @@ contains
           do i = 1, ntod
              P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
                      & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                     & self%psi(psi(i,j))] ! [phi, theta, psi7]
+                     & self%psi(psi(i,j))] ! [phi, theta, psi]
           end do
        else
           v_ref = v_solar
