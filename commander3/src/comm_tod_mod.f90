@@ -338,7 +338,7 @@ contains
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
           unit        = getlun()
-          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'_dpc.h5'
+          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
        else
           self%L2_exist = .false.
