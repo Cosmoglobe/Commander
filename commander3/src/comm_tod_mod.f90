@@ -1704,7 +1704,7 @@ contains
           do i = 1, ntod
              P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
                      & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                     & self%psi(psi(i,j))] ! [phi, theta, psi7]
+                     & self%psi(psi(i,j))] ! [phi, theta, psi]
           end do
        else
           v_ref = v_solar

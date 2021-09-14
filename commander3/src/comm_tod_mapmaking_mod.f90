@@ -489,6 +489,7 @@ end subroutine bin_differential_TOD
       ! Solve for local map and rms
       allocate (A_inv(nmaps, nmaps), As_inv(ncol, ncol))
       if (present(chisq_S)) chisq_S = 0.d0
+
       do i = 0, np0 - 1
          if (all(b_tot(1, :, i) == 0.d0)) then
             if (.not. present(chisq_S)) then
@@ -536,9 +537,11 @@ end subroutine bin_differential_TOD
                bs_tot(k, 1:ncol, i) = matmul(As_inv, bs_tot(k, 1:ncol, i))
             end do
          end if
+    
 
          if (present(chisq_S)) then
             do j = 1, ndet - 1
+               !write(*,*) mask(tod%info%pix(i + 1)), As_inv(nmaps + j, nmaps +j)
                if (mask(tod%info%pix(i + 1)) == 0.) cycle
                if (As_inv(nmaps + j, nmaps + j) <= 0.d0) cycle
                chisq_S(j, 1) = chisq_S(j, 1) + bs_tot(1, nmaps + j, i)**2/As_inv(nmaps + j, nmaps + j)

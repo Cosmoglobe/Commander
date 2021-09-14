@@ -237,9 +237,9 @@ contains
        else
           tod_out(i) = splint(self%sadc,real(tod_in(i),dp))
        end if
-       ! if (abs(tod_in(i)-tod_out(i))/tod_in(i) > 1d-2) then
-       !    write(*,*) scan, det, di, tod_in(i), tod_out(i), (tod_in(i)-tod_out(i))/tod_in(i)
-       ! end if
+       !if (abs(tod_in(i)-tod_out(i))/tod_in(i) > 1d-2) then
+       !   write(*,*) scan, det, di, tod_in(i), tod_out(i), (tod_in(i)-tod_out(i))/tod_in(i)
+       !end if
     end do
     
   end subroutine adc_correct
