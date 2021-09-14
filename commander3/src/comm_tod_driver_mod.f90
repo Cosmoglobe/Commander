@@ -163,7 +163,7 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
+    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .false., self%s_orb)
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
@@ -630,7 +630,7 @@ contains
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-    if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
+   !  if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
@@ -664,7 +664,7 @@ contains
 
   end subroutine compute_chisq_abs_bp
 
-  subroutine compute_calibrated_data(tod, scan, sd, d_calib)
+  subroutine compute_calibrated_data(tod, scan, sd, d_calib, jump_template)
     !
     !  gets calibrated timestreams
     !
@@ -697,6 +697,7 @@ contains
     integer(i4b),                          intent(in)   :: scan
     type(comm_scandata),                   intent(in)   :: sd
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
+    real(sp), dimension(:,:), intent(in), optional      :: jump_template
 
     integer(i4b) :: j, nout
     real(dp)     :: inv_gain
@@ -709,7 +710,7 @@ contains
         d_calib(1,:,j) = (sd%tod(:,j) - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else
-        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j)) &
+        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - tod%scans(scan)%d(j)%baseline- sd%n_corr(:,j) - jump_template(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        end if
        if (nout > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual

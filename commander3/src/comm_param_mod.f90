@@ -2119,7 +2119,7 @@ contains
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') &
                & call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
           call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
-          call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
+          if (trim(cpar%ds_tod_bp_init(i)) /= 'none') call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
        end if
 
     end do

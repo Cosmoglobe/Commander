@@ -316,7 +316,7 @@ contains
 
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
-
+       
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -328,7 +328,8 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (.true. .or. mod(iter,2) == 0) then
+                  !  if (.true. .or. mod(iter,2) == 0) then
+                   if ((trim(adjustl(cpar%ds_tod_bp_init(data(i)%id_abs))) /= 'none') .and. (mod(iter,2)==0)) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
@@ -383,7 +384,7 @@ contains
 
        end do
 
-!       call s_sky(1,1)%p%writeFITS('sky.fits')
+       !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
@@ -422,7 +423,7 @@ contains
 
        ! Set monopole component to zero, if active. Now part of n_corr
        call nullify_monopole_amp(data(i)%label)
-
+       
     end do
 
   end subroutine process_TOD

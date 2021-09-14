@@ -1325,8 +1325,6 @@ contains
     ! Compute square root; mean will be projected out after proposal generation
     do par = 1, npar
       call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
-      write(*,*) 'prop_bp(1,1,par) = ', self%prop_bp(1,1,par)
-      write(*,*) 'IT GOES WRONG HERE: comm_tod_mod - Line 1329'
     end do
 
   end subroutine initialize_bp_covar
@@ -1405,6 +1403,7 @@ contains
           end do
        else
           v_ref = v_solar
+         !  v_ref = self%scans(scan)%v_sun !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do i = 1, ntod
              P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
           end do

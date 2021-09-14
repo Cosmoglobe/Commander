@@ -98,6 +98,13 @@ module comm_tod_SPIDER_mod
  
      integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
      logical(lgt) :: pol_beam
+     character(len=8)     :: det, det_partner
+     character(len=2)     :: row_str, row_partner_str
+     integer(i4b)         :: row_int, row_partner_int
+     integer(i4b)         :: det_index(1)
+
+
+
  
      ! Allocate object
      allocate(constructor)
@@ -133,7 +140,7 @@ module comm_tod_SPIDER_mod
      constructor%correct_sl      = .false.
      constructor%orb_4pi_beam    = .false.
      constructor%symm_flags      = .false.
-     constructor%chisq_threshold = 20.d0 ! 9.d0
+     constructor%chisq_threshold = 13.d0 !20.d0 ! 9.d0
      constructor%nmaps           = info%nmaps
    !   constructor%ndet            = num_tokens(trim(cpar%datadir)//'/'//trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
      
@@ -150,14 +157,46 @@ module comm_tod_SPIDER_mod
      end if
 
      ! Define detector partners
-     do i = 1, constructor%ndet
-        if (mod(i,2) == 1) then
-           constructor%partner(i) = i+1
-        else
-           constructor%partner(i) = i-1
-        end if
-        constructor%horn_id(i) = (i+1)/2
-     end do
+   !   do i = 1, constructor%ndet
+   !      if (mod(i,2) == 1) then
+   !         constructor%partner(i) = i+1
+   !      else
+   !         constructor%partner(i) = i-1
+   !      end if
+   !      constructor%horn_id(i) = (i+1)/2
+   !   end do
+
+
+     ! Define detector partners for SPIDER mux layout
+     if (trim(constructor%freq) == 'SPIDER_150') then
+        ! A/B - pairs are located in alternating rows. E.g., x1r01c09 and x1r02c09 are a pair.
+        do i=1, constructor%ndet
+           det = constructor%label(i)
+           row_str = det(4:5)
+           read(row_str, *) row_int
+           if (mod(row_int,2)==0) then
+              row_partner_int = row_int - 1
+           else
+              row_partner_int = row_int + 1
+           end if
+           call int2string(row_partner_int, row_partner_str)
+           det_partner = det
+           det_partner(4:5) = row_partner_str
+
+           det_index = findloc(constructor%label, det_partner)
+           ! If there is no partner, assign it the index of the partnerless detector itself
+           if (det_index(1)==0) then
+              det_index(1) = i
+           end if
+           constructor%partner(i) = det_index(1)
+        end do
+
+     else if (trim(constructor%freq) == 'SPIDER_90') then
+        write(*,*) "implement mux layout for 150 GHz in comm_tod_SPIDER mod"
+        stop
+     end if
+
+
        
      ! Read the actual TOD
      call constructor%read_tod(constructor%label, cpar%datadir)
@@ -246,14 +285,27 @@ module comm_tod_SPIDER_mod
      real(sp), allocatable, dimension(:,:,:)   :: d_calib
      real(sp), allocatable, dimension(:,:,:,:) :: map_sky
      real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
- 
+
+     real(sp),     allocatable, dimension(:,:)   :: s_jump, tod_gapfill
+     real(sp),     allocatable, dimension(:,:,:) :: jump_calib
+     integer(i4b), allocatable, dimension(:,:)   :: jumps, offset_range, jumpflag_range
+     real(sp),     allocatable, dimension(:)     :: offset_level
+     type(comm_binmap)                           :: jump_map
+     character(len=4)                            :: it_label
+     logical(lgt)                                :: debug
+     real(sp),    allocatable, dimension(:)      :: test_array
+
+
+
+
      call int2string(iter, ctext)
+     call int2string(iter, it_label)
      call update_status(status, "tod_start"//ctext)
- 
+
      ! Toggle optional operations
-     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
+     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
      sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-     select_data           = self%first_call        ! only perform data selection the first time
+     select_data           = (iter>4) !self%first_call        ! only perform data selection the first time
      output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
  
      ! Initialize local variables
@@ -266,23 +318,23 @@ module comm_tod_SPIDER_mod
      if (self%output_aux_maps > 0) then
         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
      end if
- 
+
      call int2string(chain, ctext)
      call int2string(iter, samptext)
      call int2string(self%myid, myid_text)
      prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
      postfix = '_c' // ctext // '_k' // samptext // '.fits'
- 
+
      ! Distribute maps
      allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
      call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
- 
+
      ! Distribute processing masks
      allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
      call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
      deallocate(m_buf)
- 
+
      ! Precompute far sidelobe Conviqt structures
      if (self%correct_sl) then
         if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
@@ -300,18 +352,20 @@ module comm_tod_SPIDER_mod
  !!$    stop
  
      call update_status(status, "tod_init")
- 
+
      !------------------------------------
      ! Perform main sampling steps
      !------------------------------------
- 
      ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-     call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-     call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+   !   call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
+   !   call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
+   !   call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
  
+
+
      ! Prepare intermediate data structures
      call binmap%init(self, .true., sample_rel_bandpass)
+     call jump_map%init(self, .true., sample_rel_bandpass)  
      if (sample_abs_bandpass .or. sample_rel_bandpass) then
         allocate(chisq_S(self%ndet,size(delta,3)))
         chisq_S = 0.d0
@@ -320,13 +374,13 @@ module comm_tod_SPIDER_mod
         allocate(slist(self%nscan))
         slist   = ''
      end if
- 
+
      ! Perform loop over scans
      if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
      do i = 1, self%nscan
-        
-        ! Skip scan if no accepted data
-        if (.not. any(self%scans(i)%d%accept)) cycle
+      
+      ! Skip scan if no accepted data
+      if (.not. any(self%scans(i)%d%accept)) cycle
         call wall_time(t1)
  
         ! Prepare data
@@ -339,26 +393,224 @@ module comm_tod_SPIDER_mod
            call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
         end if
         allocate(s_buf(sd%ntod,sd%ndet))
- 
+
         ! Calling Simulation Routine
         if (self%enable_tod_simulations) then
            call simulate_tod(self, i, sd%s_tot, handle)
            call sd%dealloc
            cycle
         end if
- 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        ! REMOVE JUMPS ----------------------------------
+        allocate(s_jump(sd%ntod, sd%ndet))
+        allocate(jumps(sd%ntod, sd%ndet))
+        allocate(tod_gapfill(sd%ntod, sd%ndet))
+        allocate(test_array(sd%ntod))
+
+        debug = .false.
+
+
+
+        do j=1, sd%ndet
+           ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
+           if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept) .or. (j==self%partner(j))) then
+              self%scans(i)%d(j)%accept = .false.
+              cycle
+           end if
+           
+           ! Retrieve offsets from previous run, if they exist
+           if (allocated(self%scans(i)%d(j)%offset_range)) then
+              call expand_offset_list(              &
+                 & self%scans(i)%d(j)%offset_range, &
+                 & self%scans(i)%d(j)%offset_level, &
+                 & s_jump(:,j))
+           else
+              s_jump(:,j) = 0
+           end if
+
+           ! Retrieve jump flags from previous run, if they exist
+           if (allocated(self%scans(i)%d(j)%jumpflag_range)) then
+              call add_jumpflags(                     &
+                 & self%scans(i)%d(j)%jumpflag_range, &
+                 & sd%flag(:,j))
+           end if
+
+           ! Scanning for jumps
+           if (.true.) then
+              call jump_scan(                                 &
+                 & sd%tod(:,j) - sd%s_sky(:,j) - s_jump(:,j), &
+                 & sd%flag(:,j),                              &
+                 & jumps(:,j),                                &
+                 & offset_range,                              &
+                 & offset_level,                              &
+                 & handle,                                    &
+                 & jumpflag_range,                            &
+                 & it_label,                                  &
+                 & chaindir,                                  &
+                 & debug)
+
+
+              ! Add offsets to persistent list
+              if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
+                 allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
+                 allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
+
+                 self%scans(i)%d(j)%offset_range = offset_range
+                 self%scans(i)%d(j)%offset_level = offset_level
+              else
+                 call update_offset_list(              &
+                    & offset_range,                    &
+                    & offset_level,                    &
+                    & self%scans(i)%d(j)%offset_range, &
+                    & self%scans(i)%d(j)%offset_level)
+              end if
+
+              ! Add jump flags to persistent list
+              if (allocated(jumpflag_range)) then
+                 if (.not. allocated(self%scans(i)%d(j)%jumpflag_range)) then
+                    allocate(self%scans(i)%d(j)%jumpflag_range(size(jumpflag_range)/2,2))
+                    self%scans(i)%d(j)%jumpflag_range = jumpflag_range
+                 else
+                    call update_jumpflag(jumpflag_range, self%scans(i)%d(j)%jumpflag_range)
+                 end if
+              end if
+
+              call expand_offset_list(                &
+                  & self%scans(i)%d(j)%offset_range,  &
+                  & self%scans(i)%d(j)%offset_level,  & 
+                  & s_jump(:,j))
+           end if
+
+
+           call gap_fill_linear(           &
+              & sd%tod(:,j) - s_jump(:,j), &
+              & sd%flag(:,j),              &
+              & tod_gapfill(:,j),          &
+              & handle,                    &
+              & .true.)
+
+
+           if (allocated(offset_range))   deallocate(offset_range)
+           if (allocated(offset_level))   deallocate(offset_level)
+           if (allocated(jumpflag_range)) deallocate(jumpflag_range)
+
+           if (debug) then
+              call tod2file(trim(adjustl(chaindir))//'/tod_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',         sd%tod(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/flag_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',        sd%flag(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/s_sky_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_sky(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/s_jump_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',      s_jump(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/tod_gapfill_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt', tod_gapfill(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/s_tot_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_tot(:,j))
+           end if
+        end do
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         ! Sample correlated noise
-        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
- 
+        if (self%first_call) then
+           do j=1, sd%ndet
+              self%scans(i)%d(j)%N_psd%xi_n(1) = 0.0018
+           end do
+        end if
+        do j=1, sd%ndet
+           self%scans(i)%d(j)%gain = 1.d0
+        end do
+
+      !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+        call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)  
+        
+
+        if (debug) then
+           do j=1, sd%ndet
+              call tod2file(trim(adjustl(chaindir))//'/n_corr_'//trim(adjustl(it_label))//'.txt', sd%n_corr(:,j))
+              call tod2file(trim(adjustl(chaindir))//'/mask_'//trim(adjustl(it_label))//'.txt', sd%mask(:,j))
+           end do
+        end if
+
         ! Compute noise spectrum parameters
-        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
- 
+      !   call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+      !   call sample_noise_psd(self, tod_gapfill, handle, i, sd%mask, sd%s_sky, sd%n_corr)
+        call sample_noise_psd(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_sky, sd%n_corr) 
+
+
         ! Compute chisquare
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
-           call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+         !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+           call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), s_jump=s_jump(:,j))
+           call write2file(trim(adjustl(chaindir))//'/chisq_'//trim(adjustl(myid_text))//'.txt', iter, self%scans(i)%d(j)%chisq)
+           call write2file(trim(adjustl(chaindir))//'/sigma0_'//trim(adjustl(myid_text))//'.txt', iter, dble(self%scans(i)%d(j)%N_psd%xi_n(1)))
+           call write2file(trim(adjustl(chaindir))//'/alpha_'//trim(adjustl(myid_text))//'.txt', iter, dble(self%scans(i)%d(j)%N_psd%xi_n(3)))
+           call write2file(trim(adjustl(chaindir))//'/fknee_'//trim(adjustl(myid_text))//'.txt', iter, dble(self%scans(i)%d(j)%N_psd%xi_n(2)))
+
         end do
- 
+
+
         ! Select data
         if (select_data) call remove_bad_data(self, i, sd%flag)
  
@@ -367,8 +619,12 @@ module comm_tod_SPIDER_mod
  
         ! Compute binned map
         allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-        call compute_calibrated_data(self, i, sd, d_calib)
-        
+        call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
+
+
+        allocate(jump_calib(1, sd%ntod, sd%ndet))
+        jump_calib(1,:,:) = s_jump 
+
         ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
         if (self%output_4D_map > 0) then
            if (mod(iter-1,self%output_4D_map) == 0) then
@@ -384,10 +640,55 @@ module comm_tod_SPIDER_mod
               deallocate(sigma0)
            end if
         end if
- 
+
         ! Bin TOD
-        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
- 
+        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib,    binmap)
+        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, jump_calib, jump_map) 
+
+         
+
+      !   do j=1, sd%ndet
+      !     do k=1, sd%ntod
+      !        test_array(k) = self%ind2ang(2,self%pix2ind(sd%pix(k,j,1)))
+      !     end do
+      !      if ((minval(test_array)<0.05235987755982989) .and. (maxval(test_array)>6.230825429619756)) then
+      !          if (self%scans(i)%d(j)%accept) write(*,*) trim(adjustl(self%label(j))) 
+      !          ! write(*,*) trim(adjustl(self%hdfname(i)))
+      !      end if
+      !   end do
+        
+      !   do j=1, sd%ndet
+      !    call tod2file(trim(adjustl(chaindir))//'/pix_debug_new_state_'//trim(adjustl(self%label(j)))//'.txt', sd%pix(:,j,1))
+      !    call tod2file(trim(adjustl(chaindir))//'/psi_debug_new_state_'//trim(adjustl(self%label(j)))//'.txt', sd%psi(:,j,1))
+      !   end do
+
+      !   do j=1, sd%ntod
+      !     test_array(j) = self%ind2ang(1,self%pix2ind(sd%pix(j,1,1)))
+      !   end do
+
+      !   do j = 1, sd%ndet
+      !      do k=1, sd%ntod
+      !         test_array(k) = self%ind2ang(1,self%pix2ind(sd%pix(k,j,1)))
+      !      end do
+      !      call tod2file(trim(adjustl(chaindir))//'/theta_debug_new_state.txt', test_array)
+
+      !      if (maxval(test_array)>3.13635666583381) write(*,*) trim(adjustl(self%label(j)))
+      !   end do
+
+
+      !   do j=1, sd%ntod
+      !      test_array(j) = self%pix2ind(sd%pix(j,1,1))
+      !   end do
+      !   call tod2file(trim(adjustl(chaindir))//'/pix2ind_debug.txt', test_array)
+
+
+      !   do j=1, sd%ntod
+      !      test_array(j) = self%ind2ang(2,self%pix2ind(sd%pix(j,1,1)))
+      !    !   write(*,*) 'min', minval(test_array)
+      !    !   write(*,*) 'max', maxval(test_array)
+      !   end do
+      !   call tod2file(trim(adjustl(chaindir))//'/phi_debug_new_state.txt', test_array)
+
         ! Update scan list
         call wall_time(t2)
         self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
@@ -401,9 +702,10 @@ module comm_tod_SPIDER_mod
         ! Clean up
         call sd%dealloc
         deallocate(s_buf, d_calib)
- 
+        deallocate(s_jump, jumps, tod_gapfill, jump_calib, test_array)
+
      end do
- 
+
      if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
  
      ! Output latest scan list with new timing information
@@ -411,19 +713,23 @@ module comm_tod_SPIDER_mod
  
      ! Solve for maps
      call syncronize_binmap(binmap, self)
+     call syncronize_binmap(jump_map, self) 
+
      if (sample_rel_bandpass) then
         call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
      else
         call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
      end if
      map_out%map = binmap%outmaps(1)%p%map
- 
+
+     call finalize_binned_map(self, jump_map, handle, rms_out, 1.d6) 
+
      ! Sample bandpass parameters
      if (sample_rel_bandpass .or. sample_abs_bandpass) then
         call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
         self%bp_delta = delta(:,:,1)
      end if
-    
+
      ! Output maps to disk
      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
      call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
@@ -433,9 +739,11 @@ module comm_tod_SPIDER_mod
      if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
      if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
      if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
- 
+     call jump_map%outmaps(1)%p%writeFITS(trim(prefix)//'jumps'//trim(postfix)) 
+
      ! Clean up
      call binmap%dealloc()
+     call jump_map%dealloc() 
      if (allocated(slist)) deallocate(slist)
      deallocate(map_sky, procmask, procmask2)
      if (self%correct_sl) then
@@ -546,6 +854,30 @@ module comm_tod_SPIDER_mod
      type(hdf_file),                      intent(in)     :: chainfile
      character(len=*),                    intent(in)     :: path
    end subroutine dumpToHDF_SPIDER
+
+   subroutine write2file(filename, iter, param)
+      implicit none
+   
+      character(len=*), intent(in)         :: filename
+      real(dp), intent(in)                 :: param
+      integer(i4b), intent(in)             :: iter
+   
+      integer(i4b)                           :: unit, io_error
+      logical                                :: existing
+   
+      unit = 22
+   
+      inquire(file=trim(filename),exist=existing)
+      if (existing) then
+         open(unit,file=trim(filename),status='old',position='append',action='write',iostat=io_error)
+      else
+         open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
+      end if
+   
+      write(unit,*), iter, param
+   
+      close(unit)
+    end subroutine write2file
  
  end module comm_tod_SPIDER_mod
  
