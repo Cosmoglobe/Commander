@@ -144,10 +144,12 @@ contains
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) then
                 call sample_specind_alm(cpar, iter, handle, c%id, j)
                 if (cpar%almsamp_pixreg) then
+                  do p = 1,min(c%nmaps, c%poltype(j))
                    if (cpar%almsamp_priorsamp_frozen .and. &
                         & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
                       samp_cg = .true.
                    end if
+                 end do
                 end if
              end if
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
