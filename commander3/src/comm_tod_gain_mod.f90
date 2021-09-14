@@ -837,6 +837,7 @@ contains
          end do
       end if
 
+      write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 1, n
          precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn))
          !precond(i) = 1.d0/inv_N_wn(i)

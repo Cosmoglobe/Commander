@@ -181,7 +181,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%sample_L1_par   = .true.
+    constructor%sample_L1_par   = .false.
     constructor%level           = cpar%ds_tod_level(id_abs)
     if(trim(constructor%level) == 'L1') then
       constructor%compressed_tod = .true.
@@ -190,10 +190,10 @@ contains
       constructor%compressed_tod = .false.
       constructor%ndiode          = 1
     end if    
-    constructor%correct_sl      = .true.
+    constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .true.
     constructor%use_dpc_adc     = .true.
-    constructor%use_dpc_gain_modulation = .true.
+    constructor%use_dpc_gain_modulation = .false.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 20.d6 ! 9.d0
     constructor%nmaps           = info%nmaps
