@@ -1,4 +1,7 @@
 module comm_tod_driver_mod
+  !
+  ! Contains tools which every tod_mod will use
+  !
   use comm_tod_mod
   use comm_tod_gain_mod
   use comm_tod_noise_mod
@@ -437,6 +440,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
+    !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -455,6 +459,7 @@ contains
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
+    !
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     character(len=*),                             intent(in)    :: mode
