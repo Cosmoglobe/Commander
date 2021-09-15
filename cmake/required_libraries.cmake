@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of several libraries/projects 
 # required to compile Commander3. The full list of them is:
 # - Git

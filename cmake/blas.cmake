@@ -123,7 +123,8 @@ if(NOT (BLAS_FOUND OR LAPACK_FOUND))
 			-DCMAKE_Fortran_COMPILER=${MPI_Fortran_COMPILER}
 			-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
 			-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
-			-DCMAKE_INSTALL_LIBDIR=lib
+			#-DCMAKE_INSTALL_LIBDIR=lib
+			-DCMAKE_INSTALL_LIBDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
 		)
 	#------------------------------------------------------------------------------
 	# In case of static linking, we do not need to specify linker flags.

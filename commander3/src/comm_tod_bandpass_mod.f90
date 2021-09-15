@@ -37,35 +37,32 @@ contains
 
     integer(i4b) :: i, k, ierr, ndelta, current
     logical(lgt) :: accept
-    real(dp)     :: cp, cc, accept_rate, diff
+    real(dp)     :: cp, cc, c0, accept_rate, diff
 
     if (tod%myid == 0) then
        ndelta  = size(chisq_S,2)
        current = 1
+       c0      = sum(chisq_S(:,current))
        do k = 2, ndelta
           cp          = sum(chisq_S(:,k))
           cc          = sum(chisq_S(:,current))
           diff        = max(cp-cc,0.d0)
-          write(*,*) 'diff', diff, cp, cc
           accept_rate = exp(-0.5d0*diff)  
           if (trim(tod%operation) == 'optimize') then
              accept = cp <= cc
           else
              accept = (rand_uni(handle) < accept_rate)
           end if
-          !write(*,*) k, cp, cc, accept
+          write(*,*) k, cp, cc, accept
           if (accept) then
              cc = cp
              current = k
           end if
        end do
-       if (.true. .or. mod(iter,2) == 0) then
-          write(*,fmt='(a,f16.1,a,f10.1,l3)') 'Rel bp c0 = ', cc, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1)), current /= 1
-       else
-          write(*,fmt='(a,f16.1,a,f10.1)') 'Abs bp c0 = ', cc, &
-               & ', diff = ', sum(chisq_S(:,current))-sum(chisq_S(:,1))
-       end if
+       do k = 1, ndelta
+          write(*,*) '   BP delta = ', real(delta(0:1,1,k),sp), sum(chisq_S(:,k))
+       end do
+       write(*,fmt='(a,f16.1,a,l3)') '    BP chisq diff = ', cc-c0, ', accept = ', current /= 1
     end if
 
     ! Broadcast new saved data

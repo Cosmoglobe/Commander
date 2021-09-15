@@ -137,7 +137,7 @@ contains
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
@@ -157,8 +157,8 @@ contains
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
           end if
-
        end if
+       call update_status(status, "data_tod")
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 
@@ -166,13 +166,14 @@ contains
        case ('b_l')
           data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
           do j = 1, data(n)%ndet
-             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j), mb_eff=data(n)%tod%mb_eff(j))
+             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+             ! MNG: I stripped mb_eff out of here to make it compile, if we need
+             ! this ever we need to introduce it back in somehow
           end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
        call update_status(status, "data_beam")
-   
  
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &

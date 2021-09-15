@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # Description: This script determines the location of HDF5 on the host system.
 # If it fails to do so, it will download, compile and install HDF5 from source.
 # The HDF5 group provides sources for zlib and szip, which we are going to use
@@ -25,12 +27,6 @@
 #================================================================================
 
 message(STATUS "---------------------------------------------------------------")
-
-#find_package(SZIP) # <= there is no native cmake find module for this one
-#find_package(ZLIB)
-
-# asking for an exact hdf5 version
-#find_package(HDF5 1.10.5 EXACT COMPONENTS Fortran) #Fortran_HL)
 
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
@@ -84,7 +80,7 @@ if(NOT HDF5_FOUND)
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Compiling and installing HDF5
+	# Compiling and Installing Static and Shared HDF5
 	#------------------------------------------------------------------------------
 	ExternalProject_Add(
 		hdf5
@@ -161,9 +157,10 @@ if(NOT HDF5_FOUND)
 			"${CMAKE_INSTALL_PREFIX}/include/static"
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
+	#------------------------------------------------------------------------------
 	message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
 	message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
-	#set($ENV{PATH} "${out_lib_dir}/")
+	#------------------------------------------------------------------------------
 else()
 	add_custom_target(hdf5
 		ALL ""
