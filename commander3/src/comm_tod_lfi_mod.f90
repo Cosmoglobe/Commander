@@ -661,7 +661,7 @@ contains
        !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
-       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
