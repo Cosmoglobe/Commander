@@ -79,7 +79,8 @@ fknees *= 1e-3
 # version 40 computes the polarization angles in a different way
 # version 41 fixes the unit vectors in the polarization angle calculation
 # version 42 uses the radius-based planet flag, changes zipped TOD to ztod
-# version 43 uses default flags, changes tipped TOD to ztod
+# version 43 uses default flags, changes zipped TOD to ztod
+# version 44 changes todtree, todsymb to hufftree2, huffsymb2
 
 from time import sleep
 from time import time as timer
@@ -457,11 +458,11 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
 
 
     if compress:
-        f.create_dataset(obsid + '/common/todtree', data=huffarray_Tod)
-        f.create_dataset(obsid + '/common/todsymb', data=h_Tod.symbols)
-
         f.create_dataset(obsid + '/common/hufftree', data=huffarray)
         f.create_dataset(obsid + '/common/huffsymb', data=h.symbols)
+
+        f.create_dataset(obsid + '/common/hufftree2', data=huffarray_Tod)
+        f.create_dataset(obsid + '/common/huffsymb2', data=h_Tod.symbols)
     
     f.create_dataset(obsid + '/common/satpos',
             data=np.array_split(pos,n_per_day)[i][0])
