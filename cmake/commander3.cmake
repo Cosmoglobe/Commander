@@ -103,6 +103,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/hashtbl_4dmap.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cmb_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_spindust2_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
 	${COMMANDER3_SOURCE_DIR}/hashtbl.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cmb_relquad_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_huffman_mod.f90

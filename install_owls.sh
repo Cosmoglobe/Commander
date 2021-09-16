@@ -149,6 +149,7 @@ then
 		echo "$abs_path_to_build does not exist! Creating..."
 		mkdir $abs_path_to_build 
 	fi
+  
 	#------------------------------------------------------------------------------
 	rm -rf $abs_path_to_build/CMakeCache.txt
 	#------------------------------------------------------------------------------
@@ -177,4 +178,5 @@ then
 	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON OWL!"
+
 fi
