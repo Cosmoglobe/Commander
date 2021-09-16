@@ -1630,4 +1630,68 @@ contains
 
   end subroutine fit_polynomial
 
+  function calc_linear_regression(x_arr, y_arr, n_lim) 
+    implicit none
+    integer(i4b),               intent(in), optional :: n_lim
+    real(dp),     dimension(:), intent(in)           :: x_arr, y_arr
+    real(dp)                                         :: calc_linear_regression(3)
+
+    integer(i4b) :: i, j, ns
+    real(dp)     :: x_mean, y_mean, sig_x, sig_y, covarr, corr
+    !
+    !  Function to calculate the Pearson correlation coefficient between samples in a set of a sampled spectral parameter.
+    !
+    !  Arguments:
+    !  ------------------
+    !  x_arr: double precision array, unknown length
+    !     An array containing the x-values of the linear fit
+    !  y_arr: double precision array, unknown length
+    !     An array containing the y-values of the linear fit
+    !  n_lim: integer(i4b), optional
+    !     The maximum index to consider (in the x- and y-arrays) when doing the fit.
+    !     If not present (or larger than the array length), the original array length is used.
+    !
+    !  Returns:
+    !  -----------------
+    !  calc_linear_regression: double precision array of length=3
+    !     The calculated ordinary least squares linear regression fit, with shape:
+    !     (intersection, slope, correlation coefficient)
+    !     
+    !     intersection: 
+    !       intersection with y-axis
+    !     slope:
+    !       the slope of the data points (y-values wrt. x-values)
+    !     correlation coefficient:
+    !       The (Pearson) correlation coefficient ranging from -1 to +1. 
+    !
+    !  If no fit is found, the returned correlation coefficient is -2.0
+
+
+    !default if no corr coeff is found, return a value that is non-physical for the correlation coefficient.
+    !correlation coefficient is -1 <= coeff <= 1, by definition
+    calc_linear_regression(1:2) = 0.d0
+    calc_linear_regression(3) = -2.d0 
+
+    ns=size(x_arr)
+    if (present(n_lim)) then
+       if (ns > n_lim) ns = n_lim
+    end if
+
+    if (ns >= 2) then
+       x_mean=sum(x_arr(:ns))/ns
+       y_mean=sum(y_arr(:ns))/ns
+       sig_x = sqrt(sum((x_arr(:ns)-x_mean)**2)/ns)
+       sig_y = sqrt(sum((y_arr(:ns)-y_mean)**2)/ns)
+       if (sig_x > 0.d0 .and. sig_y > 0.d0) then
+          covarr = (sum(x_arr(:ns)*y_arr(:ns))-ns*x_mean*y_mean)/ns
+          corr = covarr/(sig_x*sig_y)
+          calc_linear_regression(3)=corr  ! (Pearson) correlation coefficient
+          calc_linear_regression(2)=covarr/(sig_x**2) ! slope
+          calc_linear_regression(1)=y_mean - calc_linear_regression(2)*x_mean ! intersection with y-axis
+       end if
+    end if
+
+  end function calc_linear_regression
+
+
 end module math_tools

@@ -56,6 +56,9 @@ contains
     self%npix            = tod%info%npix
     self%numprocs_shared = tod%numprocs_shared
     self%chunk_size      = self%npix/self%numprocs_shared
+    if (self%chunk_size*self%numprocs_shared < self%npix) then
+       self%chunk_size   = self%chunk_size + 1
+    end if
     if (solve_S) then
        self%ncol = tod%nmaps + tod%ndet - 1
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
@@ -123,6 +126,7 @@ contains
     do i = 0, self%numprocs_shared-1
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
+       !if (i == self%numprocs_shared-1) end_chunk = self%npix-1
        do while (start_chunk < self%npix)
           if (tod%pix2ind(start_chunk) /= -1) exit
           start_chunk = start_chunk+1
@@ -485,6 +489,7 @@ end subroutine bin_differential_TOD
       ! Solve for local map and rms
       allocate (A_inv(nmaps, nmaps), As_inv(ncol, ncol))
       if (present(chisq_S)) chisq_S = 0.d0
+
       do i = 0, np0 - 1
          if (all(b_tot(1, :, i) == 0.d0)) then
             if (.not. present(chisq_S)) then
@@ -532,9 +537,11 @@ end subroutine bin_differential_TOD
                bs_tot(k, 1:ncol, i) = matmul(As_inv, bs_tot(k, 1:ncol, i))
             end do
          end if
+    
 
          if (present(chisq_S)) then
             do j = 1, ndet - 1
+               !write(*,*) mask(tod%info%pix(i + 1)), As_inv(nmaps + j, nmaps +j)
                if (mask(tod%info%pix(i + 1)) == 0.) cycle
                if (As_inv(nmaps + j, nmaps + j) <= 0.d0) cycle
                chisq_S(j, 1) = chisq_S(j, 1) + bs_tot(1, nmaps + j, i)**2/As_inv(nmaps + j, nmaps + j)

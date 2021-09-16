@@ -5,16 +5,16 @@ COMP_BETA_INT_LNLTYPE&&       = marginal                       # log-likelihood 
 COMP_BETA_POL_LNLTYPE&&       = chisq                          # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_INT_PIXREG&&        = fullsky                        # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_BETA_POL_PIXREG&&        = fullsky                        # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
-COMP_BETA_INT_SAMPLE_NPROP&&  = .false.                        # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
+COMP_BETA_INT_SAMPLE_NPROP&&  = .true.                        # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
 COMP_BETA_POL_SAMPLE_NPROP&&  = .false.                        # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
 COMP_BETA_INT_SAMPLE_PROPLEN&& = .true.                        # sample proposal length, local sampling (p=1 of poltype). Sample proposal length (std. dev.) of proposals
 COMP_BETA_POL_SAMPLE_PROPLEN&& = .true.                        # sample proposal length, local sampling (p=2 of poltype). Sample proposal length (std. dev.) of proposals
-COMP_BETA_INT_NPROP_INIT&&    = 1000                           # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_BETA_INT_NPROP_INIT&&    = 2000                           # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
 COMP_BETA_POL_NPROP_INIT&&    = 1000                           # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
-COMP_BETA_UNI_NPROP_LOW&&     = 10                             # {>= 0} local sampling. minimum number of proposals per pixel region
-COMP_BETA_UNI_NPROP_HIGH&&    = 2000                           # {> 0} local sampling. minimum number of proposals per pixel region
+COMP_BETA_UNI_NPROP_LOW&&     = 1000                             # {>= 0} local sampling. minimum number of proposals per pixel region
+COMP_BETA_UNI_NPROP_HIGH&&    = 10000                           # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_4reg_BP8.dat
-COMP_BETA_MASK&&              = mask_synch_beta_BP8_10deg_new_chisqmask.fits # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_MASK&&              = mask_synch_beta_BP10_new_chisqmask_n1024_lim75pct.fits # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_BETA_NPROP&&             = fullsky                        # nprop map, local sampling (fullsky = 1)
 COMP_BETA_PROPLEN&&           = fullsky                        # proposal length map, local sampling (fullsky = 1.d0)
 COMP_BETA_INT_PROPLEN_INIT&&  = 3.d-3                          # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
@@ -27,3 +27,9 @@ COMP_BETA_POL_FIX_PIXREG&&    = 1,3                          # pixel regions to 
 COMP_BETA_POL_PIXREG_PRIORS&& = none
 COMP_BETA_PIXREG_MAP&&        = UF_sindex_4regions_n1024.fits  # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_BETA_PIXREG_INITVALUE_MAP&& = none 
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .true.
+COMP_BETA_COMBINED_MONOPOLE_TYPE&& = monopole-dipole
+COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sample monopoles from during combined sampling. separate with comma ','
+COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_synch_beta_BP10_new_chisqmask_n1024_lim75pct.fits
+COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .true.
+COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0

@@ -48,44 +48,45 @@ install(TARGETS comm_system_backend ARCHIVE DESTINATION ${CMAKE_LIBRARY_OUTPUT_D
 #file(GLOB_RECURSE sources *.f90 *.cpp *.f)
 set(sources
 	${COMMANDER3_SOURCE_DIR}/commander.f90
-	${COMMANDER3_SOURCE_DIR}/ARS_mod.f90
+	${COMMANDER3_SOURCE_DIR}/ars_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_fft_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_N_QUcov_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_4D_map_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_F_int_0D_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_N_rms_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_n_qucov_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_4d_map_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_f_int_0d_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_n_rms_mod.f90
 	# TOD processing modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_LFI_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_WMAP_mod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_SPIDER_mod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_LB_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_wmap_mod.f90
+	#${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
-	${COMMANDER3_SOURCE_DIR}/comm_F_int_1D_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_f_int_1d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_output_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_B_bl_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_F_int_2D_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_b_bl_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_f_int_2d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_param_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_beam_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_F_int_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_f_int_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_physdust_comp_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_B_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_F_line_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_b_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_f_line_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_powlaw_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_F_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_utils.f90
@@ -96,17 +97,17 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_gain_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_shared_output_mod.f90
 	${COMMANDER3_SOURCE_DIR}/drc3jj.f
-	${COMMANDER3_SOURCE_DIR}/comm_Cl_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_cl_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_signal_mod.f90
-	${COMMANDER3_SOURCE_DIR}/hashtbl_4Dmap.f90
+	${COMMANDER3_SOURCE_DIR}/hashtbl_4dmap.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cmb_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_spindust2_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/hashtbl.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cmb_relquad_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_huffman_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_spindust_comp_mod.f90
-	${COMMANDER3_SOURCE_DIR}/InvSamp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/invsamp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_line_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_status_mod.f90
@@ -115,7 +116,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/math_tools.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_MBB_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_mbb_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_system_mod.f90
 	${COMMANDER3_SOURCE_DIR}/powell_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_precond_mod.f90
@@ -129,17 +130,19 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_template_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sort_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_data_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_N_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_n_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_bandpass_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_defs.f90
 	${COMMANDER3_SOURCE_DIR}/comm_noise_mod.f90
-	${COMMANDER3_SOURCE_DIR}/spline_1D_mod.f90
-	${COMMANDER3_SOURCE_DIR}/spline_2D_mod.f90
+	${COMMANDER3_SOURCE_DIR}/spline_1d_mod.f90
+	${COMMANDER3_SOURCE_DIR}/spline_2d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
 	# CAMB
-	${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
+	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)
 
 # Setting executable name
@@ -162,6 +165,11 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 	target_compile_definitions(${commander3}
 		PUBLIC
 		USE_INTEL
+		)
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+	target_compile_definitions(${commander3}
+		PUBLIC
+		USE_GNU
 		)
 endif()
 # adding compiler flags to commander3 target

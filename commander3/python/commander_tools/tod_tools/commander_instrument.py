@@ -47,6 +47,7 @@ class commander_instrument:
             else:
                 raise ValueError('Data is shape ' + str(shape) + ' but column headers have length ' + str(len(columnInfo)))
 
+        #print(fieldName, np.array(data[1][1000:3000]))
         self.h5file.create_dataset(fieldName, data=data)
         self.h5file[fieldName].attrs['index'] = columnInfo
 

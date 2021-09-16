@@ -33,7 +33,7 @@ class lfi(object):
     horns = {30:[27, 28], 44:[24, 25, 26], 70:[18, 19, 20, 21, 22, 23]}
     hornTypes = ['M', 'S']
     diodeTypes = {'M':['00', '01'], 'S':['10', '11']}
-    ods = np.arange(91, 1604)
+    ods = np.arange(91, 1540)
     npsi = 4096
     ntodsigma = 1
     nsides = {30:512, 44:512, 70:1024}
@@ -104,8 +104,16 @@ class lfi(object):
             assert(f.h5file['/28M/beammmax'][()] == 14)
             assert(f.h5file['/28M/beamlmax'][()] == 3000)
 
-        if version > 5:
+        if version > 5:#something to do with bandpasses
+            pass
+
+        if version > 6: #added the r checkpoints info
+            assert(len(f.h5file['/23M/gmfSplits'][()]) == 73)
+
+        if version > 7:
             raise ValueError("Version " + str(version) + " of LFI instrument file has not yet been defined.")
+
+        
 
     @staticmethod
     def mbang(horn):

@@ -86,7 +86,7 @@ contains
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
-    self%ndelta = 0; if (init_s_sky_prop_) self%ndelta = size(map_sky,4)
+    self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -151,13 +151,13 @@ contains
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
-       do j = 2, size(map_sky,4)
+       do j = 2, self%ndelta
           !if (.true. .or. tod%myid == 78) write(*,*) 'c61', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, size(map_sky,4)
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2, s_bp=self%s_bp_prop(:,:,j))
        end do
     else if (init_s_sky_prop_) then
-       do j = 2, size(map_sky,4)
+       do j = 2, self%ndelta
           !if (.true. .or. tod%myid == 78) write(*,*) 'c62', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
@@ -237,7 +237,7 @@ contains
 
 
   subroutine init_scan_data_differential(self, tod, scan, map_sky, procmask, procmask2, &
-       & init_s_bp, init_s_bp_prop, init_s_sky_prop)
+       & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang)
     implicit none
     class(comm_scandata),                      intent(inout)          :: self    
     class(comm_tod),                           intent(inout)          :: tod
@@ -248,6 +248,7 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
+    real(dp),                                  intent(in),   optional :: polang
 
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
@@ -269,7 +270,7 @@ contains
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
-    self%ndelta = 0; if (init_s_sky_prop_) self%ndelta = size(map_sky,4)
+    self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -311,7 +312,7 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    if (tod%ndiode == 1) then
+    if (tod%ndiode == 1 .or. trim(tod%level) == 'L2') then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -343,7 +344,7 @@ contains
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
-       do k = 2, size(map_sky,4)
+       do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
                & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
@@ -353,7 +354,7 @@ contains
           end do
        end do
     else if (init_s_sky_prop_) then
-       do k = 2, size(map_sky,4)
+       do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
                & procmask, scan, s_bufA, s_bufB, self%mask)
           do j = 1, self%ndet
@@ -403,14 +404,14 @@ contains
     if (tod%correct_sl) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
-          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
-          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 0d0)
-          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), 0d0)
-          self%s_sl(:,j)  = 2.*((1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j))
+          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
+          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
+          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
+          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
+          self%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
-          self%s_totA(:,j) = self%s_totA(:,j) + 2.*s_bufA(:,j)
-          self%s_totB(:,j) = self%s_totB(:,j) + 2.*s_bufB(:,j)
+          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
+          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
     else
        self%s_sl = 0.
@@ -455,6 +456,8 @@ contains
     if (allocated(self%s_totA))      deallocate(self%s_totA)
     if (allocated(self%s_totB))      deallocate(self%s_totB)
     if (allocated(self%s_inst))      deallocate(self%s_inst)
+    if (allocated(self%s_orbA))      deallocate(self%s_orbA)
+    if (allocated(self%s_orbB))      deallocate(self%s_orbB)
 
   end subroutine dealloc_scan_data
 
@@ -492,7 +495,7 @@ contains
     integer(i4b) :: i, j, ext(2), ierr
     real(dp)     :: t1, t2
     real(dp), allocatable, dimension(:)   :: A, b
-    real(sp), allocatable, dimension(:,:) :: s_invN, mask_lowres, s_buf
+    real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
     real(dp), allocatable, dimension(:,:) :: dipole_mod
     type(comm_scandata) :: sd
 
@@ -522,7 +525,7 @@ contains
 
        ! Set up filtered calibration signal, conditional contribution and mask
        call tod%downsample_tod(sd%s_orb(:,1), ext)
-       allocate(s_invN(ext(1):ext(2), tod%ndet))      ! s * invN
+       allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
        allocate(mask_lowres(ext(1):ext(2), tod%ndet))
        do j = 1, tod%ndet
@@ -530,25 +533,25 @@ contains
           call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=0.9)
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
-             call tod%downsample_tod(sd%s_orb(:,j), ext, s_invN(:,j))
+             call tod%downsample_tod(sd%s_orb(:,j), ext, s_invsqrtN(:,j))
           else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
              ! Calibrator = common mode signal
              ! Jarosik uses the orbital dipole for this.
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
                & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
-             call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
+             call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
                & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
-             call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
+             call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           else
              ! Calibrator = total signal
              s_buf(:,j) = sd%s_tot(:,j)
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
-             call tod%downsample_tod(s_buf(:,j), ext, s_invN(:,j))
+             call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
        !do j = 1, tod%ndet
@@ -556,7 +559,7 @@ contains
        !        write(*,*) 'abscaltest1', j, 'sum(s(:,j))', sum(s_invN(:,j))
        !      end if
        !end do
-       call multiply_inv_N(tod, i, s_invN, sampfreq=tod%samprate_lowres, pow=0.5d0)
+       call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
        !do j = 1, tod%ndet
        !      if (tod%scanid(i) == 30) then
        !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
@@ -584,22 +587,22 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
-          if (tod%compressed_tod) then
-            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
+!          if (tod%compressed_tod) then
+            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
-          else
-            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invN, s_invN, A, b, handle, &
-              & out=.true., mask_lowres=mask_lowres)
-          end if
+!!$          else
+!!$            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
+!!$              & out=.true., mask_lowres=mask_lowres)
+!!$          end if
        else
           ! Time-variable gain terms
-          if (tod%compressed_tod) then
-            call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, &
+!          if (tod%compressed_tod) then
+            call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
               & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
-          else
-            call calculate_gain_mean_std_per_scan(tod, i, s_invN, sd%mask, s_invN, sd%s_tot, &
-              & handle, mask_lowres=mask_lowres)
-          end if
+!!$          else
+!!$            call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
+!!$              & handle, mask_lowres=mask_lowres)
+!!$          end if
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
@@ -611,7 +614,7 @@ contains
        tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
        tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
        call sd%dealloc
-       deallocate(s_invN, s_buf, mask_lowres)
+       deallocate(s_invsqrtN, s_buf, mask_lowres)
     end do
 
     ! Perform sampling operations
@@ -878,6 +881,7 @@ contains
     real(sp) :: N_c
     real(sp) :: samprate
     real(sp) :: fft_norm
+    real(dp) :: chisq
     integer(i4b)                          :: ntod !< total amount of ODs
     integer(i4b)                          :: ndet !< total amount of detectors
     ! HDF5 variables
@@ -904,6 +908,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     character(len=10) :: processor_label   !< to have a nice output to screen
+
+    write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
 
     ! shortcuts
     ntod = self%scans(scan_id)%ntod
@@ -946,7 +952,7 @@ contains
       end do
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
-      dt = dt / nfft
+      dt = dt / sqrt(1.d0*nfft)
       n_corr(:, j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
@@ -958,6 +964,7 @@ contains
 
     ! Allocating main simulations' array
     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
+    tod_per_detector = NaN
 
     ! Main simulation loop
     do i = 1, ntod
@@ -971,10 +978,15 @@ contains
         sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
         !write(*,*) "sigma0 ", sigma0
         ! Simulating tods
+        !tod_per_detector(i,j) = n_corr(i, j) + sigma0 * rand_gauss(handle)
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
+        !tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
+        !tod_per_detector(i,j) = sigma0 * rand_gauss(handle)
         !tod_per_detector(i,j) = 0
       end do
     end do
+
+    write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file

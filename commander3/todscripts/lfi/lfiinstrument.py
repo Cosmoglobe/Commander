@@ -47,7 +47,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 5
+    version = 7
 
     rimo = fits.open(args.rimo)
 
@@ -99,15 +99,21 @@ def main():
                 #diode weights
                 inst_file.add_field(prefix + '/diodeWeight', data=[diode_weights[1].data['weight'][diode_weights[1].data['detector_id'] == int(str(horn) + lfi.diodeTypes[hornType][0])]])
 
+                #Times where the gain modulation factors are split in a pid
+                gmf_file = fits.open(os.path.join(args.aux_dir, 'r_checkpoints_'+str(horn) + hornType + '.fits'))
+
+                inst_file.add_field(prefix + '/gmfSplits', data=gmf_file[1].data['flagOBT'])                
+
+
                 #per-diode fields
                 for diode in lfi.diodeTypes[hornType]:
                     #adc response
                     adc_91 = fits.open(os.path.join(args.aux_dir, 'adc_response_091_LFI' + str(horn) + hornType + '-' + diode + '.fits'))
 
                     inst_file.add_matrix(prefix + '/adc91-'+diode, np.array([adc_91[1].data['sky_volt_in'], adc_91[1].data['sky_volt_out'], adc_91[1].data['load_volt_in'], adc_91[1].data['load_volt_out']]), ['sky_volt_in', 'sky_volt_out', 'load_volt_in', 'load_volt_out'])
-                
+ 
                     adc_953 = fits.open(os.path.join(args.aux_dir, 'adc_response_953_LFI' + str(horn) + hornType + '-' + diode + '.fits'))
-                    
+ 
                     inst_file.add_matrix(prefix + '/adc953-' + diode, np.array([adc_953[1].data['sky_volt_in'], adc_953[1].data['sky_volt_out'], adc_953[1].data['load_volt_in'], adc_953[1].data['load_volt_out']]), ['sky_volt_in', 'sky_volt_out', 'load_volt_in', 'load_volt_out'])
 
                     #spike templates
