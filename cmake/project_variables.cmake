@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # This file contains general instructions how to
 # fetch and build the Commander dependencies
 #==============================================================================
@@ -74,88 +76,12 @@ set(DOXYGEN_BUILD_DOCS OFF
 #------------------------------------------------------------------------------
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
-# If LIBSALL_FORCE_COMPILE is set to TRUE, all libraries will be recompiled,
-# whereas if set to FALSE, the libraries will first be searched on the
-# system and only if not found, compiled from source. If LIBSALL_FORCE_COMPILE
-# is set to FALSE but, e.g. HDF5_FORCE_COMPILE is set to TRUE, then HDF5 will
-# be compiled from source (it will be given the advantage).
+# If USE_SYSTEM_LIBS is set to FALSE, all libraries will be recompiled,
+# whereas if set to TRUE, the libraries will first be searched on the
+# system and only if not found, compiled from source. However, If USE_SYSTEM_LIBS
+# is set to TRUE but, e.g. USE_SYSTEM_HDF5 is set to FALSE, then HDF5 will
+# be compiled from source (i.e. the latter variable is having the advantage).
 #------------------------------------------------------------------------------
-#set(ALL_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of all Commander3 dependencies."
-#  )
-#set(BLAS_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of OpenBLAS."
-#  )
-#set(HDF5_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#  "Forces fresh installation of HDF5."
-#  )
-#set(FFTW_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of FFTW."
-#  )
-#set(CFITSIO_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of CFITSIO."
-#  )
-#set(HEALPIX_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of HEALPIX."
-#  )
-#set(CURL_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of CURL."
-#  )
-#set(DOXYGEN_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of DOXYGEN."
-#  )
-#set(FLEX_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of FLEX."
-#  )
-#set(BISON_FORCE_COMPILE FALSE
-#  CACHE BOOL
-#	"Forces fresh installation of BISON."
-#  )
-# All options default to OFF
-#option(ALL_FORCE_COMPILE "Forces fresh installation of all Commander3 dependencies.")
-#option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS.")
-#
-#option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib.")
-#option(LIBAEC_FORCE_COMPILE "Forces fresh installation of LibAEC.")
-#option(HDF5_FORCE_COMPILE "Forces fresh installation of HDF5.")
-#
-#option(FFTW_FORCE_COMPILE "Forces fresh installation of FFTW.")
-# TODO: Add option "CFITSIO_USE_CURL" to give user an opportunity 
-# to compile CFitsIO with cURL support. In this case, will download,
-# compile and install ZLib -> MbedTLS -> LibSSH2 -> cURL.
-#option(MBEDTLS_FORCE_COMPILE "Forces fresh installation of MbedTLS.")
-#option(LIBSSH2_FORCE_COMPILE "Forces fresh installation of LibSSH2.")
-#option(CURL_FORCE_COMPILE "Forces fresh installation of cURL.")
-#option(CFITSIO_FORCE_COMPILE "Forces fresh installation of CFITSIO.")
-#option(CFITSIO_USE_CURL "Installs CFITSIO with cURL support.")
-#option(HEALPIX_FORCE_COMPILE "Forces fresh installation of HEALPix.")
-#
-#option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX.")
-#option(BISON_FORCE_COMPILE "Forces fresh installation of BISON.")
-#option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen.")
-#
-#cmake_dependent_option(BLAS_FORCE_COMPILE "Forces fresh installation of OpenBLAS." ON "ALL_FORCE_COMPILE" ON)
-#cmake_dependent_option(ZLIB_FORCE_COMPILE "Forces fresh installation of ZLib." ON "ALL_FORCE_COMPILE" ON)
-#cmake_dependent_option(HDF5_FORCE_COMPILE "Forces fresh installation of HDF5." ON "ALL_FORCE_COMPILE" ON)
-#
-#cmake_dependent_option(FFTW_FORCE_COMPILE "Forces fresh installation of FFTW." ON "ALL_FORCE_COMPILE" ON)
-#
-#cmake_dependent_option(CURL_FORCE_COMPILE "Forces fresh installation of cURL." ON "ALL_FORCE_COMPILE" ON)
-#cmake_dependent_option(CFITSIO_FORCE_COMPILE "Forces fresh installation of CFITSIO." ON "ALL_FORCE_COMPILE" ON)
-#cmake_dependent_option(HEALPIX_FORCE_COMPILE "Forces fresh installation of HEALPix." ON "ALL_FORCE_COMPILE" ON)
-#
-#cmake_dependent_option(FLEX_FORCE_COMPILE "Forces fresh installation of FLEX." ON "ALL_FORCE_COMPILE" ON)
-#cmake_dependent_option(BISON_FORCE_COMPILE "Forces fresh installation of BISON." ON "ALL_FORCE_COMPILE" ON)
-#cmake_dependent_option(DOXYGEN_FORCE_COMPILE "Forces fresh installation of Doxygen." ON "ALL_FORCE_COMPILE" ON)
 option(USE_SYSTEM_LIBS    "Enables search for LIBS on the system."        ON)
 # BLAS/LAPACK
 option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
@@ -179,7 +105,7 @@ option(USE_SYSTEM_FLEX    "Enables search for FLEX on the system."        ON)
 option(USE_SYSTEM_BISON   "Enables search for BISON on the system."       ON)
 option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
 #------------------------------------------------------------------------------
-# Commander source dir
+# Commander3 source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
 # tempita source dir
 set(TEMPITA_DIR ${CMAKE_SOURCE_DIR}/commander3/python)

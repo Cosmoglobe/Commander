@@ -51,7 +51,7 @@ message(STATUS "Forum: https://forums.beyondplanck.science/")
 message(STATUS "===============================================================")
 message(STATUS "Scanning your system. Please, wait a moment...")
 # The necessary minimum to set-up cmake-based project
-cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 project(Commander3
 	DESCRIPTION "Complete installer for Commander 3."
 	VERSION 1.3.0	

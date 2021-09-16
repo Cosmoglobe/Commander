@@ -917,6 +917,80 @@ contains
 
   end subroutine 
 
+  subroutine solve_system_real_sp(A, X, B)
+    
+    real(sp), dimension(1:,1:), intent(in)  :: A
+    real(sp), dimension(1:),    intent(in)  :: B
+    real(sp), dimension(1:),    intent(out) :: X
+
+    integer(i4b) :: N, nrhs, lda, ldb, info
+    integer(i4b), allocatable, dimension(:)   :: ipiv
+    real(sp),     allocatable, dimension(:,:) :: b_int, A_int
+
+!    real(dp), dimension(size(B), size(B)+1)  :: m
+!    integer, dimension (1)                       :: max_loc
+!    real(dp), dimension(size(B)+1)           :: temp_row
+!    integer                                      :: K, I 
+
+    N    = size(X)
+    nrhs = 1
+    lda  = n
+    ldb  = n
+
+    allocate(A_int(N,N))
+    allocate(b_int(N,1))
+    allocate(ipiv(N))
+
+    A_int      = A
+    b_int(:,1) = B
+
+    call sgesv(N, nrhs, A_int, lda, ipiv, b_int, ldb, info)
+    if (info /= 0) then
+       write(*,*) 'Error in solution of real system. Info = ', info
+       stop
+    end if
+
+    X = b_int(:,1)
+
+    deallocate(ipiv)
+    deallocate(A_int)
+    deallocate(b_int)
+
+!!$    N = size (B)
+!!$    m (1:N, 1:N) = A
+!!$    m (1:N, N+1) = B 
+!!$    
+!!$    do K = 1, N - 1
+!!$
+!!$       max_loc = maxloc (abs (m (K:N, K)))
+!!$       if ( max_loc(1) /= 1 ) then
+!!$          temp_row (K:N+1 ) = m (K, K:N+1)
+!!$          m (K, K:N+1)= m (K-1+max_loc(1), K:N+1)
+!!$          m (K-1+max_loc(1), K:N+1) = temp_row( K:N+1)
+!!$       end if
+!!$
+!!$       temp_row (K+1:N) = m (K+1:N, K) / m (K, K)
+!!$       do I = K+1, N
+!!$          m (I, K+1:N+1) = m (I, K+1:N+1) - &
+!!$               temp_row (I) * m (K, K+1:N+1)
+!!$       end do
+!!$       m (K+1:N, K) = 0.d0
+!!$
+!!$    end do 
+!!$
+!!$    do K = N, 1, -1
+!!$       X (K) = ( m (K, N+1) - &
+!!$            sum (m (K, K+1:N) * X (K+1:N)) ) / m (K, K)
+!!$    end do
+!!$
+!!$    write(*,*) 'X = ', X
+!!$    write(*,*)
+!!$    write(*,*) 'hei!'
+!!$!    call mpi_finalize(i)
+!!$!    stop
+
+  end subroutine 
+
 
   
   !  THIS routine returns the value of normalised P_lm(theta) such that
@@ -1535,6 +1609,26 @@ contains
 
   end subroutine compute_covariance_matrix
 
+  subroutine fit_polynomial(x, y, a)
+    implicit none
+
+    real(dp), dimension(1:),  intent(in) :: x, y
+    real(dp), dimension(0:),  intent(out) :: a
+
+    integer(i4b) :: i, j
+    real(dp), dimension(0:size(a)-1)              :: b
+    real(dp), dimension(0:size(a)-1, 0:size(a)-1) :: C
+
+    do i = 0, size(a)-1
+       b(i) = sum(y * x**i)
+       do j = i, size(a)-1
+          C(i,j) = sum(x**(i+j))
+          C(j,i) = C(i,j)
+       end do
+    end do
+    call solve_system_real(C, a, b)
+
+  end subroutine fit_polynomial
 
   function calc_linear_regression(x_arr, y_arr, n_lim) 
     implicit none
