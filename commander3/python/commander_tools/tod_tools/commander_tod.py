@@ -20,8 +20,8 @@
 #================================================================================
 
 import h5py
-import commander_tools.tod_tools.huffman as huffman
-import commander_tools.tod_tools.rice as rice
+import tod_tools.huffman as huffman
+import tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -221,7 +221,7 @@ class commander_tod:
             # File "h5py/h5t.pyx", line 1719, in h5py.h5t.py_create
             # TypeError: No conversion path for dtype: dtype('<U6')
             # So needed to add `np.string_()`
-            self.add_field('/common/pids', list(self.pids.keys()))
+            self.add_field('/common/pids', np.string_(list(self.pids.keys())))
 
         if self.filelists is not None:
             for pid in self.pids.keys():

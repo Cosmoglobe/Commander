@@ -47,7 +47,6 @@ lib64/
 *commander
 *sharp_test
 *.gitignore
-*sharp_test
 
 #---------------------------------------------------------------
 # Editors

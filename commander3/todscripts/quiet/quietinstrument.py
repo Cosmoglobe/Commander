@@ -232,7 +232,7 @@ def main():
 
 def make_instrument():
     """
-    Mathod for processing instrumental file
+    Method for processing instrumental file
     """
     pass
     
