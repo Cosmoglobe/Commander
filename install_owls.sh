@@ -173,7 +173,6 @@ then
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	#cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON OWL!"

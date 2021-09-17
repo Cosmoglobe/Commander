@@ -26,16 +26,17 @@ module comm_conviqt_mod
   use comm_map_mod
   use comm_utils
   use comm_shared_arr_mod
+  use comm_param_mod
   implicit none
 
   private
   public comm_conviqt, conviqt_ptr
 
   type :: comm_conviqt
-    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win
+    integer(i4b) :: lmax, mmax, nmaps, bmax, nside, npix, comm, optim, psisteps, win, myid
     real(dp), allocatable, dimension(:)        :: lnorm
     type(shared_2d_sp) :: c
-    type(shared_1d_int) :: pixLookup
+    !type(shared_1d_int) :: pixLookup
     real(sp) :: psires
     class(comm_mapinfo), pointer :: info => null()
     type(shared_2d_spc) :: alm_beam
@@ -81,7 +82,9 @@ contains
     constructor%npix  = 12*nside**2
     constructor%comm  = map%info%comm
     constructor%optim = optim
+    constructor%myid  = myid_shared
     nalm_tot          = (lmax+1)*(lmax+2)/2
+
 
     !current optimization levels:
     !0 - no optimization
@@ -138,19 +141,20 @@ contains
     !   end do    
     !end if
 
+    ! As far as I can tell, pix lookup never gets used so I took it all out
     !precompute pixel->pixel lookup table
-    call init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
-        & [12*(map%info%nside**2)], constructor%pixLookup)
+    !call init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
+    !    & [12*(map%info%nside**2)], constructor%pixLookup)
 
-    if(myid_shared == 0) then
-      do i=0, 12*(map%info%nside**2) -1
-        call pix2ang_ring(map%info%nside, i, theta, phi)
-        call ang2pix_ring(constructor%nside, theta, phi, j)
-        constructor%pixLookup%a(i+1) = j
-      end do
-    end if
+    !if(myid_shared == 0) then
+    !  do i=0, 12*(map%info%nside**2) -1
+    !    call pix2ang_ring(map%info%nside, i, theta, phi)
+    !    call ang2pix_ring(constructor%nside, theta, phi, j)
+    !    constructor%pixLookup%a(i+1) = j
+    !  end do
+    !end if
 
-    call mpi_win_fence(0, constructor%pixLookup%win, ierr)    
+    !call mpi_win_fence(0, constructor%pixLookup%win, ierr)    
 
   end function constructor
 
@@ -359,7 +363,8 @@ contains
     deallocate(self%lnorm)
     call dealloc_shared_2d_spc(self%alm_beam)
     call dealloc_shared_2d_sp(self%c)
-    call dealloc_shared_1d_int(self%pixLookup)
+    call update_status(status, "dealloc_2d_shared_conviqt")
+    !call dealloc_shared_1d_int(self%pixLookup)
 
   end subroutine dealloc
 

@@ -39,8 +39,8 @@ module comm_B_mod
      ! Data procedures
      procedure(matmulB),     deferred :: conv
      procedure(matmulInvB),  deferred :: deconv
-     procedure                        :: getBTheta
-     procedure                        :: initBTheta
+     procedure                     :: getBTheta
+     procedure                     :: initBTheta
   end type comm_B
 
   abstract interface

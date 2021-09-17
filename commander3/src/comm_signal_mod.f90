@@ -28,6 +28,7 @@ module comm_signal_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
+  use comm_ame_lognormal_mod
   use comm_MBB_comp_mod
   use comm_freefree_comp_mod
   use comm_line_comp_mod
@@ -188,7 +189,7 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior
+          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle)
        end select
        c => c%next()
     end do

@@ -841,7 +841,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
 
 
     # From Jarosik et al. 2003, Figure 3.
-    alpha = -1
+    alpha = -1.7
 
     nside = 512
     ntodsigma = 100

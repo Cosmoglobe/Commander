@@ -33,13 +33,13 @@ mbeam_eff is main beam efficiency, assume it is one.
 
 from scipy import interpolate
 from tqdm import tqdm
+from scipy.optimize import curve_fit
 
 import numpy as np
 from glob import glob
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import h5py
-import copy
 
 import healpy as hp
 
@@ -103,30 +103,10 @@ def gauss(x, sigma):
     return np.exp(-x**2/(2*sigma**2))
 
 
-def gaussian2d(xieta, a, xi0, eta0, fwhm_xi, fwhm_eta, phi):
-    '''
-    xieta is a 2D array of floats in the detecter-centered coordinate system
-    a is the amplitude of the beam
-    xi0, eta0 are the center position of the Gaussian beam
-    fwhm_xi, fwhm_eta, phi are the fwhm along the xi and eta axes, and phi is the
-    rotation angle in radians.
-    '''
-    xi, eta  = xieta
-    xi_rot   = xi*np.cos(phi)  - eta*np.sin(phi)
-    eta_rot  = xi*np.sin(phi)  + eta*np.cos(phi)
-    xi0_rot  = xi0*np.cos(phi) - eta0*np.sin(phi)
-    eta0_rot = xi0*np.sin(phi) + eta0*np.cos(phi)
-    factor   = 2*np.sqrt(2*np.log(2))
-    xi_coef  = -0.5*(xi_rot -xi0_rot)**2 /(fwhm_xi/factor)**2
-    eta_coef = -0.5*(eta_rot-eta0_rot)**2/(fwhm_eta/factor)**2
-    sim_data = a*np.exp(xi_coef+eta_coef)
-    return sim_data
-
-
 def real2complexAlms(data, lmax, mmax):
     outData = np.zeros((lmax+1)**2, dtype='complex64')
     for l in range(0, lmax):
-        for m in range(0, max(mmax,l)):
+        for m in range(0, mmax):
             if(m > l):
                 continue
             healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
@@ -164,8 +144,13 @@ dir_B_los = np.array([
             [  0.00751408106677, -0.93889226303920, -0.34412912836731  ]])
 
 
-
-def create_rimo(fname, rot=0):
+rots = np.arange(0, 360, 45)
+rots = [0]
+for rot in rots:
+  #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
+  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
+  #fname_out = 'test.h5'
+  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
   with h5py.File(fname_out, 'a') as f:
@@ -185,7 +170,6 @@ def create_rimo(fname, rot=0):
           f.create_dataset(band + '4/bandpass', data=B2)
           centFreq1 = trapz(nu*B1, nu)/trapz(B1, nu)
           centFreq2 = trapz(nu*B2, nu)/trapz(B2, nu)
-          print(centFreq1, centFreq2, band)
           f.create_dataset(band + '3/centFreq', data=[centFreq1])
           f.create_dataset(band + '4/centFreq', data=[centFreq2])
   
@@ -350,8 +334,6 @@ def create_rimo(fname, rot=0):
       hdus = [fits.open(fname)[0] for fname in fnames]
       beamAs = [fits.open(fname)[0].data[0] for fname in fnames]
       beamBs = [fits.open(fname)[0].data[2] for fname in fnames]
-      sigmAs = [fits.open(fname)[0].data[1] for fname in fnames]
-      sigmBs = [fits.open(fname)[0].data[3] for fname in fnames]
       
       
       # pixel size is 0.04 ~ 58.6/nside
@@ -361,110 +343,74 @@ def create_rimo(fname, rot=0):
       
       X = np.arange(-11.98, 11.98+0.04, 0.04)*np.pi/180
       Y = np.arange(11.98, -11.98-0.04, -0.04)*np.pi/180
-
-      nside = 8192
-      X2 = np.linspace(X[0], X[-1], len(X)*10)
-      Y2 = np.linspace(Y[0], Y[-1], len(Y)*10)
-
-      #nside = 1024
-      #X2 = np.linspace(X[0], X[-1], len(X)*5)
-      #Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
-
+      X2 = np.linspace(X[0], X[-1], len(X)*5)
+      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
       xx, yy = np.meshgrid(X,Y)
       theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
       phi = np.arctan2(yy, xx)
 
 
 
+      xx, yy = np.meshgrid(X2,Y2)
+      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
+      phi = np.arctan2(yy, xx)
+      
+      #data = fits.open(fnames[-1])
+      #beamA = data[0].data[0]
+      #fig = plt.figure()
+      #ax = fig.add_subplot(111)
+      #ax.pcolormesh(X,Y,beamA)
+
+      #fig = plt.figure()
+      #ax = fig.add_subplot(111)
+      #ax.pcolormesh(X2,Y2,beamA_2)
+
+      #plt.show()
+
+     
+      #fig, axes = plt.subplots(nrows=5, ncols=2, sharey=True)
+      #axs = axes.flatten()
+      #lmaxes = [600, 800, 1000, 1000, 1200, 1200, 1500, 1500, 1500, 1500]
       for beam_ind, fname in enumerate(fnames):
           data = fits.open(fname)
           beamA = data[0].data[0]
           beamB = data[0].data[2]
-          sigmA = data[0].data[1]
-          sigmB = data[0].data[3]
           f = interpolate.interp2d(X, Y, beamA)
           beamA_2 = f(X2, Y2)
           f = interpolate.interp2d(X, Y, beamB)
           beamB_2 = f(X2, Y2)
 
-
-          # 2D Gaussian fits
-          beamA[~np.isfinite(beamA)] = 0
-          mu_x = (beamA*xx).sum()/(beamA).sum()
-          mu_y = (beamA*yy).sum()/(beamA).sum()
-          sd_x = ((beamA*xx**2).sum()/(beamA).sum() - mu_x**2)**0.5
-          sd_y = ((beamA*yy**2).sum()/(beamA).sum() - mu_y**2)**0.5
-          inds = (abs(xx.flatten() - mu_x) < 6*sd_x) & (abs(yy.flatten() - mu_y) < 6*sd_y)
-          p0 = np.array([beamA.max(), mu_x, mu_y, sd_x, sd_y, 0])
-
-          xieta = np.array([xx.flatten()[inds], yy.flatten()[inds]])
-          popt, pcov = curve_fit(gaussian2d, xieta, beamA.flatten()[inds], p0=p0, sigma=sigmA.flatten()[inds],
-                bounds=((np.array([0,-np.inf,-np.inf,0,0,-np.pi/4]),
-                  np.array([np.inf,np.inf,np.inf,np.inf,np.inf,np.pi/4]))))
-
+          nside = 4096
           mA = np.zeros(12*nside**2)
-          N = np.zeros(12*nside**2)
-
-          xx2, yy2 = np.meshgrid(X2 - popt[1],Y2 + popt[2])
-          theta = 2*np.arcsin(np.sqrt(xx2**2+yy2**2)/2)
-          phi = np.arctan2(yy2, xx2)
-          pix = hp.ang2pix(nside, theta, phi)
-
-          source_idx = pix.flatten()
-          fluxA = copy.deepcopy(beamA_2.flatten())
-          while len(source_idx) > 0:
-            hp_no, idx_t = np.unique(source_idx, return_index=True)
-            mA[hp_no] += fluxA[idx_t]
-            N[hp_no]  += 1
-
-            source_idx = np.delete(source_idx, idx_t)
-            fluxA = np.delete(fluxA, idx_t)
-          mA[N > 0] = mA[N > 0]/N[N > 0]
-          #hp.write_map('testA.fits', mA)
-          #mA = mA/N
-          #mA[~np.isfinite(mA)] = 0
-
-
-
-
-          # 2D Gaussian fits
-          beamB[~np.isfinite(beamB)] = 0
-          mu_x = (beamB*xx).sum()/(beamB).sum()
-          mu_y = (beamB*yy).sum()/(beamB).sum()
-          sd_x = ((beamB*xx**2).sum()/(beamB).sum() - mu_x**2)**0.5
-          sd_y = ((beamB*yy**2).sum()/(beamB).sum() - mu_y**2)**0.5
-          inds = (abs(xx.flatten() - mu_x) < 6*sd_x) & (abs(yy.flatten() - mu_y) < 6*sd_y)
-          p0 = np.array([beamB.max(), mu_x, mu_y, sd_x, sd_y, 0])
-
-          xieta = np.array([xx.flatten()[inds], yy.flatten()[inds]])
-          popt, pcov = curve_fit(gaussian2d, xieta, beamB.flatten()[inds], p0=p0, sigma=sigmB.flatten()[inds],
-                bounds=((np.array([0,-np.inf,-np.inf,0,0,-np.pi/4]),
-                  np.array([np.inf,np.inf,np.inf,np.inf,np.inf,np.pi/4]))))
-
           mB = np.zeros(12*nside**2)
           N = np.zeros(12*nside**2)
-
-          xx2, yy2 = np.meshgrid(X2 - popt[1],Y2 + popt[2])
-          theta = 2*np.arcsin(np.sqrt(xx2**2+yy2**2)/2)
-          phi = np.arctan2(yy2, xx2)
           pix = hp.ang2pix(nside, theta, phi)
+          mA[pix] += beamA_2
+          mB[pix] += beamB_2
+          N[pix] += 1
+          #hp.gnomview(m/N, rot=(-130,86.38,0), reso=1)
+          mA = mA/N
+          mB = mB/N
+          mA[~np.isfinite(mA)] = 0
+          mB[~np.isfinite(mB)] = 0
 
-          source_idx = pix.flatten()
-          fluxB = copy.deepcopy(beamB_2.flatten())
-          while len(source_idx) > 0:
-            hp_no, idx_t = np.unique(source_idx, return_index=True)
-            mB[hp_no] += fluxB[idx_t]
-            N[hp_no]  += 1
-
-            source_idx = np.delete(source_idx, idx_t)
-            fluxB = np.delete(fluxB, idx_t)
-          mB[N > 0] = mB[N > 0]/N[N > 0]
+          #hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
+          #hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
 
 
-          # Normalizing, assuming that s_lms are correct
-          s_lm_A = slmAs[beam_ind]
-          s_lm_B = slmBs[beam_ind]
+          ind = np.argmax(mA)
 
+
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mA = r.rotate_map_pixel(mA)
+
+          ind = np.argmax(mB)
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mB = r.rotate_map_pixel(mB)
 
           alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
           b_lm_A = complex2realAlms(alm_A, lmax, mmax)
@@ -472,24 +418,34 @@ def create_rimo(fname, rot=0):
           alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
           b_lm_B = complex2realAlms(alm_B, lmax, mmax)
 
+          b_lA = hp.alm2cl(alm_A, lmax=lmax, mmax=mmax)**0.5
+          b_lB = hp.alm2cl(alm_B, lmax=lmax, mmax=mmax)**0.5
+          b_lm_A /= max(b_lA)
+          b_lm_B /= max(b_lB)
+
+
+          # Normalizing, assuming that s_lms are correct
+          s_lm_A = slmAs[beam_ind]
+          s_lm_B = slmBs[beam_ind]
 
           b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
           b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
+
           DA = fname.split('_')[4]
            
           with h5py.File(fname_out, 'a') as f:
               f.create_dataset(DA + '13/beam/T', data=b_lm_A)
               f.create_dataset(DA + '14/beam/T', data=b_lm_A)
-              f.create_dataset(DA + '23/beam/T', data=b_lm_B)
-              f.create_dataset(DA + '24/beam/T', data=b_lm_B)
+              f.create_dataset(DA + '23/beam/T', data=b_lm_A)
+              f.create_dataset(DA + '24/beam/T', data=b_lm_A)
               f.create_dataset(DA + '13/beam/E', data=b_lm_A*0)
               f.create_dataset(DA + '14/beam/E', data=b_lm_A*0)
-              f.create_dataset(DA + '23/beam/E', data=b_lm_B*0)
-              f.create_dataset(DA + '24/beam/E', data=b_lm_B*0)
+              f.create_dataset(DA + '23/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '24/beam/E', data=b_lm_A*0)
               f.create_dataset(DA + '13/beam/B', data=b_lm_A*0)
               f.create_dataset(DA + '14/beam/B', data=b_lm_A*0)
-              f.create_dataset(DA + '23/beam/B', data=b_lm_B*0)
-              f.create_dataset(DA + '24/beam/B', data=b_lm_B*0)
+              f.create_dataset(DA + '23/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '24/beam/B', data=b_lm_A*0)
               f.create_dataset(DA + '13/beamlmax', data=[lmax])
               f.create_dataset(DA + '14/beamlmax', data=[lmax])
               f.create_dataset(DA + '23/beamlmax', data=[lmax])
@@ -509,9 +465,4 @@ def create_rimo(fname, rot=0):
               f.create_dataset(DA + '24/psi_ell', data=[0])
       
      
-
-if __name__ == '__main__':
-    #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
-    fname_out = 'test.h5'
-    #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
-    create_rimo(fname_out)
+      plt.show()

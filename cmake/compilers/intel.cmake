@@ -75,7 +75,7 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		#"-DNDEBUG"
 		#"-ipo" #  
 		#"-parallel" 
-		#"-heap-arrays" "16384"
+		"-heap-arrays" "16384"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
@@ -93,7 +93,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-qopenmp"
 		"-C" 
 		"-assume" "byterecl" 
-		#"-heap-arrays" "16384"
+		"-heap-arrays" "16384"
 		"-fpe0"
 		"-fPIC"
 		)
@@ -110,6 +110,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		"-g" 
 		"-traceback" 
+		"-heap-arrays" "16384"
 		#
 		#"-O2"  
 		#"-g" 
@@ -120,7 +121,6 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		#"-qopt-matmul"
 		#"-C"
 		#"-assume" "byterecl" 
-		#"-heap-arrays" "16384"
 		#"-fpe0"
 		#"-fPIC"
 		)
