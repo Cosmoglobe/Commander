@@ -1011,8 +1011,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
 
     return
 
-def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
-        center=False):
+def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
+        center=True):
     '''
     Make 1 hdf5 file for every 10 fits files
     # Actually, just doing 1 hdf5 file for every fits file. Too much clashing is
@@ -1043,8 +1043,8 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 
 
     if par:
-        nprocs = 64
-        nprocs = 16
+        nprocs = 128
+        #nprocs = 16
         os.environ['OMP_NUM_THREADS'] = '1'
 
         pool = Pool(processes=nprocs)
@@ -1061,16 +1061,5 @@ def main(par=True, plot=False, compress=False, nfiles=sys.maxsize, version=18,
 
 
 if __name__ == '__main__':
-    #main(par=True, plot=False, compress=True, version=31, center=True)
-    #main(par=True, plot=False, compress=True, version='cal', center=True)
-    #main(par=True, plot=False, compress=True, version=34, center=True)
-    #main(par=True, plot=False, compress=True, version=35, center=True)
-    #main(par=True, plot=False, compress=True, version=36, center=True)
-    #main(par=True, plot=False, compress=True, version=37, center=True)
-    #main(par=True, plot=False, compress=True, version=38, center=True)
-    #main(par=True, plot=False, compress=True, version=39, center=True)
-    #main(par=True, plot=False, compress=True, version=40, center=True)
-    #main(par=True, plot=False, compress=True, version=41, center=True)
-    #main(par=True, plot=False, compress=True, version=42, center=True)
-    main(par=True, plot=False, compress=True, version=43, center=True)
+    main(version=44)
     #test_flags()
