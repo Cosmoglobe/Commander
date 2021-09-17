@@ -443,8 +443,7 @@ contains
        allocate(pix(self%scans(i)%ntod))
        if (self%nhorn == 2) then
          do l = 1, self%nhorn
-            !call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
+          call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              self%pix2ind(pix(k)) = 1
@@ -941,8 +940,6 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
        call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
