@@ -607,9 +607,8 @@ contains
 
        if (cpar%myid == 0) then
           write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
+          write(*,*) '    Processing TOD channel = ', trim(data(i)%label) 
        end if
-
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -681,14 +680,7 @@ contains
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
 
-       if (cpar%myid_chain == 0) then
-         write(*,*) 'Processing ', trim(data(i)%label)
-       end if
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
-       if (cpar%myid_chain == 0) then
-         write(*,*) 'Finished processing ', trim(data(i)%label)
-         write(*,*) ''
-       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
