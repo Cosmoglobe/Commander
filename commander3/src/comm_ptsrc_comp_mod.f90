@@ -1735,7 +1735,7 @@ contains
 !!$    stop
 
 
-    if (self%myid == 0) open(68,file='ptsrc.dat', recl=1024)
+    if (self%myid == 0) open(68,file=trim(cpar%outdir)//'/ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
     do iter2 = 1, n_gibbs
 
