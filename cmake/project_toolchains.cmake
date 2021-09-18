@@ -175,6 +175,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 			"-O2"# -g -traceback -DNDEBUG -parallel -qopenmp -C -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
 			"-g" 
 			"-traceback" 
+      "-check" "noarg_temp_created"
 			"-DNDEBUG" 
 			"-parallel" 
 			"-qopenmp"

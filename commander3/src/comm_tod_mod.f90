@@ -1027,7 +1027,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -2250,16 +2250,7 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),            dimension(:),  intent(out) :: tod
 
-    integer(i4b), allocatable, dimension(:) :: tod_int
-    integer(i4b) :: i
-
-    allocate(tod_int(size(tod)))
-
-    call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
-
-    tod = real(tod_int, sp)
-
-    deallocate(tod_int)
+    call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
 
   end subroutine decompress_tod
   

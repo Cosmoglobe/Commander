@@ -307,7 +307,7 @@ contains
 
       ! biconjugate gradient-stab parameters
       integer(i4b) :: num_cg_iters
-      real(dp) ::  epsil(6)
+      real(dp) ::  epsil(7)
       real(dp), allocatable, dimension(:, :, :) :: bicg_sol
       real(dp), allocatable, dimension(:)       :: map_full
 
@@ -337,7 +337,7 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+         if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
 
       call int2string(chain, ctext)
@@ -538,9 +538,8 @@ contains
       !bicg_sol(:,:,1) = m_buf
       deallocate(m_buf)
 
+      epsil = 1d-6
       epsil(1)   = 1d-10
-      !epsil(1)   = 1d-8
-      epsil(2:6) = 1d-6
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
