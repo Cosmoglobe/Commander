@@ -62,6 +62,7 @@ module comm_tod_LFI_mod
      real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
+     type(double_pointer), allocatable, dimension(:)    :: gmf_splits      ! ndet
      character(len=10)                                  :: adc_mode        ! gauss, dpc, none
    contains
      procedure     :: process_tod             => process_LFI_tod
@@ -78,6 +79,10 @@ module comm_tod_LFI_mod
   interface comm_LFI_tod
      procedure constructor
   end interface comm_LFI_tod
+
+  type double_pointer
+    real(dp), pointer, dimension(:) :: p => null() 
+  end type double_pointer
 
 contains
 
@@ -181,21 +186,21 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%sample_L1_par   = .true.
+    constructor%sample_L1_par   = .false.
     constructor%level           = cpar%ds_tod_level(id_abs)
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
       constructor%compressed_tod = .true.
       constructor%ndiode          = 4
     else
       constructor%compressed_tod = .false.
       constructor%ndiode          = 1
     end if    
-    constructor%correct_sl      = .true.
+    constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .true.
     constructor%use_dpc_adc     = .false.!.true.
-    constructor%use_dpc_gain_modulation = .true.
+    constructor%use_dpc_gain_modulation = .false.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 20.d6 ! 9.d0
+    constructor%chisq_threshold = 1000.d0 !9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
@@ -221,7 +226,7 @@ contains
        constructor%horn_id(i) = (i+1)/2
     end do
 
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
 
       ! Define diode labels
       do i = 1, constructor%ndet
@@ -263,10 +268,11 @@ contains
     allocate(constructor%diode_weights(constructor%ndet, 2))
     allocate(constructor%spike_templates(0:constructor%nbin_spike-1, constructor%ndet))
     allocate(constructor%spike_amplitude(constructor%nscan,constructor%ndet))
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
       allocate(constructor%adc_corrections(constructor%ndet, constructor%ndiode))
       allocate(constructor%ref_splint(constructor%ndet,constructor%ndiode/2))
       allocate(constructor%R(constructor%nscan,constructor%ndet,constructor%ndiode/2))
+      allocate(constructor%gmf_splits(constructor%ndet))
     end if
 
     ! Declare adc_mode 
@@ -278,9 +284,9 @@ contains
     constructor%spike_amplitude = 0.d0
 
     if(constructor%level == 'L1') then
-       ! Compute ADC correction tables for each diode
-       ! Compute ADC correction tables for each diode
-       if (.not. constructor%L2_exist) then
+
+        ! Compute ADC correction tables for each diode
+        if (.not. constructor%L2_exist) then
           if (.not. constructor%use_dpc_adc) then
              if (constructor%myid == 0) write(*,*) '   Building ADC correction tables'
              
@@ -446,6 +452,7 @@ contains
                 end do
              end if
              !if (constructor%myid == 0) write(*,*) nu_saved
+
              do j=1, constructor%ndiode/2
                 call spline_simple(constructor%ref_splint(i,j), nu_saved, filter_sum(j,:))
                 !if (constructor%myid == 0) then
@@ -607,7 +614,7 @@ contains
 
 
     ! Sample 1Hz spikes
-    if(self%level == 'L1') then
+    if(trim(self%level) == 'L1') then
       call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
     end if
 
@@ -616,7 +623,7 @@ contains
        call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
        call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
        call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
-       call sample_gain_psd(self, handle)
+       !call sample_gain_psd(self, handle)
     end if
 
     ! Prepare intermediate data structures
@@ -657,9 +664,11 @@ contains
 
        ! Sample correlated noise
        call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       !sd%n_corr = 0.
+       !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
-       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -797,14 +806,16 @@ contains
 
     integer(i4b) :: i, j
     real(dp) :: weight
+    integer(i4b), dimension(1) :: n_gmf
     character(len=1) :: id
     character(len=512) :: path
+    real(dp), dimension(:), pointer :: gmf_s
 
     ! Read in mainbeam_eff
     call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'mbeam_eff', self%mb_eff(band))
 
 
-    if(self%level == 'L1') then
+    if(trim(self%level) == 'L1') then
       if(index(self%label(band), 'M') /= 0) then
        self%diode_names(band,:) = ['ref00','sky00','ref01','sky01']
        id = '0'
@@ -813,6 +824,15 @@ contains
        id = '1'
       end if
 
+      ! read in the r checkpoints
+      call get_size_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'gmfSplits', n_gmf)
+
+      allocate(gmf_s(n_gmf(1)))
+
+      call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'gmfSplits', gmf_s) 
+      self%gmf_splits(band)%p => gmf_s
+
+      if(self%myid == 0) write(*,*) trim(self%label(band)), gmf_s
       ! read in the diode weights
       call read_hdf(instfile, trim(adjustl(self%label(band)))//'/'//'diodeWeight', weight)
       self%diode_weights(band,1) = weight
@@ -860,7 +880,8 @@ contains
     real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data, s_sky, mask
     integer(i4b), allocatable, dimension(:,:,:) :: pix, psi
     integer(i4b), allocatable, dimension(:,:)   :: flag
-    real(dp) :: r1, r2, sum1, sum2, A(3,3,2), b(3,2), x(3,2)
+    real(dp) :: r1, r2, sum1, sum2, A(3,3,2), b(3,2), x(3,2), t1
+    logical(lgt) :: gmf_split
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
@@ -878,6 +899,24 @@ contains
     do i=1, self%ndet
 
        if (.not. self%scans(scan)%d(i)%accept) cycle
+
+       ! check if this is one of the weird chunks with 2 gain modulation factors
+       gmf_split = .false.
+
+       t1 = self%scans(scan)%t0(2) + 2**16 * self%scans(scan)%ntod / self%samprate
+       do k = 1, size(self%gmf_splits(i)%p)
+        !write(*,*) "Time", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), self%samprate, self%scans(scan)%ntod, size(self%gmf_splits(i)%p)
+        if (self%gmf_splits(i)%p(k) > self%scans(scan)%t0(2) .and. self%gmf_splits(i)%p(k) < t1) then
+          gmf_split = .true.
+          exit
+        end if
+       end do
+
+       if(gmf_split) then 
+        !self%scans(scan)%d(i)%accept = .false.
+        write(*,*) trim(self%label(i)), " Not cutting scan", self%scans(scan)%chunk_num, "because of gmf split", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), k, size(self%gmf_splits(i)%p) 
+        cycle
+       end if
 
         ! Decompress diode TOD for current scan
         call self%decompress_diodes(scan, i, diode_data)
@@ -955,10 +994,10 @@ contains
           b(2,2)   = b(2,2)   + s_sky(k,i)          * corrected_data(k,4)
           b(3,2)   = b(3,2)   + corrected_data(k,3) * corrected_data(k,4)
        end do
-       if (A(1,1,1) == 0.d0) then
-           self%scans(scan)%d(i)%accept = .false.
-           cycle
-        end if        
+       !if (A(1,1,1) == 0.d0) then
+       !    self%scans(scan)%d(i)%accept = .false.
+       !    cycle
+       ! end if        
         do j = 1, 3
            do k = j+1, 3
               A(k,j,:) = A(j,k,:)
@@ -970,7 +1009,9 @@ contains
         ! average sky value/average load value
         self%R(scan,i,1) = x(3,1)
         self%R(scan,i,2) = x(3,2)
-        !write(*,*) self%scanid(scan), i, real(self%R(scan,i,:),sp)
+        !if( self%scanid(scan) == 27676) then
+        !  write(*,*) "new, old:", x(3,1), x(3,2), (r1/n_mask)/(sum1/n_unmask), (r2/n_mask)/(sum2/n_unmask) 
+        !end if
       end if
 
         ! Compute output differenced TOD
@@ -1000,17 +1041,18 @@ contains
         
 
         !stop
-        
+        tod(:,i) = tod(:,i) - (sum(tod(:,i))/size(tod(:,i)))
+ 
     end do
 !    stop
 
-    if (self%scanid(scan) == 3) then
-        open(58,file='comm3_L2fromL1_030_pid3.dat', recl=1024)
-        do j = 1, size(tod,1)
-           write(58,*) j, tod(j,:), diode_data(j,:)!, corrected_data(j,:)
-        end do
-        close(58)
-     end if
+    !if (self%scanid(scan) == 3) then
+    !    open(58,file='comm3_L2fromL1_030_pid3.dat', recl=1024)
+    !    do j = 1, size(tod,1)
+    !       write(58,*) j, tod(j,:), diode_data(j,:)!, corrected_data(j,:)
+    !    end do
+    !    close(58)
+    ! end if
 
     deallocate(diode_data, corrected_data, pix, psi, flag, s_sky, mask)
 
@@ -1250,12 +1292,14 @@ contains
     amp(self%scanid,:) = self%spike_amplitude
     call mpi_reduce(amp, amp_tot, size(amp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
 
-    allocate(R(self%nscan_tot,self%ndet,size(self%R,3)),R_tot(self%nscan_tot,self%ndet,size(self%R,3)))
-    R = 0.d0
-    R(self%scanid,:,:) = self%R
-    call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    if (trim(self%level) == 'L1') then
+       allocate(R(self%nscan_tot,self%ndet,size(self%R,3)),R_tot(self%nscan_tot,self%ndet,size(self%R,3)))
+       R = 0.d0
+       R(self%scanid,:,:) = self%R
+       call mpi_reduce(R, R_tot, size(R), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+    end if
 
-    if (self%myid == 0 .and. self%level == 'L1') then
+    if (self%myid == 0 .and. trim(self%level) == 'L1') then
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_temp', self%spike_templates)
        call write_hdf(chainfile, trim(adjustl(path))//'1Hz_ampl', amp_tot)
        call write_hdf(chainfile, trim(adjustl(path))//'R_factor', R_tot)
@@ -1286,7 +1330,8 @@ contains
        end if
     end if
 
-    deallocate(amp, amp_tot, R, R_tot)
+    deallocate(amp, amp_tot)
+    if (trim(self%level) == 'L1') deallocate(R, R_tot)
 
   end subroutine dumpToHDF_LFI
 

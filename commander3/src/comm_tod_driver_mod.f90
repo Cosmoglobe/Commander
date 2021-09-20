@@ -311,7 +311,7 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    if (tod%ndiode == 1 .or. tod%level == 'L2') then
+    if (tod%ndiode == 1 .or. trim(tod%level) == 'L2') then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then

@@ -104,8 +104,16 @@ class lfi(object):
             assert(f.h5file['/28M/beammmax'][()] == 14)
             assert(f.h5file['/28M/beamlmax'][()] == 3000)
 
-        if version > 5:
+        if version > 5:#something to do with bandpasses
+            pass
+
+        if version > 6: #added the r checkpoints info
+            assert(len(f.h5file['/23M/gmfSplits'][()]) == 73)
+
+        if version > 7:
             raise ValueError("Version " + str(version) + " of LFI instrument file has not yet been defined.")
+
+        
 
     @staticmethod
     def mbang(horn):

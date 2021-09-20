@@ -903,7 +903,8 @@ contains
           ! Fit gain 
           if (do_oper(samp_G)) then
              call wall_time(t1)
-             call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_tot, handle)
+             ! HKE I've commented this out for now, as it needs to use the new interface
+             !call calculate_gain_mean_std_per_scan(self, i, s_invN, mask, s_tot, handle)
              call wall_time(t2); t_tot(4) = t_tot(4) + t2-t1
           end if
 
