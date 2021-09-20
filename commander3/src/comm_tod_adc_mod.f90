@@ -306,7 +306,7 @@ contains
     steamroll = .false.!.true.
 
     ! Combine together all of the bins determined from chunk adding
-    if (self%myid == 0)  write(*,*) 'Do reduction'
+    ! if (self%myid == 0)  write(*,*) 'Do reduction'
 
     call mpi_allreduce(mpi_in_place,self%rms_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
     call mpi_allreduce(mpi_in_place,self%rms2_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
@@ -314,7 +314,7 @@ contains
     
     ! The rest should be light enough to do on a single core
     if (self%myid == 0) then
-       write(*,*) 'Everything reduced'
+       ! write(*,*) 'Everything reduced'
        open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
        open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
        open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
@@ -344,11 +344,6 @@ contains
 
        ! Mask bad bins and massive outliers       
        call mask_bins(self%v_bins, self%rms_bins, self%nval, binmask)
-       ! do i = 1, self%nbins
-       !    if (binmask(i) == 0) cycle
-       !    if (self%nval(i) == 1) cycle
-       !    self%err_bins(i) = sqrt((self%rms2_bins(i)/self%rms_bins(i) - self%rms_bins(i)**2/(self%nval(i)**2))/(self%nval(i)-1))
-       ! end do
 
        vbin_dp(:) = real(self%v_bins,dp)
        rms_dp(:)  = real(self%rms_bins,dp)
