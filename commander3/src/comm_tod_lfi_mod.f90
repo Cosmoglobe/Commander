@@ -353,7 +353,6 @@ contains
           if (constructor%use_dpc_adc) then
              do i = 1, constructor%ndet
                 do j=1, constructor%ndiode ! init the adc correction structures
-                   ! constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
                    constructor%adc_corrections(i,j)%p%myid = cpar%myid_chain
                    constructor%adc_corrections(i,j)%p%comm = cpar%comm_chain
                    constructor%adc_corrections(i,j)%p%outdir = cpar%outdir
