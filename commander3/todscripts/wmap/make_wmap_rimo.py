@@ -181,8 +181,8 @@ def create_rimo(fname, rot=0):
           nu, B1, B2 = np.loadtxt(fnames[i]).T
           f.create_dataset(band + '3/bandpassx', data=nu)
           f.create_dataset(band + '4/bandpassx', data=nu)
-          f.create_dataset(band + '3/bandpass', data=B1)
-          f.create_dataset(band + '4/bandpass', data=B2)
+          f.create_dataset(band + '3/bandpass', data=B1/sum(B1))
+          f.create_dataset(band + '4/bandpass', data=B2/sum(B1))
           centFreq1 = trapz(nu*B1, nu)/trapz(B1, nu)
           centFreq2 = trapz(nu*B2, nu)/trapz(B2, nu)
           print(centFreq1, centFreq2, band)
@@ -199,7 +199,7 @@ def create_rimo(fname, rot=0):
           bp = np.array(totals[i])
           nu, B = np.mean(bp, axis=0)
           f.create_dataset(labels[i] + '/bandpassx', data=nu)
-          f.create_dataset(labels[i] + '/bandpass', data=B)
+          f.create_dataset(labels[i] + '/bandpass', data=B/sum(B))
   
       # FWHMs
       ## From radial beam profiles
@@ -511,7 +511,7 @@ def create_rimo(fname, rot=0):
      
 
 if __name__ == '__main__':
-    #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
-    fname_out = 'test.h5'
+    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
+    #fname_out = 'test.h5'
     #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
     create_rimo(fname_out)
