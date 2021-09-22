@@ -271,7 +271,7 @@ contains
                 end if
              end do
              close(58)
-             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             !write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)
@@ -296,7 +296,7 @@ contains
             end if
          end do
          mu = mu / denom
-         write(*,*) 'g = ', mu
+         !write(*,*) 'g = ', mu
          where(g(:,j,2) > 0.d0) 
             g(:,j,1) = g(:,j,1) - mu * g(:,j,2)
          end where
@@ -363,7 +363,7 @@ contains
     end do
     if (count(g_over_s > 0) > 0) then
        var = var/count(g_over_s > 0)
-       write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
+       !write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
        g2 = g2 / var
        g1 = g1 / var
     end if
@@ -384,7 +384,7 @@ contains
        end if
     end do
     sigma0 = 1/sqrt(minvar)
-    write(*,*) ' New sigma0 = ', sigma0
+    !write(*,*) ' New sigma0 = ', sigma0
 !!$    where (g2 > 0) 
 !!$       g2 = 1.d0/(1.d0/g2 - 0.9d0/minvar)  ! Note that g(:,:,2) is the inverse variance
 !!$    end where
@@ -837,7 +837,7 @@ contains
          end do
       end if
 
-      write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
+      !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 1, n
          precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn))
          !precond(i) = 1.d0/inv_N_wn(i)
