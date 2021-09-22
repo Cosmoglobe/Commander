@@ -169,7 +169,7 @@ contains
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
       constructor%correct_sl      = .false.
-      constructor%orb_4pi_beam    = .false.
+      constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
