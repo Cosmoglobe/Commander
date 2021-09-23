@@ -390,7 +390,7 @@ contains
       ! Thinking about a test where I don't sample the parameters and just do
       ! the mapmaking for several iterations, maybe looping over the
       ! polarization angles in the sidelobe corrections.
-      call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
+      !call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang)
@@ -443,6 +443,12 @@ contains
          ! Sample correlated noise
          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
            & sd%pix(:,1,:), dospike=.false.)
+
+         ! Explicitly set baseline to mean of correlated noise
+         do j = 1, self%ndet
+           self%scans(i)%d(j)%baseline = sum(sd%n_corr(:,j))/size(sd%n_corr(:,j))
+         end do
+
 
          ! Compute noise spectrum parameters
          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
