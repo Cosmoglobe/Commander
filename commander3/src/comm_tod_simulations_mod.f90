@@ -477,10 +477,9 @@ contains
 
   ! ************************************************
   !
-  !> @brief Modified version of procedure, originally
-  !!        written by Plamen Krastev 
-  !!        (plamenkrastev@fas.harvard.edu), to calculate 
-  !!        the loop range for each processor
+  !> @brief Modified version of routine taken from here:
+  !!  https://rc.fas.harvard.edu/wp-content/uploads/2013/03/MPI_Plamen_Krastev.pdf
+  !!  to calculate the loop range for each processor
   !
   !> @param[in]
   !> @param[out]
