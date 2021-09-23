@@ -706,8 +706,6 @@ contains
         
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
-          ! Return the data to its raw state
-          sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
           !if (i == 1 .and. j==1) write(*,*) 'i,j,before',tod%scans(i)%d(j)%baseline
 
           call tod%downsample_tod(sd%mask(:,j), ext, mask_lowres(:,j), threshold=0.9)
