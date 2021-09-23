@@ -446,7 +446,7 @@ contains
 
          ! Explicitly set baseline to mean of correlated noise
          do j = 1, self%ndet
-           self%scans(i)%d(j)%baseline = sum(sd%n_corr(:,j))/size(sd%n_corr(:,j))
+           self%scans(i)%d(j)%baseline = sum(sd%n_corr(:,j))/sd%ntod
          end do
 
 
