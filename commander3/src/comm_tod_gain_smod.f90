@@ -214,7 +214,7 @@ contains
                 end if
              end do
              close(58)
-             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             !write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)
@@ -303,7 +303,7 @@ contains
     end do
     if (count(g_over_s > 0) > 0) then
        var = var/count(g_over_s > 0)
-       write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
+       !write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
        g2 = g2 / var
        g1 = g1 / var
     end if
