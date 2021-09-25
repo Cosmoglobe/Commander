@@ -83,9 +83,9 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_mod.f90 \
            comm_tod_mapmaking_mod.f90 \
            comm_tod_bandpass_mod.f90 \
-           comm_tod_gain_mod.f90 \
+           comm_tod_gain_mod.f90 comm_tod_gain_smod.f90 \
            comm_tod_pointing_mod.f90 \
-           comm_tod_lfi_mod.f90 \
+           comm_tod_lfi_mod.f90 comm_tod_lfi_smod.f90 \
            comm_tod_jump_mod.f90 \
            comm_tod_spider_mod.f90 \
            comm_tod_orbdipole_mod.f90 \
@@ -106,12 +106,20 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_adc_mod.f90 \
            commander.f90
 
+all: commander
+
+#MODDIR := .mod
+#ifneq ($(MODDIR),)
+#  $(shell test -d $(MODDIR) || mkdir -p $(MODDIR))
+#  F90COMP+= -module $(MODDIR)
+#endif
+
 commander: $(subst .f,.o,$(FSOURCES)) $(subst .f90,.o,$(F90SOURCES))
 	$(MPF90) -o commander $+ $(LINK) $(MPFCLIBS)
 
 .PHONY: clean
 clean:
-	-rm -f *.o *.mod *.smod commander
+	-rm -f *.o commander *.{mod,smod}
 
 %.o %.mod %.smod: %.f90 
 	$(MPF90) $(F90COMP) -c $<
@@ -141,6 +149,8 @@ comm_tod_mapmaking_mod.o:  comm_tod_mod.mod
 comm_tod_bandpass_mod.o:   comm_tod_mod.mod
 comm_tod_noise_mod.o:      comm_tod_mod.mod comm_tod_jump_mod.mod invsamp_mod.mod
 comm_tod_gain_mod.o:       comm_tod_mod.mod comm_tod_noise_mod.mod
+comm_tod_gain_smod.o:      comm_tod_gain_mod.mod
+comm_tod_gain_smod.o:      comm_tod_gain_mod.smod 
 comm_tod_orbdipole_mod.o:  comm_map_mod.mod comm_utils.mod
 comm_tod_pointing_mod.o:   comm_tod_mod.mod
 comm_utils.o :             comm_defs.mod spline_1d_mod.mod
@@ -160,7 +170,7 @@ comm_cl_mod.o :            comm_map_mod.mod
 comm_camb_mod.o :          comm_utils.mod 
 comm_diffuse_comp_mod.o :  comm_comp_mod.mod comm_data_mod.mod comm_f_int_mod.mod comm_cl_mod.mod \
                            comm_cr_precond_mod.mod comm_beam_mod.mod
-comm_diffuse_comp_smod.o : comm_diffuse_comp_mod.mod 
+comm_diffuse_comp_smod.o : comm_diffuse_comp_mod.mod
 comm_diffuse_comp_smod.o : comm_diffuse_comp_mod.smod
 comm_template_comp_mod.o : comm_comp_mod.mod
 comm_ptsrc_comp_mod.o :    comm_template_comp_mod.mod comm_f_int_0d_mod.mod comm_f_int_2d_mod.mod \
@@ -212,6 +222,8 @@ comm_tod_driver_mod.o :    comm_tod_mod.mod comm_zodi_mod.mod \
                            comm_tod_simulations_mod.mod comm_shared_arr_mod.mod 
 comm_tod_lfi_mod.o :       comm_tod_driver_mod.mod comm_shared_arr_mod.mod \
                            comm_conviqt_mod.mod comm_4d_map_mod.mod comm_tod_adc_mod.mod 
+comm_tod_lfi_smod.o :      comm_tod_lfi_mod.mod
+comm_tod_lfi_smod.o :      comm_tod_lfi_mod.smod
 comm_tod_spider_mod.o :    comm_tod_mod.mod comm_shared_arr_mod.mod comm_conviqt_mod.mod comm_4d_map_mod.mod comm_zodi_mod.mod \
                            comm_tod_mapmaking_mod.mod comm_tod_bandpass_mod.mod comm_tod_pointing_mod.mod comm_tod_orbdipole_mod.mod comm_tod_gain_mod.mod comm_tod_noise_mod.mod \
                            comm_tod_jump_mod.mod 
