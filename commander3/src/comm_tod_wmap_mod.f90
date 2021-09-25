@@ -125,12 +125,12 @@ contains
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]   
-         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
          constructor%xi_n_nu_fit     = [0.0, 0.200]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
@@ -168,7 +168,7 @@ contains
       constructor%ndiode          = 1
       constructor%n_xi            = 3
       constructor%compressed_tod  = .true.
-      constructor%correct_sl      = .false.
+      constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 400.d0 ! 9.d0
