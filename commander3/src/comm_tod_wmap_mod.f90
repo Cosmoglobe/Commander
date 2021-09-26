@@ -116,43 +116,43 @@ contains
      ! 46.5 mHz. 
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit     = [0.0, 0.015]    
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit     = [0.0, 0.01]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
+         constructor%xi_n_nu_fit     = [0.0, 0.01]    
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]   
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
+         constructor%xi_n_nu_fit     = [0.0, 0.01]   
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit     = [0.0, 0.03]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit     = [0.0, 0.03] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         constructor%xi_n_nu_fit     = [0.0, 0.03]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         constructor%xi_n_nu_fit     = [0.0, 0.15]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit     = [0.0, 0.15] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit     = [0.0, 0.15]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else
@@ -538,18 +538,18 @@ contains
       else
         allocate (bicg_sol(0:npix-1, nmaps,   self%output_n_maps))
       end if
-      allocate (m_buf(0:npix-1,nmaps))
-      call map_in(1,1)%p%bcast_fullsky_map(m_buf)
       bicg_sol = 0.0d0
+      !allocate (m_buf(0:npix-1,nmaps))
+      !call map_in(1,1)%p%bcast_fullsky_map(m_buf)
       !bicg_sol(:,:,1) = m_buf
-      deallocate(m_buf)
+      !deallocate(m_buf)
 
       epsil = 1d-6
       epsil(1)   = 1d-10
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      !if (mod(iter-1,10*self%output_aux_maps) == 0) then
+      if (mod(iter-1,10*self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '  Running BiCG'
@@ -564,7 +564,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      !end if
+      end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
