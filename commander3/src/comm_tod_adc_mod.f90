@@ -309,8 +309,11 @@ contains
     if (self%myid == 0)  write(*,*) 'Do reduction'
 
     call mpi_allreduce(mpi_in_place,self%rms_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
+    if (self%myid == 0) write(*,*) 'Done 1'
     call mpi_allreduce(mpi_in_place,self%rms2_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
+    if (self%myid == 0) write(*,*) 'Done 2'
     call mpi_allreduce(mpi_in_place,self%nval,self%nbins,MPI_INTEGER, MPI_SUM, self%comm, ierr)
+    if (self%myid == 0) write(*,*) 'Done 3'
     
     ! The rest should be light enough to do on a single core
     if (self%myid == 0) then
