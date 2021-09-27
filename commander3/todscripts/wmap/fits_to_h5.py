@@ -254,7 +254,6 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
         band_labels, band, psi_A, psi_B, pix_A, pix_B, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
 
-    comm_tod.init_file(freq, obsid, mode='w')
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
@@ -397,23 +396,8 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
             #deltaflag = np.insert(deltaflag, 0, flags[0])
 
 
-            if version != 'cal':
-              if compress:
-                huffTod = ['huffman', {'dictNum':2}]
-                compArr = [huffTod]
-                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
-                        todi, compArr)
-              else:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                        data=todi)
-            else:
-              if compress:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
-                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
-              else:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
-                        data=todi)
             if label[-2:] == '13':
+                comm_tod.init_file(label.replace('KA', 'Ka')[:-2], obsid, mode='w')
                 if compress:
                     huffman = ['huffman', {'dictNum':1}]
                     compArr = [huffman]
@@ -444,13 +428,33 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
                             data=psiA)
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
                             data=psiB)
+            if version != 'cal':
+              if compress:
+                huffTod = ['huffman', {'dictNum':2}]
+                compArr = [huffTod]
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                        todi, compArr)
+              else:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                        data=todi)
+            else:
+              if compress:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+              else:
+                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                        data=todi)
             # Link to the pointing and flag information
-            #f[obsid + '/' + label.replace('KA','Ka') + '/flag'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag')
-            #
-            #f[obsid + '/' + label.replace('KA','Ka') + '/pixA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixA')
-            #f[obsid + '/' + label.replace('KA','Ka') + '/pixB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixB')
-            #f[obsid + '/' + label.replace('KA','Ka') + '/psiA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiA')
-            #f[obsid + '/' + label.replace('KA','Ka') + '/psiB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiB')
+            comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                        '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag')
+            comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/pixA',
+                        '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixA')
+            comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/pixB',
+                        '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixB')
+            comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/psiA',
+                        '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiA')
+            comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/psiB',
+                        '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiB')
 
 
 
@@ -460,24 +464,17 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
                 data=scalars)
             comm_tod.add_attribute(obsid + '/' + label.replace('KA', 'Ka') + '/scalars',
                 'index','gain, sigma0, fknee, alpha')
+
             comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/baseline',
-                    data=np.array([baseline]))
+                    data=baseline)
             comm_tod.add_attribute(obsid + '/' + label.replace('KA','Ka') + '/baseline', 
-                'baseline')
+                'index', 'baseline')
             # filler 
-            comm_tod.add_field(obsid +'/'+label.replace('KA', 'Ka') + '/outP', data=outAng)
+            comm_tod.add_field(obsid +'/'+label.replace('KA', 'Ka') + '/outP',
+                data=np.array([0,0]))
 
 
 
-    if compress:
-        f.create_dataset(obsid + '/common/hufftree', data=huffarray)
-        f.create_dataset(obsid + '/common/huffsymb', data=h.symbols)
-
-        f.create_dataset(obsid + '/common/hufftree2', data=huffarray_Tod)
-        f.create_dataset(obsid + '/common/huffsymb2', data=h_Tod.symbols)
-    
-    f.create_dataset(obsid + '/common/satpos',
-            data=np.array_split(pos,n_per_day)[i][0])
 
     #satelite position
     comm_tod.add_field(obsid +  '/common/satpos',  np.array_split(pos,n_per_day)[i][0])
@@ -503,21 +500,19 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
     comm_tod.add_field(obsid + '/common/ntod',
             data=[len(np.array_split(TOD,n_per_day)[i])])
 
-    if j == 0:
-        comm_tod.add_field('/common/det', data=np.string_(', '.join(det_list)))
-        comm_tod.add_field('/common/fsamp', fsamp)
-        comm_tod.add_field('/common/nside', [nside])
-        f.create_dataset('/common/datatype', data='WMAP')
+    comm_tod.add_field('/common/det', data=np.string_(', '.join(det_list)))
+    comm_tod.add_field('/common/fsamp', fsamp)
+    comm_tod.add_field('/common/nside', [nside])
 
-        # fillers
+    # fillers
 
-        comm_tod.add_field(prefix + '/polang', np.array([0,0,0,0]))
-        comm_tod.add_attribute(prefix + '/polang', 'index', ', '.join(det_list))
+    comm_tod.add_field('/common/polang', np.array([0,0,0,0]))
+    comm_tod.add_attribute('/common/polang', 'index', ', '.join(det_list))
 
-        comm_tod.add_field(prefix + '/mbang', polangs)
-        comm_tod.add_attribute(prefix + '/mbang', 'index', ', '.join(det_list))
+    comm_tod.add_field('/common/mbang', np.array([0,0,0,0]))
+    comm_tod.add_attribute('/common/mbang', 'index', ', '.join(det_list))
 
-    comm_tod.finalize_chunk(obsid, loadBalance=outAng)
+    comm_tod.finalize_chunk(int(obsid), loadBalance=np.array([0,0]))
     comm_tod.finalize_file()
 
     return
@@ -1071,7 +1066,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
     if par:
         #nprocs = 128
-        nprocs = 24
+        nprocs = 48
         os.environ['OMP_NUM_THREADS'] = '1'
 
         manager = mp.Manager()
@@ -1079,7 +1074,8 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
                  'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
                  'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
                  'W4':manager.dict(),}
-        comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts)
+        comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
+            overwrite=True)
 
         pool = Pool(processes=nprocs)
         print('pool set up')
