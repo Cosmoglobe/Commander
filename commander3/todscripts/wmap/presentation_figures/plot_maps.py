@@ -11,8 +11,8 @@ wmap_V2 = hp.read_map('/mn/stornext/d16/cmbco/ola/wmap/freq_maps/wmap_iqusmap_r9
     field=(0,1,2))
 
 
-comm_K = hp.read_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/tod_023-WMAP_K_map_c0001_k000042.fits', field=(0,1,2))
-comm_K = hp.read_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/tod_023-WMAP_K_map_c0001_k000008.fits', field=(0,1,2))
+#comm_K = hp.read_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/tod_023-WMAP_K_map_c0001_k000042.fits', field=(0,1,2))
+comm_K = hp.read_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/tod_023-WMAP_K_map_c0001_k000088.fits', field=(0,1,2))
 comm_V2 = hp.read_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_all/tod_060-WMAP_V2_map_c0001_k000042.fits', field=(0,1,2))
 
 cmap = col.ListedColormap(np.loadtxt('/mn/stornext/u3/duncanwa/c3pp/src/planck_cmap.dat')
