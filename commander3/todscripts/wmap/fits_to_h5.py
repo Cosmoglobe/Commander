@@ -19,6 +19,9 @@
 #
 #================================================================================
 
+import sys
+sys.path.append('/mn/stornext/u3/duncanwa/Commander/commander3/python/')
+from commander_tools.tod_tools import commander_tod
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -246,92 +249,94 @@ def test_flags(band=0):
 
     return
 
-def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
+def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, alpha, n_per_day,
         ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
+
+    comm_tod.init_file(freq, obsid, mode='w')
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
     det_list = []
     # make huffman code tables
     # Pixel, Psi, Flag
-    pixArray = [[], [], []]
-    todArray = []
-    for j in range(len(band_labels)):
-        label = band_labels[j]
-        if label[:-2] == band.upper():
-            TOD = TODs[j]
-            gain = gain_guesses[j][i]
-            if gain < 0:
-              TOD = -TOD
-              gain = -gain
-                    
-            todi = np.array_split(TOD, n_per_day)[i].astype('int')
-            sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-            scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
+    #pixArray = [[], [], []]
+    #todArray = []
+    #for j in range(len(band_labels)):
+    #    label = band_labels[j]
+    #    if label[:-2] == band.upper():
+    #        TOD = TODs[j]
+    #        gain = gain_guesses[j][i]
+    #        if gain < 0:
+    #          TOD = -TOD
+    #          gain = -gain
+    #                
+    #        todi = np.array_split(TOD, n_per_day)[i].astype('int')
+    #        sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
+    #        scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
 
-            delta = np.diff(todi)
-            delta = np.insert(delta, 0, todi[0])
-            todArray.append(delta)
-
-
-            pix = np.array_split(pix_A[j//4], n_per_day)[i]
-            delta = np.diff(pix)
-            delta = np.insert(delta, 0, pix[0])
-            pixArray[0].append(delta)
-
-            pix = np.array_split(pix_B[j//4], n_per_day)[i]
-            delta = np.diff(pix)
-            delta = np.insert(delta, 0, pix[0])
-            pixArray[0].append(delta)
+    #        delta = np.diff(todi)
+    #        delta = np.insert(delta, 0, todi[0])
+    #        todArray.append(delta)
 
 
-            psi = np.array_split(psi_A[j//4], n_per_day)[i]
-            psi = np.where(psi < 0,         2*np.pi + psi,  psi)
-            psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
-            psiIndexes = np.digitize(psi, psiBins)
-            delta = np.diff(psiIndexes)
-            delta = np.insert(delta, 0, psiIndexes[0])
-            pixArray[1].append(delta)
+    #        pix = np.array_split(pix_A[j//4], n_per_day)[i]
+    #        delta = np.diff(pix)
+    #        delta = np.insert(delta, 0, pix[0])
+    #        pixArray[0].append(delta)
 
-            psi = np.array_split(psi_B[j//4], n_per_day)[i]
-            psi = np.where(psi < 0,         2*np.pi + psi,  psi)
-            psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
-            psiIndexes = np.digitize(psi, psiBins)
-            delta = np.diff(psiIndexes)
-            delta = np.insert(delta, 0, psiIndexes[0])
-            pixArray[1].append(delta)
+    #        pix = np.array_split(pix_B[j//4], n_per_day)[i]
+    #        delta = np.diff(pix)
+    #        delta = np.insert(delta, 0, pix[0])
+    #        pixArray[0].append(delta)
 
 
-            N = Nobs_array[j//4]
-            flags = daflags[:,j//4]
-            flags_new = np.zeros(len(flags)*N)
-            for n in range(N):
-              if len(flags_new[n::N]) == len(flags):
-                flags_new[n::N] = flags
-              else:
-                flags_new[n::N] = flags[:len(flags_new[n::N])-len(flags)]
-            flags = np.array_split(flags_new, n_per_day)[i]
-            delta = np.diff(flags)
-            delta = np.insert(delta, 0, flags[0])
-            # just necessary to make the array have the correct shape. Redundant
-            # info.
-            pixArray[2].append(delta)
-            pixArray[2].append(delta)
+    #        psi = np.array_split(psi_A[j//4], n_per_day)[i]
+    #        psi = np.where(psi < 0,         2*np.pi + psi,  psi)
+    #        psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
+    #        psiIndexes = np.digitize(psi, psiBins)
+    #        delta = np.diff(psiIndexes)
+    #        delta = np.insert(delta, 0, psiIndexes[0])
+    #        pixArray[1].append(delta)
+
+    #        psi = np.array_split(psi_B[j//4], n_per_day)[i]
+    #        psi = np.where(psi < 0,         2*np.pi + psi,  psi)
+    #        psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
+    #        psiIndexes = np.digitize(psi, psiBins)
+    #        delta = np.diff(psiIndexes)
+    #        delta = np.insert(delta, 0, psiIndexes[0])
+    #        pixArray[1].append(delta)
 
 
-    if compress:
-      h = huffman.Huffman("", nside)
-      h.GenerateCode(pixArray)
-      h_Tod = huffman.Huffman("", nside)
-      h_Tod.GenerateCode(todArray)
+    #        N = Nobs_array[j//4]
+    #        flags = daflags[:,j//4]
+    #        flags_new = np.zeros(len(flags)*N)
+    #        for n in range(N):
+    #          if len(flags_new[n::N]) == len(flags):
+    #            flags_new[n::N] = flags
+    #          else:
+    #            flags_new[n::N] = flags[:len(flags_new[n::N])-len(flags)]
+    #        flags = np.array_split(flags_new, n_per_day)[i]
+    #        delta = np.diff(flags)
+    #        delta = np.insert(delta, 0, flags[0])
+    #        # just necessary to make the array have the correct shape. Redundant
+    #        # info.
+    #        pixArray[2].append(delta)
+    #        pixArray[2].append(delta)
 
-      huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
-      huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
+
+    #if compress:
+    #  h = huffman.Huffman("", nside)
+    #  h.GenerateCode(pixArray)
+    #  h_Tod = huffman.Huffman("", nside)
+    #  h_Tod.GenerateCode(todArray)
+
+    #  huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
+    #  huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
 
 
-    f = h5py.File(file_out, 'a')
+    #f = h5py.File(file_out, 'a')
     for j in range(len(band_labels)):
         label = band_labels[j]
         if label[:-2] == band.upper():
@@ -354,28 +359,28 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                 baseline = np.median(todi)
 
             pixA = np.array_split(pix_A[j//4], n_per_day)[i]
-            deltapixA = np.diff(pixA)
-            deltapixA = np.insert(deltapixA, 0, pixA[0])
+            #deltapixA = np.diff(pixA)
+            #deltapixA = np.insert(deltapixA, 0, pixA[0])
 
 
             pixB = np.array_split(pix_B[j//4], n_per_day)[i]
-            deltapixB = np.diff(pixB)
-            deltapixB = np.insert(deltapixB, 0, pixB[0])
+            #deltapixB = np.diff(pixB)
+            #deltapixB = np.insert(deltapixB, 0, pixB[0])
 
 
             psiA = np.array_split(psi_A[j//4], n_per_day)[i]
             psiA = np.where(psiA < 0,           2*np.pi+psiA,   psiA)
             psiA = np.where(psiA >= 2*np.pi,    psiA - 2*np.pi, psiA)
-            psiIndexesA = np.digitize(psiA, psiBins)
-            deltapsiA = np.diff(psiIndexesA)
-            deltapsiA = np.insert(deltapsiA, 0, psiIndexesA[0])
+            #psiIndexesA = np.digitize(psiA, psiBins)
+            #deltapsiA = np.diff(psiIndexesA)
+            #deltapsiA = np.insert(deltapsiA, 0, psiIndexesA[0])
 
             psiB = np.array_split(psi_B[j//4], n_per_day)[i]
             psiB = np.where(psiB < 0,           2*np.pi+psiB,   psiB)
             psiB = np.where(psiB >= 2*np.pi,    psiB - 2*np.pi, psiB)
-            psiIndexesB = np.digitize(psiB, psiBins)
-            deltapsiB = np.diff(psiIndexesB)
-            deltapsiB = np.insert(deltapsiB, 0, psiIndexesB[0])
+            #psiIndexesB = np.digitize(psiB, psiBins)
+            #deltapsiB = np.diff(psiIndexesB)
+            #deltapsiB = np.insert(deltapsiB, 0, psiIndexesB[0])
 
             N = Nobs_array[j//4]
             flags = daflags[:,j//4]
@@ -388,14 +393,16 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
             flags = np.array_split(flags_new, n_per_day)[i]
 
 
-            deltaflag = np.diff(flags)
-            deltaflag = np.insert(deltaflag, 0, flags[0])
+            #deltaflag = np.diff(flags)
+            #deltaflag = np.insert(deltaflag, 0, flags[0])
 
 
             if version != 'cal':
               if compress:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
-                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+                huffTod = ['huffman', {'dictNum':2}]
+                compArr = [huffTod]
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                        todi, compArr)
               else:
                 f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                         data=todi)
@@ -408,18 +415,22 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                         data=todi)
             if label[-2:] == '13':
                 if compress:
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
-                            data=np.void(bytes(h.byteCode(deltaflag))))
+                    huffman = ['huffman', {'dictNum':1}]
+                    compArr = [huffman]
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag', 
+                             flags, compArr)
                     
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
-                            data=np.void(bytes(h.byteCode(deltapixA))))
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
-                            data=np.void(bytes(h.byteCode(deltapixB))))
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
+                            pixA, compArr)
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
+                            pixB, compArr)
 
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
-                            data=np.void(bytes(h.byteCode(deltapsiA))))
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
-                            data=np.void(bytes(h.byteCode(deltapsiB))))
+                    psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi}]
+                    compArray = [psiDigitize, huffman]
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
+                            psiA, compArray)
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
+                            psiB, compArray)
                 else:
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
                             data=flags)
@@ -434,26 +445,27 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
                     f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
                             data=psiB)
             # Link to the pointing and flag information
-            f[obsid + '/' + label.replace('KA','Ka') + '/flag'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag')
-            
-            f[obsid + '/' + label.replace('KA','Ka') + '/pixA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixA')
-            f[obsid + '/' + label.replace('KA','Ka') + '/pixB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixB')
-            f[obsid + '/' + label.replace('KA','Ka') + '/psiA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiA')
-            f[obsid + '/' + label.replace('KA','Ka') + '/psiB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiB')
+            #f[obsid + '/' + label.replace('KA','Ka') + '/flag'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag')
+            #
+            #f[obsid + '/' + label.replace('KA','Ka') + '/pixA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixA')
+            #f[obsid + '/' + label.replace('KA','Ka') + '/pixB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixB')
+            #f[obsid + '/' + label.replace('KA','Ka') + '/psiA'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiA')
+            #f[obsid + '/' + label.replace('KA','Ka') + '/psiB'] = h5py.SoftLink('/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiB')
 
 
 
             det_list.append(label.replace('KA','Ka'))
 
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/scalars',
-                    data=scalars)
-            f[obsid + '/' + label.replace('KA','Ka') + '/scalars'].attrs['legend'] = 'gain, sigma0, fknee, alpha'
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/baseline',
+            comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+'/scalars', 
+                data=scalars)
+            comm_tod.add_attribute(obsid + '/' + label.replace('KA', 'Ka') + '/scalars',
+                'index','gain, sigma0, fknee, alpha')
+            comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/baseline',
                     data=np.array([baseline]))
-            f[obsid + '/' + label.replace('KA','Ka') + '/baseline'].attrs['legend'] = 'baseline'
+            comm_tod.add_attribute(obsid + '/' + label.replace('KA','Ka') + '/baseline', 
+                'baseline')
             # filler 
-            f.create_dataset(obsid + '/' + label.replace('KA','Ka') + '/outP',
-                    data=np.array([0,0]))
+            comm_tod.add_field(obsid +'/'+label.replace('KA', 'Ka') + '/outP', data=outAng)
 
 
 
@@ -466,35 +478,48 @@ def write_file_parallel(file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses
     
     f.create_dataset(obsid + '/common/satpos',
             data=np.array_split(pos,n_per_day)[i][0])
-    f[obsid + '/common/satpos'].attrs['info'] = '[x, y, z]'
-    f[obsid + '/common/satpos'].attrs['coords'] = 'galactic'
 
-    f.create_dataset(obsid + '/common/vsun',
-            data=np.array_split(vel,n_per_day)[i][0])
-    f[obsid + '/common/vsun'].attrs['info'] = '[x, y, z]'
-    f[obsid + '/common/vsun'].attrs['coords'] = 'galactic'
+    #satelite position
+    comm_tod.add_field(obsid +  '/common/satpos',  np.array_split(pos,n_per_day)[i][0])
+    comm_tod.add_attribute(obsid + '/common/satpos','index','X, Y, Z')
+    comm_tod.add_attribute(obsid + '/common/satpos','coords','heliocentric')
+
+
+    comm_tod.add_field(obsid + '/common/vsun', np.array_split(vel,n_per_day)[i][0])
+    comm_tod.add_attribute(obsid + '/common/vsun','index', '[x, y, z]')
+    comm_tod.add_attribute(obsid + '/common/vsun','coords','galactic')
+
+
+
+
 
     dt = dt0/len(TODs[0])
     time_band = np.arange(time.min(), time.min() + dt*len(TOD), dt)
-    f.create_dataset(obsid + '/common/time',
-            data=[np.array_split(time_band, n_per_day)[i][0],0,0])
-    f[obsid + '/common/time'].attrs['type'] = 'MJD, null, null'
 
-    f.create_dataset(obsid + '/common/ntod',
-            data=len(np.array_split(TOD,n_per_day)[i]))
+    #time field
+    comm_tod.add_field(obsid + '/common/time',[np.array_split(time_band, n_per_day)[i][0],0,0])
+    comm_tod.add_attribute(obsid + '/common/time','index','MJD, null, null')
 
-    if "/common/fsamp" not in f:
-        f.create_dataset('/common/fsamp', data=fsamp)
-        f.create_dataset('/common/nside', data=nside)
-        f.create_dataset('/common/npsi', data=npsi)
-        f.create_dataset('/common/det', data=np.string_(', '.join(det_list)))
+    comm_tod.add_field(obsid + '/common/ntod',
+            data=[len(np.array_split(TOD,n_per_day)[i])])
+
+    if j == 0:
+        comm_tod.add_field('/common/det', data=np.string_(', '.join(det_list)))
+        comm_tod.add_field('/common/fsamp', fsamp)
+        comm_tod.add_field('/common/nside', [nside])
         f.create_dataset('/common/datatype', data='WMAP')
+
         # fillers
-        f.create_dataset('/common/mbang', data=np.array([0,0,0,0]))
-        f.create_dataset('/common/ntodsigma', data=100)
-        f.create_dataset('/common/polang', data=np.array([0,0,0,0]))
-    with open(prefix + f'data/filelist_{band}_v{version}.txt', 'a') as file_list: 
-        file_list.write(f'{str(obs_ind).zfill(6)}\t"{file_out}"\t1\t0\t0\n')
+
+        comm_tod.add_field(prefix + '/polang', np.array([0,0,0,0]))
+        comm_tod.add_attribute(prefix + '/polang', 'index', ', '.join(det_list))
+
+        comm_tod.add_field(prefix + '/mbang', polangs)
+        comm_tod.add_attribute(prefix + '/mbang', 'index', ', '.join(det_list))
+
+    comm_tod.finalize_chunk(obsid, loadBalance=outAng)
+    comm_tod.finalize_file()
+
     return
 
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
@@ -805,7 +830,7 @@ def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
 #@profile(sort_by='cumulative', strip_dirs=True)
-def fits_to_h5(file_input, file_ind, compress, plot, version, center):
+def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
     prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
     file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
     if (os.path.exists(file_out) and file_ind != 1):
@@ -908,8 +933,8 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         vel = data[1].data['VELOCITY']*1e3
 
 
-        pos = coord_trans(pos, 'C', 'G', lonlat=False)
-        vel = coord_trans(vel, 'C', 'G', lonlat=False)
+        #pos = coord_trans(pos, 'C', 'G', lonlat=False)
+        #vel = coord_trans(vel, 'C', 'G', lonlat=False)
 
         time_aihk = data[1].data['TIME'] + t2jd
         time = data[2].data['TIME'] + t2jd - 24000000.5
@@ -1000,7 +1025,7 @@ def fits_to_h5(file_input, file_ind, compress, plot, version, center):
         #            band_labels, band, psi_A, psi_B, pix_A, pix_B, 
         #            alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
         #            fsamp*Nobs_array[ind], pos, vel, time, version, compress) for i in range(len(obs_inds))]
-        args = [(file_ind, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
+        args = [(comm_tod, file_ind, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
                 band_labels, band, psi_A_all, psi_B_all, pix_A_all, pix_B_all, 
                 alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
                 fsamp*Nobs_array[ind], pos_all, vel_all, time_all, version, compress) for i in range(len(obs_inds))]
@@ -1020,6 +1045,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     '''
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
     if (version == 'cal'):
         files = glob(prefix + 'calibrated/*.fits')
     else:
@@ -1042,24 +1068,34 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 
+
     if par:
-        nprocs = 128
-        #nprocs = 16
+        #nprocs = 128
+        nprocs = 24
         os.environ['OMP_NUM_THREADS'] = '1'
+
+        manager = mp.Manager()
+        dicts = {'K1':manager.dict(), 'Ka1':manager.dict(), 'Q1':manager.dict(),
+                 'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
+                 'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
+                 'W4':manager.dict(),}
+        comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts)
 
         pool = Pool(processes=nprocs)
         print('pool set up')
-        x = [pool.apply_async(fits_to_h5, args=[f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[comm_tod, f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
         for i in tqdm(range(len(x)), smoothing=0):
             x[i].get()
             #res.wait()
         pool.close()
         pool.join()
+
+        comm_tod.make_filelists()
     else:
         for i, f in zip(inds, files):
             fits_to_h5(f,i,compress, plot, version, center)
 
 
 if __name__ == '__main__':
-    main(version=44)
+    main(version=45)
     #test_flags()
