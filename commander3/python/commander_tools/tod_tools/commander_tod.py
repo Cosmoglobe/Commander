@@ -48,7 +48,11 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq).zfill(3) + '_' + str(od).zfill(6) + '.h5')
+        if self.name.lower() == 'planck':
+            sfreq = str(freq).zfill(3)
+        else:
+            sfreq = str(freq)
+        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):
@@ -196,6 +200,10 @@ class commander_tod:
         else:
             if self.encodings[encoding] != value:
                print('Warning: Inconsistant encoding value ' + encoding + ' is set to ' + str(self.encodings[encoding]) + ' but wants to be ' + str(value))
+
+
+    def add_softlink(self, linkName, dataName):
+        self.outFile[linkName] = h5py.SoftLink(dataName)
 
     def finalize_file(self):
 
