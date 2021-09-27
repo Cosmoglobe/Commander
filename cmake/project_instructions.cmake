@@ -63,7 +63,7 @@ list(APPEND projects
 	hdf5
 	doxygen
 	healpix
-	camb
+	#camb
 	commander3
 	)
 #==============================================================================

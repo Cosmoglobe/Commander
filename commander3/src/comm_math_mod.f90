@@ -124,3 +124,4 @@ contains
     deallocate(xarr,yarr,covarr)
 
   end function calc_corr_len
+

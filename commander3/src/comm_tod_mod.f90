@@ -169,6 +169,7 @@ module comm_tod_mod
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
      ! Gain parameters
+     real(dp)                                :: gain_samprate
      real(dp), allocatable, dimension(:)     :: gain_sigma_0  ! size(ndet), the estimated white noise level of that scan. Not truly a white noise since our model is sigma_0**2 * (f/fknee)**alpha instead of sigma_0 ** 2 (1 + f/fknee ** alpha)
      real(dp), allocatable, dimension(:)    :: gain_fknee ! size(ndet)
      real(dp), allocatable, dimension(:)    :: gain_alpha ! size(ndet)
@@ -332,7 +333,7 @@ contains
     self%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
     self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
 
-    if(self%level == 'L1') then
+    if (trim(self%level) == 'L1') then
 
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
@@ -394,9 +395,10 @@ contains
     ! To be initialized at first call
     allocate(self%gain_fknee(self%ndet))
     allocate(self%gain_alpha(self%ndet))
+    self%gain_samprate = 1.d0 / 3600.d0
     self%gain_sigma_0 = 3d-4
-    self%gain_fknee =  0.002d0 / (60.d0 * 60.d0) ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
-    self%gain_alpha =  -1.d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_fknee =  self%gain_samprate ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_alpha =  -2.5d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
     self%gain_sigma0_std = abs(self%gain_sigma_0(1) * 0.01)
     self%gain_fknee_std = abs(self%gain_fknee(1) * 0.01)
     self%gain_alpha_std = abs(self%gain_alpha(1) * 0.01)
@@ -1476,9 +1478,14 @@ contains
 !!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
 !!$         & self%comm, ierr)
 
-!!$    where (output(:,:,1)>0.)
-!!$       output(:,:,1) = 0.05
-!!$    end where
+       self%gain_alpha = -2.5d0
+
+!!$    do j = 1, self%ndet
+!!$       where (output(:,j,1)>0.)
+!!$          output(:,j,1) = 0.03d0 + j*0.01d0
+!!$          !output(:,j,1) = output(:,j,1)- 0.02d0 !+ j*0.01d0
+!!$       end where
+!!$    end do
 
     self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
     do j = 1, self%ndet
@@ -1491,6 +1498,7 @@ contains
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
           self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
+          !self%scans(i)%d(j)%N_psd%xi_n(1)        = self%scans(i)%d(j)%N_psd%xi_n(1) * 1d-2
           if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
           end if
@@ -1696,7 +1704,7 @@ contains
           do i = 1, ntod
              P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
                      & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                     & self%psi(psi(i,j))] ! [phi, theta, psi7]
+                     & self%psi(psi(i,j))] ! [phi, theta, psi]
           end do
        else
           v_ref = v_solar
@@ -2001,13 +2009,16 @@ contains
     n           = 0
     g           = self%scans(scan)%d(det)%gain
     b           = self%scans(scan)%d(det)%baseline
+!    if (det == 1) open(58,file='chisq.dat', recl=1024)
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
        d0    = tod(i) - (g * s_spur(i) + n_corr(i) + b)
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2
+!       if (det == 1) write(58,*) i, mask(i), tod(i), s_spur(i), n_corr(i), b, g*s_sky(i), d0 - g*s_sky(i), (d0 - g*s_sky(i))/self%scans(scan)%d(det)%N_psd%sigma0, chisq
     end do
+!    if (det == 1) close(58)
 
     if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then
        if (present(absbp)) then
@@ -2022,7 +2033,7 @@ contains
        else
           !write(*,*) 'nc',n
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
-          !write(*,*) 'chisq in routine:',scan, det, n, self%scans(scan)%d(det)%sigma0, self%scans(scan)%d(det)%chisq
+          !write(*,*) 'chisq in routine:',scan, det, n, self%scans(scan)%d(det)%N_psd%sigma0, chisq, self%scans(scan)%d(det)%chisq
        end if
     end if
     if (present(verbose)) then

@@ -312,7 +312,7 @@ contains
             & self%psi(:,1,:), self%flag(:,1))
     
     ! Prepare TOD
-    if (tod%ndiode == 1 .or. tod%level == 'L2') then
+    if (tod%ndiode == 1 .or. trim(tod%level) == 'L2') then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -716,7 +716,7 @@ contains
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-       !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
+    !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
