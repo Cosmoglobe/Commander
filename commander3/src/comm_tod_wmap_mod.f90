@@ -116,42 +116,55 @@ contains
      ! 46.5 mHz. 
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit     = [0.0, 0.015]    
+         ! We want this first term to only go a few past fknee; if not, you'll
+         ! be using a lot of "perfectly known" correlated noise that will bias
+         ! the fit.
+         ! fknee between 0.4 and 6.13 mHz
+         constructor%xi_n_nu_fit     = [0.0, 0.015]      ! limits of sum in equation (20) of Ihle et al.
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit     = [0.0, 0.01]    
+         ! fknee between 0.3 and 1.6 mHz
+         constructor%xi_n_nu_fit     = [0.0,    0.01]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.01]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
+         ! fknee between 0.3 and 3 mHz
+         constructor%xi_n_nu_fit     = [0.0,    0.015]    
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.015]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.01]   
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
+         ! fknee between 2 and 8 mHz
+         constructor%xi_n_nu_fit     = [0.0,    0.040]   
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.040]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.03]  
+         ! fknee between 0.1 and 5 mHz
+         constructor%xi_n_nu_fit     = [0.0,    0.01]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V2') then
+         ! fknee between 0.9 and 8 mHz
          constructor%xi_n_nu_fit     = [0.0, 0.03] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W1') then
+         ! fknee between 0.6 and 16 mHz
          constructor%xi_n_nu_fit     = [0.0, 0.03]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W2') then
+         ! fknee between 0.7 and 10 mHz
          constructor%xi_n_nu_fit     = [0.0, 0.15]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W3') then
+         ! fknee between 0.3 and 3 mHz
          constructor%xi_n_nu_fit     = [0.0, 0.15] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W4') then
+         ! fknee between 5 and 50 mHz
          constructor%xi_n_nu_fit     = [0.0, 0.15]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
@@ -171,7 +184,7 @@ contains
       constructor%correct_sl      = .false.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 400.d0 ! 9.d0
+      constructor%chisq_threshold = 50.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
@@ -326,7 +339,7 @@ contains
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      select_data           = .false.                ! only perform data selection the first time
+      select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
       ! Initialize local variables
@@ -549,7 +562,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      if (mod(iter-1,10*self%output_aux_maps) == 0) then
+      if (mod(iter,10*self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '  Running BiCG'

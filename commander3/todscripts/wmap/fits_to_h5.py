@@ -1065,8 +1065,8 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
     if par:
-        #nprocs = 128
-        nprocs = 48
+        nprocs = 128
+        #nprocs = 24
         os.environ['OMP_NUM_THREADS'] = '1'
 
         manager = mp.Manager()
