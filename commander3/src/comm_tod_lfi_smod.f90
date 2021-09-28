@@ -121,7 +121,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%sample_L1_par   = .false.
+    constructor%sample_L1_par   = .true.!.false.
     constructor%level           = cpar%ds_tod_level(id_abs)
     if(trim(constructor%level) == 'L1') then
       constructor%compressed_tod = .true.
