@@ -592,7 +592,11 @@ contains
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
          !stop
        end if
-       call read_hdf(file, "common/npsi",   self%npsi)
+       if (self%nhorn == 2) then
+         call read_hdf(file, "common/npsiA",   self%npsi)
+       else
+         call read_hdf(file, "common/npsi",   self%npsi)
+       end if
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
