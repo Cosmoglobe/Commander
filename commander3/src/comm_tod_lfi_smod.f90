@@ -133,7 +133,7 @@ contains
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .true.
     constructor%use_dpc_adc     = .true.
-    constructor%use_dpc_gain_modulation = .false.
+    constructor%use_dpc_gain_modulation = .true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 30.d0 !9.d0
     constructor%nmaps           = info%nmaps
@@ -183,13 +183,13 @@ contains
     call constructor%read_tod(constructor%label)
 
     ! Setting polarization angles to DPC post-analysis values
-    if (trim(constructor%freq) == '030') then
-       constructor%polang = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
-    else if (trim(constructor%freq) == '044') then
-       constructor%polang = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
-    else if (trim(constructor%freq) == '070') then
-       constructor%polang = -[ 0.543, 0.543,  1.366, 1.366,  -1.811, -1.811, -1.045, -1.045,  -2.152, -2.152,  -0.960, -0.960]*pi/180.
-    end if
+!!$    if (trim(constructor%freq) == '030') then
+!!$       constructor%polang = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
+!!$    else if (trim(constructor%freq) == '044') then
+!!$       constructor%polang = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
+!!$    else if (trim(constructor%freq) == '070') then
+!!$       constructor%polang = -[ 0.543, 0.543,  1.366, 1.366,  -1.811, -1.811, -1.045, -1.045,  -2.152, -2.152,  -0.960, -0.960]*pi/180.
+!!$    end if
 
     ! Initialize bandpass mean and proposal matrix
     call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))

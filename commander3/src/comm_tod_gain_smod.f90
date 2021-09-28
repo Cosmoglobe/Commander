@@ -724,8 +724,8 @@ contains
      nfft = nscan
      n = nfft / 2 + 1
      samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
-     allocate(freqs(n-1))
-     do i = 1, n - 1
+     allocate(freqs(0:n-1))
+     do i = 0, n - 1
         freqs(i) = i * (samprate * 0.5) / (n - 1)
      end do
 
@@ -739,12 +739,12 @@ contains
      ! for these anymore
      deallocate(dt, dv)
 
-     allocate(inv_N_corr(n))
+     allocate(inv_N_corr(0:n-1))
      allocate(fluctuations(nscan))
 !     allocate(temp(nscan))
-     allocate(precond(nscan))
+     allocate(precond(0:n-1))
      !allocate(precond(n))
-     allocate(fourier_fluctuations(n))
+     allocate(fourier_fluctuations(0:n-1))
 
      !write(*, *) 'Sigma_0: ', sigma_0
      !write(*, *) 'alpha: ', alpha
@@ -753,7 +753,7 @@ contains
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
      if (sample) then
         fourier_fluctuations = 0.d0
-        do i = 2, n
+        do i = 1, n-1
            fourier_fluctuations(i) = cmplx(rand_gauss(handle),rand_gauss(handle))/sqrt(2.d0) * sqrt(inv_N_corr(i))
         end do
         call fft_back(fourier_fluctuations, fluctuations, plan_back)
@@ -769,10 +769,12 @@ contains
       end if
 
       !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
-      do i = 1, n
+      do i = 0, n-1
          precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn))
+         !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
          !precond(i) = 1.d0/inv_N_wn(i)
       end do
+      !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
 
 !      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
 !      precond = 1.d0
@@ -804,9 +806,9 @@ contains
      !                  At exit will contain the Fourier domain vector.
 
      implicit none
-     real(dp),     dimension(:), intent(in)     :: dt
-     complex(dpc), dimension(:), intent(out)    :: dv
-     integer*8,                  intent(in)     :: plan_fwd
+     real(dp),     dimension(1:), intent(in)     :: dt
+     complex(dpc), dimension(0:), intent(out)    :: dv
+     integer*8,                   intent(in)     :: plan_fwd
 
      call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
      dv = dv/sqrt(real(size(dt),dp))
@@ -814,7 +816,7 @@ contains
 
    end subroutine fft_fwd
 
-  module subroutine fft_back(dv, dt, plan_back, norm)
+  module subroutine fft_back(dv, dt, plan_back)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
@@ -832,10 +834,9 @@ contains
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(:), intent(in)     :: dv
-     real(dp),     dimension(:), intent(out)    :: dt
-     integer*8,                  intent(in)     :: plan_back
-     character(len=*),           intent(in), optional :: norm
+     complex(dpc), dimension(0:), intent(in)     :: dv
+     real(dp),     dimension(1:), intent(out)    :: dt
+     integer*8,                   intent(in)     :: plan_back
 
      call dfftw_execute_dft_c2r(plan_back, dv, dt)
      dt = dt/sqrt(real(size(dt),dp))
@@ -868,8 +869,9 @@ contains
      ! solve_cg_gain real(dp) array
      !               The solution to the Wiener filter equation.
      implicit none
-     real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b, precond
-     integer*8             , intent(in) :: plan_fwd, plan_back
+     real(dp), dimension(1:), intent(in) :: inv_N_wn, b
+     real(dp), dimension(0:), intent(in) :: inv_N_corr, precond
+     integer*8             ,  intent(in) :: plan_fwd, plan_back
      real(dp), dimension(size(b))       :: solve_cg_gain
 !     logical(lgt)                       :: with_precond
 
@@ -1000,8 +1002,9 @@ contains
 
   module subroutine apply_cg_precond(vec_in, vec_out, precond, plan_fwd, plan_back)
     implicit none
-    real(dp), dimension(:), intent(in)  :: vec_in, precond
-    real(dp), dimension(:), intent(out) :: vec_out
+    real(dp), dimension(1:), intent(in)  :: vec_in
+    real(dp), dimension(0:), intent(in)  :: precond
+    real(dp), dimension(1:), intent(out) :: vec_out
     integer*8             , intent(in)  :: plan_fwd, plan_back    
 
     integer(i4b) :: i
@@ -1043,17 +1046,17 @@ contains
      !                          matrices by the input vector.
      implicit none
 
-     real(dp), dimension(:)                            :: vector
+     real(dp), dimension(1:)                            :: vector
      real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
-     real(dp), dimension(:) , intent(in)     :: fourier_mat
+     real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
      logical(lgt)           , optional       :: filewrite
 
      logical(lgt)       :: write_file
      integer(i4b)       :: i
      real(dp), dimension(size(vector))       :: temp_vector
-     complex(dpc), dimension(size(fourier_mat))        :: fourier_vector
+     complex(dpc), dimension(0:size(fourier_mat)-1)        :: fourier_vector
 
      write_file = .false.
      if (present(filewrite)) then
@@ -1091,7 +1094,7 @@ contains
 !      end if
 
 
-     call fft_back(fourier_vector, temp_vector, plan_back, norm='transpose')
+     call fft_back(fourier_vector, temp_vector, plan_back)
      !call fft_back(fourier_vector, temp_vector, plan_back, norm='transpose')
 !     if (write_file) then
 !         open(58, file='gain_cg_vector_after_fourier.dat')
@@ -1144,18 +1147,18 @@ contains
      !                      the frequencies given by 'freqs'.
 
      implicit none
-     real(dp), dimension(:), intent(in)     :: freqs
+     real(dp), dimension(0:), intent(in)     :: freqs
      real(dp), intent(in)                   :: sigma_0, fknee, alpha
-     real(dp), dimension(:), intent(out)    :: invcov
+     real(dp), dimension(0:), intent(out)    :: invcov
 
      integer(i4b) :: i
      real(dp) :: apod
 
-     invcov(1) = 1d12 !0.d0
-     do i = 2, size(freqs)+1
-        apod = (1 + freqs(i-1)/freqs(150))**5
+     invcov(0) = 1d12 !0.d0
+     do i = 1, size(freqs)-1
+        apod = (1 + freqs(i)/freqs(150))**5
 !        if (freqs(i) < freqs(100)) then
-           invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i-1)/fknee) ** alpha)) * apod, 1d12)
+           invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
 !        else
 !           invcov(i) = 1.d12
 !        end if
@@ -1266,12 +1269,12 @@ contains
     ! for these anymore
     deallocate(dt, dv)
 
-    allocate(freqs(n-1))
-    do i = 1, n - 1
+    allocate(freqs(0:n-1))
+    do i = 0, n - 1
        freqs(i) = i * (samprate * 0.5) / (n - 1)
     end do
     allocate(currgain(nscan_tot))
-    allocate(gain_ps(n), gain_fourier(n))
+    allocate(gain_ps(0:n-1), gain_fourier(0:n-1))
     do j = 1 + tod%myid, tod%ndet, tod%numprocs
 !      currgain = 0.d0
 !      do i = 1, tod%nscan
@@ -1334,8 +1337,8 @@ contains
     ! by the current gain power spectrum.
     implicit none
 
-    real(dp), dimension(:), intent(in)      :: gain_ps
-    real(dp), dimension(:), intent(in)      :: freqs
+    real(dp), dimension(0:), intent(in)      :: gain_ps
+    real(dp), dimension(0:), intent(in)      :: freqs
     real(dp), intent(inout)                 :: sigma_0, fknee, alpha
     real(dp), intent(in)                    :: sigma0_std, fknee_std, alpha_std
     type(planck_rng),                  intent(inout)  :: handle
@@ -1422,8 +1425,8 @@ contains
     real(dp), dimension(3, 3), intent(in)  :: propcov
     integer(i4b), intent(in)       :: num_samples
     real(dp), dimension(:, :), intent(out) :: samples
-    real(dp), dimension(:),    intent(in)  :: freqs  
-    real(dp), dimension(:), intent(in)  :: gain_ps
+    real(dp), dimension(0:),    intent(in)  :: freqs  
+    real(dp), dimension(0:), intent(in)  :: gain_ps
     logical(lgt)          ,    intent(in)  :: adjust_scaling_full
     type(planck_rng),                  intent(inout)  :: handle
 
@@ -1511,7 +1514,7 @@ contains
 
      real(dp)        :: psd_loglike
      real(dp)        :: fknee, alpha, sigma_0
-     real(dp), dimension(:)  :: gain_ps, freqs
+     real(dp), dimension(0:)  :: gain_ps, freqs
 
      real(dp) :: lambda
      real(dp), dimension(size(gain_ps))  :: inv_N_corr
@@ -1523,7 +1526,7 @@ contains
      !lambda = 1e8
      call calculate_invcov(sigma_0, alpha, fknee, freqs, inv_N_corr)
      
-     psd_loglike = -sum(gain_ps(2:2000) * inv_N_corr(2:2000) - log(inv_N_corr(2:2000))) !- lambda*sigma_0
+     psd_loglike = -sum(gain_ps(1:2000) * inv_N_corr(1:2000) - log(inv_N_corr(1:2000))) !- lambda*sigma_0
      !write(*,*) sigma_0, sum(gain_ps(2:) * inv_N_corr(2:) - log(inv_N_corr(2:)))!,  lambda*sigma_0
 
   end function psd_loglike
