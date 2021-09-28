@@ -56,7 +56,7 @@ export F90FLAGS := -fpe0 -march=native -g -O2 -traceback -assume byterecl -qopen
 
 #debug
 #
-#export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -fpe0 -check noarg_temp_created
+#export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -fpe0 -check noarg_temp_created -ftrapuv
 
 
 #export F90FLAGS := -fpe0 -march=native -C -g -check noarg_temp_created -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -ftrapuv

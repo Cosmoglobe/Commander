@@ -248,7 +248,7 @@ interface
      integer*8,                  intent(in)     :: plan_fwd
    end subroutine fft_fwd
 
-  module subroutine fft_back(dv, dt, plan_back, norm)
+  module subroutine fft_back(dv, dt, plan_back)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
@@ -269,7 +269,6 @@ interface
      complex(dpc), dimension(:), intent(in)     :: dv
      real(dp),     dimension(:), intent(out)    :: dt
      integer*8,                  intent(in)     :: plan_back
-     character(len=*),           intent(in), optional :: norm
    end subroutine fft_back
 
   module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
