@@ -84,6 +84,7 @@ fknees *= 1e-3
 # version 42 uses the radius-based planet flag, changes zipped TOD to ztod
 # version 43 uses default flags, changes zipped TOD to ztod
 # version 44 changes todtree, todsymb to hufftree2, huffsymb2
+# version 45 uses commmander_tools package, and fixes sign flip of timestream to be constant over tod
 
 from time import sleep
 from time import time as timer
@@ -837,7 +838,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
     #       attempt at cal_map for Pass 1.  These are median values
     #       from the hourly calibration files.
     #
-    gain_guesses =np.array([ -0.9700,  0.9938,  1.1745, -1.1200, 
+    gain_guesses0=np.array([ -0.9700,  0.9938,  1.1745, -1.1200, 
                               0.8668, -0.8753, -1.0914,  1.0033, 
                               1.0530, -0.9834,  0.4914, -0.5365, 
                              -0.9882,  1.0173, -0.8135,  0.7896, 
@@ -901,7 +902,8 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
         for i in range(len(band_labels)):
             t_jd, gain = get_gain(data, band_labels[i])
             gain_split = np.array_split(gain, n_per_day)
-            gain_guesses.append([g.mean() for g in gain_split])
+            gain_guesses.append([gain_guesses0[i] for g in gain_split])
+            #gain_guesses.append([g.mean() for g in gain_split])
         gain_guesses = np.array(gain_guesses)
         if (version == 'cal'):
             gain_guesses = gain_guesses*0 + 1
