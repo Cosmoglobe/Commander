@@ -305,6 +305,8 @@ class commander_tod:
 
     #File Reading Functions
     def load_field(self, fieldName):
+        if(fieldName[0] != '/'): #catch common user error
+            fieldName = '/' + fieldName
         try:
             compStr = self.outFile[fieldName].attrs['compression']
         except KeyError:
