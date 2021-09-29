@@ -103,7 +103,7 @@ F90SOURCES=hashtbl.f90 \
 	   comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
            comm_camb_mod.f90 \
-           comm_tod_adc_mod.f90 \
+           comm_tod_adc_mod.f90 comm_tod_adc_smod.f90\
            commander.f90
 
 all: commander
@@ -232,8 +232,9 @@ comm_tod_wmap_mod.o :      comm_tod_mod.mod comm_shared_arr_mod.mod comm_conviqt
                            comm_tod_mapmaking_mod.mod comm_tod_bandpass_mod.mod comm_tod_pointing_mod.mod \
 			   comm_tod_orbdipole_mod.mod comm_tod_gain_mod.mod comm_tod_noise_mod.mod
 comm_tod_simulations_mod.o: comm_hdf_mod.mod comm_fft_mod.mod comm_shared_arr_mod.mod spline_1d_mod.mod comm_param_mod.mod comm_utils.mod
-comm_tod_adc_mod.o: spline_1d_mod.mod comm_tod_mod.mod
-
+comm_tod_adc_mod.o :       spline_1d_mod.mod comm_tod_mod.mod
+comm_tod_adc_smod.o :      comm_tod_adc_mod.mod
+comm_tod_adc_smod.o :      comm_tod_adc_mod.smod 
 
 commander.o :              comm_signal_mod.mod comm_data_mod.mod comm_cr_mod.mod comm_chisq_mod.mod \
                            comm_output_mod.mod comm_nonlin_mod.mod comm_tod_simulations_mod.mod
