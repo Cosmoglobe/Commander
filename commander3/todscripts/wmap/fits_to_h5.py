@@ -931,7 +931,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
 
 
         #pos = coord_trans(pos, 'C', 'G', lonlat=False)
-        #vel = coord_trans(vel, 'C', 'G', lonlat=False)
+        vel = coord_trans(vel, 'C', 'G', lonlat=False)
 
         time_aihk = data[1].data['TIME'] + t2jd
         time = data[2].data['TIME'] + t2jd - 24000000.5
