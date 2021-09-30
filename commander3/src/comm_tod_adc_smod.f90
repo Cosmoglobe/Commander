@@ -289,6 +289,7 @@ contains
        close(46)
        close(47)
 
+       write(*,*) 'Allocate'
        ! Allocate and intialize everything
        allocate(binmask(self%nbins))
        allocate(dummymask(self%nbins))
@@ -314,8 +315,8 @@ contains
 
        ! Remove the linear term from V vs RMS before indentifying the dips
        call return_linreg_dp(vbin_dp, rms_dp, binmask, slope_dp, offset_dp, trim=.true.)
-       lin_dp  = slope_dp*vbin_dp + offset_dp
-       flat_dp = rms_dp - lin_dp
+
+       flat_dp = rms_dp - slope_dp*vbin_dp + offset_dp
 
        ! Remove linear term 
        if (steamroll) then
@@ -325,6 +326,7 @@ contains
              model_dp(i) = -flat_dp(i)
           end do
        else
+          write(*,*) 'fit dips'
           diprange = 10
           ! Identify dip locations for the fitting search
           v_dips   = return_dips_dp(vbin_dp, flat_dp, binmask, diprange)
@@ -332,7 +334,7 @@ contains
           model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
        end if
 
-       lin_dp = slope_dp*vbin_dp + offset_dp
+       lin_dp  = slope_dp*vbin_dp + offset_dp
        flat_dp = rms_dp - lin_dp
 
        if (size(v_dips) < 1) then
@@ -373,6 +375,7 @@ contains
           self%adc_in(i)  = vbin_dp(i)
        end do
        
+       write(*,*) 'Write all of the adc info to files'
        ! Write to file binned rms, voltages, and response function to files
        open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
        open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
@@ -514,25 +517,21 @@ contains
 
     logical(lgt),      optional,   intent(in)    :: corr ! follow slightly different procedure if data is corrected
 
-    real(sp),          dimension(:), allocatable :: rt, dV, tod_trim
-    real(sp)                                     :: sum
+    real(sp),          dimension(:), allocatable :: dV, tod_trim
+    real(sp)                                     :: sum, binwidth
     integer(i4b)                                 :: leng, i, j, j_min, j_max
     
     leng = size(tod_in)
     
-    allocate(rt(leng-1))
+    binwidth = self%vbin_edges(2) - self%vbin_edges(1)
+
     allocate(dV(leng-1-self%window))
     allocate(tod_trim(leng-1-self%window))
     
     ! Trim the data according to account for windows - this is used for pointing to the correct bins 
     ! This ensures that tod_trim(i) corresponds to dV(i)
     tod_trim = tod_in(int(self%window/2):leng-1-int(self%window/2))
-    
-    ! Compute pair-wise difference
-    do i = 1, leng-1
-       rt(i) = tod_in(i+1)-tod_in(i)
-    end do
-       
+
     ! Compute the dV within a window around each rt sample (excluding the ends)
     do i = int(self%window/2)+1, leng-1-int(self%window/2)
        sum = 0.d0
@@ -540,7 +539,7 @@ contains
        j_max = min(i+int(self%window/2), leng-1)
        do j = j_min, j_max
           if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
-          sum = sum + rt(j)**2
+          sum = sum + (tod_in(j+1)-tod_in(j))**2!rt(j)**2
        end do
        dV(i-int(self%window/2)) = sqrt(sum/(j_max-j_min+1))
     end do
@@ -548,26 +547,20 @@ contains
     ! Bin the dV values as a function of input voltage, and take the mean
     if (present(corr)) then
        do i = 1, leng-1-self%window
-          do j = 1, self%nbins
-             if (tod_trim(i) .ge. self%vbin_edges(j) .and. tod_trim(i) .lt. self%vbin_edges(j+1)) then
-                self%nval2(j)     = self%nval2(j) + 1
-                self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
-             end if
-          end do
+          j = int((tod_trim(i)-self%vbin_edges(1))/binwidth) + 1
+          self%nval2(j)     = self%nval2(j) + 1
+          self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
        end do
     else
+       ! do i = int(self%window/2)+1, leng-1-int(self%window/2)
        do i = 1, leng-1-self%window
-          do j = 1, self%nbins
-             if (tod_trim(i) .ge. self%vbin_edges(j) .and. tod_trim(i) .lt. self%vbin_edges(j+1)) then
-                self%nval(j)      = self%nval(j) + 1
-                self%rms_bins(j)  = self%rms_bins(j)  + dV(i)
-                self%rms2_bins(j) = self%rms2_bins(j) + dV(i)**2
-             end if
-          end do
+          j = int((tod_trim(i)-self%vbin_edges(1))/binwidth) + 1
+          self%nval(j)      = self%nval(j) + 1
+          self%rms_bins(j)  = self%rms_bins(j)  + dV(i)
+          self%rms2_bins(j) = self%rms2_bins(j) + dV(i)**2
        end do
     end if
 
-    deallocate(rt)
     deallocate(dV)
     deallocate(tod_trim)
     
