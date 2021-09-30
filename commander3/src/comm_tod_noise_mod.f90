@@ -462,7 +462,7 @@ contains
 
     ! Sample non-linear spectral parameters
     do i = 1, ndet
-       if (.not. self%scans(scan)%d(i)%accept) cycle
+       if (.not. self%scans(scan)%d(i)%accept .or. ntod == 0) cycle
        currdet = i
 
        ! Commpute power spectrum

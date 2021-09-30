@@ -568,7 +568,10 @@ contains
     character(len=128), dimension(:), allocatable :: dets
 
     ! Read common fields
-    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
+    allocate(self%polang(self%ndet))
+    allocate(self%mbang(self%ndet))
+    allocate(self%mono(self%ndet))
+    allocate(self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")

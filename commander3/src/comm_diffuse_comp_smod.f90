@@ -409,7 +409,6 @@ contains
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
-
     ! A routine that initializes all parameters needed to perform spectral index sampling for the pixel based
     ! parameters, such as synchrotron beta,dust temperature ect. parameters not included are CO line ratios and
     ! others which use different sampling routines
@@ -486,7 +485,7 @@ contains
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
              else
-                write(*,*) 'Unspecified pixel region type for poltype',j,'of spectral index',i,'in component',id_abs
+                write(*,*) 'Unspecified pixel region type (', cpar%cs_spec_pixreg(j,i,id_abs), ') for poltype',j,'of spectral index',i,'in component',id_abs
                 stop
              end if
           else
@@ -652,7 +651,6 @@ contains
              call report_error('Invalid monopole correction type for the combined monopole sampling of '&
                   & //trim(self%label)//' '//trim(self%indlabel(i))//': '//trim(self%spec_mono_type(i)))
           end if
-
 
           if (trim(cpar%cs_spec_mono_mask(id_abs,i)) == 'fullsky') then
              self%spec_mono_mask(i)%p => comm_map(info2)
@@ -4036,8 +4034,6 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-
-    
     if (trim(self%mono_prior_type) == 'monopole') then        ! Set monopole to zero outside user-specified mask
 
        ! Compute mean outside mask; no noise weighting for now at least
@@ -4249,7 +4245,6 @@ contains
   
        deallocate(mask_list)
        deallocate(amp_list)
-       
     end if
     
     ! Subtract mean in harmonic space
