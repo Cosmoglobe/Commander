@@ -202,7 +202,8 @@ contains
           do i = 1, tod%nscan
              k        = tod%scanid(i)
              if (.not. tod%scans(i)%d(j)%accept) cycle
-             tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2) + rand_gauss(handle)/sqrt(g(k,j,2))
+             tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2)
+             if (trim(tod%operation)=='sample') tod%scans(i)%d(j)%dgain = tod%scans(i)%d(j)%dgain + rand_gauss(handle)/sqrt(g(k,j,2))
              tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
           end do
        end do
