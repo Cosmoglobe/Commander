@@ -526,11 +526,6 @@ contains
     binwidth = self%vbin_edges(2) - self%vbin_edges(1)
 
     allocate(dV(leng-1-self%window))
-    allocate(tod_trim(leng-1-self%window))
-    
-    ! Trim the data according to account for windows - this is used for pointing to the correct bins 
-    ! This ensures that tod_trim(i) corresponds to dV(i)
-    tod_trim = tod_in(int(self%window/2):leng-1-int(self%window/2))
 
     ! Compute the dV within a window around each rt sample (excluding the ends)
     do i = int(self%window/2)+1, leng-1-int(self%window/2)
@@ -539,7 +534,7 @@ contains
        j_max = min(i+int(self%window/2), leng-1)
        do j = j_min, j_max
           if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
-          sum = sum + (tod_in(j+1)-tod_in(j))**2!rt(j)**2
+          sum = sum + (tod_in(j+1)-tod_in(j))**2
        end do
        dV(i-int(self%window/2)) = sqrt(sum/(j_max-j_min+1))
     end do
@@ -547,14 +542,13 @@ contains
     ! Bin the dV values as a function of input voltage, and take the mean
     if (present(corr)) then
        do i = 1, leng-1-self%window
-          j = int((tod_trim(i)-self%vbin_edges(1))/binwidth) + 1
+          j = int((tod_in(i+int(self%window/2))-self%vbin_edges(1))/binwidth) + 1
           self%nval2(j)     = self%nval2(j) + 1
           self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
        end do
     else
-       ! do i = int(self%window/2)+1, leng-1-int(self%window/2)
        do i = 1, leng-1-self%window
-          j = int((tod_trim(i)-self%vbin_edges(1))/binwidth) + 1
+          j = int((tod_in(i+int(self%window/2))-self%vbin_edges(1))/binwidth) + 1
           self%nval(j)      = self%nval(j) + 1
           self%rms_bins(j)  = self%rms_bins(j)  + dV(i)
           self%rms2_bins(j) = self%rms2_bins(j) + dV(i)**2
@@ -562,7 +556,6 @@ contains
     end if
 
     deallocate(dV)
-    deallocate(tod_trim)
     
   end subroutine bin_scan_rms
 
