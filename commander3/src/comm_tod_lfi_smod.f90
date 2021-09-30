@@ -347,7 +347,7 @@ contains
                 end if
                 
                 ! compute the ref load transfer function
-                call constructor%compute_ref_load_filter(corrected_data, filter_sum, nu_saved, ierr)
+                call constructor%compute_ref_load_filter(corrected_data, filter_sum(:, 1:nsmooth), nu_saved(1:nsmooth), ierr)
                 if (ierr == 0) filter_count = filter_count + 1
                 
                 deallocate(diode_data, corrected_data)
@@ -370,7 +370,6 @@ contains
                 end if
              end do
              
-             ! HKE: Should probably manually add a regularization bin at the end, so that the spline doesn't go crazy for frequencies between the last bin center and fsamp/2
              if (filter_count > 0) then
                 filter_sum = filter_sum/filter_count
              else
@@ -382,17 +381,18 @@ contains
              !if (constructor%myid == 0) write(*,*) nu_saved
 
              do j=1, constructor%ndiode/2
-                call spline_simple(constructor%ref_splint(i,j), nu_saved, filter_sum(j,:))
-                !if (constructor%myid == 0) then
-                !  open(100, file=trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j+2))//'.dat')
-                !  do k = 1, size(nu_saved)
-                !    write(100, fmt='(f30.8,f30.8)') nu_saved(k), filter_sum(j,k)
-                !  end do
-                !  close(100)
-                !  write(*,*) 'Writing file ', trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))//'.dat'
-                !end if
-             end do
+                call spline_simple(constructor%ref_splint(i,j), nu_saved(1:nsmooth), filter_sum(j,1:nsmooth))
+                if (constructor%myid == 0) then
+                  !write(*,*) "Calling spline", nu_saved(1:nsmooth), filter_sum(j,1:nsmooth)
+                  open(100, file=trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,2*j-1))//'.dat')
+                  do k = 1, nsmooth
+                    write(100, fmt='(f30.8,f30.8,f30.8)') nu_saved(k), filter_sum(j,k), splint(constructor%ref_splint(i,j), nu_saved(k))
+                  end do
+                  close(100)
+                  write(*,*) 'Writing file ', trim(constructor%outdir)//'/load_filter_'//trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,2*j-1))//'.dat'
+                end if
              
+             end do
           end do
           call update_status(status, "ADC_table")
              
@@ -843,7 +843,7 @@ contains
        if(gmf_split) then 
         !self%scans(scan)%d(i)%accept = .false.
         write(*,*) trim(self%label(i)), " Not cutting scan", self%scans(scan)%chunk_num, "because of gmf split", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), k, size(self%gmf_splits(i)%p) 
-        cycle
+        !cycle
        end if
 
         ! Decompress diode TOD for current scan
@@ -862,7 +862,7 @@ contains
         end do
 
         ! Wiener-filter load data         
-        !call self%filter_reference_load(i, corrected_data)
+        call self%filter_reference_load(i, corrected_data)
 
         ! Compute the gain modulation factors
 
@@ -1001,7 +1001,7 @@ contains
     fbin         = 1.2 ! multiplicative bin scaling factor
     get_nsmooth  = 2
     nu           = 0.01
-    do while (nu <= self%samprate/2)
+    do while (nu < self%samprate/2)
        get_nsmooth = get_nsmooth + 1
        nu          = nu * fbin
     end do
@@ -1035,7 +1035,7 @@ contains
     integer(i4b),                 intent(out)   :: err
 
     integer(i4b) :: i, j, k, nfft, n, nsmooth
-    real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum, nu_low, delta_nu
+    real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum, nu_low, delta_nu, sum_ref, sum_sky
     integer*8    :: plan_fwd
 
     real(sp),     allocatable, dimension(:) :: dt_sky, dt_ref
@@ -1050,7 +1050,7 @@ contains
        err = 0
     end if
 
-    n       = size(data_in(:,1))
+    n       = 2*size(data_in(:,1))
     nfft    = n/2+1
     fsamp   = self%samprate
     nsmooth = self%get_nsmooth()
@@ -1062,9 +1062,18 @@ contains
     do i = 1, self%ndiode/2
 
       ! Check if data is all zeros
-      dt_ref = data_in(:, 2*i -1) 
-      dt_sky = data_in(:, 2*i)
-      
+       dt_ref(i:n/2) = data_in(:, 2*i -1) 
+       dt_ref(n:n/2+1:-1) = data_in(:, 2*i-1)
+
+       dt_sky(i:n/2) = data_in(:, 2*i)
+       dt_sky(n:n/2+1:-1) = data_in(:, 2*i)   
+
+       sum_ref = sum(dt_ref)
+       sum_sky = sum(dt_sky)
+  
+       dt_ref = dt_ref - sum_ref/size(dt_ref)
+       dt_sky = dt_sky - sum_sky/size(dt_sky)
+ 
       ! FFT of ref signal
       call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
 
@@ -1073,13 +1082,13 @@ contains
 
       ! Compute cross correlation
       do j = 0, nfft-1
-         num   =      real(dv_sky(j)*conjg(dv_ref(j)) + dv_ref(j)*conjg(dv_sky(j)),dp)
-         denom = sqrt(real(dv_sky(j)*conjg(dv_sky(j)) * dv_ref(j)*conjg(dv_ref(j)),dp))
+         num =  real(dv_sky(j)*conjg(dv_ref(j)), dp)
+         denom = real(abs(dv_sky(j)) * abs(dv_ref(j)), dp)
          !write(*,*) j, num, denom
          if (denom < 1d-100) then
             filter(j) = 0.
          else 
-            filter(j) = 0.5*num/denom
+            filter(j) = num/denom
          end if
       end do
 
@@ -1161,7 +1170,8 @@ contains
 !      open(58,file='filter.dat')
       do j=1, size(dv) -1
         dv(j) = dv(j) * splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft))
-!        write(58,*) ind2freq(j, self%samprate, nfft), splint(self%ref_splint(i), ind2freq(j, self%samprate, nfft))
+        !if(self%myid ==0) write(*,*) j, ind2freq(j, self%samprate, nfft), splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft)), dv(j)
+        !write(58,*) ind2freq(j, self%samprate, nfft), splint(self%ref_splint(i), ind2freq(j, self%samprate, nfft))
       end do
 !     close(58)
 
@@ -1494,6 +1504,7 @@ contains
        n = self%scans(i)%ntod
        allocate(tod(n, self%ndet))
        if (self%L2_exist) then
+          if (self%myid == 0 .and. i == 1) write(*,*) "Reading L2 from"//h5_file%filename
           call int2string(self%scanid(i), scantext)
           call read_hdf(h5_file, scantext, tod)
        else

@@ -338,12 +338,13 @@ interface
      !                          matrices by the input vector.
      implicit none
 
-     real(dp), dimension(:)                            :: vector
+     real(dp), dimension(1:), intent(in)               :: vector
      real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
-     real(dp), dimension(:) , intent(in)     :: fourier_mat
+     real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
      logical(lgt)           , optional       :: filewrite
+
   end function tot_mat_mul_by_vector
 
   module subroutine calculate_invcov(sigma_0, alpha, fknee, freqs, invcov) 
