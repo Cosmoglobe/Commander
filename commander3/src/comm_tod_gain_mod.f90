@@ -83,11 +83,12 @@ interface
 ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  module subroutine sample_smooth_gain(tod, handle, dipole_mods)
+  module subroutine sample_smooth_gain(tod, handle, dipole_mods, smooth)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),   dimension(:, :),       intent(in)     :: dipole_mods
+    logical(lgt), optional,            intent(in)     :: smooth
   end subroutine sample_smooth_gain
 
   module subroutine normalize_gain_variance(g1, g2, sigma0)

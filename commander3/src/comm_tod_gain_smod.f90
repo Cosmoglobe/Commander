@@ -152,11 +152,12 @@ contains
 ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  module subroutine sample_smooth_gain(tod, handle, dipole_mods)
+  module subroutine sample_smooth_gain(tod, handle, dipole_mods, smooth)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),   dimension(:, :),       intent(in)     :: dipole_mods
+    logical(lgt), optional,            intent(in)     :: smooth
 
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
@@ -171,6 +172,10 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: cnt = 0
     character(len=128)  :: kernel_type
+    logical(lgt) :: smooth_
+
+    smooth_ = .true.
+    if (present(smooth) ) smooth_ = smooth
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -188,18 +193,25 @@ contains
           g(k,j,2) = tod%scans(i)%d(j)%gain_invsigma
        end do
     end do
-!    if (tod%myid == 0) then
+
+    if (.not. smooth) then
+       ! If the time-dependent gain has high signal-to-noise per scan, then we
+       ! don't need to Wiener filter, and instead implement equation (28) of
+       ! Gjerlow et al. 2020.
+       do j = 1, ndet
+          do i = 1, tod%nscan
+             k        = tod%scanid(i)
+             if (.not. tod%scans(i)%d(j)%accept) cycle
+             tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2) + rand_gauss(handle)/sqrt(g(k,j,2))
+             tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
+          end do
+       end do
+    else
        call mpi_allreduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
             & tod%comm, ierr)
-!    else
-!       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-!            & 0, tod%comm, ierr)
-!    end if
 
        do j = 1+tod%myid, ndet, tod%numprocs
          if (all(g(:, j, 1) == 0)) continue
-!          fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
-!          alpha = -1.d0
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
           call normalize_gain_variance(g(:,j,1), g(:,j,2), tod%gain_sigma_0(j))
@@ -254,22 +266,23 @@ contains
              close(58)
           end if
        end do
-!    end if
-    ! Distribute and update results
-    do j = 1, ndet
-      !call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
-      !     & mod(j-1,tod%numprocs), tod%comm, ierr)
-      call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
-    end do
-    do j = 1, ndet
-       do i = 1, tod%nscan
-          k        = tod%scanid(i)
-          !if (g(k, j, 2) <= 0.d0) cycle
-          tod%scans(i)%d(j)%dgain = g(k,j,1)
-          tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + g(k,j,1)
-          !write(*,*) j, k,  tod%gain0(0), tod%gain0(j), g(k,j,1), tod%scans(i)%d(j)%gain 
+
+       ! Distribute and update results
+       do j = 1, ndet
+         !call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
+         !     & mod(j-1,tod%numprocs), tod%comm, ierr)
+         call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
        end do
-    end do
+       do j = 1, ndet
+          do i = 1, tod%nscan
+             k        = tod%scanid(i)
+             !if (g(k, j, 2) <= 0.d0) cycle
+             tod%scans(i)%d(j)%dgain = g(k,j,1)
+             tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + g(k,j,1)
+             !write(*,*) j, k,  tod%gain0(0), tod%gain0(j), g(k,j,1), tod%scans(i)%d(j)%gain 
+          end do
+       end do
+    end if
 
     deallocate(g, lhs, rhs, g_over_s)
 
@@ -741,9 +754,7 @@ contains
 
      allocate(inv_N_corr(0:n-1))
      allocate(fluctuations(nscan))
-!     allocate(temp(nscan))
      allocate(precond(0:n-1))
-     !allocate(precond(n))
      allocate(fourier_fluctuations(0:n-1))
 
      !write(*, *) 'Sigma_0: ', sigma_0
@@ -761,10 +772,8 @@ contains
         do i = 1, nscan
            if (inv_N_wn(i) > 0) then
               fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
-              !fluctuations(i) = sqrt(inv_N_wn(i)) * rand_gauss(handle)
            end if
            b(i) = b(i) + fluctuations(i)
-           !b(i) = fluctuations(i)
          end do
       end if
 
@@ -776,9 +785,6 @@ contains
       end do
       !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
 
-!      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
-!      precond = 1.d0
-!      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .false.)
       b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)
       deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations, precond)
           
