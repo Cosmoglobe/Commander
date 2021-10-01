@@ -482,7 +482,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (.false. .and. i==1 .and. self%first_call) then
+         if ((self%scanid(i) == 156) .and.  (mod(iter,10) == 0)) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
