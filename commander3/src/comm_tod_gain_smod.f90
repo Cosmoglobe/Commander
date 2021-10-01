@@ -733,8 +733,7 @@ contains
      integer(i4b)   :: i
 
      nscan = size(b)
-!     nfft = 2 * nscan
-     nfft = nscan
+     nfft = 2 * nscan
      n = nfft / 2 + 1
      samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
      allocate(freqs(0:n-1))
@@ -793,15 +792,15 @@ contains
 
   end subroutine wiener_filtered_gain
 
-  module subroutine fft_fwd(dt, dv, plan_fwd)
+  module subroutine fft_fwd(time, fourier, plan_fwd)
      !
      ! Given a fft plan, transforms a vector from time domain to Fourier domain.
      !
      ! Arguments:
      ! ----------
-     ! vector:          real(dp) array
+     ! time:            real(dp) array
      !                  The original time-domain vector.
-     ! fourier_vector:  complex(dpc) array
+     ! fourier:         complex(dpc) array
      !                  The array that will contain the Fourier vector.
      ! plan_fwd:        integer*8
      !                  The fft plan to carry out the transformation
@@ -812,25 +811,29 @@ contains
      !                  At exit will contain the Fourier domain vector.
 
      implicit none
-     real(dp),     dimension(1:), intent(in)     :: dt
-     complex(dpc), dimension(0:), intent(out)    :: dv
+     real(dp),     dimension(1:), intent(in)     :: time
+     complex(dpc), dimension(0:), intent(out)    :: fourier
      integer*8,                   intent(in)     :: plan_fwd
+     real(dp),     dimension(1:2*size(time))     :: dt
+     integer(i4b)                                :: ntime
 
-     call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
-     dv = dv/sqrt(real(size(dt),dp))
-     !dv = dv/size(dt)
+     ntime = size(time)
+     dt(1:ntime) = time
+     dt(2*ntime:ntime+1:-1) = dt(1:ntime)
+     call dfftw_execute_dft_r2c(plan_fwd, dt, fourier)
+     fourier = fourier/sqrt(real(size(dt),dp))
 
    end subroutine fft_fwd
 
-  module subroutine fft_back(dv, dt, plan_back)
+  module subroutine fft_back(fourier, time, plan_back)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
      ! Arguments:
      ! ----------
-     ! dv:              complex(dpc) array
+     ! fourier:              complex(dpc) array
      !                  The original Fourier domain vector.
-     ! dt:              real(dp) array
+     ! time:            real(dp) array
      !                  The vector that will contain the transformed vector.
      ! plan_back:       integer*8
      !                  The fft plan to carry out the transformation.
@@ -840,12 +843,14 @@ contains
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(0:), intent(in)     :: dv
-     real(dp),     dimension(1:), intent(out)    :: dt
+     complex(dpc), dimension(0:), intent(in)     :: fourier
+     real(dp),     dimension(1:), intent(out)    :: time
+     real(dp),     dimension(2*size(time))       :: dt
      integer*8,                   intent(in)     :: plan_back
 
-     call dfftw_execute_dft_c2r(plan_back, dv, dt)
+     call dfftw_execute_dft_c2r(plan_back, fourier, dt)
      dt = dt/sqrt(real(size(dt),dp))
+     time = dt(1:size(time))
 
    end subroutine fft_back
 
@@ -1265,7 +1270,7 @@ contains
          & tod%comm, ierr)
 
 !          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
-    nfft = nscan_tot
+    nfft = nscan_tot * 2
     n = nfft / 2 + 1
     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
     allocate(dt(nfft), dv(0:n-1))
