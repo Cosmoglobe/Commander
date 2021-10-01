@@ -277,6 +277,8 @@ contains
        stop
     end if
 
+    call assert(file%status>=0, 'comm_hdf_mod: Could not open file')
+
     ! Initalize sethandle to empty value
     file%setname   = ''
     file%sethandle = -1
