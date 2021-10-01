@@ -4154,6 +4154,8 @@ contains
           if (m <= 0) call report_error("No intersection value found from crosscorrelation, monopole prior component "//trim(self%label))
           if (m == 1) then
              mu(0) = intersect(1)
+             mean_intersect = intersect(1)
+             std_intersect = 0.d0
           else
              mean_intersect = sum(intersect(1:m))/m
              std_intersect = sqrt(sum((intersect(1:m)-mean_intersect)**2)/m)
