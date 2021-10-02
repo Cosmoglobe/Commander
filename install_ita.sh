@@ -1,6 +1,6 @@
 #!/bin/bash
 #================================================================================
-# Description: This script will install Commander3 on owls
+# Description: This script will install Commander3 on ITA systems: Owls/Beehives.
 #================================================================================
 # Global configuration:
 #------------------------------------------------------------------------------
@@ -11,18 +11,28 @@ buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
+# Address
+suffix="\.uio\.no"
 # Using regex to figure out which owl I am on.
-owl_prefix="owl"
-owl_suffix="\.uio\.no"
-owl_1724="$owl_prefix+(1[7-9]|2[0-4])+$owl_suffix"
-owl_2528="$owl_prefix+(2[5-8])+$owl_suffix"
-owl_2930="$owl_prefix+(29|30)+$owl_suffix"
-owl_3135="$owl_prefix+(3[1-5])+$owl_suffix"
-owl_3637="$owl_prefix+(3[6-7])+$owl_suffix"
+prefix="owl"
+owl1724="$prefix+(1[7-9]|2[0-4])+$suffix"
+owl2528="$prefix+(2[5-8])+$suffix"
+owl2930="$prefix+(29|30)+$suffix"
+owl3135="$prefix+(3[1-5])+$suffix"
+owl3637="$prefix+(3[6-7])+$suffix"
+# Using regex to figure out which beehive I am on.
+prefix="beehive"
+bee0123="$prefix+(\d{0}|[1-9](?!\d)|1[0-9]|2[0-3])+$suffix"
+bee2631="$prefix+(2[6-9]|3[0-1])+$suffix"
+bee3436="$prefix+(3[4-6])+$suffix"
+bee3742="$prefix+(3[7-9]|4[0-2])+$suffix"
+bee4345="$prefix+(4[3-5])+$suffix"
+bee46="$prefix+(46)+$suffix"
+bee47="$prefix+(47)+$suffix"
 #------------------------------------------------------------------------------
-# Will compile commander only if on owl!
+# Will compile commander only if on owl/beehive!
 #------------------------------------------------------------------------------
-if [[ "${HOSTNAME}" =~ "owl"* ]]
+if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]]
 then
 	#------------------------------------------------------------------------------
 	# Getting the total number of CPUs, taken from this answer:
@@ -63,17 +73,31 @@ then
   echo "You are on ${HOSTNAME}"
 	#------------------------------------------------------------------------------
 	# Choosing correct build directory to put CMake files into
-  if [[ "${HOSTNAME}" =~ $owl_1724 ]]; then
+  if [[ "${HOSTNAME}" =~ $owl1724 ]]; then
     build_dir="build_owl1724_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $owl_2528 ]]; then
+  elif [[ "${HOSTNAME}" =~ $owl2528 ]]; then
     build_dir="build_owl2528_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $owl_2930 ]]; then
+  elif [[ "${HOSTNAME}" =~ $owl2930 ]]; then
     build_dir="build_owl2930_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $owl_3135 ]]; then
+  elif [[ "${HOSTNAME}" =~ $owl3135 ]]; then
     build_dir="build_owl3135_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $owl_3637 ]]; then
+  elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
     build_dir="build_owl3637_$toolchain"
-  fi
+  elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
+    build_dir="build_bee0123_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
+    build_dir="build_bee2631_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $bee3436 ]]; then
+    build_dir="build_bee3436_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $bee3742 ]]; then
+    build_dir="build_bee3742_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $bee4345 ]]; then
+    build_dir="build_bee4345_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $bee46 ]]; then
+    build_dir="build_bee46_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $bee47 ]]; then
+    build_dir="build_bee47_$toolchain"
+	fi
 	#------------------------------------------------------------------------------
 	# Unloading any loaded module
 	module purge
@@ -176,5 +200,5 @@ then
 	#------------------------------------------------------------------------------
 	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
 else
-	printf "TERMINATING: NOT ON OWL!"
+	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi
