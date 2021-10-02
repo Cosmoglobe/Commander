@@ -69,7 +69,7 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-fPIC"
 		"-fp-model" "strict"
 		"-traceback" 
-		"-qopenmp" 
+		#"-qopenmp" <= we are not using it at all, it is redundant 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		#"-DNDEBUG"
@@ -90,7 +90,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-fstack-protector-all"
 		"-traceback" 
 		#"-parallel" 
-		"-qopenmp"
+		#"-qopenmp"
 		"-C" 
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"
@@ -105,7 +105,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		"-fpe0"
 		"-fPIC"
 		"-fp-model" "strict"
-		"-qopenmp" 
+		#"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		"-g" 
@@ -131,7 +131,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
 		"-traceback" 
 		"-DNDEBUG" 
 		"-parallel" 
-		"-qopenmp" 
+		#"-qopenmp" 
 		"-C"
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"

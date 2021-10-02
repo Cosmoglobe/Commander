@@ -78,14 +78,14 @@ set(CMAKE_REQUIRED_LIBRARIES ${MPI_Fortran_LIBRARIES}) #Threads::Threads)
 #------------------------------------------------------------------------------
 # Looking for OpenMP. 
 #------------------------------------------------------------------------------
-message(STATUS "---------------------------------------------------------------")
-find_package(OpenMP REQUIRED)
-add_custom_target(openmp ALL "")
-# setting compilation and linking flags
-set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_COMPILE_OPTIONS})
-set(CMAKE_REQUIRED_INCLUDES ${OpenMP_Fortran_INCLUDE_DIRS})
-set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
-message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
+#message(STATUS "---------------------------------------------------------------")
+#find_package(OpenMP REQUIRED)
+#add_custom_target(openmp ALL "")
+## setting compilation and linking flags
+#set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_COMPILE_OPTIONS})
+#set(CMAKE_REQUIRED_INCLUDES ${OpenMP_Fortran_INCLUDE_DIRS})
+#set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
+#message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
 #------------------------------------------------------------------------------
 # Creating comm_hdf_mod.f90 with Tempita language. Python is required. 
 #------------------------------------------------------------------------------
@@ -103,7 +103,7 @@ execute_process(
 add_custom_target(required_libraries ALL "" 
 	DEPENDS tempita 
 					mpi
-					openmp
+					#openmp
 					)
 #------------------------------------------------------------------------------
 # Dependent/Compiled libraries
@@ -112,6 +112,10 @@ if(USE_SYSTEM_LIBS)
 	#------------------------------------------------------------------------------
 	# Performing search for BLAS and LAPACK
 	if(USE_SYSTEM_BLAS)
+		# TODO: Need to add FindMKL.cmake to separately search for MKL, which
+		# has both BLAS/LAPACK and FFTW3. If it exists will go with that, and
+		# if not then seacrh for OpenBLAS and FFTW3 and compile those (if necessary)
+		#
 		# Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
 		# for some weird reason. In this case it is a good idea to logout and login
 		# to refresh terminal.

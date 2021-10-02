@@ -206,7 +206,7 @@ target_link_libraries(${commander3}
 	# linking MPI
 	MPI::MPI_Fortran
 	# linking OpenMP
-	OpenMP::OpenMP_Fortran
+	#OpenMP::OpenMP_Fortran
 	# including MKL
 	#-qopt-matmul
 	${BLAS_LINKER_FLAGS} 

@@ -1420,9 +1420,9 @@ contains
     call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
+       !!$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
-       !$OMP DO SCHEDULE(guided)
+       !!$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
@@ -1450,17 +1450,17 @@ contains
              end do
           end do
        end do
-       !$OMP END DO
+       !!$OMP END DO
        deallocate(alm)
-       !$OMP END PARALLEL
+       !!$OMP END PARALLEL
     end do
 
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
-       !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
+       !!$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
-       !$OMP DO SCHEDULE(guided)
+       !!$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
@@ -1486,9 +1486,9 @@ contains
              end do
           end do
        end do
-       !$OMP END DO
+       !!$OMP END DO
        deallocate(alm)
-       !$OMP END PARALLEL
+       !!$OMP END PARALLEL
     end do
     !call wall_time(t2)
     !write(*,*) 'sqrtS = ', t2-t1

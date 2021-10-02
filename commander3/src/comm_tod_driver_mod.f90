@@ -9,7 +9,7 @@ module comm_tod_driver_mod
   use comm_tod_mapmaking_mod
   use comm_zodi_mod
   use comm_shared_arr_mod
-  use omp_lib
+  !use omp_lib
   implicit none
 
 
@@ -853,19 +853,19 @@ contains
 
   end subroutine distribute_sky_maps
 
-  ! ************************************************
-  !
-  !> @brief Commander3 native simulation module. It
-  !! simulates correlated noise and then rewrites
-  !! the original timestreams inside the files.
-  !
-  !> @author Maksym Brilenkov
-  !
-  !> @param[in]
-  !> @param[out]
-  !
-  ! ************************************************
   subroutine simulate_tod(self, scan_id, s_tot, handle)
+    !
+    ! Commander3 native simulation method. It
+    ! simulates correlated noise and then rewrites
+    ! the original timestreams inside the files.
+    !
+    ! Arguments:
+    ! ----------
+    ! self: 
+    ! s_tot:
+    ! scan_id:
+    ! handle:
+    !
     implicit none
     class(comm_tod), intent(inout) :: self
     ! Parameter file variables
@@ -929,9 +929,9 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
+    !!$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
     allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
     do j = 1, ndet
       ! skipping iteration if scan was not accepted
       if (.not. self%scans(scan_id)%d(j)%accept) cycle
@@ -956,9 +956,9 @@ contains
       n_corr(:, j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
-    !$OMP END DO
+    !!$OMP END DO
     deallocate(dt, dv)
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
 
     call sfftw_destroy_plan(plan_back)
 
