@@ -29,6 +29,7 @@ module comm_data_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
+  use comm_tod_QUIET_mod
   use locate_mod
   implicit none
 

@@ -154,7 +154,7 @@ program commander
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   ! Debug statement to actually see whether
   ! QUIET is loaded into memory
-  stop
+  !stop
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")

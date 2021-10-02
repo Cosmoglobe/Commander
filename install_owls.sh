@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel
 toolchain="intel"
-buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -64,15 +64,15 @@ then
 	#------------------------------------------------------------------------------
 	# Choosing correct build directory to put CMake files into
   if [[ "${HOSTNAME}" =~ $owl_1724 ]]; then
-    build_dir="build_owl1724"
+    build_dir="build_owl1724_$toolchain"
   elif [[ "${HOSTNAME}" =~ $owl_2528 ]]; then
-    build_dir="build_owl2528"
+    build_dir="build_owl2528_$toolchain"
   elif [[ "${HOSTNAME}" =~ $owl_2930 ]]; then
-    build_dir="build_owl2930"
+    build_dir="build_owl2930_$toolchain"
   elif [[ "${HOSTNAME}" =~ $owl_3135 ]]; then
-    build_dir="build_owl3135"
+    build_dir="build_owl3135_$toolchain"
   elif [[ "${HOSTNAME}" =~ $owl_3637 ]]; then
-    build_dir="build_owl3637"
+    build_dir="build_owl3637_$toolchain"
   fi
 	#------------------------------------------------------------------------------
 	# Unloading any loaded module
@@ -91,8 +91,8 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		#module load Intel_parallel_studio/2020/4.912
-		module load Intel_parallel_studio/2018/3.051
+		module load Intel_parallel_studio/2020/4.912
+		#module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -169,6 +169,7 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
+	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
