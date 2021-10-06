@@ -1210,7 +1210,7 @@ contains
 
    n_unmasked = count(mask /= 0)
    if(n_unmasked == 0) then
-     masked_variance = 9999999999999
+     masked_variance = 9999999999999d0
      return
    end if
    currmean = sum(data * mask) / n_unmasked

@@ -1651,7 +1651,7 @@ contains
     !Following is for the local sampler
     real(dp)     :: mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, lnL_prior, lnL_init
     real(dp)     :: accept_rate, accept_scale, lnL_sum, proplen, chisq_jeffreys, avg_dlnL, lnL_total_init
-    real(dp)     :: old_theta, new_theta
+    real(dp)     :: old_theta, new_theta, prior_rms_scaling
     integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
@@ -2291,7 +2291,14 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, pix_count, 1, MPI_INTEGER, & 
             & MPI_SUM, info_fr%comm, ierr)
        if (pix_count == 0) cycle !all pixels in pixreg is masked out
-       
+       if (.false.) then
+          !scaling number of pixels in pixel region (from component resolution to smoothing scale resolution)
+          prior_rms_scaling=1.d0*pix_count*info_lr%npix/info_fr%npix
+       else
+          prior_rms_scaling=1.d0 !no prior RMS scaling
+       end if
+
+
        if (c_lnL%pol_sample_nprop(p,id) .or. c_lnL%pol_sample_proplen(p,id)) then
           pixreg_nprop = 1000*n_prop_limit !should be enough to find proposal/correlation length, if prompted. 
           !c_lnL%pol_sample_nprop(j,p,id) = boolean array of size (n_pixreg,poltype)
@@ -2730,7 +2737,9 @@ contains
              if (c_lnL%p_gauss(2,id) > 0.d0) then
                 !Find prior "chisq" and add it to lnL
                 lnL_prior = (new_thetas(pr)-c_lnL%p_gauss(1,id))**2
-                lnL_prior = -0.5d0 * lnl_prior/c_lnL%p_gauss(2,id)**2
+                !prior variance is scaled by 
+                ! 1/<number of pixels in region (smooth scale resolution)>
+                lnL_prior = -0.5d0 * lnl_prior/(c_lnL%p_gauss(2,id)**2 / prior_rms_scaling) 
                 lnL_new = lnL_new + lnL_prior
              end if
 
