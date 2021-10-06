@@ -2089,7 +2089,7 @@ contains
 
 
 
-  module function evalDiffuseBand(self, band, amp_in, pix, alm_out, det)
+  module function evalDiffuseBand(self, band, amp_in, pix, alm_out, det) result(res)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
@@ -2097,7 +2097,7 @@ contains
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
     integer(i4b),                                 intent(in),  optional :: det
-    real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
+    real(dp),        dimension(:,:), allocatable                        :: res
 
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp, d
     logical(lgt) :: alm_out_
@@ -2110,11 +2110,11 @@ contains
 
     if (self%F_null(band,0)) then
        if (alm_out_) then
-          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
+          if (.not. allocated(res)) allocate(res(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        else
-          if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
+          if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
        end if
-       evalDiffuseBand = 0.d0
+       res = 0.d0
        return
     end if
 
@@ -2156,14 +2156,14 @@ contains
 
     ! Return correct data product
     if (alm_out_) then
-       !if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
-       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%nalm-1,data(band)%info%nmaps))
-       if (nmaps /= data(band)%info%nmaps) evalDiffuseBand = 0.d0
-       evalDiffuseBand(:,1:nmaps) = m%alm(:,1:nmaps)
+       !if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
+       if (.not. allocated(res)) allocate(res(0:data(band)%info%nalm-1,data(band)%info%nmaps))
+       if (nmaps /= data(band)%info%nmaps) res = 0.d0
+       res(:,1:nmaps) = m%alm(:,1:nmaps)
     else
-       if (.not. allocated(evalDiffuseBand)) allocate(evalDiffuseBand(0:data(band)%info%np-1,data(band)%info%nmaps))
-       if (nmaps /= data(band)%info%nmaps) evalDiffuseBand = 0.d0
-       evalDiffuseBand(:,1:nmaps) = m%map(:,1:nmaps)
+       if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
+       if (nmaps /= data(band)%info%nmaps) res = 0.d0
+       res(:,1:nmaps) = m%map(:,1:nmaps)
     end if
        
 
@@ -2174,14 +2174,14 @@ contains
   end function evalDiffuseBand
 
   ! Return component projected from map
-  module function projectDiffuseBand(self, band, map, alm_in, det)
+  module function projectDiffuseBand(self, band, map, alm_in, det) result(res)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
     integer(i4b),                                 intent(in), optional  :: det
-    real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
+    real(dp),        dimension(:,:), allocatable                        :: res
 
     integer(i4b) :: i, nmaps, d
     logical(lgt) :: alm_in_
@@ -2189,8 +2189,8 @@ contains
     class(comm_map),     pointer :: m       => null(), m_out    => null()
 
     if (self%F_null(band,0)) then
-       if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
-       projectDiffuseBand = 0.d0
+       if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
+       res = 0.d0
        return
     end if
 
@@ -2223,8 +2223,8 @@ contains
     end if
     call m%alm_equal(m_out)
 
-    if (.not. allocated(projectDiffuseBand)) allocate(projectDiffuseBand(0:self%x%info%nalm-1,self%x%info%nmaps))
-    projectDiffuseBand = m_out%alm
+    if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
+    res = m_out%alm
 
     call m%dealloc(); deallocate(m)
     call m_out%dealloc(); deallocate(m_out)

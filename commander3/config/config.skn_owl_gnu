@@ -1,0 +1,71 @@
+# ================= Compilers ====================
+
+export F90 := gfortran
+export MPF90    := mpif90
+export MPF77    := mpif90
+export MPCC     := mpicc
+export OMPI_FC  := gfortran
+export OMPI_F77 := gfortran
+export OMPI_CC  := gcc
+
+# =========== Compiler Optimizations =============
+
+# Fortran 90 compiler flags
+#export F90FLAGS := -O3 -traceback
+#
+export F90FLAGS := -g -O3 -Ofast -fcheck=all -fbounds-check -fbacktrace -finit-real=nan -fopenmp -ffree-line-length-none -cpp
+#export F90FLAGS := -g -C -traceback -qopenmp -check all,noarg_temp_created -fpe0
+#export F90FLAGS := -O3 -traceback -xAVX -arch AVX -mavx -qopenmp
+#export F90FLAGS := -fast -traceback -qopenmp
+
+# Fortran 77 compiler flags
+export FFLAGS := -O2
+
+# C compiler flags.
+export CFLAGS := -O3
+
+# Extra flags used for linking
+export LDFLAGS := -lm -fopenmp -lstdc++ #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
+
+# ============== Language Mixing =================
+
+export MPFCLIBS := -fopenmp
+
+# ============== Fortran Features ================
+
+export LOCAL := /mn/stornext/u3/sigurdkn/local
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio.
+export CFITSIO_INCLUDE := -I$(LOCAL)/include
+export CFITSIO_LINK := -lcfitsio
+
+# =============== SHARP Linking ================
+
+# The include and linking commands for cfitsio.
+export SHARP_INCLUDE := -I$(LOCAL)/include
+export SHARP_LINK := -L$(LOCAL)/lib -lsharp -lfftpack -lc_utils
+
+# =============== LAPACK Linking =================
+
+# The include and linking commands for LAPACK.
+export LAPACK_INCLUDE :=  -m64  -I$(MKLROOT)/include
+export LAPACK_LINK := -Wl,--start-group $(MKLROOT)/lib/intel64/libmkl_gf_lp64.a $(MKLROOT)/lib/intel64/libmkl_gnu_thread.a $(MKLROOT)/lib/intel64/libmkl_core.a -Wl,--end-group -lgomp -lpthread -lm -ldl
+
+#-Wl,-rpath,$(MKLPATH)/lib/intel64 -L$(MKLPATH)/lib/intel64  -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread 
+
+# ================ Healpix linking ================
+export HEALPIX := /mn/stornext/u3/sigurdkn/local/moduledata/healpix
+export HEALPIX_INCLUDE := -I$(HEALPIX)/include
+export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
+
+# =============== HDF ============================
+export HDF := $(LOCAL)
+export HDF_LINK := -L$(HDF)/lib -lhdf5_fortran -lhdf5
+export HDF_LINK_CPP := -L$(HDF)/lib -lhdf5_cpp -lhdf5

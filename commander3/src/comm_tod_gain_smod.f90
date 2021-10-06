@@ -849,7 +849,7 @@ contains
 
    end subroutine fft_back
 
-  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back) result(solution) !, &
 !     & with_precond)
      !
      ! Specialized function for solving the gain Wiener filter equation using
@@ -878,7 +878,7 @@ contains
      real(dp), dimension(1:), intent(in) :: inv_N_wn, b
      real(dp), dimension(0:), intent(in) :: inv_N_corr, precond
      integer*8             ,  intent(in) :: plan_fwd, plan_back
-     real(dp), dimension(size(b))       :: solve_cg_gain
+     real(dp), dimension(size(b))       :: solution
 !     logical(lgt)                       :: with_precond
 
 
@@ -1000,7 +1000,7 @@ contains
 !        write(*, *) "Without preconditioner"
 !     end if
      !write(*, *) "Gain CG iterations: ", iterations
-     solve_cg_gain = prop_sol
+     solution = prop_sol
 
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
 
@@ -1025,7 +1025,7 @@ contains
   end subroutine apply_cg_precond
 
   module function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
-     & plan_back, filewrite)
+     & plan_back, filewrite) result(res)
      !
      ! Multiplies a sum of a time-domain diagonal matrix and a Fourier-domain
      ! diagonal matrix by a time-domain vector.
@@ -1053,7 +1053,7 @@ contains
      implicit none
 
      real(dp), dimension(1:), intent(in)               :: vector
-     real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
+     real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
@@ -1070,7 +1070,7 @@ contains
       end if
 
      if (all(vector .eq. 0)) then
-        tot_mat_mul_by_vector = 0.d0
+        res = 0.d0
         return
      end if
 !     if (write_file) then
@@ -1118,13 +1118,13 @@ contains
 !         close(58)
 !      end if
 
-     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + size(vector)**4*temp_vector
-     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + temp_vector
+     !res = size(vector)*vector * time_mat + size(vector)**4*temp_vector
+     !res = size(vector)*vector * time_mat + temp_vector
      !write(*,*) 'a', real(vector(1:4) * time_mat(1:4),sp)
      !write(*,*) 'b', real(temp_vector(1:4),sp)
 
-     tot_mat_mul_by_vector = vector * time_mat + temp_vector
-     !tot_mat_mul_by_vector = vector * time_mat
+     res = vector * time_mat + temp_vector
+     !res = vector * time_mat
 
   end function tot_mat_mul_by_vector
 

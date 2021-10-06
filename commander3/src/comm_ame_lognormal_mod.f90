@@ -77,7 +77,7 @@ contains
        constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
        constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
     end do
-    constructor%indlabel = ['nu_peak', 'W_AME']
+    constructor%indlabel = ['nu_peak', 'W_AME  ']
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &

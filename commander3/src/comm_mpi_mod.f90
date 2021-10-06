@@ -20,6 +20,7 @@
 !================================================================================
 module comm_mpi_mod
   use healpix_types
+  !use mpi
   implicit none
 
   include "mpif.h"
