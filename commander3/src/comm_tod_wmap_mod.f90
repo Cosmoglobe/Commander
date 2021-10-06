@@ -348,7 +348,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 1
+      self%output_n_maps = 3
       if (self%output_aux_maps > 0) then
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
@@ -482,7 +482,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if ((self%scanid(i) == 156) .and.  (mod(iter,10) == 0)) then
+         if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0) write(*,*) 'Writing tod to txt'
             do k = 1, self%ndet
@@ -491,7 +491,7 @@ contains
                     & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
                do j = 1, sd%ntod
                   write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-                   &  sd%s_sky(j,k), &
+                   &  sd%s_sky(j,k),  sd%s_tot(j, k), &
                    &  sd%s_totA(j,k), sd%s_orbA(j,k), &
                    &  sd%s_totB(j,k), sd%s_orbB(j,k), &
                    &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
@@ -562,7 +562,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      if (mod(iter,10*self%output_aux_maps) == 0) then
+      !if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '  Running BiCG'
@@ -577,7 +577,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      end if
+      !end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
