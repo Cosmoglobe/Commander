@@ -64,7 +64,7 @@ contains
 
     real(dp), dimension(:),   allocatable :: nus
     real(sp), dimension(:,:), allocatable :: filtered
-    real(dp), dimension(:),   allocatable :: nu_saved
+    real(dp), dimension(:),   allocatable :: nu_saved, freq_bins
     real(dp), dimension(:,:), allocatable :: filter_sum
 
     ! Allocate object
@@ -317,12 +317,27 @@ contains
           ! Compute reference load filter spline
           if (res%myid == 0) write(*,*) '   Build reference load filter'
           nsmooth = res%get_nsmooth()
-          allocate(filter_sum(res%ndiode/2,nsmooth))
-          allocate(nu_saved(nsmooth))
-          nu_saved = 0.d0
+          ! hardcode low frequency components of load filter to 1
+          allocate(filter_sum(res%ndiode/2,nsmooth+3))
+          allocate(nu_saved(nsmooth+2))
+          nu_saved(1) = 1e-5
+          nu_saved(2) = 1e-4
+          nu_saved(3) = 2e-4
+
+          allocate(freq_bins(nsmooth))
+          call res%get_freq_bins(freq_bins)
+
           do i=1, res%ndet
+             filter_sum = 0.d0
              filter_count = 0
-             filter_sum   = 0.d0
+             nsmooth = res%get_nsmooth()
+
+             ! convert freq bin edges to centers in nu_saved
+             do j=1, nsmooth -1
+              nu_saved(j+3) = sqrt(freq_bins(j) * freq_bins(j+1))
+              if(res%myid == 0) write(*,*) freq_bins(j), freq_bins(j+1), nu_saved(j+3)
+              end do
+
              do k = 1, res%nscan
                 if (.not. res%scans(k)%d(i)%accept) cycle
                 
@@ -345,9 +360,9 @@ contains
                    deallocate(diode_data, corrected_data)
                    cycle
                 end if
-                
+ 
                 ! compute the ref load transfer function
-                call res%compute_ref_load_filter(corrected_data, filter_sum(:, 1:nsmooth), nu_saved(1:nsmooth), ierr)
+                call res%compute_ref_load_filter(corrected_data, filter_sum(:,4:nsmooth+3), freq_bins, ierr)
                 if (ierr == 0) filter_count = filter_count + 1
                 
                 deallocate(diode_data, corrected_data)
@@ -358,36 +373,38 @@ contains
              call mpi_allreduce(MPI_IN_PLACE, filter_sum, size(filter_sum), MPI_DOUBLE_PRECISION, MPI_SUM, res%info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, nu_saved,   size(nu_saved), MPI_DOUBLE_PRECISION, MPI_MAX, res%info%comm, ierr)
              
-             ! Remove empty bins
-             j = 1
-             do while (j <= nsmooth)
-                if (filter_sum(1,j) == 0.d0) then
-                   filter_sum(:,j+1:nsmooth) = filter_sum(:,j:nsmooth-1)
-                   nu_saved(j+1:nsmooth)     = nu_saved(j:nsmooth-1)
-                   nsmooth                   = nsmooth-1
-                else
-                   j = j+1
-                end if
-             end do
-             
              if (filter_count > 0) then
                 filter_sum = filter_sum/filter_count
+                ! force low frequencies to 1 
+                filter_sum(:, 1:4) = 1.d0
              else
                 filter_sum = 1.d0
                 do j = 1, size(nu_saved)
                    nu_saved(j) = res%samprate/2 * (j-1)/real(size(nu_saved)-1,dp)
                 end do
              end if
-             !if (res%myid == 0) write(*,*) nu_saved
+
+              j = 4 
+             !remove the frequencies with the dipole so we don't get leakage
+              do while (j < nsmooth+3)
+               if (nu_saved(j) < 5e-1 .or. filter_sum(1,j) == 0.d0) then
+                 nu_saved(j:nsmooth+1) = nu_saved(j+1:nsmooth+2)
+                 filter_sum(:,j:nsmooth+1) = filter_sum(:,j+1:nsmooth+2)
+                 nsmooth = nsmooth -1
+               else
+                 j = j + 1
+               end if
+             end do
 
              do j=1, res%ndiode/2
-                call spline_simple(res%ref_splint(i,j), nu_saved(1:nsmooth), filter_sum(j,1:nsmooth))
+               ! if(res%myid == 0) write(*,*) "Calling spline", nsmooth, nu_saved(1:nsmooth+2), filter_sum(j,1:nsmooth+2)
+                call spline_simple(res%ref_splint(i,j), nu_saved(1:nsmooth+2), filter_sum(j,1:nsmooth+2))
                 if (res%myid == 0) then
-                  !write(*,*) "Calling spline", nu_saved(1:nsmooth), filter_sum(j,1:nsmooth)
                   open(100, file=trim(res%outdir)//'/load_filter_'//trim(res%label(i))//'_'//trim(res%diode_names(i,2*j-1))//'.dat')
-                  do k = 1, nsmooth
-                    write(100, fmt='(f30.8,f30.8,f30.8)') nu_saved(k), filter_sum(j,k), splint(res%ref_splint(i,j), nu_saved(k))
+                  do k = 1, nsmooth+2
+                    write(100, fmt='(f30.8,f30.8)') nu_saved(k), filter_sum(j,k)
                   end do
+                  write(100, fmt='(f30.8,f30.8)') res%samprate/2, splint(res%ref_splint(i,j), res%samprate/2)
                   close(100)
                   write(*,*) 'Writing file ', trim(res%outdir)//'/load_filter_'//trim(res%label(i))//'_'//trim(res%diode_names(i,2*j-1))//'.dat'
                 end if
@@ -395,10 +412,11 @@ contains
              end do
           end do
           call update_status(status, "ADC_table")
-             
+  
+       deallocate(freq_bins)
        end if
     end if
-    
+
     ! Allocate sidelobe convolution data structures
     allocate(res%slconv(res%ndet), res%orb_dp)
     res%orb_dp => comm_orbdipole(res%mbeam)
@@ -999,13 +1017,33 @@ contains
     real(sp)     :: fbin, nu
 
     fbin         = 1.2 ! multiplicative bin scaling factor
-    get_nsmooth  = 2
+    get_nsmooth  = 1
     nu           = 0.01
     do while (nu < self%samprate/2)
        get_nsmooth = get_nsmooth + 1
        nu          = nu * fbin
     end do
   end function get_nsmooth
+
+  module subroutine get_freq_bins(self, freqs)
+    implicit none
+    class(comm_LFI_tod),    intent(in)    :: self
+    real(dp), dimension(:), intent(inout) :: freqs  
+ 
+    integer(i4b) :: j
+    real(sp)     :: fbin, nu
+
+    fbin         = 1.2 ! multiplicative bin scaling factor
+    nu           = 0.01
+    j            = 1
+    do while (nu < self%samprate/2)
+       freqs(j)    = nu
+       j           = j + 1
+       nu          = nu * fbin
+    end do
+    freqs(j) = self%samprate/2
+
+  end subroutine get_freq_bins
 
   module subroutine compute_ref_load_filter(self, data_in, binned_out, nu_out, err)
     ! 
@@ -1031,10 +1069,10 @@ contains
     class(comm_LFI_tod),          intent(in)    :: self
     real(sp),     dimension(:,:), intent(in)    :: data_in
     real(dp),     dimension(:,:), intent(inout) :: binned_out
-    real(dp),     dimension(:),   intent(inout) :: nu_out
+    real(dp),     dimension(:),   intent(in)    :: nu_out
     integer(i4b),                 intent(out)   :: err
 
-    integer(i4b) :: i, j, k, nfft, n, nsmooth
+    integer(i4b) :: i, j, k, nfft, n, n_bin
     real(dp)     :: num, denom, fsamp, fbin, nu, upper, subsum, nu_low, delta_nu, sum_ref, sum_sky
     integer*8    :: plan_fwd
 
@@ -1050,30 +1088,22 @@ contains
        err = 0
     end if
 
-    n       = 2*size(data_in(:,1))
+    n       = size(data_in(:,1))
     nfft    = n/2+1
     fsamp   = self%samprate
-    nsmooth = self%get_nsmooth()
 
-    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(0:nfft-1))
+    allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(nfft-1))
     
     call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
 
     do i = 1, self%ndiode/2
 
-      ! Check if data is all zeros
-       dt_ref(i:n/2) = data_in(:, 2*i -1) 
-       dt_ref(n:n/2+1:-1) = data_in(:, 2*i-1)
-
-       dt_sky(i:n/2) = data_in(:, 2*i)
-       dt_sky(n:n/2+1:-1) = data_in(:, 2*i)   
+       dt_ref = data_in(:, 2*i-1)
+       dt_sky = data_in(:, 2*i)
 
        sum_ref = sum(dt_ref)
        sum_sky = sum(dt_sky)
-  
-       dt_ref = dt_ref - sum_ref/size(dt_ref)
-       dt_sky = dt_sky - sum_sky/size(dt_sky)
- 
+
       ! FFT of ref signal
       call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
 
@@ -1081,49 +1111,41 @@ contains
       call sfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
 
       ! Compute cross correlation
-      do j = 0, nfft-1
+      do j = 1, nfft-1
          num =  real(dv_sky(j)*conjg(dv_ref(j)), dp)
          denom = real(abs(dv_sky(j)) * abs(dv_ref(j)), dp)
-         !write(*,*) j, num, denom
          if (denom < 1d-100) then
             filter(j) = 0.
          else 
             filter(j) = num/denom
          end if
+
       end do
 
-      ! Set first bin to unity
-      nu_low          = 0.01d0 ! Lower limit in Hz; crosscorr is defined to be 1 below this
-      binned_out(i,1) = binned_out(i,1) + 1.d0
-      delta_nu        = ind2freq(2, fsamp, nfft)
-      nu_out(1)       = sqrt(delta_nu * nu_low)
+      ! bin into bins defined by nu_out
+      j = 1
+      delta_nu     = ind2freq(2, fsamp, nfft)
+      k            = nint(0.01d0/delta_nu)    ! First frequency to consider
+      nu           = ind2freq(k, fsamp, nfft) ! Current frequency
 
-      ! Bin with logarithmic bin width above nu_low
-      fbin         = 1.2                      ! Bin scaling factor
-      j            = nint(0.01d0/delta_nu)    ! First frequency to consider
-      nu           = ind2freq(j, fsamp, nfft) ! Current frequency
-      upper        = nu                       ! Lower limit of first bin; init
-      nsmooth      = 2                        ! Bin counter
-      do while (nu < fsamp/2 .and. nsmooth <= size(nu_out))
-         upper           = min(upper*fbin, fsamp/2)
-         nu_out(nsmooth) = nu    ! Start of bin
-         subsum          = 0.d0  ! Summing variable
-         k               = 0     ! Number of frequencies in current bin
-         do while (nu <= upper)
-            subsum = subsum + filter(j-1)
-            k      = k+1
-            j      = j+1
-            nu     = nu + delta_nu
-         end do
-         !write(*,*) nsmooth, nu_out(nsmooth), nu, fsamp/2, sqrt(nu_out(nsmooth)*nu)
-         nu_out(nsmooth) = sqrt(nu_out(nsmooth) * nu)
-         if (k > 0) binned_out(i, nsmooth) = binned_out(i, nsmooth) + subsum/k
-         nsmooth = nsmooth+1
-      end do
+      ! loop through all bins
+      do j = 1, size(nu_out) - 1
+        n_bin = 0
+        subsum = 0.d0
+        ! loop through all the frequencies in that bin
+        do while (nu < nu_out(j+1) .and. k < size(filter))
+          subsum = subsum + filter(k)
+          k = k+1
+          n_bin = n_bin + 1
+          nu = nu + delta_nu
+        end do
+        if(n_bin > 0) then
+          ! average the binned values
+          binned_out(i, j) = binned_out(i, j) + subsum/n_bin
+        end if
+      end do 
 
     end do
-
-    !if(self%myid == 0) write(*,*) binned_out, size(binned_out), size(nu_out)
 
     call sfftw_destroy_plan(plan_fwd)
 
@@ -1504,7 +1526,6 @@ contains
        n = self%scans(i)%ntod
        allocate(tod(n, self%ndet))
        if (self%L2_exist) then
-          if (self%myid == 0 .and. i == 1) write(*,*) "Reading L2 from"//h5_file%filename
           call int2string(self%scanid(i), scantext)
           call read_hdf(h5_file, scantext, tod)
        else
