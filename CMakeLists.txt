@@ -46,7 +46,7 @@ message(STATUS "==============================================================="
 message(STATUS "Welcome to automatic Commander3 installer!")
 message(STATUS "Issued under: GNU GPLv3 license")
 message(STATUS "Official repo: https://github.com/Cosmoglobe/Commander")
-message(STATUS "Documentation: https://docs.beyondplanck.science")
+message(STATUS "Documentation: https://cosmoglobe.github.io/Commander/#/")
 message(STATUS "Forum: https://forums.beyondplanck.science/")
 message(STATUS "===============================================================")
 message(STATUS "Scanning your system. Please, wait a moment...")
