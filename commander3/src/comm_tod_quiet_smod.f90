@@ -104,7 +104,7 @@ contains
     ! Initialize bandpass mean and proposal matrix
     call constructor%initialize_bp_covar(trim(cpar%datadir)//cpar%ds_tod_bp_init(id_abs))
 
-    ! Construct lookup tables
+    ! Construct lookup tables -- reads everything up from pointing information
     call constructor%precompute_lookups()
 
     ! Load the instrument file
