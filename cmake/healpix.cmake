@@ -37,11 +37,11 @@ if(NOT HEALPIX_FOUND)
 	#------------------------------------------------------------------------------
 	# Below flags used to configure Libsharp as part of HEALPix
 	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp")
+		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -qopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
-		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
+		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
-		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+		set(healpix_sharp2_C_FLAGS "-O4 -fast -mavx2 -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
 	endif()
 	#------------------------------------------------------------------------------
 	# Copying modyfied configure script to healpix root
