@@ -280,7 +280,10 @@ contains
     !output parameter file to output directory
     if (cpar%myid == cpar%root) then
       idx = index(paramfile, '/', back=.true.) 
+      write(*,*) trim(cpar%outdir)
+      write(*,*) paramfile(idx+1:len(paramfile))
       paramfile_name = trim(cpar%outdir)//'/'//paramfile(idx+1:len(paramfile))
+      write(*,*) trim(paramfile_name)
       call save_ascii_parameter_file(paramfile_name, paramfile_cache) 
     end if 
     !deallocate ascii cache
@@ -2318,7 +2321,7 @@ contains
              open(units(depth),file=value,status="old",err=2)
           else if(key == '@DEFAULT') then
              if(stat /= 0) then
-               write(*,*) "Paramater file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
+               write(*,*) "Parameter file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
                stop
              end if
              ! Recurse to the default new file
