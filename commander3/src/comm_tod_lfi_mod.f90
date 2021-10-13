@@ -70,6 +70,7 @@ module comm_tod_LFI_mod
      procedure     :: load_instrument_inst    => load_instrument_LFI
      procedure     :: dumpToHDF_inst          => dumpToHDF_LFI
      procedure     :: construct_corrtemp_inst => construct_corrtemp_LFI
+     procedure     :: remove_fixed_scans      => remove_fixed_scans_LFI
      procedure     :: filter_reference_load
      procedure     :: compute_ref_load_filter
      procedure     :: get_nsmooth
@@ -90,7 +91,7 @@ interface
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type)
+  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -119,7 +120,7 @@ interface
     integer(i4b),              intent(in)    :: id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
-    class(comm_LFI_tod),       pointer       :: constructor
+    class(comm_LFI_tod),       pointer       :: res
   end function constructor
 
   !**************************************************
@@ -341,6 +342,23 @@ interface
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask
   end subroutine preprocess_L1_to_L2
+
+  module subroutine remove_fixed_scans_LFI(self)
+    ! 
+    ! Sets accept = .false. for known bad scans
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LFI_tod),                  intent(inout)  :: self
+  end subroutine remove_fixed_scans_LFI
 
 end interface
 

@@ -206,6 +206,7 @@ module comm_tod_mod
      procedure                           :: load_instrument_inst
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
+     procedure                           :: remove_fixed_scans
   end type comm_tod
 
   abstract interface
@@ -618,7 +619,7 @@ contains
              stop
           end if
           self%polang(i) = 0.d0 !polang_buf(j)
-          self%mbang(i) = mbang_buf(j)
+          self%mbang(i)  = polang_buf(j)  !mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
        ! Read instrument specific parameters
@@ -1507,7 +1508,7 @@ contains
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
           end if
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
-          !if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
+          !if ((k > 24900 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
     end do
 
@@ -1516,6 +1517,8 @@ contains
 
     ! Read instrument-specific parameters
     call self%initHDF_inst(chainfile, path)
+
+    call self%remove_fixed_scans
 
     deallocate(output)
 
@@ -1624,7 +1627,6 @@ contains
           s_sl(j) = s_sl(j-1)
        else
           psi_    = self%psi(psi(j))-polangle
-          !write(*,*) j, psi(j), polangle, self%psi(psi(j))
           s_sl(j) = slconv%interp(pix_, psi_)
           pix_prev = pix_; psi_prev = psi(j)
        end if
@@ -2466,5 +2468,21 @@ contains
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_inst
 
+  subroutine remove_fixed_scans(self)
+    ! 
+    ! Sets accept = .false. for known bad scans
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_tod),                     intent(inout)  :: self
+  end subroutine remove_fixed_scans
 
 end module comm_tod_mod

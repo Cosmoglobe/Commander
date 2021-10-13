@@ -195,7 +195,7 @@ contains
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
-               & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%polang(j))
+               & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
        end do
     else
@@ -204,6 +204,15 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
+    if (tod%scanid(scan) == 3) then
+       open(58,file='sidelobe_BP10.dat')
+       do k = 1, size(self%s_sl,1)
+          write(58,*) k, self%s_sl(k,1)
+       end do
+       close(58)
+    end if
+
+
     !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
