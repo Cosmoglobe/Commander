@@ -333,6 +333,9 @@ program commander
 contains
 
   subroutine process_TOD(cpar, chain, iter, handle)
+    !
+    ! Routine for TOD processing
+    !
     implicit none
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: chain, iter

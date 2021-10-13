@@ -1023,6 +1023,9 @@ contains
       stop
     end if
 
+    ! Debug statement for m
+    !write(*,*) "FFTW n and m is", n, m 
+
     ! Find array sizes
     ! Read detector scans
     if (.not. tod%compressed_tod) allocate(buffer_sp(n))
@@ -1033,6 +1036,10 @@ contains
             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
+            ! Debug Statement 
+            !write(*,*) "size(self%d(i)%tod), m", size(self%d(i)%tod), m
+            !write(*,*) "size(buffer_sp), tod%halfring_split", size(buffer_sp), tod%halfring_split
+            !
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
             if (tod%halfring_split == 2 )then
                self%d(i)%tod = buffer_sp(m+1:2*m)

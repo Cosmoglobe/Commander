@@ -129,6 +129,13 @@ contains
           if (tod%compressed_tod) then
              call tod%decompress_tod(scan, j, self%tod(:,j))
           else
+            ! Debug stetements to test that arrays are not empty etc.
+             write(*,*) "self%tod(:, j)", j, scan, ubound(self%tod(:, j)), lbound(self%tod(:, j))
+             write(*,*) "tod%scans(scan)%d(j)%tod", j, scan, ubound(tod%scans(scan)%d(j)%tod), lbound(tod%scans(scan)%d(j)%tod)
+             !write(*,*) tod%scans(scan)%d(j)%tod
+             !write(*,*) self%tod(:, j)
+             !write(*,*) "len(tod%scans(scan)%d(j)%tod)", len(tod%scans(scan)%d(j)%tod)
+             !write(*,*) "len(self%tod(:, j))", len(self%tod(:, j))
              self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
        end do

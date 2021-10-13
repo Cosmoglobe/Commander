@@ -47,7 +47,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-g" 
 		#"-fno-strict-aliasing"
 		"-fopenmp" 
-		#"-fbacktrace" 
+		"-fbacktrace" 
 		"-fexternal-blas"
 		"-C" 
 		#"-Wall" 
@@ -65,13 +65,14 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-		"-O2" 
+		"-O1" 
 		"-g" 
-		"-fno-strict-aliasing"
+		#"-fno-strict-aliasing"
 		#"-DNDEBUG" 
 		"-fopenmp" 
 		"-fbacktrace" 
 		"-fexternal-blas"
+		"-fPIC"
 		#"-C"
 		#"-Wall" 
 		#"-Wextra" 
@@ -83,7 +84,6 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		#"-ffunction-sections" 
 		#"-pipe"
 		#"-ffpe-trap=zero"
-		"-fPIC"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")

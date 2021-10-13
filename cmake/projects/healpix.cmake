@@ -153,8 +153,8 @@ if(COMPILE_HEALPIX)
 		BINARY_DIR				"${HEALPIX_SOURCE_DIR}" 
 		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE			OFF
-		LOG_BUILD					OFF
+		LOG_CONFIGURE			ON
+		LOG_BUILD					ON
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
 		#CONFIGURE_COMMAND "${healpix_copy_configure_script}"

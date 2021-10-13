@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel
 toolchain="gnu"
-buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -136,7 +136,8 @@ then
 		module load gcc/10.2.1
 		module load myopenmpi/4.0.3
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
-		$mpifc -- version
+		printf "\n"
+		$mpifc --version
 	elif [[ "$toolchain" =~ "flang" ]]
 	then
 		# Compilers
