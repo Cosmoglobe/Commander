@@ -130,13 +130,13 @@ contains
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
          ! fknee between 0.3 and 3 mHz
-         constructor%xi_n_nu_fit     = [0.0,    0.015]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.015]    ! fknee
+         constructor%xi_n_nu_fit     = [0.0,    0.1]    
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
          ! fknee between 2 and 8 mHz
-         constructor%xi_n_nu_fit     = [0.0,    0.040]   
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.040]    ! fknee
+         constructor%xi_n_nu_fit     = [0.0,    0.1]   
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
          ! fknee between 0.1 and 5 mHz
