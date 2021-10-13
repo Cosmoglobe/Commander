@@ -1,6 +1,6 @@
 #!/bin/bash
 #================================================================================
-# Description: This script will install Commander3 on NOTUR system: SAGA.
+# Description: This script will install Commander3 on NOTUR system: Betzy.
 #================================================================================
 comm3_root_dir="$(pwd)"
 build_dir="build_notur"
@@ -62,4 +62,5 @@ cmake \
 #------------------------------------------------------------------------------
 # Build and install command
 #------------------------------------------------------------------------------
+cmake --build $abs_path_to_build --target install -j 2
 #fi
