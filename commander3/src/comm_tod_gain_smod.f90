@@ -721,7 +721,7 @@ contains
      integer(i4b)   :: i
 
      nscan = size(b)
-     nfft = 2 * nscan
+     nfft = nscan
      n = nfft / 2 + 1
      samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
      allocate(freqs(0:n-1))
@@ -729,7 +729,7 @@ contains
         freqs(i) = i * (samprate * 0.5) / (n - 1)
      end do
 
-     nomp = 1
+     nomp = OMP_GET_THREAD_NUM()
      call dfftw_init_threads(err)
      call dfftw_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
@@ -809,12 +809,12 @@ contains
      real(dp),     dimension(1:), intent(in)     :: time
      complex(dpc), dimension(0:), intent(out)    :: fourier
      integer*8,                   intent(in)     :: plan_fwd
-     real(dp),     dimension(1:2*size(time))     :: dt
+     real(dp),     dimension(1:size(time))       :: dt
      integer(i4b)                                :: ntime
 
      ntime = size(time)
      dt(1:ntime) = time
-     dt(2*ntime:ntime+1:-1) = dt(1:ntime)
+     !dt(2*ntime:ntime+1:-1) = dt(1:ntime)
      call dfftw_execute_dft_r2c(plan_fwd, dt, fourier)
      fourier = fourier/sqrt(real(size(dt),dp))
 
@@ -840,7 +840,7 @@ contains
      implicit none
      complex(dpc), dimension(0:), intent(in)     :: fourier
      real(dp),     dimension(1:), intent(out)    :: time
-     real(dp),     dimension(2*size(time))       :: dt
+     real(dp),     dimension(size(time))         :: dt
      integer*8,                   intent(in)     :: plan_back
 
      call dfftw_execute_dft_c2r(plan_back, fourier, dt)
@@ -1265,7 +1265,7 @@ contains
          & tod%comm, ierr)
 
 !          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
-    nfft = nscan_tot * 2
+    nfft = nscan_tot !* 2
     n = nfft / 2 + 1
     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
     allocate(dt(nfft), dv(0:n-1))

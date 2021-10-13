@@ -271,7 +271,7 @@ interface
      integer*8,                  intent(in)     :: plan_back
    end subroutine fft_back
 
-  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back) result(res)!, &
 !     & with_precond)
      !
      ! Specialized function for solving the gain Wiener filter equation using
@@ -299,7 +299,7 @@ interface
      implicit none
      real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b, precond
      integer*8             , intent(in) :: plan_fwd, plan_back
-     real(dp), dimension(size(b))       :: solve_cg_gain
+     real(dp), dimension(size(b))       :: res
   end function solve_cg_gain
 
   module subroutine apply_cg_precond(vec_in, vec_out, precond, plan_fwd, plan_back)
@@ -310,7 +310,7 @@ interface
   end subroutine apply_cg_precond
 
   module function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
-     & plan_back, filewrite)
+     & plan_back, filewrite) result(res)
      !
      ! Multiplies a sum of a time-domain diagonal matrix and a Fourier-domain
      ! diagonal matrix by a time-domain vector.
@@ -338,7 +338,7 @@ interface
      implicit none
 
      real(dp), dimension(1:), intent(in)               :: vector
-     real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
+     real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
