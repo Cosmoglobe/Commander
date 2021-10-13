@@ -73,6 +73,7 @@ module comm_tod_LFI_mod
      procedure     :: filter_reference_load
      procedure     :: compute_ref_load_filter
      procedure     :: get_nsmooth
+     procedure     :: get_freq_bins
      procedure     :: preprocess_L1_to_L2
   end type comm_LFI_tod
 
@@ -250,9 +251,15 @@ interface
     class(comm_LFI_tod),          intent(in)    :: self
     real(sp),     dimension(:,:), intent(in)    :: data_in
     real(dp),     dimension(:,:), intent(inout) :: binned_out
-    real(dp),     dimension(:),   intent(inout) :: nu_out
+    real(dp),     dimension(:),   intent(in)    :: nu_out
     integer(i4b),                 intent(out)   :: err
   end subroutine compute_ref_load_filter
+
+  module subroutine get_freq_bins(self, freqs)
+    implicit none
+    class(comm_LFI_tod),   intent(in)  :: self
+    real(dp), dimension(:), intent(inout) :: freqs
+  end subroutine get_freq_bins
 
 
   module subroutine filter_reference_load(self, det, data)
