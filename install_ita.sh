@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel
-toolchain="intel"
+toolchain="gnu"
 buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -130,10 +130,13 @@ then
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
 	  #module load foss/10.3.0 # custom GNU GCC + OpenMPI 
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
-		source /opt/rh/devtoolset-9/enable
+		#source /opt/rh/devtoolset-9/enable
 		#export PATH="/usr/local/opt/openmpi-4.0.5/bin:$PATH"
 		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
+		module load gcc/10.2.1
 		module load myopenmpi/4.0.3
+		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
+		$mpifc -- version
 	elif [[ "$toolchain" =~ "flang" ]]
 	then
 		# Compilers
@@ -145,7 +148,7 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using AOCC:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load openmpi/aocc/4.0.5 AMD/aocc/3.0.0
+		module load openmpi/aocc/4.1.0 AMD/aocc/3.0.0
 	elif [[ "$toolchain" =~ "nvidia" ]]
 	then
 		# Compilers
@@ -193,12 +196,12 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=ON \
+	-DUSE_SYSTEM_BLAS:BOOL=OFF \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
+	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount -v 
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi

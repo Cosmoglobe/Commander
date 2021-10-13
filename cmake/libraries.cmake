@@ -78,14 +78,14 @@ set(CMAKE_REQUIRED_LIBRARIES ${MPI_Fortran_LIBRARIES}) #Threads::Threads)
 #------------------------------------------------------------------------------
 # Looking for OpenMP. 
 #------------------------------------------------------------------------------
-#message(STATUS "---------------------------------------------------------------")
-#find_package(OpenMP REQUIRED)
-#add_custom_target(openmp ALL "")
-## setting compilation and linking flags
-#set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_COMPILE_OPTIONS})
-#set(CMAKE_REQUIRED_INCLUDES ${OpenMP_Fortran_INCLUDE_DIRS})
-#set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
-#message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
+message(STATUS "---------------------------------------------------------------")
+find_package(OpenMP REQUIRED)
+add_custom_target(openmp ALL "")
+# setting compilation and linking flags
+set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_COMPILE_OPTIONS})
+set(CMAKE_REQUIRED_INCLUDES ${OpenMP_Fortran_INCLUDE_DIRS})
+set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
+message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
 #------------------------------------------------------------------------------
 # Creating comm_hdf_mod.f90 with Tempita language. Python is required. 
 #------------------------------------------------------------------------------
