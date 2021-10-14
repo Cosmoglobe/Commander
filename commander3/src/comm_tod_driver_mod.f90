@@ -475,7 +475,6 @@ contains
   !  Sampling drivers etc.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang, smooth)
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
