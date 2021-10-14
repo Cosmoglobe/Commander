@@ -307,7 +307,6 @@ contains
     self%enable_tod_simulations = cpar%enable_tod_simulations
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
-    self%L2_exist        = .false.
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
@@ -345,6 +344,8 @@ contains
        else
           self%L2_exist = .false.
        end if
+    else
+       self%L2_exist = .true.
     end if
 
     call self%get_scan_ids(self%filelist)
@@ -654,7 +655,7 @@ contains
 !!$    end if
 
     call update_status(status, "aaa")
-    if (.not. self%L2_exist) then
+    if (self%L2_exist) then
        do i = 1, self%nscan
           call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
                & detlabels, self%nhorn, self%ndiode, self%diode_names)
