@@ -171,6 +171,7 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: cnt = 0
     character(len=128)  :: kernel_type
+    logical(lgt)        :: sample_per_jump
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -227,8 +228,19 @@ contains
              close(68)
           end if
 
-          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
-             & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          sample_per_jump = .true. .and. (size(tod%jumplist(j, :)) > 2)
+          if (sample_per_jump) then
+             if (tod%myid == 0) then
+                write(*, *) 'Estimating per gain jump'
+             end if
+             do k = 1, size(tod%jumplist(j, :)) - 2
+                call wiener_filtered_gain(g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 1), g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                   & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+             end do
+          else
+             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          end if
 
          ! Force noise-weighted average to zero
          mu = 0.d0
@@ -1156,15 +1168,17 @@ contains
      real(dp), dimension(0:), intent(in)     :: freqs
      real(dp), intent(in)                   :: sigma_0, fknee, alpha
      real(dp), dimension(0:), intent(out)    :: invcov
+     real(dp)                               :: target_apod_freq
+     integer(i4b)       :: apod_ind
 
      integer(i4b) :: i
      real(dp) :: apod
 
      invcov(0) = 1d12 !0.d0
-     do i = 1, size(freqs)-1
-        apod = (1 + freqs(i)/freqs(150))**5
-!        if (freqs(i) < freqs(100)) then
-           invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
+     target_apod_freq = 1d-6
+      do i = 1, size(freqs) -1
+         apod = (1 + freqs(i)/target_apod_freq)**5
+         invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
 !        else
 !           invcov(i) = 1.d12
 !        end if
