@@ -152,11 +152,12 @@ contains
 ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  module subroutine sample_smooth_gain(tod, handle, dipole_mods)
+  module subroutine sample_smooth_gain(tod, handle, dipole_mods, smooth)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),   dimension(:, :),       intent(in)     :: dipole_mods
+    logical(lgt), optional,            intent(in)     :: smooth
 
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
@@ -171,7 +172,10 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: cnt = 0
     character(len=128)  :: kernel_type
-    logical(lgt)        :: sample_per_jump
+    logical(lgt) :: smooth_, sample_per_jump
+
+    smooth_ = .true.
+    if (present(smooth) ) smooth_ = smooth
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -198,7 +202,8 @@ contains
           do i = 1, tod%nscan
              k        = tod%scanid(i)
              if (.not. tod%scans(i)%d(j)%accept) cycle
-             tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2) + rand_gauss(handle)/sqrt(g(k,j,2))
+             tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2)
+             if (trim(tod%operation)=='sample') tod%scans(i)%d(j)%dgain = tod%scans(i)%d(j)%dgain + rand_gauss(handle)/sqrt(g(k,j,2))
              tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
           end do
        end do
