@@ -301,12 +301,14 @@ contains
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)
     self%verbosity     = cpar%verbosity
-    self%sims_output_dir = cpar%sims_output_dir
     self%apply_inst_corr = .false.
+    self%sims_output_dir        = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
-    self%level        = cpar%ds_tod_level(id_abs)
-    self%L2_exist     = .false.
-    self%sample_abs_bp   = .false.
+    self%level                  = cpar%ds_tod_level(id_abs)
+    ! Initialising the value to TRUE by default.
+    ! Will be changed if we are using "L1" data instead
+    self%L2_exist               = .true.
+    self%sample_abs_bp          = .false.
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
@@ -342,7 +344,7 @@ contains
           self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
        else
-          self%L2_exist = .false.
+          self%L2_exist = .true.
        end if
     end if
 
@@ -650,7 +652,7 @@ contains
 !!$    end if
 
     call update_status(status, "aaa")
-    if (.not. self%L2_exist) then
+    if (self%L2_exist) then
        do i = 1, self%nscan
           call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
                & detlabels, self%nhorn, self%ndiode, self%diode_names)
