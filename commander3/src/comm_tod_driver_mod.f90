@@ -195,7 +195,7 @@ contains
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
-               & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%polang(j))
+               & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
        end do
     else
@@ -204,6 +204,15 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
+    if (tod%scanid(scan) == 3) then
+       open(58,file='sidelobe_BP10.dat')
+       do k = 1, size(self%s_sl,1)
+          write(58,*) k, self%s_sl(k,1)
+       end do
+       close(58)
+    end if
+
+
     !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
@@ -467,6 +476,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
+  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang, smooth)
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -491,6 +501,8 @@ contains
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+    real(dp),                                  intent(in),   optional :: polang
+    logical(lgt),                              intent(in),   optional :: smooth
 
     integer(i4b) :: i, j, ext(2), ierr
     real(dp)     :: t1, t2
@@ -498,6 +510,11 @@ contains
     real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
     real(dp), allocatable, dimension(:,:) :: dipole_mod
     type(comm_scandata) :: sd
+    logical(lgt) :: smooth_
+
+
+    smooth_ = .true.
+    if (present(smooth))  smooth_=smooth
 
     if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
 
@@ -554,17 +571,7 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
-       !do j = 1, tod%ndet
-       !      if (tod%scanid(i) == 30) then
-       !        write(*,*) 'abscaltest1', j, 'sum(s(:,j))', sum(s_invN(:,j))
-       !      end if
-       !end do
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
-       !do j = 1, tod%ndet
-       !      if (tod%scanid(i) == 30) then
-       !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
-       !      end if
-       !end do
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
@@ -587,22 +594,12 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
-!          if (tod%compressed_tod) then
             call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
-!!$          else
-!!$            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
-!!$              & out=.true., mask_lowres=mask_lowres)
-!!$          end if
        else
           ! Time-variable gain terms
-!          if (tod%compressed_tod) then
             call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
               & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
-!!$          else
-!!$            call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
-!!$              & handle, mask_lowres=mask_lowres)
-!!$          end if
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
@@ -624,7 +621,7 @@ contains
        call sample_relcal(tod, handle, A, b)
     else if (trim(mode) == 'deltaG') then
        call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
-       call sample_smooth_gain(tod, handle, dipole_mod)
+       call sample_smooth_gain(tod, handle, dipole_mod, smooth_)
     else if (trim(mode) == 'imbal') then
        call sample_imbal_cal(tod, handle, A, b)
     end if

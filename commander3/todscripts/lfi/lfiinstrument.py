@@ -29,6 +29,7 @@ from astropy.io import fits
 from commander_tools.tod_tools.lfi import lfi
 from commander_tools.tod_tools import commander_instrument as inst
 
+bppath="/mn/stornext/u3/trygvels/compsep/cdata/like/bandpass_profcorrect"
 
 def main():
 
@@ -47,7 +48,7 @@ def main():
     args = parser.parse_args()
     outDir = args.out_dir
 
-    version = 7
+    version = 8
 
     rimo = fits.open(args.rimo)
 
@@ -59,14 +60,19 @@ def main():
     diode_weights = fits.open(os.path.join(args.aux_dir, 'diode_weights.fits'))
 
     for freq in lfi.freqs:
-        bandNo = rimo.index_of('BANDPASS_0' + str(freq))
-        inst_file.add_bandpass(freq, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
+        #bandNo = rimo.index_of('BANDPASS_0' + str(freq))
+        #inst_file.add_bandpass(freq, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
+        wavenumber, transmission = np.loadtxt(f'{bppath}/bp_corrected_{freq}.dat', unpack=True)
+        inst_file.add_bandpass(freq, wavenumber, transmission
 
         for horn in lfi.horns[freq]:
             for hornType in ['S', 'M']:
                 prefix = str(horn) + hornType
-                bandNo = rimo.index_of('BANDPASS_0' + str(freq) + '-' + str(horn) + hornType)
-                inst_file.add_bandpass(prefix, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
+                #bandNo = rimo.index_of('BANDPASS_0' + str(freq) + '-' + str(horn) + hornType)
+                #inst_file.add_bandpass(prefix, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
+                wavenumber, transmission = np.loadtxt(f'{bppath}/bp_corrected_{prefix}.dat', unpack=True)
+                inst_file.add_bandpass(prefix, wavenumber, transmission)
+
                 beamData, mmax_b = hp.read_alm(os.path.join(beamDir, 'mbib_DX12_LFI' + str(horn) + hornType + '.fits'), return_mmax=True)
 
                 beamData_E = hp.read_alm(os.path.join(beamDir, 'mbib_DX12_LFI' + str(horn) + hornType + '.fits'), hdu=2)
