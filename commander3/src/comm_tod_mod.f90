@@ -305,6 +305,7 @@ contains
     self%apply_inst_corr = .false.
     self%enable_tod_simulations = cpar%enable_tod_simulations
     self%level        = cpar%ds_tod_level(id_abs)
+    self%L2_exist     = .false.
     self%sample_abs_bp   = .false.
 
     if (trim(self%noise_psd_model) == 'oof') then
