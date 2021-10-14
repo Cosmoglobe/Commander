@@ -384,11 +384,11 @@ contains
       ! Thinking about a test where I don't sample the parameters and just do
       ! the mapmaking for several iterations, maybe looping over the
       ! polarization angles in the sidelobe corrections.
-      call sample_baseline(self, handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
+      !call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
 
 
 
