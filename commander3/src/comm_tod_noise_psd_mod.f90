@@ -395,7 +395,7 @@ contains
     ! 
     ! Constructor for two-component 1/f noise PSD object, where
     !     
-    !     P(nu) = sigma0^2 * (1 + (nu/fknee)^alpha + g*(nu/fknee2))
+    !     P(nu) = sigma0^2 * (1 + (nu/fknee)^alpha + g*(nu/fknee))
     ! 
     ! Arguments
     ! --------- 
@@ -414,17 +414,16 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
     real(sp),                        dimension(2),   intent(in)      :: nu_fit
-    class(comm_noise_psd_oof_f), pointer                         :: constructor_oof_f
+    class(comm_noise_psd_oof_f),     pointer                         :: constructor_oof_f
 
     allocate(constructor_oof_f)
 
     if (P_active_mean(FKNEE) <= 0.0)       write(*,*) 'comm_noise_psd error: fknee prior mean less than zero'
-    if (P_active_mean(G_SIG) <= 0.0)     write(*,*) 'comm_noise_psd error: g_sig prior mean less than zero'
     if (P_uni(FKNEE,1) <= 0.0)             write(*,*) 'comm_noise_psd error: Lower fknee prior less than zero'
     if (P_uni(FKNEE,1) > P_uni(FKNEE,2))   write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
     if (P_uni(ALPHA,1) > P_uni(ALPHA,2))   write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
 
-    constructor_oof_f%npar = 6
+    constructor_oof_f%npar = 4
     allocate(constructor_oof_f%xi_n(constructor_oof_f%npar))
     allocate(constructor_oof_f%P_uni(constructor_oof_f%npar,2))
     allocate(constructor_oof_f%P_active(constructor_oof_f%npar,2))
@@ -455,7 +454,7 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd_oof_f),     intent(in)      :: self
+    class(comm_noise_psd_oof_f),         intent(in)      :: self
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_oof_f_full
  
