@@ -307,6 +307,7 @@ contains
     self%enable_tod_simulations = cpar%enable_tod_simulations
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
+    self%L2_exist        = .false.
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
