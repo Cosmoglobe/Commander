@@ -172,7 +172,7 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: cnt = 0
     character(len=128)  :: kernel_type
-    logical(lgt) :: smooth_
+    logical(lgt) :: smooth_, sample_per_jump
 
     smooth_ = .true.
     if (present(smooth) ) smooth_ = smooth
@@ -239,8 +239,22 @@ contains
              close(68)
           end if
 
-          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
-             & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          sample_per_jump = .true. .and. (size(tod%jumplist(j, :)) > 2)
+          if (sample_per_jump) then
+             if (tod%myid == 0) then
+                write(*, *) 'Estimating per gain jump'
+             end if
+             do k = 1, size(tod%jumplist(j, :)) - 2
+                call wiener_filtered_gain(g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 1), g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                   & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+             end do
+               ! Final chunk
+                call wiener_filtered_gain(g(tod%jumplist(j, k+1):, j, 1), g(tod%jumplist(j, k+1):, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                   & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          else
+             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          end if
 
          ! Force noise-weighted average to zero
          mu = 0.d0
@@ -734,7 +748,6 @@ contains
      integer(i4b)   :: i
 
      nscan = size(b)
-!     nfft = 2 * nscan
      nfft = nscan
      n = nfft / 2 + 1
      samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
@@ -743,7 +756,7 @@ contains
         freqs(i) = i * (samprate * 0.5) / (n - 1)
      end do
 
-     nomp = 1
+     nomp = OMP_GET_THREAD_NUM()
      call dfftw_init_threads(err)
      call dfftw_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
@@ -794,15 +807,15 @@ contains
 
   end subroutine wiener_filtered_gain
 
-  module subroutine fft_fwd(dt, dv, plan_fwd)
+  module subroutine fft_fwd(time, fourier, plan_fwd)
      !
      ! Given a fft plan, transforms a vector from time domain to Fourier domain.
      !
      ! Arguments:
      ! ----------
-     ! vector:          real(dp) array
+     ! time:            real(dp) array
      !                  The original time-domain vector.
-     ! fourier_vector:  complex(dpc) array
+     ! fourier:         complex(dpc) array
      !                  The array that will contain the Fourier vector.
      ! plan_fwd:        integer*8
      !                  The fft plan to carry out the transformation
@@ -813,25 +826,29 @@ contains
      !                  At exit will contain the Fourier domain vector.
 
      implicit none
-     real(dp),     dimension(1:), intent(in)     :: dt
-     complex(dpc), dimension(0:), intent(out)    :: dv
+     real(dp),     dimension(1:), intent(in)     :: time
+     complex(dpc), dimension(0:), intent(out)    :: fourier
      integer*8,                   intent(in)     :: plan_fwd
+     real(dp),     dimension(1:size(time))       :: dt
+     integer(i4b)                                :: ntime
 
-     call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
-     dv = dv/sqrt(real(size(dt),dp))
-     !dv = dv/size(dt)
+     ntime = size(time)
+     dt(1:ntime) = time
+     !dt(2*ntime:ntime+1:-1) = dt(1:ntime)
+     call dfftw_execute_dft_r2c(plan_fwd, dt, fourier)
+     fourier = fourier/sqrt(real(size(dt),dp))
 
    end subroutine fft_fwd
 
-  module subroutine fft_back(dv, dt, plan_back)
+  module subroutine fft_back(fourier, time, plan_back)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
      ! Arguments:
      ! ----------
-     ! dv:              complex(dpc) array
+     ! fourier:              complex(dpc) array
      !                  The original Fourier domain vector.
-     ! dt:              real(dp) array
+     ! time:            real(dp) array
      !                  The vector that will contain the transformed vector.
      ! plan_back:       integer*8
      !                  The fft plan to carry out the transformation.
@@ -841,16 +858,18 @@ contains
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(0:), intent(in)     :: dv
-     real(dp),     dimension(1:), intent(out)    :: dt
+     complex(dpc), dimension(0:), intent(in)     :: fourier
+     real(dp),     dimension(1:), intent(out)    :: time
+     real(dp),     dimension(size(time))         :: dt
      integer*8,                   intent(in)     :: plan_back
 
-     call dfftw_execute_dft_c2r(plan_back, dv, dt)
+     call dfftw_execute_dft_c2r(plan_back, fourier, dt)
      dt = dt/sqrt(real(size(dt),dp))
+     time = dt(1:size(time))
 
    end subroutine fft_back
 
-  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back) result(solution) !, &
 !     & with_precond)
      !
      ! Specialized function for solving the gain Wiener filter equation using
@@ -879,7 +898,7 @@ contains
      real(dp), dimension(1:), intent(in) :: inv_N_wn, b
      real(dp), dimension(0:), intent(in) :: inv_N_corr, precond
      integer*8             ,  intent(in) :: plan_fwd, plan_back
-     real(dp), dimension(size(b))       :: solve_cg_gain
+     real(dp), dimension(size(b))       :: solution
 !     logical(lgt)                       :: with_precond
 
 
@@ -1001,7 +1020,7 @@ contains
 !        write(*, *) "Without preconditioner"
 !     end if
      !write(*, *) "Gain CG iterations: ", iterations
-     solve_cg_gain = prop_sol
+     solution = prop_sol
 
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
 
@@ -1026,7 +1045,7 @@ contains
   end subroutine apply_cg_precond
 
   module function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
-     & plan_back, filewrite)
+     & plan_back, filewrite) result(res)
      !
      ! Multiplies a sum of a time-domain diagonal matrix and a Fourier-domain
      ! diagonal matrix by a time-domain vector.
@@ -1054,7 +1073,7 @@ contains
      implicit none
 
      real(dp), dimension(1:), intent(in)               :: vector
-     real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
+     real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
@@ -1071,7 +1090,7 @@ contains
       end if
 
      if (all(vector .eq. 0)) then
-        tot_mat_mul_by_vector = 0.d0
+        res = 0.d0
         return
      end if
 !     if (write_file) then
@@ -1119,13 +1138,13 @@ contains
 !         close(58)
 !      end if
 
-     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + size(vector)**4*temp_vector
-     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + temp_vector
+     !res = size(vector)*vector * time_mat + size(vector)**4*temp_vector
+     !res = size(vector)*vector * time_mat + temp_vector
      !write(*,*) 'a', real(vector(1:4) * time_mat(1:4),sp)
      !write(*,*) 'b', real(temp_vector(1:4),sp)
 
-     tot_mat_mul_by_vector = vector * time_mat + temp_vector
-     !tot_mat_mul_by_vector = vector * time_mat
+     res = vector * time_mat + temp_vector
+     !res = vector * time_mat
 
   end function tot_mat_mul_by_vector
 
@@ -1157,15 +1176,17 @@ contains
      real(dp), dimension(0:), intent(in)     :: freqs
      real(dp), intent(in)                   :: sigma_0, fknee, alpha
      real(dp), dimension(0:), intent(out)    :: invcov
+     real(dp)                               :: target_apod_freq
+     integer(i4b)       :: apod_ind
 
      integer(i4b) :: i
      real(dp) :: apod
 
      invcov(0) = 1d12 !0.d0
-     do i = 1, size(freqs)-1
-        apod = (1 + freqs(i)/freqs(150))**5
-!        if (freqs(i) < freqs(100)) then
-           invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
+     target_apod_freq = 1d-6
+      do i = 1, size(freqs) -1
+         apod = (1 + freqs(i)/target_apod_freq)**5
+         invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
 !        else
 !           invcov(i) = 1.d12
 !        end if
@@ -1266,7 +1287,7 @@ contains
          & tod%comm, ierr)
 
 !          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
-    nfft = nscan_tot
+    nfft = nscan_tot !* 2
     n = nfft / 2 + 1
     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
     allocate(dt(nfft), dv(0:n-1))

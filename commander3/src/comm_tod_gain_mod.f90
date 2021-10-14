@@ -225,15 +225,15 @@ interface
      type(planck_rng)                        :: handle
   end subroutine wiener_filtered_gain
 
-  module subroutine fft_fwd(dt, dv, plan_fwd)
+  module subroutine fft_fwd(time, fourier, plan_fwd)
      !
      ! Given a fft plan, transforms a vector from time domain to Fourier domain.
      !
      ! Arguments:
      ! ----------
-     ! vector:          real(dp) array
+     ! time:            real(dp) array
      !                  The original time-domain vector.
-     ! fourier_vector:  complex(dpc) array
+     ! fourier:         complex(dpc) array
      !                  The array that will contain the Fourier vector.
      ! plan_fwd:        integer*8
      !                  The fft plan to carry out the transformation
@@ -244,20 +244,20 @@ interface
      !                  At exit will contain the Fourier domain vector.
 
      implicit none
-     real(dp),     dimension(:), intent(in)     :: dt
-     complex(dpc), dimension(:), intent(out)    :: dv
-     integer*8,                  intent(in)     :: plan_fwd
+     real(dp),     dimension(1:), intent(in)     :: time
+     complex(dpc), dimension(0:), intent(out)    :: fourier
+     integer*8,                   intent(in)     :: plan_fwd
    end subroutine fft_fwd
 
-  module subroutine fft_back(dv, dt, plan_back)
+  module subroutine fft_back(fourier, time, plan_back)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
      ! Arguments:
      ! ----------
-     ! dv:              complex(dpc) array
+     ! fourier:         complex(dpc) array
      !                  The original Fourier domain vector.
-     ! dt:              real(dp) array
+     ! time:            real(dp) array
      !                  The vector that will contain the transformed vector.
      ! plan_back:       integer*8
      !                  The fft plan to carry out the transformation.
@@ -267,12 +267,12 @@ interface
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(:), intent(in)     :: dv
-     real(dp),     dimension(:), intent(out)    :: dt
+     complex(dpc), dimension(0:), intent(in)     :: fourier
+     real(dp),     dimension(1:), intent(out)    :: time
      integer*8,                  intent(in)     :: plan_back
    end subroutine fft_back
 
-  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back) result(res)!, &
 !     & with_precond)
      !
      ! Specialized function for solving the gain Wiener filter equation using
@@ -300,7 +300,7 @@ interface
      implicit none
      real(dp), dimension(:), intent(in) :: inv_N_wn, inv_N_corr, b, precond
      integer*8             , intent(in) :: plan_fwd, plan_back
-     real(dp), dimension(size(b))       :: solve_cg_gain
+     real(dp), dimension(size(b))       :: res
   end function solve_cg_gain
 
   module subroutine apply_cg_precond(vec_in, vec_out, precond, plan_fwd, plan_back)
@@ -311,7 +311,7 @@ interface
   end subroutine apply_cg_precond
 
   module function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
-     & plan_back, filewrite)
+     & plan_back, filewrite) result(res)
      !
      ! Multiplies a sum of a time-domain diagonal matrix and a Fourier-domain
      ! diagonal matrix by a time-domain vector.
@@ -339,7 +339,7 @@ interface
      implicit none
 
      real(dp), dimension(1:), intent(in)               :: vector
-     real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
+     real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
