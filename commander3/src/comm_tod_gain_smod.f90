@@ -239,7 +239,7 @@ contains
              close(68)
           end if
 
-          sample_per_jump = .true. .and. (size(tod%jumplist(j, :)) > 2)
+          sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
           if (sample_per_jump) then
              if (tod%myid == 0) then
                 write(*, *) 'Estimating per gain jump'
