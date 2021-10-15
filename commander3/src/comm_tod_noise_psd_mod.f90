@@ -84,7 +84,7 @@ module comm_tod_noise_psd_mod
 
   type, extends(comm_noise_psd) :: comm_noise_psd_oof_f
      ! 
-     ! Class definition for 2-component 1/f + Gauss noise PSD model
+     ! Class definition for 2-component 1/f + linear noise PSD model
      !
    contains
      procedure :: eval_full   => eval_noise_psd_oof_f_full
@@ -436,7 +436,7 @@ contains
     constructor_oof_f%P_active(:,1) = P_active_mean
     constructor_oof_f%P_active(:,2) = P_active_rms
     constructor_oof_f%nu_fit        = nu_fit
-    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false., .false., .false.] !  [sigma0, fknee, alpha, fknee2, alpha2]
+    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false.] !  [sigma0, fknee, alpha, gamma]
 
     constructor_oof_f%sigma0 => constructor_oof_f%xi_n(1)
 
@@ -444,7 +444,7 @@ contains
   
   function eval_noise_psd_oof_f_full(self, nu)
     ! 
-    ! Evaluation routine for 2-component 1/f noise PSD object
+    ! Evaluation routine for 2-component 1/f  + gamma*f noise PSD object
     ! 
     ! Arguments
     ! ---------
@@ -458,19 +458,13 @@ contains
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_oof_f_full
  
-!!$    real(sp) :: S1, S2
-!!$
-!!$    S1 = self%xi_n(SIGMA0)**2 * (1. + (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA))
-!!$    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) / nu * exp(-0.5 * ((log10(nu) - log10(self%xi_n(G_LOC))/self%xi_n(G_SIG)))**2 ) 
-!!$    eval_noise_psd_oof_f_full = S1 + S2
-
     eval_noise_psd_oof_f_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu)
 
   end function eval_noise_psd_oof_f_full
 
   function eval_noise_psd_oof_f_corr(self, nu)
     ! 
-    ! Evaluation routine for 2-component 1/f noise PSD object; correlated noise only
+    ! Evaluation routine for 1/f noise + gamma*f PSD object; correlated noise only
     ! 
     ! Arguments
     ! ---------
