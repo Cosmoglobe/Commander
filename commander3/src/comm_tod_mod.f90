@@ -652,7 +652,7 @@ contains
 !!$    end if
 
     call update_status(status, "aaa")
-    if (self%L2_exist) then
+    if (trim(self%level) == 'L2' .or. self%L2_exist) then
        do i = 1, self%nscan
           call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
                & detlabels, self%nhorn, self%ndiode, self%diode_names)
