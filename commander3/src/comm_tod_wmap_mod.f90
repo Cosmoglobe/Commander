@@ -568,7 +568,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      !if (mod(iter,self%output_aux_maps) == 0) then
+      if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '  Running BiCG'
@@ -583,7 +583,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      !end if
+      end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
@@ -599,7 +599,7 @@ contains
 
 
       map_out%map = outmaps(1)%p%map
-      rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
+      rms_out%map = M_diag(self%info%pix, 1:nmaps)**(-0.5)
       call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       do n = 2, self%output_n_maps
