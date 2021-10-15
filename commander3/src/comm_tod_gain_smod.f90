@@ -249,8 +249,8 @@ contains
                    & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
              end do
                ! Final chunk
-                call wiener_filtered_gain(g(tod%jumplist(j, k+1):, j, 1), g(tod%jumplist(j, k+1):, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
-                   & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+             call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                  & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           else
              call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
