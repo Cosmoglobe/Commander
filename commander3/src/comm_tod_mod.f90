@@ -335,7 +335,6 @@ contains
     self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
 
     if (trim(self%level) == 'L1') then
-
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
           unit        = getlun()
@@ -655,7 +654,7 @@ contains
 !!$    end if
 
     call update_status(status, "aaa")
-    if (.not. self%L2_exist) then
+    if (trim(self%level) == 'L2' .or. .not. self%L2_exist) then
        do i = 1, self%nscan
           call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
                & detlabels, self%nhorn, self%ndiode, self%diode_names)
