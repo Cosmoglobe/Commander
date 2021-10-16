@@ -115,8 +115,9 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
-     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
+     real(dp), allocatable, dimension(:)     :: gain0                                       ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
+     real(dp), allocatable, dimension(:,:)   :: polang_prior                                ! Detector polarization angle prior [ndet,mean/rms]
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
