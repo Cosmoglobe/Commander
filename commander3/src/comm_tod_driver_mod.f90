@@ -971,13 +971,14 @@ contains
   !> @param[out]
   !
   ! ************************************************
-  subroutine simulate_tod(self, scan_id, s_tot, handle)
+  subroutine simulate_tod(self, scan_id, s_tot, n_corr, handle)
     implicit none
     class(comm_tod), intent(inout) :: self
     ! Parameter file variables
     !type(comm_params),                     intent(in)    :: cpar
     ! Other input/output variables
     real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot   !< total sky signal
+    real(sp),              dimension(:,:), intent(out)   :: n_corr  !< Correlated noise (output)
     integer(i4b),                          intent(in)    :: scan_id !< current PID
     type(planck_rng),                      intent(inout) :: handle
     ! Simulation variables
@@ -1010,12 +1011,14 @@ contains
     integer(i4b) :: n, nfft
     integer*8    :: plan_back
     real(sp) :: nu
-    real(sp), allocatable, dimension(:,:) :: n_corr
+    !real(sp), allocatable, dimension(:,:) :: n_corr
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     character(len=10) :: processor_label   !< to have a nice output to screen
+    integer(i4b) :: ntoks
+    character(len=512), dimension(100) :: toks
 
-    write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
+    !write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
 
     ! shortcuts
     ntod = self%scans(scan_id)%ntod
@@ -1036,7 +1039,7 @@ contains
     deallocate(dt, dv)
 
     !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
-    allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
+    allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
     !$OMP DO SCHEDULE(guided)
     do j = 1, ndet
       ! skipping iteration if scan was not accepted
@@ -1059,7 +1062,7 @@ contains
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
       dt = dt / sqrt(1.d0*nfft)
-      n_corr(:, j) = dt(1:ntod)
+      n_corr(:,j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
     !$OMP END DO
@@ -1070,7 +1073,7 @@ contains
 
     ! Allocating main simulations' array
     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
-    tod_per_detector = NaN
+    tod_per_detector = 1d30
 
     ! Main simulation loop
     do i = 1, ntod
@@ -1092,7 +1095,7 @@ contains
       end do
     end do
 
-    write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
+    !write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file
@@ -1101,7 +1104,8 @@ contains
     mystring = trim(self%hdfname(scan_id))
     mysubstring = 'LFI_0'
     myindex = index(trim(mystring), trim(mysubstring))
-    currentHDFFile = trim(self%sims_output_dir)//'/'//trim(mystring(myindex:))
+    call get_tokens(trim(mystring), "/", toks=toks, num=ntoks)
+    currentHDFFile = trim(self%sims_output_dir)//'/'//trim(toks(ntoks))
     !write(*,*) "hdf5name "//trim(self%hdfname(scan_id))
     !write(*,*) "currentHDFFile "//trim(currentHDFFile)
     ! Converting PID number into string value
@@ -1118,6 +1122,7 @@ contains
     call h5open_f(hdf5_error)
     ! Open an existing file - returns hdf5_file_id
     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
+    if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
     do j = 1, ndet
       detectorLabel = self%label(j)
       ! Open an existing dataset.
@@ -1132,9 +1137,10 @@ contains
     ! Close FORTRAN interface.
     call h5close_f(hdf5_error)
 
+
     !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
-    deallocate(n_corr, tod_per_detector)
+    deallocate(tod_per_detector)
     write(*,*) "Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
     ! lastly, we need to copy an existing filelist.txt into simulation folder

@@ -190,13 +190,17 @@ contains
     call res%remove_fixed_scans
 
     ! Setting polarization angles to DPC post-analysis values
-!!$    if (trim(res%freq) == '030') then
-!!$       res%polang = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
-!!$    else if (trim(res%freq) == '044') then
-!!$       res%polang = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
-!!$    else if (trim(res%freq) == '070') then
-!!$       res%polang = -[ 0.543, 0.543,  1.366, 1.366,  -1.811, -1.811, -1.045, -1.045,  -2.152, -2.152,  -0.960, -0.960]*pi/180.
-!!$    end if
+    allocate(res%polang_prior(res%ndet,2))
+    if (trim(res%freq) == '030') then
+       res%polang_prior(:,1) = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
+       res%polang_prior(:,2) =  [ 0.683,  0.683, 0.278, 0.278]*pi/180.
+    else if (trim(res%freq) == '044') then
+       res%polang_prior(:,1) = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
+       res%polang_prior(:,2) =  [ 0.380,  0.380,  1.646, 1.646,  0.557,  0.557]*pi/180.
+    else if (trim(res%freq) == '070') then
+       res%polang_prior(:,1) = -[ 0.543, 0.543, 1.366, 1.366, -1.811, -1.811, -1.045, -1.045, -2.152, -2.152,  -0.960, -0.960]*pi/180.
+       res%polang_prior(:,2) =  [ 0.684, 0.684, 0.835, 0.835,  0.835,  0.835,  1.266,  1.266,  1.139,  1.139,   0.734,  0.734]*pi/180. 
+    end if
 
     ! Initialize bandpass mean and proposal matrix
     call res%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
@@ -487,7 +491,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_polang
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
@@ -507,6 +511,9 @@ contains
     sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
+
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -556,6 +563,15 @@ contains
     !------------------------------------
     ! Perform main sampling steps
     !------------------------------------
+
+    ! Draw polarization angle from Tau-A prior (https://www.aanda.org/articles/aa/full_html/2016/10/aa26998-15/F3.html)
+    if (sample_polang) then
+       do i = 1, self%ndet
+          self%polang(i) = self%polang_prior(i,1) + rand_gauss(handle) * self%polang_prior(i,2)
+       end do
+    else
+       self%polang = 0.d0
+    end if
 
     ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
     if (.not. self%sample_L1_par .and. self%ndiode > 1) then
@@ -608,15 +624,12 @@ contains
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
 
-       ! Calling Simulation Routine
+       ! Make simulations, or draw correlated noise
        if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, handle)
-          call sd%dealloc
-          cycle
+          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+       else
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-
-       ! Sample correlated noise
-       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
 
@@ -646,11 +659,11 @@ contains
              do j = 1, sd%ndet
                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
              end do
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
+!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
+!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+!!$                  & self%scans(i)%d(:)%accept)
              deallocate(sigma0)
           end if
        end if
@@ -673,16 +686,6 @@ contains
        deallocate(d_calib)
 
     end do
-
-    if (self%enable_tod_simulations) then
-       ! Clean up
-       call binmap%dealloc()
-       call update_status(status, "dealloc_binned_map")
-       if (allocated(slist)) deallocate(slist)
-       deallocate(map_sky, procmask, procmask2)
-       call update_status(status, "dealloc_sky_maps")
-       return
-    end if
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 

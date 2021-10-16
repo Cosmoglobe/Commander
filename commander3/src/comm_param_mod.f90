@@ -439,6 +439,7 @@ contains
     !----------------------------------------------------------------------------------
     ! Commander3 simulations parameters
     call get_parameter_hashtable(htbl, 'ENABLE_TOD_SIMULATIONS',   par_lgt=cpar%enable_TOD_simulations)
+    if (cpar%enable_TOD_simulations) cpar%num_gibbs_iter = 1
     call get_parameter_hashtable(htbl, 'SIMS_OUTPUT_DIRECTORY',    par_string=cpar%sims_output_dir)
     !----------------------------------------------------------------------------------
 
