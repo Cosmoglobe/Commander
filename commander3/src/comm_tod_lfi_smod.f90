@@ -499,6 +499,9 @@ contains
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
@@ -599,15 +602,12 @@ contains
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
 
-       ! Calling Simulation Routine
+       ! Make simulations, or draw correlated noise
        if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, handle)
-          call sd%dealloc
-          cycle
+          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+       else
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-
-       ! Sample correlated noise
-       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
 
@@ -637,11 +637,11 @@ contains
              do j = 1, sd%ndet
                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
              end do
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
+!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
+!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+!!$                  & self%scans(i)%d(:)%accept)
              deallocate(sigma0)
           end if
        end if
@@ -664,16 +664,6 @@ contains
        deallocate(d_calib)
 
     end do
-
-    if (self%enable_tod_simulations) then
-       ! Clean up
-       call binmap%dealloc()
-       call update_status(status, "dealloc_binned_map")
-       if (allocated(slist)) deallocate(slist)
-       deallocate(map_sky, procmask, procmask2)
-       call update_status(status, "dealloc_sky_maps")
-       return
-    end if
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 

@@ -1116,13 +1116,13 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q, flen
     real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
     character(len=6)   :: fileid
     character(len=512) :: infile
     real(dp),           allocatable, dimension(:)   :: weight, sid
     real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
-    integer(i4b),       allocatable, dimension(:)   :: scanid, id
+    integer(i4b),       allocatable, dimension(:)   :: scanid, id, filenum
     integer(i4b),       allocatable, dimension(:)   :: proc
     real(dp),           allocatable, dimension(:)   :: pweight
     character(len=512), allocatable, dimension(:)   :: filename
@@ -1166,8 +1166,9 @@ contains
        
          open(unit, file=trim(filelist))
          read(unit,*) n
-         allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
+         allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot), filenum(n_tot))
          j = 1
+         filenum = 0
          do i = 1, n
             read(unit,*) p, infile, w, spin
             if (p < self%first_scan .or. p > self%last_scan) cycle
@@ -1177,6 +1178,10 @@ contains
             spinpos(1:2,j) = spin
             id(j)          = j
             sid(j)         = scanid(j)
+            if (self%enable_tod_simulations) then
+               flen = len(trim(infile))
+               read(infile(flen-8:flen-3),*) filenum(j)
+            end if
             call ang2vec(spinpos(1,j), spinpos(2,j), spinaxis(j,1:3))
             if (j == 1) self%initfile = filename(j)
             j              = j+1
@@ -1184,37 +1189,33 @@ contains
          end do
          close(unit)
 
-         ! Compute symmetry axis
-         v0 = 0.d0
-         do i = 2, n_tot
-            v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-            v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-            v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-            if (v(3) < 0.d0) v  = -v
-            if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
-         end do
-         if (maxval(sqrt(v0*v0)) == 0) then
-           v0 = 1
+         if (self%enable_tod_simulations) then
+            do i = 1, n_tot
+               proc(i) = mod(filenum(i),self%numprocs)
+            end do
          else
-           v0 = v0 / sqrt(v0*v0)
-         end if
-!        v0(1) = 1
-       
-
-!!$
-!!$       ! Compute angle between i'th and first vector
-!!$       do i = 1, n
-!!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-!!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-!!$       end do
-         do i = n_tot, 1, -1
-            v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-            v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-            v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-            sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
-            if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
-         end do
+            ! Compute symmetry axis
+            v0 = 0.d0
+            do i = 2, n_tot
+               v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+               v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+               v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+               if (v(3) < 0.d0) v  = -v
+               if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+            end do
+            if (maxval(sqrt(v0*v0)) == 0) then
+               v0 = 1
+            else
+               v0 = v0 / sqrt(v0*v0)
+            end if
+            
+            do i = n_tot, 1, -1
+               v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+               v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+               v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+               sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
+               if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
+            end do
 
        ! Sort according to weight
 !!$       pweight = 0.d0
@@ -1227,60 +1228,57 @@ contains
 !!$       end do
 !!$       deallocate(id, pweight, weight)
 
-
-         w_tot = sum(weight)
-         if (self%enable_tod_simulations) then
-            do i = 1, n_tot
-               infile = filename(i)
-               q = len(trim(infile))
-               read(infile(q-8:q-3),*) q
-               proc(i) = mod(q,np)
-            end do
-         else
-            ! Sort according to scan id
-            proc    = -1
-            call QuickSort(id, sid)
-            w_curr = 0.d0
-            j     = 1
-            do i = np-1, 1, -1
-               w = 0.d0
-               do k = 1, n_tot
-                  if (proc(k) == i) w = w + weight(k) 
+            
+            w_tot = sum(weight)
+            if (self%enable_tod_simulations) then
+               do i = 1, n_tot
+                  infile = filename(i)
+                  q = len(trim(infile))
+                  read(infile(q-8:q-3),*) q
+                  proc(i) = mod(q,np)
                end do
-               do while (w < w_tot/np .and. j <= n_tot)
-                  proc(id(j)) = i
-                  w           = w + weight(id(j))
-                  if (w > 1.2d0*w_tot/np) then
-                     ! Assign large scans to next core
-                     proc(id(j)) = i-1
-                     w           = w - weight(id(j))
-                  end if
-                  j           = j+1
+            else
+               ! Sort according to scan id
+               proc    = -1
+               call QuickSort(id, sid)
+               w_curr = 0.d0
+               j     = 1
+               do i = np-1, 1, -1
+                  w = 0.d0
+                  do k = 1, n_tot
+                     if (proc(k) == i) w = w + weight(k) 
+                  end do
+                  do while (w < w_tot/np .and. j <= n_tot)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     if (w > 1.2d0*w_tot/np) then
+                        ! Assign large scans to next core
+                        proc(id(j)) = i-1
+                        w           = w - weight(id(j))
+                     end if
+                     j           = j+1
+                  end do
                end do
-!!$            if (w_curr > i*w_tot/np) then
-!!$               proc(id(j-1)) = i-1
-!!$            end if
+               do while (j <= n_tot)
+                  proc(id(j)) = 0
+                  j = j+1
+               end do
+            end if
+            
+            pweight = 0.d0
+            do k = 1, n_tot
+               pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
             end do
-            do while (j <= n_tot)
-               proc(id(j)) = 0
-               j = j+1
-            end do
+            write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+            deallocate(id, pweight, weight, sid, spinaxis)
          end if
-
-         pweight = 0.d0
-         do k = 1, n_tot
-            pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
-         end do
-!!$         do k = 0, np-1
-!!$            write(*,*) k, pweight(k)/w_tot, count(proc == k)
-!!$         end do
-         write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
-         deallocate(id, pweight, weight, sid, spinaxis)
 
        ! Distribute according to consecutive PID
 !!$       do i = 1, n_tot
 !!$          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
 !!$       end do
+
+         deallocate(filenum)
 
       end if
    end if
