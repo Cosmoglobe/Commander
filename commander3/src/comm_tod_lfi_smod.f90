@@ -153,6 +153,7 @@ contains
 
     ! Initialize common parameters
     call res%tod_constructor(cpar, id_abs, info, tod_type)
+    if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", res%label)
