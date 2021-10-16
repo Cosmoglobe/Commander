@@ -48,7 +48,7 @@ module comm_tod_noise_psd_mod
      ! Class definition for basic 1/f noise PSD model
      !
      integer(i4b) :: npar                                            ! Number of free parameters
-     real(sp)     :: nu_fit(2)                                       ! Frequency range used to fit non-linear parameters
+     real(sp),     allocatable, dimension(:,:)  :: nu_fit            ! Frequency range used to fit non-linear parameters
      real(sp),     pointer :: sigma0                                 ! Pointer to xi_n(1)
      real(sp),     allocatable, dimension(:)    :: xi_n              ! Active sampling parameters, xi_n(1) = sigma0
      real(sp),     allocatable, dimension(:,:)  :: P_uni             ! Uniform prior on xi_n (n_xi,lower/upper)
@@ -127,7 +127,7 @@ contains
     real(sp),              dimension(:),   intent(in)      :: P_active_mean
     real(sp),              dimension(:),   intent(in)      :: P_active_rms
     real(sp),              dimension(:,:), intent(in)      :: P_uni
-    real(sp),              dimension(2),   intent(in)      :: nu_fit
+    real(sp),              dimension(:,:), intent(in)      :: nu_fit
     class(comm_noise_psd), pointer                         :: constructor_oof
 
     allocate(constructor_oof)
@@ -139,6 +139,7 @@ contains
 
     constructor_oof%npar = 3
     allocate(constructor_oof%xi_n(constructor_oof%npar))
+    allocate(constructor_oof%nu_fit(constructor_oof%npar, 2))
     allocate(constructor_oof%P_uni(constructor_oof%npar,2))
     allocate(constructor_oof%P_active(constructor_oof%npar,2))
     allocate(constructor_oof%P_lognorm(constructor_oof%npar))
@@ -216,7 +217,7 @@ contains
     real(sp),                   dimension(:),   intent(in)      :: P_active_mean
     real(sp),                   dimension(:),   intent(in)      :: P_active_rms
     real(sp),                   dimension(:,:), intent(in)      :: P_uni
-    real(sp),                   dimension(2),   intent(in)      :: nu_fit
+    real(sp),                   dimension(:,:), intent(in)      :: nu_fit
     class(comm_noise_psd_2oof), pointer                         :: constructor_2oof
 
     allocate(constructor_2oof)
@@ -232,6 +233,7 @@ contains
 
     constructor_2oof%npar = 5
     allocate(constructor_2oof%xi_n(constructor_2oof%npar))
+    allocate(constructor_2oof%nu_fit(constructor_2oof%npar, 2))
     allocate(constructor_2oof%P_uni(constructor_2oof%npar,2))
     allocate(constructor_2oof%P_active(constructor_2oof%npar,2))
     allocate(constructor_2oof%P_lognorm(constructor_2oof%npar))
@@ -310,7 +312,7 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_mean
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
-    real(sp),                        dimension(2),   intent(in)      :: nu_fit
+    real(sp),                        dimension(:,:), intent(in)      :: nu_fit
     class(comm_noise_psd_oof_gauss), pointer                         :: constructor_oof_gauss
 
     allocate(constructor_oof_gauss)
@@ -323,6 +325,7 @@ contains
 
     constructor_oof_gauss%npar = 6
     allocate(constructor_oof_gauss%xi_n(constructor_oof_gauss%npar))
+    allocate(constructor_oof_gauss%nu_fit(constructor_oof_gauss%npar, 2))
     allocate(constructor_oof_gauss%P_uni(constructor_oof_gauss%npar,2))
     allocate(constructor_oof_gauss%P_active(constructor_oof_gauss%npar,2))
     allocate(constructor_oof_gauss%P_lognorm(constructor_oof_gauss%npar))
@@ -413,7 +416,7 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_mean
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
-    real(sp),                        dimension(2),   intent(in)      :: nu_fit
+    real(sp),                        dimension(:,:), intent(in)      :: nu_fit
     class(comm_noise_psd_oof_f),     pointer                         :: constructor_oof_f
 
     allocate(constructor_oof_f)
@@ -425,6 +428,7 @@ contains
 
     constructor_oof_f%npar = 4
     allocate(constructor_oof_f%xi_n(constructor_oof_f%npar))
+    allocate(constructor_oof_f%nu_fit(constructor_oof_f%npar, 2))
     allocate(constructor_oof_f%P_uni(constructor_oof_f%npar,2))
     allocate(constructor_oof_f%P_active(constructor_oof_f%npar,2))
     allocate(constructor_oof_f%P_lognorm(constructor_oof_f%npar))
