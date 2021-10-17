@@ -9,7 +9,7 @@ module comm_tod_driver_mod
   use comm_tod_mapmaking_mod
   use comm_zodi_mod
   use comm_shared_arr_mod
-  use omp_lib
+  !use omp_lib
   implicit none
 
 
@@ -129,6 +129,13 @@ contains
           if (tod%compressed_tod) then
              call tod%decompress_tod(scan, j, self%tod(:,j))
           else
+            ! Debug stetements to test that arrays are not empty etc.
+             !write(*,*) "self%tod(:, j)", j, scan, ubound(self%tod(:, j)), lbound(self%tod(:, j))
+             !write(*,*) "tod%scans(scan)%d(j)%tod", j, scan, ubound(tod%scans(scan)%d(j)%tod), lbound(tod%scans(scan)%d(j)%tod)
+             !write(*,*) tod%scans(scan)%d(j)%tod
+             !write(*,*) self%tod(:, j)
+             !write(*,*) "len(tod%scans(scan)%d(j)%tod)", len(tod%scans(scan)%d(j)%tod)
+             !write(*,*) "len(self%tod(:, j))", len(self%tod(:, j))
              self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
        end do
@@ -910,6 +917,8 @@ contains
 
     !write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
 
+    write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
+
     ! shortcuts
     ntod = self%scans(scan_id)%ntod
     ndet = self%ndet
@@ -928,9 +937,9 @@ contains
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
     deallocate(dt, dv)
 
-    !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
-    allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
+    allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
+    !!$OMP DO SCHEDULE(guided)
     do j = 1, ndet
       ! skipping iteration if scan was not accepted
       if (.not. self%scans(scan_id)%d(j)%accept) cycle
@@ -952,12 +961,12 @@ contains
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
       dt = dt / sqrt(1.d0*nfft)
-      n_corr(:,j) = dt(1:ntod)
+      n_corr(:, j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
-    !$OMP END DO
+    !!$OMP END DO
     deallocate(dt, dv)
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
 
     call sfftw_destroy_plan(plan_back)
 

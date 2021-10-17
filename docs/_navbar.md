@@ -1,1 +1,0 @@
-* [Main Website](https://beyondplanck.science)

@@ -407,8 +407,14 @@ program commander
   call update_status(status, "init")
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call define_cg_samp_groups(cpar)
+  ! Initialising Bandpass
+  ! TODO: Add QUIET stuff into bandpass module
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
+  ! Initialising Data -- load it into memory?
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  ! Debug statement to actually see whether
+  ! QUIET is loaded into memory
+  !stop
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
@@ -587,6 +593,9 @@ program commander
 contains
 
   subroutine process_TOD(cpar, chain, iter, handle)
+    !
+    ! Routine for TOD processing
+    !
     implicit none
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: chain, iter

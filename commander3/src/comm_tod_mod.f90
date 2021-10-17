@@ -303,9 +303,10 @@ contains
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)
     self%verbosity     = cpar%verbosity
-    self%sims_output_dir = cpar%sims_output_dir
     self%apply_inst_corr = .false.
+    self%sims_output_dir        = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%sample_abs_bp          = .false.
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
@@ -1039,6 +1040,10 @@ contains
             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
+            ! Debug Statement 
+            !write(*,*) "size(self%d(i)%tod), m", size(self%d(i)%tod), m
+            !write(*,*) "size(buffer_sp), tod%halfring_split", size(buffer_sp), tod%halfring_split
+            !
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
             if (tod%halfring_split == 2 )then
                self%d(i)%tod = buffer_sp(m+1:2*m)
@@ -1229,7 +1234,6 @@ contains
 !!$       end do
 !!$       deallocate(id, pweight, weight)
 
-            
             w_tot = sum(weight)
             if (self%enable_tod_simulations) then
                do i = 1, n_tot
