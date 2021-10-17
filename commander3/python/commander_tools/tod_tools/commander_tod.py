@@ -20,8 +20,8 @@
 #================================================================================
 
 import h5py
-import tod_tools.huffman as huffman
-import tod_tools.rice as rice
+import commander_tools.tod_tools.huffman as huffman
+import commander_tools.tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -48,11 +48,11 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        # Checking whether `freq` is the number or not to get the correct file name in the end 
-        if str(freq).isnumeric():
-            self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq).zfill(3) + '_' + str(od).zfill(6) + '.h5')
+        if self.name.lower() == 'planck':
+            sfreq = str(freq).zfill(3)
         else:
-            self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq) + '_' + str(od)    .zfill(6) + '.h5')
+            sfreq = str(freq)
+        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):
@@ -201,6 +201,10 @@ class commander_tod:
             if self.encodings[encoding] != value:
                print('Warning: Inconsistant encoding value ' + encoding + ' is set to ' + str(self.encodings[encoding]) + ' but wants to be ' + str(value))
 
+
+    def add_softlink(self, linkName, dataName):
+        self.outFile[linkName] = h5py.SoftLink(dataName)
+
     def finalize_file(self):
 
         if(not self.exists or self.overwrite):
@@ -313,6 +317,8 @@ class commander_tod:
 
     #File Reading Functions
     def load_field(self, fieldName):
+        if(fieldName[0] != '/'): #catch common user error
+            fieldName = '/' + fieldName
         try:
             compStr = self.outFile[fieldName].attrs['compression']
         except KeyError:

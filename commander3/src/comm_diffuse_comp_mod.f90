@@ -317,7 +317,11 @@ interface
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
     integer(i4b),                                 intent(in),  optional :: det
+<<<<<<< HEAD
     real(dp),        dimension(:,:), allocatable                        :: res 
+=======
+    real(dp),        dimension(:,:), allocatable                        :: res
+>>>>>>> AST9240_2021_sim
 
 
   end function evalDiffuseBand
@@ -330,7 +334,7 @@ interface
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
     integer(i4b),                                 intent(in), optional  :: det
-    real(dp),        dimension(:,:), allocatable                        :: res 
+    real(dp),        dimension(:,:), allocatable                        :: res
 
 
   end function projectDiffuseBand

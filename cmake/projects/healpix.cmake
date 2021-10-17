@@ -39,9 +39,9 @@ if(COMPILE_HEALPIX)
 	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 		#set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
 		#set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-		#set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
-		#MPI support, OpenMP, portable binary:
-		set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
+		set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+		# MPI support, OpenMP, portable binary:
+		#set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 		#set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
 		set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
@@ -55,13 +55,13 @@ if(COMPILE_HEALPIX)
 	endif()
 	#------------------------------------------------------------------------------
 	# Copying modyfied configure script to healpix root
-	#list(APPEND healpix_copy_configure_script 
-	#	"${CMAKE_COMMAND}" "-E" "copy"
-	#	"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
-	#	#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
-	#	"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
-	#	#"&&"
-	#	)
+	list(APPEND healpix_copy_configure_script 
+		"${CMAKE_COMMAND}" "-E" "copy"
+		"${CMAKE_SOURCE_DIR}/cmake/third_party/healpix/hpxconfig_functions.sh"
+		#"${CMAKE_DOWNLOAD_DIRECTORY}/${project}/src/${project}/hpxconfig_functions.sh" 
+		"${HEALPIX_SOURCE_DIR}/hpxconfig_functions.sh" 
+		#"&&"
+		)
 	# Creating configure command for HEALPix
 	list(APPEND healpix_configure_command 
 		"${CMAKE_COMMAND}" "-E" "env" 
@@ -107,6 +107,8 @@ if(COMPILE_HEALPIX)
 		"CPP=${COMMANDER3_CPP_COMPILER}" 
 		"CC=${MPI_C_COMPILER}" 
 		"SHARP_COPT=${healpix_sharp2_C_FLAGS}"
+		# Variable introduced in v3.80  and it enables OMP by default -- we need to disble it.
+		#"SHARP_PARAL=0"
 		"./configure" 
 		"--auto=sharp,f90" #${healpix_components}" #profile,f90,c,cxx;" 
 		#"--prefix=<INSTALL_DIR>" 

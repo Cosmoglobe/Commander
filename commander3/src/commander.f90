@@ -48,6 +48,266 @@ program commander
   integer                     :: arg_indx
 
 
+!!$  type(byte_pointer), allocatable, dimension(:) :: arr
+!!$  integer(i4b) :: n, q
+!!$
+!!$  integer*8          :: plan_fwd, plan_back, plan_fwd_low
+!!$  integer(i4b) :: n, nfft, j, q, n_low, nfft_low
+!!$  real(dp) :: sigma0, alpha, fknee, samprate, scale
+!!$  real(dp) :: rms_sigma0, rms_alpha, rms_fknee
+!!$  real(dp),  allocatable, dimension(:) :: g, b, nu, sigma, b0, g_low, nu_low
+!!$  complex(dpc), allocatable, dimension(:) :: gfft, gfft_low
+!!$  character(len=4) :: count
+!!$
+!!$  scale = 1!20.d0**2 / 1.34**2
+!!$  open(68,file='g.unf', form='unformatted')
+!!$  read(68) n
+!!$  nfft = n/2+1
+!!$  samprate = 1/3600d0
+!!$  allocate(b(n), sigma(n), gfft(0:nfft-1), nu(0:nfft-1))
+!!$  read(68) b
+!!$  read(68) sigma
+!!$  read(68) sigma0
+!!$  read(68) alpha
+!!$  read(68) fknee
+!!$  close(68)
+!!$  where (sigma > 0) 
+!!$     b = b / sigma
+!!$  end where
+!!$
+!!$  call dfftw_plan_dft_r2c_1d(plan_fwd,  n, b, gfft, fftw_estimate + fftw_unaligned)
+!!$  call dfftw_plan_dft_c2r_1d(plan_back, n, gfft, b, fftw_estimate + fftw_unaligned)
+!!$
+!!$  do i = 0, nfft-1
+!!$     nu(i) = i * (samprate * 0.5) / (nfft - 1)
+!!$  end do
+!!$
+!!$  sigma0 = 0.5*7e-5 !1e-3
+!!$  alpha = -1.
+!!$  fknee = samprate !1d-3 !1.d0 !1e-2
+!!$
+!!$  do i = 1, n
+!!$     if (sigma(i) > 0) then
+!!$        write(*,*) i, b(i), 1/sqrt(sigma(i)*scale)
+!!$     end if
+!!$  end do
+!!$
+!!$  call normalize_gain_variance(b*sigma, sigma, sigma0)
+!!$
+!!$  open(58,file='gain_wf1_v2.dat')
+!!$  do i = 1, n
+!!$     if (sigma(i) > 0) then
+!!$        write(58,*) i, b(i), 1/sqrt(sigma(i)*scale)
+!!$     end if
+!!$  end do
+!!$  close(58)
+!!$
+!!$  call dfftw_init_threads(i)
+!!$  call rand_init(handle, 144544)
+!!$
+!!$  rms_sigma0 = 0 !1e-4
+!!$  rms_alpha  = 0 !0.001
+!!$  rms_fknee  = 0 !1d-8
+!!$
+!!$  do j = 1, 1
+!!$     b = b*sigma*scale
+!!$     call wiener_filtered_gain(b, sigma*scale, sigma0, alpha, fknee, .true., handle)
+!!$     
+!!$     call fft_fwd(b, gfft, plan_fwd)  
+!!$     open(58, file='gpow.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), abs(gfft(i))**2
+!!$     end do
+!!$     close(58)
+!!$     
+!!$     open(58, file='gmod.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), sigma0**2 * (1+(nu(i)/fknee)**alpha)
+!!$     end do
+!!$     close(58)
+!!$     
+!!$     !call sample_psd_params_by_mh(abs(gfft)**2, nu(1:), &
+!!$     !     & sigma0, fknee, alpha, &
+!!$     !     & rms_sigma0, rms_fknee, rms_alpha, handle)
+!!$     
+!!$     open(58, file='gfit.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), sigma0**2 * (1+(nu(i)/fknee)**alpha)
+!!$     end do
+!!$     close(58)
+!!$     
+!!$     call int2string(j, count)
+!!$     
+!!$     open(58,file='gain_wf2_'//count//'_v2.dat')
+!!$     do i = 1, n
+!!$        write(58,*) i, b(i)
+!!$     end do
+!!$     close(58)
+!!$
+!!$  end do
+!!$
+!!$  stop
+
+!!$  sigma0 = 10d-5
+!!$  alpha = -1.5d0
+!!$  fknee  = 1d-6
+!!$
+!!$  rms_sigma0 = 1e-7
+!!$  rms_alpha  = 0.001
+!!$  rms_fknee  = 0
+!!$    
+!!$  call dfftw_init_threads(i)
+!!$  call rand_init(handle, 144544)
+!!$
+!!$  samprate = 1/3600d0
+!!$  n = 12000
+!!$  nfft  = n/2+1
+!!$  allocate(gfft(0:nfft-1), g(n), nu(0:nfft-1))
+!!$  call dfftw_plan_dft_r2c_1d(plan_fwd,  n, g, gfft, fftw_estimate + fftw_unaligned)
+!!$  call dfftw_plan_dft_c2r_1d(plan_back, n, gfft, g, fftw_estimate + fftw_unaligned)
+!!$  nu(0) = 0.d0
+!!$  gfft(0) = 0.d0
+!!$  do i = 1, nfft-1
+!!$     nu(i) = i * (samprate * 0.5) / (nfft - 1)
+!!$     gfft(i) = sqrt(sigma0**2 * (nu(i)/fknee)**alpha) * cmplx(rand_gauss(handle), rand_gauss(handle))/sqrt(2.d0)
+!!$  end do
+!!$!  call fft_back(gfft, g, plan_back, norm='transpose')
+!!$  call fft_back(gfft, g, plan_back)
+!!$  !g = g/sqrt(1.d0*n)
+!!$
+!!$  write(*,*) 'std =', sqrt(variance(g)), variance(g)/sigma0**2
+!!$
+!!$     open(58, file='btrue.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), sigma0**2 * (nu(i)/fknee)**alpha
+!!$     end do
+!!$     close(58)
+!!$
+!!$  open(58, file='g.dat')
+!!$  do i = 1, n
+!!$     write(58,*) i, g(i)
+!!$  end do
+!!$  close(58)
+!!$
+!!$  open(58, file='gpow.dat')
+!!$  do i = 1, nfft-1
+!!$     write(58,*) nu(i), abs(gfft(i))**2
+!!$  end do
+!!$  close(58)
+!!$
+!!$
+!!$  q = 16
+!!$  n_low = n/q
+!!$  nfft_low = n_low/2+1
+!!$  
+!!$  allocate(g_low(n_low), gfft_low(0:nfft_low-1), nu_low(0:nfft_low-1))
+!!$  do i = 1, n_low
+!!$     g_low(i) = mean(1.d0*g((i-1)*q+1:i*q))
+!!$  end do
+!!$
+!!$  open(58, file='glow.dat')
+!!$  do i = 1, n_low
+!!$     write(58,*) (i-0.5)*q, g_low(i)
+!!$  end do
+!!$  close(58)
+!!$
+!!$  call dfftw_plan_dft_r2c_1d(plan_fwd_low,  n_low, g_low, gfft_low, fftw_estimate + fftw_unaligned)
+!!$  call fft_fwd(g_low, gfft_low, plan_fwd_low)
+!!$
+!!$  open(58, file='gpow_low.dat')
+!!$  do i = 1, nfft_low-1
+!!$     nu_low(i) = i * (samprate/q * 0.5) / (nfft_low - 1)
+!!$     write(58,*) nu_low(i), abs(gfft_low(i))**2
+!!$  end do
+!!$  close(58)
+!!$
+!!$  stop
+  
+
+!!$  call fft_fwd(g, gfft, plan_fwd)
+!!$  !gfft = gfft*sqrt(1.d0*n)
+!!$
+!!$  open(58, file='gpow2.dat')
+!!$  do i = 1, nfft-1
+!!$     write(58,*) nu(i), abs(gfft(i))**2
+!!$  end do
+!!$  close(58)
+!!$
+!!$!  stop
+!!$
+!!$  open(58, file='gmod.dat')
+!!$  do i = 1, nfft-1
+!!$     write(58,*) nu(i), sigma0**2 * (nu(i)/fknee)**alpha
+!!$  end do
+!!$  close(58)
+!!$
+!!$  sigma0 = 5d-6 !2.5e-5
+!!$  alpha = -1.2d0
+!!$  fknee  = 1e-6
+!!$
+!!$     open(58, file='binit.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), sigma0**2 * (nu(i)/fknee)**alpha
+!!$     end do
+!!$     close(58)
+!!$
+!!$  allocate(b0(n), b(n), sigma(n))
+!!$  do i = 1, n
+!!$     sigma(i) = (3d-5 + 5d-5 * sin(2*pi*i/3000.d0)**4)
+!!$     b0(i)     = g(i) + sigma(i) * rand_gauss(handle)
+!!$  end do
+!!$
+!!$  open(58,file='gain_wf1.dat')
+!!$  do i = 1, n
+!!$     write(58,*) i, b0(i)
+!!$  end do
+!!$  close(58)
+!!$  write(*,*) 'std0 =', variance(b0)
+!!$  b0 = b0/sigma**2
+!!$
+!!$  do j = 1, 1000
+!!$     call int2string(j, count)
+!!$     b = b0
+!!$     call wiener_filtered_gain(b, 1/sigma**2, sigma0, alpha, fknee, .true., handle)
+!!$
+!!$  write(*,*) 'std2 =', variance(b)
+!!$     open(58,file='gain_wf2'//count//'.dat')
+!!$     do i = 1, n
+!!$        write(58,*) i, b(i)
+!!$     end do
+!!$     close(58)
+!!$
+!!$     call fft_fwd(b, gfft, plan_fwd)  
+!!$     !gfft  = gfft*n
+!!$     
+!!$     open(58, file='bpow.dat')
+!!$     do i = 0, nfft-1
+!!$        write(58,*) nu(i), abs(gfft(i))**2
+!!$     end do
+!!$     close(58)
+!!$
+!!$     open(58, file='bmod1.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), sigma0**2 * (nu(i)/fknee)**alpha
+!!$     end do
+!!$     close(58)
+!!$
+!!$
+!!$     call sample_psd_params_by_mh(abs(gfft)**2, nu(1:), &
+!!$          & sigma0, fknee, alpha, &
+!!$          & rms_sigma0, rms_fknee, rms_alpha, handle)
+!!$
+!!$     open(58, file='bmod2.dat')
+!!$     do i = 1, nfft-1
+!!$        write(58,*) nu(i), sigma0**2 * (nu(i)/fknee)**alpha
+!!$     end do
+!!$     close(58)
+!!$
+!!$     write(*,*) sigma0, fknee, alpha
+!!$  end do
+!!$
+!!$  stop
+
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
     call get_command_argument(arg_indx, arg)

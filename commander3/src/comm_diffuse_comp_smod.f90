@@ -137,10 +137,6 @@ contains
     self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
          & init_realspace=.false.)
 
-!!$    if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
-!!$       call self%B_out%deconv(.false., self%x)
-!!$    end if
-
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
        self%mask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_mask(id_abs)), &
@@ -184,9 +180,6 @@ contains
              end where
              call mask_ud%dealloc(); deallocate(mask_ud)
           end if
-!!$          call self%indmask(i)%p%writeFITS('TEST.fits')
-!!$          call mpi_finalize(j)
-!!$          stop
        end do
        call indmask%dealloc(); deallocate(indmask)
     end if
@@ -409,7 +402,6 @@ contains
     class(comm_map),     pointer :: tp => null() 
     class(comm_map),     pointer :: tp_smooth => null() 
 
-
     ! A routine that initializes all parameters needed to perform spectral index sampling for the pixel based
     ! parameters, such as synchrotron beta,dust temperature ect. parameters not included are CO line ratios and
     ! others which use different sampling routines
@@ -486,7 +478,7 @@ contains
                 self%pol_pixreg_type(j,i) = 3
                 self%npixreg(j,i) = cpar%cs_spec_npixreg(j,i,id_abs) 
              else
-                write(*,*) 'Unspecified pixel region type for poltype',j,'of spectral index',i,'in component',id_abs
+                write(*,*) 'Unspecified pixel region type (', cpar%cs_spec_pixreg(j,i,id_abs), ') for poltype',j,'of spectral index',i,'in component',id_abs
                 stop
              end if
           else
@@ -652,7 +644,6 @@ contains
              call report_error('Invalid monopole correction type for the combined monopole sampling of '&
                   & //trim(self%label)//' '//trim(self%indlabel(i))//': '//trim(self%spec_mono_type(i)))
           end if
-
 
           if (trim(cpar%cs_spec_mono_mask(id_abs,i)) == 'fullsky') then
              self%spec_mono_mask(i)%p => comm_map(info2)
@@ -1403,19 +1394,6 @@ contains
        end do
     end do
 
-!!$    if (info_pre%myid == 0) then
-!!$       n = self%invM_(0,1)%n
-!!$       allocate(W(n))
-!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
-!!$       write(*,*) 'W0 = ', real(W,sp)
-!!$       deallocate(W)
-!!$       write(*,*) 
-!!$       do i = 1, 3
-!!$          write(*,*) real(self%invM_(0,1)%M(i,:),sp)
-!!$       end do
-!!$       write(*,*)
-!!$    end if
-
     ! Right-multiply with sqrt(Cl)
     call wall_time(t1)
     do k1 = 1, npre
@@ -1501,19 +1479,6 @@ contains
        end do
     end if
 
-!!$    if (info_pre%myid == 0) then
-!!$       n = self%invM_(0,1)%n
-!!$       allocate(W(n))
-!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
-!!$       write(*,*) 'W1 = ', real(W,sp)
-!!$       deallocate(W)
-!!$       write(*,*) 
-!!$       do i = 1, 3
-!!$          write(*,*) real(self%invM_(0,1)%M(i,:),sp)
-!!$       end do
-!!$       write(*,*)
-!!$    end if
-
 
     ! Add unity 
     do k1 = 1, npre
@@ -1536,18 +1501,6 @@ contains
        !!$OMP END DO
        !!$OMP END PARALLEL
     end do
-
-!!$    if (info_pre%myid == 0) then
-!!$       n = self%invM_(0,1)%n
-!!$       allocate(W(n))
-!!$       call get_eigenvalues(self%invM_(0,1)%M, W)
-!!$       write(*,*) 'W2 = ', real(W,sp)
-!!$       deallocate(W)
-!!$    end if
-
-!!$    call mpi_finalize(i)
-!!$    stop
-
 
     ! Nullify elements that are not involved in current sample group
     do j = 1, info_pre%nmaps
@@ -1607,11 +1560,6 @@ contains
     call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-!!$          if (info_pre%myid == 0) then
-!!$             do k = 1, P_cr%invM_diff(i,j)%n
-!!$                write(*,*) real(P_cr%invM_diff(i,j)%M(k,:),sp)
-!!$             end do
-!!$          end if
           if (P_cr%invM_diff(i,j)%n > 0) then
              if (any(P_cr%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
           end if
@@ -1683,19 +1631,6 @@ contains
           ! Store pseudo-inverse of U
           call compute_pseudo_inverse(mat, P_cr%invM_diff(l,j)%M)
           !P_cr%invM_diff(l,j)%M = transpose(mat)
-
-!!$          !if (info_pre%myid == 0 .and. l > 4498 .and. l < 4503) then
-!!$          if (info_pre%myid == 0) then
-!!$             write(*,*)
-!!$             do k = 1, numband+npre
-!!$                write(*,*) mat(k,:)
-!!$             end do
-!!$             write(*,*) shape(mat)
-!!$             do k = 1, npre
-!!$                write(*,*) P_cr%invM_diff(l,j)%M(k,:)
-!!$             end do
-!!$          end if
-
        end do
     end do
     deallocate(mat)
@@ -1717,9 +1652,6 @@ contains
           end if
        end do
     end if
-
-!!$    call mpi_finalize(k)
-!!$    stop
 
     ! Disable preconditioner update
     recompute_diffuse_precond = .false.
@@ -1760,11 +1692,6 @@ contains
     end if
     
     ! Compute mixing matrix
-!!$    allocate(theta_prev(self%npar))
-!!$    do j = 1, self%npar
-!!$       nullify(theta_prev(j)%p)
-!!$    end do
-
     do i = 1, numband
        
        ! Only update requested band if present
@@ -1834,21 +1761,6 @@ contains
                 where (t%map > self%p_uni(2,j))
                    t%map = self%p_uni(2,j)
                 end where
-
-!!$                call tp%udgrade(t)
-!!$
-!!$                bad = any(t%map == 0.d0)
-!!$                call mpi_allreduce(mpi_in_place, bad, 1, &
-!!$                     & MPI_LOGICAL, MPI_LOR, self%x%info%comm, ierr)
-!!$                if (bad) then
-!!$                   write(*,*) trim(self%label), i, j
-!!$                   call int2string(j, ctext)
-!!$                   call t%writeFITS("beta1.fits")
-!!$                   call tp%writeFITS("beta2.fits")
-!!$                   call mpi_finalize(k)
-!!$                   stop
-!!$                end if
-
                 call tp%dealloc(); deallocate(tp)
 
                 
@@ -1886,8 +1798,6 @@ contains
              end if
              theta_p(:,:,j) = td%map
              !write(*,*) 'q1', minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
-!!$             if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-!!$             theta_prev(j)%p => comm_map(t)
              call td%dealloc(); deallocate(td)
           end do
        end if
@@ -1899,39 +1809,6 @@ contains
              if (present(df)) df(i)%p%map = 0.d0
              cycle
           end if
-          
-!!$          ! Compute spectral parameters at the correct resolution for this channel
-!!$          if (self%npar > 0) then
-!!$             nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
-!!$             allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
-!!$             
-!!$             do j = 1, self%npar
-!!$                if (.false. .and. associated(theta_prev(j)%p)) then
-!!$                   if (data(i)%info%nside == theta_prev(j)%p%info%nside .and. &
-!!$                        & self%theta(j)%p%info%lmax == theta_prev(j)%p%info%lmax  .and. &
-!!$                        & nmaps == theta_prev(j)%p%info%nmaps .and. &
-!!$                        & data(i)%info%pol == theta_prev(j)%p%info%pol) then !
-!!$                      theta_p(:,:,j) = theta_prev(j)%p%map
-!!$                      cycle
-!!$                   end if
-!!$                end if
-!!$                info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
-!!$                t    => comm_map(info)
-!!$                if (self%lmax_ind >= 0) then
-!!$                   t%alm(:,1:nmaps) = self%theta(j)%p%alm(:,1:nmaps)
-!!$                   call t%Y_scalar
-!!$                else
-!!$                   call wall_time(t1)
-!!$                   call self%theta(j)%p%udgrade(t)
-!!$                   call wall_time(t2)
-!!$                   !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
-!!$                end if
-!!$                theta_p(:,:,j) = t%map
-!!$                if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-!!$                theta_prev(j)%p => comm_map(t)
-!!$                call t%dealloc()
-!!$             end do
-!!$          end if
           
           
           ! Loop over all pixels, computing mixing matrix for each
@@ -1950,24 +1827,6 @@ contains
 !          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
 !             cycle
 !          end if
-
-!!$          if (self%npar > 0) then
-!!$             ! Collect all parameters
-!!$             t0 => t
-!!$             theta_p(1,:) = t0%map(j,:)
-!!$             do k = 2, self%npar
-!!$                t0 => t0%next()
-!!$                theta_p(k,:) = t0%map(j,:)
-!!$             end do
-!!$
-!!$             ! Check polarization type
-!!$             if (self%nmaps == 3) then
-!!$                do k = 1, self%npar
-!!$                   if (self%poltype(k) < 2) theta_p(k,2) = theta_p(k,1)
-!!$                   if (self%poltype(k) < 3) theta_p(k,3) = theta_p(k,2)
-!!$                end do
-!!$             end if
-!!$          end if
 
              ! NEW ! Check band sensitivity before mixing matrix update
              ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"
@@ -2065,22 +1924,10 @@ contains
                & MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
           self%F_mean(i,l,:) = buffer / self%F(i,l)%p%info%npix
           deallocate(buffer,buff2)
-
-!!$       if (self%npar > 0) then
-!!$          call t%dealloc(clean_info=.true.)
-!!$          call t0%dealloc(clean_info=.true.)
-!!$          nullify(t)
-!!$          nullify(t0)
-!!$       end if
     
        end do
        if (allocated(theta_p)) deallocate(theta_p)
     end do
-!!$    do j = 1, self%npar
-!!$       if (associated(theta_prev(j)%p)) call theta_prev(j)%p%dealloc()
-!!$    end do
-!!$    deallocate(theta_prev)
-
 
     call update_status(status, "mixupdate2 " // trim(self%label))
 
@@ -2099,8 +1946,7 @@ contains
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
     integer(i4b),                                 intent(in),  optional :: det
-    !real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
-    real(dp),        dimension(:,:), allocatable                        :: res 
+    real(dp),        dimension(:,:), allocatable                        :: res
 
     integer(i4b) :: i, j, np, nmaps, lmax, nmaps_comp, d
     logical(lgt) :: alm_out_
@@ -2117,7 +1963,7 @@ contains
        else
           if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
        end if
-       res= 0.d0
+       res = 0.d0
        return
     end if
 
@@ -2132,12 +1978,6 @@ contains
        call self%x%alm_equal(m)
        !m%alm(:,1:nmaps) = self%x%alm(:,1:nmaps)
     end if
-!!$    if (self%lmax_amp > data(band)%map%info%lmax) then
-!!$       ! Nullify elements above band-specific lmax to avoid aliasing during projection
-!!$       do i = 0, m%info%nalm-1
-!!$          if (m%info%lm(1,i) > data(band)%info%lmax) m%alm(i,:) = 0.d0
-!!$       end do
-!!$    end if
 
     if (apply_mixmat) then
        ! Scale to correct frequency through multiplication with mixing matrix
@@ -2161,11 +2001,11 @@ contains
     if (alm_out_) then
        !if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
        if (.not. allocated(res)) allocate(res(0:data(band)%info%nalm-1,data(band)%info%nmaps))
-       if (nmaps /= data(band)%info%nmaps) res= 0.d0
+       if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%alm(:,1:nmaps)
     else
        if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
-       if (nmaps /= data(band)%info%nmaps) res= 0.d0
+       if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%map(:,1:nmaps)
     end if
        
@@ -2184,8 +2024,7 @@ contains
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
     integer(i4b),                                 intent(in), optional  :: det
-    !real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
-    real(dp),        dimension(:,:), allocatable                        :: res 
+    real(dp),        dimension(:,:), allocatable                        :: res
 
     integer(i4b) :: i, nmaps, d
     logical(lgt) :: alm_in_
@@ -2194,7 +2033,7 @@ contains
 
     if (self%F_null(band,0)) then
        if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
-       res= 0.d0
+       res = 0.d0
        return
     end if
 
@@ -2228,7 +2067,7 @@ contains
     call m%alm_equal(m_out)
 
     if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
-    res= m_out%alm
+    res = m_out%alm
 
     call m%dealloc(); deallocate(m)
     call m_out%dealloc(); deallocate(m_out)
@@ -2823,69 +2662,6 @@ contains
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
 
-
-!!$       if (trim(self%label) == 'cmb') then
-!!$          do i = 0, self%x%info%nalm-1
-!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-!!$                write(*,*) 'Adding monopole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) + 6 *sqrt(4*pi)
-!!$             end if
-!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-!!$                write(*,*) 'Adding x dipole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.77d0 * sqrt(4.d0*pi/3.d0)
-!!$             end if
-!!$          end do
-!!$       end if
-
-!!$       if (trim(self%label) == 'ff') then
-!!$          do i = 0, self%x%info%nalm-1
-!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-!!$                write(*,*) 'Adding monopole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) + 16 *sqrt(4*pi)
-!!$             end if
-!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-!!$                write(*,*) 'Adding x dipole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) - 6.77d0 * sqrt(4.d0*pi/3.d0)
-!!$             end if
-!!$          end do
-!!$       end if
-
-!!$       if (trim(self%label) == 'ame') then
-!!$          do i = 0, self%x%info%nalm-1
-!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-!!$                write(*,*) 'Adding monopole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) + 21.6 *sqrt(4*pi)
-!!$             end if
-!!$          end do
-!!$       end if
-!!$
-!!$       if (trim(self%label) == 'ame2') then
-!!$          do i = 0, self%x%info%nalm-1
-!!$             if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-!!$                write(*,*) 'Adding monopole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) + 11 *sqrt(4*pi)
-!!$             end if
-!!$          end do
-!!$       end if
-!!$
-!!$       if (trim(self%label) == 'ame') then
-!!$          do i = 0, self%x%info%nalm-1
-!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-!!$                write(*,*) 'Adding synch dipole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) + 25.d0
-!!$             end if
-!!$          end do
-!!$       end if
-!!$
-!!$       if (trim(self%label) == 'ame2') then
-!!$          do i = 0, self%x%info%nalm-1
-!!$             if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-!!$                write(*,*) 'Adding synch dipole'
-!!$                self%x%alm(i,1) = self%x%alm(i,1) + 14.d0
-!!$             end if
-!!$          end do
-!!$       end if
-
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_map', .true.)
@@ -2935,7 +2711,7 @@ contains
           !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
           !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
           !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
-!!$          if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
+          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
           !if (trim(self%label) == 'synch' .and. i > 1) self%theta(i)%p%alm(:,:) = -3.11d0 * sqrt(4*pi)
           !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
 
@@ -2956,9 +2732,6 @@ contains
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_val', dp_pixreg)
                 call mpi_bcast(dp_pixreg, size(dp_pixreg),  MPI_DOUBLE_PRECISION, 0, self%theta(i)%p%info%comm, ierr)
                 self%theta_pixreg(1:npr,1:npol,i)=dp_pixreg
-!!$                if (trim(self%label) == 'synch') then !very ugly hack, should not do it like this!!!
-!!$                   self%theta_pixreg(1:4,1:npol,1) = -3.11d0
-!!$                end if
                 !pixel region values for proposal length
                 if (self%theta(i)%p%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(path)//'/'//&
                      & trim(adjustl(self%indlabel(i)))//'_pixreg_proplen', dp_pixreg)
@@ -2975,13 +2748,6 @@ contains
           end if
        end do !i = 1,npar
     end if
-
-
-!!$       if (trim(self%label)=='dust') then
-!!$          call self%theta(2)%p%writeFITS("test.fits")
-!!$          call mpi_finalize(i)
-!!$          stop
-!!$       end if
 
     !if (trim(self%label) == 'dust') write(*,*) 'range beta = ', minval(self%theta(1)%p%map), maxval(self%theta(1)%p%map)
     call self%updateMixmat
@@ -3068,14 +2834,6 @@ contains
        stop
     end if
 
-!!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
-!!$       write(*,*)
-!!$       write(*,*) 'Theta = ', p(1)
-!!$       write(*,*) 'amp   = ', a_lnL(2:3)
-!!$       write(*,*) 'p     = ', p_lnL, p_min, p_max
-!!$    end if
-
-
     lnL = 0.d0
     do k = p_min, p_max
 
@@ -3091,16 +2849,8 @@ contains
           lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
 
 !          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
-
-!!$       if (c_lnL%x%info%pix(k_lnL) == 10000) then
-!!$          write(*,fmt='(5f10.3,f16.3)') data(l)%bp%nu_c/1.d9, res_smooth(l)%p%map(k_lnL,k), s, res_smooth(l)%p%map(k_lnL,k)-a_lnL(k) * c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(k), rms_smooth(l)%p%siN%map(k_lnL,k), (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
-!!$       end if
-
        end do
     end do
-
-!!$    call mpi_finalize(i)
-!!$    stop
 
 !    if (c_lnL%x%info%myid == 0) write(*,*)
 !    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
@@ -3118,16 +2868,6 @@ contains
     lnL_diffuse_multi = -2.d0*lnL
 
 !    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL_diffuse_multi
-
-!!$    if (c_lnL%x%info%pix(k_lnL) == 10000) then
-!!$       write(*,*) 'lnL = ', lnL_diffuse_multi
-!!$    end if
-
-!!$    if (c_lnL%x%info%pix(k_lnL) == 534044) then
-!!$       write(*,*) 'lnL = ', lnL, theta(id_lnL)
-!!$       write(*,*)
-!!$    end if
-
 
     deallocate(theta)
 
@@ -3472,9 +3212,6 @@ contains
                 if (k >= 0) then
                    j = lp**2 + lp + mp
                    invM(i,j) = tot%alm(k,1)
-!!$                   if (i == 0 .or. j == 0) then
-!!$                      write(*,*) i, j, l, m, lp, mp, k, tot%alm(k,1)
-!!$                   end if
                    if (i == j) invM(i,j) = invM(i,j) + 1.d0
                 end if
              end do
@@ -3499,9 +3236,6 @@ contains
 !          write(*,*) real(invM(i,0:3),sp)
        end do
     end if
-
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     ! Store matrix rows
     q = 0
@@ -3609,77 +3343,7 @@ contains
        nmax      = min(10000, info%npix)
        allocate(Z(0:nalm-1,nmax))
 
-       call setup_needlets(info, self%nside_def, self%defmask, Z, self%ndef)
-
-!!$       do i = 0, 12*self%nside_def**2-1
-!!$          if (self%myid == 0 .and. mod(i,100) == 0) write(*,*) i, 12*self%nside_def**2-1
-!!$          add = .false.
-!!$          do j = 1, self%defmask%info%np
-!!$             if (self%defmask%info%pix(j) == i) add = (self%defmask%map(j-1,1) == 0.d0)  
-!!$          end do
-!!$          call mpi_allreduce(MPI_IN_PLACE, add, 1, MPI_LOGICAL, MPI_LOR, info%comm, ierr)
-!!$          if (.not. add) cycle
-!!$
-!!$          map%map = 0.d0
-!!$          p       = i*q 
-!!$          call nest2ring(nside, p, j)
-!!$          do p = 1, info%np
-!!$             if (info%pix(p) == j) map%map(p-1,1) = 1.d0 
-!!$          end do
-!!$          call map%smooth(self%fwhm_def)
-!!$          norm = maxval(map%map(:,1))
-!!$          call mpi_allreduce(MPI_IN_PLACE, norm, 1, MPI_DOUBLE_PRECISION, MPI_MAX, info%comm, ierr)
-!!$          map%map(:,1) = map%map(:,1) / norm
-!!$
-!!$          self%ndef = self%ndef + 1
-!!$          if (self%ndef > nmax) then
-!!$             write(*,*) ' ERROR: Too many deflated basis functions'
-!!$             stop
-!!$          end if
-!!$          Z(:,self%ndef) = map%alm(:,1)
-!!$         
-!!$       end do
-
-!!$       Z = 0.d0
-!!$       do l = 0, 30
-!!$          do m = -l, l
-!!$             self%ndef = self%ndef + 1
-!!$             call map%info%lm2i(l,m,i)
-!!$             if (i > -1) Z(i,self%ndef) = 1.d0
-!!$          end do
-!!$       end do
-
-
-!!$       self%ndef = 4
-!!$       Z = 0.d0
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 0) Z(p,1) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 1 .and. info%lm(2,p) == -1) Z(p,2) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 1 .and. info%lm(2,p) == 0) Z(p,3) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 1 .and. info%lm(2,p) == 1) Z(p,4) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 2 .and. info%lm(2,p) == -2) Z(p,5) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 2 .and. info%lm(2,p) == -1) Z(p,6) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 2 .and. info%lm(2,p) == 0) Z(p,7) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 2 .and. info%lm(2,p) == 1) Z(p,8) = 1.d0
-!!$       end do
-!!$       do p = 0, info%nalm-1
-!!$          if (info%lm(1,p) == 2 .and. info%lm(2,p) == 2) Z(p,9) = 1.d0
-!!$       end do
- 
+       call setup_needlets(info, self%nside_def, self%defmask, Z, self%ndef) 
        if (self%myid == 0) write(*,*) 'nz = ', self%ndef
 
        allocate(self%Z_def(0:nalm-1,self%ndef))
@@ -3762,14 +3426,7 @@ contains
        write(*,*) 'W =', real(W,sp)
        deallocate(W)
        call invert_matrix(self%invM_def, cholesky=.true.)
-
-!!$       do i= 1, self%ndef
-!!$          write(*,*) real(self%invM_def(i,:),sp)
-!!$       end do
     end if
-
-!!$call mpi_finalize(ierr)
-!!$stop
 
     deallocate(invM, buffer)
     call map%dealloc(); deallocate(map)
@@ -3861,13 +3518,6 @@ contains
        x(i) = -1.d0 + 2.d0*(i-1.d0)/(m-1.d0)
     end do
     f = exp(-1.d0/(1.d0-x**2))
-!!$    if (info%myid == 0) then
-!!$       open(58,file='f.dat')
-!!$       do i = 1, m
-!!$          write(58,*) x(i), f(i)
-!!$       end do
-!!$       close(58)
-!!$    end if
 
     psi(1) = 0.d0
     do i = 2, m
@@ -3875,13 +3525,6 @@ contains
     end do
     psi = psi / psi(m)
     call spline(spsi, x, psi)
-!!$    if (info%myid == 0) then
-!!$       open(58,file='psi.dat')
-!!$       do i = 1, m
-!!$          write(58,*) x(i), psi(i)
-!!$       end do
-!!$       close(58)
-!!$    end if
 
     do i = 1, m
        t(i) = (i-1.d0)/(m-1.d0)
@@ -3891,13 +3534,6 @@ contains
           phi(i) = splint(spsi, 1.d0-2.d0*B/(B-1.d0)*(t(i)-1.d0/B))
        end if
     end do
-!!$    if (info%myid == 0) then
-!!$       open(58,file='phi.dat')
-!!$       do i = 1, m
-!!$          write(58,*) t(i), phi(i)
-!!$       end do
-!!$       close(58)
-!!$    end if
     call spline(sphi, t, phi)
 
     do i = 1, m
@@ -3912,29 +3548,6 @@ contains
        if (b0(i) < 1d-10 .or. b0(i) /= b0(i)) b0(i) = 0.d0
     end do
     call spline(sb, t, b0)
-!!$    if (info%myid == 0) then
-!!$       open(58,file='b.dat')
-!!$       do i = 1, m
-!!$          write(58,*) t(i), b0(i)
-!!$       end do
-!!$       close(58)
-!!$    end if
-
-
-!!$    if (info%myid == 0)then
-!!$       do i = 1, m
-!!$          write(*,*) i, t(i), b0(i)
-!!$       end do
-
-!!$       open(58,file='needlet.dat')
-!!$       do i = 0, info%lmax
-!!$          write(*,*)  i, splint(sb, i/B**5)
-!!$          write(58,*) i, splint(sb, i/B**5)
-!!$       end do
-!!$       close(58)
-!!$    end if
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     map   => comm_map(info)
     ndef  = 0.d0
@@ -3989,15 +3602,6 @@ contains
        Bj    = B*Bj
     end do
 
-    ! Add low-l modes
-!!$    do l = 0, 10
-!!$       do m = -l, l
-!!$          ndef = ndef + 1
-!!$          call map%info%lm2i(l,m,i)
-!!$          if (i > -1) Z(i,ndef) = 1.d0
-!!$       end do
-!!$    end do
-
 
     call free_spline(sb)
     call free_spline(spsi)
@@ -4034,12 +3638,7 @@ contains
        call self%B_out%conv(trans=.false., map=map) !smooth to output FWHM of component
     end if
     call map%Y
-!!$    call map%writeFITS('ff.fits')
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
-
-    
     if (trim(self%mono_prior_type) == 'monopole') then        ! Set monopole to zero outside user-specified mask
 
        ! Compute mean outside mask; no noise weighting for now at least
@@ -4132,13 +3731,16 @@ contains
           !restructure so that we only have unmasked pixels, only 1 proc needs to do this
           if (lr_map%info%myid == 0) then
              k=-1
+             open(58, file='corr.dat')
              do j = 0,lr_map%info%npix-1
                 if (mask_list(j) > 0.5d0) then
                    k = k + 1
                    corr_list(k) = corr_list(j)
                    amp_list(k) = amp_list(j)
+                   write(58,*) corr_list(j), amp_list(j)
                 end if
              end do
+             close(58)
 
              !calculate intersection 
              corr_res = calc_linear_regression(corr_list(0:k), amp_list(0:k))
@@ -4156,6 +3758,8 @@ contains
           if (m <= 0) call report_error("No intersection value found from crosscorrelation, monopole prior component "//trim(self%label))
           if (m == 1) then
              mu(0) = intersect(1)
+             mean_intersect = intersect(1)
+             std_intersect = 0.d0
           else
              mean_intersect = sum(intersect(1:m))/m
              std_intersect = sqrt(sum((intersect(1:m)-mean_intersect)**2)/m)
@@ -4175,6 +3779,7 @@ contains
        call mpi_bcast(mean_intersect, 1, MPI_DOUBLE_PRECISION, 0, lr_map%info%comm, ierr)
        call mpi_bcast(std_intersect, 1, MPI_DOUBLE_PRECISION, 0, lr_map%info%comm, ierr)
        
+       !mu(0) = mu(0) - 50
        mu(1:3) = 0.d0
 
        ! Subtract mean in real space 
@@ -4251,7 +3856,6 @@ contains
   
        deallocate(mask_list)
        deallocate(amp_list)
-       
     end if
     
     ! Subtract mean in harmonic space

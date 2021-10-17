@@ -60,7 +60,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
@@ -104,6 +106,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/hashtbl_4dmap.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cmb_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_spindust2_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
 	${COMMANDER3_SOURCE_DIR}/hashtbl.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cmb_relquad_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_huffman_mod.f90

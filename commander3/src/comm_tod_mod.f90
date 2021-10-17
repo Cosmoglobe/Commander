@@ -115,8 +115,9 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
-     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
+     real(dp), allocatable, dimension(:)     :: gain0                                       ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
+     real(dp), allocatable, dimension(:,:)   :: polang_prior                                ! Detector polarization angle prior [ndet,mean/rms]
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
@@ -125,7 +126,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
-     real(sp),              dimension(2)     :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
+     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
@@ -206,6 +207,7 @@ module comm_tod_mod
      procedure                           :: load_instrument_inst
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
+     procedure                           :: remove_fixed_scans
   end type comm_tod
 
   abstract interface
@@ -304,11 +306,9 @@ contains
     self%apply_inst_corr = .false.
     self%sims_output_dir        = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
-    self%level                  = cpar%ds_tod_level(id_abs)
-    ! Initialising the value to TRUE by default.
-    ! Will be changed if we are using "L1" data instead
-    self%L2_exist               = .true.
     self%sample_abs_bp          = .false.
+    self%level        = cpar%ds_tod_level(id_abs)
+    self%sample_abs_bp   = .false.
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
@@ -337,15 +337,16 @@ contains
     self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
 
     if (trim(self%level) == 'L1') then
-
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
           unit        = getlun()
           self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
        else
-          self%L2_exist = .true.
+          self%L2_exist = .false.
        end if
+    else
+       self%L2_exist = .true.
     end if
 
     call self%get_scan_ids(self%filelist)
@@ -571,7 +572,10 @@ contains
     character(len=128), dimension(:), allocatable :: dets
 
     ! Read common fields
-    allocate(self%polang(self%ndet), self%mbang(self%ndet), self%mono(self%ndet), self%gain0(0:self%ndet))
+    allocate(self%polang(self%ndet))
+    allocate(self%mbang(self%ndet))
+    allocate(self%mono(self%ndet))
+    allocate(self%gain0(0:self%ndet))
     self%mono = 0.d0
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
@@ -615,7 +619,7 @@ contains
              stop
           end if
           self%polang(i) = 0.d0 !polang_buf(j)
-          self%mbang(i) = mbang_buf(j)
+          self%mbang(i)  = polang_buf(j)  !mbang_buf(j)
        end do
        deallocate(polang_buf, mbang_buf, dets)
        ! Read instrument specific parameters
@@ -652,7 +656,7 @@ contains
 !!$    end if
 
     call update_status(status, "aaa")
-    if (trim(self%level) == 'L2' .or. self%L2_exist) then
+    if (trim(self%level) == 'L2' .or. .not. self%L2_exist) then
        do i = 1, self%nscan
           call read_hdf_scan_data(self%scans(i), self, self%hdfname(i), self%scanid(i), self%ndet, &
                & detlabels, self%nhorn, self%ndiode, self%diode_names)
@@ -1026,9 +1030,6 @@ contains
       stop
     end if
 
-    ! Debug statement for m
-    !write(*,*) "FFTW n and m is", n, m 
-
     ! Find array sizes
     ! Read detector scans
     if (.not. tod%compressed_tod) allocate(buffer_sp(n))
@@ -1121,13 +1122,13 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q, flen
     real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
     character(len=6)   :: fileid
     character(len=512) :: infile
     real(dp),           allocatable, dimension(:)   :: weight, sid
     real(dp),           allocatable, dimension(:,:) :: spinpos, spinaxis
-    integer(i4b),       allocatable, dimension(:)   :: scanid, id
+    integer(i4b),       allocatable, dimension(:)   :: scanid, id, filenum
     integer(i4b),       allocatable, dimension(:)   :: proc
     real(dp),           allocatable, dimension(:)   :: pweight
     character(len=512), allocatable, dimension(:)   :: filename
@@ -1171,8 +1172,9 @@ contains
        
          open(unit, file=trim(filelist))
          read(unit,*) n
-         allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot))
+         allocate(id(n_tot), filename(n_tot), scanid(n_tot), weight(n_tot), proc(n_tot), pweight(0:np-1), sid(n_tot), spinaxis(n_tot,3), spinpos(2,n_tot), filenum(n_tot))
          j = 1
+         filenum = 0
          do i = 1, n
             read(unit,*) p, infile, w, spin
             if (p < self%first_scan .or. p > self%last_scan) cycle
@@ -1182,6 +1184,10 @@ contains
             spinpos(1:2,j) = spin
             id(j)          = j
             sid(j)         = scanid(j)
+            if (self%enable_tod_simulations) then
+               flen = len(trim(infile))
+               read(infile(flen-8:flen-3),*) filenum(j)
+            end if
             call ang2vec(spinpos(1,j), spinpos(2,j), spinaxis(j,1:3))
             if (j == 1) self%initfile = filename(j)
             j              = j+1
@@ -1189,37 +1195,33 @@ contains
          end do
          close(unit)
 
-         ! Compute symmetry axis
-         v0 = 0.d0
-         do i = 2, n_tot
-            v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-            v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-            v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-            if (v(3) < 0.d0) v  = -v
-            if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
-         end do
-         if (maxval(sqrt(v0*v0)) == 0) then
-           v0 = 1
+         if (self%enable_tod_simulations) then
+            do i = 1, n_tot
+               proc(i) = mod(filenum(i),self%numprocs)
+            end do
          else
-           v0 = v0 / sqrt(v0*v0)
-         end if
-!        v0(1) = 1
-       
-
-!!$
-!!$       ! Compute angle between i'th and first vector
-!!$       do i = 1, n
-!!$          v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-!!$          v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-!!$          v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-!!$       end do
-         do i = n_tot, 1, -1
-            v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
-            v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
-            v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
-            sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
-            if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
-         end do
+            ! Compute symmetry axis
+            v0 = 0.d0
+            do i = 2, n_tot
+               v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+               v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+               v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+               if (v(3) < 0.d0) v  = -v
+               if (sum(v*v) > 0.d0)  v0 = v0 + v / sqrt(sum(v*v))
+            end do
+            if (maxval(sqrt(v0*v0)) == 0) then
+               v0 = 1
+            else
+               v0 = v0 / sqrt(v0*v0)
+            end if
+            
+            do i = n_tot, 1, -1
+               v(1) = spinaxis(1,2)*spinaxis(i,3)-spinaxis(1,3)*spinaxis(i,2)
+               v(2) = spinaxis(1,3)*spinaxis(i,1)-spinaxis(1,1)*spinaxis(i,3)
+               v(3) = spinaxis(1,1)*spinaxis(i,2)-spinaxis(1,2)*spinaxis(i,1)
+               sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
+               if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
+            end do
 
        ! Sort according to weight
 !!$       pweight = 0.d0
@@ -1232,60 +1234,56 @@ contains
 !!$       end do
 !!$       deallocate(id, pweight, weight)
 
-
-         w_tot = sum(weight)
-         if (self%enable_tod_simulations) then
-            do i = 1, n_tot
-               infile = filename(i)
-               q = len(trim(infile))
-               read(infile(q-8:q-3),*) q
-               proc(i) = mod(q,np)
-            end do
-         else
-            ! Sort according to scan id
-            proc    = -1
-            call QuickSort(id, sid)
-            w_curr = 0.d0
-            j     = 1
-            do i = np-1, 1, -1
-               w = 0.d0
-               do k = 1, n_tot
-                  if (proc(k) == i) w = w + weight(k) 
+            w_tot = sum(weight)
+            if (self%enable_tod_simulations) then
+               do i = 1, n_tot
+                  infile = filename(i)
+                  q = len(trim(infile))
+                  read(infile(q-8:q-3),*) q
+                  proc(i) = mod(q,np)
                end do
-               do while (w < w_tot/np .and. j <= n_tot)
-                  proc(id(j)) = i
-                  w           = w + weight(id(j))
-                  if (w > 1.2d0*w_tot/np) then
-                     ! Assign large scans to next core
-                     proc(id(j)) = i-1
-                     w           = w - weight(id(j))
-                  end if
-                  j           = j+1
+            else
+               ! Sort according to scan id
+               proc    = -1
+               call QuickSort(id, sid)
+               w_curr = 0.d0
+               j     = 1
+               do i = np-1, 1, -1
+                  w = 0.d0
+                  do k = 1, n_tot
+                     if (proc(k) == i) w = w + weight(k) 
+                  end do
+                  do while (w < w_tot/np .and. j <= n_tot)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     if (w > 1.2d0*w_tot/np) then
+                        ! Assign large scans to next core
+                        proc(id(j)) = i-1
+                        w           = w - weight(id(j))
+                     end if
+                     j           = j+1
+                  end do
                end do
-!!$            if (w_curr > i*w_tot/np) then
-!!$               proc(id(j-1)) = i-1
-!!$            end if
+               do while (j <= n_tot)
+                  proc(id(j)) = 0
+                  j = j+1
+               end do
+            end if
+            
+            pweight = 0.d0
+            do k = 1, n_tot
+               pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
             end do
-            do while (j <= n_tot)
-               proc(id(j)) = 0
-               j = j+1
-            end do
+            write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
+            deallocate(id, pweight, weight, sid, spinaxis)
          end if
-
-         pweight = 0.d0
-         do k = 1, n_tot
-            pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
-         end do
-!!$         do k = 0, np-1
-!!$            write(*,*) k, pweight(k)/w_tot, count(proc == k)
-!!$         end do
-         write(*,*) '  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
-         deallocate(id, pweight, weight, sid, spinaxis)
 
        ! Distribute according to consecutive PID
 !!$       do i = 1, n_tot
 !!$          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
 !!$       end do
+
+         deallocate(filenum)
 
       end if
    end if
@@ -1513,7 +1511,7 @@ contains
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
           end if
           !if (k > 20300                    .and. (trim(self%label(j)) == '26M' .or. trim(self%label(j)) == '26S')) self%scans(i)%d(j)%accept = .false.
-          !if ((k > 24660 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
+          !if ((k > 24900 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
        end do
     end do
 
@@ -1522,6 +1520,8 @@ contains
 
     ! Read instrument-specific parameters
     call self%initHDF_inst(chainfile, path)
+
+    call self%remove_fixed_scans
 
     deallocate(output)
 
@@ -1630,7 +1630,6 @@ contains
           s_sl(j) = s_sl(j-1)
        else
           psi_    = self%psi(psi(j))-polangle
-          !write(*,*) j, psi(j), polangle, self%psi(psi(j))
           s_sl(j) = slconv%interp(pix_, psi_)
           pix_prev = pix_; psi_prev = psi(j)
        end if
@@ -2460,5 +2459,21 @@ contains
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_inst
 
+  subroutine remove_fixed_scans(self)
+    ! 
+    ! Sets accept = .false. for known bad scans
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_tod),                     intent(inout)  :: self
+  end subroutine remove_fixed_scans
 
 end module comm_tod_mod

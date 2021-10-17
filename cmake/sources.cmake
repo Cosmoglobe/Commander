@@ -1,4 +1,25 @@
-#==============================================================================
+#================================================================================
+#
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
+# This file is part of Commander3.
+#
+# Commander3 is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Commander3 is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Commander3. If not, see <https://www.gnu.org/licenses/>.
+#
+#================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # PROJECTS' URL SOURCES, MD5 HASHES AND CONFIGURE COMMANDS
 #==============================================================================
 # ZLib -- required by HDF5, cURL and others. HDF Group provides this one, but
@@ -51,8 +72,10 @@ set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 #------------------------------------------------------------------------------
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
-set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
-set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
+#set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
+set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
+#set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
+set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
