@@ -166,113 +166,113 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVHPC)
 #------------------------------------------------------------------------------
 # AOCC Flang
 #------------------------------------------------------------------------------
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0" 
-			"-g" 
-			#"-fno-strict-aliasing"
-			#"-fopenmp" 
-			#"-fbacktrace" 
-			#"-fexternal-blas"
-			#"-C" 
-			#"-Wall" 
-			#"-Wextra" 
-			#"-Warray-temporaries"
-			#"-Wconversion-extra" 
-			#"-pedantic" 
-			#"-fcheck=all" 
-			#"-ffpe-trap=invalid,zero,overflow,underflow" 
-			#"-ffunction-sections" 
-			#"-pipe"
-			#"-ffpe-trap=zero"
-			#"-fPIC"
-			)
-	endif()
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+#			"-O0" 
+#			"-g" 
+#			#"-fno-strict-aliasing"
+#			#"-fopenmp" 
+#			#"-fbacktrace" 
+#			#"-fexternal-blas"
+#			#"-C" 
+#			#"-Wall" 
+#			#"-Wextra" 
+#			#"-Warray-temporaries"
+#			#"-Wconversion-extra" 
+#			#"-pedantic" 
+#			#"-fcheck=all" 
+#			#"-ffpe-trap=invalid,zero,overflow,underflow" 
+#			#"-ffunction-sections" 
+#			#"-pipe"
+#			#"-ffpe-trap=zero"
+#			#"-fPIC"
+#			)
+#	endif()
 #------------------------------------------------------------------------------
 # PGI	
 # TODO: For some reason commander dependencies crashes on this one
 # so figure out how to make it work
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
-	# Compiler flags
-	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
-			"-DNDEBUG"
-			"-fast" 
-			"-mp=all"
-			"-traceback" 
-			"-Mconcur"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0" # -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
-			"-mp=all"
-			"-gopt" 
-			"-fast" 
-			"-traceback" 
-			"-Minfo" 
-			"-Mconcur"
-			"-C"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
-			"-DNDEBUG"
-			"-mp=all"
-			"-gopt" 
-			"-fast" 
-			"-traceback" 
-			"-Minfo" 
-			"-Mconcur"
-			"-C"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
-			"-O0"# -mp=all -fast -traceback -Mconcur -fPIC" 
-			"-mp=all"
-			"-fast" 
-			"-traceback" 
-			"-Mconcur"
-			"-C"
-			"-fPIC"
-			)
-	endif()
-
-	# Linker flags
-	# the same logic as with compiler flags
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE 
-			"-mp=all"# -gopt -Mconcur"
-			"-gopt" 
-			"-Mconcur"
-			)
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG 
-			"-mp=all"# -gopt -Mconcur"
-			"-gopt" 
-			"-Mconcur"
-			)
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO 
-			"-mp=all"# -Mconcur"
-			"-Mconcur"
-			)
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL 
-			"-mp=all"# -Mconcur"
-			"-Mconcur"
-			)
-	endif()
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
+#	# Compiler flags
+#	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
+#			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
+#			"-DNDEBUG"
+#			"-fast" 
+#			"-mp=all"
+#			"-traceback" 
+#			"-Mconcur"
+#			"-fPIC"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+#			"-O0" # -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+#			"-mp=all"
+#			"-gopt" 
+#			"-fast" 
+#			"-traceback" 
+#			"-Minfo" 
+#			"-Mconcur"
+#			"-C"
+#			"-fPIC"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
+#			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+#			"-DNDEBUG"
+#			"-mp=all"
+#			"-gopt" 
+#			"-fast" 
+#			"-traceback" 
+#			"-Minfo" 
+#			"-Mconcur"
+#			"-C"
+#			"-fPIC"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
+#			"-O0"# -mp=all -fast -traceback -Mconcur -fPIC" 
+#			"-mp=all"
+#			"-fast" 
+#			"-traceback" 
+#			"-Mconcur"
+#			"-C"
+#			"-fPIC"
+#			)
+#	endif()
+#
+#	# Linker flags
+#	# the same logic as with compiler flags
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE 
+#			"-mp=all"# -gopt -Mconcur"
+#			"-gopt" 
+#			"-Mconcur"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG 
+#			"-mp=all"# -gopt -Mconcur"
+#			"-gopt" 
+#			"-Mconcur"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO 
+#			"-mp=all"# -Mconcur"
+#			"-Mconcur"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL 
+#			"-mp=all"# -Mconcur"
+#			"-Mconcur"
+#			)
+#	endif()
 #------------------------------------------------------------------------------
 # Flang
 # TODO: need to figure out why healpix doesn't compile with flang

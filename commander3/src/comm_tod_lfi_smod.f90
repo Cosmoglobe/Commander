@@ -77,12 +77,9 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'    
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -94,12 +91,9 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -111,12 +105,9 @@ contains
        res%n_xi            = 3
        res%noise_psd_model = 'oof'
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
@@ -191,17 +182,13 @@ contains
     call res%remove_fixed_scans
 
     ! Setting polarization angles to DPC post-analysis values
-    allocate(res%polang_prior(res%ndet,2))
-    if (trim(res%freq) == '030') then
-       res%polang_prior(:,1) = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
-       res%polang_prior(:,2) =  [ 0.683,  0.683, 0.278, 0.278]*pi/180.
-    else if (trim(res%freq) == '044') then
-       res%polang_prior(:,1) = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
-       res%polang_prior(:,2) =  [ 0.380,  0.380,  1.646, 1.646,  0.557,  0.557]*pi/180.
-    else if (trim(res%freq) == '070') then
-       res%polang_prior(:,1) = -[ 0.543, 0.543, 1.366, 1.366, -1.811, -1.811, -1.045, -1.045, -2.152, -2.152,  -0.960, -0.960]*pi/180.
-       res%polang_prior(:,2) =  [ 0.684, 0.684, 0.835, 0.835,  0.835,  0.835,  1.266,  1.266,  1.139,  1.139,   0.734,  0.734]*pi/180. 
-    end if
+!!$    if (trim(res%freq) == '030') then
+!!$       res%polang = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
+!!$    else if (trim(res%freq) == '044') then
+!!$       res%polang = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
+!!$    else if (trim(res%freq) == '070') then
+!!$       res%polang = -[ 0.543, 0.543,  1.366, 1.366,  -1.811, -1.811, -1.045, -1.045,  -2.152, -2.152,  -0.960, -0.960]*pi/180.
+!!$    end if
 
     ! Initialize bandpass mean and proposal matrix
     call res%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
@@ -492,7 +479,7 @@ contains
 
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_polang
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
@@ -564,15 +551,6 @@ contains
     !------------------------------------
     ! Perform main sampling steps
     !------------------------------------
-
-    ! Draw polarization angle from Tau-A prior (https://www.aanda.org/articles/aa/full_html/2016/10/aa26998-15/F3.html)
-    if (sample_polang) then
-       do i = 1, self%ndet
-          self%polang(i) = self%polang_prior(i,1) + rand_gauss(handle) * self%polang_prior(i,2)
-       end do
-    else
-       self%polang = 0.d0
-    end if
 
     ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
     if (.not. self%sample_L1_par .and. self%ndiode > 1) then

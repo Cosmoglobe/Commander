@@ -99,65 +99,6 @@ interface
   end subroutine normalize_gain_variance
 
 
-  subroutine normalize_gain_variance(g1, g2, sigma0)
-    implicit none
-    real(dp), dimension(:), intent(inout) :: g1
-    real(dp), dimension(:), intent(inout) :: g2
-    real(dp),               intent(out)   :: sigma0
-
-    integer(i4b) :: k, l, nscan_tot, window
-    real(dp)     :: var, minvar, invvar
-    real(dp), allocatable, dimension(:)   :: g_over_s
-
-    nscan_tot = size(g1)
-    allocate(g_over_s(nscan_tot))
-
-    ! Rescale uncertainties to have local unit reduced variance
-    where (g2 > 0) 
-       g_over_s = g1/sqrt(g2)  ! gain / stddev
-    elsewhere
-       g_over_s = 0.d0
-    end where
-    var = 0.
-    do k = 1, nscan_tot-1
-       if (g_over_s(k) /= 0.d0 .and. g_over_s(k+1) /= 0.d0) then
-          g_over_s(k) = (g_over_s(k+1)-g_over_s(k))/sqrt(2.d0)
-          var         = var + g_over_s(k)**2
-       end if
-    end do
-    if (count(g_over_s > 0) > 0) then
-       var = var/count(g_over_s > 0)
-       write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
-       g2 = g2 / var
-       g1 = g1 / var
-    end if
-
-    ! Compute minimum variance 
-    window = 100
-    minvar = 0.d0
-    do k = window+1, nscan_tot-window ! First, compute the minimum variance, as estimated over a gliding window
-       invvar = 0.d0
-       do l = -window, window
-          if (g2(k+l) > 0) then
-             invvar = invvar + g2(k+1)
-          end if
-       end do
-       if (count(g2(k-window:k+window) > 0) > 0) then
-          invvar = invvar / count(g2(k-window:k+window) > 0)
-          if (invvar > minvar) minvar = invvar
-       end if
-    end do
-    sigma0 = 1/sqrt(minvar)
-    write(*,*) ' New sigma0 = ', sigma0
-!!$    where (g2 > 0) 
-!!$       g2 = 1.d0/(1.d0/g2 - 0.9d0/minvar)  ! Note that g(:,:,2) is the inverse variance
-!!$    end where
-
-    deallocate(g_over_s)
-
-  end subroutine normalize_gain_variance
-
-
    ! This is implementing equation 16, adding up all the terms over all the sums
    ! the sum i is over the detector.
   module subroutine accumulate_abscal(tod, scan, mask, s_sub, s_invsqrtN, A_abs, b_abs, handle, out, s_highres, mask_lowres, tod_arr)
@@ -172,7 +113,6 @@ interface
     real(sp),          dimension(:,:), intent(in), optional :: s_highres
     real(sp),          dimension(:,:), intent(in), optional :: mask_lowres
     real(sp),          dimension(:,:), intent(in), optional :: tod_arr
- 
   end subroutine accumulate_abscal
 
   ! Sample absolute gain from orbital dipole alone 
@@ -181,7 +121,6 @@ interface
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
-
   end subroutine sample_abscal_from_orbital
 
   ! Sample absolute gain from orbital dipole alone 
@@ -191,7 +130,6 @@ interface
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),            dimension(:), intent(in)     :: A_abs, b_abs
-
   end subroutine sample_relcal
 
   module subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
@@ -285,7 +223,6 @@ interface
      real(dp), intent(in)                    :: sigma_0, alpha, fknee
      logical(lgt), intent(in)                :: sample
      type(planck_rng)                        :: handle
-
   end subroutine wiener_filtered_gain
 
   module subroutine fft_fwd(time, fourier, plan_fwd)
@@ -483,7 +420,6 @@ interface
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
-
   end subroutine sample_gain_psd
 
   module subroutine sample_psd_params_by_mh(gain_ps, freqs, sigma_0, fknee, alpha, &
@@ -528,7 +464,6 @@ interface
     real(dp), intent(inout)                 :: sigma_0, fknee, alpha
     real(dp), intent(in)                    :: sigma0_std, fknee_std, alpha_std
     type(planck_rng),                  intent(inout)  :: handle
-
   end subroutine sample_psd_params_by_mh
 
   module subroutine run_mh(sigma_0, fknee, alpha, propcov, num_samples, samples, &
@@ -579,7 +514,6 @@ interface
     real(dp), dimension(:), intent(in)  :: gain_ps
     logical(lgt)          ,    intent(in)  :: adjust_scaling_full
     type(planck_rng),                  intent(inout)  :: handle
-
   end subroutine run_mh
 
   module function psd_loglike(sigma_0, fknee, alpha, gain_ps, freqs)
@@ -615,7 +549,6 @@ interface
      real(dp)        :: psd_loglike
      real(dp)        :: fknee, alpha, sigma_0
      real(dp), dimension(:)  :: gain_ps, freqs
-
   end function psd_loglike
 
 end interface    

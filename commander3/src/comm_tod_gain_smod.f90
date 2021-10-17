@@ -19,6 +19,7 @@
 !
 !================================================================================
 submodule (comm_tod_gain_mod) comm_tod_gain_smod
+  use omp_lib
 contains
 
   module subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invsqrtN, mask, s_tot, handle, mask_lowres, tod_arr)

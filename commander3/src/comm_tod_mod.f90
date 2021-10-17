@@ -115,9 +115,8 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
-     real(dp), allocatable, dimension(:)     :: gain0                                       ! Mean gain
+     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
-     real(dp), allocatable, dimension(:,:)   :: polang_prior                                ! Detector polarization angle prior [ndet,mean/rms]
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
@@ -126,7 +125,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
-     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
+     real(sp),              dimension(2)     :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
@@ -303,10 +302,9 @@ contains
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)
     self%verbosity     = cpar%verbosity
+    self%sims_output_dir = cpar%sims_output_dir
     self%apply_inst_corr = .false.
-    self%sims_output_dir        = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
-    self%sample_abs_bp          = .false.
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
@@ -1040,10 +1038,6 @@ contains
             call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
-            ! Debug Statement 
-            !write(*,*) "size(self%d(i)%tod), m", size(self%d(i)%tod), m
-            !write(*,*) "size(buffer_sp), tod%halfring_split", size(buffer_sp), tod%halfring_split
-            !
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
             if (tod%halfring_split == 2 )then
                self%d(i)%tod = buffer_sp(m+1:2*m)
@@ -1234,6 +1228,7 @@ contains
 !!$       end do
 !!$       deallocate(id, pweight, weight)
 
+            
             w_tot = sum(weight)
             if (self%enable_tod_simulations) then
                do i = 1, n_tot
