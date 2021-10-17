@@ -90,7 +90,11 @@ option(USE_SYSTEM_ZLIB    "Enables search for ZLIB on the system."        ON)
 option(USE_SYSTEM_LIBAEC  "Enables search for LibAEC on the system."      ON)
 option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        OFF)
 # FFTW
-option(USE_SYSTEM_FFTW    "Enables search for HDF5 on the system."        OFF)
+option(USE_SYSTEM_FFTW    "Enables search for FFTW on the system."        OFF)
+option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"          OFF)
+option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         ON)
+option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"          OFF)
+option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"         OFF)
 # CFITSIO
 option(USE_SYSTEM_MBEDTLS "Enables search for MbedTLS on the system."     ON)
 option(USE_SYSTEM_LIBSSH2 "Enables search for LibSSH2 on the system."     ON)

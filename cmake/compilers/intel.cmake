@@ -105,13 +105,13 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
 		"-O2"
 		"-xHost" 
+		"-g" 
 		"-fpe0"
 		"-fPIC"
 		#"-fp-model=strict"
 		"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
-		"-g" 
 		"-traceback" 
 		"-heap-arrays" "16384"
 		#

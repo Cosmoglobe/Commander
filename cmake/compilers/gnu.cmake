@@ -38,18 +38,20 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-fexternal-blas"
 		"-ffpe-trap=zero"
 		"-fPIC"
-		"-C"
+		#"-C"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
 		"-O0"
 		"-g" 
-		#"-fno-strict-aliasing"
+		"-Wuninitialized" # catching uninitialized variables
 		"-fopenmp" 
 		"-fbacktrace" 
 		"-fexternal-blas"
-		"-C" 
+		"-fPIC"
+		#"-C" 
+		#"-fno-strict-aliasing"
 		#"-Wall" 
 		#"-Wextra" 
 		#"-Warray-temporaries"
@@ -60,19 +62,19 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		#"-ffunction-sections" 
 		#"-pipe"
 		#"-ffpe-trap=zero"
-		"-fPIC"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
 		"-O2" 
 		"-g" 
-		#"-fno-strict-aliasing"
-		#"-DNDEBUG" 
+		"-Wuninitialized" # catching uninitialized variables
 		"-fopenmp" 
 		"-fbacktrace" 
 		"-fexternal-blas"
 		"-fPIC"
+		#"-fno-strict-aliasing"
+		#"-DNDEBUG" 
 		#"-C"
 		#"-Wall" 
 		#"-Wextra" 
