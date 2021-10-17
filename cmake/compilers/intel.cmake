@@ -70,7 +70,7 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-xHost" 
 		"-fpe0"
 		"-fPIC"
-		"-fp-model=strict"
+		#"-fp-model=strict"
 		"-traceback" 
 		"-qopenmp" <= we are not using it at all, it is redundant 
 		"-assume" "byterecl" # for I/O operations 
@@ -107,7 +107,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		"-xHost" 
 		"-fpe0"
 		"-fPIC"
-		"-fp-model=strict"
+		#"-fp-model=strict"
 		"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
