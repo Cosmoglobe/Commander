@@ -183,13 +183,13 @@ contains
     ! Setting polarization angles to DPC post-analysis values
     allocate(res%polang_prior(res%ndet,2))
     if (trim(res%freq) == '030') then
-       res%polang_prior(:,1) = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
+       res%polang_prior(:,1) =  [-3.428, -3.428, 2.643, 2.643]*pi/180.
        res%polang_prior(:,2) =  [ 0.683,  0.683, 0.278, 0.278]*pi/180.
     else if (trim(res%freq) == '044') then
-       res%polang_prior(:,1) = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
+       res%polang_prior(:,1) =  [-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
        res%polang_prior(:,2) =  [ 0.380,  0.380,  1.646, 1.646,  0.557,  0.557]*pi/180.
     else if (trim(res%freq) == '070') then
-       res%polang_prior(:,1) = -[ 0.543, 0.543, 1.366, 1.366, -1.811, -1.811, -1.045, -1.045, -2.152, -2.152,  -0.960, -0.960]*pi/180.
+       res%polang_prior(:,1) =  [ 0.543, 0.543, 1.366, 1.366, -1.811, -1.811, -1.045, -1.045, -2.152, -2.152,  -0.960, -0.960]*pi/180.
        res%polang_prior(:,2) =  [ 0.684, 0.684, 0.835, 0.835,  0.835,  0.835,  1.266,  1.266,  1.139,  1.139,   0.734,  0.734]*pi/180. 
     end if
 
@@ -500,6 +500,7 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.(size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! don't sample absolute bandpasses
+    sample_polang         = .true.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
@@ -557,9 +558,12 @@ contains
 
     ! Draw polarization angle from Tau-A prior (https://www.aanda.org/articles/aa/full_html/2016/10/aa26998-15/F3.html)
     if (sample_polang) then
-       do i = 1, self%ndet
-          self%polang(i) = self%polang_prior(i,1) + rand_gauss(handle) * self%polang_prior(i,2)
-       end do
+       if (self%myid == 0) then
+          do i = 1, self%ndet
+             self%polang(i) = self%polang_prior(i,1) + rand_gauss(handle) * self%polang_prior(i,2)
+          end do
+       end if
+       call mpi_bcast(self%polang, self%ndet, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     else
        self%polang = 0.d0
     end if
