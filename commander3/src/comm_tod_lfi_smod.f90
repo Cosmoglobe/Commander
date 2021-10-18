@@ -192,13 +192,13 @@ contains
     ! Setting polarization angles to DPC post-analysis values
     allocate(res%polang_prior(res%ndet,2))
     if (trim(res%freq) == '030') then
-       res%polang_prior(:,1) = -[-3.428, -3.428, 2.643, 2.643]*pi/180.
+       res%polang_prior(:,1) =  [-3.428, -3.428, 2.643, 2.643]*pi/180.
        res%polang_prior(:,2) =  [ 0.683,  0.683, 0.278, 0.278]*pi/180.
     else if (trim(res%freq) == '044') then
-       res%polang_prior(:,1) = -[-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
+       res%polang_prior(:,1) =  [-2.180, -2.180,  7.976, 7.976, -4.024, -4.024]*pi/180.
        res%polang_prior(:,2) =  [ 0.380,  0.380,  1.646, 1.646,  0.557,  0.557]*pi/180.
     else if (trim(res%freq) == '070') then
-       res%polang_prior(:,1) = -[ 0.543, 0.543, 1.366, 1.366, -1.811, -1.811, -1.045, -1.045, -2.152, -2.152,  -0.960, -0.960]*pi/180.
+       res%polang_prior(:,1) =  [ 0.543, 0.543, 1.366, 1.366, -1.811, -1.811, -1.045, -1.045, -2.152, -2.152,  -0.960, -0.960]*pi/180.
        res%polang_prior(:,2) =  [ 0.684, 0.684, 0.835, 0.835,  0.835,  0.835,  1.266,  1.266,  1.139,  1.139,   0.734,  0.734]*pi/180. 
     end if
 
