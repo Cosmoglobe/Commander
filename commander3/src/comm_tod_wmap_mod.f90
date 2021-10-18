@@ -109,50 +109,80 @@ contains
       constructor%freq            = cpar%ds_label(id_abs)
       constructor%n_xi            = 3
       constructor%noise_psd_model = 'oof'
+
+      !constructor%n_xi            = 4
+      !constructor%noise_psd_model = 'oof_f'
+
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+      allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
   
      ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
      ! 46.5 mHz. 
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
+      !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, -1.0]   ! [sigma0, fknee, alpha, gamma]; sigma0 is not used
+      !constructor%xi_n_P_uni(4,:) = [0, 2]            ! gamma
       if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         ! We want this first term to only go a few past fknee; if not, you'll
+         ! be using a lot of "perfectly known" correlated noise that will bias
+         ! the fit.
+         ! fknee between 0.4 and 6.13 mHz
+         constructor%xi_n_nu_fit(2,:)  = [0.0, 0.015]      ! limits of sum in equation (20) of Ihle et al.
+         constructor%xi_n_nu_fit(3,:)  = [0.0, 0.015]
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         ! fknee between 0.3 and 1.6 mHz
+         constructor%xi_n_nu_fit(2,:)= [0.0,    0.01]    
+         constructor%xi_n_nu_fit(3,:)= [0.0,    0.01]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         ! fknee between 0.3 and 3 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0,    0.1]    
+         constructor%xi_n_nu_fit(3,:)   = [0.0,    0.1]    
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]   
-         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         ! fknee between 2 and 8 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0,    0.1]   
+         constructor%xi_n_nu_fit(3,:)   = [0.0,    0.1]   
+         constructor%xi_n_P_uni(2,:) = [0.0001, 0.1]    ! fknee
+         constructor%xi_n_P_uni(3,:) = [-3.0, -0.5]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         ! fknee between 0.1 and 5 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0,    0.01]  
+         constructor%xi_n_nu_fit(3,:)   = [0.0,    0.01]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         ! fknee between 0.9 and 8 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0, 0.03] 
+         constructor%xi_n_nu_fit(3,:)   = [0.0, 0.03] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         ! fknee between 0.6 and 16 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0, 0.03]
+         constructor%xi_n_nu_fit(3,:)   = [0.0, 0.03]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         ! fknee between 0.7 and 10 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0, 0.15]
+         constructor%xi_n_nu_fit(3,:)   = [0.0, 0.15]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         ! fknee between 0.3 and 3 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0, 0.15] 
+         constructor%xi_n_nu_fit(3,:)   = [0.0, 0.15] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         ! fknee between 5 and 50 mHz
+         constructor%xi_n_nu_fit(2,:)   = [0.0, 0.15]  
+         constructor%xi_n_nu_fit(3,:)   = [0.0, 0.15]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else

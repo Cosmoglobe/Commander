@@ -126,7 +126,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
-     real(sp),              dimension(2)     :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
+     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
