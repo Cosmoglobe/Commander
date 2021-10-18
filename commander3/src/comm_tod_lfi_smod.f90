@@ -53,7 +53,7 @@ contains
     integer(i4b),              intent(in)    :: id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
-    class(comm_LFI_tod),       pointer       :: res
+    class(comm_lfi_tod),       pointer       :: res
 
     real(sp), dimension(:,:),    allocatable :: diode_data, corrected_data
     integer(i4b), dimension(:),  allocatable :: flag
@@ -442,7 +442,7 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  module subroutine process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
     !
     ! Routine that processes the LFI time ordered data.
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -480,7 +480,7 @@ contains
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_LFI_tod),                      intent(inout) :: self
+    class(comm_lfi_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -509,6 +509,7 @@ contains
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.(size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! don't sample absolute bandpasses
+    sample_polang         = .true.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
@@ -737,10 +738,10 @@ contains
 
     call update_status(status, "tod_end"//ctext)
 
-  end subroutine process_LFI_tod
+  end subroutine process_lfi_tod
   
   
-  module subroutine load_instrument_LFI(self, instfile, band)
+  module subroutine load_instrument_lfi(self, instfile, band)
     !
     ! Reads the LFI specific fields from the instrument file
     ! Implements comm_tod_mod::load_instrument_inst
@@ -756,7 +757,7 @@ contains
     ! 
     ! Returns : None
     implicit none
-    class(comm_LFI_tod),                 intent(inout) :: self
+    class(comm_lfi_tod),                 intent(inout) :: self
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
 
@@ -805,9 +806,9 @@ contains
       end if
    end if
 
-  end subroutine load_instrument_LFI
+  end subroutine load_instrument_lfi
   
-  module subroutine diode2tod_LFI(self, scan, map_sky, procmask, tod)
+  module subroutine diode2tod_lfi(self, scan, map_sky, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
     ! 
@@ -826,7 +827,7 @@ contains
     !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_LFI_tod),                       intent(inout) :: self
+    class(comm_lfi_tod),                       intent(inout) :: self
     integer(i4b),                              intent(in)    :: scan
     real(sp),          dimension(0:,1:,1:,1:), intent(in)    :: map_sky
     real(sp),          dimension(0:),          intent(in)    :: procmask
@@ -1017,11 +1018,11 @@ contains
 !call mpi_finalize(i)
 !stop
 
-  end subroutine diode2tod_LFI
+  end subroutine diode2tod_lfi
 
   module function get_nsmooth(self)
     implicit none
-    class(comm_LFI_tod),  intent(in)   :: self
+    class(comm_lfi_tod),  intent(in)   :: self
     integer(i4b)                       :: get_nsmooth  
     integer(i4b) :: j
     real(sp)     :: fbin, nu
@@ -1037,7 +1038,7 @@ contains
 
   module subroutine get_freq_bins(self, freqs)
     implicit none
-    class(comm_LFI_tod),    intent(in)    :: self
+    class(comm_lfi_tod),    intent(in)    :: self
     real(dp), dimension(:), intent(inout) :: freqs  
  
     integer(i4b) :: j
@@ -1076,7 +1077,7 @@ contains
     !              frequencies that index binned_out
     ! err        : error flag; 0 if OK, 1 if no data
     implicit none
-    class(comm_LFI_tod),          intent(in)    :: self
+    class(comm_lfi_tod),          intent(in)    :: self
     real(sp),     dimension(:,:), intent(in)    :: data_in
     real(dp),     dimension(:,:), intent(inout) :: binned_out
     real(dp),     dimension(:),   intent(in)    :: nu_out
@@ -1165,7 +1166,7 @@ contains
 
 
   module subroutine filter_reference_load(self, det, data)
-    class(comm_LFI_tod),               intent(in)      :: self
+    class(comm_lfi_tod),               intent(in)      :: self
     integer(i4b),                      intent(in)      :: det
     real(sp), dimension(:,:),          intent(inout)   :: data
 
@@ -1229,7 +1230,7 @@ contains
 
   end subroutine filter_reference_load
 
-  module subroutine dumpToHDF_LFI(self, chainfile, path)
+  module subroutine dumpToHDF_lfi(self, chainfile, path)
     ! 
     ! Writes instrument-specific TOD parameters to existing chain file
     ! 
@@ -1247,7 +1248,7 @@ contains
     ! None
     !
     implicit none
-    class(comm_LFI_tod),                 intent(in)     :: self
+    class(comm_lfi_tod),                 intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
 
@@ -1303,7 +1304,7 @@ contains
     deallocate(amp, amp_tot)
     if (trim(self%level) == 'L1') deallocate(R, R_tot)
 
-  end subroutine dumpToHDF_LFI
+  end subroutine dumpToHDF_lfi
 
   module subroutine sample_1Hz_spikes(tod, handle, map_sky, procmask, procmask2)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
@@ -1317,7 +1318,7 @@ contains
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
     implicit none
-    class(comm_LFI_tod),                          intent(inout) :: tod
+    class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
@@ -1452,7 +1453,7 @@ contains
 
   end subroutine sample_1Hz_spikes
 
-  module subroutine construct_corrtemp_LFI(self, scan, pix, psi, s)
+  module subroutine construct_corrtemp_lfi(self, scan, pix, psi, s)
     !  Construct an LFI instrument-specific correction template; for now contains 1Hz template only
     !
     !  Arguments:
@@ -1471,7 +1472,7 @@ contains
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_LFI_tod),                   intent(in)    :: self
+    class(comm_lfi_tod),                   intent(in)    :: self
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
@@ -1495,12 +1496,12 @@ contains
        end do
     end do
 
-  end subroutine construct_corrtemp_LFI
+  end subroutine construct_corrtemp_lfi
 
 
   module subroutine preprocess_L1_to_L2(self, map_sky, procmask)
     implicit none
-    class(comm_LFI_tod),                          intent(inout) :: self
+    class(comm_lfi_tod),                          intent(inout) :: self
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask
 
@@ -1627,7 +1628,7 @@ contains
 
   end subroutine preprocess_L1_to_L2
 
-  module subroutine remove_fixed_scans_LFI(self)
+  module subroutine remove_fixed_scans_lfi(self)
     ! 
     ! Sets accept = .false. for known bad scans
     ! 
@@ -1641,7 +1642,7 @@ contains
     ! None
     !
     implicit none
-    class(comm_LFI_tod),                  intent(inout)  :: self
+    class(comm_lfi_tod),                  intent(inout)  :: self
 
     integer(i4b) :: i, j, k
 
@@ -1660,7 +1661,7 @@ contains
     end do
 
 
-  end subroutine remove_fixed_scans_LFI
+  end subroutine remove_fixed_scans_lfi
 
 end submodule comm_tod_lfi_smod
 
