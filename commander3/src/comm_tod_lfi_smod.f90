@@ -1654,9 +1654,11 @@ contains
           if ((k > 24900 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
 
           ! 44 GHz triple dot, with weaker effects in the other two channels
-          if (k == 6144 .or. k == 6126) then
-             self%scans(i)%d(j)%accept = .false.
-          end if
+          if (k == 6144 .or. k == 6126) self%scans(i)%d(j)%accept = .false.
+
+          ! The Day Planck Stood Still; 14389 has bad chisq
+          if (k == 14389 .or. k == 14390) self%scans(i)%d(j)%accept = .false.
+  
        end do
     end do
 
