@@ -567,9 +567,12 @@ contains
 
     ! Draw polarization angle from Tau-A prior (https://www.aanda.org/articles/aa/full_html/2016/10/aa26998-15/F3.html)
     if (sample_polang) then
-       do i = 1, self%ndet
-          self%polang(i) = self%polang_prior(i,1) + rand_gauss(handle) * self%polang_prior(i,2)
-       end do
+       if (self%myid == 0) then
+          do i = 1, self%ndet
+             self%polang(i) = self%polang_prior(i,1) + rand_gauss(handle) * self%polang_prior(i,2)
+          end do
+       end if
+       call mpi_bcast(self%polang, self%ndet, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
     else
        self%polang = 0.d0
     end if
