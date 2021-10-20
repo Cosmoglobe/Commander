@@ -121,7 +121,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%sample_L1_par   = .true.!.false.
+    constructor%sample_L1_par   = .false.
     constructor%level           = cpar%ds_tod_level(id_abs)
     if(trim(constructor%level) == 'L1') then
       constructor%compressed_tod = .true.
@@ -132,7 +132,7 @@ contains
     end if    
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .true.
-    constructor%use_dpc_adc     = .false.!.true.
+    constructor%use_dpc_adc     = .false.
     constructor%use_dpc_gain_modulation = .true.
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 30.d0 !9.d0
@@ -218,7 +218,7 @@ contains
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
     constructor%spike_amplitude = 0.d0
 
-    if(constructor%level == 'L1') then
+    if(trim(constructor%level) == 'L1') then
 
         ! Compute ADC correction tables for each diode
         if (.not. constructor%L2_exist) then
@@ -228,11 +228,11 @@ contains
              ! Determine v_min and v_max for each diode
              call update_status(status, "ADC_start")
              do i = 1, constructor%ndet
-                
+             
                 do j = 1, constructor%ndiode ! init the adc correction structures
                    constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
                 end do
-                
+
                 do k = 1, constructor%nscan ! determine vmin and vmax for each diode
                    if (.not. constructor%scans(k)%d(i)%accept) cycle
                    allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode))
@@ -244,7 +244,7 @@ contains
                    deallocate(diode_data, flag)
                    
                 end do ! end loop over scans
-                
+
                 do j = 1, constructor%ndiode ! allreduce vmin and vmax
                    ! All reduce min and max
                    call mpi_allreduce(mpi_in_place,constructor%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,constructor%comm,ierr)

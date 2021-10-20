@@ -257,13 +257,12 @@ contains
     real(dp)                                       :: slope_dp, offset_dp
     real(dp)                                       :: a, zero, m, delV
 
-    logical(lgt) :: steamroll 
+    logical(lgt) :: steamroll, bad
 
     steamroll = .false.!.true.
 
     ! Combine together all of the bins determined from chunk adding
     if (self%myid == 0)  write(*,*) 'Do reduction'
-
     call mpi_allreduce(mpi_in_place,self%rms_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
     if (self%myid == 0) write(*,*) 'Done 1'
     call mpi_allreduce(mpi_in_place,self%rms2_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
@@ -321,6 +320,7 @@ contains
        ! Remove linear term 
        if (steamroll) then
           write(*,*) 'Steamroll correction'
+          bad = .false.
           do i = 1, self%nbins
              if (binmask(i) == 0) cycle
              model_dp(i) = -flat_dp(i)
@@ -329,85 +329,92 @@ contains
           write(*,*) 'fit dips'
           diprange = 10
           ! Identify dip locations for the fitting search
-          v_dips   = return_dips_dp(vbin_dp, flat_dp, binmask, diprange)
+          call return_dips_dp(vbin_dp, flat_dp, binmask, diprange, v_dips)
           ! Fit linear and dips jointly
-          model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
+          bad = .not. allocated(v_dips)
+          if (.not. bad) model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
        end if
 
-       lin_dp  = slope_dp*vbin_dp + offset_dp
-       flat_dp = rms_dp - lin_dp
-
-       if (size(v_dips) < 1) then
+       if (bad) then
           self%adc_in  = vbin_dp
           self%adc_out = vbin_dp
-          return
+       else
+          lin_dp  = slope_dp*vbin_dp + offset_dp
+          flat_dp = rms_dp - lin_dp
+
+          ! Taking our model, we return the differential response function (dR/dV)
+          if (all(model_dp /= 0)) then
+             do i = 1, self%nbins
+                dRdV(i) = slope_dp/model_dp(i) - 1.0/vbin_dp(i)
+             end do
+          else
+             dRdV = 0.
+          end if
+          
+          ! Make sure the bottom of dRdV is flat (dRdV(0) = dRdV(nbins) = 0.0)
+          dRdV = dRdV - (dRdV(self%nbins)-dRdV(1))/(vbin_dp(self%nbins)-vbin_dp(1))*vbin_dp
+          
+          ! Actual inverse response function
+          R(1) = 1.0
+          delV = vbin_dp(2)-vbin_dp(1)
+          do i = 2, self%nbins
+             R(i) = dRdV(i)*delV + R(i-1)
+          end do
+          
+          ! The following is done to match the dpc tables
+          
+          ! Again make sure everything is nice and flat
+          m = (R(self%nbins)-R(1))/(vbin_dp(self%nbins)-vbin_dp(1))
+          
+          do i = 1, self%nbins
+             R(i) = R(i)-m*vbin_dp(i)
+          end do
+          
+          ! And then make the limits 0
+          zero = R(1)
+          do i = 1, self%nbins
+             R(i) = R(i) - zero
+             self%adc_out(i) = R(i)*vbin_dp(i)+vbin_dp(i)
+             self%adc_in(i)  = vbin_dp(i)
+          end do
+          
+          write(*,*) 'Write all of the adc info to files'
+          ! Write to file binned rms, voltages, and response function to files
+          open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+          open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+          open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+          open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+          open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+          open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
+          open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
+          open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+          open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
+          do i = 1, self%nbins
+             write(44, fmt='(e30.8)') flat_dp(i)
+             write(45, fmt='(e16.8)') lin_dp(i)
+             write(46, fmt='(e16.8)') R(i)
+             write(49, fmt='(e16.8)') model_dp(i)
+             write(50, fmt='(e16.8)') rms_dp(i)
+             write(52, fmt='(e16.8)') self%adc_in(i)
+             write(53, fmt='(e16.8)') self%adc_out(i)
+             write(54, fmt='(i1)')    binmask(i)
+             write(55, fmt='(e16.8)') dRdV(i)
+          end do
+          close(44)
+          close(45)
+          close(46)
+          close(49)
+          close(50)
+          close(52)
+          close(53)
+          close(54)
+          close(55)
        end if
 
-       ! Taking our model, we return the differential response function (dR/dV)
-       do i = 1, self%nbins
-          dRdV(i) = slope_dp/model_dp(i) - 1.0/vbin_dp(i)
-       end do
-
-       ! Make sure the bottom of dRdV is flat (dRdV(0) = dRdV(nbins) = 0.0)
-       dRdV = dRdV - (dRdV(self%nbins)-dRdV(1))/(vbin_dp(self%nbins)-vbin_dp(1))*vbin_dp
-
-       ! Actual inverse response function
-       R(1) = 1.0
-       delV = vbin_dp(2)-vbin_dp(1)
-       do i = 2, self%nbins
-          R(i) = dRdV(i)*delV + R(i-1)
-       end do
-
-       ! The following is done to match the dpc tables
-
-       ! Again make sure everything is nice and flat
-       m = (R(self%nbins)-R(1))/(vbin_dp(self%nbins)-vbin_dp(1))
-
-       do i = 1, self%nbins
-          R(i) = R(i)-m*vbin_dp(i)
-       end do
-
-       ! And then make the limits 0
-       zero = R(1)
-       do i = 1, self%nbins
-          R(i) = R(i) - zero
-          self%adc_out(i) = R(i)*vbin_dp(i)+vbin_dp(i)
-          self%adc_in(i)  = vbin_dp(i)
-       end do
-       
-       write(*,*) 'Write all of the adc info to files'
-       ! Write to file binned rms, voltages, and response function to files
-       open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
-       open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
-       open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
-       open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
-       open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
-       open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
-       open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
-       open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
-       open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
-       do i = 1, self%nbins
-          write(44, fmt='(e30.8)') flat_dp(i)
-          write(45, fmt='(e16.8)') lin_dp(i)
-          write(46, fmt='(e16.8)') R(i)
-          write(49, fmt='(e16.8)') model_dp(i)
-          write(50, fmt='(e16.8)') rms_dp(i)
-          write(52, fmt='(e16.8)') self%adc_in(i)
-          write(53, fmt='(e16.8)') self%adc_out(i)
-          write(54, fmt='(i1)')    binmask(i)
-          write(55, fmt='(e16.8)') dRdV(i)
-       end do
-       close(44)
-       close(45)
-       close(46)
-       close(49)
-       close(50)
-       close(52)
-       close(53)
-       close(54)
-       close(55)
-
+       deallocate(binmask, dummymask, vbin_dp, rms_dp, dRdV, R, model_dp, lin_dp, flat_dp)
+          
     end if
+
     ! mpi_bcast the tables to all other cores
     call mpi_bcast(self%adc_in,  self%nbins, MPI_REAL, 0, self%comm, ierr) 
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
@@ -520,6 +527,9 @@ contains
     real(sp),          dimension(:), allocatable :: dV, tod_trim
     real(sp)                                     :: sum, binwidth
     integer(i4b)                                 :: leng, i, j, j_min, j_max
+    character(len=4) :: myid
+
+    call int2string(self%myid, myid)
     
     leng = size(tod_in)
     
@@ -529,6 +539,7 @@ contains
 
     ! Compute the dV within a window around each rt sample (excluding the ends)
     do i = int(self%window/2)+1, leng-1-int(self%window/2)
+       if (iand(flag(i+int(self%window/2)),flag0) .ne. 0) cycle 
        sum = 0.d0
        j_min = max(i-int(self%window/2),1)
        j_max = min(i+int(self%window/2), leng-1)
@@ -540,20 +551,27 @@ contains
     end do
     
     ! Bin the dV values as a function of input voltage, and take the mean
+    open(58,file='test'//myid//'.dat')
     if (present(corr)) then
        do i = 1, leng-1-self%window
+          if (iand(flag(i+int(self%window/2)),flag0) .ne. 0) cycle 
           j = int((tod_in(i+int(self%window/2))-self%vbin_edges(1))/binwidth) + 1
+          if (j > self%nbins) cycle
           self%nval2(j)     = self%nval2(j) + 1
           self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
        end do
     else
        do i = 1, leng-1-self%window
+          if (iand(flag(i+int(self%window/2)),flag0) .ne. 0) cycle 
           j = int((tod_in(i+int(self%window/2))-self%vbin_edges(1))/binwidth) + 1
+          if (j > self%nbins) cycle
           self%nval(j)      = self%nval(j) + 1
           self%rms_bins(j)  = self%rms_bins(j)  + dV(i)
+          write(58,*) j, self%rms2_bins(j), dV(i), dV(i)**2
           self%rms2_bins(j) = self%rms2_bins(j) + dV(i)**2
        end do
     end if
+    close(58)
 
     deallocate(dV)
     
@@ -676,7 +694,7 @@ contains
        count  = count + 1
        y_mean = y_mean + rms_flat(i)
     end do
-    y_mean = y_mean/count
+    if (count > 0) y_mean = y_mean/count
     
     count = 0
     do i = 1, leng
@@ -685,7 +703,7 @@ contains
        y_var  = y_var + (rms_flat(i)-y_mean)**2
     end do
     
-    y_var = y_var/(count-1)
+    if (count > 1) y_var = y_var/(count-1)
     
     y_std  = sqrt(y_var)
 
@@ -805,7 +823,7 @@ contains
     
   end subroutine return_linreg_dp
 
-  module function return_dips_dp(x,y,mask,diprange)
+  module subroutine return_dips_dp(x,y,mask,diprange,res)
     ! ====================================================================
     ! Dip identifying subroutine that returns the first dip location and
     ! the distance between dips in the RMS
@@ -836,7 +854,8 @@ contains
     integer(i4b),               intent(in)    :: diprange
     logical(lgt), dimension(:), allocatable   :: truths
     integer(i4b), dimension(:), allocatable   :: dips
-    integer(i4b), dimension(:), allocatable   :: return_dips_dp
+    integer(i4b), dimension(:), allocatable   :: res
+
     integer(i4b)                              :: leng, i, j, count
     integer(i4b)                              :: ndips
     real(dp)                                  :: y_mean, y_var, y_std
@@ -906,12 +925,13 @@ contains
        end if
     end do
     
-    return_dips_dp = dips(1:ndips)
+    allocate(res(ndips))
+    res = dips(1:ndips)
 
     deallocate(truths)
     deallocate(dips)
 
-  end function return_dips_dp
+  end subroutine return_dips_dp
 
   module function return_gaussian_dp(x, pars) result(y)
     ! ====================================================================

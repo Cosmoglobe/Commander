@@ -363,7 +363,7 @@ interface
     real(dp),                    intent(inout) :: slope, offset
   end subroutine return_linreg_dp
 
-  module function return_dips_dp(x,y,mask,diprange)
+  module subroutine return_dips_dp(x,y,mask,diprange,res)
     ! ====================================================================
     ! Dip identifying subroutine that returns the first dip location and
     ! the distance between dips in the RMS
@@ -392,8 +392,8 @@ interface
     real(dp),     dimension(:), intent(in)    :: x, y
     integer(i4b), dimension(:), intent(inout) :: mask
     integer(i4b),               intent(in)    :: diprange
-    integer(i4b), dimension(:), allocatable   :: return_dips_dp
-  end function return_dips_dp
+    integer(i4b), dimension(:), allocatable   :: res
+  end subroutine return_dips_dp
 
   module function return_gaussian_dp(x, pars) result(y)
     ! ====================================================================
