@@ -73,7 +73,6 @@ contains
     ! Set up noise PSD type and priors
     res%freq            = cpar%ds_label(id_abs)    
     if (trim(res%freq) == '030') then
-       res%sample_abs_bp   = .true.
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'    
        allocate(res%xi_n_P_uni(res%n_xi,2))
@@ -90,7 +89,6 @@ contains
        res%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        res%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(res%freq) == '044') then
-       res%sample_abs_bp   = .false.
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'
        allocate(res%xi_n_P_uni(res%n_xi,2))
@@ -107,7 +105,6 @@ contains
        res%xi_n_P_uni(5,:) = [1.35d0,  1.35d0 ] ! g_loc
        res%xi_n_P_uni(6,:) = [0.4d0,   0.4d0]   ! g_sig
     else if (trim(res%freq) == '070') then
-       res%sample_abs_bp   = .false.
        res%n_xi            = 3
        res%noise_psd_model = 'oof'
        allocate(res%xi_n_P_uni(res%n_xi,2))
@@ -153,6 +150,13 @@ contains
 
     ! Initialize common parameters
     call res%tod_constructor(cpar, id_abs, info, tod_type)
+
+    ! Choose absolute bandpass sampling
+    if (trim(res%freq) == '030') then
+       res%sample_abs_bp   = .true.
+    else
+       res%sample_abs_bp   = .false.
+    end if
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", res%label)
@@ -507,9 +511,9 @@ contains
     call update_status(status, "tod_start"//ctext)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = .not. self%sample_abs_bp .or.(size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   = self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! don't sample absolute bandpasses
-    sample_polang         = .true.
+    sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   =       self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
+    sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
