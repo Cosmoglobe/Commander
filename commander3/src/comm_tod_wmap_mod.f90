@@ -110,7 +110,7 @@ contains
       !constructor%n_xi            = 3
       !constructor%noise_psd_model = 'oof'
 
-      constructor%n_xi            = 4
+      constructor%n_xi            = 5
       constructor%noise_psd_model = 'oof_f'
 
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -120,9 +120,11 @@ contains
      ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
      ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, 0.2]   ! [sigma0, fknee, alpha, gamma]; sigma0 is not used
-      constructor%xi_n_P_uni(4,:) = [0, 2]            ! gamma
-      constructor%xi_n_nu_fit(4,:) = [0.1d0, 1d0]       ! gamma nu_fit
+      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, 1e-3, 1e-4]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      constructor%xi_n_P_uni(4,:) = [-0.1, 0.1]            ! slope
+      constructor%xi_n_nu_fit(4,:) = [-1d-3, 1d-3]       ! slope nu_fit
+      constructor%xi_n_P_uni(5,:) = [-1d-3,1d-3]             ! intercept
+      constructor%xi_n_nu_fit(5,:) = [0.015, 0.1]       ! intercept nu_fit
       if (trim(constructor%freq) == '023-WMAP_K') then
          ! We want this first term to only go a few past fknee; if not, you'll
          ! be using a lot of "perfectly known" correlated noise that will bias

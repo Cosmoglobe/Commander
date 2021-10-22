@@ -42,6 +42,8 @@ module comm_tod_noise_psd_mod
   integer(i4b), parameter :: G_AMP  = 4
   integer(i4b), parameter :: G_LOC  = 5
   integer(i4b), parameter :: G_SIG  = 6
+  integer(i4b), parameter :: SLOPE  = 4
+  integer(i4b), parameter :: INTERCEPT = 5
 
   type :: comm_noise_psd
      ! 
@@ -426,7 +428,7 @@ contains
     if (P_uni(FKNEE,1) > P_uni(FKNEE,2))   write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
     if (P_uni(ALPHA,1) > P_uni(ALPHA,2))   write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
 
-    constructor_oof_f%npar = 4
+    constructor_oof_f%npar = 5
     allocate(constructor_oof_f%xi_n(constructor_oof_f%npar))
     allocate(constructor_oof_f%nu_fit(constructor_oof_f%npar, 2))
     allocate(constructor_oof_f%P_uni(constructor_oof_f%npar,2))
@@ -440,7 +442,7 @@ contains
     constructor_oof_f%P_active(:,1) = P_active_mean
     constructor_oof_f%P_active(:,2) = P_active_rms
     constructor_oof_f%nu_fit        = nu_fit
-    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false.] !  [sigma0, fknee, alpha, gamma]
+    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false., .false.] !  [sigma0, fknee, alpha, slope, interecept]
 
     constructor_oof_f%sigma0 => constructor_oof_f%xi_n(1)
 
@@ -478,14 +480,15 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd_oof_f),          intent(in)      :: self
+    class(comm_noise_psd_oof_f),         intent(in)      :: self
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_oof_f_corr
 
     real(sp) :: S1, S2
 
+
     S1 = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
-    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) * (nu/self%xi_n(FKNEE))
+    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(SLOPE) * (nu/self%xi_n(FKNEE)) + self%xi_n(INTERCEPT)
 
     eval_noise_psd_oof_f_corr = S1 + S2
 
