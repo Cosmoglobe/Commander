@@ -551,7 +551,6 @@ contains
     end do
     
     ! Bin the dV values as a function of input voltage, and take the mean
-    open(58,file='test'//myid//'.dat')
     if (present(corr)) then
        do i = 1, leng-1-self%window
           if (iand(flag(i+int(self%window/2)),flag0) .ne. 0) cycle 
@@ -567,11 +566,9 @@ contains
           if (j > self%nbins) cycle
           self%nval(j)      = self%nval(j) + 1
           self%rms_bins(j)  = self%rms_bins(j)  + dV(i)
-          write(58,*) j, self%rms2_bins(j), dV(i), dV(i)**2
           self%rms2_bins(j) = self%rms2_bins(j) + dV(i)**2
        end do
     end if
-    close(58)
 
     deallocate(dV)
     

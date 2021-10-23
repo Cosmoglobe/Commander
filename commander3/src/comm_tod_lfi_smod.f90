@@ -135,7 +135,7 @@ contains
     constructor%use_dpc_adc     = .false.
     constructor%use_dpc_gain_modulation = .true.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 30.d0 !9.d0
+    constructor%chisq_threshold = 5.d6 !9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
