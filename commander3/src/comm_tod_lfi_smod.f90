@@ -221,7 +221,7 @@ contains
     if(trim(constructor%level) == 'L1') then
 
         ! Compute ADC correction tables for each diode
-        if (.not. constructor%L2_exist) then
+       if (.not. constructor%L2_exist) then
           if (.not. constructor%use_dpc_adc) then
              if (constructor%myid == 0) write(*,*) '   Building ADC correction tables'
              

@@ -171,7 +171,8 @@ contains
     constructor_precomp%v_min   = constructor_precomp%adc_in(1)
     constructor_precomp%v_max   = constructor_precomp%adc_in(ext(1))
     deallocate(buffer)
-    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp), regular=.true.)
+    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp))
+    !call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp), regular=.true.)
 
   end function constructor_precomp
 
@@ -213,7 +214,7 @@ contains
           tod_out(i) = splint(self%sadc,real(tod_in(i),dp))
        end if
        !if (abs(tod_in(i)-tod_out(i))/tod_in(i) > 1d-2) then
-       !   write(*,*) scan, det, di, tod_in(i), tod_out(i), (tod_in(i)-tod_out(i))/tod_in(i)
+       !    write(*,*) scan, det, di, tod_in(i), tod_out(i), (tod_in(i)-tod_out(i))/tod_in(i)
        !end if
     end do
     
@@ -420,7 +421,7 @@ contains
     call mpi_bcast(self%adc_out, self%nbins, MPI_REAL, 0, self%comm, ierr) 
 
     ! call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp), regular=.true.)
-    call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp), regular=.true.)
+    call spline(self%sadc, real(self%adc_in,dp), real(self%adc_out,dp))
     
   end subroutine build_table
 
