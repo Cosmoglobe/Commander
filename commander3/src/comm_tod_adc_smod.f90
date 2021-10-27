@@ -94,8 +94,11 @@ contains
     allocate(constructor_internal%err_bins(constructor_internal%nbins))
 
     ! For the corrected stuffs
-    ! allocate(constructor_internal%rms_bins2(constructor_internal%nbins))
-    ! allocate(constructor_internal%nval2(constructor_internal%nbins))
+    allocate(constructor_internal%rms_bins2(constructor_internal%nbins))
+    allocate(constructor_internal%nval2(constructor_internal%nbins))
+
+    constructor_internal%rms_bins2(:)  = 0.0
+    constructor_internal%nval2(:)      = 0.0
 
     constructor_internal%adc_in(:)     = 0.0
     constructor_internal%adc_out(:)    = 0.0
@@ -159,7 +162,8 @@ contains
     allocate(constructor_precomp%adc_in(ext(1)))
     allocate(constructor_precomp%adc_out(ext(1)))
 
-    constructor_precomp%nbins = 500
+    constructor_precomp%nbins  = 500
+    constructor_precomp%window = 10
 
     allocate(constructor_precomp%rms_bins2(500))
     allocate(constructor_precomp%nval2(500))
@@ -172,7 +176,6 @@ contains
     constructor_precomp%v_max   = constructor_precomp%adc_in(ext(1))
     deallocate(buffer)
     call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp))
-    !call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp), regular=.true.)
 
   end function constructor_precomp
 
@@ -333,12 +336,19 @@ contains
           call return_dips_dp(vbin_dp, flat_dp, binmask, diprange, v_dips)
           ! Fit linear and dips jointly
           bad = .not. allocated(v_dips)
-          if (.not. bad) model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
+          write(*,*) bad
+          if (.not. bad) then
+             model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
+          else
+             model_dp = 0.d0
+          end if
        end if
 
        if (bad) then
           self%adc_in  = vbin_dp
           self%adc_out = vbin_dp
+          dRdV = 0.
+          R    = 0.
        else
           lin_dp  = slope_dp*vbin_dp + offset_dp
           flat_dp = rms_dp - lin_dp
@@ -379,39 +389,39 @@ contains
              self%adc_in(i)  = vbin_dp(i)
           end do
           
-          write(*,*) 'Write all of the adc info to files'
-          ! Write to file binned rms, voltages, and response function to files
-          open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
-          open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
-          open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
-          open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
-          open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
-          open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
-          open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
-          open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
-          open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
-          do i = 1, self%nbins
-             write(44, fmt='(e30.8)') flat_dp(i)
-             write(45, fmt='(e16.8)') lin_dp(i)
-             write(46, fmt='(e16.8)') R(i)
-             write(49, fmt='(e16.8)') model_dp(i)
-             write(50, fmt='(e16.8)') rms_dp(i)
-             write(52, fmt='(e16.8)') self%adc_in(i)
-             write(53, fmt='(e16.8)') self%adc_out(i)
-             write(54, fmt='(i1)')    binmask(i)
-             write(55, fmt='(e16.8)') dRdV(i)
-          end do
-          close(44)
-          close(45)
-          close(46)
-          close(49)
-          close(50)
-          close(52)
-          close(53)
-          close(54)
-          close(55)
        end if
-
+       write(*,*) 'Write all of the adc info to files'
+       ! Write to file binned rms, voltages, and response function to files
+       open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+       open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+       open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+       open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+       open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+       open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
+       open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
+       open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+       open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
+       do i = 1, self%nbins
+          write(44, fmt='(e30.8)') flat_dp(i)
+          write(45, fmt='(e16.8)') lin_dp(i)
+          write(46, fmt='(e16.8)') R(i)
+          write(49, fmt='(e16.8)') model_dp(i)
+          write(50, fmt='(e16.8)') rms_dp(i)
+          write(52, fmt='(e16.8)') self%adc_in(i)
+          write(53, fmt='(e16.8)') self%adc_out(i)
+          write(54, fmt='(i1)')    binmask(i)
+          write(55, fmt='(e16.8)') dRdV(i)
+       end do
+       close(44)
+       close(45)
+       close(46)
+       close(49)
+       close(50)
+       close(52)
+       close(53)
+       close(54)
+       close(55)
+       
        deallocate(binmask, dummymask, vbin_dp, rms_dp, dRdV, R, model_dp, lin_dp, flat_dp)
           
     end if
@@ -544,11 +554,12 @@ contains
        if (iand(flag(i),flag0) .ne. 0) cycle 
        sum = 0.d0
        j_min = max(i-int(self%window/2),1)
-       j_max = min(i+int(self%window/2), leng-1)
+       j_max = min(i+int(self%window/2),leng-1)
        do j = j_min, j_max
           if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
           sum = sum + (tod_in(j+1)-tod_in(j))**2
        end do
+       ! write(*,*) myid,sum,j_max-j_min+1, sqrt(sum/(j_max-j_min+1)) 
        dV(i) = sqrt(sum/(j_max-j_min+1))
     end do
     
@@ -600,7 +611,7 @@ contains
        open(27,file=trim(self%outdir)//'/'//trim(name)//'_corrected_rms.dat')
        open(28,file=trim(self%outdir)//'/'//trim(name)//'_corrected_nval.dat')
        open(29,file=trim(self%outdir)//'/'//trim(name)//'_corrected_vbins.dat')
-       do i = 1, 500!self%nbins
+       do i = 1, self%nbins
           write(27,*) self%rms_bins2(i)
           write(28,*) self%nval2(i)
           write(29,*) self%v_bins(i)
@@ -924,8 +935,10 @@ contains
        end if
     end do
     
-    allocate(res(ndips))
-    res = dips(1:ndips)
+    if (ndips .gt. 0) then
+       allocate(res(ndips))
+       res = dips(1:ndips)
+    end if
 
     deallocate(truths)
     deallocate(dips)
@@ -1322,5 +1335,28 @@ contains
     deallocate(work)
     
   end subroutine return_linreg_sp
+
+  subroutine dump_adc_in_out(self,name)
+    implicit none
+
+    class(comm_adc),   intent(inout) :: self
+    character(len=50), intent(in)    :: name
+
+    integer(i4b)                     :: nb, i
+
+    nb = size(self%adc_in)
+
+    if (self%myid == 0) then
+       open(21, file=trim(self%outdir)//'/adc_in_'//trim(name)//'_dumped.dat') 
+       open(22, file=trim(self%outdir)//'/adc_out_'//trim(name)//'_dumped.dat') 
+       do i = 1, nb
+          write(21,*) self%adc_in(i)
+          write(22,*) self%adc_out(i)
+       end do
+       close(21)
+       close(22)
+    end if
+
+  end subroutine dump_adc_in_out
 
 end submodule comm_tod_adc_mod

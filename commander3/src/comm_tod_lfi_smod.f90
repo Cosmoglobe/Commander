@@ -121,7 +121,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
-    constructor%sample_L1_par   = .false.
+    constructor%sample_L1_par   = .true.
     constructor%level           = cpar%ds_tod_level(id_abs)
     if(trim(constructor%level) == 'L1') then
       constructor%compressed_tod = .true.
@@ -138,7 +138,6 @@ contains
     constructor%chisq_threshold = 5.d6 !9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -285,39 +284,41 @@ contains
           !================================================================
           ! Testing block
           !================================================================
-          ! if (constructor%use_dpc_adc) then
-          !    do i = 1, constructor%ndet
-          !       do j=1, constructor%ndiode ! init the adc correction structures
-          !          ! constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
-          !          constructor%adc_corrections(i,j)%p%myid = cpar%myid_chain
-          !          constructor%adc_corrections(i,j)%p%comm = cpar%comm_chain
-          !          constructor%adc_corrections(i,j)%p%outdir = cpar%outdir
-          !          call constructor%adc_corrections(i,j)%p%construct_voltage_bins
-          !       end do
-          !    end do
-          !    if (constructor%myid == 0) write(*,*) 'use_dpc_adc'
-          !    do k = 1, constructor%nscan
-          !       allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
-          !       allocate(flag(constructor%scans(k)%ntod))
-          !       do i=1, constructor%ndet
-          !          if (.not. constructor%scans(k)%d(i)%accept) cycle
-          !          call constructor%decompress_diodes(k, i, diode_data)
-          !          ! corrected_data = diode_data
-          !          do j = 1, constructor%ndiode
-          !             call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
-          !             call constructor%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,constructor%flag0,corr=.true.) 
-          !          end do
-          !       end do
-          !       deallocate(diode_data,corrected_data)
-          !       deallocate(flag)
-          !    end do
-          !    do i = 1, constructor%ndet
-          !       do j = 1, constructor%ndiode
-          !          name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-          !          call constructor%adc_corrections(i,j)%p%corr_rms_out(name)
-          !       end do
-          !    end do
-          ! end if
+          if (.false.) then
+             if ( constructor%use_dpc_adc) then
+                do i = 1, constructor%ndet
+                   do j = 1, constructor%ndiode ! init the adc correction structures
+                      ! constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
+                      constructor%adc_corrections(i,j)%p%myid = cpar%myid_chain
+                      constructor%adc_corrections(i,j)%p%comm = cpar%comm_chain
+                      constructor%adc_corrections(i,j)%p%outdir = cpar%outdir
+                      call constructor%adc_corrections(i,j)%p%construct_voltage_bins
+                   end do
+                end do
+             end if
+             if (constructor%myid == 0) write(*,*) '        correct and bin'
+             do k = 1, constructor%nscan
+                allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
+                allocate(flag(constructor%scans(k)%ntod))
+                do i = 1, constructor%ndet
+                   if (.not. constructor%scans(k)%d(i)%accept) cycle
+                   call constructor%decompress_diodes(k, i, diode_data)
+                   ! corrected_data = diode_data
+                   do j = 1, constructor%ndiode
+                      call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
+                      call constructor%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,constructor%flag0,corr=.true.) 
+                   end do
+                end do
+                deallocate(diode_data,corrected_data)
+                deallocate(flag)
+             end do
+             do i = 1, constructor%ndet
+                do j = 1, constructor%ndiode
+                   name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
+                   call constructor%adc_corrections(i,j)%p%corr_rms_out(name)
+                end do
+             end do
+          end if
           ! stop
           !================================================================
           
