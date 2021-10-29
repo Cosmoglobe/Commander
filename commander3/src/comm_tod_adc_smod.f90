@@ -98,7 +98,7 @@ contains
     allocate(constructor_internal%nval2(constructor_internal%nbins))
 
     constructor_internal%rms_bins2(:)  = 0.0
-    constructor_internal%nval2(:)      = 0.0
+    constructor_internal%nval2(:)      = 0
 
     constructor_internal%adc_in(:)     = 0.0
     constructor_internal%adc_out(:)    = 0.0
@@ -266,17 +266,12 @@ contains
     steamroll = .false.!.true.
 
     ! Combine together all of the bins determined from chunk adding
-    if (self%myid == 0)  write(*,*) 'Do reduction'
     call mpi_allreduce(mpi_in_place,self%rms_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
-    if (self%myid == 0) write(*,*) 'Done 1'
     call mpi_allreduce(mpi_in_place,self%rms2_bins,self%nbins,MPI_REAL, MPI_SUM, self%comm, ierr)
-    if (self%myid == 0) write(*,*) 'Done 2'
     call mpi_allreduce(mpi_in_place,self%nval,self%nbins,MPI_INTEGER, MPI_SUM, self%comm, ierr)
-    if (self%myid == 0) write(*,*) 'Done 3'
     
     ! The rest should be light enough to do on a single core
     if (self%myid == 0) then
-       write(*,*) 'Everything reduced'
        open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
        open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
        open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
@@ -292,7 +287,6 @@ contains
        close(46)
        close(47)
 
-       write(*,*) 'Allocate'
        ! Allocate and intialize everything
        allocate(binmask(self%nbins))
        allocate(dummymask(self%nbins))
@@ -307,11 +301,6 @@ contains
 
        ! Mask bad bins and massive outliers       
        call mask_bins(self%v_bins, self%rms_bins, self%nval, binmask)
-       ! do i = 1, self%nbins
-       !    if (binmask(i) == 0) cycle
-       !    if (self%nval(i) == 1) cycle
-       !    self%err_bins(i) = sqrt((self%rms2_bins(i)/self%rms_bins(i) - self%rms_bins(i)**2/(self%nval(i)**2))/(self%nval(i)-1))
-       ! end do
 
        vbin_dp(:) = real(self%v_bins,dp)
        rms_dp(:)  = real(self%rms_bins,dp)
@@ -330,13 +319,12 @@ contains
              model_dp(i) = -flat_dp(i)
           end do
        else
-          write(*,*) 'fit dips'
           diprange = 10
           ! Identify dip locations for the fitting search
           call return_dips_dp(vbin_dp, flat_dp, binmask, diprange, v_dips)
           ! Fit linear and dips jointly
           bad = .not. allocated(v_dips)
-          write(*,*) bad
+          if (trim(name) == '18S_sky10') bad = .true.
           if (.not. bad) then
              model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
           else
@@ -390,7 +378,6 @@ contains
           end do
           
        end if
-       write(*,*) 'Write all of the adc info to files'
        ! Write to file binned rms, voltages, and response function to files
        open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
        open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
@@ -568,7 +555,7 @@ contains
        do i = 1, leng-1
           if (iand(flag(i),flag0) .ne. 0) cycle 
           j = int((tod_in(i)-self%vbin_edges(1))/binwidth) + 1
-          if (j > self%nbins) cycle
+          if (j > self%nbins .or. j < 1) cycle
           self%nval2(j)     = self%nval2(j) + 1
           self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
        end do
@@ -934,7 +921,7 @@ contains
           end if
        end if
     end do
-    
+    ! write(*,*) ndips
     if (ndips .gt. 0) then
        allocate(res(ndips))
        res = dips(1:ndips)
@@ -1067,7 +1054,6 @@ contains
 
     ! For each iteration we take the previous slope and gaussian fits 
     do l = 1, ngibbs
-       ! write(*,*) l
        a_old = a
 
        ! Given the gaussian fits, find the slope
@@ -1079,7 +1065,7 @@ contains
        ! write(*,*) 'slope:       offset:'
        ! write(*,*) a,b
 
-       if (abs((a-a_old)/a_old) < 1.d-4) exit
+       if (abs((a-a_old)/a_old) < 1.d-4 .and. l > 1) exit
 
        ! With the new slope and offset estimates, make the flat data
        flaty = y - a*x - b
@@ -1087,6 +1073,7 @@ contains
        gdips(:) = 0.d0
 
        do j = 1, ndips
+
           sigma        = 0.0
           mean         = 0.0
           amp          = 0.0

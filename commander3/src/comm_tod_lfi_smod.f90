@@ -284,7 +284,7 @@ contains
           !================================================================
           ! Testing block
           !================================================================
-          if (.false.) then
+          if (.true.) then
              if ( constructor%use_dpc_adc) then
                 do i = 1, constructor%ndet
                    do j = 1, constructor%ndiode ! init the adc correction structures
@@ -319,7 +319,7 @@ contains
                 end do
              end do
           end if
-          ! stop
+          stop
           !================================================================
           
           ! Compute reference load filter spline
