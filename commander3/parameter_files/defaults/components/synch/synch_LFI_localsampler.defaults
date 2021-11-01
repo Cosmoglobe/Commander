@@ -14,7 +14,7 @@ COMP_BETA_POL_NPROP_INIT&&    = 1000                           # {> 0, < 0 to di
 COMP_BETA_UNI_NPROP_LOW&&     = 1000                             # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_UNI_NPROP_HIGH&&    = 10000                           # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_4reg_BP8.dat
-COMP_BETA_MASK&&              = mask_clean_synch_tr40_others_tr40_radio_tr30_chisq_tr5_n1024_udgraded_tr75ptc_TQU.fits mask_synch_beta_BP10_new_chisqmask_n1024_lim75pct.fits # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_MASK&&              = mask_synch_beta_sampling_temp_bp10_n1024_udgraded_tr75ptc_TQU.fits mask_clean_synch_tr40_others_tr40_radio_tr30_chisq_tr5_n1024_udgraded_tr75ptc_TQU.fits 
 COMP_BETA_NPROP&&             = fullsky                        # nprop map, local sampling (fullsky = 1)
 COMP_BETA_PROPLEN&&           = fullsky                        # proposal length map, local sampling (fullsky = 1.d0)
 COMP_BETA_INT_PROPLEN_INIT&&  = 3.d-3                          # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
@@ -30,6 +30,6 @@ COMP_BETA_PIXREG_INITVALUE_MAP&& = none
 COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .true.
 COMP_BETA_COMBINED_MONOPOLE_TYPE&& = monopole-dipole
 COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sample monopoles from during combined sampling. separate with comma ','
-COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_ff_mono_tr15_others_tr15_radio_tr30_chisq_tr5_n1024_TQU.fits mask_synch_beta_BP10_new_chisqmask_n1024_lim75pct.fits
+COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .true.
 COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
