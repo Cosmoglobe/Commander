@@ -195,7 +195,7 @@ contains
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
-               & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%polang(j))
+               & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
        end do
     else
@@ -204,6 +204,15 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
+    if (tod%scanid(scan) == 3) then
+       open(58,file='sidelobe_BP10.dat')
+       do k = 1, size(self%s_sl,1)
+          write(58,*) k, self%s_sl(k,1)
+       end do
+       close(58)
+    end if
+
+
     !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
@@ -466,7 +475,7 @@ contains
   !  Sampling drivers etc.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2)
+  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang, smooth)
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -491,6 +500,8 @@ contains
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
+    real(dp),                                  intent(in),   optional :: polang
+    logical(lgt),                              intent(in),   optional :: smooth
 
     integer(i4b) :: i, j, ext(2), ierr
     real(dp)     :: t1, t2
@@ -498,6 +509,11 @@ contains
     real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
     real(dp), allocatable, dimension(:,:) :: dipole_mod
     type(comm_scandata) :: sd
+    logical(lgt) :: smooth_
+
+
+    smooth_ = .true.
+    if (present(smooth))  smooth_=smooth
 
     if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
 
@@ -554,17 +570,7 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
-       !do j = 1, tod%ndet
-       !      if (tod%scanid(i) == 30) then
-       !        write(*,*) 'abscaltest1', j, 'sum(s(:,j))', sum(s_invN(:,j))
-       !      end if
-       !end do
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
-       !do j = 1, tod%ndet
-       !      if (tod%scanid(i) == 30) then
-       !        write(*,*) 'abscaltest2', j, 'sum(s_invN(:,j))', sum(s_invN(:,j))
-       !      end if
-       !end do
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
           ! Constant gain terms; accumulate contribution from this scan
@@ -587,22 +593,12 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
-!          if (tod%compressed_tod) then
             call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
-!!$          else
-!!$            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
-!!$              & out=.true., mask_lowres=mask_lowres)
-!!$          end if
        else
           ! Time-variable gain terms
-!          if (tod%compressed_tod) then
             call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
               & handle, mask_lowres=mask_lowres, tod_arr=sd%tod)
-!!$          else
-!!$            call calculate_gain_mean_std_per_scan(tod, i, s_invsqrtN, sd%mask, sd%s_tot, &
-!!$              & handle, mask_lowres=mask_lowres)
-!!$          end if
           do j = 1, tod%ndet
              if (.not. tod%scans(i)%d(j)%accept) cycle
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
@@ -624,7 +620,7 @@ contains
        call sample_relcal(tod, handle, A, b)
     else if (trim(mode) == 'deltaG') then
        call mpi_allreduce(mpi_in_place, dipole_mod, size(dipole_mod), MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
-       call sample_smooth_gain(tod, handle, dipole_mod)
+       call sample_smooth_gain(tod, handle, dipole_mod, smooth_)
     else if (trim(mode) == 'imbal') then
        call sample_imbal_cal(tod, handle, A, b)
     end if
@@ -865,13 +861,14 @@ contains
   !> @param[out]
   !
   ! ************************************************
-  subroutine simulate_tod(self, scan_id, s_tot, handle)
+  subroutine simulate_tod(self, scan_id, s_tot, n_corr, handle)
     implicit none
     class(comm_tod), intent(inout) :: self
     ! Parameter file variables
     !type(comm_params),                     intent(in)    :: cpar
     ! Other input/output variables
     real(sp), allocatable, dimension(:,:), intent(in)    :: s_tot   !< total sky signal
+    real(sp),              dimension(:,:), intent(out)   :: n_corr  !< Correlated noise (output)
     integer(i4b),                          intent(in)    :: scan_id !< current PID
     type(planck_rng),                      intent(inout) :: handle
     ! Simulation variables
@@ -904,12 +901,14 @@ contains
     integer(i4b) :: n, nfft
     integer*8    :: plan_back
     real(sp) :: nu
-    real(sp), allocatable, dimension(:,:) :: n_corr
+    !real(sp), allocatable, dimension(:,:) :: n_corr
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     character(len=10) :: processor_label   !< to have a nice output to screen
+    integer(i4b) :: ntoks
+    character(len=512), dimension(100) :: toks
 
-    write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
+    !write(*,*) 'sim', self%scanid(scan_id), self%scans(scan_id)%d%accept
 
     ! shortcuts
     ntod = self%scans(scan_id)%ntod
@@ -930,7 +929,7 @@ contains
     deallocate(dt, dv)
 
     !$OMP PARALLEL PRIVATE(i, j, k, dt, dv, sigma0, nu)
-    allocate(dt(nfft), dv(0:n-1), n_corr(ntod, ndet))
+    allocate(dt(nfft), dv(0:n-1)) !, n_corr(ntod, ndet))
     !$OMP DO SCHEDULE(guided)
     do j = 1, ndet
       ! skipping iteration if scan was not accepted
@@ -953,7 +952,7 @@ contains
       ! Executing Backward FFT
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
       dt = dt / sqrt(1.d0*nfft)
-      n_corr(:, j) = dt(1:ntod)
+      n_corr(:,j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
     end do
     !$OMP END DO
@@ -964,7 +963,7 @@ contains
 
     ! Allocating main simulations' array
     allocate(tod_per_detector(ntod, ndet))       ! Simulated tod
-    tod_per_detector = NaN
+    tod_per_detector = 1d30
 
     ! Main simulation loop
     do i = 1, ntod
@@ -986,7 +985,7 @@ contains
       end do
     end do
 
-    write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
+    !write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file
@@ -995,7 +994,8 @@ contains
     mystring = trim(self%hdfname(scan_id))
     mysubstring = 'LFI_0'
     myindex = index(trim(mystring), trim(mysubstring))
-    currentHDFFile = trim(self%sims_output_dir)//'/'//trim(mystring(myindex:))
+    call get_tokens(trim(mystring), "/", toks=toks, num=ntoks)
+    currentHDFFile = trim(self%sims_output_dir)//'/'//trim(toks(ntoks))
     !write(*,*) "hdf5name "//trim(self%hdfname(scan_id))
     !write(*,*) "currentHDFFile "//trim(currentHDFFile)
     ! Converting PID number into string value
@@ -1012,6 +1012,7 @@ contains
     call h5open_f(hdf5_error)
     ! Open an existing file - returns hdf5_file_id
     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
+    if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
     do j = 1, ndet
       detectorLabel = self%label(j)
       ! Open an existing dataset.
@@ -1026,9 +1027,10 @@ contains
     ! Close FORTRAN interface.
     call h5close_f(hdf5_error)
 
+
     !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
-    deallocate(n_corr, tod_per_detector)
+    deallocate(tod_per_detector)
     write(*,*) "Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
     ! lastly, we need to copy an existing filelist.txt into simulation folder

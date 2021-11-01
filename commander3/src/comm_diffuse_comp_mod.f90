@@ -309,7 +309,7 @@ interface
 
 
 
-  module function evalDiffuseBand(self, band, amp_in, pix, alm_out, det)
+  module function evalDiffuseBand(self, band, amp_in, pix, alm_out, det) result(res)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
@@ -317,20 +317,20 @@ interface
     real(dp),        dimension(:,:),              intent(in),  optional :: amp_in
     logical(lgt),                                 intent(in),  optional :: alm_out
     integer(i4b),                                 intent(in),  optional :: det
-    real(dp),        dimension(:,:), allocatable                        :: evalDiffuseBand
+    real(dp),        dimension(:,:), allocatable                        :: res
 
 
   end function evalDiffuseBand
 
   ! Return component projected from map
-  module function projectDiffuseBand(self, band, map, alm_in, det)
+  module function projectDiffuseBand(self, band, map, alm_in, det) result(res)
     implicit none
     class(comm_diffuse_comp),                     intent(in)            :: self
     integer(i4b),                                 intent(in)            :: band
     class(comm_map),                              intent(in)            :: map
     logical(lgt),                                 intent(in), optional  :: alm_in
     integer(i4b),                                 intent(in), optional  :: det
-    real(dp),        dimension(:,:), allocatable                        :: projectDiffuseBand
+    real(dp),        dimension(:,:), allocatable                        :: res
 
 
   end function projectDiffuseBand
