@@ -431,7 +431,8 @@ contains
     !       The diffuse component parameter is returned (self).
     !       Any other changes are done internally
     !
-
+    !
+ 
     call update_status(status, "initPixreg_specind_start")
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
@@ -442,9 +443,9 @@ contains
     ! Set up smoothing scale information
     allocate(self%smooth_scale(self%npar))
     self%smooth_scale = cpar%cs_smooth_scale(id_abs,1:self%npar)
-    
 
-    !!! (local) sampling specific parameters!!!
+
+!!! (local) sampling specific parameters!!!
 
     allocate(self%pol_lnLtype(3,self%npar))        ! {chisq, ridge, marginal}: evaluation type for lnL
     allocate(self%pol_sample_nprop(3,self%npar))   ! {.true., .false.}: sample nprop on first iteration
@@ -526,7 +527,7 @@ contains
                 self%pol_sample_nprop(j,i) = cpar%cs_spec_samp_nprop(j,i,id_abs)
                 self%pol_sample_proplen(j,i) = cpar%cs_spec_samp_proplen(j,i,id_abs)
              end if
-          enddo
+          end do
           if (all(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) >= 0)) cycle
           self%nprop_uni(:,i)=cpar%cs_spec_uni_nprop(:,i,id_abs)
           self%spec_corr_convergence(i)=cpar%cs_spec_corr_convergence(i,id_abs)
@@ -555,17 +556,17 @@ contains
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
-                   
+
                    ! Loop over priors on regions
                    if (.not. trim(cpar%cs_spec_pixreg_priors(j,i,id_abs)) == 'none') then
-                      if (self%npixreg(j,i) > 20) write(*,*) "Max pixregs is 20 for this, youre trying",  self%npixreg(j,i)
+                      if (self%npixreg(j,i) > 20) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)
                       call get_tokens(cpar%cs_spec_pixreg_priors(j,i,id_abs), ",", pixreg_prior, n)
                       if (n == self%npixreg(j,i)) then
                          do pr = 1,self%npixreg(j,i)
                             read(pixreg_prior(pr),*) self%pixreg_priors(pr,j,i)
                          end do
                       else
-                         write(*,*) "Must have same number of priors as regions for par", i, " and poltype", j
+                         write(*,*) "Must have same number of priors as there are number of regions for par", i, " and poltype", j
                       end if
                    end if
                    !write(*,*) "pixreg priors", self%pixreg_priors(:,j,i)
@@ -644,7 +645,7 @@ contains
 
           if (self%spec_mono_type(i) == 'monopole' .or. self%spec_mono_type(i) == 'monopole+dipole' .or. &
                & self%spec_mono_type(i) == 'monopole-dipole') then
-             
+
              info2 => comm_mapinfo(cpar%comm_chain, self%nside, -1, &
                   & self%nmaps, self%pol)
           else
@@ -673,7 +674,7 @@ contains
              end if
 
           end if
-          
+
           where (self%spec_mono_mask(i)%p%map > 0.5d0)
              self%spec_mono_mask(i)%p%map = 1.d0
           elsewhere
@@ -788,15 +789,15 @@ contains
                   & self%lmax_amp, self%nmaps, self%pol) 
 
              self%B_smooth_amp(i)%p => comm_B_bl(cpar, info3, 1, 1, &
-                     & fwhm=cpar%fwhm_smooth(smooth_scale), &
-                     & nside=self%nside, &
-                     & init_realspace=.false.)
+                  & fwhm=cpar%fwhm_smooth(smooth_scale), &
+                  & nside=self%nside, &
+                  & init_realspace=.false.)
 
              self%B_smooth_specpar(i)%p => comm_B_bl(cpar, info2, 1, 1, &
-                     & fwhm=cpar%fwhm_smooth(smooth_scale), &
-                     & nside=self%nside, &
-                     & init_realspace=.false.)
-             
+                  & fwhm=cpar%fwhm_smooth(smooth_scale), &
+                  & nside=self%nside, &
+                  & init_realspace=.false.)
+
              !create beam for post processing smoothing
              self%B_pp_fr(i)%p => comm_B_bl(cpar, info2, 1, 1, &
                   & fwhm=cpar%fwhm_postproc_smooth(smooth_scale), &
@@ -888,7 +889,7 @@ contains
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,self%poltype(i)
              if (j > self%nmaps) cycle
-             
+
              self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
              if (self%pol_pixreg_type(j,i) < 1) cycle
 
@@ -985,7 +986,7 @@ contains
 
                 smooth_scale = self%smooth_scale(i)
                 if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
-                   
+
                    !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
 
@@ -1062,7 +1063,7 @@ contains
              write(*,*) 'Unsupported polarization type'
              stop
           end if
-             
+
           if (self%lmax_ind_pol(j,i) >= 0) then
              self%lmax_ind_mix(p_min:p_max,i) = self%lmax_ind_pol(j,i) !in case only_pol and poltype = 2 has lmax > 0
           else if (self%pol_pixreg_type(j,i)==1) then !pixel region is defined fullsky
