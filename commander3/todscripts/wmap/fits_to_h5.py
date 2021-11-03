@@ -44,6 +44,11 @@ import os, sys
 
 from tqdm import tqdm
 
+from astroquery.jplhorizons import Horizons
+from astropy.time import Time
+from datetime import datetime
+
+
 Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 fknees = np.array([6.13, 5.37, 1.66, 1.29,
                    3.21, 3.13, 5.76, 8.62,
@@ -85,6 +90,7 @@ fknees *= 1e-3
 # version 43 uses default flags, changes zipped TOD to ztod
 # version 44 changes todtree, todsymb to hufftree2, huffsymb2
 # version 45 uses commmander_tools package, and fixes sign flip of timestream to be constant over tod
+# version 46 uses JPL Horizons ephemerides directly
 
 from time import sleep
 from time import time as timer
@@ -147,6 +153,55 @@ def profile(output_file=None, sort_by='cumulative', lines_to_print=None, strip_d
 
 from get_gain_model import get_gain
 
+TARGET_ALIASES = {"mars": 499,  # (4, 499)
+        "jupiter": 599, # (5, 599)
+        "saturn": 699, # (6, 699)
+        "uranus": 799, # (7, 799)
+        "neptune": 899} # (8, 899)
+
+
+def get_planet_radec(times, planet):
+    '''
+    Uses the JPL Horizons API, takes input planet as string, and time as JD
+    500@-165 is the label for the WMAP object.
+    It is also not entirely clear if we should use the barycenter (n) or the
+    "regular" object, (n99).
+    '''
+
+    RAs = []
+    Decs = []
+
+    times = times
+
+    mydates_jd = Time(times, format='jd')
+
+
+    query = Horizons(
+        id=TARGET_ALIASES[planet],
+        id_type="majorbody",
+        location="500@-165",
+        epochs={'start': mydates_jd[0].iso,
+                'stop': mydates_jd[-1].iso,
+                'step': '1m'}
+    )
+    ephemerides = query.ephemerides(quantities='1,2')
+    RAs = ephemerides['RA'].value
+    Decs = ephemerides['DEC'].value
+    t_jd = ephemerides['datetime_jd'].value
+
+    t_jd = np.array(t_jd)
+    RAs = np.array(RAs)
+    Decs = np.array(Decs)
+
+    f_ra = interp1d(t_jd, RAs, fill_value='extrapolate')
+    f_dec = interp1d(t_jd, Decs, fill_value='extrapolate')
+
+    RAs = f_ra(times)
+    Decs = f_dec(times)
+
+    return  RAs, Decs
+
+
 
 def get_ephem(time, planet):
     # Obtained these from https://ssd.jpl.nasa.gov/horizons.cgi
@@ -169,6 +224,9 @@ def get_flags(data, test=False):
 
     time = data[2].data['TIME'] + t2jd
 
+    t_jd = Time(time[0], format='jd')
+    print(t_jd.iso)
+
     daflags = data[2].data['daflags']
 
     bands = np.arange(10)
@@ -188,7 +246,8 @@ def get_flags(data, test=False):
 
     dists = np.zeros((2*len(planets), daflags.shape[0], daflags.shape[1]))
     for i,p in enumerate(planets):
-        ra_p, dec_p = get_ephem(time, p)
+        #ra_p, dec_p = get_ephem(time, p)
+        ra_p, dec_p = get_planet_radec(time, p.lower())
         ll_p = np.array([ra_p, dec_p])
         for band in bands:
             d_A = hp.rotator.angdist(ll_A[band].T, ll_p, lonlat=True)
@@ -199,14 +258,17 @@ def get_flags(data, test=False):
     myflags = np.zeros(daflags.shape, dtype=int)
     for i in range(2*len(planets)):
         for band in bands:
-            inds = (dists[i,:,band] < radii[band][i//2]*2)
-            #inds = (dists[i,:,band] < radii[band][i//2])
-            #inds = (dists[i,:,band] < 7)
-            myflags[inds,band]= 2**(i+1)
-
+            #inds = (dists[i,:,band] < radii[band][i//2]*2)
+            inds = (dists[i,:,band] <= radii[band][i//2])
+            #inds = (dists[i,:,band] <= 7)
+            #if (myflags[inds,band].any() != 0):
+            #    print('flag collision')
+            #    print(np.unique(myflags[inds,band]), 2**(i+1))
+            myflags[inds,band] += 2**(i+1)
 
     ind1 = (daflags % 2 == 1)
     myflags = np.where(ind1, daflags, myflags)
+    #myflags = np.where(ind1, myflags+1, myflags)
 
     if test:
         return daflags, myflags
@@ -229,11 +291,13 @@ def test_flags(band=0):
     '''
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     files = glob(prefix + 'uncalibrated/*.fits')
-    #file_input = np.random.choice(files)
     files.sort()
     file_input = files[87]
-    #file_input = files[3197]
+
+    file_input = np.random.choice(files)
     print(file_input)
+
+    #file_input = files[3197]
 
     data = fits.open(file_input)
     daflags, myflags = get_flags(data, test=True)
@@ -246,7 +310,68 @@ def test_flags(band=0):
     plt.semilogy(myflags[:,band], '.', label='My flags', ms=7)
     plt.legend(loc='best')
 
+    ax = plt.gca()
+
+    ax.set_yticks([2**i for i in range(11)])
+    ax.set_yticks([], minor=True)
+
+    ax.yaxis.set_major_formatter(lambda x, pos: f"{int(x):011b}")
+
+
+    plt.figure()
+    daflagged = np.where(daflags[:,band] == 0, 0, 1)
+    myflagged = np.where(myflags[:,band] == 0, 0, 1)
+    plt.plot(daflagged, '.', label='DAflags', ms=10)
+    plt.plot(myflagged, '.', label='My flags', ms=7)
+    plt.legend(loc='best')
+
+    plt.figure()
+    plt.plot(daflagged - myflagged, '.', label='Diff', ms=10)
+    plt.legend(loc='best')
+
+    print(sum(abs(daflagged-myflagged)))
+
+
+    plt.figure()
+
+    tod = data[2].data['K113']
+    print(tod.shape)
+    print(daflagged.shape)
+
+    tod_flat = np.zeros(tod.size)
+    daflag_flat = np.zeros(tod.size)
+    myflag_flat = np.zeros(tod.size)
+    totdaflags = np.zeros(tod.size)
+    totmyflags = np.zeros(tod.size)
+    for i in range(12):
+        tod_flat[i::12] = tod[:,i]
+        daflag_flat[i::12] = daflagged
+        myflag_flat[i::12] = myflagged
+        totdaflags[i::12] = daflags[:,band]
+        totmyflags[i::12] = myflags[:,band]
+
+    t = np.arange(len(tod_flat))
+
+    fig, axes = plt.subplots(nrows=2, sharex=True)
+    axes[0].plot(t[totdaflags != 1], tod_flat[totdaflags != 1], 'k.', ms=5)
+    axes[0].plot(t[daflag_flat==0], tod_flat[daflag_flat==0], 'C0.', ms=4)
+    axes[0].plot(t[myflag_flat==0], tod_flat[myflag_flat==0], 'C1.', ms=3)
+
+
+    axes[1].plot(totdaflags, '.', label='DAflags', ms=10)
+    axes[1].set_yscale('log')
+
+    axes[1].semilogy(totmyflags, '.', label='My flags', ms=7)
+    axes[1].legend(loc='best')
+
+
+    axes[1].set_yticks([2**i for i in range(11)])
+    axes[1].set_yticks([], minor=True)
+
+    axes[1].yaxis.set_major_formatter(lambda x, pos: f"{int(x):011b}")
+
     plt.show()
+
 
     return
 
@@ -930,10 +1055,13 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
         vel = data[1].data['VELOCITY']*1e3
 
 
-        #pos = coord_trans(pos, 'C', 'G', lonlat=False)
         vel = coord_trans(vel, 'C', 'G', lonlat=False)
 
-        time_aihk = data[1].data['TIME'] + t2jd
+        # The raw time that is recorded by WMAP is modified reduced julian day.
+        # "To convert a modified reduced Julian day to a Julian day, add
+        # 2,450,000 to its value."
+        # I subtracted 2.4e6 + 0.5 to convert to modified Julian date, the
+        # preferred LFI format.
         time = data[2].data['TIME'] + t2jd - 24000000.5
         
         if len(pos_all) == 0:
@@ -952,10 +1080,9 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
 
         # If genflags == 1, there is an issue with the spacecraft attitude. This
         # appears to be the quaternion problem.
-        # v14: add genflags somehow.
         genflags = data[2].data['genflags']*2**11
         daflags = data[2].data['daflags']
-        #daflags = get_flags(data)
+        daflags = get_flags(data)
         for i in range(10):
             daflags[:,i] += genflags
             if len(flags_all[i]) == 0:
@@ -1068,7 +1195,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
     if par:
         nprocs = 128
-        #nprocs = 24
+        nprocs = 72
         os.environ['OMP_NUM_THREADS'] = '1'
 
         manager = mp.Manager()
