@@ -176,6 +176,7 @@ contains
          end if
       end do
       st_dev = std(x_no_nan)
+      deallocate(x_no_nan)
     end if
 
     std_nan = st_dev
@@ -211,6 +212,7 @@ contains
          end if
       end do
       std_flagged = std(x_not_flagged)
+      deallocate(x_not_flagged)
     end if
 
   end function std_flagged
@@ -243,6 +245,7 @@ contains
          end if
       end do
       avg = sum(x_no_nan)/counter
+      deallocate(x_no_nan)
    end if
 
    mean_nan = avg
@@ -277,6 +280,7 @@ contains
       end if
     end do
     mean_flagged = sum(x_not_flagged)/counter
+    deallocate(x_not_flagged)
    end if
 
   end function mean_flagged
@@ -315,6 +319,7 @@ contains
     end do
     call QuickSort_real(x_not_flagged)
     median_flagged = x_not_flagged(counter2/2+1)
+    deallocate(x_not_flagged)
    end if
 
   end function median_flagged
@@ -558,6 +563,8 @@ contains
          jumpflag_range(i,2) = offset_range(i+1,1) - 1
       end do
     end if
+
+    deallocate(rolling_var, tod_gapfill)
 
 
   end subroutine jump_scan

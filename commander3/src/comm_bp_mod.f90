@@ -279,7 +279,7 @@ contains
                        & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
-    case ('HFI_cmb', 'PSM_LFI') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
@@ -325,15 +325,15 @@ contains
                    & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
-    case ('SPIDER') 
+   !  case ('SPIDER') 
 
-       self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
-                         & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
-       self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
-                         & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
-       self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
-                         & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
-       self%tau     = self%tau / tsum(self%nu, self%tau/a)
+   !     self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+   !                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+   !     self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+   !                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
+   !     self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
+   !                       & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+   !     self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)
@@ -367,6 +367,8 @@ contains
        SED2F = f(1) * self%a2t
     case ('LB')
        SED2F = tsum(self%nu, self%tau * f)
+    case ('SPIDER')
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case default
        write(*,*) 'Unsupported bandpass type'
        stop
@@ -422,7 +424,7 @@ contains
             & tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_cmb', 'PSM_LFI') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
           
        allocate(bnu_prime_RJ(self%n))
        bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)

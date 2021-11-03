@@ -118,13 +118,13 @@ module comm_tod_SPIDER_mod
      
      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
      if (trim(constructor%freq) == 'SPIDER_150') then
-        constructor%xi_n_nu_fit     = [0.d0, 0.350d0]    ! More than max(2*fknee_DPC)
+        constructor%xi_n_nu_fit     = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
         constructor%xi_n_P_uni(2,:) = [0.0010d0, 0.45d0] ! fknee
-        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+        constructor%xi_n_P_uni(3,:) = [-2.8d0, -0.4d0]   ! alpha
      else if (trim(constructor%freq) == 'SPIDER_90') then
-        constructor%xi_n_nu_fit     = [0.d0, 0.200d0]    ! More than max(2*fknee_DPC)
+        constructor%xi_n_nu_fit     = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
         constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
-        constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+        constructor%xi_n_P_uni(3,:) = [-2.8d0, -0.4d0]   ! alpha
      else
         write(*,*) 'Invalid SPIDER frequency label = ', trim(constructor%freq)
         stop
@@ -132,7 +132,7 @@ module comm_tod_SPIDER_mod
  
      ! Initialize common parameters
      call constructor%tod_constructor(cpar, id_abs, info, tod_type)
- 
+
      ! Initialize instrument-specific parameters
      constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
      constructor%nhorn           = 1
@@ -140,7 +140,13 @@ module comm_tod_SPIDER_mod
      constructor%correct_sl      = .false.
      constructor%orb_4pi_beam    = .false.
      constructor%symm_flags      = .false.
-     constructor%chisq_threshold = 13.d0 !20.d0 ! 9.d0
+
+     if (trim(constructor%freq) == 'SPIDER_150') then
+        constructor%chisq_threshold = 100.d0 !20.d0 ! 9.d0
+     else if (trim(constructor%freq) == 'SPIDER_90') then
+        constructor%chisq_threshold = 20.d0 !20.d0 ! 9.d0
+     end if 
+
      constructor%nmaps           = info%nmaps
    !   constructor%ndet            = num_tokens(trim(cpar%datadir)//'/'//trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
      
@@ -192,8 +198,26 @@ module comm_tod_SPIDER_mod
         end do
 
      else if (trim(constructor%freq) == 'SPIDER_90') then
-        write(*,*) "implement mux layout for 150 GHz in comm_tod_SPIDER mod"
-        stop
+      do i=1, constructor%ndet
+         det = constructor%label(i)
+         row_str = det(4:5)
+         read(row_str, *) row_int
+         if (mod(row_int,2)==0) then
+            row_partner_int = row_int - 1
+         else
+            row_partner_int = row_int + 1
+         end if
+         call int2string(row_partner_int, row_partner_str)
+         det_partner = det
+         det_partner(4:5) = row_partner_str
+
+         det_index = findloc(constructor%label, det_partner)
+         ! If there is no partner, assign it the index of the partnerless detector itself
+         if (det_index(1)==0) then
+            det_index(1) = i
+         end if
+         constructor%partner(i) = det_index(1)
+      end do
      end if
 
 
@@ -582,7 +606,7 @@ module comm_tod_SPIDER_mod
         end do
 
       !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-        call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)  
+        call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
         
 
         if (debug) then
@@ -595,7 +619,7 @@ module comm_tod_SPIDER_mod
         ! Compute noise spectrum parameters
       !   call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
       !   call sample_noise_psd(self, tod_gapfill, handle, i, sd%mask, sd%s_sky, sd%n_corr)
-        call sample_noise_psd(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_sky, sd%n_corr) 
+        call sample_noise_psd(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_sky, sd%n_corr)
 
 
         ! Compute chisquare
@@ -603,11 +627,6 @@ module comm_tod_SPIDER_mod
            if (.not. self%scans(i)%d(j)%accept) cycle
          !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
            call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), s_jump=s_jump(:,j))
-           call write2file(trim(adjustl(chaindir))//'/chisq_'//trim(adjustl(myid_text))//'.txt', iter, self%scans(i)%d(j)%chisq)
-           call write2file(trim(adjustl(chaindir))//'/sigma0_'//trim(adjustl(myid_text))//'.txt', iter, dble(self%scans(i)%d(j)%N_psd%xi_n(1)))
-           call write2file(trim(adjustl(chaindir))//'/alpha_'//trim(adjustl(myid_text))//'.txt', iter, dble(self%scans(i)%d(j)%N_psd%xi_n(3)))
-           call write2file(trim(adjustl(chaindir))//'/fknee_'//trim(adjustl(myid_text))//'.txt', iter, dble(self%scans(i)%d(j)%N_psd%xi_n(2)))
-
         end do
 
 
@@ -647,47 +666,6 @@ module comm_tod_SPIDER_mod
 
          
 
-      !   do j=1, sd%ndet
-      !     do k=1, sd%ntod
-      !        test_array(k) = self%ind2ang(2,self%pix2ind(sd%pix(k,j,1)))
-      !     end do
-      !      if ((minval(test_array)<0.05235987755982989) .and. (maxval(test_array)>6.230825429619756)) then
-      !          if (self%scans(i)%d(j)%accept) write(*,*) trim(adjustl(self%label(j))) 
-      !          ! write(*,*) trim(adjustl(self%hdfname(i)))
-      !      end if
-      !   end do
-        
-      !   do j=1, sd%ndet
-      !    call tod2file(trim(adjustl(chaindir))//'/pix_debug_new_state_'//trim(adjustl(self%label(j)))//'.txt', sd%pix(:,j,1))
-      !    call tod2file(trim(adjustl(chaindir))//'/psi_debug_new_state_'//trim(adjustl(self%label(j)))//'.txt', sd%psi(:,j,1))
-      !   end do
-
-      !   do j=1, sd%ntod
-      !     test_array(j) = self%ind2ang(1,self%pix2ind(sd%pix(j,1,1)))
-      !   end do
-
-      !   do j = 1, sd%ndet
-      !      do k=1, sd%ntod
-      !         test_array(k) = self%ind2ang(1,self%pix2ind(sd%pix(k,j,1)))
-      !      end do
-      !      call tod2file(trim(adjustl(chaindir))//'/theta_debug_new_state.txt', test_array)
-
-      !      if (maxval(test_array)>3.13635666583381) write(*,*) trim(adjustl(self%label(j)))
-      !   end do
-
-
-      !   do j=1, sd%ntod
-      !      test_array(j) = self%pix2ind(sd%pix(j,1,1))
-      !   end do
-      !   call tod2file(trim(adjustl(chaindir))//'/pix2ind_debug.txt', test_array)
-
-
-      !   do j=1, sd%ntod
-      !      test_array(j) = self%ind2ang(2,self%pix2ind(sd%pix(j,1,1)))
-      !    !   write(*,*) 'min', minval(test_array)
-      !    !   write(*,*) 'max', maxval(test_array)
-      !   end do
-      !   call tod2file(trim(adjustl(chaindir))//'/phi_debug_new_state.txt', test_array)
 
         ! Update scan list
         call wall_time(t2)
@@ -752,7 +730,7 @@ module comm_tod_SPIDER_mod
         end do
      end if
  
-     ! Parameter to check if this is first time routine has been
+     ! Parameter to check if this is first time routine has been called
      self%first_call = .false.
  
      call update_status(status, "tod_end"//ctext)

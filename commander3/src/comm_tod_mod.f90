@@ -157,6 +157,7 @@ module comm_tod_mod
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
+     real(dp)                                          :: accept_threshold ! Required fraction of unflagged data in a detscan in order to be accepted 
    contains
      procedure                           :: read_tod
      procedure(read_tod_inst), deferred  :: read_tod_inst
@@ -312,6 +313,7 @@ contains
     self%verbosity     = cpar%verbosity
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%accept_threshold = 0.9d0 ! default
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
