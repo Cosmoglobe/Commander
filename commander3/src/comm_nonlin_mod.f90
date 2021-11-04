@@ -732,7 +732,12 @@ contains
                 ! Output log to file
                 allocate(buffer2(c%nalm_tot))
                 buffer2 = alms(i,:,pl)
-                write(69, *) iter, tag, i, chisq(i), buffer2
+                ! [Maksym]: 
+                ! Comment this out, because otherwise I am getting
+                ! At line 735 of file comm_nonlin_mod.f90 (unit = 69, file =
+                ! 'chains_maksymb/nonlin-samples_synch_beta.dat')
+                ! "Fortran runtime error: End of record"
+                !write(69, *) iter, tag, i, chisq(i), buffer2
                 deallocate(buffer2)
                 write(66, *) iter, tag, i, chisq(i), c%theta_pixreg(:, pl, j)
 

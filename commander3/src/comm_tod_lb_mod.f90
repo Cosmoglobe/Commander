@@ -337,15 +337,12 @@ contains
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
 
-       ! Calling Simulation Routine
+       ! Sample correlated noise, or call Simulation Routine
        if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, handle)
-          call sd%dealloc
-          cycle
+          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+       else
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-
-       ! Sample correlated noise
-       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)

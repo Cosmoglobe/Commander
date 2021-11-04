@@ -29,6 +29,7 @@ module comm_data_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
+  use comm_tod_QUIET_mod
   use locate_mod
   implicit none
 
@@ -74,6 +75,9 @@ module comm_data_mod
 contains
 
   subroutine initialize_data_mod(cpar, handle)
+    !
+    ! Routine to initialise Commander3 data
+    !
     implicit none
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
@@ -148,6 +152,10 @@ contains
           else if (trim(data(n)%tod_type) == 'LB') then
              data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          ! Adding QUIET data into a loop
+          else if (trim(data(n)%tod_type) == 'QUIET') then
+            ! Class initialisation 
+            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
@@ -361,12 +369,12 @@ contains
 
     unit = getlun()
     open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
-    write(unit,*) '# Band   BP type   Nu_c (GHz)  a2t [K_cmb/K_RJ]' // &
+    write(unit,*) '# Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
          & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a7,a10,f10.1,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
-            & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
+       write(unit,fmt='(a7,a10,f10.3,f10.3,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+             & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
     end do
     close(unit)
   end subroutine dump_unit_conversion

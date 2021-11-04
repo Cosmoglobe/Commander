@@ -79,7 +79,6 @@ contains
        allocate(res%xi_n_P_uni(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-
        res%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
@@ -94,7 +93,6 @@ contains
        allocate(res%xi_n_P_uni(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-
        res%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
@@ -130,15 +128,14 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
-    res%correct_sl      = .false.
+    res%correct_sl      = .true.
     res%orb_4pi_beam    = .true.
     res%use_dpc_adc     = .true.
     res%use_dpc_gain_modulation = .true.
     res%symm_flags      = .true.
-    res%chisq_threshold = 30.d0 !9.d0
+    res%chisq_threshold = 8.d0 !9.d0
     res%nmaps           = info%nmaps
     res%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -147,6 +144,7 @@ contains
 
     ! Initialize common parameters
     call res%tod_constructor(cpar, id_abs, info, tod_type)
+    if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", res%label)
@@ -181,6 +179,7 @@ contains
 
     ! Read the actual TOD
     call res%read_tod(res%label)
+    call res%remove_fixed_scans
 
     ! Setting polarization angles to DPC post-analysis values
 !!$    if (trim(res%freq) == '030') then
@@ -334,9 +333,9 @@ contains
 
              ! convert freq bin edges to centers in nu_saved
              do j=1, nsmooth -1
-              nu_saved(j+3) = sqrt(freq_bins(j) * freq_bins(j+1))
-              if(res%myid == 0) write(*,*) freq_bins(j), freq_bins(j+1), nu_saved(j+3)
-              end do
+                nu_saved(j+3) = sqrt(freq_bins(j) * freq_bins(j+1))
+                !if(res%myid == 0) write(*,*) freq_bins(j), freq_bins(j+1), nu_saved(j+3)
+             end do
 
              do k = 1, res%nscan
                 if (.not. res%scans(k)%d(i)%accept) cycle
@@ -501,6 +500,9 @@ contains
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+
     ! Initialize local variables
     ndelta          = size(delta,3)
     self%n_bp_prop  = ndelta-1
@@ -601,15 +603,12 @@ contains
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
 
-       ! Calling Simulation Routine
+       ! Make simulations, or draw correlated noise
        if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, handle)
-          call sd%dealloc
-          cycle
+          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+       else
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
-
-       ! Sample correlated noise
-       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
 
@@ -639,11 +638,11 @@ contains
              do j = 1, sd%ndet
                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
              end do
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
+!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
+!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+!!$                  & self%scans(i)%d(:)%accept)
              deallocate(sigma0)
           end if
        end if
@@ -666,16 +665,6 @@ contains
        deallocate(d_calib)
 
     end do
-
-    if (self%enable_tod_simulations) then
-       ! Clean up
-       call binmap%dealloc()
-       call update_status(status, "dealloc_binned_map")
-       if (allocated(slist)) deallocate(slist)
-       deallocate(map_sky, procmask, procmask2)
-       call update_status(status, "dealloc_sky_maps")
-       return
-    end if
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
@@ -1616,6 +1605,41 @@ contains
      !deallocate(procmask)
 
   end subroutine preprocess_L1_to_L2
+
+  module subroutine remove_fixed_scans_LFI(self)
+    ! 
+    ! Sets accept = .false. for known bad scans
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_LFI_tod),                  intent(inout)  :: self
+
+    integer(i4b) :: i, j, k
+
+    do j = 1, self%ndet
+       do i = 1, self%nscan
+          k             = self%scanid(i)
+
+          ! Chisquare excess in 70 GHz; unknown origim
+          if ((k > 24900 .and. k <= 25300) .and. (trim(self%label(j)) == '18M' .or. trim(self%label(j)) == '18S')) self%scans(i)%d(j)%accept = .false.
+
+          ! 44 GHz triple dot, with weaker effects in the other two channels
+          if (k == 6144 .or. k == 6126) then
+             self%scans(i)%d(j)%accept = .false.
+          end if
+       end do
+    end do
+
+
+  end subroutine remove_fixed_scans_LFI
 
 end submodule comm_tod_lfi_smod
 

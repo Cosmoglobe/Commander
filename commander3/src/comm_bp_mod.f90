@@ -31,7 +31,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -197,6 +197,9 @@ contains
 
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)
+
+    ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
+    constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
 
   end function constructor
   
