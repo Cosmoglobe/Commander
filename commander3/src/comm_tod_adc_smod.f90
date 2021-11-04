@@ -255,11 +255,12 @@ contains
     integer(i4b)                                   :: dip1, v_off, diprange
     real(sp)                                       :: sum, slope, offset
 
-    real(dp),     dimension(:),      allocatable   :: lin_dp
+    real(dp),     dimension(:),      allocatable   :: lin_dp, term1, term2
     real(dp),     dimension(:),      allocatable   :: rms_dp, flat_dp, model_dp
     real(dp),     dimension(:),      allocatable   :: vbin_dp, dRdV, R
     real(dp)                                       :: slope_dp, offset_dp
     real(dp)                                       :: a, zero, m, delV
+    real(dp)                                       :: m1, b, alpha
 
     logical(lgt) :: steamroll, bad
 
@@ -296,6 +297,9 @@ contains
        allocate(lin_dp(self%nbins))
        allocate(flat_dp(self%nbins))
 
+       allocate(term1(self%nbins))
+       allocate(term2(self%nbins))
+
        binmask(:)   = 1
        dummymask(:) = 1
 
@@ -319,9 +323,15 @@ contains
              model_dp(i) = -flat_dp(i)
           end do
        else
+          ! If a negative slope, don't fit dips
+          if (slope_dp < 0.d0) bad = .true.
+
+          ! How large of a bin range do we think the dips will cover?
           diprange = 10
+
           ! Identify dip locations for the fitting search
           call return_dips_dp(vbin_dp, flat_dp, binmask, diprange, v_dips)
+
           ! Fit linear and dips jointly
           bad = .not. allocated(v_dips)
           if (trim(name) == '18S_sky10') bad = .true.
@@ -335,24 +345,27 @@ contains
        if (bad) then
           self%adc_in  = vbin_dp
           self%adc_out = vbin_dp
-          dRdV = 0.
-          R    = 0.
+          dRdV    = 0.
+          R       = 0.
+          lin_dp  = slope_dp*vbin_dp + offset_dp
        else
           lin_dp  = slope_dp*vbin_dp + offset_dp
           flat_dp = rms_dp - lin_dp
-
           ! Taking our model, we return the differential response function (dR/dV)
           if (all(model_dp /= 0)) then
              do i = 1, self%nbins
-                dRdV(i) = slope_dp/model_dp(i) - 1.0/vbin_dp(i)
+                dRdV(i)  = slope_dp/model_dp(i) - 1.0/vbin_dp(i) 
+                term1(i) = slope_dp/model_dp(i)
+                term2(i) = 1.0/vbin_dp(i)
              end do
+             model_dp = model_dp + offset_dp
           else
              dRdV = 0.
           end if
           
           ! Make sure the bottom of dRdV is flat (dRdV(0) = dRdV(nbins) = 0.0)
           dRdV = dRdV - (dRdV(self%nbins)-dRdV(1))/(vbin_dp(self%nbins)-vbin_dp(1))*vbin_dp
-          
+          dRdV = dRdV - minval(dRdV)
           ! Actual inverse response function
           R(1) = 1.0
           delV = vbin_dp(2)-vbin_dp(1)
@@ -382,6 +395,8 @@ contains
        open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
        open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
        open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+       open(47, file=trim(self%outdir)//'/adc_term1_'//trim(name)//'.dat')
+       open(48, file=trim(self%outdir)//'/adc_term2_'//trim(name)//'.dat')
        open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
        open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
        open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
@@ -392,6 +407,8 @@ contains
           write(44, fmt='(e30.8)') flat_dp(i)
           write(45, fmt='(e16.8)') lin_dp(i)
           write(46, fmt='(e16.8)') R(i)
+          write(47, fmt='(e16.8)') term1(i)
+          write(48, fmt='(e16.8)') term2(i)
           write(49, fmt='(e16.8)') model_dp(i)
           write(50, fmt='(e16.8)') rms_dp(i)
           write(52, fmt='(e16.8)') self%adc_in(i)
@@ -402,6 +419,8 @@ contains
        close(44)
        close(45)
        close(46)
+       close(47)
+       close(48)
        close(49)
        close(50)
        close(52)
@@ -672,6 +691,7 @@ contains
        rms(i)  = rms(i)/nval(i)       
     end do
 
+    ! Mask out under sampled bins too
     do i = 1, leng
        if (mask(i) == 0) cycle
        if (nval(i) < 0.1*nval_mean) then
@@ -895,7 +915,8 @@ contains
     ! Since the linear portion has been removed, mean should be near zero,
     ! so dips are identified first by finding y-values where y < -1.0*y_std
     
-    do i = 1, leng
+    ! Don't allow dips along the edges
+    do i = 10, leng-10
        if (mask(i) == 0) cycle
        ! Only consider variations
        if (y(i) < y_mean-2.5*y_std .and. y(i-1) < y_mean-2.5*y_std .and. y(i+1) < y_mean-2.5*y_std) then
@@ -1167,7 +1188,7 @@ contains
           gdips  = gdips + gmodel          
        end do
 
-       model = a*x - gdips + b
+       model = a*x - gdips !+ b
 
     end do
 
