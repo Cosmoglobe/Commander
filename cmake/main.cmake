@@ -45,7 +45,9 @@ include(toolchains)
 include(variables)
 # including required and dependent libraries
 include(libraries)
+# including configuration summary of installation
+include(summary)
 #------------------------------------------------------------------------------
 
-message(STATUS "Finished looking for packages.")
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "Finished looking for packages.")
+#message(STATUS "---------------------------------------------------------------")
