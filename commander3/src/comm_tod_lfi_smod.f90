@@ -128,12 +128,12 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
-    res%correct_sl      = .true.
+    res%correct_sl      = .false.
     res%orb_4pi_beam    = .true.
     res%use_dpc_adc     = .true.
     res%use_dpc_gain_modulation = .true.
     res%symm_flags      = .true.
-    res%chisq_threshold = 8.d0 !9.d0
+    res%chisq_threshold = 8.d6 !9.d0
     res%nmaps           = info%nmaps
     res%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
