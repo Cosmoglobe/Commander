@@ -81,7 +81,6 @@ message(STATUS "| CPU             :"
 				"\n   | * Has SSE MMX     -- ${CPU_HAS_SSE_MMX}"
 				"\n   | * Has MMX         -- ${CPU_HAS_MMX}"
 				"\n   | * Has Ext. MMX    -- ${CPU_HAS_MMX_PLUS}"
-				"\n   | * Logical Cores   -- ${N_LOGICAL_CORES}"
         "\n   |------------------")
 message(STATUS "| Memory          :"
         "\n   |------------------"
