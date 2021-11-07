@@ -221,7 +221,7 @@ contains
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-          if (.false. .and. j == 1) then
+          if (.true. .and. j == 4) then
              open(58,file='gain_in.dat')
              do k = 1, size(g,1)
                 if (g(k,j,2) > 0) then
@@ -262,8 +262,8 @@ contains
          mu = 0.d0
          denom = 0.d0
          do k = 1, nscan_tot
-            mu    = mu + g(k,j,1)*g(k,j,2) 
-            denom = denom + g(k,j,2)
+            mu    = mu + g(k,j,1)!*g(k,j,2) 
+            denom = denom + 1!g(k,j,2)
          end do
          mu = mu / denom
          !write(*,*) 'g = ', mu
@@ -271,7 +271,7 @@ contains
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-          if (.false. .and. j == 1) then
+          if (.true. .and. j == 4) then
              open(58,file='gain_out.dat')
              do k = 1, size(g,1)
                 if (g(k,j,2) > 0) then

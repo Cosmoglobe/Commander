@@ -435,7 +435,8 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-          alm     = c%getBand(band, alm_out=.true., det=det)
+          alm     = c%getBand(band, alm_out=.true.)
+          !alm     = c%getBand(band, alm_out=.true., det=det)
 !!$          if (c%x%info%myid == 0) then
 !!$             write(*,*) c%label
 !!$             write(*,*) shape(alm)
