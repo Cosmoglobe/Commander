@@ -153,6 +153,29 @@ def profile(output_file=None, sort_by='cumulative', lines_to_print=None, strip_d
 
 from get_gain_model import get_gain
 
+
+def get_all_ephems(files):
+    planets = ['mars', 'jupiter', 'saturn', 'neptune', 'uranus']
+
+    first_file = files[0]
+    last_file = files[-1]
+
+    data_first = fits.open(first_file)
+    data_last  = fits.open(last_file)
+    t2jd = data_first[1].header['time2jd']
+
+    t0 = data_first[2].data['TIME'][0] + t2jd
+    tl = data_last[2].data['TIME'][-1] + t2jd
+    #tl = 2454928.5     # April 7, 2009, when the JPL ephemerides run out for WMAP
+    times = np.array([t0, tl])
+
+    for p in planets:
+        t_jds, ras, decs = get_planet_radec(times, p)
+
+        np.savetxt(f'{p}_ephem.txt', np.array([t_jds, ras, decs]).T)
+
+    return
+
 TARGET_ALIASES = {"mars": 499,  # (4, 499)
         "jupiter": 599, # (5, 599)
         "saturn": 699, # (6, 699)
@@ -171,18 +194,20 @@ def get_planet_radec(times, planet):
     RAs = []
     Decs = []
 
-    times = times
-
     mydates_jd = Time(times, format='jd')
+
+    print(mydates_jd[0].iso, mydates_jd[-1].iso)
 
 
     query = Horizons(
         id=TARGET_ALIASES[planet],
         id_type="majorbody",
-        location="500@-165",
+        #location="500@-165",
+        location="500@32", # at L2
+        #location="500", # geocentric
         epochs={'start': mydates_jd[0].iso,
                 'stop': mydates_jd[-1].iso,
-                'step': '1m'}
+                'step': '1h'}
     )
     ephemerides = query.ephemerides(quantities='1,2')
     RAs = ephemerides['RA'].value
@@ -193,19 +218,13 @@ def get_planet_radec(times, planet):
     RAs = np.array(RAs)
     Decs = np.array(Decs)
 
-    f_ra = interp1d(t_jd, RAs, fill_value='extrapolate')
-    f_dec = interp1d(t_jd, Decs, fill_value='extrapolate')
-
-    RAs = f_ra(times)
-    Decs = f_dec(times)
-
-    return  RAs, Decs
+    return t_jd, RAs, Decs
 
 
 
 def get_ephem(time, planet):
     # Obtained these from https://ssd.jpl.nasa.gov/horizons.cgi
-    t_p, ra_p, dec_p = np.loadtxt(f'{planet.lower()}_ephem.txt').T
+    t_p, ra_p, dec_p = np.loadtxt(f'{planet}_ephem.txt').T
 
     f_ra = interp1d(t_p, ra_p, fill_value='extrapolate')
     f_dec = interp1d(t_p, dec_p, fill_value='extrapolate')
@@ -215,22 +234,20 @@ def get_ephem(time, planet):
 
 def get_flags(data, test=False):
 
-    t2jd = 2.45e6
+    t2jd = data[1].header['TIME2JD']
 
     quat = data[1].data['QUATERN']
 
-    ll_A, ll_B, p_A, p_B = quat_to_sky_coords(quat, lonlat=True, nointerp=True,
+    ll_A, ll_B, p_A, p_B, t_list = quat_to_sky_coords(quat, lonlat=True,
+        center=True, ret_times=True,
             coord_out='C')
 
-    time = data[2].data['TIME'] + t2jd
-
-    t_jd = Time(time[0], format='jd')
-    print(t_jd.iso)
+    time_majorframe = data[2].data['TIME'] + t2jd
 
     daflags = data[2].data['daflags']
 
     bands = np.arange(10)
-    planets = ['Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune']
+    planets = ['mars', 'jupiter', 'saturn', 'uranus', 'neptune']
     radii   = np.array([
               [2.0,     3.0,      2.0,      2.0,       2.0], #K (yr!=2)
               [1.5,     2.5,      1.5,      1.5,       1.5], #Ka
@@ -243,40 +260,67 @@ def get_flags(data, test=False):
               [1.5,     2.0,      1.5,      1.5,       1.5], #W3
               [1.5,     2.0,      1.5,      1.5,       1.5], #W4
               ])
+    #radii   = np.array([
+    #          [7,   7,      7,      7,       7], #K (yr!=2)
+    #          [7,   7,      7,      7,       7], #Ka
+    #          [7,   7,      7,      7,       7], #Q1
+    #          [7,   7,      7,      7,       7], #Q2
+    #          [7,   7,      7,      7,       7], #V1
+    #          [7,   7,      7,      7,       7], #V2
+    #          [7,   7,      7,      7,       7], #W1
+    #          [7,   7,      7,      7,       7], #W2
+    #          [7,   7,      7,      7,       7], #W3
+    #          [7,   7,      7,      7,       7], #W4
+    #          ])
 
-    dists = np.zeros((2*len(planets), daflags.shape[0], daflags.shape[1]))
-    for i,p in enumerate(planets):
-        #ra_p, dec_p = get_ephem(time, p)
-        ra_p, dec_p = get_planet_radec(time, p.lower())
-        ll_p = np.array([ra_p, dec_p])
-        for band in bands:
+
+    radii = radii*(np.pi/180)
+    # I should be calculating the distances using each individual observation,
+    # not the daflags shape, since that's going to be the same size as the major
+    # frames, not the individual ones. Additionally, I am using the time for
+    # each major frame, not the actual time for each individual observation.
+    myflags = []
+    daflags_copy = []
+    for band in bands:
+        myflags.append([])
+        daflags_copy.append([])
+
+    for band in bands:
+        myflags[band] = np.zeros(len(t_list[band]))
+        daflags_copy[band] = np.zeros(len(t_list[band]))
+        for i,p in enumerate(planets):
+            t = t_list[band] + time_majorframe[0]
+            ra_p, dec_p = get_ephem(t, p)
+            ll_p = np.array([ra_p, dec_p])
+
             d_A = hp.rotator.angdist(ll_A[band].T, ll_p, lonlat=True)
+            inds = (d_A <= radii[band][i])
+            myflags[band][inds] += 2**(2*i+1)
+
             d_B = hp.rotator.angdist(ll_B[band].T, ll_p, lonlat=True)
-            dists[2*i  ,:,band] = d_A*180/np.pi
-            dists[2*i+1,:,band] = d_B*180/np.pi
+            inds = (d_B <= radii[band][i])
+            myflags[band][inds] += 2**(2*i+1+1)
 
-    myflags = np.zeros(daflags.shape, dtype=int)
-    for i in range(2*len(planets)):
-        for band in bands:
-            #inds = (dists[i,:,band] < radii[band][i//2]*2)
-            inds = (dists[i,:,band] <= radii[band][i//2])
-            #inds = (dists[i,:,band] <= 7)
-            #if (myflags[inds,band].any() != 0):
-            #    print('flag collision')
-            #    print(np.unique(myflags[inds,band]), 2**(i+1))
-            myflags[inds,band] += 2**(i+1)
 
-    ind1 = (daflags % 2 == 1)
-    myflags = np.where(ind1, daflags, myflags)
-    #myflags = np.where(ind1, myflags+1, myflags)
+    for band in bands:
+        Nobs = Nobs_array[band]
+        for i in range(Nobs):
+            daflags_copy[band][i::Nobs] = daflags[:,band]
+        ind1 = (daflags_copy[band] % 2 == 1)
+        myflags[band] = np.where(ind1, daflags_copy[band], myflags[band])
 
     if test:
-        return daflags, myflags
+        return daflags_copy, myflags
     else:
         return myflags
 
 
-def test_flags(band=0):
+def test_flags(band=2):
+    prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
+    files = glob(prefix + 'uncalibrated/*.fits')
+    files.sort()
+    #get_all_ephems(files)
     '''
     Given a series of pointings in RA and Dec, first, for a single horn,
     determine the distance from each planet, and if it is within a certain
@@ -289,12 +333,15 @@ def test_flags(band=0):
     The final product will be n_tod x n_bands, and each element will be a flag
     2**(i+1) where i is the planet index from 0 to nplanets - 1.
     '''
+    Nobs_arr = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+    Nobs = Nobs_arr[band]
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
     file_input = files[87]
 
-    file_input = np.random.choice(files)
+    file_input = np.random.choice(files[-365:])
+    #file_input = files[-765]
     print(file_input)
 
     #file_input = files[3197]
@@ -302,12 +349,41 @@ def test_flags(band=0):
     data = fits.open(file_input)
     daflags, myflags = get_flags(data, test=True)
 
-    band = 0
+
+
     plt.figure()
-    plt.plot(daflags[:,band], '.', label='DAflags', ms=10)
+
+    tod_tile = data[2].data['Q113']
+    tod = np.zeros(tod_tile.size)
+    #daflag_all = np.zeros(tod_tile.size)
+    myflag_all = np.zeros(tod_tile.size)
+    for i in range(Nobs):
+        tod[i::Nobs] = tod_tile[:,i]
+        #daflag_all[i::Nobs] = daflags[:,band]
+    daflag_all = daflags[band]
+    myflag_all[:] = myflags[band]
+    ind1 = (daflag_all % 2 == 1)
+    myflag_all = np.where(ind1, daflag_all, myflag_all)
+
+    inds = (daflag_all != 0) & ((daflag_all % 2) != 1)
+    t = np.arange(len(inds))*1.536/Nobs
+    plt.plot(t[tod > 1e3], tod[tod > 1e3], 'k.', alpha=0.5, ms=1)
+    plt.plot(t[inds], tod[inds], 'g.', ms=10)
+    inds = (myflag_all != 0) & ((myflag_all % 2) != 1)
+    plt.plot(t[inds], tod[inds], 'r.', ms=7)
+    #plt.xlim([7230, 7250])
+    #plt.xlim([27420, 27440])
+    #plt.xlim([0,10000])
+
+
+    plt.figure()
+    plt.plot(t, daflag_all, '.', label='DAflags', ms=3)
     plt.yscale('log')
 
-    plt.semilogy(myflags[:,band], '.', label='My flags', ms=7)
+    plt.semilogy(t, myflag_all, '.', label='My flags', ms=2)
+    #plt.xlim([7230, 7250])
+    #plt.xlim([27420, 27440])
+    #plt.xlim([0,10000])
     plt.legend(loc='best')
 
     ax = plt.gca()
@@ -317,58 +393,6 @@ def test_flags(band=0):
 
     ax.yaxis.set_major_formatter(lambda x, pos: f"{int(x):011b}")
 
-
-    plt.figure()
-    daflagged = np.where(daflags[:,band] == 0, 0, 1)
-    myflagged = np.where(myflags[:,band] == 0, 0, 1)
-    plt.plot(daflagged, '.', label='DAflags', ms=10)
-    plt.plot(myflagged, '.', label='My flags', ms=7)
-    plt.legend(loc='best')
-
-    plt.figure()
-    plt.plot(daflagged - myflagged, '.', label='Diff', ms=10)
-    plt.legend(loc='best')
-
-    print(sum(abs(daflagged-myflagged)))
-
-
-    plt.figure()
-
-    tod = data[2].data['K113']
-    print(tod.shape)
-    print(daflagged.shape)
-
-    tod_flat = np.zeros(tod.size)
-    daflag_flat = np.zeros(tod.size)
-    myflag_flat = np.zeros(tod.size)
-    totdaflags = np.zeros(tod.size)
-    totmyflags = np.zeros(tod.size)
-    for i in range(12):
-        tod_flat[i::12] = tod[:,i]
-        daflag_flat[i::12] = daflagged
-        myflag_flat[i::12] = myflagged
-        totdaflags[i::12] = daflags[:,band]
-        totmyflags[i::12] = myflags[:,band]
-
-    t = np.arange(len(tod_flat))
-
-    fig, axes = plt.subplots(nrows=2, sharex=True)
-    axes[0].plot(t[totdaflags != 1], tod_flat[totdaflags != 1], 'k.', ms=5)
-    axes[0].plot(t[daflag_flat==0], tod_flat[daflag_flat==0], 'C0.', ms=4)
-    axes[0].plot(t[myflag_flat==0], tod_flat[myflag_flat==0], 'C1.', ms=3)
-
-
-    axes[1].plot(totdaflags, '.', label='DAflags', ms=10)
-    axes[1].set_yscale('log')
-
-    axes[1].semilogy(totmyflags, '.', label='My flags', ms=7)
-    axes[1].legend(loc='best')
-
-
-    axes[1].set_yticks([2**i for i in range(11)])
-    axes[1].set_yticks([], minor=True)
-
-    axes[1].yaxis.set_major_formatter(lambda x, pos: f"{int(x):011b}")
 
     plt.show()
 
@@ -795,6 +819,7 @@ def q_interp(q_arr, t):
 
 
 def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
+    ret_times=False,
         coord_out='G'):
     Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
     '''
@@ -845,7 +870,6 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
                 [  0.00768184749607, -0.94540702221088, -0.32580139897397],
                 [  0.00751408106677, -0.93889226303920, -0.34412912836731  ]])
 
-
     dir_A_pol = np.array([  
                 [ 0.69487757242271, -0.29835139515692, -0.65431766318192, ],
                 [ -0.69545992357813, -0.29560553030986, -0.65494493291187, ],
@@ -876,6 +900,7 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
     pol_A = []
     gal_B = []
     pol_B = []
+    t_list = []
     for n, Nobs in enumerate(Nobs_array):
         # for each group from 0--4, the interpolation is valid between 1.5--2.5,
         # which is equivalent to cutting out the first 1.5 time units from the
@@ -908,6 +933,11 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
                     f = interp1d(t0[inds], M[:,i,j][inds], kind='cubic',
                             fill_value='extrapolate')
                     M2[:,i,j] = f(t)
+            # T is the sample number here, but I want the actual time elapsed
+            t *= 1.536/Nobs
+            # This is in seconds, need it in days
+            t /= 3600*24
+            t_list.append(t)
 
 
         dir_A_los_cel = []
@@ -937,7 +967,10 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
 
 
 
-    return gal_A, gal_B, pol_A, pol_B
+    if ret_times:
+        return gal_A, gal_B, pol_A, pol_B, t_list
+    else:
+        return gal_A, gal_B, pol_A, pol_B
 
 
 def get_psi(gal, pol, band_labels):
@@ -1062,7 +1095,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
         # 2,450,000 to its value."
         # I subtracted 2.4e6 + 0.5 to convert to modified Julian date, the
         # preferred LFI format.
-        time = data[2].data['TIME'] + t2jd - 24000000.5
+        time = data[2].data['TIME'] + t2jd - 2_400_000.5
         
         if len(pos_all) == 0:
           pos_all = pos
@@ -1168,6 +1201,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     # happening right now.
     '''
 
+
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
     if (version == 'cal'):
@@ -1175,6 +1209,11 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
     files.sort()
+
+    get_all_ephems(files)
+
+
+
     inds = np.arange(len(files))
     #inds = inds[:8]
     #files = np.array(files)[:8]
@@ -1192,19 +1231,19 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 
+    manager = mp.Manager()
+    dicts = {'K1':manager.dict(), 'Ka1':manager.dict(), 'Q1':manager.dict(),
+             'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
+             'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
+             'W4':manager.dict(),}
+    comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
+        overwrite=True)
 
     if par:
         nprocs = 128
         nprocs = 72
         os.environ['OMP_NUM_THREADS'] = '1'
 
-        manager = mp.Manager()
-        dicts = {'K1':manager.dict(), 'Ka1':manager.dict(), 'Q1':manager.dict(),
-                 'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
-                 'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
-                 'W4':manager.dict(),}
-        comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
-            overwrite=True)
 
         pool = Pool(processes=nprocs)
         print('pool set up')
@@ -1218,9 +1257,10 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         comm_tod.make_filelists()
     else:
         for i, f in zip(inds, files):
-            fits_to_h5(f,i,compress, plot, version, center)
+            fits_to_h5(comm_tod, f,i,compress, plot, version, center)
 
 
 if __name__ == '__main__':
-    main(version=45)
-    #test_flags()
+    #main(version=46)
+    test_flags()
+
