@@ -139,7 +139,7 @@ contains
     res%use_dpc_adc     = .true.
     res%use_dpc_gain_modulation = .true.
     res%symm_flags      = .true.
-    res%chisq_threshold = 8.d0 !9.d0
+    res%chisq_threshold = 5.d6 !9.d0
     res%nmaps           = info%nmaps
     res%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
@@ -452,7 +452,7 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     !
     ! Routine that processes the LFI time ordered data.
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -498,7 +498,7 @@ contains
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-
+    type(map_ptr),       dimension(1:,1:),       intent(inout), optional :: map_gain       ! (ndet)
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_polang
@@ -510,7 +510,7 @@ contains
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
     call int2string(iter, ctext)
@@ -545,7 +545,9 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
     call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -606,9 +608,9 @@ contains
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_calibration(self, 'abscal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
        !call sample_gain_psd(self, handle)
     end if
 
@@ -740,7 +742,7 @@ contains
     call binmap%dealloc()
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
-    deallocate(map_sky, procmask, procmask2)
+    deallocate(map_sky, m_gain, procmask, procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
