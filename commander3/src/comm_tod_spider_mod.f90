@@ -298,7 +298,7 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  subroutine process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  subroutine process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     implicit none
     class(comm_SPIDER_tod),                      intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
@@ -308,6 +308,7 @@ contains
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
+    type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,ndelta)  
 
     integer(i4b) :: i, j, k, l, start_chunk, end_chunk, chunk_size, ntod, ndet
     integer(i4b) :: nside, npix, nmaps, naccept, nhorn, ntot, ext(2), nscan_tot

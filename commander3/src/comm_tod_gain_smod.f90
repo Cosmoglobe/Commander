@@ -258,12 +258,14 @@ contains
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           end if
 
-         ! Force noise-weighted average to zero
+         ! Force flat average to zero
          mu = 0.d0
          denom = 0.d0
          do k = 1, nscan_tot
-            mu    = mu + g(k,j,1)!*g(k,j,2) 
-            denom = denom + 1!g(k,j,2)
+            if (g(k, j, 2) > 0.d0) then
+               mu    = mu    + g(k,j,1)
+               denom = denom + 1.d0
+            end if
          end do
          mu = mu / denom
          !write(*,*) 'g = ', mu

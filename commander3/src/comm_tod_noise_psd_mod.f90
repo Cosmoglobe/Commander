@@ -32,7 +32,7 @@ module comm_tod_noise_psd_mod
   implicit none
 
   private
-  public comm_noise_psd, comm_noise_psd_2oof, comm_noise_psd_oof_gauss
+  public comm_noise_psd, comm_noise_psd_2oof, comm_noise_psd_oof_gauss, comm_noise_psd_oof_f
 
   integer(i4b), parameter :: SIGMA0 = 1
   integer(i4b), parameter :: FKNEE  = 2
@@ -82,6 +82,15 @@ module comm_tod_noise_psd_mod
      procedure :: eval_corr   => eval_noise_psd_oof_gauss_corr
   end type comm_noise_psd_oof_gauss
 
+  type, extends(comm_noise_psd) :: comm_noise_psd_oof_f
+     ! 
+     ! Class definition for 2-component 1/f + Gauss noise PSD model
+     !
+   contains
+     procedure :: eval_full   => eval_noise_psd_oof_f_full
+     procedure :: eval_corr   => eval_noise_psd_oof_f_corr
+  end type comm_noise_psd_oof_f
+
   interface comm_noise_psd_2oof
      procedure constructor_2oof
   end interface comm_noise_psd_2oof
@@ -89,6 +98,10 @@ module comm_tod_noise_psd_mod
   interface comm_noise_psd_oof_gauss
      procedure constructor_oof_gauss
   end interface comm_noise_psd_oof_gauss
+
+  interface comm_noise_psd_oof_f
+     procedure constructor_oof_f
+  end interface comm_noise_psd_oof_f
 
 contains
 
