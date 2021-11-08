@@ -89,6 +89,7 @@ program commander
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid_chain == 0 !.false.
 
+
 !!$  n = 100000
 !!$  q = 100000
 !!$  allocate(arr(n))
