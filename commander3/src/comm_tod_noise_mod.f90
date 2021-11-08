@@ -526,6 +526,9 @@ contains
          end if
          f         = l*(samprate/2)/(n-1)
          N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
+         if (N_corr .le. 0) then
+           write(*,*) 'bad things', currpar, tmp, N_corr, f, self%scans(scan)%d(i)%N_psd%xi_n
+         end if
          lnL_xi_n  = lnL_xi_n - (ps(l) / N_corr + log(N_corr))
       end do
 

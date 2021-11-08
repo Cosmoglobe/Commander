@@ -120,11 +120,11 @@ contains
      ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
      ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, 1e-3, 1e-4]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
       constructor%xi_n_P_uni(4,:) = [-0.1, 0.1]            ! slope
-      constructor%xi_n_nu_fit(4,:) = [-1d-3, 1d-3]       ! slope nu_fit
-      constructor%xi_n_P_uni(5,:) = [-1d-3,1d-3]             ! intercept
-      constructor%xi_n_nu_fit(5,:) = [0.015, 0.1]       ! intercept nu_fit
+      constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
+      constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
+      constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
       if (trim(constructor%freq) == '023-WMAP_K') then
          ! We want this first term to only go a few past fknee; if not, you'll
          ! be using a lot of "perfectly known" correlated noise that will bias
@@ -367,7 +367,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 3
+      self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
@@ -581,7 +581,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      if (mod(iter,self%output_aux_maps) == 0) then
+      !if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '  Running BiCG'
@@ -596,7 +596,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      end if
+      !end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
