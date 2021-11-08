@@ -166,16 +166,16 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		# including curl into a project
 		include_directories(${CURL_INCLUDE_DIR})
 		#------------------------------------------------------------------------------
-		message(STATUS "cURL LIBRARIES will be ${CURL_LIBRARIES}")
-		message(STATUS "cURL INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
+		#message(STATUS "cURL LIBRARIES will be ${CURL_LIBRARIES}")
+		#message(STATUS "cURL INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	else()
 		add_custom_target(curl ALL "")
 		include_directories(${CURL_INCLUDE_DIR})
 		include_directories(${CURL_BINARY_DIR})
 		#------------------------------------------------------------------------------
-		message(STATUS "cURL LIBRARIES are ${CURL_LIBRARIES}")
-		message(STATUS "cURL INCLUDE DIR is ${CURL_INCLUDE_DIR}")
+		#message(STATUS "cURL LIBRARIES are ${CURL_LIBRARIES}")
+		#message(STATUS "cURL INCLUDE DIR is ${CURL_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	endif()
 else()

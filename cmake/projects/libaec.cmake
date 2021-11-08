@@ -122,13 +122,13 @@ if(COMPILE_LIBAEC)
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}sz${CMAKE_SHARED_LIBRARY_SUFFIX}" 
 		)
 	#------------------------------------------------------------------------------
-	message(STATUS "LIBAEC LIBRARIES will be: ${LIBAEC_LIBRARIES}")
-	message(STATUS "LIBAEC INCLUDE DIRS will be: ${LIBAEC_INCLUDE_DIRS}")
+	#message(STATUS "LIBAEC LIBRARIES will be: ${LIBAEC_LIBRARIES}")
+	#message(STATUS "LIBAEC INCLUDE DIRS will be: ${LIBAEC_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	add_custom_target(${project} ALL "")
 	#------------------------------------------------------------------------------
-	message(STATUS "LIBAEC LIBRARIES are: ${LIBAEC_LIBRARIES}")
-	message(STATUS "LIBAEC INCLUDE DIRS are: ${LIBAEC_INCLUDE_DIRS}")
+	#message(STATUS "LIBAEC LIBRARIES are: ${LIBAEC_LIBRARIES}")
+	#message(STATUS "LIBAEC INCLUDE DIRS are: ${LIBAEC_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 endif()

@@ -23,7 +23,7 @@
 # Description: This script determines the location of MKL/OpenBLAS on the host system.
 # If it fails to do so, it will download, compile and install OpenBLAS from source.
 #================================================================================
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
 # require BLAS and LAPACK
 # From docs: Note C, CXX or Fortran must be enabled
 # to detect a BLAS/LAPACK library. C or CXX must be
@@ -143,10 +143,10 @@ if(COMPILE_BLAS)
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
 	#------------------------------------------------------------------------------
-	message(STATUS "BLAS LINKER FLAGS will be:   ${BLAS_LINKER_FLAGS}")
-	message(STATUS "BLAS LIBRARIES will be:      ${BLAS_LIBRARIES}")
-	message(STATUS "LAPACK LINKER FLAGS will be: ${LAPACK_LINKER_FLAGS}")
-	message(STATUS "LAPACK LIBRARIES will be:    ${LAPACK_LIBRARIES}")
+	#message(STATUS "BLAS LINKER FLAGS will be:   ${BLAS_LINKER_FLAGS}")
+	#message(STATUS "BLAS LIBRARIES will be:      ${BLAS_LIBRARIES}")
+	#message(STATUS "LAPACK LINKER FLAGS will be: ${LAPACK_LINKER_FLAGS}")
+	#message(STATUS "LAPACK LIBRARIES will be:    ${LAPACK_LIBRARIES}")
 	#------------------------------------------------------------------------------
 else()
 	# to avoid cmake errors we create and empty target
@@ -156,9 +156,9 @@ else()
 		)
 	set(blas_lib ${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES} ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
 	#------------------------------------------------------------------------------
-	message(STATUS "BLAS LINKER FLAGS:   ${BLAS_LINKER_FLAGS}")
-	message(STATUS "BLAS LIBRARIES:      ${BLAS_LIBRARIES}")
-	message(STATUS "LAPACK LINKER FLAGS: ${LAPACK_LINKER_FLAGS}")
-	message(STATUS "LAPACK LIBRARIES:    ${LAPACK_LIBRARIES}")
+	#message(STATUS "BLAS LINKER FLAGS:   ${BLAS_LINKER_FLAGS}")
+	#message(STATUS "BLAS LIBRARIES:      ${BLAS_LIBRARIES}")
+	#message(STATUS "LAPACK LINKER FLAGS: ${LAPACK_LINKER_FLAGS}")
+	#message(STATUS "LAPACK LIBRARIES:    ${LAPACK_LIBRARIES}")
 	#------------------------------------------------------------------------------
 endif()

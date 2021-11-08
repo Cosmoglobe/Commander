@@ -4,9 +4,11 @@
 # Description: This file contains Summary Information Output to the user's screen
 # regarding System and CMake configuration which will be used to compile the code
 #================================================================================
-# TODO:
-# Put these variables inside variables.cmake so you can decide which library to 
-# compile how (with MMX, SSE support etc.)
+# To make pretty output of libraries in terminal window
+function(change_list_output input_list output_list)
+	string(REPLACE ";" "\n   |   - " dummy_list "${input_list}")
+	set(${output_list} "${dummy_list}" PARENT_SCOPE)
+endfunction()
 #------------------------------------------------------------------------------
 # Making a summary of Host System 
 #------------------------------------------------------------------------------
@@ -45,30 +47,14 @@ cmake_host_system_information(RESULT AVAIL_VIRTUAL_MEMORY  QUERY AVAILABLE_VIRTU
 cmake_host_system_information(RESULT TOT_PHYSICAL_MEMORY   QUERY TOTAL_PHYSICAL_MEMORY)
 cmake_host_system_information(RESULT AVAIL_PHYSICAL_MEMORY QUERY AVAILABLE_PHYSICAL_MEMORY)
 
-#			if(CPU_IS_64BIT)
-#				"\n   | * Is 64Bit        -- yes" 
-#			else()
-#				"\n   | * Is 64Bit        -- no" 
-#			endif()
-
-#message(STATUS ${HOST_NAME})
-#message(STATUS "${HOST_OS_NAME} ${HOST_OS_PLATFORM} ${HOST_OS_RELEASE} ${HOST_OS_VERSION}")
-#message(STATUS "${PROC_NAME} | ${PROC_DESCRIPTION}")
-#message(STATUS "|                    CONFIGURATION SUMMARY                    |"
-#message(STATUS "===============================================================")
-#message(STATUS "---------------------------------------------------------------")
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
 	set(_comm3_flags_ "${COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG} ${COMMANDER3_Fortran_COMPILER_FLAGS};")
-	#message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_Fortran_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
 	set(_comm3_flags_ "${COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE} ${COMMANDER3_Fortran_COMPILER_FLAGS};")
-	#message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
 	set(_comm3_flags_ "${COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO} ${COMMANDER3_Fortran_COMPILER_FLAGS};")
-	#message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 elseif(${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel")
 	set(_comm3_flags_ "${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL} ${COMMANDER3_Fortran_COMPILER_FLAGS};")
-	#message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
 endif()
 
 message(STATUS "==============================================================="
@@ -142,135 +128,107 @@ message(STATUS "|                        INSTALLATION                         |"
 				"\n   ---------------------------------------------------------------")
 message(STATUS "|                         LIBRARIES                           |"
 				"\n   ---------------------------------------------------------------")
+change_list_output("${LIBM_LIBRARY}" _changed_list_)
+if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+message(STATUS "| Linux Math      :"
+			"\n   |------------------"
+			"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+			"\n   |------------------")
+endif()
+change_list_output("${BLAS_LIBRARIES}" _changed_list_)
 message(STATUS "| BLAS            :"
         "\n   |------------------"
 				"\n   | * Found           -- ${BLAS_FOUND}"
-				"\n   | * Name(s)         -- ${BLAS_LIBRARIES}"
-				"\n   | * Linker Flags    -- ${BLAS_LINKER_FLAGS}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
         "\n   |------------------")
+change_list_output("${LAPACK_LIBRARIES}" _changed_list_)
 message(STATUS "| LAPACK          :"
         "\n   |------------------"
 				"\n   | * Found           -- ${LAPACK_FOUND}"
-				"\n   | * Name(s)         -- ${LAPACK_LIBRARIES}"
-				"\n   | * Linker Flags    -- ${LAPACK_LINKER_FLAGS}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
         "\n   |------------------")
+change_list_output("${ZLIB_LIBRARIES}" _changed_list_)
 if(NOT COMPILE_ZLIB)
 message(STATUS "| ZLIB            :"
         "\n   |------------------"
 				"\n   | * Found           -- ${ZLIB_FOUND}"
-				"\n   | * Name(s)         -- ${ZLIB_LIBRARY}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
         "\n   |------------------")
 else()
 	message(STATUS "| ZLIB            :"
         "\n   |------------------"
 				"\n   | * Found           -- ${ZLIB_FOUND}"
-				"\n   | * Name(s)         -- ${ZLIB_LIBRARIES}"
-				"\n   | * Source URL      -- ${zlib_url}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+				"\n   | * Source URL    :\n   |   - ${zlib_url}"
         "\n   |------------------")
 endif()
+change_list_output("${HDF5_Fortran_LIBRARIES}" _changed_list_)
 if(NOT COMPILE_HDF5)
 message(STATUS "| HDF5            :"
         "\n   |------------------"
 				"\n   | * Found           -- ${HDF5_FOUND}"
-				"\n   | * Name(s)         -- ${HDF5_Fortran_LIBRARIES}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
         "\n   |------------------")
 else()
 message(STATUS "| HDF5            :"
         "\n   |------------------"
 				"\n   | * Found           -- ${HDF5_FOUND}"
-				"\n   | * Name(s)         -- ${HDF5_Fortran_LIBRARIES}"
-				"\n   | * Source URL      -- ${hdf5_url}"
-				"\n   | * Depends         -- ZLIB, LIBAEC"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+				"\n   | * Source URL    :\n   |   - ${hdf5_url}"
+				"\n   | * Depends       :\n   |   - ZLIB\n   |   - LIBAEC"
         "\n   |------------------")
 endif()
+change_list_output("${FFTW_LIBRARIES}" _changed_list_)
+if(NOT COMPILE_FFTW)
 message(STATUS "| FFTW            :"
         "\n   |------------------"
 				"\n   | * Found           -- ${FFTW_FOUND}"
-				"\n   | * Name(s)         -- ${FFTW_LIBRARIES}"
-				"\n   | * Linker Flags    -- ${FFTW_LINKER_FLAGS}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
         "\n   |------------------")
+else()
+message(STATUS "| FFTW            :"
+        "\n   |------------------"
+				"\n   | * Found           -- ${FFTW_FOUND}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+				"\n   | * Source URL    :\n   |   - ${fftw_url}"
+        "\n   |------------------")
+endif()
+change_list_output("${CFITSIO_LIBRARIES}" _changed_list_)
 if(NOT COMPILE_CFITSIO)
 message(STATUS "| CFITSIO         :"
         "\n   |------------------"
 				"\n   | * Found           -- ${CFITSIO_FOUND}"
-				"\n   | * Name(s)         -- ${CFITSIO_LIBRARIES}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
         "\n   |------------------")
 elseif(NOT (COMPILE_CFITSIO AND CFITSIO_USE_CURL))
 message(STATUS "| CFITSIO         :"
         "\n   |------------------"
 				"\n   | * Found           -- ${CFITSIO_FOUND}"
-				"\n   | * Name(s)         -- ${CFITSIO_LIBRARIES}"
-				"\n   | * Source URL      -- ${cfitsio_url}"
-				"\n   | * Depends         -- ZLIB"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+				"\n   | * Source URL    :\n   |   - ${cfitsio_url}"
+				"\n   | * Depends       :\n   |   - ZLIB"
         "\n   |------------------")
 elseif((NOT COMPILE_CFITSIO) AND CFITSIO_USE_CURL)
 message(STATUS "| CFITSIO         :"
         "\n   |------------------"
 				"\n   | * Found           -- ${CFITSIO_FOUND}"
-				"\n   | * Name(s)         -- ${CFITSIO_LIBRARIES}"
-				"\n   | * Source URL      -- ${cfitsio_url}"
-				"\n   | * Depends         -- ZLIB, CURL"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+				"\n   | * Source URL    :\n   |   - ${cfitsio_url}"
+				"\n   | * Depends       :\n   |   - ZLIB\n   |   - CURL"
         "\n   |------------------")
 endif()
+change_list_output("${HEALPIX_LIBRARIES}" _changed_list_)
+if(NOT COMPILE_HEALPIX)
 message(STATUS "| HEALPIX         :"
         "\n   |------------------"
 				"\n   | * Found           -- ${HEALPIX_FOUND}"
-				"\n   | * Name(s)         -- ${HEALPIX_LIBRARIES}"
-				"\n   | * Depends         -- CFITSIO"
-        "\n   |------------------")
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}")
+else()
+message(STATUS "| HEALPIX         :"
+        "\n   |------------------"
+				"\n   | * Found           -- ${HEALPIX_FOUND}"
+				"\n   | * Name(s)       :\n   |   - ${_changed_list_}"
+				"\n   | * Source URL    :\n   |   - ${healpix_url}"
+				"\n   | * Depends       :\n   |   - CFITSIO")
+endif()
 message(STATUS "===============================================================")
-#------------------------------------------------------------------------------
-# output of the summary into the screen
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "SUMMARY ON INSTALLATION:")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "Projects will be downloaded into: ${CMAKE_DOWNLOAD_DIRECTORY}")
-#message(STATUS "Projects will be installed into: ${CMAKE_INSTALL_PREFIX}")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "")
-#message(STATUS "| Name                   : ${CMAKE_HOST_SYSTEM_NAME}")
-#message(STATUS "| OS Platform              : ${HOST_OS_PLATFORM}")
-#message(STATUS "| OS Release               : ${HOST_OS_RELEASE}")
-#message(STATUS "| OS Version                : ${HOST_OS_VERSION}")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "| CMake v.         : ${CMAKE_VERSION}")
-#message(STATUS "| CMake command         : ${CMAKE_COMMAND}")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "|                         COMPILERS                           |")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "| Fortran         : ${CMAKE_Fortran_COMPILER}")
-#message(STATUS "| Compiler ID     : ${CMAKE_Fortran_COMPILER_ID}")
-#message(STATUS "| Compiler v.: ${CMAKE_Fortran_COMPILER_VERSION}")
-#message(STATUS "| C compiler              : ${CMAKE_C_COMPILER}")
-#message(STATUS "| C compiler id           : ${CMAKE_C_COMPILER_ID}")
-#message(STATUS "| C compiler version      : ${CMAKE_C_COMPILER_VERSION}")
-#message(STATUS "| C++ compiler            : ${CMAKE_CXX_COMPILER}")
-#message(STATUS "| C++ compiler id         : ${CMAKE_CXX_COMPILER_ID}")
-#message(STATUS "| C++ compiler version    : ${CMAKE_CXX_COMPILER_VERSION}")
-#message(STATUS "  Using ccache if found : ${USE_CCACHE}")
-#message(STATUS "  BLAS                : ${BLAS_INFO}")
-#message(STATUS "  BLAS_HAS_SBGEMM     : ${BLAS_HAS_SBGEMM}")
-#message(STATUS "  LAPACK              : ${LAPACK_INFO}")
-#message(STATUS "Hardware")
-#message(STATUS "Compilers:")
-#message(STATUS "")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "")
-#message(STATUS "")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "")
-#message(STATUS "")
-#message(STATUS "===============================================================")
-#------------------------------------------------------------------------------
-# Making a summary of compiler location and compile flags
-#------------------------------------------------------------------------------
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "SUMMARY ON COMPILERS:")
-#message(STATUS "---------------------------------------------------------------")
-#message(STATUS "Your system is: ${CMAKE_SYSTEM_NAME}, ${CMAKE_SYSTEM}")
-#message(STATUS "Fortran Compiler is: ${CMAKE_Fortran_COMPILER}")
-#message(STATUS "C Compiler is: ${CMAKE_C_COMPILER}")
-#message(STATUS "C++ Compiler is: ${CMAKE_CXX_COMPILER}")
-#message(STATUS "Commander3 configuration is: ${CMAKE_BUILD_TYPE}. Compiler flags to be applied:")
-
-# message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS}")

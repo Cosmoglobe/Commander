@@ -31,9 +31,9 @@
 if(COMPILE_HEALPIX)
 	# Writing this to be consistent with fftw.cmake, otherwise 
 	# the if statement is unnecessary.
-	if(NOT HEALPIX_Fortran_FOUND)
-		message(STATUS "Missing component - Fortran - will be compiled from source")	
-	endif()
+	#if(NOT HEALPIX_Fortran_FOUND)
+	#	message(STATUS "Missing component - Fortran - will be compiled from source")	
+	#endif()
 	#------------------------------------------------------------------------------
 	# Below flags used to configure Libsharp as part of HEALPix
 	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
@@ -182,12 +182,12 @@ if(COMPILE_HEALPIX)
 	#include_directories("${HEALPIX_INSTALL_PREFIX}/include/libsharp")
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
-	message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
-	message(STATUS "HEALPix INCLUDES will be: ${HEALPIX_INCLUDE_DIRS}")
+	#message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
+	#message(STATUS "HEALPix INCLUDES will be: ${HEALPIX_INCLUDE_DIRS}")
 else()
 	add_custom_target(healpix ALL "")
-	message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
-	message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
+	#message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
+	#message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 endif()

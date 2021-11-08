@@ -26,7 +26,7 @@
 # here as well.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
 
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
@@ -158,8 +158,8 @@ if(COMPILE_HDF5)
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
-	message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
-	message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
+	#message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
+	#message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	add_custom_target(hdf5
@@ -179,8 +179,8 @@ else()
 		#${HDF5_INCLUDE_DIRS}
 		#${HDF5_INCLUDE_DIRS}/shared #static
 		)
-	message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
-	message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
+	#message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
+	#message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
 	#message(STATUS ${HDF5_Fortran_DEFINITIONS})
 	#message(STATUS ${HDF5_Fortran_LIBRARY})
 	#message(STATUS ${HDF5_LIBRARY})

@@ -25,12 +25,10 @@
 # Together with cURL, CFitsio is required to successfully compile HEALPix.
 #================================================================================
 
-# TODO: change cfitsio version to 3.49 and figure out how to link cURL correctly.
-# Also, try again to switch to cmake build and try to install healpix on top of it.
-message(STATUS "---------------------------------------------------------------")
-if(USE_SYSTEM_CFITSIO AND USE_SYSTEM_LIBS)
-	find_package(CFITSIO 3.470)
-endif()
+#message(STATUS "---------------------------------------------------------------")
+#if(USE_SYSTEM_CFITSIO AND USE_SYSTEM_LIBS)
+#	find_package(CFITSIO 3.470)
+#endif()
 
 #if(NOT CFITSIO_FOUND)
 if(COMPILE_CFITSIO)
@@ -153,8 +151,8 @@ if(COMPILE_CFITSIO)
 		)
 	include_directories(${CFITSIO_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
-	message(STATUS "CFITSIO LIBRARIES will be: ${CFITSIO_LIBRARIES}")
-	message(STATUS "CFITSIO INCLUDE DIRS will be: ${CFITSIO_INCLUDE_DIRS}")
+	#message(STATUS "CFITSIO LIBRARIES will be: ${CFITSIO_LIBRARIES}")
+	#message(STATUS "CFITSIO INCLUDE DIRS will be: ${CFITSIO_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	# adding empty targets in case CFITSIO was found on the system
@@ -173,7 +171,7 @@ else()
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	message(STATUS "CFITSIO LIBRARIES are: ${CFITSIO_LIBRARIES}")
-	message(STATUS "CFITSIO INCLUDE DIRS are: ${CFITSIO_INCLUDE_DIRS}")
+	#message(STATUS "CFITSIO LIBRARIES are: ${CFITSIO_LIBRARIES}")
+	#message(STATUS "CFITSIO INCLUDE DIRS are: ${CFITSIO_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 endif()

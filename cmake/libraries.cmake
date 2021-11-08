@@ -103,7 +103,7 @@ execute_process(
 add_custom_target(required_libraries ALL "" 
 	DEPENDS tempita 
 					mpi
-					#openmp
+					openmp
 					)
 #------------------------------------------------------------------------------
 # Dependent/Compiled libraries
@@ -177,10 +177,11 @@ if(USE_SYSTEM_LIBS)
 		endif()
 	endif()
 	# Other HDF5 dependencies
-	message(STATUS "---------------------------------------------------------------")
 	if(COMPILE_HDF5)	
 		if(USE_SYSTEM_LIBAEC)
+			message(STATUS "---------------------------------------------------------------")
 			# Placeholder for FindLIBAEC.cmake
+			message(STATUS "No LibAEC, will compile from source.")
 			# find_package(LIBAEC)
 			if(NOT LIBAEC_FOUND)
 				set(COMPILE_LIBAEC TRUE)

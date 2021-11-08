@@ -149,15 +149,15 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 			)
 		include_directories(${LIBSSH2_INCLUDE_DIR})
 		#------------------------------------------------------------------------------
-		message(STATUS "LibSSH2 LIBRARY will be: ${LIBSSH2_LIBRARY}")
-		message(STATUS "LibSSH2 INCLUDE DIR will be: ${LIBSSH2_INCLUDE_DIR}")
+		#message(STATUS "LibSSH2 LIBRARY will be: ${LIBSSH2_LIBRARY}")
+		#message(STATUS "LibSSH2 INCLUDE DIR will be: ${LIBSSH2_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	else()
 		# If libssh2 exists on the system, we just use this version instead.
 		add_custom_target(libssh2 ALL "")
 		#------------------------------------------------------------------------------
-		message(STATUS "LibSSH2 LIBRARY are: ${LIBSSH2_LIBRARY}")
-		message(STATUS "LibSSH2 INCLUDE DIR are: ${LIBSSH2_INCLUDE_DIR}")
+		#message(STATUS "LibSSH2 LIBRARY are: ${LIBSSH2_LIBRARY}")
+		#message(STATUS "LibSSH2 INCLUDE DIR are: ${LIBSSH2_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	endif()
 else()
