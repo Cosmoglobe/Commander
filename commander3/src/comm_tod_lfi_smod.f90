@@ -150,6 +150,7 @@ contains
 
     ! Initialize common parameters
     call res%tod_constructor(cpar, id_abs, info, tod_type)
+    if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Choose absolute bandpass sampling
     if (trim(res%freq) == '030') then
