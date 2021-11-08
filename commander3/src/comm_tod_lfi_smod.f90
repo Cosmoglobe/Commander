@@ -58,7 +58,7 @@ contains
     real(sp), dimension(:,:),    allocatable :: diode_data, corrected_data
     integer(i4b), dimension(:),  allocatable :: flag
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth, nfixed
     logical(lgt) :: pol_beam
     character(len=50) :: name
 
@@ -139,7 +139,7 @@ contains
     res%use_dpc_adc     = .true.
     res%use_dpc_gain_modulation = .true.
     res%symm_flags      = .true.
-    res%chisq_threshold = 8.d0 !9.d0
+    res%chisq_threshold = 5.d6 !9.d0
     res%nmaps           = info%nmaps
     res%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
@@ -333,11 +333,17 @@ contains
           if (res%myid == 0) write(*,*) '   Build reference load filter'
           nsmooth = res%get_nsmooth()
           ! hardcode low frequency components of load filter to 1
-          allocate(filter_sum(res%ndiode/2,nsmooth+3))
-          allocate(nu_saved(nsmooth+2))
+          nfixed = 8
+          allocate(filter_sum(res%ndiode/2,nsmooth+nfixed))
+          allocate(nu_saved(nsmooth+nfixed -1))
           nu_saved(1) = 1e-5
           nu_saved(2) = 1e-4
-          nu_saved(3) = 2e-4
+          nu_saved(3) = 1e-3
+          nu_saved(4) = 1e-2
+          nu_saved(5) = 1e-1
+          nu_saved(6) = 1.0
+          nu_saved(7) = 4.0
+          nu_saved(8) = 7.0
 
           allocate(freq_bins(nsmooth))
           call res%get_freq_bins(freq_bins)
@@ -349,8 +355,7 @@ contains
 
              ! convert freq bin edges to centers in nu_saved
              do j=1, nsmooth -1
-                nu_saved(j+3) = sqrt(freq_bins(j) * freq_bins(j+1))
-                !if(res%myid == 0) write(*,*) freq_bins(j), freq_bins(j+1), nu_saved(j+3)
+              nu_saved(j+nfixed) = sqrt(freq_bins(j) * freq_bins(j+1))
              end do
 
              do k = 1, res%nscan
@@ -377,7 +382,7 @@ contains
                 end if
  
                 ! compute the ref load transfer function
-                call res%compute_ref_load_filter(corrected_data, filter_sum(:,4:nsmooth+3), freq_bins, ierr)
+                call res%compute_ref_load_filter(corrected_data, filter_sum(:,nfixed+1:nsmooth+nfixed), freq_bins, ierr)
                 if (ierr == 0) filter_count = filter_count + 1
                 
                 deallocate(diode_data, corrected_data)
@@ -391,7 +396,7 @@ contains
              if (filter_count > 0) then
                 filter_sum = filter_sum/filter_count
                 ! force low frequencies to 1 
-                filter_sum(:, 1:4) = 1.d0
+                filter_sum(:, 1:nfixed+1) = 1.d0
              else
                 filter_sum = 1.d0
                 do j = 1, size(nu_saved)
@@ -399,12 +404,13 @@ contains
                 end do
              end if
 
-              j = 4 
+              j = nfixed+1 
              !remove the frequencies with the dipole so we don't get leakage
-              do while (j < nsmooth+3)
-               if (nu_saved(j) < 5e-1 .or. filter_sum(1,j) == 0.d0) then
-                 nu_saved(j:nsmooth+1) = nu_saved(j+1:nsmooth+2)
-                 filter_sum(:,j:nsmooth+1) = filter_sum(:,j+1:nsmooth+2)
+              do while (j < nsmooth+nfixed)
+               !if(res%myid == 0) write(*,*) nu_saved(j), filter_sum(1,j)
+               if (nu_saved(j) < nu_saved(nfixed) .or. filter_sum(1,j) == 0.d0) then
+                 nu_saved(j:nsmooth+nfixed-2) = nu_saved(j+1:nsmooth+nfixed-1)
+                 filter_sum(:,j:nsmooth+nfixed-2) = filter_sum(:,j+1:nsmooth+nfixed-1)
                  nsmooth = nsmooth -1
                else
                  j = j + 1
@@ -412,12 +418,12 @@ contains
              end do
 
              do j=1, res%ndiode/2
-               ! if(res%myid == 0) write(*,*) "Calling spline", nsmooth, nu_saved(1:nsmooth+2), filter_sum(j,1:nsmooth+2)
-                call spline_simple(res%ref_splint(i,j), nu_saved(1:nsmooth+2), filter_sum(j,1:nsmooth+2))
+                !if(res%myid == 0) write(*,*) "Calling spline", nsmooth, nu_saved(1:nsmooth+nfixed-1), filter_sum(j,1:nsmooth+nfixed-1)
+                call spline_simple(res%ref_splint(i,j), nu_saved(1:nsmooth+nfixed-1), filter_sum(j,1:nsmooth+nfixed-1))
                 if (res%myid == 0) then
                   open(100, file=trim(res%outdir)//'/load_filter_'//trim(res%label(i))//'_'//trim(res%diode_names(i,2*j-1))//'.dat')
-                  do k = 1, nsmooth+2
-                    write(100, fmt='(f30.8,f30.8)') nu_saved(k), filter_sum(j,k)
+                  do k = 1, int(50*res%samprate)
+                    write(100, fmt='(f30.8,f30.8)') k*0.01d0, splint(res%ref_splint(i,j), k*0.01d0)
                   end do
                   write(100, fmt='(f30.8,f30.8)') res%samprate/2, splint(res%ref_splint(i,j), res%samprate/2)
                   close(100)
@@ -446,7 +452,7 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     !
     ! Routine that processes the LFI time ordered data.
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -492,7 +498,7 @@ contains
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-
+    type(map_ptr),       dimension(1:,1:),       intent(inout), optional :: map_gain       ! (ndet)
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_polang
@@ -504,7 +510,7 @@ contains
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2, sigma0
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
     call int2string(iter, ctext)
@@ -539,7 +545,9 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
     call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -551,6 +559,9 @@ contains
     if (self%correct_sl) then
        if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
+          !write map_in to file
+          !call map_in(i,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(i))//".fits")
+
           !TODO: figure out why this is rotated
           call map_in(i,1)%p%YtW()  ! Compute sky a_lms
           self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
@@ -597,9 +608,9 @@ contains
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_calibration(self, 'abscal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
        !call sample_gain_psd(self, handle)
     end if
 
@@ -731,7 +742,7 @@ contains
     call binmap%dealloc()
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
-    deallocate(map_sky, procmask, procmask2)
+    deallocate(map_sky, m_gain, procmask, procmask2)
     call update_status(status, "dealloc_sky_maps")
 
     if (self%correct_sl) then
@@ -840,17 +851,26 @@ contains
     real(sp),          dimension(0:),          intent(in)    :: procmask
     real(sp),          dimension(:,:),         intent(out)   :: tod
 
-    integer(i4b) :: i,j,k,half,horn,n_mask, n_unmask
-    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data, s_sky, mask
+    integer(i4b) :: i,j,k,half,horn,n_mask, n_unmask, err, nsmooth
+    real(sp), allocatable, dimension(:,:) :: diode_data, corrected_data, s_sky, mask, differenced_data
+    real(dp), allocatable, dimension(:) :: nu_out
+    real(dp), allocatable, dimension(:,:) ::  binned_corr
     integer(i4b), allocatable, dimension(:,:,:) :: pix, psi
     integer(i4b), allocatable, dimension(:,:)   :: flag
     real(dp) :: r1, r2, sum1, sum2, A(3,3,2), b(3,2), x(3,2), t1
     logical(lgt) :: gmf_split
+    character(len=1024) :: filename
+
+    nsmooth = self%get_nsmooth()
 
     allocate(diode_data(self%scans(scan)%ntod, self%ndiode))
     allocate(corrected_data(self%scans(scan)%ntod, self%ndiode))
+    allocate(differenced_data(self%scans(scan)%ntod, self%ndiode/2))
+    allocate(nu_out(nsmooth), binned_corr(1, nsmooth))
     allocate(pix(self%scans(scan)%ntod,self%ndet,self%nhorn), psi(self%scans(scan)%ntod,self%ndet,self%nhorn), flag(self%scans(scan)%ntod,self%ndet))
     allocate(s_sky(self%scans(scan)%ntod, self%ndet), mask(self%scans(scan)%ntod, self%ndet))
+
+    call self%get_freq_bins(nu_out)
 
     diode_data = 0.0
 
@@ -985,7 +1005,24 @@ contains
         !tod(:,i) = self%diode_weights(i,1) * (diode_data(:,2) - self%R(scan,i,1) * diode_data(:,1)) + self%diode_weights(i,2)*(diode_data(:,4) - self%R(scan,i,2) * diode_data(:,3))
 !        do k = 0, 100
 !           self%R(scan,i,2) = 0.70 + 0.003*k
-           tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - self%R(scan,i,1) * corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - self%R(scan,i,2) * corrected_data(:,3))
+           
+            !determine cross corrlation between the two diodes
+            !binned_corr = 0.d0
+            !differenced_data(:,1) = corrected_data(:,2) - self%R(scan,i,1) * corrected_data(:,1)
+            !differenced_data(:,2) = corrected_data(:,4) - self%R(scan,i,2) * corrected_data(:,3)
+            !call self%compute_ref_load_filter(differenced_data, binned_corr, nu_out, err)
+
+            !write(filename, '(A12,I6.6,A3,A4)') trim('diode_xcorr_'), self%scans(scan)%chunk_num, trim(self%label(i)),  trim('.dat')
+            !open(58 + self%myid, file=filename)
+            !do j = 1, size(nu_out) 
+            !  write(58 + self%myid, *) nu_out(j), binned_corr(1,j)
+            !end do
+            !close(58 + self%myid)
+
+            tod(:,i) = self%diode_weights(i,1) * (corrected_data(:,2) - self%R(scan,i,1) * corrected_data(:,1)) + self%diode_weights(i,2)*( corrected_data(:,4) - self%R(scan,i,2) * corrected_data(:,3))
+
+            !tod(:,i) = self%diode_weights(i,2)*(corrected_data(:,4) - self%R(scan,i,2) * corrected_data(:,3))
+
 !           tod(:,i) = corrected_data(:,4) - self%R(scan,i,2) * corrected_data(:,3)
 !           write(*,*) self%R(scan,i,2), sum(tod(:,i)**2), variance(1.d0*tod(:,i))
 !        end do
@@ -1019,6 +1056,7 @@ contains
     ! end if
 
     deallocate(diode_data, corrected_data, pix, psi, flag, s_sky, mask)
+    deallocate(differenced_data, nu_out, binned_corr)
 
 !stop
 
@@ -1114,7 +1152,8 @@ contains
     
     call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
 
-    do i = 1, self%ndiode/2
+
+    do i = 1, size(data_in(1,:))/2
 
        dt_ref = data_in(:, 2*i-1)
        dt_sky = data_in(:, 2*i)
@@ -1209,7 +1248,9 @@ contains
       ! Filter ref with cross correlation transfer function
 !      open(58,file='filter.dat')
       do j=1, size(dv) -1
-        dv(j) = dv(j) * splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft))
+        filt = sqrt(splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft)))
+        if(filt > 1.d0) filt = 1.d0 ! fixes weird spline regions
+        dv(j) = dv(j) * filt
         !if(self%myid ==0) write(*,*) j, ind2freq(j, self%samprate, nfft), splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft)), dv(j)
         !write(58,*) ind2freq(j, self%samprate, nfft), splint(self%ref_splint(i), ind2freq(j, self%samprate, nfft))
       end do

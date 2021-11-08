@@ -47,7 +47,6 @@ program commander
   character(len=32)           :: arg
   integer                     :: arg_indx
 
-
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
     call get_command_argument(arg_indx, arg)
@@ -333,26 +332,51 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
-    real(dp)     :: t1, t2, dnu_prop
+    real(dp)     :: t1, t2, dnu_prop, rms_EE2_prior
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
-    type(map_ptr), allocatable, dimension(:,:)   :: s_sky
-    class(comm_map), pointer :: rms => null()
+    type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    class(comm_map),  pointer :: rms => null()
+    class(comm_map),  pointer :: cmbmap => null()
+    class(comm_comp), pointer :: c => null()
 
     ndelta      = cpar%num_bp_prop + 1
+
+    ! Set up EE l=2-subtracted CMB map for absolute gain calibration
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == 'cmb') then
+             rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
+             cmbmap        => comm_map(c%x)
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_before.fits')
+             call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_middle.fits')
+             call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_after.fits')
+          end if
+       end select
+       c => c%next()
+    end do
 
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
        if (cpar%myid == 0) then
           write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '    Processing TOD channel = ', trim(data(i)%label) 
+          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
        end if
+
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
        allocate(s_sky(ndet,ndelta))
+       allocate(s_gain(ndet,1))
        allocate(delta(0:ndet,npar,ndelta))
        allocate(eta(ndet))
        do k = 1, ndelta
@@ -406,11 +430,21 @@ contains
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             !call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false., cmb_pol=.false.) 
+             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
+
+          ! Evaluate sky for each detector for absolute gain calibration
+          if (k == 1) then
+             do j = 1, data(i)%tod%ndet
+                if (associated(cmbmap)) then
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., cmbmap=cmbmap) 
+                else
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
+                end if
+             end do
+          end if
 
        end do
 
@@ -420,7 +454,14 @@ contains
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
 
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+       if (cpar%myid_chain == 0) then
+         write(*,*) 'Processing ', trim(data(i)%label)
+       end if
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+       if (cpar%myid_chain == 0) then
+         write(*,*) 'Finished processing ', trim(data(i)%label)
+         write(*,*) ''
+       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -445,17 +486,19 @@ contains
        call update_mixing_matrices(i, update_F_int=.true.)       
 
        ! Clean up temporary data structures
-       do k = 1, ndelta
-          do j = 1, data(i)%tod%ndet
+       do j = 1, data(i)%tod%ndet
+          do k = 1, ndelta
              call s_sky(j,k)%p%dealloc
           end do
+          call s_gain(j,1)%p%dealloc
        end do
-       deallocate(s_sky, delta, eta)
+       deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr
        call nullify_monopole_amp(data(i)%label)
 
     end do
+    if (associated(cmbmap)) call cmbmap%dealloc()
 
   end subroutine process_TOD
 

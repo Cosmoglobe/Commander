@@ -211,7 +211,7 @@ module comm_tod_mod
   end type comm_tod
 
   abstract interface
-     subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+     subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
        implicit none
        class(comm_tod),                     intent(inout) :: self
@@ -222,6 +222,7 @@ module comm_tod_mod
        real(dp),          dimension(:,:,:), intent(inout) :: delta
        class(comm_map),                     intent(inout) :: map_out
        class(comm_map),                     intent(inout) :: rms_out
+       type(map_ptr),     dimension(:,:),   intent(inout), optional :: map_gain
      end subroutine process_tod
   end interface
 
