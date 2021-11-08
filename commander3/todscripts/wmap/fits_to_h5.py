@@ -408,84 +408,6 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
     file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
     det_list = []
-    # make huffman code tables
-    # Pixel, Psi, Flag
-    #pixArray = [[], [], []]
-    #todArray = []
-    #for j in range(len(band_labels)):
-    #    label = band_labels[j]
-    #    if label[:-2] == band.upper():
-    #        TOD = TODs[j]
-    #        gain = gain_guesses[j][i]
-    #        if gain < 0:
-    #          TOD = -TOD
-    #          gain = -gain
-    #                
-    #        todi = np.array_split(TOD, n_per_day)[i].astype('int')
-    #        sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-    #        scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
-
-    #        delta = np.diff(todi)
-    #        delta = np.insert(delta, 0, todi[0])
-    #        todArray.append(delta)
-
-
-    #        pix = np.array_split(pix_A[j//4], n_per_day)[i]
-    #        delta = np.diff(pix)
-    #        delta = np.insert(delta, 0, pix[0])
-    #        pixArray[0].append(delta)
-
-    #        pix = np.array_split(pix_B[j//4], n_per_day)[i]
-    #        delta = np.diff(pix)
-    #        delta = np.insert(delta, 0, pix[0])
-    #        pixArray[0].append(delta)
-
-
-    #        psi = np.array_split(psi_A[j//4], n_per_day)[i]
-    #        psi = np.where(psi < 0,         2*np.pi + psi,  psi)
-    #        psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
-    #        psiIndexes = np.digitize(psi, psiBins)
-    #        delta = np.diff(psiIndexes)
-    #        delta = np.insert(delta, 0, psiIndexes[0])
-    #        pixArray[1].append(delta)
-
-    #        psi = np.array_split(psi_B[j//4], n_per_day)[i]
-    #        psi = np.where(psi < 0,         2*np.pi + psi,  psi)
-    #        psi = np.where(psi >= 2*np.pi,  psi - 2*np.pi,  psi)
-    #        psiIndexes = np.digitize(psi, psiBins)
-    #        delta = np.diff(psiIndexes)
-    #        delta = np.insert(delta, 0, psiIndexes[0])
-    #        pixArray[1].append(delta)
-
-
-    #        N = Nobs_array[j//4]
-    #        flags = daflags[:,j//4]
-    #        flags_new = np.zeros(len(flags)*N)
-    #        for n in range(N):
-    #          if len(flags_new[n::N]) == len(flags):
-    #            flags_new[n::N] = flags
-    #          else:
-    #            flags_new[n::N] = flags[:len(flags_new[n::N])-len(flags)]
-    #        flags = np.array_split(flags_new, n_per_day)[i]
-    #        delta = np.diff(flags)
-    #        delta = np.insert(delta, 0, flags[0])
-    #        # just necessary to make the array have the correct shape. Redundant
-    #        # info.
-    #        pixArray[2].append(delta)
-    #        pixArray[2].append(delta)
-
-
-    #if compress:
-    #  h = huffman.Huffman("", nside)
-    #  h.GenerateCode(pixArray)
-    #  h_Tod = huffman.Huffman("", nside)
-    #  h_Tod.GenerateCode(todArray)
-
-    #  huffarray = np.append(np.append(np.array(h.node_max), h.left_nodes), h.right_nodes)
-    #  huffarray_Tod = np.append(np.append(np.array(h_Tod.node_max), h_Tod.left_nodes), h_Tod.right_nodes)
-
-
-    #f = h5py.File(file_out, 'a')
     for j in range(len(band_labels)):
         label = band_labels[j]
         if label[:-2] == band.upper():
@@ -508,43 +430,21 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
                 baseline = np.median(todi)
 
             pixA = np.array_split(pix_A[j//4], n_per_day)[i]
-            #deltapixA = np.diff(pixA)
-            #deltapixA = np.insert(deltapixA, 0, pixA[0])
-
 
             pixB = np.array_split(pix_B[j//4], n_per_day)[i]
-            #deltapixB = np.diff(pixB)
-            #deltapixB = np.insert(deltapixB, 0, pixB[0])
 
 
             psiA = np.array_split(psi_A[j//4], n_per_day)[i]
             psiA = np.where(psiA < 0,           2*np.pi+psiA,   psiA)
             psiA = np.where(psiA >= 2*np.pi,    psiA - 2*np.pi, psiA)
-            #psiIndexesA = np.digitize(psiA, psiBins)
-            #deltapsiA = np.diff(psiIndexesA)
-            #deltapsiA = np.insert(deltapsiA, 0, psiIndexesA[0])
 
             psiB = np.array_split(psi_B[j//4], n_per_day)[i]
             psiB = np.where(psiB < 0,           2*np.pi+psiB,   psiB)
             psiB = np.where(psiB >= 2*np.pi,    psiB - 2*np.pi, psiB)
-            #psiIndexesB = np.digitize(psiB, psiBins)
-            #deltapsiB = np.diff(psiIndexesB)
-            #deltapsiB = np.insert(deltapsiB, 0, psiIndexesB[0])
 
             N = Nobs_array[j//4]
-            flags = daflags[:,j//4]
-            flags_new = np.zeros(len(flags)*N)
-            for n in range(N):
-              if len(flags_new[n::N]) == len(flags):
-                flags_new[n::N] = flags
-              else:
-                flags_new[n::N] = flags[:len(flags_new[n::N])-len(flags)]
+            flags_new = daflags[j//4]
             flags = np.array_split(flags_new, n_per_day)[i]
-
-
-            #deltaflag = np.diff(flags)
-            #deltaflag = np.insert(deltaflag, 0, flags[0])
-
 
             if label[-2:] == '13':
                 comm_tod.init_file(label.replace('KA', 'Ka')[:-2], obsid, mode='w')
@@ -772,50 +672,6 @@ def gamma_from_pol(gal, pol):
 
     return sin_gamma, cos_gamma
 
-def q_interp(q_arr, t):
-    '''
-    Copied from interpolate_quaternions.pro
-
-    This is an implementation of Lagrange polynomials, equation 3.2.1 of
-    numerical recipes 3rd edition.
-
-
-    ;   input_q  - Set of 4 evenly-spaced quaternions (in a 4x4 array).
-    ;          See the COMMENTS section for how this array should
-    ;          be arranged.
-    ;   offset   - Dimensionless time offset relative to the first quaternion.
-    ;   This routine expects a unifomly sampled set of quaternions Q1,Q2,Q3,Q4.
-    ;   It interpolate a quaternion for any time between Q1 and Q4, inclusive.
-    ;   The output is calculated at a time T_Out, expressed in terms of the
-    ;   sampling of the input quaternions:
-    ;
-    ;                   T_Out - T(Q1)
-    ;       Offset = -----------------
-    ;                   T(Q2) - T(Q1)
-    ;
-    ;   where T(Q1) is the time at quaternion Q1, and so forth.  That is,
-    ;   the time for the output quaternion (variable OFFSET) should be
-    ;   a number in the range -1.000 to 4.000 inclusive.  Input values outside
-    ;   that range result in an error.  Input values outside 0.0 to 3.0 result
-    ;   in extrapolation instead of interpolation.
-    ;
-    ;       In other words, Offset is essentially a floating point subscript,
-    ;       similar to the those used by the IDL intrinsic routine INTERPOLATE.
-    ;
-    ;   For optimal results, OFFSET should be in the range [1.0, 2.0] -- that
-    ;   is, the input quaternions Q1...Q4 should be arranged such that 2 come
-    ;   before the desired output and 2 come after.
-
-    '''
-    xp0 = t-1
-    xn0 = -xp0
-    xp1 = xp0 + 1
-    xn1 = xp0 - 1
-    xn2 = xp0 - 2
-    w = np.array([xn0*xn1*xn2/6, xp1*xn1*xn2/2, xp1*xn0*xn2/2, xp1*xp0*xn1/6])
-    Qi = q_arr.dot(w)
-    Qi = Qi/np.sum(Qi**2, axis=0)**0.5
-    return Qi
 
 
 def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
@@ -1111,17 +967,17 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
         quat = data[1].data['QUATERN']
         gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
 
-        # If genflags == 1, there is an issue with the spacecraft attitude. This
-        # appears to be the quaternion problem.
         genflags = data[2].data['genflags']*2**11
         daflags = data[2].data['daflags']
         daflags = get_flags(data)
         for i in range(10):
-            daflags[:,i] += genflags
+            Nobs = Nobs_array[i]
+            for j in range(Nobs):
+                daflags[i][j::Nobs] += genflags
             if len(flags_all[i]) == 0:
-              flags_all[i] = daflags[:,i]
+                flags_all[i] = daflags[i]
             else:
-              flags_all[i] = np.concatenate((flags_all[i], daflags[:,i]))
+                flags_all[i] = np.concatenate((flags_all[i], daflags[i]))
         data.close()
 
 
@@ -1154,34 +1010,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
     pos_all = np.array(pos_all)
     vel_all = np.array(vel_all)
     time_all = np.array(time_all)
-    flags_all = np.array(flags_all).T
-    #print('TODs[1].shape')
-    #print(TODs[1].shape)
-    #print('TODs_all[1].shape')
-    #print(TODs_all[1].shape)
-    #print('psi_A[0].shape')
-    #print(psi_A[0].shape)
-    #print('len(psi_A[0])')
-    #print(len(psi_A[0]))
-    #print('len(psi_A_all[0])')
-    #print(len(psi_A_all[0]))
-    #print('pos.shape')
-    #print(pos.shape)
-    #print('pos_all.shape')
-    #print(pos_all.shape)
-    #print('time_all.shape')
-    #print(time_all.shape)
-    #print('time.shape')
-    #print(time.shape)
-    #print('daflags.shape')
-    #print(daflags.shape)
-    #print('flags_all.shape')
-    #print(flags_all.shape)
     for ind, band in enumerate(bands):
-        #args = [(file_ind, i, obsids[i], obs_inds[i], daflags, TODs, gain_guesses, baseline,
-        #            band_labels, band, psi_A, psi_B, pix_A, pix_B, 
-        #            alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-        #            fsamp*Nobs_array[ind], pos, vel, time, version, compress) for i in range(len(obs_inds))]
         args = [(comm_tod, file_ind, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
                 band_labels, band, psi_A_all, psi_B_all, pix_A_all, pix_B_all, 
                 alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
@@ -1195,11 +1024,6 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
 
 def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         center=True):
-    '''
-    Make 1 hdf5 file for every 10 fits files
-    # Actually, just doing 1 hdf5 file for every fits file. Too much clashing is
-    # happening right now.
-    '''
 
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
@@ -1261,6 +1085,5 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 if __name__ == '__main__':
-    #main(version=46)
-    test_flags()
-
+    main(version=46)
+    #test_flags()
