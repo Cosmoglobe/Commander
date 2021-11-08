@@ -36,7 +36,7 @@
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE RelWithDebInfo
 		CACHE STRING
-		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: Release." FORCE)
+		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: RelWithDebInfo." FORCE)
 endif()
 #------------------------------------------------------------------------------
 # Currently supported Compilers (CMake v3.21):
