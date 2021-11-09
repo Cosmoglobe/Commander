@@ -515,7 +515,7 @@ contains
     smooth_ = .true.
     if (present(smooth))  smooth_=smooth
 
-    if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
+    if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
 
     if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))

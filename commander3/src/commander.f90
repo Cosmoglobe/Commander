@@ -122,7 +122,7 @@ program commander
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-     write(*,fmt='(a)') ' |                           Commander3                              |'
+     write(*,fmt='(a)') ' |                             Commander3                            |'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
@@ -183,9 +183,10 @@ program commander
   ! **************************************************************
 
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
-     write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to read data = ', t2-t1, ' sec'
-     write(*,*) '   Starting Gibbs sampling'
+     !write(*,*) '|'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to read data = ', t2-t1, ' sec'
+     write(*,*) '|  Starting Gibbs sampling'
   end if
 
 
@@ -224,7 +225,7 @@ program commander
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') ' Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -266,7 +267,7 @@ program commander
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_user_samp_groups
            if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+              write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_user_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
@@ -295,12 +296,12 @@ program commander
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
            write(*,*) 'SAMPLE REJECTED'
         end if        
      end if
@@ -317,7 +318,7 @@ program commander
   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
   ! Clean up
-  if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '     Cleaning up and finalizing'
+  if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '|  Cleaning up and finalizing'
 
   ! And exit
   call free_status(status)
@@ -369,8 +370,8 @@ contains
        if (trim(data(i)%tod_type) == 'none') cycle
 
        if (cpar%myid == 0) then
-          write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
+          write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
+          write(*,*) '|  Processing TOD channel = ', trim(data(i)%tod_type) 
        end if
 
        ! Compute current sky signal for default bandpass and MH proposal
@@ -456,12 +457,15 @@ contains
        rms => comm_map(data(i)%info)
 
        if (cpar%myid_chain == 0) then
-         write(*,*) 'Processing ', trim(data(i)%label)
+         write(*,*) '|'
+         write(*,*) '|  Processing ', trim(data(i)%label)
+         write(*,*) '|'
        end if
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        if (cpar%myid_chain == 0) then
-         write(*,*) 'Finished processing ', trim(data(i)%label)
-         write(*,*) ''
+         write(*,*) '|  Finished processing ', trim(data(i)%label)
+         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+         !write(*,*) ''
        end if
 
        ! Update rms and data maps

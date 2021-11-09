@@ -95,129 +95,130 @@ contains
    !> @param[out]
    !
    ! ************************************************
-   subroutine get_od_pid_dependence(cpar, current_band, nprocs, ierr)
-     implicit none
-     ! Parameter file variables
-     type(comm_params), intent(in) :: cpar
-     integer(i4b),      intent(in) :: current_band !< current channel to work on (e.g. 30GHz) 
-     character(len=512)            :: filelist !< file, which contains correspondance between PIDs and ODs
-     character(len=512)            :: datadir  !< data directory, which contains all h5 files 
-     character(len=512)            :: simsdir  !< directory where to output simulations 
-     ! Simulation routine variables
-     integer(i4b) :: unit    !< the current file list value
-     integer(i4b) :: n_lines !< total number of raws in the, e.g. filelist_v15.txt file
-     integer(i4b) :: n_elem  !< number of unique elements (i.e. total number of ODs)
-     integer(i4b) :: val     !< dummy value
-     integer(i4b) :: iostatus !< to indicate error status when opening a file
-     integer(i4b) :: i       !< loop variables
-     ! MPI variables
-     integer(i4b) :: nprocs !< number of cores
-     integer(i4b), intent(in) :: ierr   !< MPI error status
-     integer(i4b) :: start_chunk !< Starting iteration value for processor of rank n
-     integer(i4b) :: end_chunk   !< End iteration value for processor of rank n
-     character(len=256), allocatable, dimension(:) :: input_array  !< array of input h5 file names
-     character(len=256), allocatable, dimension(:) :: dummy_array
-     character(len=256), allocatable, dimension(:) :: output_array !< array of output h5 file names
+!   subroutine get_od_pid_dependence(cpar, current_band, nprocs, ierr)
+!     implicit none
+!     ! Parameter file variables
+!     type(comm_params), intent(in) :: cpar
+!     integer(i4b),      intent(in) :: current_band !< current channel to work on (e.g. 30GHz) 
+!     character(len=512)            :: filelist !< file, which contains correspondance between PIDs and ODs
+!     character(len=512)            :: datadir  !< data directory, which contains all h5 files 
+!     character(len=512)            :: simsdir  !< directory where to output simulations 
+!     ! Simulation routine variables
+!     integer(i4b) :: unit    !< the current file list value
+!     integer(i4b) :: n_lines !< total number of raws in the, e.g. filelist_v15.txt file
+!     integer(i4b) :: n_elem  !< number of unique elements (i.e. total number of ODs)
+!     integer(i4b) :: val     !< dummy value
+!     integer(i4b) :: iostatus !< to indicate error status when opening a file
+!     integer(i4b) :: i       !< loop variables
+!     ! MPI variables
+!     integer(i4b) :: nprocs !< number of cores
+!     integer(i4b), intent(in) :: ierr   !< MPI error status
+!     integer(i4b) :: start_chunk !< Starting iteration value for processor of rank n
+!     integer(i4b) :: end_chunk   !< End iteration value for processor of rank n
+!     character(len=256), allocatable, dimension(:) :: input_array  !< array of input h5 file names
+!     character(len=256), allocatable, dimension(:) :: dummy_array
+!     character(len=256), allocatable, dimension(:) :: output_array !< array of output h5 file names
+!
+!     simsdir = trim(cpar%sims_output_dir)//'/'
+!     datadir = trim(cpar%datadir)//'/'
+!     filelist = trim(datadir)//trim(cpar%ds_tod_filelist(current_band))
+!
+!     n_lines = 0
+!     n_elem  = 0
+!     val     = 0
+!     ! processing files only with Master process
+!     if (cpar%myid == 0) then
+!       write(*,*) "   Starting copying files..."
+!       unit = getlun()
+!       ! open corresponding filelist, e.g. filelist_30_v15.txt
+!       open(unit, file=trim(filelist), action="read")
+!       ! we loop through the file until it reaches its end
+!       ! (iostatus will give positive number) to get the
+!       ! total number of lines in the file
+!       iostatus = 0
+!       do while(iostatus == 0)
+!         read(unit,*, iostat=iostatus) val
+!         n_lines = n_lines + 1
+!       end do
+!       close(unit)
+!       ! an input array of strings,
+!       ! which will store filenames
+!       allocate(input_array(1:n_lines))
+!       ! array which will store pid values
+!       !allocate(pid_array(1:n_lines))
+!       write(*,*) "--------------------------------------------------------------"
+!       ! once again open the same file to start reading
+!       ! it from the top to bottom
+!       open(unit, file=trim(filelist), action="read")
+!       ! we need to ignore the first line, otherwise it will appear inside an input array
+!       do i = 0, n_lines-2
+!         if (i == 0) then
+!           read(unit,*) val
+!         else
+!           read(unit,*) val, input_array(i)
+!           !pid_array(i) = val
+!           !write(*,*) "pid_array(i) is ", pid_array(i)
+!         end if
+!       end do
+!       close(unit)
+!       allocate(dummy_array(size(input_array)))
+!       write(*,*) "--------------------------------------------------------------"
+!       do i = 2, size(input_array)
+!         ! if the number already exists in result check next
+!         if (any(dummy_array == input_array(i))) cycle
+!         ! No match was found, so add it to the output
+!         n_elem = n_elem + 1
+!         dummy_array(n_elem) = input_array(i)
+!       end do
+!       deallocate(input_array)
+!       write(*,*) "--------------------------------------------------------------"
+!       ! reducing the size of output array of strings from 45000 to 1490
+!       allocate(output_array(1:n_elem))
+!       do i = 1, size(output_array)
+!         output_array(i) = dummy_array(i)
+!       end do
+!       deallocate(dummy_array)
+!     end if
+!     ! passing in the array length to all processors
+!     call MPI_BCAST(n_elem, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+!     ! allocating an array which contains a list of OD names
+!     if (cpar%myid /= 0) allocate(output_array(n_elem))
+!     ! mpi passes not a string but each character value,
+!     ! which means we need to multiply the length of each
+!     ! path to a file on the value of string length
+!     call MPI_BCAST(output_array, n_elem * 256, MPI_CHARACTER, 0, MPI_COMM_WORLD, ierr)
+!     !write(*,*) "n_elem", n_elem
+!     !write(*,*) "output_array", output_array(1490)
+!     ! dividing the task to equal (more or less) chunks to loop on
+!     call split_workload(1, size(output_array), nprocs, cpar%myid, start_chunk, end_chunk)
+!     ! synchronising processors
+!     call MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!     ! copying all the files with multiprocessing support
+!     ! each processor has its own chunk of data to work on
+!     do i = start_chunk, end_chunk
+!       call system("cp "//trim(output_array(i))//" "//trim(simsdir))
+!     end do
+!
+!
+!   end subroutine get_od_pid_dependence
 
-     simsdir = trim(cpar%sims_output_dir)//'/'
-     datadir = trim(cpar%datadir)//'/'
-     filelist = trim(datadir)//trim(cpar%ds_tod_filelist(current_band))
 
-     n_lines = 0
-     n_elem  = 0
-     val     = 0
-     ! processing files only with Master process
-     if (cpar%myid == 0) then
-       write(*,*) "   Starting copying files..."
-       unit = getlun()
-       ! open corresponding filelist, e.g. filelist_30_v15.txt
-       open(unit, file=trim(filelist), action="read")
-       ! we loop through the file until it reaches its end
-       ! (iostatus will give positive number) to get the
-       ! total number of lines in the file
-       iostatus = 0
-       do while(iostatus == 0)
-         read(unit,*, iostat=iostatus) val
-         n_lines = n_lines + 1
-       end do
-       close(unit)
-       ! an input array of strings,
-       ! which will store filenames
-       allocate(input_array(1:n_lines))
-       ! array which will store pid values
-       !allocate(pid_array(1:n_lines))
-       write(*,*) "--------------------------------------------------------------"
-       ! once again open the same file to start reading
-       ! it from the top to bottom
-       open(unit, file=trim(filelist), action="read")
-       ! we need to ignore the first line, otherwise it will appear inside an input array
-       do i = 0, n_lines-2
-         if (i == 0) then
-           read(unit,*) val
-         else
-           read(unit,*) val, input_array(i)
-           !pid_array(i) = val
-           !write(*,*) "pid_array(i) is ", pid_array(i)
-         end if
-       end do
-       close(unit)
-       allocate(dummy_array(size(input_array)))
-       write(*,*) "--------------------------------------------------------------"
-       do i = 2, size(input_array)
-         ! if the number already exists in result check next
-         if (any(dummy_array == input_array(i))) cycle
-         ! No match was found, so add it to the output
-         n_elem = n_elem + 1
-         dummy_array(n_elem) = input_array(i)
-       end do
-       deallocate(input_array)
-       write(*,*) "--------------------------------------------------------------"
-       ! reducing the size of output array of strings from 45000 to 1490
-       allocate(output_array(1:n_elem))
-       do i = 1, size(output_array)
-         output_array(i) = dummy_array(i)
-       end do
-       deallocate(dummy_array)
-     end if
-     ! passing in the array length to all processors
-     call MPI_BCAST(n_elem, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-     ! allocating an array which contains a list of OD names
-     if (cpar%myid /= 0) allocate(output_array(n_elem))
-     ! mpi passes not a string but each character value,
-     ! which means we need to multiply the length of each
-     ! path to a file on the value of string length
-     call MPI_BCAST(output_array, n_elem * 256, MPI_CHARACTER, 0, MPI_COMM_WORLD, ierr)
-     !write(*,*) "n_elem", n_elem
-     !write(*,*) "output_array", output_array(1490)
-     ! dividing the task to equal (more or less) chunks to loop on
-     call split_workload(1, size(output_array), nprocs, cpar%myid, start_chunk, end_chunk)
-     ! synchronising processors
-     call MPI_BARRIER(MPI_COMM_WORLD, ierr)
-     ! copying all the files with multiprocessing support
-     ! each processor has its own chunk of data to work on
-     do i = start_chunk, end_chunk
-       call system("cp "//trim(output_array(i))//" "//trim(simsdir))
-     end do
-
-
-   end subroutine get_od_pid_dependence
-
-   ! ************************************************
-   !
-   !> @brief Subroutine to copy original hdf5 files.
-   !! It first reads in values stored inside 
-   !! filelist*.txt to determine the total amount of
-   !! ODs (i.e. files) to copy. And then uses MPI to 
-   !! invoke multiple system calls to actually copy
-   !! the files to predifined location.
-   !
-   !> @author Maksym Brilenkov
-   !
-   !> @param[in]
-   !> @param[out]
-   !
-   ! ************************************************
    subroutine copy_LFI_tod(cpar, ierr)
+     !
+     ! Routine which copies the original hdf5 TODs for
+     ! subsequent processing.
+     ! 
+     ! It first reads-in values stored inside filelist*.txt
+     ! to determine the total amount of ODs (i.e. files) to
+     ! copy and then uses MPI to invoke multiple system calls
+     ! to copy the files into predifined location.
+     !
+     ! Arguments:
+     ! ----------
+     !
+     ! cpar:     derived type
+     !           Object containing parameters from the parameterfile.
+     !
      implicit none
      ! Parameter file variables
      type(comm_params), intent(in) :: cpar
@@ -360,13 +361,17 @@ contains
    end subroutine copy_LFI_tod
 
 
-  ! ************************************************
-  !
-  !> @brief Subroutine to copy and overwrite original
-  !! filelist.txt to point to the new (simulation) dir
-  !
-  ! ************************************************
   subroutine write_filelists_to_disk(cpar, ierr)
+    !
+    ! Routine which copies and overwrites the original
+    ! filelist.txt to point to the new (simulation) dir
+    !
+    ! Arguments:
+    ! ----------
+    !
+    ! cpar:     derived type
+    !           Object containing parameters from the parameterfile.
+    !
     implicit none
     ! Parameter file variables
     type(comm_params), intent(in) :: cpar
