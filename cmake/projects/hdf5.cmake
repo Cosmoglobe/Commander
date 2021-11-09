@@ -26,22 +26,22 @@
 # here as well.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
 
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
 # it still be working as before.
 #if(NOT (HDF5_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-if(USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
-	# Using static linking instead of dynamic
-	set(HDF5_USE_STATIC_LIBRARIES FALSE)#TRUE)
-	# Using parallel build instead of serial
-	set(HDF5_PREFER_PARALLEL TRUE)
-	#find_package(HDF5 1.10.0 COMPONENTS Fortran) # Fortran_HL)
-	find_package(HDF5 1.12.0 COMPONENTS Fortran Fortran_HL)
-endif()
+#if(USE_SYSTEM_HDF5 AND USE_SYSTEM_LIBS)
+#	# Using static linking instead of dynamic
+#	set(HDF5_USE_STATIC_LIBRARIES FALSE)#TRUE)
+#	# Using parallel build instead of serial
+#	set(HDF5_PREFER_PARALLEL TRUE)
+#	#find_package(HDF5 1.10.0 COMPONENTS Fortran) # Fortran_HL)
+#	find_package(HDF5 1.12.0 COMPONENTS Fortran Fortran_HL)
+#endif()
 
-if(NOT HDF5_FOUND)
+if(COMPILE_HDF5)
 	if(NOT HDF5_Fortran_FOUND)
 		message(STATUS "Missing component -- Fortran -- will be compiled from source.")	
 	endif()
@@ -158,8 +158,8 @@ if(NOT HDF5_FOUND)
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
-	message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
-	message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
+	#message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
+	#message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	add_custom_target(hdf5
@@ -179,8 +179,8 @@ else()
 		#${HDF5_INCLUDE_DIRS}
 		#${HDF5_INCLUDE_DIRS}/shared #static
 		)
-	message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
-	message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
+	#message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
+	#message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
 	#message(STATUS ${HDF5_Fortran_DEFINITIONS})
 	#message(STATUS ${HDF5_Fortran_LIBRARY})
 	#message(STATUS ${HDF5_LIBRARY})

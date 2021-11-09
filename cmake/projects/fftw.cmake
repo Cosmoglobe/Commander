@@ -26,20 +26,20 @@
 # separetely), that is why in the ned I have FFTW3_LIBRARIES instead of 
 # FFTW_LIBRARIES. Perhaps this is incorrect? Need to take a look into FindFFTW.cmake
 # and rewrite it if necessary.
-message(STATUS "---------------------------------------------------------------")
-if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
-	find_package(FFTW 
-		COMPONENTS 
-		DOUBLE 
-		DOUBLE_THREADS
-		FLOAT 
-		#FLOAT_MPI 
-		FLOAT_OPENMP
-		FLOAT_THREADS
-		)
-endif()
+#message(STATUS "---------------------------------------------------------------")
+#if(USE_SYSTEM_FFTW AND USE_SYSTEM_LIBS)
+#	find_package(FFTW 
+#		COMPONENTS 
+#		DOUBLE 
+#		DOUBLE_THREADS
+#		FLOAT 
+#		#FLOAT_MPI 
+#		FLOAT_OPENMP
+#		FLOAT_THREADS
+#		)
+#endif()
 # Is TRUE if one of the components were missing
-if(NOT FFTW_FOUND)
+if(COMPILE_FFTW)
 	#------------------------------------------------------------------------------
 	# Splitting the project into 5 steps:
 	# 1. To download the project
@@ -115,6 +115,7 @@ if(NOT FFTW_FOUND)
 					# Which libraries to produce
 					-DENABLE_OPENMP:BOOL=ON
 					-DENABLE_THREADS:BOOL=ON
+					-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
 					${_fftw_arg_}
 					# ensuring it will be installed inside `lib` and not `lib64`
 					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
@@ -134,7 +135,7 @@ if(NOT FFTW_FOUND)
 	#------------------------------------------------------------------------------
 	# Adding fftw3, fftw3_threads, and fftws3_omp into a library variable
 	# Defining this variable just to not to overwrite FFTW_LIBRARIES created by FindFFTW
-	set(FFTW3_LIBRARIES
+	set(FFTW_LIBRARIES
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3${CMAKE_STATIC_LIBRARY_SUFFIX}"		
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3_threads${CMAKE_STATIC_LIBRARY_SUFFIX}"	
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f${CMAKE_STATIC_LIBRARY_SUFFIX}"		
@@ -146,13 +147,13 @@ if(NOT FFTW_FOUND)
 		)
 	include_directories(${FFTW_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
-	message(STATUS "FFTW LIBRARIES will be: ${FFTW3_LIBRARIES}")
-	message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
+	#message(STATUS "FFTW LIBRARIES will be: ${FFTW_LIBRARIES}")
+	#message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(fftw ALL "")
-	set(FFTW3_LIBRARIES
+	set(FFTW_LIBRARIES
 		${FFTW_DOUBLE_LIB}
 		${FFTW_DOUBLE_THREADS_LIB}
 		${FFTW_FLOAT_LIB}
@@ -162,7 +163,7 @@ else()
 		)
 	include_directories(${FFTW_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
-	message(STATUS "FFTW LIBRARIES will be: ${FFTW3_LIBRARIES}")
-	message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
+	#message(STATUS "FFTW LIBRARIES will be: ${FFTW_LIBRARIES}")
+	#message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 endif()
