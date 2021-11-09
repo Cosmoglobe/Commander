@@ -441,11 +441,7 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))       
-          if (present(cmbmap) .and. trim(c%label) == 'cmb') then
-             alm     = c%getBand(band, alm_out=.true., det=det, amp_in=cmbmap_band%alm)
-          else
-             alm     = c%getBand(band, alm_out=.true., det=det)
-          end if
+          alm     = c%getBand(band, alm_out=.true.)
 !!$          if (c%x%info%myid == 0) then
 !!$             write(*,*) c%label
 !!$             write(*,*) shape(alm)
