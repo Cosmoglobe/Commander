@@ -145,8 +145,9 @@ contains
     logical(lgt),       intent(in) :: load
     class(comm_adc),    pointer    :: constructor_precomp
     
-    integer(i4b) :: ext(2), col
+    integer(i4b) :: ext(2), col, i, mingood, maxgood
     real(dp), dimension(:,:), allocatable :: buffer
+    real(dp), dimension(:),   allocatable :: buffer_in, buffer_out
 
     allocate(constructor_precomp)
         
@@ -159,8 +160,11 @@ contains
        ext(1) = ext(1)-1
     end do
 
-    allocate(constructor_precomp%adc_in(ext(1)))
-    allocate(constructor_precomp%adc_out(ext(1)))
+    allocate(buffer_in(ext(1)))
+    allocate(buffer_out(ext(1)))
+
+    buffer_in  = buffer(1:ext(1),col+1)
+    buffer_out = buffer(1:ext(1),col)
 
     constructor_precomp%nbins  = 500
     constructor_precomp%window = 10
@@ -170,12 +174,29 @@ contains
     allocate(constructor_precomp%v_bins(500))
     allocate(constructor_precomp%vbin_edges(501))
 
-    constructor_precomp%adc_in  = buffer(1:ext(1),col)
-    constructor_precomp%adc_out = buffer(1:ext(1),col+1)
-    constructor_precomp%v_min   = constructor_precomp%adc_in(1)
-    constructor_precomp%v_max   = constructor_precomp%adc_in(ext(1))
+    ! Find DPC min and max voltage values to grid out the voltages well
+    ! We assume that voltage in and voltage out share edges 
+    do i = 1, ext(1)
+       mingood = i
+       if (buffer_in(i) > 0.0) exit
+    end do
+    do i = ext(1), 1, -1
+       maxgood = i
+       if (buffer_in(i) /= 0.0 .and. buffer_in(i) /= 10.0) exit
+    end do
+
+    allocate(constructor_precomp%adc_in(maxgood-mingood))
+    allocate(constructor_precomp%adc_out(maxgood-mingood))
+
+    constructor_precomp%adc_in  = buffer(1:ext(1),col+1)
+    constructor_precomp%adc_out = buffer(1:ext(1),col)
+    constructor_precomp%v_min   = constructor_precomp%adc_in(mingood)
+    constructor_precomp%v_max   = constructor_precomp%adc_in(maxgood)
+
+    constructor_precomp%nval2(:)      = 0
+    constructor_precomp%rms_bins2(:) = 0.0
     deallocate(buffer)
-    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_out,dp), real(constructor_precomp%adc_in,dp))
+    call spline(constructor_precomp%sadc, real(constructor_precomp%adc_in,dp), real(constructor_precomp%adc_out,dp))
 
   end function constructor_precomp
 
@@ -273,20 +294,20 @@ contains
     
     ! The rest should be light enough to do on a single core
     if (self%myid == 0) then
-       open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
-       open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
-       open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
-       open(47, file=trim(self%outdir)//'/adc_vb_'//trim(name)//'.dat')
-       do i = 1, self%nbins
-          write(44, fmt='(e30.8)') self%rms_bins(i)
-          write(45, fmt='(e30.8)') self%rms2_bins(i)
-          write(46, fmt='(i9)')    self%nval(i)
-          write(47, fmt='(e30.8)') self%v_bins(i)
-       end do
-       close(44)
-       close(45)
-       close(46)
-       close(47)
+       ! open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
+       ! open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
+       ! open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
+       ! open(47, file=trim(self%outdir)//'/adc_vb_'//trim(name)//'.dat')
+       ! do i = 1, self%nbins
+       !    write(44, fmt='(e30.8)') self%rms_bins(i)
+       !    write(45, fmt='(e30.8)') self%rms2_bins(i)
+       !    write(46, fmt='(i9)')    self%nval(i)
+       !    write(47, fmt='(e30.8)') self%v_bins(i)
+       ! end do
+       ! close(44)
+       ! close(45)
+       ! close(46)
+       ! close(47)
 
        ! Allocate and intialize everything
        allocate(binmask(self%nbins))
@@ -316,7 +337,7 @@ contains
 
        ! Remove linear term 
        if (steamroll) then
-          write(*,*) 'Steamroll correction'
+          ! write(*,*) 'Steamroll correction'
           bad = .false.
           do i = 1, self%nbins
              if (binmask(i) == 0) cycle
@@ -334,7 +355,18 @@ contains
 
           ! Fit linear and dips jointly
           bad = .not. allocated(v_dips)
+
+          ! If we look at one of these diodes, don't even try
           if (trim(name) == '18S_sky10') bad = .true.
+          if (trim(name) == '22S_ref10') bad = .true.
+          if (trim(name) == '22S_sky11') bad = .true.
+          if (trim(name) == '22S_ref11') bad = .true.
+          if (trim(name) == '22S_sky10') bad = .true.
+          if (trim(name) == '24S_ref10') bad = .true.
+          if (trim(name) == '24S_sky10') bad = .true.
+          if (trim(name) == '26S_ref10') bad = .true.
+          if (trim(name) == '26S_sky10') bad = .true.
+          
           if (.not. bad) then
              model_dp = return_gauss_lin_model_dp(vbin_dp, rms_dp, binmask, self%nval, slope_dp, offset_dp, v_dips, handle, name) 
           else
@@ -392,41 +424,41 @@ contains
           
        end if
        ! Write to file binned rms, voltages, and response function to files
-       open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
-       open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
-       open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
-       open(47, file=trim(self%outdir)//'/adc_term1_'//trim(name)//'.dat')
-       open(48, file=trim(self%outdir)//'/adc_term2_'//trim(name)//'.dat')
-       open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
-       open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
-       open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
-       open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
-       open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
-       open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
-       do i = 1, self%nbins
-          write(44, fmt='(e30.8)') flat_dp(i)
-          write(45, fmt='(e16.8)') lin_dp(i)
-          write(46, fmt='(e16.8)') R(i)
-          write(47, fmt='(e16.8)') term1(i)
-          write(48, fmt='(e16.8)') term2(i)
-          write(49, fmt='(e16.8)') model_dp(i)
-          write(50, fmt='(e16.8)') rms_dp(i)
-          write(52, fmt='(e16.8)') self%adc_in(i)
-          write(53, fmt='(e16.8)') self%adc_out(i)
-          write(54, fmt='(i1)')    binmask(i)
-          write(55, fmt='(e16.8)') dRdV(i)
-       end do
-       close(44)
-       close(45)
-       close(46)
-       close(47)
-       close(48)
-       close(49)
-       close(50)
-       close(52)
-       close(53)
-       close(54)
-       close(55)
+       ! open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+       ! open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+       ! open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+       ! open(47, file=trim(self%outdir)//'/adc_term1_'//trim(name)//'.dat')
+       ! open(48, file=trim(self%outdir)//'/adc_term2_'//trim(name)//'.dat')
+       ! open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+       ! open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+       ! ! open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
+       ! ! open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
+       ! open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+       ! open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
+       ! do i = 1, self%nbins
+       !    write(44, fmt='(e30.8)') flat_dp(i)
+       !    write(45, fmt='(e16.8)') lin_dp(i)
+       !    write(46, fmt='(e16.8)') R(i)
+       !    write(47, fmt='(e16.8)') term1(i)
+       !    write(48, fmt='(e16.8)') term2(i)
+       !    write(49, fmt='(e16.8)') model_dp(i)
+       !    write(50, fmt='(e16.8)') rms_dp(i)
+       !    ! write(52, fmt='(e16.8)') self%adc_in(i)
+       !    ! write(53, fmt='(e16.8)') self%adc_out(i)
+       !    write(54, fmt='(i1)')    binmask(i)
+       !    write(55, fmt='(e16.8)') dRdV(i)
+       ! end do
+       ! close(44)
+       ! close(45)
+       ! close(46)
+       ! close(47)
+       ! close(48)
+       ! close(49)
+       ! close(50)
+       ! ! close(52)
+       ! ! close(53)
+       ! close(54)
+       ! close(55)
        
        deallocate(binmask, dummymask, vbin_dp, rms_dp, dRdV, R, model_dp, lin_dp, flat_dp)
           
@@ -565,7 +597,6 @@ contains
           if (iand(flag(j),flag0) .ne. 0 .or. iand(flag(j+1),flag0) .ne. 0) cycle 
           sum = sum + (tod_in(j+1)-tod_in(j))**2
        end do
-       ! write(*,*) myid,sum,j_max-j_min+1, sqrt(sum/(j_max-j_min+1)) 
        dV(i) = sqrt(sum/(j_max-j_min+1))
     end do
     
@@ -574,7 +605,7 @@ contains
        do i = 1, leng-1
           if (iand(flag(i),flag0) .ne. 0) cycle 
           j = int((tod_in(i)-self%vbin_edges(1))/binwidth) + 1
-          if (j > self%nbins .or. j < 1) cycle
+          if (j > self%nbins) cycle
           self%nval2(j)     = self%nval2(j) + 1
           self%rms_bins2(j) = self%rms_bins2(j) + dV(i)
        end do
