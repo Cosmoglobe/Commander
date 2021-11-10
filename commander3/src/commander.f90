@@ -302,7 +302,8 @@ program commander
      else
         if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
-           write(*,*) 'SAMPLE REJECTED'
+           write(*,*) '|'
+           write(*,*) '|  SAMPLE REJECTED'
         end if        
      end if
      
@@ -463,6 +464,7 @@ contains
        end if
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        if (cpar%myid_chain == 0) then
+         write(*,*) '|'
          write(*,*) '|  Finished processing ', trim(data(i)%label)
          write(*,fmt='(a)') ' ---------------------------------------------------------------------'
          !write(*,*) ''
