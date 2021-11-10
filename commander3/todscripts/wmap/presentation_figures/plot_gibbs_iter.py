@@ -11,12 +11,13 @@ thin = 1
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_bp_Qband/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_bp_Qband/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_test/chain_c0001.h5', 'r')
 #
 bands=[#'023-WMAP_K', 
        #'030-WMAP_Ka',
-       '040-WMAP_Q1',
-       '040-WMAP_Q2']
+       '040-WMAP_Q1']
+       #'040-WMAP_Q2']
        #'060-WMAP_V1',
        #'060-WMAP_V2']
        #'090-WMAP_W1',
@@ -29,7 +30,7 @@ x_imw9 = {}
 #x_imw9['023-WMAP_K'] = [-0.00067, 0.00536]
 #x_imw9['030-WMAP_Ka'] = [0.00353, 0.00154]
 x_imw9['040-WMAP_Q1'] = [-0.00013, 0.00414]
-x_imw9['040-WMAP_Q2'] = [0.00756, 0.00986]
+#x_imw9['040-WMAP_Q2'] = [0.00756, 0.00986]
 #x_imw9['060-WMAP_V1'] = [0.00053, 0.00250]
 #x_imw9['060-WMAP_V2'] = [0.00352, 0.00245]
 #x_imw9['090-WMAP_W1'] = [0.01134, 0.00173]
@@ -40,7 +41,7 @@ x_imw9u = {}
 #x_imw9u['023-WMAP_K'] = [0.00017, 0.00014]
 #x_imw9u['030-WMAP_Ka'] = [0.00014, 0.00008]
 x_imw9u['040-WMAP_Q1'] = [0.00046, 0.00025]
-x_imw9u['040-WMAP_Q2'] = [0.00052, 0.00115]
+#x_imw9u['040-WMAP_Q2'] = [0.00052, 0.00115]
 #x_imw9u['060-WMAP_V1'] = [0.00020, 0.00057]
 #x_imw9u['060-WMAP_V2'] = [0.00033, 0.00098]
 #x_imw9u['090-WMAP_W1'] = [0.00199, 0.00036]

@@ -5,8 +5,10 @@ import h5py
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
-burn = 3
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_test/chain_c0001.h5', 'r')
+burn = 0
 thin = 1
 burn = max(burn, thin)
 
@@ -91,6 +93,12 @@ label_list = [
          #['W213', 'W214', 'W223', 'W224'],
          #['W313', 'W314', 'W323', 'W324'],
          #['W413', 'W414', 'W423', 'W424']]
+
+
+bands = ['040-WMAP_Q1']
+label_list = [
+         ['Q113', 'Q114', 'Q123', 'Q124']
+         ]
 for band, labels in zip(bands, label_list):
     print('\n')
     print(band, labels)
