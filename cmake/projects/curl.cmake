@@ -26,14 +26,14 @@
 #================================================================================
 
 if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
-	message(STATUS "---------------------------------------------------------------")
-	# looking for cURL in the system. 
-	if(USE_SYSTEM_CURL AND USE_SYSTEM_LIBS)
-		# CMake configure scripts (in versions 7.69-7.74) doesn't work properly,
-		# so we look for cURL in a standard manner.
-		set(CURL_NO_CURL_CMAKE ON)
-		find_package(CURL 7.54)
-	endif()
+	#message(STATUS "---------------------------------------------------------------")
+	## looking for cURL in the system. 
+	#if(USE_SYSTEM_CURL AND USE_SYSTEM_LIBS)
+	#	# CMake configure scripts (in versions 7.69-7.74) doesn't work properly,
+	#	# so we look for cURL in a standard manner.
+	#	set(CURL_NO_CURL_CMAKE ON)
+	#	find_package(CURL 7.54)
+	#endif()
 
 	# TODO: to properly link zlib to curl (cmake build) need to export it in .bashrc (or in $ENV{ZLIB_ROOT})
 	# export ZLIB_ROOT=/path/to/zlib/root, e.g. ${CMAKE_INSTALL_PREFIX}
@@ -43,7 +43,7 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 	# SSH2 manually, but it uses its own find_package(s) which is good.
 	# Note2: Switched to version 7.78, which (should) have even better
 	# CMake support.
-	if(NOT CURL_FOUND)
+	if(COMPILE_CURL)
 		# Creating configure command for cURL
 		# Note: if checked downloaded fron git it needs autoreconf -fi
 		# to create configure first
@@ -166,16 +166,16 @@ if(NOT CFITSIO_FOUND AND CFITSIO_USE_CURL)
 		# including curl into a project
 		include_directories(${CURL_INCLUDE_DIR})
 		#------------------------------------------------------------------------------
-		message(STATUS "cURL LIBRARIES will be ${CURL_LIBRARIES}")
-		message(STATUS "cURL INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
+		#message(STATUS "cURL LIBRARIES will be ${CURL_LIBRARIES}")
+		#message(STATUS "cURL INCLUDE DIR will be ${CURL_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	else()
 		add_custom_target(curl ALL "")
 		include_directories(${CURL_INCLUDE_DIR})
 		include_directories(${CURL_BINARY_DIR})
 		#------------------------------------------------------------------------------
-		message(STATUS "cURL LIBRARIES are ${CURL_LIBRARIES}")
-		message(STATUS "cURL INCLUDE DIR is ${CURL_INCLUDE_DIR}")
+		#message(STATUS "cURL LIBRARIES are ${CURL_LIBRARIES}")
+		#message(STATUS "cURL INCLUDE DIR is ${CURL_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	endif()
 else()

@@ -27,12 +27,12 @@
 #================================================================================
 
 if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
-	message(STATUS "---------------------------------------------------------------")
-	if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
-		find_package(MBEDTLS)
-	endif()
+	#message(STATUS "---------------------------------------------------------------")
+	#if(USE_SYSTEM_MBEDTLS AND USE_SYSTEM_LIBS)
+	#	find_package(MBEDTLS)
+	#endif()
 
-	if(NOT MBEDTLS_FOUND) 
+	if(COMPILE_MBEDTLS) 
 		#------------------------------------------------------------------------------
 		# Note: the explicit splitting for download and install step is done on purpose
 		# to avoid errors when you want to recompile libraries for different owls etc.
@@ -130,15 +130,15 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 			)
 		include_directories(${MBEDTLS_INCLUDE_DIRS})
 		#------------------------------------------------------------------------------
-		message(STATUS "MbedTLS LIBRARIES will be: ${MBEDTLS_LIBRARIES}")
-		message(STATUS "MbedTLS INCLUDE DIRS will be: ${MBEDTLS_INCLUDE_DIRS}")
+		#message(STATUS "MbedTLS LIBRARIES will be: ${MBEDTLS_LIBRARIES}")
+		#message(STATUS "MbedTLS INCLUDE DIRS will be: ${MBEDTLS_INCLUDE_DIRS}")
 		#------------------------------------------------------------------------------
 	else()
 		# If mbedtls exists on the system, we just use this version instead.
 		add_custom_target(mbedtls ALL "")
 		#------------------------------------------------------------------------------
-		message(STATUS "MbedTLS LIBRARIES are: ${MBEDTLS_LIBRARIES}")
-		message(STATUS "MbedTLS INCLUDE DIRS are: ${MBEDTLS_INCLUDE_DIRS}")
+		#message(STATUS "MbedTLS LIBRARIES are: ${MBEDTLS_LIBRARIES}")
+		#message(STATUS "MbedTLS INCLUDE DIRS are: ${MBEDTLS_INCLUDE_DIRS}")
 		#------------------------------------------------------------------------------
 	endif()
 else()

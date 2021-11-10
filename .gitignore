@@ -36,6 +36,7 @@ lib64/
 # Fortran compiled output
 #---------------------------------------------------------------
 *.mod
+*.smod
 *.o
 *.optrpt
 *.a
@@ -47,6 +48,7 @@ lib64/
 *comm_process_resfiles
 *commander
 *sharp_test
+*.gitignore
 
 #---------------------------------------------------------------
 # Editors
@@ -61,3 +63,11 @@ lib64/
 Thumbs.db
 # vim
 *.swp
+
+#---------------------------------------------------------------
+# Other
+#---------------------------------------------------------------
+# QUIET beam files
+commander3/todscripts/quiet/quiet_qband_beam_effective_v1.fits
+commander3/todscripts/quiet/quiet_qband_bandpass_v1.txt
+commander3/todscripts/quiet/quiet_qband_beam_instrumental_v1.fits

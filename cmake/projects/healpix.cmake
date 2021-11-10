@@ -22,26 +22,37 @@
 # If it fails to do so, it will download, compile and install HEALPix from source.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
-if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
-	#find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
-	find_package(HEALPIX COMPONENTS SHARP Fortran)
-endif()
+#message(STATUS "---------------------------------------------------------------")
+#if(USE_SYSTEM_HEALPIX AND USE_SYSTEM_LIBS)
+#	#find_package(HEALPIX 3.70 COMPONENTS SHARP Fortran)
+#	find_package(HEALPIX COMPONENTS SHARP Fortran)
+#endif()
 
-if(NOT HEALPIX_FOUND)
+if(COMPILE_HEALPIX)
 	# Writing this to be consistent with fftw.cmake, otherwise 
 	# the if statement is unnecessary.
-	if(NOT HEALPIX_Fortran_FOUND)
-		message(STATUS "Missing component - Fortran - will be compiled from source")	
-	endif()
+	#if(NOT HEALPIX_Fortran_FOUND)
+	#	message(STATUS "Missing component - Fortran - will be compiled from source")	
+	#endif()
 	#------------------------------------------------------------------------------
 	# Below flags used to configure Libsharp as part of HEALPix
 	if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -qopenmp")
+		#set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -march=native -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+		#set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+		set(healpix_sharp2_C_FLAGS "-static-intel -O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -qopenmp -D__PURE_INTEL_C99_HEADERS__")
+		# MPI support, OpenMP, portable binary:
+		#set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
+		#set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
+		#set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
 		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
-		set(healpix_sharp2_C_FLAGS "-O4 -fast -mavx2 -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+	#elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
+		#set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+	elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
+		#set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
+		set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
 	endif()
 	#------------------------------------------------------------------------------
 	# Copying modyfied configure script to healpix root
@@ -100,7 +111,7 @@ if(NOT HEALPIX_FOUND)
 		# Variable introduced in v3.80  and it enables OMP by default -- we need to disble it.
 		#"SHARP_PARAL=0"
 		"./configure" 
-		"--auto=f90" #${healpix_components}" #profile,f90,c,cxx;" 
+		"--auto=sharp,f90" #${healpix_components}" #profile,f90,c,cxx;" 
 		#"--prefix=<INSTALL_DIR>" 
 		)
 	#------------------------------------------------------------------------------
@@ -149,9 +160,9 @@ if(NOT HEALPIX_FOUND)
 		LOG_BUILD					ON
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
-		CONFIGURE_COMMAND "${healpix_copy_configure_script}"
-		COMMAND						"${healpix_configure_command}"
-		#CONFIGURE_COMMAND	"${healpix_configure_command}"
+		#CONFIGURE_COMMAND "${healpix_copy_configure_script}"
+		#COMMAND						"${healpix_configure_command}"
+		CONFIGURE_COMMAND	"${healpix_configure_command}"
 		# HEALPix doesn't have an install command 
 		INSTALL_COMMAND		""
 		# copying Healpix and all its files (src and compiled) into CMAKE_INSTALL_PREFIX directory
@@ -171,12 +182,12 @@ if(NOT HEALPIX_FOUND)
 	#include_directories("${HEALPIX_INSTALL_PREFIX}/include/libsharp")
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
-	message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
-	message(STATUS "HEALPix INCLUDES will be: ${HEALPIX_INCLUDE_DIRS}")
+	#message(STATUS "HEALPIX LIBRARIES will be: ${HEALPIX_LIBRARIES}")
+	#message(STATUS "HEALPix INCLUDES will be: ${HEALPIX_INCLUDE_DIRS}")
 else()
 	add_custom_target(healpix ALL "")
-	message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
-	message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
+	#message(STATUS "HEALPix LIBRARIES are: ${HEALPIX_LIBRARIES}")
+	#message(STATUS "HEALPix INCLUDES are: ${HEALPIX_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 	include_directories("${HEALPIX_INCLUDE_DIRS}")
 endif()
