@@ -3,7 +3,6 @@
 #---------------------------------------------------------------
 .Python
 *.pyc
-*.npy
 # Setuptools distribution folder.
 /dist/
 /sdist/

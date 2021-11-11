@@ -402,9 +402,9 @@ contains
          if (self%verbosity > 0 .and. self%myid == 0) then
            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          end if
-         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                        & epsil(l), procmask, map_full, M_diag, b_map, l, &
-                        & prefix, postfix)
+         !call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+         !               & epsil(l), procmask, map_full, M_diag, b_map, l, &
+         !               & prefix, postfix)
       end do
       if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
     !end if
