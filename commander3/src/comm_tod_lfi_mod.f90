@@ -65,6 +65,7 @@ module comm_tod_lfi_mod
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
      type(double_pointer), allocatable, dimension(:)    :: gmf_splits      ! ndet
      character(len=10)                                  :: adc_mode        ! gauss, dpc, none
+     logical(lgt),      allocatable, dimension(:,:)     :: apply_adc       ! ndet, n_diode
    contains
      procedure     :: process_tod             => process_lfi_tod
      procedure     :: diode2tod_inst          => diode2tod_lfi
