@@ -351,7 +351,7 @@ contains
           diprange = 10
 
           ! Identify dip locations for the fitting search
-          call return_dips_dp(vbin_dp, flat_dp, binmask, diprange, v_dips)
+          call return_dips_dp(vbin_dp, flat_dp, binmask, diprange, v_dips, name)
 
           ! Fit linear and dips jointly
           bad = .not. allocated(v_dips)
@@ -423,7 +423,7 @@ contains
           end do
           
        end if
-       ! Write to file binned rms, voltages, and response function to files
+       ! ! Write to file binned rms, voltages, and response function to files
        ! open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
        ! open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
        ! open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
@@ -871,7 +871,7 @@ contains
     
   end subroutine return_linreg_dp
 
-  module subroutine return_dips_dp(x,y,mask,diprange,res)
+  module subroutine return_dips_dp(x,y,mask,diprange,res,name)
     ! ====================================================================
     ! Dip identifying subroutine that returns the first dip location and
     ! the distance between dips in the RMS
@@ -900,9 +900,12 @@ contains
     real(dp),     dimension(:), intent(in)    :: x, y
     integer(i4b), dimension(:), intent(inout) :: mask
     integer(i4b),               intent(in)    :: diprange
+    character(len=50),          intent(in)    :: name
     logical(lgt), dimension(:), allocatable   :: truths
+    integer(i4b)                              :: loc(1)
     integer(i4b), dimension(:), allocatable   :: dips
     integer(i4b), dimension(:), allocatable   :: res
+    real(dp),     dimension(:), allocatable   :: manual_dips
 
     integer(i4b)                              :: leng, i, j, count
     integer(i4b)                              :: ndips
@@ -946,34 +949,67 @@ contains
     ! Since the linear portion has been removed, mean should be near zero,
     ! so dips are identified first by finding y-values where y < -1.0*y_std
     
-    ! Don't allow dips along the edges
-    do i = 10, leng-10
-       if (mask(i) == 0) cycle
-       ! Only consider variations
-       if (y(i) < y_mean-2.5*y_std .and. y(i-1) < y_mean-2.5*y_std .and. y(i+1) < y_mean-2.5*y_std) then
-          truths(:) = .false.
-          ! search local range
-          do j = 1, diprange
-             if (i+j == leng) then
-                truths(j:) = .true.
-                exit
+    if (trim(name) == '22M_ref01') then
+       ndips = 7
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.6347,0.6415,0.6488,0.6557,0.6644,0.6717,0.6785/)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '22M_sky01') then
+       ndips = 7
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.6203,0.6271,0.6344,0.6415,0.6502,0.6573,0.6643/)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '23S_ref11') then
+       ndips = 8
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.6199,0.6269,0.6339,0.6410,0.6480,0.6547,0.6616,0.6687/)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '23S_sky11') then
+       ndips = 8
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.5988,0.6057,0.6128,0.6198,0.6269,0.6336,0.6406,0.6476/)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else
+       ! Don't allow dips along the edges
+       do i = 10, leng-10
+          if (mask(i) == 0) cycle
+          ! Only consider variations
+          if (y(i) < y_mean-2.0*y_std .and. y(i-1) < y_mean-2.0*y_std .and. y(i+1) < y_mean-2.0*y_std) then
+             truths(:) = .false.
+             ! search local range
+             do j = 1, diprange
+                if (i+j == leng) then
+                   truths(j:) = .true.
+                   exit
+                end if
+                ! if lower than your neighbors, share the good news!
+                if (y(i) < y(i-j) .and. y(i) < y(i+j)) then
+                   truths(j) = .true.
+                else
+                   truths(j) = .false.
+                end if
+             end do
+             ! If lower than all your neighbors
+             if (all(truths)) then
+                ! append a dip location
+                ndips       = ndips + 1
+                dips(ndips) = i
              end if
-             ! if lower than your neighbors, share the good news!
-             if (y(i) < y(i-j) .and. y(i) < y(i+j)) then
-                truths(j) = .true.
-             else
-                truths(j) = .false.
-             end if
-          end do
-          ! If lower than all your neighbors
-          if (all(truths)) then
-             ! append a dip location
-             ndips       = ndips + 1
-             dips(ndips) = i
           end if
-       end if
-    end do
-    ! write(*,*) ndips
+       end do
+    end if
     if (ndips .gt. 0) then
        allocate(res(ndips))
        res = dips(1:ndips)
@@ -1114,8 +1150,6 @@ contains
        call return_linreg_dp(x,dipless,mask,a2,b)       
 
        a = a + a2
-       ! write(*,*) 'slope:       offset:'
-       ! write(*,*) a,b
 
        if (abs((a-a_old)/a_old) < 1.d-4 .and. l > 1) exit
 
