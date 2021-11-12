@@ -102,6 +102,8 @@ module comm_map_mod
      procedure     :: get_alm_TEB
      procedure     :: remove_MDpoles
      procedure     :: fit_MDpoles
+     procedure     :: remove_EE_l2_alm
+     procedure     :: add_random_fluctuation
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -1603,5 +1605,78 @@ contains
     call mpi_bcast(fit_MDpoles, size(fit_MDpoles), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
   end function fit_MDpoles
+
+
+  subroutine remove_EE_l2_alm(self, mask)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    class(comm_map),                    intent(in)    :: mask
+
+    integer(i4b) :: i, j, ierr
+    real(dp) :: alm(-2:2), A(-2:2,-2:2), b(-2:2)
+    real(dp), allocatable, dimension(:,:,:) :: Ylm
+    class(comm_map), pointer :: map
+
+    ! Generate pixel-space map from alms
+    call self%Y()
+
+    !call mask%writeFITS('mask.fits')
+
+    ! Compute basis functions
+    map => comm_map(self)
+    allocate(Ylm(0:self%info%np-1,3,-2:2))
+    do i = -2, 2
+       map%alm        = 0.d0
+       call map%info%lm2i(2,i,j)
+       if (j /= -1) map%alm(j,2) = 1.d0
+       call map%Y()
+       Ylm(:,:,i) = map%map * mask%map
+       !call map%writeFITS('Ylm.fits')
+    end do
+
+    ! Set up linear system
+    do i = -2, 2
+       do j = -2, i
+          A(i,j) = sum(Ylm(:,:,i)*Ylm(:,:,j))
+          A(j,i) = A(i,j)
+       end do
+       b(i) = sum(self%map*Ylm(:,:,i))
+       !write(*,*) real(A(i,:),sp), real(b(i),sp)
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, A, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, b, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+
+    ! Solve linear system
+    call solve_system_real(A, alm, b)
+
+    ! Subtract modes from alm array
+    do i = -2, 2
+       call self%info%lm2i(2,i,j)
+       if (j /= -1) self%alm(j,2) = self%alm(j,2) - alm(i)
+    end do
+
+    ! Clean up
+    deallocate(Ylm)
+    call map%dealloc()
+    
+  end subroutine remove_EE_l2_alm
+
+  subroutine add_random_fluctuation(self, ell, pol, sigma, handle)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    integer(i4b),                       intent(in)    :: ell, pol
+    real(dp),                           intent(in)    :: sigma
+    type(planck_rng),                   intent(inout) :: handle
+
+    integer(i4b) :: m, i
+
+    do m = -ell, ell
+       call self%info%lm2i(ell, m, i)
+       if (i /= -1) then
+          self%alm(i,pol) = self%alm(i,pol) + sigma * rand_gauss(handle)
+       end if
+    end do
+
+  end subroutine add_random_fluctuation
 
 end module comm_map_mod

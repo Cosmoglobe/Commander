@@ -32,7 +32,7 @@ COMP_BETA_PIXREG_INITVALUE_MAP&& = none
 COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .true.
 COMP_BETA_COMBINED_MONOPOLE_TYPE&& = monopole-dipole
 COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sample monopoles from during combined sampling. separate with comma ','
-COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_synch_beta_BP10_new_chisqmask_n1024_lim75pct.fits
+COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
 

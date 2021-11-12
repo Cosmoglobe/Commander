@@ -19,6 +19,7 @@
 !
 !================================================================================
 submodule (comm_tod_gain_mod) comm_tod_gain_smod
+  use omp_lib
 contains
 
   module subroutine calculate_gain_mean_std_per_scan(tod, scan_id, s_invsqrtN, mask, s_tot, handle, mask_lowres, tod_arr)
@@ -152,11 +153,12 @@ contains
 ! Compute gain as g = (d-n_corr-n_temp)/(map + dipole_orb), where map contains an 
   ! estimate of the stationary sky
   ! Eirik: Update this routine to sample time-dependent gains properly; results should be stored in self%scans(i)%d(j)%gain, with gain0(0) and gain0(i) included
-  module subroutine sample_smooth_gain(tod, handle, dipole_mods)
+  module subroutine sample_smooth_gain(tod, handle, dipole_mods, smooth)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
     type(planck_rng),                  intent(inout)  :: handle
     real(dp),   dimension(:, :),       intent(in)     :: dipole_mods
+    logical(lgt), optional,            intent(in)     :: smooth
 
 
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
@@ -171,6 +173,10 @@ contains
     integer(i4b),   allocatable, dimension(:, :) :: window_sizes
     integer(i4b), save :: cnt = 0
     character(len=128)  :: kernel_type
+    logical(lgt) :: smooth_, sample_per_jump
+
+    smooth_ = .true.
+    if (present(smooth) ) smooth_ = smooth
 
     ndet       = tod%ndet
     nscan_tot  = tod%nscan_tot
@@ -188,21 +194,29 @@ contains
           g(k,j,2) = tod%scans(i)%d(j)%gain_invsigma
        end do
     end do
-!    if (tod%myid == 0) then
+
+    if (.not. smooth) then
+       ! If the time-dependent gain has high signal-to-noise per scan, then we
+       ! don't need to Wiener filter, and instead implement equation (28) of
+       ! Gjerlow et al. 2020.
+       do j = 1, ndet
+          do i = 1, tod%nscan
+             k        = tod%scanid(i)
+             if (.not. tod%scans(i)%d(j)%accept) cycle
+             tod%scans(i)%d(j)%dgain = g(k,j,1)/g(k,j,2)
+             if (trim(tod%operation)=='sample') tod%scans(i)%d(j)%dgain = tod%scans(i)%d(j)%dgain + rand_gauss(handle)/sqrt(g(k,j,2))
+             tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
+          end do
+       end do
+    else
        call mpi_allreduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
             & tod%comm, ierr)
-!    else
-!       call mpi_reduce(g,            g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
-!            & 0, tod%comm, ierr)
-!    end if
 
        do j = 1+tod%myid, ndet, tod%numprocs
          if (all(g(:, j, 1) == 0)) continue
-!          fknee = 0.002d0 / (60.d0 * 60.d0) ! In seconds
-!          alpha = -1.d0
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
-          call normalize_gain_variance(g(:,j,1), g(:,j,2), tod%gain_sigma_0(j))
+          if (count(g(:,j,2)>0) > 500) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
@@ -214,7 +228,7 @@ contains
                 end if
              end do
              close(58)
-             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)
@@ -226,22 +240,36 @@ contains
              close(68)
           end if
 
-          call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
-             & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
+          if (sample_per_jump) then
+             if (tod%myid == 0) then
+                write(*, *) 'Estimating per gain jump'
+             end if
+             do k = 1, size(tod%jumplist(j, :)) - 2
+                call wiener_filtered_gain(g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 1), g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                   & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+             end do
+               ! Final chunk
+             call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                  & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          else
+             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+                & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+          end if
 
-         ! Force noise-weighted average to zero
+         ! Force flat average to zero
          mu = 0.d0
          denom = 0.d0
          do k = 1, nscan_tot
             if (g(k, j, 2) > 0.d0) then
-               mu    = mu + g(k,j,1)/g(k,j,2)
-               denom = denom + g(k,j,2)
+               mu    = mu    + g(k,j,1)
+               denom = denom + 1.d0
             end if
          end do
          mu = mu / denom
          !write(*,*) 'g = ', mu
          where(g(:,j,2) > 0.d0) 
-            g(:,j,1) = g(:,j,1) - mu * g(:,j,2)
+            g(:,j,1) = g(:,j,1) - mu
          end where
 
           if (j == 1) then
@@ -254,62 +282,39 @@ contains
              close(58)
           end if
        end do
-!    end if
-    ! Distribute and update results
-    do j = 1, ndet
-      !call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
-      !     & mod(j-1,tod%numprocs), tod%comm, ierr)
-      call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
-    end do
-    do j = 1, ndet
-       do i = 1, tod%nscan
-          k        = tod%scanid(i)
-          !if (g(k, j, 2) <= 0.d0) cycle
-          tod%scans(i)%d(j)%dgain = g(k,j,1)
-          tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + g(k,j,1)
-          !write(*,*) j, k,  tod%gain0(0), tod%gain0(j), g(k,j,1), tod%scans(i)%d(j)%gain 
+
+       ! Distribute and update results
+       do j = 1, ndet
+         call mpi_bcast(tod%gain_sigma_0(j),              1, MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)
+         call mpi_bcast(g(:,j,:),            size(g(:,j,:)), MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
        end do
-    end do
+       do j = 1, ndet
+          do i = 1, tod%nscan
+             k        = tod%scanid(i)
+             !if (g(k, j, 2) <= 0.d0) cycle
+             tod%scans(i)%d(j)%dgain = g(k,j,1)
+             tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + g(k,j,1)
+             !write(*,*) j, k,  tod%gain0(0), tod%gain0(j), g(k,j,1), tod%scans(i)%d(j)%gain 
+          end do
+       end do
+    end if
 
     deallocate(g, lhs, rhs, g_over_s)
 
   end subroutine sample_smooth_gain
 
-  module subroutine normalize_gain_variance(g1, g2, sigma0)
+  module subroutine compute_minimum_sigma0(g2, window, sigma0)
     implicit none
-    real(dp), dimension(:), intent(inout) :: g1
-    real(dp), dimension(:), intent(inout) :: g2
+    real(dp), dimension(:), intent(in)    :: g2
+    integer(i4b),           intent(in)    :: window
     real(dp),               intent(out)   :: sigma0
 
-    integer(i4b) :: k, l, nscan_tot, window
+    integer(i4b) :: k, l, nscan_tot, n
     real(dp)     :: var, minvar, invvar
-    real(dp), allocatable, dimension(:)   :: g_over_s
 
-    nscan_tot = size(g1)
-    allocate(g_over_s(nscan_tot))
-
-    ! Rescale uncertainties to have local unit reduced variance
-    where (g2 > 0) 
-       g_over_s = g1/sqrt(g2)  ! gain / stddev
-    elsewhere
-       g_over_s = 0.d0
-    end where
-    var = 0.
-    do k = 1, nscan_tot-1
-       if (g_over_s(k) /= 0.d0 .and. g_over_s(k+1) /= 0.d0) then
-          g_over_s(k) = (g_over_s(k+1)-g_over_s(k))/sqrt(2.d0)
-          var         = var + g_over_s(k)**2
-       end if
-    end do
-    if (count(g_over_s > 0) > 0) then
-       var = var/count(g_over_s > 0)
-       write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
-       g2 = g2 / var
-       g1 = g1 / var
-    end if
+    nscan_tot = size(g2)
 
     ! Compute minimum variance 
-    window = 100
     minvar = 0.d0
     do k = window+1, nscan_tot-window ! First, compute the minimum variance, as estimated over a gliding window
        invvar = 0.d0
@@ -324,11 +329,8 @@ contains
        end if
     end do
     sigma0 = 1d0 * 1/sqrt(minvar)
-    write(*,*) ' New sigma0 = ', sigma0
 
-    deallocate(g_over_s)
-
-  end subroutine normalize_gain_variance
+  end subroutine compute_minimum_sigma0
 
 
    ! This is implementing equation 16, adding up all the terms over all the sums
@@ -429,7 +431,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.8)') '      Abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.8)') ' |    Abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -491,7 +493,7 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         write(*,*) 'relcal = ', real(x,sp)
+         write(*,*) '|  relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -509,6 +511,7 @@ contains
   end subroutine sample_relcal
 
   module subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    !
     !  Subroutine to sample the transmission imbalance parameters, defined in
     !  the WMAP data model as the terms x_im; given the definition
     !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})
@@ -720,7 +723,6 @@ contains
      integer(i4b)   :: i
 
      nscan = size(b)
-!     nfft = 2 * nscan
      nfft = nscan
      n = nfft / 2 + 1
      samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
@@ -729,7 +731,7 @@ contains
         freqs(i) = i * (samprate * 0.5) / (n - 1)
      end do
 
-     nomp = 1
+     nomp = OMP_GET_THREAD_NUM()
      call dfftw_init_threads(err)
      call dfftw_plan_with_nthreads(nomp)
      allocate(dt(nfft), dv(0:n-1))
@@ -741,9 +743,7 @@ contains
 
      allocate(inv_N_corr(0:n-1))
      allocate(fluctuations(nscan))
-!     allocate(temp(nscan))
      allocate(precond(0:n-1))
-     !allocate(precond(n))
      allocate(fourier_fluctuations(0:n-1))
 
      !write(*, *) 'Sigma_0: ', sigma_0
@@ -761,10 +761,8 @@ contains
         do i = 1, nscan
            if (inv_N_wn(i) > 0) then
               fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
-              !fluctuations(i) = sqrt(inv_N_wn(i)) * rand_gauss(handle)
            end if
            b(i) = b(i) + fluctuations(i)
-           !b(i) = fluctuations(i)
          end do
       end if
 
@@ -776,9 +774,6 @@ contains
       end do
       !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
 
-!      temp = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .true.)
-!      precond = 1.d0
-!      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back, .false.)
       b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)
       deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations, precond)
           
@@ -787,15 +782,15 @@ contains
 
   end subroutine wiener_filtered_gain
 
-  module subroutine fft_fwd(dt, dv, plan_fwd)
+  module subroutine fft_fwd(time, fourier, plan_fwd)
      !
      ! Given a fft plan, transforms a vector from time domain to Fourier domain.
      !
      ! Arguments:
      ! ----------
-     ! vector:          real(dp) array
+     ! time:            real(dp) array
      !                  The original time-domain vector.
-     ! fourier_vector:  complex(dpc) array
+     ! fourier:         complex(dpc) array
      !                  The array that will contain the Fourier vector.
      ! plan_fwd:        integer*8
      !                  The fft plan to carry out the transformation
@@ -806,25 +801,29 @@ contains
      !                  At exit will contain the Fourier domain vector.
 
      implicit none
-     real(dp),     dimension(1:), intent(in)     :: dt
-     complex(dpc), dimension(0:), intent(out)    :: dv
+     real(dp),     dimension(1:), intent(in)     :: time
+     complex(dpc), dimension(0:), intent(out)    :: fourier
      integer*8,                   intent(in)     :: plan_fwd
+     real(dp),     dimension(1:size(time))       :: dt
+     integer(i4b)                                :: ntime
 
-     call dfftw_execute_dft_r2c(plan_fwd, dt, dv)
-     dv = dv/sqrt(real(size(dt),dp))
-     !dv = dv/size(dt)
+     ntime = size(time)
+     dt(1:ntime) = time
+     !dt(2*ntime:ntime+1:-1) = dt(1:ntime)
+     call dfftw_execute_dft_r2c(plan_fwd, dt, fourier)
+     fourier = fourier/sqrt(real(size(dt),dp))
 
    end subroutine fft_fwd
 
-  module subroutine fft_back(dv, dt, plan_back)
+  module subroutine fft_back(fourier, time, plan_back)
      !
      ! Given a fft plan, transforms a vector from Fourier domain to time domain.
      !
      ! Arguments:
      ! ----------
-     ! dv:              complex(dpc) array
+     ! fourier:              complex(dpc) array
      !                  The original Fourier domain vector.
-     ! dt:              real(dp) array
+     ! time:            real(dp) array
      !                  The vector that will contain the transformed vector.
      ! plan_back:       integer*8
      !                  The fft plan to carry out the transformation.
@@ -834,16 +833,18 @@ contains
      ! vector:          real(dp) array
      !                  At exit will contain the time-domain vector.
      implicit none
-     complex(dpc), dimension(0:), intent(in)     :: dv
-     real(dp),     dimension(1:), intent(out)    :: dt
+     complex(dpc), dimension(0:), intent(in)     :: fourier
+     real(dp),     dimension(1:), intent(out)    :: time
+     real(dp),     dimension(size(time))         :: dt
      integer*8,                   intent(in)     :: plan_back
 
-     call dfftw_execute_dft_c2r(plan_back, dv, dt)
+     call dfftw_execute_dft_c2r(plan_back, fourier, dt)
      dt = dt/sqrt(real(size(dt),dp))
+     time = dt(1:size(time))
 
    end subroutine fft_back
 
-  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)!, &
+  module function solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back) result(solution) !, &
 !     & with_precond)
      !
      ! Specialized function for solving the gain Wiener filter equation using
@@ -872,7 +873,7 @@ contains
      real(dp), dimension(1:), intent(in) :: inv_N_wn, b
      real(dp), dimension(0:), intent(in) :: inv_N_corr, precond
      integer*8             ,  intent(in) :: plan_fwd, plan_back
-     real(dp), dimension(size(b))       :: solve_cg_gain
+     real(dp), dimension(size(b))       :: solution
 !     logical(lgt)                       :: with_precond
 
 
@@ -994,7 +995,7 @@ contains
 !        write(*, *) "Without preconditioner"
 !     end if
      !write(*, *) "Gain CG iterations: ", iterations
-     solve_cg_gain = prop_sol
+     solution = prop_sol
 
      deallocate(initial_guess, prop_sol, residual, p, Abyp, new_residual, z, new_z)
 
@@ -1019,7 +1020,7 @@ contains
   end subroutine apply_cg_precond
 
   module function tot_mat_mul_by_vector(time_mat, fourier_mat, vector, plan_fwd, &
-     & plan_back, filewrite)
+     & plan_back, filewrite) result(res)
      !
      ! Multiplies a sum of a time-domain diagonal matrix and a Fourier-domain
      ! diagonal matrix by a time-domain vector.
@@ -1046,8 +1047,8 @@ contains
      !                          matrices by the input vector.
      implicit none
 
-     real(dp), dimension(1:)                            :: vector
-     real(dp), dimension(size(vector))                 :: tot_mat_mul_by_vector
+     real(dp), dimension(1:), intent(in)               :: vector
+     real(dp), dimension(size(vector))                 :: res
      real(dp), dimension(size(vector)), intent(in)     :: time_mat
      real(dp), dimension(0:) , intent(in)     :: fourier_mat
      integer*8              , intent(in)     :: plan_fwd, plan_back
@@ -1064,7 +1065,7 @@ contains
       end if
 
      if (all(vector .eq. 0)) then
-        tot_mat_mul_by_vector = 0.d0
+        res = 0.d0
         return
      end if
 !     if (write_file) then
@@ -1112,13 +1113,13 @@ contains
 !         close(58)
 !      end if
 
-     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + size(vector)**4*temp_vector
-     !tot_mat_mul_by_vector = size(vector)*vector * time_mat + temp_vector
+     !res = size(vector)*vector * time_mat + size(vector)**4*temp_vector
+     !res = size(vector)*vector * time_mat + temp_vector
      !write(*,*) 'a', real(vector(1:4) * time_mat(1:4),sp)
      !write(*,*) 'b', real(temp_vector(1:4),sp)
 
-     tot_mat_mul_by_vector = vector * time_mat + temp_vector
-     !tot_mat_mul_by_vector = vector * time_mat
+     res = vector * time_mat + temp_vector
+     !res = vector * time_mat
 
   end function tot_mat_mul_by_vector
 
@@ -1150,15 +1151,17 @@ contains
      real(dp), dimension(0:), intent(in)     :: freqs
      real(dp), intent(in)                   :: sigma_0, fknee, alpha
      real(dp), dimension(0:), intent(out)    :: invcov
+     real(dp)                               :: target_apod_freq
+     integer(i4b)       :: apod_ind
 
      integer(i4b) :: i
      real(dp) :: apod
 
      invcov(0) = 1d12 !0.d0
-     do i = 1, size(freqs)-1
-        apod = (1 + freqs(i)/freqs(150))**5
-!        if (freqs(i) < freqs(100)) then
-           invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
+     target_apod_freq = 1d-6
+      do i = 1, size(freqs) -1
+         apod = (1 + freqs(i)/target_apod_freq)**5
+         invcov(i) = min(1.d0 / (sigma_0 ** 2 * (1+(freqs(i)/fknee) ** alpha)) * apod, 1d12)
 !        else
 !           invcov(i) = 1.d12
 !        end if
@@ -1259,7 +1262,7 @@ contains
          & tod%comm, ierr)
 
 !          tod%scans(j)%d(i)%gain = tod%gain0(0) + tod%gain0(i) + tod%scans(j)%d(i)%dgain 
-    nfft = nscan_tot
+    nfft = nscan_tot !* 2
     n = nfft / 2 + 1
     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
     allocate(dt(nfft), dv(0:n-1))

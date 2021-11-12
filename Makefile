@@ -113,4 +113,3 @@ commander :
 
 clean :
 	@cd commander3/src; $(MAKE) clean
-
