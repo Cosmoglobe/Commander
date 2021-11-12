@@ -46,12 +46,12 @@ message(STATUS "==============================================================="
 message(STATUS "Welcome to automatic Commander3 installer!")
 message(STATUS "Issued under: GNU GPLv3 license")
 message(STATUS "Official repo: https://github.com/Cosmoglobe/Commander")
-message(STATUS "Documentation: https://docs.beyondplanck.science")
+message(STATUS "Documentation: https://cosmoglobe.github.io/Commander/#/")
 message(STATUS "Forum: https://forums.beyondplanck.science/")
 message(STATUS "===============================================================")
 message(STATUS "Scanning your system. Please, wait a moment...")
 # The necessary minimum to set-up cmake-based project
-cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 project(Commander3
 	DESCRIPTION "Complete installer for Commander 3."
 	VERSION 1.3.0	
@@ -65,7 +65,7 @@ find_package(Python REQUIRED COMPONENTS Interpreter)
 include(CMakePrintHelpers)
 include(CMakeDependentOption)
 # Enables content population at configure time
-include(FetchContent)
+#include(FetchContent)
 # Including external project routines to enable superbuild pattern
 include(ExternalProject)
 # Including useful macro to operate with project options
@@ -82,11 +82,14 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # Adding project modules dir (with .cmake extension)
 list(APPEND CMAKE_MODULE_PATH 
 	"${CMAKE_SOURCE_DIR}/cmake"
+	"${CMAKE_SOURCE_DIR}/cmake/modules"
+	"${CMAKE_SOURCE_DIR}/cmake/compilers"
+	"${CMAKE_SOURCE_DIR}/cmake/projects"
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/cfitsio/cmake"
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/curl/CMake"
 	)
 # Including custom cmake modules
-include(project_instructions)
+include(main)
 # Adding commander3 source files
 # Note: I have added commander.cmake as an "independent" project 
 # so there is no need for other cmake lists. Advantage of this 

@@ -67,7 +67,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_wmap_mod.f90
-	#${COMMANDER3_SOURCE_DIR}/comm_tod_QUIET_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_smod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
@@ -246,7 +247,7 @@ target_link_libraries(${commander3}
 	#-lssl
 	#CURL::libcurl
 	# Including FFTW3
-	${FFTW3_LIBRARIES}
+	${FFTW_LIBRARIES}
 	# Linking commander *.cpp file(s)
 	comm_system_backend
 	)

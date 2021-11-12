@@ -19,6 +19,7 @@
 !
 !================================================================================
 module comm_tod_lfi_mod
+  !
   !   Module which contains all the LFI time ordered data processing and routines
   !   for a given frequency band
   !
@@ -113,7 +114,7 @@ interface
     ! ----------
     ! constructor: pointer
     !              Pointer that contains all instrument data
-
+    !
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
