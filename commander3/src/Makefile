@@ -104,7 +104,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
            comm_camb_mod.f90 \
-           comm_tod_adc_mod.f90 \
+           comm_tod_adc_mod.f90 comm_tod_adc_smod.f90\
            commander.f90
 
 all: commander
