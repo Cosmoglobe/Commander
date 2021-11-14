@@ -387,7 +387,11 @@ end subroutine bin_differential_TOD
       nmaps = tod%nmaps
       npix  = 12*nside**2
 
-      allocate(x(0:npix-1,nmaps), y(0:npix-1,nmaps))
+      if (comp_S) then
+         allocate(x(0:npix-1,nmaps+1), y(0:npix-1,nmaps+1))
+      else
+         allocate(x(0:npix-1,nmaps),   y(0:npix-1,nmaps))
+      end if
       if (tod%myid == 0) then
          finished = .false.
          call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
@@ -429,8 +433,13 @@ end subroutine bin_differential_TOD
                ! This is the model for each timestream
                iA = x(lpix, 1)
                iB = x(rpix, 1)
-               sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi)
-               sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi)
+               if (comp_S) then
+                  sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi) + x(lpix, 4)
+                  sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi) + x(rpix, 4)
+               else
+                  sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi)
+                  sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi)
+               end if
                d  = (1.d0+x_im)*iA - (1.d0-x_im)*iB + dx_im*(sA + sB)
                p  = (1.d0+x_im)*sA - (1.d0-x_im)*sB + dx_im*(iA + iB)
                ! Temperature

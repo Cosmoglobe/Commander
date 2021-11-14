@@ -347,8 +347,8 @@ contains
 
       ! Parameters used for testing
       real(dp) :: polang
-      !polang = mod(2*PI*iter/12, 2*PI)
-      polang = 0d0
+      polang = mod(2*PI*iter/12, 2*PI)
+      !polang = 0d0
 
 
       call int2string(iter, ctext)
@@ -396,7 +396,7 @@ contains
 
       ! this is a flag for the spurious component, the "polarization
       ! angle-independent polarization component" in the WMAP pipeline
-      comp_S = .false.
+      comp_S = .true.
 
 
 
@@ -556,6 +556,7 @@ contains
       call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
 
+
       where (M_diag == 0d0)
          M_diag = 1d0
       end where
@@ -582,7 +583,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      if (mod(iter,self%output_aux_maps) == 0) then
+      !if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '  Running BiCG'
@@ -597,7 +598,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
-      end if
+      !end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
@@ -605,6 +606,11 @@ contains
       do i = 1, self%output_n_maps
          outmaps(i)%p => comm_map(self%info)
       end do
+      if (comp_S) then
+         outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1, 1)
+         map_out%map = outmaps(1)%p%map
+         call map_out%writeFITS(trim(prefix)//'Smap'//trim(postfix))
+      end if
       do k = 1, self%output_n_maps
          do j = 1, nmaps
             outmaps(k)%p%map(:, j) = bicg_sol(self%info%pix, j, k)
@@ -619,14 +625,6 @@ contains
       do n = 2, self%output_n_maps
         call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
       end do
-
-      ! Testing that we can actually write out the various maps okay
-      if (self%first_call) then
-        do i = 1, self%ndet
-          call int2string(i, ctext)
-          call map_in(i,1)%p%writeFITS(trim(prefix)//'det'//trim(adjustl(ctext))//trim(postfix))
-        end do
-      end if
 
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
