@@ -1126,7 +1126,7 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q, flen
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q, flen, c
     real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
     character(len=6)   :: fileid
     character(len=512) :: infile
@@ -1253,26 +1253,35 @@ contains
                call QuickSort(id, sid)
                w_curr = 0.d0
                j     = 1
-               do i = np-1, 1, -1
-                  w = 0.d0
-                  do k = 1, n_tot
-                     if (proc(k) == i) w = w + weight(k) 
+               if (n_tot < 10*np) then
+                  do while (j <= n_tot)
+                      do i = np-1, 0, -1
+                          proc(id(j)) = i
+                          j = j + 1
+                      end do
                   end do
-                  do while (w < w_tot/np .and. j <= n_tot)
-                     proc(id(j)) = i
-                     w           = w + weight(id(j))
-                     if (w > 1.2d0*w_tot/np) then
-                        ! Assign large scans to next core
-                        proc(id(j)) = i-1
-                        w           = w - weight(id(j))
-                     end if
-                     j           = j+1
-                  end do
-               end do
-               do while (j <= n_tot)
-                  proc(id(j)) = 0
-                  j = j+1
-               end do
+               else
+                  do i = np-1, 0, -1
+                     w = 0.d0
+                     do k = 1, n_tot
+                        if (proc(k) == i) w = w + weight(k) 
+                     end do
+                     do while (w < w_tot/np .and. j <= n_tot)
+                        proc(id(j)) = i
+                        w           = w + weight(id(j))
+                        if (w > 1.2d0*w_tot/np) then
+                           ! Assign large scans to next core
+                           proc(id(j)) = i-1
+                           w           = w - weight(id(j))
+                        end if
+                        j           = j+1
+                     end do
+                   end do
+                   do while (j <= n_tot)
+                      proc(id(j)) = 0
+                      j = j+1
+                   end do
+               end if
             end if
             
             pweight = 0.d0

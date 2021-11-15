@@ -262,6 +262,7 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
+    real(dp),     :: t1, t2
 
     if (tod%nhorn /= 2) then
        write(*,*) 'Error: init_scan_data_differential only applicable for 2-horn experiments'

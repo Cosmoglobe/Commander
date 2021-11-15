@@ -607,9 +607,11 @@ contains
          outmaps(i)%p => comm_map(self%info)
       end do
       if (comp_S) then
-         outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1, 1)
-         map_out%map = outmaps(1)%p%map
-         call map_out%writeFITS(trim(prefix)//'Smap'//trim(postfix))
+         do l=1, self%output_n_maps
+            outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1, l)
+            map_out%map = outmaps(1)%p%map
+            call map_out%writeFITS(trim(prefix)//'Smap'//trim(adjustl(self%labels(n)))//trim(postfix))
+         end do
       end if
       do k = 1, self%output_n_maps
          do j = 1, nmaps
