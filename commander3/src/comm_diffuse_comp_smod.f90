@@ -1188,7 +1188,7 @@ contains
           end if
        else
           self%L_read(j) = .true.
-          if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
+          if ( self%myid == 0 ) write(*,*) " |    Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) corrlen_arr
