@@ -163,6 +163,10 @@ contains
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
+    do i=1, constructor%ndet
+      call init_noise_model(constructor, i)
+    end do
+
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)

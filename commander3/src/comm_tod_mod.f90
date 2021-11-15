@@ -57,6 +57,8 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
+     real(sp),           allocatable, dimension(:)    :: xi_n           ! noise model params
+
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -787,7 +789,7 @@ contains
     character(len=128) :: field
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
-    real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
+    real(sp),     allocatable, dimension(:)       :: buffer_sp, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
     self%chunk_num = scan
@@ -825,32 +827,31 @@ contains
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn), self%d(i)%xi_n(tod%n_xi))
        end if
 
-       allocate(xi_n(tod%n_xi))
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
-       xi_n(1:3)            = scalars(2:4)
-       xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       self%d(i)%xi_n(1:3)  = scalars(2:4)
+       self%d(i)%xi_n(1)    = self%d(i)%xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
-       if (trim(tod%noise_psd_model) == 'oof') then
-          self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-       else if (trim(tod%noise_psd_model) == '2oof') then
-          xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
-          xi_n(5) = -1.000 ! alpha2; arbitrary value
-          self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       !if (trim(tod%noise_psd_model) == 'oof') then
+       !   self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       if (trim(tod%noise_psd_model) == '2oof') then
+          self%d(i)%xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          self%d(i)%xi_n(5) = -1.000 ! alpha2; arbitrary value
+       !   self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
-          xi_n(4) =  0.00d0
-          xi_n(5) =  1.35d0
-          xi_n(6) =  0.40d0
-          self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+          self%d(i)%xi_n(4) =  0.00d0
+          self%d(i)%xi_n(5) =  1.35d0
+          self%d(i)%xi_n(6) =  0.40d0
+       !   self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
@@ -863,7 +864,6 @@ contains
 !!$          stop
 
        end if
-       deallocate(xi_n)
 
        ! Read Huffman coded data arrays
        if (nhorn == 2 .and. i == 1) then
@@ -2405,7 +2405,7 @@ contains
     ! None
     !
     implicit none
-    class(comm_tod),                     intent(inout)  :: self
+    class(comm_tod),                 intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_inst
