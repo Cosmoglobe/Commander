@@ -431,7 +431,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.8)') ' |    Abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.8)') ' |      abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -493,7 +493,7 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         write(*,*) '|  relcal = ', real(x,sp)
+         write(*,*) '|      relcal = ', real(x(1:tod%ndet),sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -564,31 +564,7 @@ contains
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
-         write(*,*) 'b', b
-         write(*,*) 'A', A
-         write(*,*) 'imbal =', tod%x_im(1), tod%x_im(3)
-         ! WMAP has only used the orbital dipole alone to solve for the
-         ! transmission imbalance terms. For K11 and K12, the results they have
-         ! are
-         ! 1-year: -0.00204             -0.00542
-         ! 3-year:  0.0000  \pm 0.0007   0.0056  \pm 0.0001
-         ! 5-year:  0.00012              0.00589
-         ! 7-year: -0.00063 \pm 0.00022  0.00539 \pm 0.00010
-         ! 9-year: -0.00067 \pm 0.00017  0.00536 \pm 0.00014
-         !
-         ! The values that I have been getting using Commander are closer to
-         !         -0.00483              0.00439
-         ! There are certainly some differences in how the WMAP analysis
-         ! proceeded versus the Commander analysis. My thoughts currently are:
-         ! 1. Calibrating against the total sky signal versus orbital dipole
-         ! 2. A difference in how x_im is determined algorithmically
-         ! 3. A typo in my implementation of the imbalance sampling.
-         !
-         ! To me, these are in reverse order of likelihood. I also wonder if
-         ! there is some degeneracy with x_im and the gain. The best way to
-         ! determine this is to see if this difference still exists with
-         ! identical gain solutions.
-
+         write(*,*) '|      imbal =', real(tod%x_im(1),sp), real(tod%x_im(3),sp)
        end if
     end if
     call mpi_bcast(tod%x_im, 4,  MPI_DOUBLE_PRECISION, 0, &

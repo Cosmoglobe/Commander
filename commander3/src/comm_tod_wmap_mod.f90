@@ -455,7 +455,7 @@ contains
       b_map = 0d0
 
       ! Perform loop over scans
-      if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
+      if (self%myid == 0) write(*,*) '|    --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
          
 
@@ -508,7 +508,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
          if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
             call int2string(self%scanid(i), scantext)
-            if (self%verbosity > 0) write(*,*) 'Writing tod to txt'
+            if (self%verbosity > 0) write(*,*) '| Writing tod to txt'
             do k = 1, self%ndet
                open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
                write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
@@ -547,7 +547,7 @@ contains
 
       end do
 
-      if (self%myid == 0) write(*,*) '   --> Finalizing binned maps'
+      if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
 
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
@@ -590,18 +590,18 @@ contains
       !if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
-           if (self%verbosity > 0) write(*,*) '  Running BiCG'
+           if (self%verbosity > 0) write(*,*) '|    Running BiCG'
         end if
         call update_status(status, "Starting bicg-stab")
         do l=1, self%output_n_maps
            if (self%verbosity > 0 .and. self%myid == 0) then
-             write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
+             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
            end if
            call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                           & epsil(l), procmask, map_full, M_diag, b_map, l, &
                           & prefix, postfix, comp_S)
         end do
-        if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
+        if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '|  Finished BiCG'
       !end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
@@ -614,7 +614,7 @@ contains
          do l=1, self%output_n_maps
             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1, l)
             map_out%map = outmaps(1)%p%map
-            call map_out%writeFITS(trim(prefix)//'Smap'//trim(adjustl(self%labels(n)))//trim(postfix))
+            call map_out%writeFITS(trim(prefix)//'Smap'//trim(adjustl(self%labels(l)))//trim(postfix))
          end do
       end if
       do k = 1, self%output_n_maps

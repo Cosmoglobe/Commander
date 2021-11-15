@@ -790,7 +790,7 @@ end subroutine bin_differential_TOD
            rho_new = sum(r0*r)
            call update_status(status, 'done dot product')
            if (rho_new == 0d0) then
-             if (tod%verbosity > 1) write(*,*) 'Residual norm is zero'
+             if (tod%verbosity > 1) write(*,*) '| Residual norm is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -829,7 +829,7 @@ end subroutine bin_differential_TOD
 
            if (tod%verbosity > 1) then 
               write(*,101) 2*i-1, delta_s/delta_0
-101           format (6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
+101           format (' |', 6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
            end if
 
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
@@ -844,7 +844,7 @@ end subroutine bin_differential_TOD
            end if
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
-              if (tod%verbosity > 1) write(*,*) 'Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) '| Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
@@ -859,7 +859,7 @@ end subroutine bin_differential_TOD
 
 
            if (omega == 0d0) then
-             if (tod%verbosity > 1) write(*,*) 'omega is zero'
+             if (tod%verbosity > 1) write(*,*) '| omega is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -900,16 +900,16 @@ end subroutine bin_differential_TOD
 
            if (tod%verbosity > 1) then 
               write(*,102) 2*i, delta_r/delta_0
-102           format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
+102           format (' |', 6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
-              if (tod%verbosity > 1) write(*,*) 'Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) '| Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            end if
            if (i==i_max) then
-             if (tod%verbosity > 1) write(*,*) 'Reached maximum number of iterations'
+             if (tod%verbosity > 1) write(*,*) '| Reached maximum number of iterations'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -925,8 +925,8 @@ end subroutine bin_differential_TOD
               sigma_mono = sum(M_diag(:,1) * procmask)
               if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
               if (tod%verbosity > 1) then
-                write(*,*) 'monopole, fluctuation sigma'
-                write(*,*) monopole, sigma_mono
+                write(*,*) '| monopole, fluctuation sigma'
+                write(*,*) '| ', monopole, sigma_mono
               end if
               monopole = monopole + sigma_mono * rand_gauss(handle)
            end if
