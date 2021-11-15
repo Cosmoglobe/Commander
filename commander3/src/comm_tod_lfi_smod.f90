@@ -57,15 +57,20 @@ contains
 
     real(sp), dimension(:,:),    allocatable :: diode_data, corrected_data
     integer(i4b), dimension(:),  allocatable :: flag
+    real(dp), dimension(2)                   :: boundary
 
-    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth, nfixed
+    integer(i4b) :: i, j, k, nside_beam, lmax_beam, nmaps_beam, ierr, filter_count, nsmooth, nfixed, initsamp
     logical(lgt) :: pol_beam
-    character(len=50) :: name
+    character(len=50)  :: name
+    character(len=6)   :: itext
+    character(len=512) :: chainfile, path
+    type(hdf_file)     :: init_file
 
     real(dp), dimension(:),   allocatable :: nus
     real(sp), dimension(:,:), allocatable :: filtered
     real(dp), dimension(:),   allocatable :: nu_saved, freq_bins
     real(dp), dimension(:,:), allocatable :: filter_sum
+    real(dp), dimension(:,:), allocatable :: noise_filter
 
     ! Allocate object
     allocate(res)
@@ -148,6 +153,8 @@ contains
     pol_beam                    = .true.
     res%nside_beam      = nside_beam
 
+    boundary            = (0.d0, 1d30)
+
     ! Initialize common parameters
     call res%tod_constructor(cpar, id_abs, info, tod_type)
 
@@ -218,9 +225,10 @@ contains
     allocate(res%diode_weights(res%ndet, 2))
     allocate(res%spike_templates(0:res%nbin_spike-1, res%ndet))
     allocate(res%spike_amplitude(res%nscan,res%ndet))
+    allocate(res%ref_splint(res%ndet,res%ndiode/2))
+
     if(trim(res%level) == 'L1') then
       allocate(res%adc_corrections(res%ndet, res%ndiode))
-      allocate(res%ref_splint(res%ndet,res%ndiode/2))
       allocate(res%R(res%nscan,res%ndet,res%ndiode/2))
       allocate(res%gmf_splits(res%ndet))
     end if
@@ -333,7 +341,7 @@ contains
           if (res%myid == 0) write(*,*) '   Build reference load filter'
           nsmooth = res%get_nsmooth()
           ! hardcode low frequency components of load filter to 1
-          nfixed = 8
+          nfixed = 6
           allocate(filter_sum(res%ndiode/2,nsmooth+nfixed))
           allocate(nu_saved(nsmooth+nfixed -1))
           nu_saved(1) = 1e-5
@@ -342,8 +350,8 @@ contains
           nu_saved(4) = 1e-2
           nu_saved(5) = 1e-1
           nu_saved(6) = 1.0
-          nu_saved(7) = 4.0
-          nu_saved(8) = 7.0
+          !nu_saved(7) = 4.0
+          !nu_saved(8) = 7.0
 
           allocate(freq_bins(nsmooth))
           call res%get_freq_bins(freq_bins)
@@ -419,7 +427,7 @@ contains
 
              do j=1, res%ndiode/2
                 !if(res%myid == 0) write(*,*) "Calling spline", nsmooth, nu_saved(1:nsmooth+nfixed-1), filter_sum(j,1:nsmooth+nfixed-1)
-                call spline_simple(res%ref_splint(i,j), nu_saved(1:nsmooth+nfixed-1), filter_sum(j,1:nsmooth+nfixed-1))
+                call spline_simple(res%ref_splint(i,j), nu_saved(1:nsmooth+nfixed-1), filter_sum(j,1:nsmooth+nfixed-1), boundary)
                 if (res%myid == 0) then
                   open(100, file=trim(res%outdir)//'/load_filter_'//trim(res%label(i))//'_'//trim(res%diode_names(i,2*j-1))//'.dat')
                   do k = 1, int(50*res%samprate)
@@ -435,8 +443,55 @@ contains
           call update_status(status, "ADC_table")
   
        deallocate(freq_bins)
+       else
+
+         ! init the noise filter from chain if we are not computing it
+         if(trim(res%init_from_HDF) == 'default') then
+           call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+         else
+           call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
+         end if
+         call open_hdf_file(chainfile, init_file, 'r')
+
+         call int2string(initsamp, itext)
+         path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
+
+         call res%initHDF_inst(init_file, path)
+         call close_hdf_file(init_file)
        end if
+
+    else
+
+      ! init the noise filter from chain if we are not computing it
+      if(trim(res%init_from_HDF) == 'default') then
+        call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+      else
+        call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
+      end if      
+      call open_hdf_file(chainfile, init_file, 'r')
+      
+      call int2string(initsamp, itext)
+      path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
+
+      call res%initHDF_inst(init_file, path)
+      call close_hdf_file(init_file)
+    
     end if
+
+    ! construct the noise filter function for the noise psd estimates
+    do i=1, res%ndet
+
+      allocate(noise_filter(2, 0:int((res%samprate/2 - 7.d0)/0.1+1)))
+
+      do j = 0, int((res%samprate/2 - 7.d0)/0.1d0) + 1
+        noise_filter(1, j) = 7.d0 + j*0.1d0
+        noise_filter(2, j) = sqrt((res%diode_weights(i,1) *(1 + splint(res%ref_splint(i,1), noise_filter(1,j))) + res%diode_weights(i,2) *(1 + splint(res%ref_splint(i,2), noise_filter(1,j))))/2.d0)
+      end do
+
+      call init_noise_model(res, i, noise_filter)
+
+      deallocate(noise_filter)
+    end do
 
     ! Allocate sidelobe convolution data structures
     allocate(res%slconv(res%ndet), res%orb_dp)
@@ -823,7 +878,53 @@ contains
    end if
 
   end subroutine load_instrument_lfi
-  
+ 
+  module subroutine initHDF_lfi(self, chainfile, path)
+    ! 
+    ! Initializes instrument-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_lfi_tod),                 intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+    
+    real(dp), allocatable, dimension(:,:,:,:)           :: ref_filter
+    integer(i4b)  :: i, j
+    real(dp), dimension(2)                              :: boundary
+
+    boundary = (0.d0, 0.d0) 
+
+    if(self%L2_exist) then ! read in ref filters only if we don't calculate them
+
+      call read_alloc_hdf(chainfile, trim(path)//'ref_filter', ref_filter)
+
+      do i = 1, self%ndet
+        do j = 1, self%ndiode/2
+
+          call spline_simple(self%ref_splint(i, j), ref_filter(:,1,i,j), ref_filter(:,2,i,j), boundary) 
+
+        end do
+      end do
+
+      deallocate(ref_filter)
+     end if
+
+  end subroutine initHDF_lfi
+
+ 
   module subroutine diode2tod_lfi(self, scan, map_sky, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data
@@ -1247,7 +1348,7 @@ contains
 !      open(58,file='filter.dat')
       do j=1, size(dv) -1
         filt = sqrt(splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft)))
-        if(filt > 1.d0) filt = 1.d0 ! fixes weird spline regions
+        if(ind2freq(j, self%samprate, nfft) < 7.d0) filt = 1.d0 ! removes regions where we don't want to filter because it actually adds noise somehow
         dv(j) = dv(j) * filt
         !if(self%myid ==0) write(*,*) j, ind2freq(j, self%samprate, nfft), splint(self%ref_splint(det,i), ind2freq(j, self%samprate, nfft)), dv(j)
         !write(58,*) ind2freq(j, self%samprate, nfft), splint(self%ref_splint(i), ind2freq(j, self%samprate, nfft))
