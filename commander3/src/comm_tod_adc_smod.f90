@@ -981,6 +981,14 @@ contains
           loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
           dips(i) = loc(1)
        end do
+    else if (trim(name) == '25M_ref01') then
+       ndips = 3
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.1914, 0.1965, 0.2017/)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
     else
        ! Don't allow dips along the edges
        do i = 10, leng-10

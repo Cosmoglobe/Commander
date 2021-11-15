@@ -200,15 +200,18 @@ contains
       res%apply_adc(:,:) = .true.
       ! Define diode masks
       if (trim(res%freq) == '030') then
+         res%apply_adc(:,:)  = .false.
          ! Nothing to mask here
       else if (trim(res%freq) == '044') then
          res%apply_adc(2,1)  = .false.
          res%apply_adc(2,2)  = .false.
+         res%apply_adc(4,1)  = .false.
          res%apply_adc(6,1)  = .false.
          res%apply_adc(6,2)  = .false.
       else if (trim(res%freq) == '070') then
          res%apply_adc(2,1)  = .false.
          res%apply_adc(4,:)  = .false.
+         res%apply_adc(7,:)  = .false.
          res%apply_adc(8,:)  = .false.
          res%apply_adc(10,:) = .false.
          res%apply_adc(11,:) = .false.
