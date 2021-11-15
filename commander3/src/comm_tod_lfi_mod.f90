@@ -19,6 +19,7 @@
 !
 !================================================================================
 module comm_tod_lfi_mod
+  !
   !   Module which contains all the LFI time ordered data processing and routines
   !   for a given frequency band
   !
@@ -64,6 +65,7 @@ module comm_tod_lfi_mod
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
      type(double_pointer), allocatable, dimension(:)    :: gmf_splits      ! ndet
      character(len=10)                                  :: adc_mode        ! gauss, dpc, none
+     logical(lgt),      allocatable, dimension(:,:)     :: apply_adc       ! ndet, n_diode
    contains
      procedure     :: process_tod             => process_lfi_tod
      procedure     :: diode2tod_inst          => diode2tod_lfi
@@ -114,7 +116,7 @@ interface
     ! ----------
     ! constructor: pointer
     !              Pointer that contains all instrument data
-
+    !
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
@@ -127,7 +129,7 @@ interface
   !**************************************************
   !             Driver routine
   !**************************************************
-  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  module subroutine process_lfi_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     !
     ! Routine that processes the LFI time ordered data.
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -173,6 +175,7 @@ interface
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
+    type(map_ptr),       dimension(1:,1:),   intent(inout), optional :: map_gain       ! (ndet,1)
   end subroutine process_lfi_tod
   
   

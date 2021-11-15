@@ -88,18 +88,22 @@ option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
 # HDF5
 option(USE_SYSTEM_ZLIB    "Enables search for ZLIB on the system."        ON)
 option(USE_SYSTEM_LIBAEC  "Enables search for LibAEC on the system."      ON)
-option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        OFF)
+option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        ON) #OFF)
 # FFTW
-option(USE_SYSTEM_FFTW    "Enables search for HDF5 on the system."        OFF)
+option(USE_SYSTEM_FFTW    "Enables search for FFTW on the system."        ON) #OFF)
+option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"          OFF)
+option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         ON)
+option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"          OFF)
+option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"         OFF)
 # CFITSIO
 option(USE_SYSTEM_MBEDTLS "Enables search for MbedTLS on the system."     ON)
 option(USE_SYSTEM_LIBSSH2 "Enables search for LibSSH2 on the system."     ON)
 option(USE_SYSTEM_CURL    "Enables search for cURL on the system."        ON)
-option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     OFF)
+option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     ON) #OFF)
 # Can choose whether to compile CFITSIO with or without cURL support
 option(CFITSIO_USE_CURL   "Installs CFITSIO with cURL support."           OFF)
 # HEALPix
-option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     OFF)
+option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     ON) #OFF)
 # Doxygen
 option(USE_SYSTEM_FLEX    "Enables search for FLEX on the system."        ON)
 option(USE_SYSTEM_BISON   "Enables search for BISON on the system."       ON)
@@ -129,10 +133,3 @@ set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
 set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
 set(BLAS_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/blas")
 #
-#------------------------------------------------------------------------------
-# output of the summary into the screen
-message(STATUS "---------------------------------------------------------------")
-message(STATUS "SUMMARY ON INSTALLATION:")
-message(STATUS "---------------------------------------------------------------")
-message(STATUS "Projects will be downloaded into: ${CMAKE_DOWNLOAD_DIRECTORY}")
-message(STATUS "Projects will be installed into: ${CMAKE_INSTALL_PREFIX}")

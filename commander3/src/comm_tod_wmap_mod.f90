@@ -269,7 +269,7 @@ contains
    !**************************************************
    !             Driver routine
    !**************************************************
-   subroutine process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+   subroutine process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
       !
       ! Routine that processes the WMAP time ordered data.
       ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -314,6 +314,7 @@ contains
       real(dp),  dimension(0:, 1:, 1:), intent(inout) :: delta     ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map), intent(inout) :: map_out      ! Combined output map
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
+      type(map_ptr), dimension(1:, 1:), intent(inout), optional :: map_gain    ! (ndet,1)
 
       real(dp)     :: t1, t2
       integer(i4b) :: i, j, k, l, n

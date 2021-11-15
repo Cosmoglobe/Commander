@@ -47,7 +47,6 @@ program commander
   character(len=32)           :: arg
   integer                     :: arg_indx
 
-
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
     call get_command_argument(arg_indx, arg)
@@ -90,6 +89,7 @@ program commander
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid_chain == 0 !.false.
 
+
 !!$  n = 100000
 !!$  q = 100000
 !!$  allocate(arr(n))
@@ -122,7 +122,7 @@ program commander
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-     write(*,fmt='(a)') ' |                           Commander3                              |'
+     write(*,fmt='(a)') ' |                             Commander3                            |'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      if (cpar%enable_tod_simulations) then
        write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
@@ -183,9 +183,10 @@ program commander
   ! **************************************************************
 
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
-     write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to read data = ', t2-t1, ' sec'
-     write(*,*) '   Starting Gibbs sampling'
+     !write(*,*) '|'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to read data = ', t2-t1, ' sec'
+     write(*,*) '|  Starting Gibbs sampling'
   end if
 
 
@@ -224,7 +225,7 @@ program commander
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') ' Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -247,7 +248,7 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
@@ -266,7 +267,7 @@ program commander
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_user_samp_groups
            if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+              write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_user_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
@@ -295,13 +296,14 @@ program commander
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') ' Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
-           write(*,*) 'SAMPLE REJECTED'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,*) '|'
+           write(*,*) '|  SAMPLE REJECTED'
         end if        
      end if
      
@@ -317,7 +319,7 @@ program commander
   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
   ! Clean up
-  if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '     Cleaning up and finalizing'
+  if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '|  Cleaning up and finalizing'
 
   ! And exit
   call free_status(status)
@@ -333,27 +335,51 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
-    real(dp)     :: t1, t2, dnu_prop
+    real(dp)     :: t1, t2, dnu_prop, rms_EE2_prior
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
-    type(map_ptr), allocatable, dimension(:,:)   :: s_sky
-    class(comm_map), pointer :: rms => null()
+    type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    class(comm_map),  pointer :: rms => null()
+    class(comm_map),  pointer :: cmbmap => null()
+    class(comm_comp), pointer :: c => null()
 
     ndelta      = cpar%num_bp_prop + 1
+
+    ! Set up EE l=2-subtracted CMB map for absolute gain calibration
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == 'cmb') then
+             rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
+             cmbmap        => comm_map(c%x)
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_before.fits')
+             call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_middle.fits')
+             call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_after.fits')
+          end if
+       end select
+       c => c%next()
+    end do
 
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
        if (cpar%myid == 0) then
-          write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
+          write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
+          write(*,*) '|  Processing TOD channel = ', trim(data(i)%tod_type) 
        end if
 
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
        allocate(s_sky(ndet,ndelta))
+       allocate(s_gain(ndet,1))
        allocate(delta(0:ndet,npar,ndelta))
        allocate(eta(ndet))
        do k = 1, ndelta
@@ -407,11 +433,21 @@ contains
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             !call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false., cmb_pol=.false.) 
+             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
+
+          ! Evaluate sky for each detector for absolute gain calibration
+          if (k == 1) then
+             do j = 1, data(i)%tod%ndet
+                if (associated(cmbmap)) then
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., cmbmap=cmbmap) 
+                else
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
+                end if
+             end do
+          end if
 
        end do
 
@@ -422,12 +458,16 @@ contains
        rms => comm_map(data(i)%info)
 
        if (cpar%myid_chain == 0) then
-         write(*,*) 'Processing ', trim(data(i)%label)
+         write(*,*) '|'
+         write(*,*) '|  Processing ', trim(data(i)%label)
+         write(*,*) '|'
        end if
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        if (cpar%myid_chain == 0) then
-         write(*,*) 'Finished processing ', trim(data(i)%label)
-         write(*,*) ''
+         write(*,*) '|'
+         write(*,*) '|  Finished processing ', trim(data(i)%label)
+         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+         !write(*,*) ''
        end if
 
        ! Update rms and data maps
@@ -453,17 +493,19 @@ contains
        call update_mixing_matrices(i, update_F_int=.true.)       
 
        ! Clean up temporary data structures
-       do k = 1, ndelta
-          do j = 1, data(i)%tod%ndet
+       do j = 1, data(i)%tod%ndet
+          do k = 1, ndelta
              call s_sky(j,k)%p%dealloc
           end do
+          call s_gain(j,1)%p%dealloc
        end do
-       deallocate(s_sky, delta, eta)
+       deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr
        call nullify_monopole_amp(data(i)%label)
 
     end do
+    if (associated(cmbmap)) call cmbmap%dealloc()
 
   end subroutine process_TOD
 
