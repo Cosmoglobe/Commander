@@ -262,7 +262,6 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
-    real(dp),     :: t1, t2
 
     if (tod%nhorn /= 2) then
        write(*,*) 'Error: init_scan_data_differential only applicable for 2-horn experiments'
@@ -486,6 +485,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang, smooth)
+    !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -504,6 +504,7 @@ contains
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
+    !
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     character(len=*),                             intent(in)    :: mode
@@ -525,7 +526,7 @@ contains
     smooth_ = .true.
     if (present(smooth))  smooth_=smooth
 
-    if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
+    if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
 
     if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))
@@ -792,6 +793,7 @@ contains
   end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
+    !
     !   Perform data selection on TOD object
     !
     !   Arguments:
@@ -803,6 +805,7 @@ contains
     !             Local scan ID for the current core 
     !   flag:     int (ntod x ndet array)
     !             Array with data quality flags
+    !
     implicit none
     class(comm_tod),                   intent(inout) :: tod
     integer(i4b),    dimension(1:,1:), intent(in)    :: flag
@@ -960,19 +963,26 @@ contains
 
   end subroutine distribute_sky_maps
 
-  ! ************************************************
-  !
-  !> @brief Commander3 native simulation module. It
-  !! simulates correlated noise and then rewrites
-  !! the original timestreams inside the files.
-  !
-  !> @author Maksym Brilenkov
-  !
-  !> @param[in]
-  !> @param[out]
-  !
-  ! ************************************************
+
   subroutine simulate_tod(self, scan_id, s_tot, n_corr, handle)
+    !
+    ! Commander3 native simulation routine. It simulates  correlated
+    ! noise component, adds it to the commander-sampled total sky 
+    ! signal (multiplied by gain factor for a given frequency) and 
+    ! overwrites the original timestreams inside copied files.
+    !
+    !  Arguments:
+    !  ----------
+    !  s_tot:    real(sp), array(:,:)
+    !            Total sky signal 
+    !  scan_id:  integer(i4b)
+    !            Local scan ID for the current core
+    !  handle:   planck_rng derived type
+    !            Healpix definition for random number generation
+    !
+    !  Returns:
+    !  --------
+    !
     implicit none
     class(comm_tod), intent(inout) :: self
     ! Parameter file variables
@@ -1112,8 +1122,9 @@ contains
     ! Converting PID number into string value
     call int2string(self%scanid(scan_id), pidLabel)
     call int2string(self%myid, processor_label)
-    write(*,*) "Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) trim(currentHDFFile)
+    !write(*,*) "!  Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
+    write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
+    write(*,*) "!  "//trim(currentHDFFile)
     ! For debugging
     !call MPI_Finalize(mpi_err)
     !stop
@@ -1142,7 +1153,7 @@ contains
     !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
     deallocate(tod_per_detector)
-    write(*,*) "Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
+    write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
     ! lastly, we need to copy an existing filelist.txt into simulation folder
     ! and change the pointers to new files

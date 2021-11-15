@@ -293,6 +293,10 @@ contains
        write(*,*) '  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/constructor%info%nprocs,sp), real(100*f_fill_lim(2),sp)
     end if
 
+    do i=1, constructor%ndet
+      call init_noise_model(constructor, i)
+    end do
+
   end function constructor
 
   !**************************************************

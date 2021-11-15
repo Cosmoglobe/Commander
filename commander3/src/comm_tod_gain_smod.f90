@@ -228,7 +228,7 @@ contains
                 end if
              end do
              close(58)
-             !write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)
@@ -431,7 +431,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.8)') '      Abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.8)') ' |    Abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -493,7 +493,7 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         write(*,*) 'relcal = ', real(x,sp)
+         write(*,*) '|  relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -511,6 +511,7 @@ contains
   end subroutine sample_relcal
 
   module subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    !
     !  Subroutine to sample the transmission imbalance parameters, defined in
     !  the WMAP data model as the terms x_im; given the definition
     !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})

@@ -252,6 +252,10 @@ contains
       !load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
+      do i = 1, constructor%ndet
+        call init_noise_model(constructor, i)
+      end do
+
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
       ! Allocate sidelobe convolution data structures

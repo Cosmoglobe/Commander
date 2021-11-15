@@ -67,7 +67,7 @@ COMP_ALPHA_ALMSAMP_INIT&& = none
 
 COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
 COMP_INPUT_AMP_MAP&&          = init_ame_amp_BP8.1_v1.fits
-COMP_PRIOR_AMP_MAP&&          = ame_prior_mean_857_scaled2.40.fits  ame_prior_mean_857_scaled2.40_noMD.fits  ame_prior_mean_857_scaled.fits none
+COMP_PRIOR_AMP_MAP&&          = npipe6v20_857_map_n1024_60arcmin_QUADCOR_ZODICOR_uK_min0.657K_scale0.00003.fits ame_prior_mean_857_scaled2.40.fits  ame_prior_mean_857_scaled2.40_noMD.fits  ame_prior_mean_857_scaled.fits none
 COMP_PRIOR_AMP_LMAX&&         = -1
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
