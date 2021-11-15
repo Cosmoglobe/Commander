@@ -507,21 +507,13 @@ contains
     if (P_uni(ALPHA,1) > P_uni(ALPHA,2))   write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
 
     constructor_oof_f%npar = 5
-    allocate(constructor_oof_f%xi_n(constructor_oof_f%npar))
-    allocate(constructor_oof_f%nu_fit(constructor_oof_f%npar, 2))
-    allocate(constructor_oof_f%P_uni(constructor_oof_f%npar,2))
-    allocate(constructor_oof_f%P_active(constructor_oof_f%npar,2))
-    allocate(constructor_oof_f%P_lognorm(constructor_oof_f%npar))
 
     call constructor_oof_f%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
 
     !write(*,*) size(constructor_oof_f%P_uni, 1), size(constructor_oof_f%P_uni, 2), size(P_uni, 1), size(P_uni,2)
     !write(*,*) P_uni
-    constructor_oof_f%P_uni         = P_uni
-    constructor_oof_f%P_active(:,1) = P_active_mean
-    constructor_oof_f%P_active(:,2) = P_active_rms
-    constructor_oof_f%nu_fit        = nu_fit
     constructor_oof_f%P_lognorm     = [.false., .true., .false., .false., .false.] !  [sigma0, fknee, alpha, slope, interecept]
+
 
   end function constructor_oof_f
   

@@ -833,8 +833,9 @@ contains
     if (tod%ndiode > 1 .and. tod%compressed_tod) allocate(self%zext(tod%ndet,tod%ndiode))
     do i = 1, ndet
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
-         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn), self%d(i)%xi_n(tod%n_xi))
+         allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
        end if
+       allocate(self%d(i)%xi_n(tod%n_xi))
 
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
@@ -1256,7 +1257,7 @@ contains
                if (n_tot < 10*np) then
                   do while (j <= n_tot)
                       do i = np-1, 0, -1
-                          proc(id(j)) = i
+                          if (j <= n_tot) proc(id(j)) = i
                           j = j + 1
                       end do
                   end do
