@@ -294,20 +294,20 @@ contains
     
     ! The rest should be light enough to do on a single core
     if (self%myid == 0) then
-       ! open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
-       ! open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
-       ! open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
-       ! open(47, file=trim(self%outdir)//'/adc_vb_'//trim(name)//'.dat')
-       ! do i = 1, self%nbins
-       !    write(44, fmt='(e30.8)') self%rms_bins(i)
-       !    write(45, fmt='(e30.8)') self%rms2_bins(i)
-       !    write(46, fmt='(i9)')    self%nval(i)
-       !    write(47, fmt='(e30.8)') self%v_bins(i)
-       ! end do
-       ! close(44)
-       ! close(45)
-       ! close(46)
-       ! close(47)
+       open(44, file=trim(self%outdir)//'/adc_WNsum_'//trim(name)//'.dat')
+       open(45, file=trim(self%outdir)//'/adc_WNsum2_'//trim(name)//'.dat')
+       open(46, file=trim(self%outdir)//'/adc_WNn_'//trim(name)//'.dat')
+       open(47, file=trim(self%outdir)//'/adc_vb_'//trim(name)//'.dat')
+       do i = 1, self%nbins
+          write(44, fmt='(e30.8)') self%rms_bins(i)
+          write(45, fmt='(e30.8)') self%rms2_bins(i)
+          write(46, fmt='(i9)')    self%nval(i)
+          write(47, fmt='(e30.8)') self%v_bins(i)
+       end do
+       close(44)
+       close(45)
+       close(46)
+       close(47)
 
        ! Allocate and intialize everything
        allocate(binmask(self%nbins))
@@ -423,42 +423,42 @@ contains
           end do
           
        end if
-       ! ! Write to file binned rms, voltages, and response function to files
-       ! open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
-       ! open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
-       ! open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
-       ! open(47, file=trim(self%outdir)//'/adc_term1_'//trim(name)//'.dat')
-       ! open(48, file=trim(self%outdir)//'/adc_term2_'//trim(name)//'.dat')
-       ! open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
-       ! open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
-       ! ! open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
-       ! ! open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
-       ! open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
-       ! open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
-       ! do i = 1, self%nbins
-       !    write(44, fmt='(e30.8)') flat_dp(i)
-       !    write(45, fmt='(e16.8)') lin_dp(i)
-       !    write(46, fmt='(e16.8)') R(i)
-       !    write(47, fmt='(e16.8)') term1(i)
-       !    write(48, fmt='(e16.8)') term2(i)
-       !    write(49, fmt='(e16.8)') model_dp(i)
-       !    write(50, fmt='(e16.8)') rms_dp(i)
-       !    ! write(52, fmt='(e16.8)') self%adc_in(i)
-       !    ! write(53, fmt='(e16.8)') self%adc_out(i)
-       !    write(54, fmt='(i1)')    binmask(i)
-       !    write(55, fmt='(e16.8)') dRdV(i)
-       ! end do
-       ! close(44)
-       ! close(45)
-       ! close(46)
-       ! close(47)
-       ! close(48)
-       ! close(49)
-       ! close(50)
-       ! ! close(52)
-       ! ! close(53)
-       ! close(54)
-       ! close(55)
+       ! Write to file binned rms, voltages, and response function to files
+       open(44, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'_flat.dat')
+       open(45, file=trim(self%outdir)//'/adc_linear_term_'//trim(name)//'.dat')
+       open(46, file=trim(self%outdir)//'/adc_response_function_'//trim(name)//'.dat')
+       open(47, file=trim(self%outdir)//'/adc_term1_'//trim(name)//'.dat')
+       open(48, file=trim(self%outdir)//'/adc_term2_'//trim(name)//'.dat')
+       open(49, file=trim(self%outdir)//'/adc_model_'//trim(name)//'.dat') 
+       open(50, file=trim(self%outdir)//'/adc_binned_rms_'//trim(name)//'.dat')
+       ! open(52, file=trim(self%outdir)//'/adc_in_'//trim(name)//'.dat') 
+       ! open(53, file=trim(self%outdir)//'/adc_out_'//trim(name)//'.dat') 
+       open(54, file=trim(self%outdir)//'/adc_binmask_'//trim(name)//'.dat') 
+       open(55, file=trim(self%outdir)//'/adc_dRdV_'//trim(name)//'.dat') 
+       do i = 1, self%nbins
+          write(44, fmt='(e30.8)') flat_dp(i)
+          write(45, fmt='(e16.8)') lin_dp(i)
+          write(46, fmt='(e16.8)') R(i)
+          write(47, fmt='(e16.8)') term1(i)
+          write(48, fmt='(e16.8)') term2(i)
+          write(49, fmt='(e16.8)') model_dp(i)
+          write(50, fmt='(e16.8)') rms_dp(i)
+          ! write(52, fmt='(e16.8)') self%adc_in(i)
+          ! write(53, fmt='(e16.8)') self%adc_out(i)
+          write(54, fmt='(i1)')    binmask(i)
+          write(55, fmt='(e16.8)') dRdV(i)
+       end do
+       close(44)
+       close(45)
+       close(46)
+       close(47)
+       close(48)
+       close(49)
+       close(50)
+       ! close(52)
+       ! close(53)
+       close(54)
+       close(55)
        
        deallocate(binmask, dummymask, vbin_dp, rms_dp, dRdV, R, model_dp, lin_dp, flat_dp)
           
@@ -604,6 +604,7 @@ contains
     if (present(corr)) then
        do i = 1, leng-1
           if (iand(flag(i),flag0) .ne. 0) cycle 
+          if (binwidth == 0.0) write(*,*) self%myid, binwidth, self%vbin_edges(2), self%vbin_edges(1) 
           j = int((tod_in(i)-self%vbin_edges(1))/binwidth) + 1
           if (j > self%nbins) cycle
           self%nval2(j)     = self%nval2(j) + 1
@@ -948,8 +949,109 @@ contains
 
     ! Since the linear portion has been removed, mean should be near zero,
     ! so dips are identified first by finding y-values where y < -1.0*y_std
-    
-    if (trim(name) == '22M_ref01') then
+
+    if (trim(name) == '19S_ref10') then
+       ndips = 6
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.8922, 0.8992, 0.9064, 0.9133, 0.9198, 0.9268 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '19S_sky10') then
+       ndips = 6
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.8433, 0.8504, 0.8572, 0.8643, 0.8711, 0.8780 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '19S_ref11') then
+       ndips = 9
+       allocate(manual_dips(ndips))
+       manual_dips = (/1.1056, 1.1127, 1.1195, 1.1265, 1.1403, 1.1477, 1.1539, 1.1617, 1.1678 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '19S_sky11') then
+       ndips = 10
+       allocate(manual_dips(ndips))
+       manual_dips = (/1.0638, 1.0706, 1.0775, 1.0847, 1.0913, 1.0985, 1.1055, 1.1124, 1.1197, 1.1263 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+
+    else if (trim(name) == '21S_ref10') then
+       ndips = 9
+       allocate(manual_dips(ndips))
+       manual_dips = (/1.0022, 1.0093, 1.0160, 1.0233, 1.0304, 1.0373, 1.0445, 1.0513, 1.0585 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '21S_sky10') then
+       ndips = 9
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.9607, 0.9676, 0.9745, 0.9815, 0.9884, 0.9953, 1.0023, 1.0092, 1.0166 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '21S_ref11') then
+       ndips = 12
+       allocate(manual_dips(ndips))
+       manual_dips = (/1.0063, 1.0128, 1.0204, 1.0269, 1.0410, 1.0482, 1.0549, 1.0621, 1.0693, 1.0764, 1.0833, 1.0899 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '21S_sky11') then
+       ndips = 12
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.9850, 0.9921, 0.9988, 1.0062, 1.0132, 1.0197, 1.0270, 1.0351, 1.0410, 1.0479, 1.0555, 1.0625 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+
+    else if (trim(name) == '23S_ref10') then
+       ndips = 15
+       allocate(manual_dips(ndips))
+       manual_dips = (/1.1758, 1.1829, 1.1897, 1.1966, 1.2038, 1.2108, 1.2179, 1.2249, 1.2319, 1.2386, 1.2457, 1.2529, 1.2600, 1.2669, 1.2739 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '23S_sky10') then
+       ndips = 15
+       allocate(manual_dips(ndips))
+       manual_dips = (/1.1266, 1.1336, 1.1406, 1.1477, 1.1547, 1.1616, 1.1685, 1.1757, 1.18276, 1.1897, 1.1967, 1.2038, 1.2108, 1.2180, 1.225 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+
+    else if (trim(name) == '23S_ref11') then
+       ndips = 8
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.6199, 0.6269, 0.6340, 0.6410, 0.6480, 0.6550, 0.6616, 0.6687 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+    else if (trim(name) == '23S_sky11') then
+       ndips = 8
+       allocate(manual_dips(ndips))
+       manual_dips = (/0.5988, 0.6058, 0.6128, 0.6198, 0.6268, 0.6338, 0.6408, 0.6478 /)
+       do i = 1, ndips
+          loc     =  minloc(abs(x-manual_dips(i)),DIM=1)
+          dips(i) = loc(1)
+       end do
+
+
+    else if (trim(name) == '22M_ref01') then
        ndips = 7
        allocate(manual_dips(ndips))
        manual_dips = (/0.6347,0.6415,0.6488,0.6557,0.6644,0.6717,0.6785/)

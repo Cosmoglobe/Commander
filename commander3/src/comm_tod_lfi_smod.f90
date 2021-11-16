@@ -189,12 +189,12 @@ contains
          constructor%apply_adc(6,2)  = .false.
       else if (trim(constructor%freq) == '070') then
          constructor%apply_adc(2,1)  = .false.
-         constructor%apply_adc(4,:)  = .false.
-         constructor%apply_adc(8,:)  = .false.
+         !constructor%apply_adc(4,:)  = .false.
+         !constructor%apply_adc(8,:)  = .false.
          constructor%apply_adc(10,:) = .false.
          constructor%apply_adc(11,:) = .false.
-         constructor%apply_adc(12,1) = .false.
-         constructor%apply_adc(12,2) = .false.
+         !constructor%apply_adc(12,1) = .false.
+         !constructor%apply_adc(12,2) = .false.
       end if
     end if
 
@@ -312,7 +312,7 @@ contains
           !================================================================
           ! Bin corrected data
           !================================================================
-          if (.false.) then
+          if (.true.) then
              if (constructor%use_dpc_adc) then
                 do i = 1, constructor%ndet
                    do j = 1, constructor%ndiode ! init the adc correction structures
