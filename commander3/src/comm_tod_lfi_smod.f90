@@ -125,7 +125,7 @@ contains
     ! Initialize instrument-specific parameters
     res%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     res%nhorn           = 1
-    res%sample_L1_par   = .false.
+    res%sample_L1_par   = .true.
     res%level           = cpar%ds_tod_level(id_abs)
     if(trim(res%level) == 'L1') then
       res%compressed_tod = .true.
@@ -136,7 +136,7 @@ contains
     end if    
     res%correct_sl      = .true.
     res%orb_4pi_beam    = .true.
-    res%use_dpc_adc     = .true.
+    res%use_dpc_adc     = .false.
     res%use_dpc_gain_modulation = .true.
     res%symm_flags      = .true.
     res%chisq_threshold = 5.d6 !9.d0
@@ -189,24 +189,24 @@ contains
          end if
       end do
 
-      allocate(constructor%apply_adc(constructor%ndet,constructor%ndiode))
-      constructor%apply_adc(:,:) = .true.
+      allocate(res%apply_adc(res%ndet,res%ndiode))
+      res%apply_adc(:,:) = .true.
       ! Define diode masks
-      if (trim(constructor%freq) == '030') then
+      if (trim(res%freq) == '030') then
          ! Nothing to mask here
-      else if (trim(constructor%freq) == '044') then
-         constructor%apply_adc(2,1)  = .false.
-         constructor%apply_adc(2,2)  = .false.
-         constructor%apply_adc(6,1)  = .false.
-         constructor%apply_adc(6,2)  = .false.
-      else if (trim(constructor%freq) == '070') then
-         constructor%apply_adc(2,1)  = .false.
-         !constructor%apply_adc(4,:)  = .false.
-         !constructor%apply_adc(8,:)  = .false.
-         constructor%apply_adc(10,:) = .false.
-         constructor%apply_adc(11,:) = .false.
-         !constructor%apply_adc(12,1) = .false.
-         !constructor%apply_adc(12,2) = .false.
+      else if (trim(res%freq) == '044') then
+         res%apply_adc(2,1)  = .false.
+         res%apply_adc(2,2)  = .false.
+         res%apply_adc(6,1)  = .false.
+         res%apply_adc(6,2)  = .false.
+      else if (trim(res%freq) == '070') then
+         res%apply_adc(2,1)  = .false.
+         !res%apply_adc(4,:)  = .false.
+         !res%apply_adc(8,:)  = .false.
+         res%apply_adc(10,:) = .false.
+         res%apply_adc(11,:) = .false.
+         !res%apply_adc(12,1) = .false.
+         !res%apply_adc(12,2) = .false.
       end if
     end if
 
@@ -329,48 +329,55 @@ contains
           ! Bin corrected data
           !================================================================
           if (.true.) then
-             if (constructor%use_dpc_adc) then
-                do i = 1, constructor%ndet
-                   do j = 1, constructor%ndiode ! init the adc correction structures
-                      ! constructor%adc_corrections(i,j)%p => comm_adc(cpar,info,constructor%nbin_adc)
-                      constructor%adc_corrections(i,j)%p%myid = cpar%myid_chain
-                      constructor%adc_corrections(i,j)%p%comm = cpar%comm_chain
-                      constructor%adc_corrections(i,j)%p%outdir = cpar%outdir
-                      call constructor%adc_corrections(i,j)%p%construct_voltage_bins
+             if (res%use_dpc_adc) then
+                do i = 1, res%ndet
+                   do j = 1, res%ndiode ! init the adc correction structures
+                      if (res%apply_adc(i,j)) then
+                         ! res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+                         res%adc_corrections(i,j)%p%myid = cpar%myid_chain
+                         res%adc_corrections(i,j)%p%comm = cpar%comm_chain
+                         res%adc_corrections(i,j)%p%outdir = cpar%outdir
+                         call res%adc_corrections(i,j)%p%construct_voltage_bins
+                      end if
                    end do
                 end do
              end if
-             if (constructor%myid == 0) write(*,*) '        correct and bin'
+             if (res%myid == 0) write(*,*) '        correct and bin'
              ! Correct the data given the tables and bin again
-             do k = 1, constructor%nscan
-                allocate(diode_data(constructor%scans(k)%ntod, constructor%ndiode), corrected_data(constructor%scans(k)%ntod, constructor%ndiode))
-                allocate(flag(constructor%scans(k)%ntod))
-                do i = 1, constructor%ndet
-                   if (.not. constructor%scans(k)%d(i)%accept) cycle
-                   call constructor%decompress_diodes(k, i, diode_data, flag=flag)
+             do k = 1, res%nscan
+                allocate(diode_data(res%scans(k)%ntod, res%ndiode), corrected_data(res%scans(k)%ntod, res%ndiode))
+                allocate(flag(res%scans(k)%ntod))
+                do i = 1, res%ndet
+                   if (.not. res%scans(k)%d(i)%accept) cycle
+                   call res%decompress_diodes(k, i, diode_data, flag=flag)
                    ! corrected_data = diode_data
-                   do j = 1, constructor%ndiode
-                      call constructor%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), constructor%scanid(k),i,j)
-                      call constructor%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,constructor%flag0,corr=.true.) 
+                   do j = 1, res%ndiode
+                      if (res%apply_adc(i,j)) then
+                         
+                         call res%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), res%scanid(k),i,j)
+                         call res%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,res%flag0,corr=.true.) 
+                      end if
                    end do
                 end do
                 deallocate(diode_data,corrected_data)
                 deallocate(flag)
              end do
              ! Output everything we want to data files
-             do i = 1, constructor%ndet
-                do j = 1, constructor%ndiode
-                   name = trim(constructor%label(i))//'_'//trim(constructor%diode_names(i,j))
-                   call constructor%adc_corrections(i,j)%p%corr_rms_out(name)
-                   if (constructor%myid == 0) then
-                      open(52, file=trim(constructor%adc_corrections(i,j)%p%outdir)//'/adc_in_'//trim(name)//'.dat') 
-                      open(53, file=trim(constructor%adc_corrections(i,j)%p%outdir)//'/adc_out_'//trim(name)//'.dat') 
-                      do k = 1, size(constructor%adc_corrections(i,j)%p%adc_in)
-                         write(52, fmt='(e16.8)') constructor%adc_corrections(i,j)%p%adc_in(k)
-                         write(53, fmt='(e16.8)') constructor%adc_corrections(i,j)%p%adc_out(k)
-                      end do
-                      close(52)
-                      close(53)
+             do i = 1, res%ndet
+                do j = 1, res%ndiode
+                   if (res%apply_adc(i,j)) then
+                      name = trim(res%label(i))//'_'//trim(res%diode_names(i,j))
+                      call res%adc_corrections(i,j)%p%corr_rms_out(name)
+                      if (res%myid == 0) then
+                         open(52, file=trim(res%adc_corrections(i,j)%p%outdir)//'/adc_in_'//trim(name)//'.dat') 
+                         open(53, file=trim(res%adc_corrections(i,j)%p%outdir)//'/adc_out_'//trim(name)//'.dat') 
+                         do k = 1, size(res%adc_corrections(i,j)%p%adc_in)
+                            write(52, fmt='(e16.8)') res%adc_corrections(i,j)%p%adc_in(k)
+                            write(53, fmt='(e16.8)') res%adc_corrections(i,j)%p%adc_out(k)
+                         end do
+                         close(52)
+                         close(53)
+                      end if
                    end if
                 end do
              end do
