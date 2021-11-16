@@ -29,6 +29,7 @@ module spline_1D_mod
      real(dp)                            :: boundary(2)
      logical(lgt)                        :: regular
      logical(lgt)                        :: linear
+     logical(lgt)                        :: verbose
   end type
 
   interface spline
@@ -50,19 +51,21 @@ contains
   ! more memory than necessary, but probably not a big
   ! deal. And saves you from having to pass in 3 arguments
   ! all the time.
-  subroutine spline_simple(s, x, y, boundary, regular, linear)
+  subroutine spline_simple(s, x, y, boundary, regular, linear, verbose)
     implicit none
     type(spline_type),       intent(inout) :: s
     real(dp),                intent(in)    :: x(:), y(:)
     real(dp),      optional, intent(in)    :: boundary(2)
-    logical(lgt),  optional, intent(in)    :: regular, linear
+    logical(lgt),  optional, intent(in)    :: regular, linear, verbose
     call free_spline(s)
     s%boundary = 1d30
     s%regular  = .false.
     s%linear   = .false.
+    s%verbose  = .false.
     if(present(boundary)) s%boundary = boundary
     if(present(regular))  s%regular  = regular
     if(present(linear))   s%linear   = linear
+    if(present(verbose))  s%verbose  = verbose
     allocate(s%x(size(x)),s%y(size(x)),s%y2(size(x)))
     s%x = x
     s%y = y
@@ -82,8 +85,9 @@ contains
     elseif(s%regular) then
        y = splint_uniform_grid(s%x, s%y, s%y2, x)
     else
-       y = splint(s%x, s%y, s%y2, x)
+       y = splint(s%x, s%y, s%y2, x, s%verbose)
     end if
+    if(s%verbose) write(*,*) "splint_simple:", x, y
   end function
 
   subroutine splint_simple_multi(s, x, y)
@@ -148,15 +152,23 @@ contains
     deallocate(a,b,c,r)
   end subroutine spline_plain
 
-  function splint_plain(xa, ya, y2a, x)
+  function splint_plain(xa, ya, y2a, x, verbose)
     implicit none
 
     real(dp),               intent(in)  :: x
     real(dp), dimension(:), intent(in)  :: xa, ya, y2a
     real(dp)                            :: splint_plain
+    logical(lgt), optional, intent(in)  :: verbose
 
     integer(i4b) :: khi, klo, n
     real(dp)     :: a, b, h
+    logical(lgt) :: verb
+
+    if(.not. present(verbose)) then
+      verb = .false.
+    else
+      verb = verbose
+    end if
 
     n = size(xa)
 
@@ -168,6 +180,10 @@ contains
     b   = (x - xa(klo)) / h
     
     splint_plain = a*ya(klo) + b*ya(khi) + ((a**3-a)*y2a(klo) + (b**3-b)*y2a(khi))*(h**2)/6.d0
+
+    if(verb) then 
+      write(*,*) "splint_plain", x, splint_plain, xa(klo), xa(khi), ya(klo), ya(khi), locate(xa, x)
+    end if
 
   end function splint_plain
 

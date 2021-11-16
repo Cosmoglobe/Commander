@@ -69,7 +69,7 @@ contains
              if (exist) iter = iter+1
           end do
           iter = max(1,iter-1)
-          write(*,*) '  Continuing chain '//ctext// ' on iteration ', iter
+          write(*,*) '|  Continuing chain '//ctext// ' on iteration ', iter
           call close_hdf_file(file)          
        else
           write(*,*) 'Unsupported chain mode =', trim(cpar%chain_status)
@@ -327,7 +327,7 @@ contains
           call mpi_reduce(sum(chisq_map%map), chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
-               & '    Chain = ', cpar%mychain, ' -- chisq = ', chisq
+               & ' |  Chain = ', cpar%mychain, ' -- chisq = ', chisq
           call chisq_map%dealloc(); deallocate(chisq_map)
        end if
        call update_status(status, "output_chisq")

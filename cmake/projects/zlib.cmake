@@ -25,14 +25,13 @@
 # ZLib is (not strictly) required by OpenSSL, LibSSH2, cURL, and HDF5.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
+#
+#if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
+#	find_package(ZLIB 1.2.11)
+#endif()
 
-if(USE_SYSTEM_ZLIB AND USE_SYSTEM_LIBS)
-	find_package(ZLIB 1.2.11)
-endif()
-
-if(NOT ZLIB_FOUND)
-	message(STATUS "Required version -- 1.2.11 -- will be compiled from source.")
+if(COMPILE_ZLIB)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.
@@ -104,13 +103,13 @@ if(NOT ZLIB_FOUND)
 		"${CMAKE_INSTALL_PREFIX}"
 		)
 	#------------------------------------------------------------------------------
-	message(STATUS "ZLIB LIBRARIES will be: ${ZLIB_LIBRARIES}")
-	message(STATUS "ZLIB INCLUDE DIRS will be: ${ZLIB_INCLUDE_DIRS}")
+	#message(STATUS "ZLIB LIBRARIES will be: ${ZLIB_LIBRARIES}")
+	#message(STATUS "ZLIB INCLUDE DIRS will be: ${ZLIB_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	add_custom_target(zlib ALL "")
 	#------------------------------------------------------------------------------
-	message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
-	message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
+	#message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
+	#message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 endif()
