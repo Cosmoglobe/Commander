@@ -200,20 +200,23 @@ contains
       res%apply_adc(:,:) = .true.
       ! Define diode masks
       if (trim(res%freq) == '030') then
+         res%apply_adc(:,:)  = .false.
          ! Nothing to mask here
       else if (trim(res%freq) == '044') then
          res%apply_adc(2,1)  = .false.
          res%apply_adc(2,2)  = .false.
+         res%apply_adc(4,1)  = .false.
          res%apply_adc(6,1)  = .false.
          res%apply_adc(6,2)  = .false.
       else if (trim(res%freq) == '070') then
-         res%apply_adc(2,1)  = .false.
-         res%apply_adc(4,:)  = .false.
-         res%apply_adc(8,:)  = .false.
-         res%apply_adc(10,:) = .false.
-         res%apply_adc(11,:) = .false.
-         res%apply_adc(12,1) = .false.
-         res%apply_adc(12,2) = .false.
+         res%apply_adc(1,:)  = .false. !18M
+         res%apply_adc(2,:)  = .false. !18S
+         res%apply_adc(3,:)  = .false. !19M
+         res%apply_adc(5,:)  = .false. !20M
+         res%apply_adc(6,:)  = .false. !20S
+         res%apply_adc(7,:)  = .false. !21M
+         res%apply_adc(10,:) = .false. !22S
+         res%apply_adc(11,:) = .false. !23M
       end if
     end if
 
@@ -340,11 +343,13 @@ contains
              if (res%use_dpc_adc) then
                 do i = 1, res%ndet
                    do j = 1, res%ndiode ! init the adc correction structures
-                      ! res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
-                      res%adc_corrections(i,j)%p%myid = cpar%myid_chain
-                      res%adc_corrections(i,j)%p%comm = cpar%comm_chain
-                      res%adc_corrections(i,j)%p%outdir = cpar%outdir
-                      call res%adc_corrections(i,j)%p%construct_voltage_bins
+                      if (res%apply_adc(i,j)) then
+                         ! res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+                         res%adc_corrections(i,j)%p%myid = cpar%myid_chain
+                         res%adc_corrections(i,j)%p%comm = cpar%comm_chain
+                         res%adc_corrections(i,j)%p%outdir = cpar%outdir
+                         call res%adc_corrections(i,j)%p%construct_voltage_bins
+                      end if
                    end do
                 end do
              end if
@@ -358,8 +363,10 @@ contains
                    call res%decompress_diodes(k, i, diode_data, flag=flag)
                    ! corrected_data = diode_data
                    do j = 1, res%ndiode
-                      call res%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), res%scanid(k),i,j)
-                      call res%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,res%flag0,corr=.true.) 
+                      if (res%apply_adc(i,j)) then
+                         call res%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j), res%scanid(k),i,j)
+                         call res%adc_corrections(i,j)%p%bin_scan_rms(corrected_data(:,j), flag,res%flag0,corr=.true.) 
+                      end if
                    end do
                 end do
                 deallocate(diode_data,corrected_data)
@@ -368,17 +375,19 @@ contains
              ! Output everything we want to data files
              do i = 1, res%ndet
                 do j = 1, res%ndiode
-                   name = trim(res%label(i))//'_'//trim(res%diode_names(i,j))
-                   call res%adc_corrections(i,j)%p%corr_rms_out(name)
-                   if (res%myid == 0) then
-                      open(52, file=trim(res%adc_corrections(i,j)%p%outdir)//'/adc_in_'//trim(name)//'.dat') 
-                      open(53, file=trim(res%adc_corrections(i,j)%p%outdir)//'/adc_out_'//trim(name)//'.dat') 
-                      do k = 1, size(res%adc_corrections(i,j)%p%adc_in)
-                         write(52, fmt='(e16.8)') res%adc_corrections(i,j)%p%adc_in(k)
-                         write(53, fmt='(e16.8)') res%adc_corrections(i,j)%p%adc_out(k)
-                      end do
-                      close(52)
-                      close(53)
+                   if (res%apply_adc(i,j)) then
+                      name = trim(res%label(i))//'_'//trim(res%diode_names(i,j))
+                      call res%adc_corrections(i,j)%p%corr_rms_out(name)
+                      if (res%myid == 0) then
+                         open(52, file=trim(res%adc_corrections(i,j)%p%outdir)//'/adc_in_'//trim(name)//'.dat') 
+                         open(53, file=trim(res%adc_corrections(i,j)%p%outdir)//'/adc_out_'//trim(name)//'.dat') 
+                         do k = 1, size(res%adc_corrections(i,j)%p%adc_in)
+                            write(52, fmt='(e16.8)') res%adc_corrections(i,j)%p%adc_in(k)
+                            write(53, fmt='(e16.8)') res%adc_corrections(i,j)%p%adc_out(k)
+                         end do
+                         close(52)
+                         close(53)
+                      end if
                    end if
                 end do
              end do
