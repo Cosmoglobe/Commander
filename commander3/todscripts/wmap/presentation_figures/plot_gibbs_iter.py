@@ -12,7 +12,7 @@ thin = 1
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_bp_Qband/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_test2/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_test3/chain_c0001.h5', 'r')
 #
 bands=[#'023-WMAP_K', 
        #'030-WMAP_Ka',

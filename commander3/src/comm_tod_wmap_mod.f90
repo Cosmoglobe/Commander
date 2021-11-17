@@ -374,7 +374,7 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 7
+         if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 1
       end if
 
       call int2string(chain, ctext)
@@ -587,7 +587,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      !if (mod(iter,self%output_aux_maps) == 0) then
+      if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '|    Running BiCG'
@@ -602,7 +602,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '|  Finished BiCG'
-      !end if
+      end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
@@ -614,7 +614,7 @@ contains
          do l=1, self%output_n_maps
             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1, l)
             map_out%map = outmaps(1)%p%map
-            call map_out%writeFITS(trim(prefix)//'Smap'//trim(adjustl(self%labels(l)))//trim(postfix))
+            call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
          end do
       end if
       do k = 1, self%output_n_maps
