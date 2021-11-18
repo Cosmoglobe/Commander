@@ -194,7 +194,6 @@ program commander
   call init_chain_file(cpar, first_sample)
   !write(*,*) 'first', first_sample
   !first_sample = 1
-
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
@@ -206,7 +205,6 @@ program commander
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
-
   !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
