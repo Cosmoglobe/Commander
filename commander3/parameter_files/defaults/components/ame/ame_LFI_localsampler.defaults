@@ -13,7 +13,7 @@ COMP_NU_P_INT_NPROP_INIT&&    = 1000         # {> 0, < 0 to disable}. overwrites
 COMP_NU_P_POL_NPROP_INIT&&    = 1000         # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
 COMP_NU_P_UNI_NPROP_LOW&&     = 500          # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_NU_P_UNI_NPROP_HIGH&&    = 5000        # {> 0} local sampling. minimum number of proposals per pixel region
-COMP_NU_P_MASK&&              = mask_ame_nup_sampling_temp_bp10_n1024_udgraded_tr75ptc.fits mask_AME_nu_p_BP8_10deg_new_chisqmask.fits   # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_NU_P_MASK&&              = mask_ame_nup_ff200_Ka30.fits mask_ame_nup_sampling_temp_bp10_n1024_udgraded_tr75ptc.fits mask_AME_nu_p_BP8_10deg_new_chisqmask.fits   # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_NU_P_NPROP&&             = fullsky     # nprop map, local sampling (fullsky = 1)
 COMP_NU_P_PROPLEN&&           = fullsky     # proposal length map, local sampling (fullsky = 1.d0)
 COMP_NU_P_INT_PROPLEN_INIT&&  = 5.d-2       # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
