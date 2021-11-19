@@ -130,7 +130,7 @@ contains
     ! Initialize instrument-specific parameters
     res%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     res%nhorn           = 1
-    res%sample_L1_par   = .true.
+    res%sample_L1_par   = .false.
     res%level           = cpar%ds_tod_level(id_abs)
     if(trim(res%level) == 'L1') then
       res%compressed_tod = .true.
