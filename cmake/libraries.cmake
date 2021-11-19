@@ -272,7 +272,7 @@ list(APPEND projects
 	fftw
 	hdf5
 	healpix
-	#camb
+	camb
 	commander3
 	)
 # Include all project configuration files
