@@ -3,7 +3,7 @@ COMP_BETA_INT_LMAX&&          = -1                             # alm sampling (>
 COMP_BETA_POL_LMAX&&          = 100                            # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_BETA_INT_LNLTYPE&&       = prior   #marginal # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 ##### if using prior sampling for synch beta in Temperature #################
-COMP_BETA_INT_PRIOR_MEAN&&    = -3.1       # prior sampler mean; Planck 2015
+COMP_BETA_INT_PRIOR_MEAN&&    = -3.3       # prior sampler mean; Planck 2015
 COMP_BETA_INT_PRIOR_RMS&&     = 0.1        # prior sampler RMS;  Planck 2015
 #############################################################################
 COMP_BETA_POL_LNLTYPE&&       = chisq                          # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
