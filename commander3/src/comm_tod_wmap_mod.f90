@@ -117,8 +117,8 @@ contains
       allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
   
-     ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
-     ! 46.5 mHz. 
+      ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
+      ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
       constructor%xi_n_P_uni(4,:) = [-0.1, 0.1]            ! slope
@@ -351,8 +351,8 @@ contains
 
       ! Parameters used for testing
       real(dp) :: polang
-      polang = mod(2*PI*iter/12, 2*PI)
-      !polang = 0d0
+      !polang = mod(2*PI*iter/12, 2*PI)
+      polang = 0d0
 
 
       call int2string(iter, ctext)
