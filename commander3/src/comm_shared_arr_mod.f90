@@ -71,7 +71,7 @@ module comm_shared_arr_mod
      integer(KIND=MPI_ADDRESS_KIND) :: win, wsize, disp_unit
      type(C_PTR)  :: baseptr
      integer(i4b), allocatable, dimension(:)   :: arrshape
-     integer(i4b), pointer,     dimension(:)  :: a => null()
+     integer(i4b), pointer,     dimension(:)   :: a => null()
   end type shared_1d_int
 
   type shared_2d_int
@@ -131,6 +131,7 @@ contains
     integer(i4b) :: ierr
   
     call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
     call mpi_win_free(arr%win, ierr)
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
@@ -201,6 +202,7 @@ contains
     integer(i4b) :: ierr
   
     call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
     call mpi_win_free(arr%win, ierr)
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
@@ -252,6 +254,7 @@ contains
     integer(i4b) :: ierr
   
     call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
     call mpi_win_free(arr%win, ierr)
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
@@ -322,9 +325,11 @@ contains
     type(shared_2d_spc), intent(inout) :: arr
 
     integer(i4b) :: ierr
-  
+
     call mpi_win_fence(0, arr%win, ierr)
-    call mpi_win_free(arr%win, ierr)
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
+    call mpi_win_free(arr%win, ierr)    
+
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)
@@ -356,8 +361,8 @@ contains
   subroutine init_shared_1d_int(myid_shared, comm_shared, myid_inter, comm_inter, &
        & n, arr)
     implicit none
-    integer(i4b),       intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
-    integer(i4b),       intent(in)  :: n(:)
+    integer(i4b),        intent(in)  :: myid_shared, comm_shared, myid_inter, comm_inter
+    integer(i4b),        intent(in)  :: n(:)
     type(shared_1d_int), intent(out) :: arr
 
     integer(i4b) :: ierr
@@ -394,6 +399,7 @@ contains
     integer(i4b) :: ierr
   
     call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
     call mpi_win_free(arr%win, ierr)
 !    call mpi_free_mem(arr%baseptr,ierr)
     nullify(arr%a)
@@ -470,6 +476,7 @@ contains
     integer(i4b) :: ierr
   
     call mpi_win_fence(0, arr%win, ierr)
+    call mpi_barrier(MPI_COMM_WORLD, ierr)
     call mpi_win_free(arr%win, ierr)
     nullify(arr%a)
     deallocate(arr%arrshape)

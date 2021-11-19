@@ -1,0 +1,51 @@
+# Synchrotron component for LFI TOD analysis
+COMP_LABEL&&                  = synch
+COMP_TYPE&&                   = power_law
+COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
+COMP_POLARIZATION&&           = .true.
+COMP_CG_SCALE_T&&             = 5.d5
+COMP_CG_SCALE_P&&             = 1.d0
+COMP_CG_SAMPLE_GROUP&&        = 1
+COMP_CG_SAMP_GROUP_MAXITER&&  = 100  #50, increased to 100 due to prior sampling convergence
+COMP_NSIDE&&                  = 1024
+#COMP_MONOPOLE_PRIOR&&         = none
+COMP_MONOPOLE_PRIOR&&         = lower_value_prior:mask_synch_mono_n1024.fits,5.0d6,1.3d6,600.d0  #<mask name>,<mean>,<RMS>,<FWHM>
+COMP_DEFLATION_MASK&&         = fullsky
+COMP_L_APOD&&                 = 1500
+COMP_LMIN_AMP&&               = 0
+COMP_LMAX_AMP&&               = 1500
+COMP_LMAX_IND&&               = 100
+COMP_OUTPUT_FWHM&&            = 60         # arcmin
+COMP_UNIT&&                   = uK_RJ
+COMP_NU_REF_T&&               = 0.408
+COMP_NU_REF_P&&               = 30
+COMP_MASK&&                   = fullsky
+COMP_INDMASK&&                = mask_synch_beta_sampling_BP10_n1024_TQU.fits mask_clean_synch_tr40_others_tr40_radio_tr30_chisq_tr5_n1024_udgraded_tr75ptc_TQU.fits 
+COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
+COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+COMP_CL_BETA_PRIOR_MEAN&&     = -0.5
+COMP_CL_BETA_PRIOR_RMS&&      =  0.1
+COMP_CL_L_PIVOT&&             =   100        # Pivot multipole
+COMP_CL_DEFAULT_AMP_T&&       =  3e14        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       =  200
+COMP_CL_DEFAULT_AMP_B&&       =  100
+COMP_CL_DEFAULT_BETA_T&&      =  60d0
+COMP_CL_DEFAULT_BETA_E&&      =  30d0
+COMP_CL_DEFAULT_BETA_B&&      =  30d0
+COMP_PRIOR_UNI_BETA_LOW&&     =  -4.5
+COMP_PRIOR_UNI_BETA_HIGH&&    =  -1.5
+COMP_PRIOR_GAUSS_BETA_MEAN&&  =  -3.1
+COMP_PRIOR_GAUSS_BETA_RMS&&   =   0.1   #0.1
+COMP_APPLY_JEFFREYS_PRIOR&&   =  .false.
+COMP_BETA_SMOOTHING_SCALE&&   = 3
+COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_BETA_NU_MIN&&            =   0.        # Lowest frequency for index estimation in GHz
+COMP_BETA_NU_MAX&&            =  80.        # Highest frequency for index estimation in GHz
+COMP_INPUT_AMP_MAP&&          = init_synch_amp_BP8.1_v1.fits
+COMP_PRIOR_AMP_MAP&&          = none
+COMP_INPUT_BETA_MAP&&         = init_synch_beta_BP8.1_v1.fits
+COMP_DEFAULT_BETA&&           = -3.1
+COMP_OUTPUT_EB_MAP&&          = .false.
+COMP_INIT_FROM_HDF&&          = default
+
+

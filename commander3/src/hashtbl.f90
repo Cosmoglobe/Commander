@@ -81,6 +81,8 @@ CONTAINS
        IF (list%key /= key) THEN
           IF ( .NOT. ASSOCIATED(list%child) ) ALLOCATE(list%child)
           CALL put_sll(list%child,key,val)
+       ELSE
+          list%val = val
        END IF
     ELSE
        IF (.NOT. ALLOCATED(list%key)) &
@@ -100,6 +102,10 @@ CONTAINS
     INTEGER                                      :: vallen
 
     vallen = 0
+    if (.not. allocated(list%key)) then
+      write(*,*) trim(key)//' not defined'
+      stop
+    end if
     IF (ALLOCATED(list%key) .AND. (list%key == key)) THEN
        vallen = LEN(list%val)
        IF (ALLOCATED(val)) DEALLOCATE(val)

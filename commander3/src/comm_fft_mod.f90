@@ -25,7 +25,7 @@ module comm_fft_mod
   implicit none
 
   private
-  public initialize_fft_mod, get_closest_fft_magic_number
+  public initialize_fft_mod, get_closest_fft_magic_number, ind2freq
 
   integer(i4b) :: min_fft_magic_number, max_fft_magic_number
   integer(i4b), allocatable, dimension(:) :: fft_magic_numbers
@@ -35,6 +35,7 @@ contains
   subroutine initialize_fft_mod(cpar)
     implicit none
     type(comm_params),       intent(in) :: cpar
+    character(len=1024)                 :: filename
 
     integer(i4b)       :: i, n, unit
 
@@ -46,7 +47,13 @@ contains
 
     ! Read magic numbers list
     unit = getlun()
-    open(unit, file=trim(cpar%fft_magic_number_file))
+    if(cpar%fft_magic_number_file(1:1) == '/') then ! full path given
+      filename = trim(cpar%fft_magic_number_file)
+    else
+      filename = trim(cpar%datadir)//'/'//trim(cpar%fft_magic_number_file)
+    end if
+
+    open(unit, file=trim(filename))
     read(unit,*) n
     allocate(fft_magic_numbers(n))
     do i = 1, n
@@ -75,5 +82,11 @@ contains
 
   end function get_closest_fft_magic_number
 
+  function ind2freq(ind, samp_rate, n) result(freq)
+    implicit none
+    real(dp) :: freq, samp_rate
+    integer(i4b) :: n, ind
+    freq = (ind-1)*(samp_rate/2)/(n-1)
+  end function ind2freq
 
 end module comm_fft_mod

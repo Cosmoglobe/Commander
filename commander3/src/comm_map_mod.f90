@@ -102,6 +102,8 @@ module comm_map_mod
      procedure     :: get_alm_TEB
      procedure     :: remove_MDpoles
      procedure     :: fit_MDpoles
+     procedure     :: remove_EE_l2_alm
+     procedure     :: add_random_fluctuation
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -331,13 +333,14 @@ contains
     
   end function constructor_map
 
-  function constructor_alms(info, h5_file, hdf, field, label)
+  function constructor_alms(info, h5_file, hdf, field, label, lmax_file)
     implicit none
     class(comm_mapinfo),                intent(inout), target   :: info
     type(hdf_file),                     intent(in), target   :: h5_file
     character(len=*),                   intent(in)           :: label
     logical(lgt),                       intent(in)           :: hdf
     character(len=*),                  intent(in)           :: field
+    integer(i4b),                      intent(in), optional :: lmax_file
     class(comm_map),     pointer                      :: constructor_alms
     !character(len=80),   dimension(:,:) , allocatable :: header
     integer(i4b)                                      :: mmax, lmax, ierr
@@ -350,30 +353,28 @@ contains
     allocate(constructor_alms%map(0:info%np-1,info%nmaps))
     allocate(constructor_alms%alm(0:info%nalm-1,info%nmaps))
 
-    info%mmax = 0
+!    info%mmax = 0
 
     if( hdf ) then
       !write(*,*) 'About to call read_hdf'
-      if(info%myid == 0) then
-        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'mmax', mmax)
-        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'lmax', lmax)
-      end if
-      call mpi_bcast(mmax, 1, MPI_INTEGER, 0, info%comm, ierr)
-      call mpi_bcast(lmax, 1, MPI_INTEGER, 0, info%comm, ierr)
+!!$      if(info%myid == 0) then
+!!$        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'mmax', mmax)
+!!$        call read_hdf(h5_file,trim(label) // '/' // trim(field) // 'lmax', lmax)
+!!$      end if
+!!$      call mpi_bcast(mmax, 1, MPI_INTEGER, 0, info%comm, ierr)
+!!$      call mpi_bcast(lmax, 1, MPI_INTEGER, 0, info%comm, ierr)
       !bcast mmax, lmax to all cores
 
       
-      info%lmax = lmax
-      info%mmax = mmax
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3)
+!!$      info%lmax = lmax
+!!$      info%mmax = mmax
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
+      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
     else 
       constructor_alms%alm = 0.d0
-      mmax = info%lmax
 
     end if
-    info%mmax = mmax
     constructor_alms%map = 0.d0
 
   end function constructor_alms
@@ -706,7 +707,7 @@ contains
           if (present(hdffile) .and. self%info%lmax == -1) then
              call write_hdf(hdffile, trim(adjustl(hdfpath)//'map'),  real(map,sp))
           end if
-          !call update_status(status, "fits3")
+          call update_status(status, "fits3")
        end if
 
        if (present(hdffile) .and. self%info%lmax >= 0) then
@@ -798,7 +799,7 @@ contains
        allocate(map(0:self%info%npix-1,self%info%nmaps))
        if (present(udgrade)) then
           allocate(map_in(0:npix-1,self%info%nmaps))
-          call input_map(filename, map_in, npix, self%info%nmaps)
+          call input_map(filename, map_in, npix, self%info%nmaps, ignore_polcconv=.true.)
           if (ordering == 1) then
              call udgrade_ring(map_in, nside, map, nside_out=self%info%nside)
           else
@@ -806,7 +807,7 @@ contains
           end if
           deallocate(map_in)
        else
-          call input_map(filename, map, self%info%npix, self%info%nmaps)
+          call input_map(filename, map, self%info%npix, self%info%nmaps, ignore_polcconv=.true.)
        end if
 
        if (present(mask)) then
@@ -904,28 +905,29 @@ contains
     end if
   end subroutine readHDF
 
-  subroutine readHDF_mmax(self, hdffile, hdfpath, mmax, pol)
+  subroutine readHDF_mmax(self, hdffile, hdfpath, mmax, pol, lmax_file)
     implicit none
     
     class(comm_map),        intent(inout) :: self
     type(hdf_file),         intent(in)    :: hdffile
     character(len=*),       intent(in)    :: hdfpath
     integer(i4b),           intent(in)    :: mmax, pol
+    integer(i4b),           intent(in), optional    :: lmax_file
 
     integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm
     real(dp),     allocatable, dimension(:) :: alms
     !integer(i4b), allocatable, dimension(:)   :: p
     !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
-    lmax  = self%info%lmax
+    lmax  = self%info%lmax; if (present(lmax_file)) lmax = lmax_file
     nmaps = 1 
     nalm = (lmax+1)**2
     
     ! Only the root actually reads from disk; data are distributed via MPI
     allocate(alms(0:nalm-1))
-    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms)
+    if (self%info%myid == 0) call read_hdf(hdffile, trim(adjustl(hdfpath)), alms, opt=.true.)
     call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-    if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
+    !if(.not. allocated(self%info%lm)) allocate(self%info%lm(2, 0:self%info%nalm-1))
     do i = 0, self%info%nalm-1
        call self%info%i2lm(i, l, m)
        j = l**2 + l + m
@@ -1603,5 +1605,78 @@ contains
     call mpi_bcast(fit_MDpoles, size(fit_MDpoles), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
   end function fit_MDpoles
+
+
+  subroutine remove_EE_l2_alm(self, mask)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    class(comm_map),                    intent(in)    :: mask
+
+    integer(i4b) :: i, j, ierr
+    real(dp) :: alm(-2:2), A(-2:2,-2:2), b(-2:2)
+    real(dp), allocatable, dimension(:,:,:) :: Ylm
+    class(comm_map), pointer :: map
+
+    ! Generate pixel-space map from alms
+    call self%Y()
+
+    !call mask%writeFITS('mask.fits')
+
+    ! Compute basis functions
+    map => comm_map(self)
+    allocate(Ylm(0:self%info%np-1,3,-2:2))
+    do i = -2, 2
+       map%alm        = 0.d0
+       call map%info%lm2i(2,i,j)
+       if (j /= -1) map%alm(j,2) = 1.d0
+       call map%Y()
+       Ylm(:,:,i) = map%map * mask%map
+       !call map%writeFITS('Ylm.fits')
+    end do
+
+    ! Set up linear system
+    do i = -2, 2
+       do j = -2, i
+          A(i,j) = sum(Ylm(:,:,i)*Ylm(:,:,j))
+          A(j,i) = A(i,j)
+       end do
+       b(i) = sum(self%map*Ylm(:,:,i))
+       !write(*,*) real(A(i,:),sp), real(b(i),sp)
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, A, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, b, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+
+    ! Solve linear system
+    call solve_system_real(A, alm, b)
+
+    ! Subtract modes from alm array
+    do i = -2, 2
+       call self%info%lm2i(2,i,j)
+       if (j /= -1) self%alm(j,2) = self%alm(j,2) - alm(i)
+    end do
+
+    ! Clean up
+    deallocate(Ylm)
+    call map%dealloc()
+    
+  end subroutine remove_EE_l2_alm
+
+  subroutine add_random_fluctuation(self, ell, pol, sigma, handle)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    integer(i4b),                       intent(in)    :: ell, pol
+    real(dp),                           intent(in)    :: sigma
+    type(planck_rng),                   intent(inout) :: handle
+
+    integer(i4b) :: m, i
+
+    do m = -ell, ell
+       call self%info%lm2i(ell, m, i)
+       if (i /= -1) then
+          self%alm(i,pol) = self%alm(i,pol) + sigma * rand_gauss(handle)
+       end if
+    end do
+
+  end subroutine add_random_fluctuation
 
 end module comm_map_mod

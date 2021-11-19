@@ -27,6 +27,8 @@ program commander
   use comm_output_mod
   use comm_comp_mod
   use comm_nonlin_mod
+  use comm_tod_simulations_mod
+  use comm_tod_gain_mod
   implicit none
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
@@ -39,40 +41,44 @@ program commander
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
 
+  !----------------------------------------------------------------------------------
   ! Command line arguments
-  !character(len=*), parameter :: version = '1.0.0'
-  !character(len=32)           :: arg
-  !integer                     :: myint
+  character(len=*), parameter :: version = '1.0.0'
+  character(len=32)           :: arg
+  integer                     :: arg_indx
 
-  !do myint = 1, command_argument_count()
-  !  call get_command_argument(myint, arg)
+  ! Giving the simple command line arguments for user to chose from.
+  comm3_args: do arg_indx = 1, command_argument_count()
+    call get_command_argument(arg_indx, arg)
 
-  !  select case (arg)
-  !    case ('-v', '--version')
-  !      print '(2a)', 'Commander3 version ', version
-  !      print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
-  !      print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
-  !      print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
-  !      call exit(0)
-  !    case ('-h', '--help')
-  !      call print_help()
-  !      call exit(0)
-  !    case default
-  !      print '(2a, /)', 'Unrecognised command-line option: ', arg
-  !      call print_help()
-  !      call exit(0)
-  !  end select
-  !end do
+    select case (arg)
+      case ('-v', '--version')
+        print '(2a)', 'Commander3 version: '//trim(version)
+        print '(2a)', "Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo."
+        print '(2a)', "This is free software; see the source for copying conditions. There is NO warranty;"
+        print '(2a)', "not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+        call exit(0)
+      case ('-h', '--help')
+        call print_help()
+        call exit(0)
+      case default
+        !print '(2a, /)', 'Unrecognised command-line option: ', arg
+        !call print_help()
+        !call exit(0)
+        exit comm3_args
+    end select
+  end do comm3_args
+  !----------------------------------------------------------------------------------
 
   ! **************************************************************
   ! *          Get parameters and set up working groups          *
   ! **************************************************************
   call wall_time(t0)
-  call mpi_init(ierr)
-  call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
-  call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  call MPI_Init(ierr)
+  call MPI_Comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
+  call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
+  
   cpar%root = 0
-    
   
   if (cpar%myid == cpar%root) call wall_time(t1)
   call read_comm_params(cpar)
@@ -82,26 +88,53 @@ program commander
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid_chain == 0 !.false.
+
+
+!!$  n = 100000
+!!$  q = 100000
+!!$  allocate(arr(n))
+!!$  do i = 1, n
+!!$     allocate(arr(i)%p(q))
+!!$     arr(i)%p = i
+!!$     if (mod(i,1000) == 0) then
+!!$        write(*,*) 'up', arr(i)%p(6)
+!!$        call update_status(status, "debug")
+!!$     end if
+!!$  end do
+!!$
+!!$  do i = 1, n
+!!$     deallocate(arr(i)%p)
+!!$     if (mod(i,1000) == 0) then
+!!$        write(*,*) 'down', i
+!!$        call update_status(status, "debug2")
+!!$     end if
+!!$  end do
+!!$  deallocate(arr)
+!!$  stop
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
-     call mpi_finalize(ierr)
+     call MPI_Finalize(ierr)
      stop
   end if
   if (cpar%myid == cpar%root) call wall_time(t2)
 
   ! Output a little information to notify the user that something is happening
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then
-     write(*,*) ''
-     write(*,*) '       **********   Commander   *************'
-     write(*,*) ''
-     write(*,*) '   Number of chains                       = ', cpar%numchain
-     write(*,*) '   Number of processors in first chain    = ', cpar%numprocs_chain
-     write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to initialize run = ', t2-t0, ' sec'
-     write(*,fmt='(a,f12.3,a)') '   Time to read in parameters = ', t3-t1, ' sec'
-     write(*,*) ''
-
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     write(*,fmt='(a)') ' |                             Commander3                            |'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     if (cpar%enable_tod_simulations) then
+       write(*,fmt='(a,t70,a)')       ' |  Regime:                            TOD Simulations', '|'
+     else
+       write(*,fmt='(a,t70,a)')       ' |  Regime:                            Data Processing', '|'
+     endif
+     write(*,fmt='(a,i12,t70,a)') ' |  Number of chains                       = ', cpar%numchain, '|'
+     write(*,fmt='(a,i12,t70,a)') ' |  Number of processors in first chain    = ', cpar%numprocs_chain, '|'
+     write(*,fmt='(a,t70,a)')         ' |', '|'
+     write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to initialize run                 = ', t2-t0, ' sec', '|'
+     write(*,fmt='(a,f12.3,a,t70,a)') ' |  Time to read in parameters             = ', t3-t1, ' sec', '|'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
   end if
 
 
@@ -150,9 +183,10 @@ program commander
   ! **************************************************************
 
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
-     write(*,*) ''
-     write(*,fmt='(a,f12.3,a)') '   Time to read data = ', t2-t1, ' sec'
-     write(*,*) '   Starting Gibbs sampling'
+     !write(*,*) '|'
+     write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+     write(*,fmt='(a,f12.3,a)') ' |  Time to read data = ', t2-t1, ' sec'
+     write(*,*) '|  Starting Gibbs sampling'
   end if
 
 
@@ -160,7 +194,6 @@ program commander
   call init_chain_file(cpar, first_sample)
   !write(*,*) 'first', first_sample
   !first_sample = 1
-
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
@@ -172,20 +205,25 @@ program commander
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
-
   !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
+  !----------------------------------------------------------------------------------
+  ! Part of Simulation routine
+  !----------------------------------------------------------------------------------
+  ! Will make only one full gibbs loop to produce simulations
+  !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
+  !----------------------------------------------------------------------------------
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
-        write(*,fmt='(a)') '---------------------------------------------------------------------'
-        write(*,fmt='(a,i4,a,i8)') 'Chain = ', cpar%mychain, ' -- Iteration = ', iter
+        write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+        write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -196,9 +234,25 @@ program commander
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
+     !----------------------------------------------------------------------------------
+     ! Part of Simulation routine
+     !----------------------------------------------------------------------------------
+     ! If we are on 1st iteration and simulation was enabled,
+     ! we copy real LFI data into specified folder.
+     if ((iter == 1) .and. cpar%enable_tod_simulations) then
+       call copy_LFI_tod(cpar, ierr)
+       call write_filelists_to_disk(cpar, ierr)
+     end if
+     !----------------------------------------------------------------------------------
      ! Process TOD structures
-     if (iter > 2 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+
+     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
         call process_TOD(cpar, cpar%mychain, iter, handle)
+     end if
+
+     if (cpar%enable_tod_simulations) then
+        ! Skip other steps if TOD simulations
+        exit
      end if
 
      ! Sample non-linear parameters
@@ -211,7 +265,7 @@ program commander
      if (cpar%sample_signal_amplitudes) then
         do samp_group = 1, cpar%cg_num_user_samp_groups
            if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') '  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+              write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                    & samp_group, ' of ', cpar%cg_num_user_samp_groups
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
@@ -240,13 +294,14 @@ program commander
      if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
         end if
         iter = iter+1
      else
         if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,f12.3,a)') 'Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
-           write(*,*) 'SAMPLE REJECTED'
+           write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
+           write(*,*) '|'
+           write(*,*) '|  SAMPLE REJECTED'
         end if        
      end if
      
@@ -262,7 +317,7 @@ program commander
   call mpi_barrier(MPI_COMM_WORLD, ierr)
 
   ! Clean up
-  if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '     Cleaning up and finalizing'
+  if (cpar%myid == cpar%root .and. cpar%verbosity > 1) write(*,*) '|  Cleaning up and finalizing'
 
   ! And exit
   call free_status(status)
@@ -278,22 +333,51 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
-    real(dp)     :: t1, t2, dnu_prop
+    real(dp)     :: t1, t2, dnu_prop, rms_EE2_prior
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
-    type(map_ptr), allocatable, dimension(:,:)   :: s_sky
-    class(comm_map), pointer :: rms => null()
+    type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    class(comm_map),  pointer :: rms => null()
+    class(comm_map),  pointer :: cmbmap => null()
+    class(comm_comp), pointer :: c => null()
 
     ndelta      = cpar%num_bp_prop + 1
 
+    ! Set up EE l=2-subtracted CMB map for absolute gain calibration
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == 'cmb') then
+             rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
+             cmbmap        => comm_map(c%x)
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_before.fits')
+             call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_middle.fits')
+             call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
+!!$             call cmbmap%Y()
+!!$             call cmbmap%writeFITS('cmb_after.fits')
+          end if
+       end select
+       c => c%next()
+    end do
+
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
+
+       if (cpar%myid == 0) then
+          write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
+          write(*,*) '|  Processing TOD channel = ', trim(data(i)%tod_type) 
+       end if
 
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
        allocate(s_sky(ndet,ndelta))
+       allocate(s_gain(ndet,1))
        allocate(delta(0:ndet,npar,ndelta))
        allocate(eta(ndet))
        do k = 1, ndelta
@@ -301,7 +385,8 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                   if (.true. .or. mod(iter,2) == 0) then
+                   if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
+                   !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
@@ -338,7 +423,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
-                call data(i)%bp(j)%p%update_tau(delta(j,:,k))
+                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
           !end if
@@ -346,11 +431,21 @@ contains
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             !call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.) 
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false., cmb_pol=.false.) 
+             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
+
+          ! Evaluate sky for each detector for absolute gain calibration
+          if (k == 1) then
+             do j = 1, data(i)%tod%ndet
+                if (associated(cmbmap)) then
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., cmbmap=cmbmap) 
+                else
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
+                end if
+             end do
+          end if
 
        end do
 
@@ -359,7 +454,19 @@ contains
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+
+       if (cpar%myid_chain == 0) then
+         write(*,*) '|'
+         write(*,*) '|  Processing ', trim(data(i)%label)
+         write(*,*) '|'
+       end if
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+       if (cpar%myid_chain == 0) then
+         write(*,*) '|'
+         write(*,*) '|  Finished processing ', trim(data(i)%label)
+         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
+         !write(*,*) ''
+       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -379,22 +486,24 @@ contains
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
-          call data(i)%bp(j)%p%update_tau(delta(j,:,1))
+          call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)       
 
        ! Clean up temporary data structures
-       do k = 1, ndelta
-          do j = 1, data(i)%tod%ndet
+       do j = 1, data(i)%tod%ndet
+          do k = 1, ndelta
              call s_sky(j,k)%p%dealloc
           end do
+          call s_gain(j,1)%p%dealloc
        end do
-       deallocate(s_sky, delta, eta)
+       deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr
        call nullify_monopole_amp(data(i)%label)
 
     end do
+    if (associated(cmbmap)) call cmbmap%dealloc()
 
   end subroutine process_TOD
 

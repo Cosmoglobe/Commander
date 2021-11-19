@@ -398,29 +398,35 @@ contains
 
   end subroutine output_signals_per_band
 
-  subroutine get_sky_signal(band, det, map_out, mono, cmb_pol)
+  subroutine get_sky_signal(band, det, map_out, mono, cmbmap)
     implicit none
     integer(i4b),    intent(in)     :: band, det
     class(comm_map), pointer        :: map_out
-    logical(lgt), optional          :: mono 
-    logical(lgt), optional          :: cmb_pol
+    logical(lgt),    optional       :: mono 
+    class(comm_map), optional       :: cmbmap
 
     integer(i4b) :: i, j, k
     logical(lgt) :: skip, mono_
-    class(comm_map),  pointer :: map_diff
+    real(dp)     :: rms_EE2_prior
+    class(comm_map),  pointer :: map_diff, cmbmap_band
     class(comm_comp), pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
     
     mono_ = .true.; if (present(mono)) mono_=mono 
 
-    P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]
-    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPOPE
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]
+    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPIPE
     !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! SROLL2
 
     ! Allocate map
     map_out  => comm_map(data(band)%info)  
     map_diff => comm_map(data(band)%info)
+
+    if (present(cmbmap)) then
+       cmbmap_band => comm_map(data(band)%info)
+       call cmbmap%alm_equal(cmbmap_band)
+    end if
 
     ! Compute predicted signal for this band
     c => compList
@@ -434,8 +440,12 @@ contains
        end if
        select type (c)
        class is (comm_diffuse_comp)
-          !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-          alm     = c%getBand(band, alm_out=.true., det=det)
+          !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))       
+          if (present(cmbmap) .and. trim(c%label) == 'cmb') then
+             alm     = c%getBand(band, alm_out=.true., det=det, amp_in=cmbmap_band%alm)
+          else
+             alm     = c%getBand(band, alm_out=.true., det=det)
+          end if
 !!$          if (c%x%info%myid == 0) then
 !!$             write(*,*) c%label
 !!$             write(*,*) shape(alm)
@@ -443,22 +453,22 @@ contains
 !!$          end if
           !write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
 !          call map_diff%add_alm(alm, c%x%info)
-          if (present(cmb_pol) .and. trim(c%label) == 'cmb') then
-             !map_diff%alm(:,1) = map_diff%alm(:,1) + alm(:,1)
-             do j = 1, data(band)%info%nmaps
-                do i = 0, data(band)%info%nalm-1
-                   if (j == 1 .or. data(band)%info%lm(1,i) > 2) then
-                      map_diff%alm(i,j) = map_diff%alm(i,j) + alm(i+1,j)
-                   else if (j == 2 .and. data(band)%info%lm(1,i) == 2) then
-                      ! Apply external E quadrupole prior
-                      k = 3+data(band)%info%lm(2,i)
-                      map_diff%alm(i,j) = map_diff%alm(i,j) + P_quad(k)
-                   end if
-                end do
-             end do
-          else
+!!$          if (present(cmb_pol) .and. trim(c%label) == 'cmb') then
+!!$             !map_diff%alm(:,1) = map_diff%alm(:,1) + alm(:,1)
+!!$             do j = 1, data(band)%info%nmaps
+!!$                do i = 0, data(band)%info%nalm-1
+!!$                   if (j == 1 .or. data(band)%info%lm(1,i) > 2) then
+!!$                      map_diff%alm(i,j) = map_diff%alm(i,j) + alm(i+1,j)
+!!$                   else if (j == 2 .and. data(band)%info%lm(1,i) == 2) then
+!!$                      ! Apply external E quadrupole prior
+!!$                      k = 3+data(band)%info%lm(2,i)
+!!$                      map_diff%alm(i,j) = map_diff%alm(i,j) + P_quad(k)
+!!$                   end if
+!!$                end do
+!!$             end do
+!!$          else
              map_diff%alm = map_diff%alm + alm
-          end if
+!!$          end if
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
@@ -482,6 +492,9 @@ contains
     ! Clean up
     nullify(c)
     call map_diff%dealloc; deallocate(map_diff)
+    if (present(cmbmap)) then
+       call cmbmap_band%dealloc()
+    end if
 
   end subroutine get_sky_signal
 
