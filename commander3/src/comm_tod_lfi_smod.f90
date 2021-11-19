@@ -1082,8 +1082,11 @@ contains
 
         ! Apply ADC corrections
         do j=1, self%ndiode
-          call self%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
-          !corrected_data(:,j) = diode_data(:,j)
+           if (self%apply_adc(i,j)) then
+              call self%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+           else   
+              corrected_data(:,j) = diode_data(:,j)
+           end if
           !do k = 1, 10
           !   write(*,*) diode_data(k,j), corrected_data(k,j)
           !end do
