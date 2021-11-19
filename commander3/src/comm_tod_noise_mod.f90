@@ -487,7 +487,7 @@ contains
              x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
              x_in(2) = 0.5 * (x_in(1) + x_in(3))
 
-             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni)
+             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
           end do
