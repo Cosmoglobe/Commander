@@ -7,7 +7,7 @@ import h5py
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_test3/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed/chain_c0001.h5', 'r')
 burn = 0
 thin = 1
 burn = max(burn, thin)
