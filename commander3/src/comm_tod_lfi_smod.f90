@@ -553,16 +553,17 @@ contains
     ! construct the noise filter function for the noise psd estimates
     do i=1, res%ndet
 
-      allocate(noise_filter(2, 0:int((res%samprate/2 - 7.d0)/0.1+1)))
+!!$      allocate(noise_filter(2, 0:int((res%samprate/2 - 7.d0)/0.1+1)))
+!!$
+!!$      do j = 0, int((res%samprate/2 - 7.d0)/0.1d0) + 1
+!!$        noise_filter(1, j) = 7.d0 + j*0.1d0
+!!$        noise_filter(2, j) = sqrt((res%diode_weights(i,1) *(1 + splint(res%ref_splint(i,1), noise_filter(1,j))) + res%diode_weights(i,2) *(1 + splint(res%ref_splint(i,2), noise_filter(1,j))))/2.d0)
+!!$      end do
 
-      do j = 0, int((res%samprate/2 - 7.d0)/0.1d0) + 1
-        noise_filter(1, j) = 7.d0 + j*0.1d0
-        noise_filter(2, j) = sqrt((res%diode_weights(i,1) *(1 + splint(res%ref_splint(i,1), noise_filter(1,j))) + res%diode_weights(i,2) *(1 + splint(res%ref_splint(i,2), noise_filter(1,j))))/2.d0)
-      end do
+      call init_noise_model(res, i)
+      !call init_noise_model(res, i, noise_filter)
 
-      call init_noise_model(res, i, noise_filter)
-
-      deallocate(noise_filter)
+!!$      deallocate(noise_filter)
     end do
 
     ! Allocate sidelobe convolution data structures
@@ -981,20 +982,21 @@ contains
 
     boundary = (0.d0, 0.d0) 
 
-    if(self%L2_exist) then ! read in ref filters only if we don't calculate them
-
-      call read_alloc_hdf(chainfile, trim(path)//'ref_filter', ref_filter)
-
-      do i = 1, self%ndet
-        do j = 1, self%ndiode/2
-
-          call spline_simple(self%ref_splint(i, j), ref_filter(:,1,i,j), ref_filter(:,2,i,j), boundary) 
-
-        end do
-      end do
-
-      deallocate(ref_filter)
-     end if
+    ! Disable load smoothing in BP10
+!!$    if(self%L2_exist) then ! read in ref filters only if we don't calculate them
+!!$
+!!$      call read_alloc_hdf(chainfile, trim(path)//'ref_filter', ref_filter)
+!!$
+!!$      do i = 1, self%ndet
+!!$        do j = 1, self%ndiode/2
+!!$
+!!$          call spline_simple(self%ref_splint(i, j), ref_filter(:,1,i,j), ref_filter(:,2,i,j), boundary) 
+!!$
+!!$        end do
+!!$      end do
+!!$
+!!$      deallocate(ref_filter)
+!!$     end if
 
   end subroutine initHDF_lfi
 
@@ -1090,8 +1092,8 @@ contains
           !corrected_data(:,j) = diode_data(:,j)
         end do
 
-        ! Wiener-filter load data         
-        call self%filter_reference_load(i, corrected_data)
+        ! Wiener-filter load data (do not apply load smoothing in BP10)
+        !call self%filter_reference_load(i, corrected_data)
 
         ! Compute the gain modulation factors
 
