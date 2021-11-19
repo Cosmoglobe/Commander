@@ -130,7 +130,7 @@ contains
     ! Initialize instrument-specific parameters
     res%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     res%nhorn           = 1
-    res%sample_L1_par   = .false.
+    res%sample_L1_par   = .true.
     res%level           = cpar%ds_tod_level(id_abs)
     if(trim(res%level) == 'L1') then
       res%compressed_tod = .true.
@@ -141,7 +141,7 @@ contains
     end if    
     res%correct_sl      = .true.
     res%orb_4pi_beam    = .true.
-    res%use_dpc_adc     = .true.
+    res%use_dpc_adc     = .false.
     res%use_dpc_gain_modulation = .true.
     res%symm_flags      = .true.
     res%chisq_threshold = 5.d6 !9.d0
@@ -197,17 +197,20 @@ contains
       end do
 
       allocate(res%apply_adc(res%ndet,res%ndiode))
+      allocate(res%adc_mode(res%ndet,res%ndiode))
       res%apply_adc(:,:) = .true.
+      res%adc_mode(:,:)  = 'commander'
       ! Define diode masks
       if (trim(res%freq) == '030') then
+         ! Do not apply corrections to any 30 GHz diodes
          res%apply_adc(:,:)  = .false.
-         ! Nothing to mask here
       else if (trim(res%freq) == '044') then
-         res%apply_adc(2,1)  = .false.
-         res%apply_adc(2,2)  = .false.
-         res%apply_adc(4,1)  = .false.
-         res%apply_adc(6,1)  = .false.
-         res%apply_adc(6,2)  = .false.
+         ! These ones are toughies
+         res%apply_adc(2,1)  = .false. !24S_ref10
+         res%apply_adc(2,2)  = .false. !24S_sky10
+         res%apply_adc(4,1)  = .false. !25S_ref10
+         res%apply_adc(6,1)  = .false. !26S_ref10
+         res%apply_adc(6,2)  = .false. !26S_sky10
       else if (trim(res%freq) == '070') then
          res%apply_adc(1,:)  = .false. !18M
          res%apply_adc(2,:)  = .false. !18S
@@ -215,8 +218,13 @@ contains
          res%apply_adc(5,:)  = .false. !20M
          res%apply_adc(6,:)  = .false. !20S
          res%apply_adc(7,:)  = .false. !21M
+         res%adc_mode(8,:)   = 'dpc'   !21S
+         res%adc_mode(9,3)   = 'dpc'   !22M_ref01
+         res%adc_mode(9,4)   = 'dpc'   !22M_sky01
          res%apply_adc(10,:) = .false. !22S
          res%apply_adc(11,:) = .false. !23M
+         res%adc_mode(12,3)  = 'dpc'   !23S_ref11
+         res%adc_mode(12,4)  = 'dpc'   !23S_sky11
       end if
     end if
 
@@ -258,7 +266,6 @@ contains
     end if
 
     ! Declare adc_mode 
-    res%adc_mode = 'gauss'
     res%nbin_adc = 500
 
     ! Load the instrument file
@@ -276,9 +283,10 @@ contains
              ! Determine v_min and v_max for each diode
              call update_status(status, "ADC_start")
              do i = 1, res%ndet
-                
                 do j=1, res%ndiode ! init the adc correction structures
-                   res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+                   if (trim(res%adc_mode(i,j)) == 'commander') then
+                      res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+                   end if
                 end do
                 
                 do k = 1, res%nscan ! determine vmin and vmax for each diode
@@ -287,7 +295,9 @@ contains
                    allocate(flag(res%scans(k)%ntod))
                    call res%decompress_diodes(k, i, diode_data, flag=flag)
                    do j = 1, res%ndiode
-                      call res%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,res%flag0)
+                      if (trim(res%adc_mode(i,j)) == 'commander') then
+                         call res%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,res%flag0)
+                      end if
                    end do
                    deallocate(diode_data, flag)
                    
@@ -295,11 +305,13 @@ contains
                 
                 do j = 1, res%ndiode ! allreduce vmin and vmax
                    if (res%apply_adc(i,j)) then
-                      ! All reduce min and max
-                      call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,res%comm,ierr)
-                      call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,res%comm,ierr)
-                      call res%adc_corrections(i,j)%p%construct_voltage_bins
-                    end if
+                      if (trim(res%adc_mode(i,j)) == 'commander') then
+                         ! All reduce min and max
+                         call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,res%comm,ierr)
+                         call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,res%comm,ierr)
+                         call res%adc_corrections(i,j)%p%construct_voltage_bins
+                      end if
+                   end if
                 end do
              end do
              call update_status(status, "ADC_range")
@@ -313,7 +325,7 @@ contains
                    if (.not. res%scans(k)%d(i)%accept) cycle
                    call res%decompress_diodes(k, i, diode_data, flag)
                    do j = 1, res%ndiode
-                      if (res%apply_adc(i,j)) then
+                      if (res%apply_adc(i,j) .and.(trim(res%adc_mode(i,j)) == 'commander') ) then
                          call res%adc_corrections(i,j)%p%bin_scan_rms(diode_data(:,j), flag,res%flag0)
                       end if
                    end do
@@ -325,12 +337,12 @@ contains
              if (res%myid == 0) write(*,*) '    Generate ADC correction tables'
              do i = 1, res%ndet
                 do j = 1, res%ndiode
-                    if (res%apply_adc(i,j)) then
-                       ! Build the actual adc correction tables (adc_in, adc_out)
+                   if (res%apply_adc(i,j) .and.(trim(res%adc_mode(i,j)) == 'commander') ) then
+                      ! Build the actual adc correction tables (adc_in, adc_out)
                       name = trim(res%label(i))//'_'//trim(res%diode_names(i,j))
                       if (res%myid == 0) write(*,*) '    Building table for '// trim(name)
                       call res%adc_corrections(i,j)%p%build_table(handle, name)
-                    end if
+                   end if
                 end do
              end do
              call update_status(status, "ADC_table")
@@ -340,19 +352,19 @@ contains
           ! Bin corrected data
           !================================================================
           if (.false.) then
-             if (res%use_dpc_adc) then
-                do i = 1, res%ndet
-                   do j = 1, res%ndiode ! init the adc correction structures
-                      if (res%apply_adc(i,j)) then
-                         ! res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+             do i = 1, res%ndet
+                do j = 1, res%ndiode ! init the adc correction structures
+                   if (res%apply_adc(i,j)) then
+                      if (trim(res%adc_mode(i,j)) == 'dpc') then
                          res%adc_corrections(i,j)%p%myid = cpar%myid_chain
                          res%adc_corrections(i,j)%p%comm = cpar%comm_chain
                          res%adc_corrections(i,j)%p%outdir = cpar%outdir
                          call res%adc_corrections(i,j)%p%construct_voltage_bins
                       end if
-                   end do
+                   end if
                 end do
-             end if
+             end do
+             ! end if
              if (res%myid == 0) write(*,*) '        correct and bin'
              ! Correct the data given the tables and bin again
              do k = 1, res%nscan
@@ -928,7 +940,7 @@ contains
       self%diode_weights(band,1) = weight
       self%diode_weights(band,2) = 1.d0 - weight
 
-      if (self%use_dpc_adc .and. .not. self%L2_exist) then
+      if (.not. self%L2_exist) then
         ! Read ADC corrections
         path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'0'
         self%adc_corrections(band,1)%p => comm_adc(instfile, path, .true.) !first half, load
