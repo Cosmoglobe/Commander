@@ -7,13 +7,20 @@ import h5py
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
 data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed_optimize/chain_c0001.h5', 'r')
 burn = 0
 thin = 1
 burn = max(burn, thin)
 
 COL_WIDTH = 256.0748/72.27
 COL_HEIGHT = COL_WIDTH
+
+fknee = {}
+
+fknee['Q113'] = 1.09*1e-3
+fknee['Q114'] = 1.09*1e-3
+fknee['Q123'] = 0.35*1e-3
+fknee['Q124'] = 0.35*1e-3
 
 
 gain = {}
@@ -165,6 +172,8 @@ for band, labels in zip(bands, label_list):
             axes[3].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds], color=c, ms=1)
     
             axes[3].axhline(0, color='r', linestyle=':', lw=0.5)
+
+            axes[1].axhline(fknee[labels[j]], color='r', linestyle=':', lw=0.5)
    
             mu_chisq = np.mean(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds])
             mu_fknee = np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds])
