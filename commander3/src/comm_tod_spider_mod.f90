@@ -114,17 +114,22 @@ module comm_tod_SPIDER_mod
      constructor%n_xi            = 3
      constructor%noise_psd_model = 'oof'
      allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+     allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
      allocate(constructor%xi_n_P_rms(constructor%n_xi))
      
      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
      if (trim(constructor%freq) == 'SPIDER_150') then
-        constructor%xi_n_nu_fit     = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
-        constructor%xi_n_P_uni(2,:) = [0.0010d0, 0.45d0] ! fknee
-        constructor%xi_n_P_uni(3,:) = [-2.8d0, -0.4d0]   ! alpha
+        constructor%xi_n_nu_fit(1,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        constructor%xi_n_P_uni(2,:)  = [0.0010d0, 0.45d0] ! fknee
+        constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else if (trim(constructor%freq) == 'SPIDER_90') then
-        constructor%xi_n_nu_fit     = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
-        constructor%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
-        constructor%xi_n_P_uni(3,:) = [-2.8d0, -0.4d0]   ! alpha
+        constructor%xi_n_nu_fit(1,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        constructor%xi_n_P_uni(2,:)  = [0.002d0, 0.40d0]  ! fknee
+        constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else
         write(*,*) 'Invalid SPIDER frequency label = ', trim(constructor%freq)
         stop
@@ -136,6 +141,7 @@ module comm_tod_SPIDER_mod
      ! Initialize instrument-specific parameters
      constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
      constructor%nhorn           = 1
+     constructor%ndiode          = 1
      constructor%compressed_tod  = .false.
      constructor%correct_sl      = .false.
      constructor%orb_4pi_beam    = .false.
@@ -406,7 +412,7 @@ module comm_tod_SPIDER_mod
       ! Skip scan if no accepted data
       if (.not. any(self%scans(i)%d%accept)) cycle
         call wall_time(t1)
- 
+
         ! Prepare data
         if (sample_rel_bandpass) then
  !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -420,7 +426,7 @@ module comm_tod_SPIDER_mod
 
         ! Calling Simulation Routine
         if (self%enable_tod_simulations) then
-           call simulate_tod(self, i, sd%s_tot, handle)
+           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
            call sd%dealloc
            cycle
         end if
@@ -433,7 +439,7 @@ module comm_tod_SPIDER_mod
 
 
 
-
+        
 
 
 
@@ -461,11 +467,13 @@ module comm_tod_SPIDER_mod
 
 
         do j=1, sd%ndet
-           ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
-           if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept) .or. (j==self%partner(j))) then
-              self%scans(i)%d(j)%accept = .false.
-              cycle
-           end if
+         ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
+         if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept) .or. (j==self%partner(j))) then
+            self%scans(i)%d(j)%accept = .false.
+            cycle
+         end if
+
+         
            
            ! Retrieve offsets from previous run, if they exist
            if (allocated(self%scans(i)%d(j)%offset_range)) then
@@ -477,26 +485,31 @@ module comm_tod_SPIDER_mod
               s_jump(:,j) = 0
            end if
 
+           
            ! Retrieve jump flags from previous run, if they exist
            if (allocated(self%scans(i)%d(j)%jumpflag_range)) then
-              call add_jumpflags(                     &
-                 & self%scans(i)%d(j)%jumpflag_range, &
-                 & sd%flag(:,j))
-           end if
+            call add_jumpflags(                     &
+            & self%scans(i)%d(j)%jumpflag_range, &
+            & sd%flag(:,j))
+         end if
 
-           ! Scanning for jumps
-           if (.true.) then
-              call jump_scan(                                 &
-                 & sd%tod(:,j) - sd%s_sky(:,j) - s_jump(:,j), &
-                 & sd%flag(:,j),                              &
-                 & jumps(:,j),                                &
-                 & offset_range,                              &
-                 & offset_level,                              &
-                 & handle,                                    &
-                 & jumpflag_range,                            &
-                 & it_label,                                  &
-                 & chaindir,                                  &
-                 & debug)
+         
+         ! Scanning for jumps
+
+
+         if (.true.) then
+            call jump_scan(                                 &
+            & sd%tod(:,j) - sd%s_sky(:,j) - s_jump(:,j), &
+            & sd%flag(:,j),                              &
+            & jumps(:,j),                                &
+            & offset_range,                              &
+            & offset_level,                              &
+            & handle,                                    &
+            & jumpflag_range,                            &
+            & it_label,                                  &
+            & chaindir,                                  &
+            & debug)
+            
 
 
               ! Add offsets to persistent list
@@ -626,7 +639,7 @@ module comm_tod_SPIDER_mod
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
          !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
-           call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), s_jump=s_jump(:,j))
+           call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
         end do
 
 
@@ -690,8 +703,8 @@ module comm_tod_SPIDER_mod
      if (output_scanlist) call self%output_scan_list(slist)
  
      ! Solve for maps
-     call syncronize_binmap(binmap, self)
-     call syncronize_binmap(jump_map, self) 
+     call synchronize_binmap(binmap, self)
+     call synchronize_binmap(jump_map, self) 
 
      if (sample_rel_bandpass) then
         call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)

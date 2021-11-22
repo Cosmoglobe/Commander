@@ -18,6 +18,8 @@
 # along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 #
 #================================================================================
+# Author: Maksym Brilenkov
+#================================================================================
 # This file contains general instructions how to
 # fetch and build the Commander dependencies
 #==============================================================================
@@ -172,6 +174,7 @@ if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
 			"-O2"# -g -traceback -DNDEBUG -parallel -qopenmp -C -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
 			"-g" 
+      "-check" "noarg_temp_created"
 			"-traceback" 
 			"-DNDEBUG" 
 			"-parallel" 
@@ -292,17 +295,17 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 			)
 	endif()
 	# adding different flags depending on the compiler version
+	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
+			"-ffree-line-length-none" 
+			"-fno-range-check"
+		)
 	if (${CMAKE_Fortran_COMPILER_VERSION} VERSION_GREATER_EQUAL "10")
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-ffree-line-length-none" 
 			"-fallow-argument-mismatch"
-			"-fno-range-check"
 			)
 	else()
 		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-			"-ffree-line-length-none" 
 			"-Wno-argument-mismatch"
-			"-fno-range-check"
 			)
 	endif()
 

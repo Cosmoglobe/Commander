@@ -23,6 +23,7 @@ module comm_tod_mapmaking_mod
    use comm_utils
    use comm_shared_arr_mod
    use comm_map_mod
+   use comm_param_mod
    implicit none
 
    type comm_binmap
@@ -36,7 +37,7 @@ module comm_tod_mapmaking_mod
     contains
       procedure :: init    => init_binmap
       procedure :: dealloc => dealloc_binmap
-      procedure :: synchronize => syncronize_binmap
+      procedure :: synchronize => synchronize_binmap
    end type comm_binmap
 
 
@@ -61,19 +62,22 @@ contains
     self%npix            = tod%info%npix
     self%numprocs_shared = tod%numprocs_shared
     self%chunk_size      = self%npix/self%numprocs_shared
-    if (self%chunk_size*self%numprocs_shared /= self%npix) self%chunk_size = self%chunk_size+1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    if (self%chunk_size*self%numprocs_shared < self%npix) then
+       self%chunk_size   = self%chunk_size + 1
+    end if
     if (solve_S) then
        self%ncol = tod%nmaps + tod%ndet - 1
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
-       self%nout = tod%output_n_maps + tod%n_bp_prop - 1
+       self%nout = tod%output_n_maps + tod%n_bp_prop
        !write(*,*) 'hei!', size(tod%bp_delta,2)
     else
        self%ncol = tod%nmaps
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2
        self%nout = tod%output_n_maps
     end if
-    !write(*,*) 'nout = ', tod%output_n_maps, self%nout
+!!$    write(*,*) 'nout = ', tod%output_n_maps, self%nout
+!!$    call mpi_finalize(ierr)
+!!$    stop
     allocate(self%outmaps(self%nout))
     do i = 1, self%nout
        self%outmaps(i)%p => comm_map(tod%info)
@@ -116,7 +120,7 @@ contains
 
   end subroutine dealloc_binmap
 
-  subroutine syncronize_binmap(self, tod)
+  subroutine synchronize_binmap(self, tod)
     implicit none
     class(comm_binmap),  intent(inout) :: self
     class(comm_tod),     intent(in)    :: tod
@@ -128,7 +132,7 @@ contains
     do i = 0, self%numprocs_shared-1
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
-      
+       !if (i == self%numprocs_shared-1) end_chunk = self%npix-1
        do while (start_chunk < self%npix)
           if (tod%pix2ind(start_chunk) /= -1) exit
           start_chunk = start_chunk+1
@@ -154,11 +158,36 @@ contains
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
 
-  end subroutine syncronize_binmap
+  end subroutine synchronize_binmap
 
   ! Compute map with white noise assumption from correlated noise 
   ! corrected and calibrated data, d' = (d-n_corr-n_temp)/gain 
   subroutine bin_TOD(tod, scan, pix, psi, flag, data, binmap)
+    !        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+    ! Routine to bin time ordered data
+    ! Assumes white noise after correctiom from correlated noise and calibrated data
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:    
+    !         
+    ! scan:   integer
+    !         scan number
+    ! pix:    2-dimentional array
+    !         Number of pixels from scandata
+    ! psi:    2-dimentional array
+    !         Pointing angle pr pixel
+    ! flag:   2-dimentional array
+    !         Flagged data to be excluded from the mapmaking
+    ! data:   2-dim array
+    !         Array of calibrated data
+    !
+    ! Returns:
+    ! ----------
+    ! binmap: pointer
+    !         Pointer to array of binned map?
+    ! 
+
     implicit none
     class(comm_tod),                             intent(in)    :: tod
     integer(i4b),                                intent(in)    :: scan
@@ -170,7 +199,7 @@ contains
     real(dp)     :: inv_sigmasq
 
     nout = size(data,1) 
-    do det = 1, size(pix,2)
+    do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = 6 + 4*(det-1)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
@@ -178,9 +207,9 @@ contains
        
        do t = 1, size(pix,1)
           
-          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle
+          if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
           
-          pix_    = tod%pix2ind(pix(t,det))
+          pix_    = tod%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
           psi_    = psi(t,det)
 
          
@@ -190,7 +219,8 @@ contains
           binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq
           binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq
           binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq
-          
+          !binmap%A_map(1,pix_) = binmap%A_map(8,pix_) + 1.d0
+
           do i = 1, nout
              binmap%b_map(i,1,pix_) = binmap%b_map(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
              binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq
@@ -400,7 +430,21 @@ end subroutine bin_differential_TOD
 
    end subroutine compute_Ax
 
-  subroutine finalize_binned_map(tod, binmap, handle, rms, scale, chisq_S, mask)
+  subroutine finalize_binned_map(tod, binmap, handle, rms, scale, chisq_S, Sfilename, mask)
+    !
+    ! Routine to finalize the binned maps
+    ! 
+    ! Arguments:
+    ! ----------
+    ! tod:
+    ! binmap:
+    ! handle:  planck_rng derived type
+    !          Healpix definition for random number generation
+    ! rms:
+    ! scale
+    ! chisq_S
+    ! mask
+    !
     implicit none
     class(comm_tod),                      intent(in)    :: tod
     type(comm_binmap),                    intent(inout) :: binmap
@@ -408,6 +452,7 @@ end subroutine bin_differential_TOD
     class(comm_map),                      intent(inout) :: rms
     real(dp),                             intent(in)    :: scale
     real(dp),        dimension(1:,1:),    intent(out),   optional :: chisq_S
+    character(len=*),                     intent(in),    optional :: Sfilename
     real(sp),        dimension(0:),       intent(in),    optional :: mask
 
     integer(i4b) :: i, j, k, nmaps, ierr, ndet, ncol, n_A, off, ndelta
@@ -416,19 +461,28 @@ end subroutine bin_differential_TOD
     real(dp), allocatable, dimension(:,:,:) :: b_tot, bs_tot
     real(dp), allocatable, dimension(:)     :: W, eta
     real(dp), allocatable, dimension(:,:)   :: A_tot
+    class(comm_mapinfo), pointer :: info 
+    class(comm_map),     pointer :: smap 
 
     myid  = tod%myid
     nprocs= tod%numprocs
     comm  = tod%comm
     np0   = tod%info%np
     nout  = size(binmap%sb_map%a,dim=1)
+!!$    write(*,*) 'nout = ', nout
+!!$    call mpi_finalize(ierr)
+!!$    stop
     nmaps = tod%info%nmaps
     ndet  = tod%ndet
     n_A   = size(binmap%sA_map%a,dim=1)
     ncol  = size(binmap%sb_map%a,dim=2)
     ndelta = 0; if (present(chisq_S)) ndelta = size(chisq_S,dim=2)
 
-
+    if (present(Sfilename)) then
+       info => comm_mapinfo(tod%comm, tod%info%nside, 0, ndet-1, .false.)
+       smap => comm_map(info)
+       smap%map = 0.d0
+    end if
 
     ! Collect contributions from all nodes
     call mpi_win_fence(0, binmap%sA_map%win, ierr)
@@ -458,6 +512,7 @@ end subroutine bin_differential_TOD
       ! Solve for local map and rms
       allocate (A_inv(nmaps, nmaps), As_inv(ncol, ncol))
       if (present(chisq_S)) chisq_S = 0.d0
+
       do i = 0, np0 - 1
          if (all(b_tot(1, :, i) == 0.d0)) then
             if (.not. present(chisq_S)) then
@@ -505,15 +560,21 @@ end subroutine bin_differential_TOD
                bs_tot(k, 1:ncol, i) = matmul(As_inv, bs_tot(k, 1:ncol, i))
             end do
          end if
+    
 
          if (present(chisq_S)) then
             do j = 1, ndet - 1
+               !write(*,*) mask(tod%info%pix(i + 1)), As_inv(nmaps + j, nmaps +j)
                if (mask(tod%info%pix(i + 1)) == 0.) cycle
                if (As_inv(nmaps + j, nmaps + j) <= 0.d0) cycle
                chisq_S(j, 1) = chisq_S(j, 1) + bs_tot(1, nmaps + j, i)**2/As_inv(nmaps + j, nmaps + j)
                do k = 2, ndelta
                   chisq_S(j, k) = chisq_S(j, k) + bs_tot(tod%output_n_maps + k - 1, nmaps + j, i)**2/As_inv(nmaps + j, nmaps + j)
                end do
+               if (present(Sfilename) .and. As_inv(nmaps+j,nmaps+j) > 0.d0) then
+                  !smap%map(i,j) = bs_tot(tod%output_n_maps+1,nmaps+j,i) / sqrt(As_inv(nmaps+j,nmaps+j))
+                  smap%map(i,j) = bs_tot(1,nmaps+j,i) / sqrt(As_inv(nmaps+j,nmaps+j))
+               end if
             end do
          end if
          do j = 1, nmaps
@@ -532,6 +593,10 @@ end subroutine bin_differential_TOD
             call mpi_reduce(chisq_S, chisq_S, size(chisq_S), &
                  & MPI_DOUBLE_PRECISION, MPI_SUM, 0, comm, ierr)
          end if
+         if (present(Sfilename)) then
+            call smap%writeFITS(Sfilename)
+            call smap%dealloc
+         end if
       end if
 
       
@@ -541,8 +606,7 @@ end subroutine bin_differential_TOD
 
    end subroutine finalize_binned_map
 
-
-   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l)
+   subroutine run_bicgstab(tod, handle, bicg_sol, npix, nmaps, num_cg_iters, epsil, procmask, map_full, M_diag, b_map, l, prefix, postfix)
      !
      !
      !  Subroutine that runs the biconjugate gradient-stabilized mapmaking
@@ -589,6 +653,9 @@ end subroutine bin_differential_TOD
      real(dp),                dimension(:,:), intent(in) :: M_diag
      real(dp),              dimension(:,:,:), intent(in) :: b_map
      integer(i4b),                            intent(in) :: l
+     character(len=512),                      intent(in) :: prefix
+     character(len=512),                      intent(in) :: postfix
+
 
 
 
@@ -598,11 +665,16 @@ end subroutine bin_differential_TOD
      real(dp)                                   :: alpha, beta, sigma_mono
      real(dp),     allocatable, dimension(:, :) :: r, s, q
      real(dp)                                   :: monopole
-     logical(lgt)                               :: finished
+     logical(lgt)                               :: finished, write_cg
      real(dp)                                   :: rho_old, rho_new
      real(dp)                                   :: omega, delta_r, delta_s
      real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
      real(dp),        allocatable, dimension(:) :: determ
+     character(len=512)                         :: i_str, l_str
+
+     ! Maybe update so that it's only output the first time?
+     !write_cg = .true.
+     write_cg = tod%first_call
 
      if (tod%myid==0) then
         allocate (r     (0:npix-1, nmaps))
@@ -618,8 +690,13 @@ end subroutine bin_differential_TOD
         allocate (determ(0:npix-1))
         determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
 
-        i_max = 200
-        i_min = 0
+        i_max = 500
+        if (write_cg) then
+          i_min = 200
+          i_min = 0
+        else
+          i_min = 0
+        end if
 
         if (.false. .and. l == 1) then
            call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,1), v)
@@ -643,9 +720,11 @@ end subroutine bin_differential_TOD
         bicg: do
            i = i + 1
            rho_old = rho_new
+           call update_status(status, 'dot product')
            rho_new = sum(r0*r)
+           call update_status(status, 'done dot product')
            if (rho_new == 0d0) then
-             write(*,*) 'rho_i is zero'
+             if (tod%verbosity > 1) write(*,*) 'Residual norm is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -661,7 +740,9 @@ end subroutine bin_differential_TOD
            phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
            phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
            
+           call update_status(status, 'v=A phat')
            call compute_Ax(tod, tod%x_im, procmask, phat, v)
+           call update_status(status, 'done')
            num_cg_iters = num_cg_iters + 1
 
            alpha         = rho_new/sum(r0*v)
@@ -678,29 +759,53 @@ end subroutine bin_differential_TOD
 
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
 
+           if (write_cg) then
+             write(i_str, '(I0.3)') 2*i-1
+             write(l_str, '(I1)') l
+             call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & bicg_sol(:,:,l))
+             call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & r)
+           end if
+
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
-              write(*,*) 'Reached bicg-stap tolerance'
+              if (tod%verbosity > 1) write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            end if
 
+           call update_status(status, 'q=A shat')
            call compute_Ax(tod, tod%x_im, procmask, shat, q)
+           call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
            bicg_sol(:,:,l) = bicg_sol(:,:,l) + omega*shat
+
+
            if (omega == 0d0) then
-             write(*,*) 'omega is zero'
+             if (tod%verbosity > 1) write(*,*) 'omega is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
            end if
 
            if (mod(i, 10) == 1 .or. beta > 1.d8) then
+              call update_status(status, 'A xhat')
               call compute_Ax(tod, tod%x_im, procmask, bicg_sol(:,:,l), r)
+              call update_status(status, 'done')
               r = b_map(:, :, l) - r
            else
               r = s - omega*q
+           end if
+
+           if (write_cg) then
+             write(i_str, '(I0.3)') 2*i
+             write(l_str, '(I1)') l
+             call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & bicg_sol(:,:,l))
+             call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                          & r)
            end if
 
            rhat(:,1) =  r(:,1)/M_diag(:,1)
@@ -714,13 +819,13 @@ end subroutine bin_differential_TOD
 102           format (6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
-              write(*,*) 'Reached bicg-stap tolerance'
+              if (tod%verbosity > 1) write(*,*) 'Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            end if
            if (i==i_max) then
-             write(*,*) 'Reached maximum number of iterations'
+             if (tod%verbosity > 1) write(*,*) 'Reached maximum number of iterations'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -731,7 +836,6 @@ end subroutine bin_differential_TOD
            ! Maximum likelihood monopole
            monopole = sum((bicg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
                   & / sum(M_diag(:,1)*procmask)
-           write(*,*) monopole
            if (trim(tod%operation) == 'sample') then
               ! Add fluctuation term if requested
               sigma_mono = sum(M_diag(:,1) * procmask)
@@ -742,9 +846,7 @@ end subroutine bin_differential_TOD
               end if
               monopole = monopole + sigma_mono * rand_gauss(handle)
            end if
-           write(*,*) 'sampled final monopole = ', monopole
            bicg_sol(:,1,1) = bicg_sol(:,1,1) - monopole
-           write(*,*) 'bicg_sol monopole', sum(bicg_sol(:,1,1)*procmask)/sum(procmask)
         end if
      else
         loop: do while (.true.) 
@@ -756,5 +858,6 @@ end subroutine bin_differential_TOD
      if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf, determ)
 
    end subroutine run_bicgstab
+
 
 end module comm_tod_mapmaking_mod

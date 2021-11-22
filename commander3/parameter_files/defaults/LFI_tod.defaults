@@ -73,7 +73,7 @@ PROC_SMOOTH_SCALE              = 30.    #arcmin; smoothing inside processing mas
  SMOOTHING_SCALE_PIXWIN02        = pixel_window_n0016.fits
  SMOOTHING_SCALE_FWHM_POSTPROC02 = 600.    # Smoothing FWHM after pixel-by-pixel fit
 
- #fullsky spec. ind. parameters sampling (per say no smoothing)
+ #fullsky spec. ind. parameters sampling (per say no smoothing in skymaps, but smoothing in postproc)
  SMOOTHING_SCALE_FWHM03          = 60.      # Arcmin; 0 = native resolution
  SMOOTHING_SCALE_LMAX03          = 64
  SMOOTHING_SCALE_NSIDE03         = 16  # Must match NSIDE of component it is used for

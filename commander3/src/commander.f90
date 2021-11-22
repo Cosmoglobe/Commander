@@ -28,6 +28,7 @@ program commander
   use comm_comp_mod
   use comm_nonlin_mod
   use comm_tod_simulations_mod
+  use comm_tod_gain_mod
   implicit none
 
   integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
@@ -45,6 +46,7 @@ program commander
   character(len=*), parameter :: version = '1.0.0'
   character(len=32)           :: arg
   integer                     :: arg_indx
+
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
@@ -78,7 +80,6 @@ program commander
   call MPI_Comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
   
   cpar%root = 0
-    
   
   if (cpar%myid == cpar%root) call wall_time(t1)
   call read_comm_params(cpar)
@@ -88,6 +89,28 @@ program commander
   call validate_params(cpar)  
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
   status%active = cpar%myid_chain == 0 !.false.
+
+!!$  n = 100000
+!!$  q = 100000
+!!$  allocate(arr(n))
+!!$  do i = 1, n
+!!$     allocate(arr(i)%p(q))
+!!$     arr(i)%p = i
+!!$     if (mod(i,1000) == 0) then
+!!$        write(*,*) 'up', arr(i)%p(6)
+!!$        call update_status(status, "debug")
+!!$     end if
+!!$  end do
+!!$
+!!$  do i = 1, n
+!!$     deallocate(arr(i)%p)
+!!$     if (mod(i,1000) == 0) then
+!!$        write(*,*) 'down', i
+!!$        call update_status(status, "debug2")
+!!$     end if
+!!$  end do
+!!$  deallocate(arr)
+!!$  stop
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -228,6 +251,11 @@ program commander
         call process_TOD(cpar, cpar%mychain, iter, handle)
      end if
 
+     if (cpar%enable_tod_simulations) then
+        ! Skip other steps if TOD simulations
+        exit
+     end if
+
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
@@ -316,7 +344,12 @@ contains
 
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
-       
+
+       if (cpar%myid == 0) then
+          write(*,*) '  ++++++++++++++++++++++++++++++++++++++++++++'
+          write(*,*) '    Processing TOD channel = ', trim(data(i)%tod_type) 
+       end if
+
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
        ndet = data(i)%tod%ndet
@@ -328,8 +361,8 @@ contains
           if (k > 1) then
              if (data(i)%info%myid == 0) then
                 do l = 1, npar
-                  !  if (.true. .or. mod(iter,2) == 0) then
-                   if ((trim(adjustl(cpar%ds_tod_bp_init(data(i)%id_abs))) /= 'none') .and. (mod(iter,2)==0)) then
+                   if (.not. data(i)%tod%sample_abs_bp .or. mod(iter,2) == 0) then
+                   !if (.true. .or. mod(iter,2) == 0) then
                       !write(*,*) 'relative',  iter
                       ! Propose only relative changes between detectors, keeping the mean constant
                       delta(0,l,k) = data(i)%bp(0)%p%delta(l)
@@ -389,7 +422,15 @@ contains
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
+
+       if (cpar%myid_chain == 0) then
+         write(*,*) 'Processing ', trim(data(i)%label)
+       end if
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms)
+       if (cpar%myid_chain == 0) then
+         write(*,*) 'Finished processing ', trim(data(i)%label)
+         write(*,*) ''
+       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))

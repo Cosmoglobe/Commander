@@ -425,6 +425,7 @@ contains
 
    !   write(*,*) 'Routine: Jump scan'
 
+
     downsampled = .true.
     
     if (downsampled) then
@@ -443,6 +444,8 @@ contains
     ! Interpolate cosmic ray gaps
     allocate(tod_gapfill(tod_len))
     call gap_fill_linear(tod, flag, tod_gapfill, handle, .true.)  
+
+
 
     ! Compute rolling standard deviation
     allocate(rolling_var(tod_len))
@@ -524,10 +527,12 @@ contains
        if (first_call .and. jumps(i)==0) then
           offset_range(counter,1) = i
           first_call = .false.
+      !  elseif (jumps(i)==1 .and. switch .and. first_call .eqv. .false.) then
        elseif (jumps(i)==1 .and. switch .and. first_call==.false.) then
           offset_range(counter,2) = i-1
           switch = .false.
           counter = counter + 1
+      !  elseif (jumps(i)==0 .and. switch .eqv. .false.) then
        elseif (jumps(i)==0 .and. switch==.false.) then
           offset_range(counter,1) = i
           switch = .true.

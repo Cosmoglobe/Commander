@@ -137,7 +137,7 @@ contains
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
@@ -157,8 +157,8 @@ contains
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
           end if
-
        end if
+       call update_status(status, "data_tod")
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 
@@ -166,13 +166,14 @@ contains
        case ('b_l')
           data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
           do j = 1, data(n)%ndet
-             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j), mb_eff=data(n)%tod%mb_eff(j))
+             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+             ! MNG: I stripped mb_eff out of here to make it compile, if we need
+             ! this ever we need to introduce it back in somehow
           end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
        call update_status(status, "data_beam")
-   
  
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
@@ -250,19 +251,26 @@ contains
        allocate(data(n)%N_smooth(cpar%num_smooth_scales))
        do j = 1, cpar%num_smooth_scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, cpar%lmax_smooth(j), &
+             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+                  !& cpar%lmax_smooth(j), &
+                  & data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
              data(n)%B_smooth(j)%p => &
-               & comm_B_bl(cpar, info_smooth, n, i, fwhm=cpar%fwhm_smooth(j), pixwin=cpar%pixwin_smooth(j), &
+               & comm_B_bl(cpar, info_smooth, n, i, fwhm=cpar%fwhm_smooth(j), &
+               !& pixwin=cpar%pixwin_smooth(j), &
+               & nside=data(n)%info%nside, &
                & init_realspace=.false.)
           else
              nullify(data(n)%B_smooth(j)%p)
           end if
           if (cpar%fwhm_postproc_smooth(j) > 0.d0) then
-             info_postproc => comm_mapinfo(data(n)%info%comm, cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+             info_postproc => comm_mapinfo(data(n)%info%comm, &
+                  !& cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                  & data(n)%info%nside, data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
              data(n)%B_postproc(j)%p => &
                   & comm_B_bl(cpar, info_postproc, n, i, fwhm=cpar%fwhm_postproc_smooth(j),&
+                  & nside=data(n)%info%nside, &
                   & init_realspace=.false.)
           else
              nullify(data(n)%B_postproc(j)%p)
@@ -353,12 +361,12 @@ contains
 
     unit = getlun()
     open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
-    write(unit,*) '# Band   BP type   Nu_c (GHz)  a2t [K_cmb/K_RJ]' // &
+    write(unit,*) '# Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
          & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a7,a10,f10.1,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
-            & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
+       write(unit,fmt='(a7,a10,f10.3,f10.3,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+             & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
     end do
     close(unit)
   end subroutine dump_unit_conversion

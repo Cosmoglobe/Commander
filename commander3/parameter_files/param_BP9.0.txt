@@ -15,10 +15,13 @@ NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 100       # Length of each Markov chain
 CHAIN_STATUS     = append
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/u3/hke/xsan/commander3/BP9/data/chain_init_BP9.0.h5:10
+INIT_CHAIN01     = /mn/stornext/u3/hke/xsan/commander3/BP9/data/chain_init_BP9.0_v6.h5:10
 
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
+
+# TOD sampling options
+TOD_NUM_BP_PROPOSALS_PER_ITER  = 0  1    # 1 for sampling; >= 1 for optimize
 
 ##############################################################
 #                       Output options                       #
@@ -263,22 +266,34 @@ INCLUDE_COMP07                = .true.  # Low-freq AME
 INCLUDE_COMP08                = .true.  # CMB relativistic quadrupole
 
 
-NUM_CG_SAMPLING_GROUPS = 3
+NUM_CG_SAMPLING_GROUPS = 5
 CG_SAMPLING_GROUP01          = cmb,ff,ame
 CG_SAMPLING_GROUP_MASK01     = fullsky
 CG_SAMPLING_GROUP_MAXITER01  = 50
-CG_SAMPLING_GROUP02          = md
+
+CG_SAMPLING_GROUP02          = md  #fit monopoles and draw new Haslam monopole from prior, mono-/dipoles are labeled by data band label! If only Haslam monopole to be drawn, exchange 'md' with '0.4-Haslam'
 CG_SAMPLING_GROUP_MASK02     = mask_common_dx12_n1024_TQU.fits
 CG_SAMPLING_GROUP_MAXITER02  = 3
-CG_SAMPLING_GROUP03          = dust,synch
+
+CG_SAMPLING_GROUP03          = synch
 CG_SAMPLING_GROUP_MASK03     = fullsky
 CG_SAMPLING_GROUP_MAXITER03  = 50
+
+# fit all monopoles, except for Haslam. mono-/dipoles are labeled by data band label!
+# This is dangerous praxis and should not be used normally.
+# We need to do this now to split up the mono-/dipole sampling so that the new Halsam monopole do not break the chain
+CG_SAMPLING_GROUP04          = 030,044,070,857,030-WMAP_Ka,040-WMAP_Q1,040-WMAP_Q2,060-WMAP_V1,060-WMAP_V2
+CG_SAMPLING_GROUP_MASK04     = mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER04  = 3
+
+CG_SAMPLING_GROUP05          = dust,synch
+CG_SAMPLING_GROUP_MASK05     = fullsky
+CG_SAMPLING_GROUP_MAXITER05  = 50
 
 # CMB
 @START 01
 @DEFAULT components/cmb/cmb_LFI.defaults
 COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
-COMP_INIT_FROM_HDF&&          = default
 @END 01
 
 
@@ -307,7 +322,8 @@ COMP_INPUT_T_MAP&&            = init_dust_T_BP8.1_v1.fits
 @DEFAULT components/dust/dust_LFI_localsampler.defaults
 # New Local sampling parameters, 'dust'
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat
-COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg.fits  # index
+sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_INIT_FROM_HDF&&          = default
 @END 03
 
@@ -316,7 +332,6 @@ COMP_INIT_FROM_HDF&&          = default
 @DEFAULT components/monodipole/md_LFI.defaults
 COMP_MD_MONO_FROM_PRIOR&&     = 0.4-Haslam
 COMP_MD_DEFINITION_FILE&&     = init_md_BP8.2_v7.dat 
-COMP_INIT_FROM_HDF&&          = default
 @END 04
 
 # Radio sources
@@ -325,7 +340,6 @@ COMP_INIT_FROM_HDF&&          = default
 COMP_CATALOG&&                 = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v8.dat
 COMP_INIT_CATALOG&&            = init_radio_BP8.11.dat
 COMP_PTSRC_TEMPLATE&&          = COM_AT20G_GB6_NVSS_PCCS2_nothreshold_v39.h5
-COMP_INIT_FROM_HDF&&          = default
 @END 05
 
 # freefree component ---------------------------------------------------------------------
@@ -351,12 +365,12 @@ COMP_PRIOR_AMP_MAP&&          = ame_prior_mean_857_scaled2.40.fits
 @DEFAULT components/ame/ame_LFI_localsampler.defaults
 # New Local sampling parameters, 'ame'
 COMP_NU_P_MASK&&              = mask_AME_nu_p_BP8_10deg_new_chisqmask.fits   # index sampling mask for smoothed log-likelihood eval. local sampler.
-COMP_ALPHA_MASK&&              = mask_AME_nu_p_BP8_10deg.fits mask_AME_n1024_v3.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_ALPHA_MASK&&              = mask_AME_nu_p_BP8_10deg.fits
+mask_AME_n1024_v3.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_INIT_FROM_HDF&&          = default
 @END 07
 
 # CMB relativistic quadrupole correction
 @START 08
 @DEFAULT components/cmb/cmb_relquad.defaults
-COMP_INIT_FROM_HDF&&          = none
 @END 08
