@@ -558,7 +558,7 @@ contains
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
-       if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
+       if (self%myid == 0) write(*,*) '|  Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
           !write map_in to file
           !call map_in(i,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(i))//".fits")
@@ -627,7 +627,7 @@ contains
     end if
 
     ! Perform loop over scans
-    if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
+    if (self%myid == 0) write(*,*) '|    --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
        
        ! Skip scan if no accepted data
@@ -707,7 +707,7 @@ contains
 
     end do
 
-    if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
+    if (self%myid == 0) write(*,*) '|    --> Finalizing maps, bp'
 
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
@@ -1382,7 +1382,7 @@ contains
     real(dp), allocatable, dimension(:,:,:) :: s_bin
     type(comm_scandata) :: sd
 
-    if (tod%myid == 0) write(*,*) '   --> Sampling 1Hz spikes'
+    if (tod%myid == 0) write(*,*) '|    --> Sampling 1Hz spikes'
 
     dt    = 1.d0/tod%samprate   ! Sample time
     t_tot = 1.d0                ! Time range in sec

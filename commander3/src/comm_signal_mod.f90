@@ -56,7 +56,7 @@ contains
        if (.not. cpar%cs_include(i)) cycle
        ncomp = ncomp + 1
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Initializing component ', i, ' : ', trim(cpar%cs_label(i))
+            & write(*,fmt='(a,i5,a,a)') ' |  Initializing component ', i, ' : ', trim(cpar%cs_label(i))
        call update_status(status, "init_"//trim(cpar%cs_label(i)))
 
        ! Initialize object
@@ -277,7 +277,7 @@ contains
              cycle
           end if
           call update_status(status, "init_chain_"//trim(c%label))
-          if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+          if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
           call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
           c => c%next()
        end do
@@ -347,7 +347,7 @@ contains
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
-       if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+       if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
        if (trim(c%init_from_HDF) == 'default' .or. trim(c%init_from_HDF) == 'none') then
           call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        else
@@ -366,7 +366,7 @@ contains
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
           if (trim(data(i)%tod%init_from_HDF) == 'none' .and. .not. present(init_from_output))     cycle
-          if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
+          if (cpar%myid == 0) write(*,*) '|  Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
           rms => comm_map(data(i)%info)
           select type (N)
@@ -400,7 +400,7 @@ contains
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
           !if (.not. data(i)%tod%init_from_HDF)  cycle
-          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
+          if (cpar%myid == 0) write(*,*) '|  Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
           rms     => comm_map(data(i)%info)
