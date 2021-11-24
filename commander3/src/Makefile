@@ -87,7 +87,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_pointing_mod.f90 \
            comm_tod_lfi_mod.f90 comm_tod_lfi_smod.f90 \
            comm_tod_jump_mod.f90 \
-           comm_tod_spider_mod.f90 \
+           comm_tod_spider_mod.f90 comm_tod_spider_smod.f90 \
            comm_tod_orbdipole_mod.f90 \
            comm_tod_noise_mod.f90 \
            comm_tod_driver_mod.f90 \
@@ -204,6 +204,7 @@ comm_tod_orbdipole_mod.o    : comm_utils.o comm_defs.o comm_map_mod.o spline_1d_
 comm_tod_pointing_mod.o     : comm_tod_mod.o comm_map_mod.o comm_utils.o
 comm_tod_simulations_mod.o  : comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_param_mod.o comm_utils.o
 comm_tod_spider_mod.o       : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_jump_mod.o
+comm_tod_spider_smod.o      : comm_tod_spider_mod.o
 comm_tod_wmap_mod.o         : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_driver_mod.o comm_utils.o
 comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o
 comm_zodi_mod.o             : comm_utils.o comm_param_mod.o
