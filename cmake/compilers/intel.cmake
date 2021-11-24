@@ -72,7 +72,7 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-fPIC"
 		#"-fp-model=strict"
 		"-traceback" 
-		"-qopenmp" <= we are not using it at all, it is redundant 
+		"-qopenmp" #<= we are not using it at all, it is redundant 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		#"-DNDEBUG"
