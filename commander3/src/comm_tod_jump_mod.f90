@@ -528,12 +528,14 @@ contains
           offset_range(counter,1) = i
           first_call = .false.
       !  elseif (jumps(i)==1 .and. switch .and. first_call .eqv. .false.) then
-       elseif (jumps(i)==1 .and. switch .and. first_call==.false.) then
+      !  elseif (jumps(i)==1 .and. switch .and. first_call==.false.) then
+       elseif (jumps(i)==1 .and. switch .and. (.not. first_call)) then
           offset_range(counter,2) = i-1
           switch = .false.
           counter = counter + 1
       !  elseif (jumps(i)==0 .and. switch .eqv. .false.) then
-       elseif (jumps(i)==0 .and. switch==.false.) then
+      !  elseif (jumps(i)==0 .and. switch==.false.) then
+       elseif (jumps(i)==0 .and. (.not. switch)) then
           offset_range(counter,1) = i
           switch = .true.
        end if
