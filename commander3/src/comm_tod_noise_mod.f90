@@ -238,6 +238,7 @@ contains
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
+
     converged = .false.
     nmask     = ntod - sum(mask)
     if (nmask == 0) then

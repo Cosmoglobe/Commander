@@ -130,6 +130,26 @@ module comm_map_mod
 
 contains
 
+subroutine tod2file_dp3(filename,d)
+   implicit none
+   character(len=*),                 intent(in)            :: filename
+   real(dp),           dimension(:), intent(in)            :: d
+
+   integer(i4b)                                            :: unit, io_error, length, i
+
+   write(*,*) "Writing TOD to file - ", trim(filename)
+   unit = 22
+
+   length = size(d)
+
+   open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
+   do i = 1, length
+     write(unit,*) d(i)
+   end do
+
+   close(unit)
+ end subroutine tod2file_dp3
+
   !**************************************************
   !             Constructors
   !**************************************************
@@ -683,12 +703,14 @@ contains
     integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
+
     output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
     output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
 
     ! Only the root actually writes to disk; data are distributed via MPI
     npix  = self%info%npix
     nmaps = self%info%nmaps
+
     if (self%info%myid == 0) then
 
        ! Distribute to other nodes

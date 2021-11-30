@@ -394,6 +394,7 @@ contains
                          eta(j) = rand_gauss(handle)
                       end do
                       eta = matmul(data(i)%tod%prop_bp(:,:,l), eta)
+                     !  write(*,*) "prop_bp: ", data(i)%tod%prop_bp(:,:,l)
                       do j = 1, ndet
                          delta(j,l,k) = data(i)%bp(j)%p%delta(l) + eta(j)
                       end do
@@ -423,6 +424,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
+               !  write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
@@ -449,7 +451,7 @@ contains
 
        end do
 
-!       call s_sky(1,1)%p%writeFITS('sky.fits')
+       !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
@@ -501,7 +503,7 @@ contains
 
        ! Set monopole component to zero, if active. Now part of n_corr
        call nullify_monopole_amp(data(i)%label)
-
+       
     end do
     if (associated(cmbmap)) call cmbmap%dealloc()
 
