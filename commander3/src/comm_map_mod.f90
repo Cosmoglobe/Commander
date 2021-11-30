@@ -102,6 +102,8 @@ module comm_map_mod
      procedure     :: get_alm_TEB
      procedure     :: remove_MDpoles
      procedure     :: fit_MDpoles
+     procedure     :: remove_EE_l2_alm
+     procedure     :: add_random_fluctuation
 
      ! Linked list procedures
      procedure :: next    ! get the link after this link
@@ -646,23 +648,28 @@ subroutine tod2file_dp3(filename,d)
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr
+    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2)
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+       if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
+          write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
+          stop
+       end if
        npix  = self%info%npix
-       nmaps = self%info%nmaps
-       allocate(p(npix), map(0:npix-1,nmaps))
+       allocate(p(npix), map(0:npix-1,ext(2)))
        call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
-       self%map = map(self%info%pix,:)
+       nmaps = min(self%info%nmaps,ext(2))
+       self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           allocate(buffer(np,nmaps))
-          buffer = map(p(1:np),:) 
+          buffer(:,1:nmaps) = map(p(1:np),1:nmaps) 
           call mpi_send(buffer,      size(buffer), MPI_DOUBLE_PRECISION, i, 98, &
             & self%info%comm, ierr)
           deallocate(buffer)
@@ -886,7 +893,7 @@ subroutine tod2file_dp3(filename,d)
     character(len=*),       intent(in)    :: hdfpath
     logical(lgt),           intent(in)    :: read_map
 
-    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix, ext(2)
     real(dp),     allocatable, dimension(:,:) :: alms, map
     !integer(i4b), allocatable, dimension(:)   :: p
     !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
@@ -899,18 +906,20 @@ subroutine tod2file_dp3(filename,d)
     if (.not. read_map) then
        if (lmax < 0) return
       ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(alms(0:nalm-1,nmaps))
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+      allocate(alms(0:nalm-1,ext(2)))
       if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), alms)
       call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
         j = l**2 + l + m
-        self%alm(i,:) = alms(j,:)
+        self%alm(i,1:nmaps) = alms(j,1:nmaps)
       end do
       deallocate(alms)
     else
       ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(map(0:npix-1,nmaps))
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+      allocate(map(0:npix-1,ext(2)))
       if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
       call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 !!$      if (self%info%myid == 0) then
@@ -1625,5 +1634,78 @@ subroutine tod2file_dp3(filename,d)
     call mpi_bcast(fit_MDpoles, size(fit_MDpoles), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
   end function fit_MDpoles
+
+
+  subroutine remove_EE_l2_alm(self, mask)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    class(comm_map),                    intent(in)    :: mask
+
+    integer(i4b) :: i, j, ierr
+    real(dp) :: alm(-2:2), A(-2:2,-2:2), b(-2:2)
+    real(dp), allocatable, dimension(:,:,:) :: Ylm
+    class(comm_map), pointer :: map
+
+    ! Generate pixel-space map from alms
+    call self%Y()
+
+    !call mask%writeFITS('mask.fits')
+
+    ! Compute basis functions
+    map => comm_map(self)
+    allocate(Ylm(0:self%info%np-1,3,-2:2))
+    do i = -2, 2
+       map%alm        = 0.d0
+       call map%info%lm2i(2,i,j)
+       if (j /= -1) map%alm(j,2) = 1.d0
+       call map%Y()
+       Ylm(:,:,i) = map%map * mask%map
+       !call map%writeFITS('Ylm.fits')
+    end do
+
+    ! Set up linear system
+    do i = -2, 2
+       do j = -2, i
+          A(i,j) = sum(Ylm(:,:,i)*Ylm(:,:,j))
+          A(j,i) = A(i,j)
+       end do
+       b(i) = sum(self%map*Ylm(:,:,i))
+       !write(*,*) real(A(i,:),sp), real(b(i),sp)
+    end do
+    call mpi_allreduce(MPI_IN_PLACE, A, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, b, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+
+    ! Solve linear system
+    call solve_system_real(A, alm, b)
+
+    ! Subtract modes from alm array
+    do i = -2, 2
+       call self%info%lm2i(2,i,j)
+       if (j /= -1) self%alm(j,2) = self%alm(j,2) - alm(i)
+    end do
+
+    ! Clean up
+    deallocate(Ylm)
+    call map%dealloc()
+    
+  end subroutine remove_EE_l2_alm
+
+  subroutine add_random_fluctuation(self, ell, pol, sigma, handle)
+    implicit none
+    class(comm_map),                    intent(inout) :: self
+    integer(i4b),                       intent(in)    :: ell, pol
+    real(dp),                           intent(in)    :: sigma
+    type(planck_rng),                   intent(inout) :: handle
+
+    integer(i4b) :: m, i
+
+    do m = -ell, ell
+       call self%info%lm2i(ell, m, i)
+       if (i /= -1) then
+          self%alm(i,pol) = self%alm(i,pol) + sigma * rand_gauss(handle)
+       end if
+    end do
+
+  end subroutine add_random_fluctuation
 
 end module comm_map_mod

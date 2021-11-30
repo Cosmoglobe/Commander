@@ -20,53 +20,6 @@
 #================================================================================
 # Author: Maksym Brilenkov
 #================================================================================
-# Description: This script contains general instructions on how to fetch and build 
-# Commander3 and all its dependencies. It is split into three parts, each containing 
-# its set of instaructions/variables. It is done for easier maintenance. 
-#================================================================================
-
-# TODO:
-# [x] Split this file into several different files, containing corresponding instructions (versions, variables, toolchains etc.);
-# [ ] Change URL_MD5 to URL_HASH of every project;
-# [x] Change compiler variables from list to string (but leave APPEND); <= doesn't work this way
-# [ ] Remove include_directory() and use target_include_directory() instead (for commander3 target);
-# [x] Add one variable which will force all libraries to be recompiled;
-# [x] Change CFitsIO to CMake installation
-# [ ] Write your own CFitsIO or modify an existing one, because it doesn't seem to work with version 4.0.0
-# [ ] Change FFTW to CMake installation
-# [ ] Finish Custom CMake module for CAMB as it is now works only with Intel compilers
-
-#------------------------------------------------------------------------------
-# including compiler definitions
-include(project_toolchains)
-# including project defined variables
-include(project_variables)
-#------------------------------------------------------------------------------
-
-#==============================================================================
-# MAIN PROJECT DEPENDENCIES
-#==============================================================================
-
-unset(projects)
-# project names <= order matters
-list(APPEND projects 
-	required_libraries
-	zlib
-	libaec
-	mbedtls
-	libssh2
-	curl
-	cfitsio
-	blas # blas-lapack module 
-	##sharp2
-	fftw
-	hdf5
-	doxygen
-	healpix
-	#camb
-	commander3
-	)
-#==============================================================================
 # PROJECTS' URL SOURCES, MD5 HASHES AND CONFIGURE COMMANDS
 #==============================================================================
 # ZLib -- required by HDF5, cURL and others. HDF Group provides this one, but
@@ -119,8 +72,10 @@ set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 #------------------------------------------------------------------------------
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
-set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
-set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
+#set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
+set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
+#set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
+set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
@@ -156,13 +111,13 @@ set(cfitsio_url "http://heasarc.gsfc.nasa.gov/FTP/software/fitsio/c/cfitsio-4.0.
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.tar.gz/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.50/Healpix_3.50_2018Dec10.zip/download")#"https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")#"https://sourceforge.net/projects/healpix/files/latest/download")
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.zip/download")
 #set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.60/Healpix_3.60_2019Dec18.tar.gz/download")
-set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
-#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
+#set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.70/Healpix_3.70_2020Jul23.tar.gz/download")
+set(healpix_url "https://sourceforge.net/projects/healpix/files/Healpix_3.80/Healpix_3.80_2021Jun22.tar.gz/download")
 #set(healpix_md5 "ed7c9a3d7593577628ed1286fa7a9250")
 #set(healpix_md5 "540b243406596205a7a82434d99af41e")
 #set(healpix_md5 "9b51b2fc919f4e70076d296826eebee0")
-set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
-#set(healpix_md5 "923d31845716014e38f34c4de59264e1")
+#set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
+set(healpix_md5 "923d31845716014e38f34c4de59264e1")
 # this command is for healpix 3.50 and below
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
 #set(healpix_configure_command "${CMAKE_COMMAND}" "-E" "env" "FC=${COMMANDER3_Fortran_COMPILER}" "CXX=${COMMANDER3_CXX_COMPILER}" "CPP=${COMMANDER3_CPP_COMPILER}" "CC=${COMMANDER3_C_COMPILER}" "./configure")
@@ -173,20 +128,3 @@ set(healpix_md5 "bdcc2a4b1ede3ed5a07be57e4aec01d2")
 set(camb_git_url "https://github.com/maksymbrl/CAMB.git")
 set(camb_git_tag "f056440afde31e3ec63074b626257a5c500e6097")
 #------------------------------------------------------------------------------
-# Doxygen
-#------------------------------------------------------------------------------
-# there is some weird errors appearing for doxygen v1.8.17 and above, so will stick with this one
-set(doxygen_url "https://github.com/doxygen/doxygen/archive/Release_1_8_16.tar.gz")#"https://github.com/doxygen/doxygen/archive/Release_1_8_18.tar.gz")#"https://github.com/doxygen/doxygen.git")
-# compile doxygen with cmake itself, so no need to specify configure options here
-set(flex_url "http://sourceforge.net/projects/flex/files/flex-2.5.39.tar.gz/download")#"https://sourceforge.net/projects/flex/files/flex-2.6.0.tar.xz/download")
-set(bison_url "http://ftp.gnu.org/gnu/bison/bison-3.6.tar.gz")#"http://ftp.gnu.org/gnu/bison/bison-3.6.2.tar.gz")
-#------------------------------------------------------------------------------
-
-# Include all project configuration files
-foreach(project ${projects})
-	include("${project}")
-endforeach()
-# TODO: use target_include_directories instead (for each subproject if necessary). 
-include_directories(${CMAKE_INSTALL_PREFIX}/include)
-message(STATUS "Finished looking for packages.")
-message(STATUS "---------------------------------------------------------------")

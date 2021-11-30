@@ -251,7 +251,7 @@ module comm_tod_SPIDER_mod
       real(dp), intent(in)                 :: param
       integer(i4b), intent(in)             :: iter
     end subroutine write2file
- 
- end interface
+  end interface
  end module comm_tod_SPIDER_mod
+
  

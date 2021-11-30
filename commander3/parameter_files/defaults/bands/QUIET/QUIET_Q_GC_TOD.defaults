@@ -1,0 +1,55 @@
+# QUIET Q GC TOD default parameters
+
+BAND_LABEL&&&                  = 43-QUIET_GC 
+BAND_OBS_PERIOD&&&             = 1
+BAND_POLARIZATION&&&           = .true.
+BAND_NSIDE&&&                  = 512
+BAND_LMAX&&&                   = 1500 # ?
+BAND_UNIT&&&                   = mK_cmb # ?
+BAND_NOISE_FORMAT&&&           = QUcov
+BAND_MAPFILE&&&                = quiet_qband_G-1_map_v2.fits 
+BAND_NOISEFILE&&&              = quiet_qband_G-1_Ncov_v1.hdf # ? 
+BAND_REG_NOISEFILE&&&          = none 
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.00
+BAND_MASKFILE&&&               = quiet_qband_G-1_mask_v2.fits
+BAND_MASKFILE_CALIB&&&         = quiet_qband_G-1_mask_v2.fits 
+BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
+BAND_BEAM_B_L_FILE&&&          = quiet_qband_beam_effective_v1.fits 
+BAND_BEAM_B_PTSRC_FILE&&&      = none
+BAND_PIXEL_WINDOW&&&           = pixel_window_n0512.fits
+BAND_SAMP_NOISE_AMP&&&         = .false.
+BAND_BANDPASS_TYPE&&&          = QUIET # what does it mean? <= going to throw an error now 
+BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, ##additive_shift}
+BAND_NOMINAL_FREQ&&&           = 43
+BAND_SAMP_BANDPASS&&&          = .false.
+BAND_BANDPASSFILE&&&           = quiet_qband_bandpass_v1.txt 
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_PRIOR_MEAN&&&        = 1. # ?
+BAND_GAIN_PRIOR_RMS&&&         = 0.1 # ?
+BAND_GAIN_CALIB_COMP&&&        = all  cmb # ?
+BAND_GAIN_LMIN&&&              = -1  25
+BAND_GAIN_LMAX&&&              = -1  100
+BAND_GAIN_APOD_MASK&&&         = fullsky 
+BAND_GAIN_APOD_FWHM&&&         = 120.
+BAND_DEFAULT_GAIN&&&           =   1.
+BAND_DEFAULT_BP_DELTA&&&       =   0.
+BAND_DEFAULT_NOISEAMP&&&       =   1.
+BAND_COMPONENT_SENSITIVITY&&&  = broadband
+BAND_TOD_TYPE&&&               = QUIET
+BAND_TOD_JUMPLIST&&&           = none
+BAND_TOD_MAIN_PROCMASK&&&      = quiet_qband_G-1_mask_v2.fits 
+BAND_TOD_SMALL_PROCMASK&&&     = quiet_qband_G-1_mask_v2.fits 
+BAND_TOD_BP_INIT_PROP&&&       = none # ?
+BAND_TOD_RIMO&&&               = QUIET_instrument_v0.0.1.h5 # created by me with python 
+BAND_TOD_FILELIST&&&           = filelist_Q.txt # created by my with python
+BAND_TOD_HALFRING&&&           = 0 # planck thing?
+BAND_TOD_START_SCANID&&&       = 28 # 
+BAND_TOD_END_SCANID&&&         = 3557  # <= BAND_TOD_TOT_NUMSCAN
+BAND_TOD_TOT_NUMSCAN&&&        = 189 # total number of files in patch_gc 
+BAND_TOD_FLAG&&&               = 2047
+BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
+BAND_TOD_DETECTOR_LIST&&&      = 01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19 
+BAND_TOD_INIT_FROM_HDF&&&      = default

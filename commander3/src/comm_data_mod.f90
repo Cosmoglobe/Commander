@@ -29,6 +29,7 @@ module comm_data_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
+  use comm_tod_QUIET_mod
   use locate_mod
   implicit none
 
@@ -74,6 +75,9 @@ module comm_data_mod
 contains
 
   subroutine initialize_data_mod(cpar, handle)
+    !
+    ! Routine to initialise Commander3 data
+    !
     implicit none
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
@@ -107,7 +111,7 @@ contains
        data(n)%tod_type       = cpar%ds_tod_type(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
+            & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
 
        ! Initialize map structures
@@ -148,6 +152,10 @@ contains
           else if (trim(data(n)%tod_type) == 'LB') then
              data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          ! Adding QUIET data into a loop
+          else if (trim(data(n)%tod_type) == 'QUIET') then
+            ! Class initialisation 
+            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)

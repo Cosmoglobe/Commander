@@ -1040,7 +1040,7 @@ contains
 
        do i = 1, self%nbin2
           call sample_Dl_bin(self%bins2(i), handle, ok)
-!          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
+          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
        end do
     end if
 
@@ -1161,7 +1161,7 @@ contains
       if (bin%stat == 'S') then
          ! Set up prior = positive definite Dl; thus is not exact for TEB
          if (self%nspec == 1) then
-            prior    = [0.d0, 1.d5]
+            prior    = [1.d0, 1.d5]
          else
             prior    = [-1.d5, 1.d5]
             do l = bin%lmin, bin%lmax
@@ -1191,9 +1191,8 @@ contains
          ! Draw sample
          lmin=bin%lmin; lmax=bin%lmax; spec=bin%spec; p1=bin%p1; p2=bin%p2
          Dl_prop = sample_InvSamp(handle, Dl_in, lnL_invWishart, prior, status)
-      
+
          ! Update
-         write(*,*) lmin, lmax, Dl_prop, status
          !stop
          if (status == 0) then
             self%Dl(bin%lmin:bin%lmax,bin%spec) = Dl_prop

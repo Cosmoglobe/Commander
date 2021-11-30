@@ -2719,7 +2719,7 @@ contains
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
           npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-          if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+          if (any(self%pol_pixreg_type(:npol,i) > 0) .and. cpar%sample_specind) then
              npr=0
              do j = 1,npol
                 if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
@@ -3654,7 +3654,7 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0) write(*,fmt='(a,f10.3)') '   Monopole prior correction for '//trim(self%label)//': ', mu(0)
+       if (self%x%info%myid == 0) write(*,fmt='(a,f10.3)') ' |  Monopole prior correction for '//trim(self%label)//': ', mu(0)
 
     else if (trim(self%mono_prior_type) == 'monopole-dipole' .or. trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole or monopole+dipole to zero outside user-specified mask. In both cases the dipole is computed, but only in the monopole+dipole case it is removed
        ! Generate real-space component map
@@ -3680,7 +3680,7 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0) write(*,fmt='(a,f10.3,a,3f10.3,a)') '   Monopole prior correction (with dipole estimate) for '//trim(self%label)//': ', mu(0),'  ( ',mu(1:3), ' )'
+          if (self%x%info%myid == 0) write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |  Monopole prior correction (with dipole estimate) for '//trim(self%label)//': ', mu(0),'  ( ',mu(1:3), ' )'
           mu(1:3)=0.d0 !in order to not subtract the dipole in alm space!
        else
           ! Subtract mean and dipole in real space
