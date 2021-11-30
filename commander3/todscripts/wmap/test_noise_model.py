@@ -46,6 +46,8 @@ ind = 0
 fknees = np.array([0.4, 0.51, 0.71, 0.32, 1.09, 0.35, 5,76, 8.62, 0.09, 1.41,
   0.88, 8.35, 7.88, 0.66, 9.02, 7.47, 0.93, 0.28, 46.5, 26.0])*1e-3
 
+PS = {}
+
 alphas = []
 fknees = []
 for i in range(len(fnames)):
@@ -70,7 +72,7 @@ for i in range(len(fnames)):
         axs1[2*(j-1)+1].set_ylim([d.min(), -d.min()])
 
         N = len(data[cols.names[0]])
-        T = 1/1.536/Nobs_array[j]
+        T = 1.536/Nobs_array[j]
 
         xf = fftfreq(N,T)[:N//2]
 
@@ -78,7 +80,6 @@ for i in range(len(fnames)):
         axs[2*(j-1)].loglog(xf[1:],1/np.abs(yf[1:N//2]), color=plt.cm.viridis(i/len(fnames)))
         soln = minimize(nll, initial, args=(xf[1:], 1/np.abs(yf[1:N//2])),
             bounds=[(0,None), (-3, -0.1), (1e-5, 1)])
-        print(soln.x)
         fknees.append(soln.x[2])
         alphas.append(soln.x[1])
 
@@ -90,6 +91,9 @@ for i in range(len(fnames)):
         #    axs[2*(j-1)].set_title(cols.names[1])
         #    axs1[2*(j-1)].set_title(cols.names[1])
 
+        PS[cols.names[1]+'_'+str(i)] = 1./np.abs(yf[1:N//2])
+        PS[cols.names[1]+'_'+str(i)+'_f'] = xf[1:]
+
         yf = fft(data[cols.names[2]])
         axs[2*(j-1)+1].loglog(xf[1:],1/np.abs(yf[1:N//2]), color=plt.cm.viridis(i/len(fnames)))
         arr = np.array([xf[1:], 1/np.abs(yf[1:N//2])])
@@ -98,6 +102,9 @@ for i in range(len(fnames)):
         print(soln.x)
         fknees.append(soln.x[2])
         alphas.append(soln.x[1])
+
+        PS[cols.names[2]+'_'+str(i)] = 1./np.abs(yf[1:N//2])
+        PS[cols.names[2]+'_'+str(i)+'_f'] = xf[1:]
 
         #if i == 0:
         #    y = (xf[1:]/fknees[ind])**-1
@@ -115,8 +122,7 @@ fig.tight_layout()
 fig1.tight_layout()
 fig.savefig('test1.png', bbox_inches='tight', dpi=300)
 fig1.savefig('test2.png', bbox_inches='tight', dpi=300)
-plt.show()
+#plt.show()
 
 
-fknees = np.array(fknees)
-alphas = np.array(alphas)
+np.save('ps.txt', PS)

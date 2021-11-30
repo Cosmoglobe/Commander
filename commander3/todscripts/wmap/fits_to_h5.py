@@ -1066,6 +1066,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     if par:
         nprocs = 128
         nprocs = 72
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
 

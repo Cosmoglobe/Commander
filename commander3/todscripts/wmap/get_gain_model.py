@@ -479,8 +479,11 @@ def get_gain(data, band):
 
     RF_bias = get_val_from_mnem(data, mnems[0])
     #T_FPA = get_val_from_mnem(data, 'DFV11FPATEET')
-    T_FPA = get_val_from_mnem(data, 'DFK1BOMTT')
-    T_RXB = get_val_from_mnem(data, 'DRK12RXBRIBT')
+    #T_FPA = get_val_from_mnem(data, 'DFK1BOMTT')
+    #T_FPA = get_val_from_mnem(data, 'DFQ1AFEEDT')
+    T_FPA = get_val_from_mnem(data, 'DFQ1BOMTT')
+    #T_RXB = get_val_from_mnem(data, 'DRK12RXBRIBT')
+    T_RXB = get_val_from_mnem(data, 'DRQ1RXBRIBT')
 
     #T_FPA = fpa_func(t_JD)
     #T_RXB = rxb_func(t_JD)
@@ -660,8 +663,26 @@ def temp_tests(nfiles=100, band='V113'):
 
     return
 
+
+def plot_gain_history(band='Q123'):
+    fnames = glob('/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/*.fits')
+    fnames.sort()
+
+    ts = np.zeros(len(fnames[::7]))
+    Gs = np.zeros(len(fnames[::7]))
+    from tqdm import tqdm
+    for i in tqdm(range(len(fnames[::7]))):
+        data = fits.open(fnames[i])
+        t_JD, G = get_gain(data, band)
+        ts[i] = t_JD[0]
+        Gs[i] = G[0]
+    plt.plot(ts, Gs)
+    np.save('gain_Q123', np.array([ts, Gs]))
+    plt.show()
+    
+
 if __name__ == '__main__':
-    publication_plots(nfiles=400)
+    #publication_plots(nfiles=400)
     #gain_tests()
     #rfb_tests()
     #fpa_tests()
@@ -671,3 +692,4 @@ if __name__ == '__main__':
     #for i in range(10):
     #  temp_tests(band='K113')
     #plt.show()
+    plot_gain_history()
