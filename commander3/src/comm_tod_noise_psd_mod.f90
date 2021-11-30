@@ -564,11 +564,7 @@ contains
 
     S1 = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
     S2 = self%xi_n(SIGMA0)**2 * (self%xi_n(SLOPE) * nu + self%xi_n(INTERCEPT))
-    if (S2 > 0) then
-      eval_noise_psd_oof_f_corr = S1 + S2
-    else
-      eval_noise_psd_oof_f_corr = S1
-    end if
+    eval_noise_psd_oof_f_corr = S1 + S2
 
 
     if(self%apply_filter) then

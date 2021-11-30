@@ -120,8 +120,8 @@ contains
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
-      constructor%xi_n_P_uni(4,:) = [-0.1, 0.1]            ! slope
+      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, 0.01, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      constructor%xi_n_P_uni(4,:) = [0.0, 0.1]            ! slope
       constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
       constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
       constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
@@ -373,9 +373,12 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 1
+      !self%output_aux_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 1
+         if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
+      !self%output_n_maps = 7
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
