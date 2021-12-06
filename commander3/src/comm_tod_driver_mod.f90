@@ -178,8 +178,7 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
-    !call update_status(status, "todinit_dipole")
+    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
@@ -381,8 +380,8 @@ contains
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), s_bufA, 1d3)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), s_bufB, 1d3)
     self%s_orbA = s_bufA
     self%s_orbB = s_bufB
     self%s_totA = self%s_totA + self%s_orbA
@@ -476,6 +475,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang, smooth)
+    !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
     !
@@ -494,6 +494,7 @@ contains
     !             Healpix definition for random number generation
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
+    !
     implicit none
     class(comm_tod),                              intent(inout) :: tod
     character(len=*),                             intent(in)    :: mode
@@ -515,7 +516,7 @@ contains
     smooth_ = .true.
     if (present(smooth))  smooth_=smooth
 
-    if (tod%myid == 0) write(*,*) '   --> Sampling calibration, mode = ', trim(mode)
+    if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
 
     if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))
@@ -681,6 +682,7 @@ contains
   end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
+    !
     !   Perform data selection on TOD object
     !
     !   Arguments:
@@ -692,6 +694,7 @@ contains
     !             Local scan ID for the current core 
     !   flag:     int (ntod x ndet array)
     !             Array with data quality flags
+    !
     implicit none
     class(comm_tod),                   intent(inout) :: tod
     integer(i4b),    dimension(1:,1:), intent(in)    :: flag
@@ -703,7 +706,7 @@ contains
     ndet = size(flag,2)
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > 0.1*ntod) then    ! Discard scans with less than 10% good data
+       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
           tod%scans(scan)%d(j)%accept = .false.
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
@@ -712,7 +715,7 @@ contains
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-    !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
+   !  if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
@@ -746,7 +749,7 @@ contains
 
   end subroutine compute_chisq_abs_bp
 
-  subroutine compute_calibrated_data(tod, scan, sd, d_calib)
+  subroutine compute_calibrated_data(tod, scan, sd, d_calib, jump_template)
     !
     !  gets calibrated timestreams
     !
@@ -757,6 +760,7 @@ contains
     !  scan: integer
     !     integer label for scan
     !  sd:  comm_scandata object
+    !  jump_template:  baseline that traces jumping tod level
     !
     !  Returns:
     !  --------
@@ -779,6 +783,7 @@ contains
     integer(i4b),                          intent(in)   :: scan
     type(comm_scandata),                   intent(in)   :: sd
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
+    real(sp), dimension(:,:), intent(in), optional      :: jump_template
 
     integer(i4b) :: i, j, nout
     real(dp)     :: inv_gain
@@ -791,7 +796,7 @@ contains
         d_calib(1,:,j) = (sd%tod(:,j) - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        else
-        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
+        d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j) - jump_template(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
        end if
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
@@ -849,19 +854,26 @@ contains
 
   end subroutine distribute_sky_maps
 
-  ! ************************************************
-  !
-  !> @brief Commander3 native simulation module. It
-  !! simulates correlated noise and then rewrites
-  !! the original timestreams inside the files.
-  !
-  !> @author Maksym Brilenkov
-  !
-  !> @param[in]
-  !> @param[out]
-  !
-  ! ************************************************
+
   subroutine simulate_tod(self, scan_id, s_tot, n_corr, handle)
+    !
+    ! Commander3 native simulation routine. It simulates  correlated
+    ! noise component, adds it to the commander-sampled total sky 
+    ! signal (multiplied by gain factor for a given frequency) and 
+    ! overwrites the original timestreams inside copied files.
+    !
+    !  Arguments:
+    !  ----------
+    !  s_tot:    real(sp), array(:,:)
+    !            Total sky signal 
+    !  scan_id:  integer(i4b)
+    !            Local scan ID for the current core
+    !  handle:   planck_rng derived type
+    !            Healpix definition for random number generation
+    !
+    !  Returns:
+    !  --------
+    !
     implicit none
     class(comm_tod), intent(inout) :: self
     ! Parameter file variables
@@ -1001,8 +1013,9 @@ contains
     ! Converting PID number into string value
     call int2string(self%scanid(scan_id), pidLabel)
     call int2string(self%myid, processor_label)
-    write(*,*) "Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) trim(currentHDFFile)
+    !write(*,*) "!  Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
+    write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
+    write(*,*) "!  "//trim(currentHDFFile)
     ! For debugging
     !call MPI_Finalize(mpi_err)
     !stop
@@ -1031,7 +1044,7 @@ contains
     !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
     deallocate(tod_per_detector)
-    write(*,*) "Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
+    write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
     ! lastly, we need to copy an existing filelist.txt into simulation folder
     ! and change the pointers to new files

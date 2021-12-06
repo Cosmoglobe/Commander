@@ -144,6 +144,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90

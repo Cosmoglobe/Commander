@@ -238,6 +238,7 @@ contains
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
+
     converged = .false.
     nmask     = ntod - sum(mask)
     if (nmask == 0) then
@@ -620,5 +621,35 @@ contains
     deallocate(dt, dv)
 
   end subroutine multiply_inv_N
+
+  subroutine init_noise_model(tod, det, filter)
+    implicit none
+    class(comm_tod),                            intent(inout)   :: tod
+    integer(i4b),                               intent(in)      :: det
+    real(dp),     optional,     dimension(:,:), intent(in)      :: filter
+
+    integer(i4b) :: i, j
+    logical(lgt) :: do_filt
+
+    if(.not. present(filter)) then
+      do_filt = .false.
+    else
+      do_filt = .true.
+    end if
+
+    do i=1, tod%nscan
+        if(trim(tod%noise_psd_model) == 'oof') then
+          tod%scans(i)%d(det)%N_psd => comm_noise_psd(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)
+        else if(trim(tod%noise_psd_model) == '2oof') then
+          tod%scans(i)%d(det)%N_psd => comm_noise_psd_2oof(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)       
+        else if(trim(tod%noise_psd_model) == 'oof_gauss') then
+          tod%scans(i)%d(det)%N_psd => comm_noise_psd_oof_gauss(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)
+        else if(trim(tod%noise_psd_model) == 'oof_f') then
+          tod%scans(i)%d(det)%N_psd => comm_noise_psd_oof_f(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)
+        end if
+
+    end do
+
+  end subroutine init_noise_model
 
 end module comm_tod_noise_mod

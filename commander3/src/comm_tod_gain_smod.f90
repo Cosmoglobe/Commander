@@ -216,7 +216,7 @@ contains
          if (all(g(:, j, 1) == 0)) continue
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
-          call normalize_gain_variance(g(:,j,1), g(:,j,2), tod%gain_sigma_0(j))
+          if (count(g(:,j,2)>0) > 500) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
@@ -228,7 +228,7 @@ contains
                 end if
              end do
              close(58)
-             write(*,*) 'psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)
@@ -257,19 +257,19 @@ contains
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           end if
 
-         ! Force noise-weighted average to zero
+         ! Force flat average to zero
          mu = 0.d0
          denom = 0.d0
          do k = 1, nscan_tot
             if (g(k, j, 2) > 0.d0) then
-               mu    = mu + g(k,j,1)/g(k,j,2)
-               denom = denom + g(k,j,2)
+               mu    = mu    + g(k,j,1)
+               denom = denom + 1.d0
             end if
          end do
          mu = mu / denom
          !write(*,*) 'g = ', mu
          where(g(:,j,2) > 0.d0) 
-            g(:,j,1) = g(:,j,1) - mu * g(:,j,2)
+            g(:,j,1) = g(:,j,1) - mu
          end where
 
           if (j == 1) then
@@ -285,9 +285,8 @@ contains
 
        ! Distribute and update results
        do j = 1, ndet
-         !call mpi_bcast(tod%gain_sigma_0(j), 1, MPI_DOUBLE_PRECISION, &
-         !     & mod(j-1,tod%numprocs), tod%comm, ierr)
-         call mpi_bcast(g(:,j,:), size(g(:,j,:)),  MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
+         call mpi_bcast(tod%gain_sigma_0(j),              1, MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)
+         call mpi_bcast(g(:,j,:),            size(g(:,j,:)), MPI_DOUBLE_PRECISION, mod(j-1,tod%numprocs), tod%comm, ierr)    
        end do
        do j = 1, ndet
           do i = 1, tod%nscan
@@ -304,41 +303,18 @@ contains
 
   end subroutine sample_smooth_gain
 
-  module subroutine normalize_gain_variance(g1, g2, sigma0)
+  module subroutine compute_minimum_sigma0(g2, window, sigma0)
     implicit none
-    real(dp), dimension(:), intent(inout) :: g1
-    real(dp), dimension(:), intent(inout) :: g2
+    real(dp), dimension(:), intent(in)    :: g2
+    integer(i4b),           intent(in)    :: window
     real(dp),               intent(out)   :: sigma0
 
-    integer(i4b) :: k, l, nscan_tot, window
+    integer(i4b) :: k, l, nscan_tot, n
     real(dp)     :: var, minvar, invvar
-    real(dp), allocatable, dimension(:)   :: g_over_s
 
-    nscan_tot = size(g1)
-    allocate(g_over_s(nscan_tot))
-
-    ! Rescale uncertainties to have local unit reduced variance
-    where (g2 > 0) 
-       g_over_s = g1/sqrt(g2)  ! gain / stddev
-    elsewhere
-       g_over_s = 0.d0
-    end where
-    var = 0.
-    do k = 1, nscan_tot-1
-       if (g_over_s(k) /= 0.d0 .and. g_over_s(k+1) /= 0.d0) then
-          g_over_s(k) = (g_over_s(k+1)-g_over_s(k))/sqrt(2.d0)
-          var         = var + g_over_s(k)**2
-       end if
-    end do
-    if (count(g_over_s > 0) > 0) then
-       var = var/count(g_over_s > 0)
-       write(*,*) '  normalize_gain_variance -- rescaling by ', real(1.d0/var,sp)
-       g2 = g2 / var
-       g1 = g1 / var
-    end if
+    nscan_tot = size(g2)
 
     ! Compute minimum variance 
-    window = 100
     minvar = 0.d0
     do k = window+1, nscan_tot-window ! First, compute the minimum variance, as estimated over a gliding window
        invvar = 0.d0
@@ -353,11 +329,8 @@ contains
        end if
     end do
     sigma0 = 1d0 * 1/sqrt(minvar)
-    write(*,*) ' New sigma0 = ', sigma0
 
-    deallocate(g_over_s)
-
-  end subroutine normalize_gain_variance
+  end subroutine compute_minimum_sigma0
 
 
    ! This is implementing equation 16, adding up all the terms over all the sums
@@ -458,7 +431,7 @@ contains
           tod%gain0(0) = tod%gain0(0) + 1.d0/sqrt(sum(A)) * rand_gauss(handle)
        end if
        if (tod%verbosity > 1) then
-         write(*,fmt='(a,f12.8)') '      Abscal = ', tod%gain0(0)
+         write(*,fmt='(a,f12.8)') ' |    Abscal = ', tod%gain0(0)
          !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
@@ -520,7 +493,7 @@ contains
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
        if (tod%verbosity > 1) then
-         write(*,*) 'relcal = ', real(x,sp)
+         write(*,*) '|  relcal = ', real(x,sp)
        end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
@@ -538,6 +511,7 @@ contains
   end subroutine sample_relcal
 
   module subroutine sample_imbal_cal(tod, handle, A_abs, b_abs)
+    !
     !  Subroutine to sample the transmission imbalance parameters, defined in
     !  the WMAP data model as the terms x_im; given the definition
     !  d_{A/B} = T_{A/B} \pm Q_{A/B} cos(2 gamma_{A/B}) \pm U_{A/B} sin(2 gamma_{A/B})

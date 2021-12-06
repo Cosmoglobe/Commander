@@ -84,7 +84,7 @@ module comm_tod_QUIET_mod
   end interface comm_QUIET_tod
 
   interface
-    module subroutine process_QUIET_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+    module subroutine process_QUIET_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
       !
       ! Routine that processes the QUIET time ordered data.
       ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -131,6 +131,7 @@ module comm_tod_QUIET_mod
       real(dp),  dimension(0:, 1:, 1:), intent(inout) :: delta     ! (0:ndet,npar,ndelta) BP corrections
       class(comm_map), intent(inout) :: map_out      ! Combined output map
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
+      type(map_ptr),   dimension(1:,1:),   intent(inout), optional :: map_gain       ! (ndet,1)
 
     end subroutine process_QUIET_tod
   end interface 

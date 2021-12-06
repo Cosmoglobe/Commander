@@ -168,10 +168,10 @@ This work has received funding from the European Union's Horizon 2020 research a
 
 ## Citation
 
-If used for published results, please cite these papers:
+If used for published results, please [cite these papers](https://github.com/Cosmoglobe/Commander/blob/master/docs/commander.bib):
 
-- Jewell et al. 2004, ApJ, 609, 1                            
-- Wandelt et al. 2004, Phys. Rev. D, 70, 083511
-- Eriksen et al. 2004, ApJS, 155, 227 (Commander)
-- Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB) 
+- [Jewell et al. 2004, ApJ, 609, 1](https://ui.adsabs.harvard.edu/abs/2004ApJ...609....1J)
+- [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://ui.adsabs.harvard.edu/abs/2004PhRvD..70h3511W)
+- [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://ui.adsabs.harvard.edu/abs/2004ApJS..155..227E)
+- [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://ui.adsabs.harvard.edu/abs/2008ApJ...676...10E)
 

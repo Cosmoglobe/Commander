@@ -91,12 +91,12 @@ interface
     logical(lgt), optional,            intent(in)     :: smooth
   end subroutine sample_smooth_gain
 
-  module subroutine normalize_gain_variance(g1, g2, sigma0)
+  module subroutine compute_minimum_sigma0(g2, window, sigma0)
     implicit none
-    real(dp), dimension(:), intent(inout) :: g1
-    real(dp), dimension(:), intent(inout) :: g2
+    real(dp), dimension(:), intent(in)    :: g2
+    integer(i4b),           intent(in)    :: window
     real(dp),               intent(out)   :: sigma0
-  end subroutine normalize_gain_variance
+  end subroutine compute_minimum_sigma0
 
 
    ! This is implementing equation 16, adding up all the terms over all the sums

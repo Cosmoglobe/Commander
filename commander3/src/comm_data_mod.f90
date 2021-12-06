@@ -111,7 +111,7 @@ contains
        data(n)%tod_type       = cpar%ds_tod_type(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
+            & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
 
        ! Initialize map structures
@@ -147,7 +147,7 @@ contains
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info)
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
              data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)

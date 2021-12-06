@@ -30,21 +30,22 @@ contains
     ! Set up noise PSD type and priors
     constructor%freq            = cpar%ds_label(id_abs)
     constructor%n_xi            = 3
-    ! oof -- one ofver f noise
+    ! oof -- one over f noise
     constructor%noise_psd_model = 'oof'
     allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+    allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
 
     !
     constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
     if (trim(constructor%freq) == 'Q') then
-       constructor%xi_n_nu_fit     = [0.0, 0.200]    
-       constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+       constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
+       constructor%xi_n_P_uni(2,:)  = [0.00001, 0.005]  ! fknee
+       constructor%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
     else if (trim(constructor%freq) == 'W') then
-       constructor%xi_n_nu_fit     = [0.0, 0.200]    
-       constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
-       constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+       constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
+       constructor%xi_n_P_uni(2,:)  = [0.0001, 0.01]    ! fknee
+       constructor%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
     else
        write(*,*) 'Invalid QUIET frequency label = ', trim(constructor%freq)
        stop
