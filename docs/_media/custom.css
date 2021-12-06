@@ -1,0 +1,57 @@
+section.cover.has-mask .mask {
+  background-image: linear-gradient(
+    hsla(0, 0%, 100%, 0.25),
+    hsla(0, 0%, 100%, 0.75)
+  );
+  background-color: transparent;
+  opacity: 1;
+}
+
+section.cover h1 .anchor span {
+  font-family: "Roboto";
+  color: var(--theme-color);
+}
+
+section.cover .cover-main > p:last-child a .iconfont {
+  font-size: 1em;
+}
+
+.app-name-link img {
+  height: 60px;
+}
+
+@page {
+  size: A4 portait;
+  margin: 2cm 1cm;
+}
+
+footer img {
+  height: 46px;
+  margin: 0.6em 0.4em 0 0;
+  float: left;
+}
+
+footer h6 {
+  padding: 0;
+  margin: 0;
+}
+
+footer span {
+  font-size: xx-small;
+  font-style: italic;
+  vertical-align: middle;
+}
+
+footer {
+  padding-top: 4em;
+}
+
+.alert .txt {
+  padding-top: 0;
+  margin-top: 0;
+  line-height: 1.1em;
+}
+
+body {
+  font-family: "Roboto";
+}
