@@ -53,10 +53,8 @@ export F90FLAGS := -fpp -fpe0 -march=native -g -O2 -traceback -assume byterecl -
 
 #debug
 #
-#export F90FLAGS := -fpe0 -march=native -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -fpe0
+#export F90FLAGS := -fpe0 -march=native -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl 
 
-
-#export F90FLAGS := -fpe0 -march=native -O2 -CB -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl 
 #export F90FLAGS := -check bounds -CB -check format -check pointers -check uninit -check output_conversion -assume byterecl -traceback -heap-arrays 16384 -fpe0 -O0 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp
 #export F90FLAGS := -check all -O0 -g -traceback -assume byterecl -heap-arrays 16384 -qopenmp -ftrapuv -debug all -diag-disable 406
 
@@ -125,8 +123,3 @@ export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
 export HDF_LINK := -L$(LOCAL)/lib -lhdf5_fortran -lhdf5
 export HDF_LINK_CPP := -L$(LOCAL)/lib -lhdf5_cpp -lhdf5
 export HDF_INCLUDE := -I$(LOCAL)/include
-
-# =============== CAMB ============================                              
-export CAMB_LINK := -L/mn/stornext/d16/cmbco/bp/mathew/commander3/install/lib -lcamb
-export CAMB_INCLUDE := -I/mn/stornext/d16/cmbco/bp/mathew/commander3/install/mod
-#

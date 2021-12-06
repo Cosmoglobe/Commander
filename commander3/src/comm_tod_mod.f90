@@ -117,9 +117,8 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
-     real(dp), allocatable, dimension(:)     :: gain0                                       ! Mean gain
+     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
-     real(dp), allocatable, dimension(:,:)   :: polang_prior                                ! Detector polarization angle prior [ndet,mean/rms]
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
@@ -128,7 +127,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)     :: prop_bp_mean    ! proposal matrix, sigma(ndelta), for mean
      real(sp), allocatable, dimension(:,:)   :: xi_n_P_uni      ! Uniform prior for noise PSD parameters
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
-     real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
+     real(sp),              dimension(2)     :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
      integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
