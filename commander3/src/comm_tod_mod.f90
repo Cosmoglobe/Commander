@@ -1454,9 +1454,9 @@ contains
 !!$       if (trim(self%freq) .ne. '030') then
 !!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
 !!$       end if
-!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
-!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
-!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
        !write(*,*) 'bp =', self%bp_delta
        ! Redefine gains; should be removed when proper initfiles are available
 !!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
@@ -1483,7 +1483,7 @@ contains
 !!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
 !!$         & self%comm, ierr)
 
-       self%gain_alpha = -2.5d0
+!!$       self%gain_alpha = -2.5d0
 
 !!$    do j = 1, self%ndet
 !!$       where (output(:,j,1)>0.)
@@ -1492,10 +1492,10 @@ contains
 !!$       end where
 !!$    end do
 
-    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
-    do j = 1, self%ndet
-       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.) - self%gain0(0)
-    end do
+!!$    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
+!!$    do j = 1, self%ndet
+!!$       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.) - self%gain0(0)
+!!$    end do
 
     do j = 1, self%ndet
        do i = 1, self%nscan

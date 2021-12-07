@@ -1161,7 +1161,7 @@ contains
       if (bin%stat == 'S') then
          ! Set up prior = positive definite Dl; thus is not exact for TEB
          if (self%nspec == 1) then
-            prior    = [0.d0, 1.d5]
+            prior    = [1.d-12, 1.d5]
          else
             prior    = [-1.d5, 1.d5]
             do l = bin%lmin, bin%lmax
