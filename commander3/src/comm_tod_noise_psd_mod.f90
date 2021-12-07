@@ -49,7 +49,7 @@ module comm_tod_noise_psd_mod
      ! Class definition for basic 1/f noise PSD model
      !
      integer(i4b) :: npar                                            ! Number of free parameters
-     real(sp),     allocatable, dimension(:,:)  :: nu_fit            ! Frequency range used to fit non-linear parameters
+     real(sp)     :: nu_fit(2)                                       ! Frequency range used to fit non-linear parameters
      real(sp),     pointer :: sigma0                                 ! Pointer to xi_n(1)
      real(sp),     allocatable, dimension(:)    :: xi_n              ! Active sampling parameters, xi_n(1) = sigma0
      real(sp),     allocatable, dimension(:,:)  :: P_uni             ! Uniform prior on xi_n (n_xi,lower/upper)

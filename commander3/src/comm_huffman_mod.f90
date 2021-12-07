@@ -205,7 +205,6 @@ contains
 !!$          end if
 !!$       end do
 !!$    end do
-
     k = 1
     node=hcode%nodemax
     do i = 2, size(x_in)  ! First byte does not contain real data

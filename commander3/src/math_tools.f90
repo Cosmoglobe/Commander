@@ -20,7 +20,7 @@
 !================================================================================
 module math_tools
   use healpix_types
-  USE OMP_LIB
+  !USE OMP_LIB
 
 
   interface invert_matrix

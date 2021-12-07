@@ -40,7 +40,13 @@ module comm_tod_mapmaking_mod
       procedure :: synchronize => synchronize_binmap
    end type comm_binmap
 
+
+
 contains
+
+
+
+
 
   subroutine init_binmap(self, tod, shared, solve_S)
     implicit none
@@ -146,7 +152,9 @@ contains
           self%sb_map%a(:,:,tod%ind2pix(j)+1) = self%sb_map%a(:,:,tod%ind2pix(j)+1) + &
                   & self%b_map(:,:,j)
        end do
+      !  stop
     end do
+    
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
 
@@ -195,13 +203,16 @@ contains
        if (.not. tod%scans(scan)%d(det)%accept) cycle
        off         = 6 + 4*(det-1)
        inv_sigmasq = (tod%scans(scan)%d(det)%gain/tod%scans(scan)%d(det)%N_psd%sigma0)**2
+
+       
        do t = 1, size(pix,1)
           
           if (iand(flag(t,det),tod%flag0) .ne. 0) cycle ! leave out all flagged data
           
           pix_    = tod%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
           psi_    = psi(t,det)
-          
+
+         
           binmap%A_map(1,pix_) = binmap%A_map(1,pix_) + 1.d0                                 * inv_sigmasq
           binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq
           binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq
@@ -225,9 +236,19 @@ contains
                 binmap%b_map(i,det+3,pix_) = binmap%b_map(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
              end do
           end if
+
           
-       end do
-    end do
+          
+         end do
+         
+         
+         
+      end do
+      
+
+
+
+      ! stop
 
   end subroutine bin_TOD
 
@@ -482,9 +503,11 @@ end subroutine bin_differential_TOD
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
       allocate (A_tot(n_A, 0:np0 - 1), b_tot(nout, nmaps, 0:np0 - 1), bs_tot(nout, ncol, 0:np0 - 1), W(nmaps), eta(nmaps))
+
       A_tot = binmap%sA_map%a(:, tod%info%pix + 1)
       b_tot = binmap%sb_map%a(:, 1:nmaps, tod%info%pix + 1)
       bs_tot = binmap%sb_map%a(:, :, tod%info%pix + 1)
+
 
       ! Solve for local map and rms
       allocate (A_inv(nmaps, nmaps), As_inv(ncol, ncol))
@@ -575,6 +598,9 @@ end subroutine bin_differential_TOD
             call smap%dealloc
          end if
       end if
+
+      
+
 
       deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta)
 

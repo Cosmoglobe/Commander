@@ -2719,7 +2719,7 @@ contains
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
           npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-          if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+          if (any(self%pol_pixreg_type(:npol,i) > 0) .and. cpar%sample_specind) then
              npr=0
              do j = 1,npol
                 if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
