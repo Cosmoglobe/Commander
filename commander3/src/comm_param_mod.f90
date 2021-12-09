@@ -1998,6 +1998,61 @@ contains
     if(present(num)) num = n
   end subroutine get_tokens
 
+  subroutine get_detectors(filename, directory, detectors, num_dets)
+     !
+     ! Reads detector names from a text file and saves them in a character array.
+     !
+     ! Arguments:
+     ! ----------
+     ! filename:  character string
+     !            Filename of the file where detector names are stored.
+     ! directory: character string
+     !            Directory where file is stored.
+     ! num_dets:  integer (optional)
+     !            Number of detectors
+     !
+     ! Return:
+     ! -------
+     ! detectors: character array
+     !            Initially empty array is filled with detector names. 
+     ! 
+     implicit none
+     character(len=*), intent(in)           :: filename, directory
+     character(len=*), intent(inout)        :: detectors(:)
+     integer(i4b),     intent(in), optional :: num_dets
+
+     character(len=500)           :: detector_list_file
+     integer(i4b)                 :: unit,io_error,counter, ndet, i
+     character(len=8)             :: line
+
+     if (present(num_dets)) then
+          ndet = num_dets
+     else
+          ndet = size(detectors)
+     end if
+
+     unit = 20
+     detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
+
+     open(unit,file=trim(detector_list_file),status='old',action='read',iostat=io_error)
+     if (io_error == 0) then
+     ! Do nothing
+     else
+         write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+         stop
+     end if
+
+     do i=1, ndet
+         read(unit,'(a)') line
+         if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+            cycle
+         else
+            detectors(i) = line
+         end if
+     end do
+     close(unit)
+  end subroutine get_detectors
+
   function has_token(token, string, sep, group, allow_empty) result(res)
     implicit none
     character(len=*) :: token, string, sep
@@ -2029,6 +2084,58 @@ contains
        call tokenize(string, sep, ext, group, allow_empty)
     end do
   end function num_tokens
+
+  integer(i4b) function count_detectors(filename, directory)
+     ! 
+     ! Takes in the filename and directory of a detector list and returns the number of 
+     ! detectors in that list. Each detector has to be written on a separate line, as 
+     ! the function simply counts the lines of the file that don't start in '#'.
+     !
+     ! Arguments:
+     ! ----------
+     ! filename:    character string
+     !              Filename of the detector list             
+     ! directory:   character string
+     !              Directory where file is located
+     !
+     ! Returns:
+     ! --------
+     ! count_detectors: integer
+     !                  Number of lines in the file that are not commented out using '#'.
+     !
+     implicit none
+     character(len=*) :: filename, directory
+
+     character(len=500)           :: detector_list_file
+     integer(i4b)                 :: unit,io_error,counter
+     logical                      :: counting
+     character(len=8)             :: line
+
+     unit = 20
+     detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
+
+     open(unit,file=detector_list_file, status='old', action='read', iostat=io_error)
+     if (io_error == 0) then
+          ! Do nothing
+     else
+          write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+          stop
+     end if
+
+     counting = .true.
+     counter = 0
+     do while(counting)
+          read(unit,'(a)',end=1) line
+          if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+          cycle
+          else
+          counter = counter + 1
+          end if
+     end do
+     1  close(unit)
+
+     count_detectors = counter
+  end function count_detectors
 
   subroutine tokenize(string, sep, ext, group, allow_empty)
     implicit none
@@ -2157,7 +2264,7 @@ contains
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') &
                & call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
           call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
-          call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
+          if (trim(cpar%ds_tod_bp_init(i)) /= 'none') call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
        end if
 
     end do
