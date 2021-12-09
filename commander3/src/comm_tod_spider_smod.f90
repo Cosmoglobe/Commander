@@ -70,20 +70,15 @@ contains
      constructor%n_xi            = 3
      constructor%noise_psd_model = 'oof'
      allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-     allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
      allocate(constructor%xi_n_P_rms(constructor%n_xi))
      
      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
      if (trim(constructor%freq) == 'SPIDER_150') then
-        constructor%xi_n_nu_fit(1,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
-        constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
-        constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        constructor%xi_n_nu_fit = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
         constructor%xi_n_P_uni(2,:)  = [0.0010d0, 0.45d0] ! fknee
         constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else if (trim(constructor%freq) == 'SPIDER_90') then
-        constructor%xi_n_nu_fit(1,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
-        constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
-        constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        constructor%xi_n_nu_fit = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
         constructor%xi_n_P_uni(2,:)  = [0.002d0, 0.40d0]  ! fknee
         constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else
@@ -210,7 +205,7 @@ contains
    !**************************************************
    !             Driver routine
    !**************************************************
-   module subroutine process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+   module subroutine process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
      !
      ! Routine that processes the SPIDER time ordered data.
      ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -256,7 +251,9 @@ contains
      real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
      class(comm_map),                          intent(inout) :: map_out      ! Combined output map
      class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
+     type(map_ptr),     dimension(:,:),   intent(inout), optional :: map_gain
  
+
      real(dp)            :: t1, t2
      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
