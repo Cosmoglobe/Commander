@@ -234,7 +234,6 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
-     character(len=512), allocatable, dimension(:)     :: cs_samp_mono_from_prior 
   end type comm_params
 
 contains
@@ -670,7 +669,7 @@ contains
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
-    allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n),cpar%cs_samp_mono_from_prior(n))
+    allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n))
     allocate(cpar%cs_pixreg_init_theta(MAXPAR,n))
     allocate(cpar%cs_almsamp_init(MAXPAR,n),cpar%cs_theta_prior(2,3,MAXPAR,n))
     allocate(cpar%cs_spec_pixreg(3,MAXPAR,n),cpar%cs_spec_mask(MAXPAR,n))
@@ -717,8 +716,6 @@ contains
                & par_lgt=cpar%cs_polarization(i))
           call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
-          call get_parameter_hashtable(htbl, 'COMP_MD_MONO_FROM_PRIOR'//itext, len_itext=len_itext, &
-               & par_string=cpar%cs_samp_mono_from_prior(i))
 
        else if (trim(cpar%cs_class(i)) == 'template') then
           call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &

@@ -10,6 +10,7 @@ COMP_CG_SAMP_GROUP_MAXITER&&  = 100  #50, increased to 100 due to prior sampling
 COMP_NSIDE&&                  = 1024
 #COMP_MONOPOLE_PRIOR&&         = none
 COMP_MONOPOLE_PRIOR&&         = lower_value_prior:mask_synch_mono_n1024.fits,5.0d6,1.3d6,600.d0  #<mask name>,<mean>,<RMS>,<FWHM>
+#COMP_MONOPOLE_PRIOR&&         = bandmono:0.4-Haslam  #<band label>
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1500
 COMP_LMIN_AMP&&               = 0
