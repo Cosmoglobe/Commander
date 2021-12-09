@@ -629,13 +629,6 @@ contains
     real(dp),     optional,     dimension(:,:), intent(in)      :: filter
 
     integer(i4b) :: i, j
-    logical(lgt) :: do_filt
-
-    if(.not. present(filter)) then
-      do_filt = .false.
-    else
-      do_filt = .true.
-    end if
 
     do i=1, tod%nscan
         if(trim(tod%noise_psd_model) == 'oof') then

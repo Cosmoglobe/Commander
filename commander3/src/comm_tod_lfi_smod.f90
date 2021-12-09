@@ -620,7 +620,7 @@ contains
     type(map_ptr),       dimension(1:,1:),       intent(inout), optional :: map_gain       ! (ndet)
     real(dp)            :: t1, t2
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
+    logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist, sample_polang
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
