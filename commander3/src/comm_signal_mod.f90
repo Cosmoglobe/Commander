@@ -341,7 +341,7 @@ contains
        ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
        do while (associated(c))
-          if (trim(c%type) /= 'cmb') then
+          if (.not. c%output) then
              c => c%next()
              cycle
           end if

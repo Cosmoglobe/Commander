@@ -534,6 +534,8 @@ contains
     allocate(self%psi_ell(self%ndet))
     allocate(self%nu_c(self%ndet))
 
+    allocate(self%slbeam(self%ndet))
+    allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
