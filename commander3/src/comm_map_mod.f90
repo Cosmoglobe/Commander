@@ -30,6 +30,8 @@ module comm_map_mod
   use extension
   use comm_param_mod
   use comm_hdf_mod
+  use comm_status_mod
+  use comm_timing_mod
   implicit none
 
 !  include "mpif.h"
@@ -460,6 +462,7 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout)          :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -472,6 +475,7 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y
 
@@ -480,6 +484,7 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout)          :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -492,6 +497,7 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_WY
 
@@ -501,11 +507,13 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout)          :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y_scalar
   
@@ -517,6 +525,7 @@ subroutine tod2file_dp3(filename,d)
     integer(i4b) :: i
     type(comm_mapinfo), pointer :: info => null()
     
+    call timer%start(TOT_SHT)
     info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
 
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
@@ -524,9 +533,9 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
             & self%map(:,i:i), info%geom_info_T, comm=info%comm)
     end do
-
     deallocate(info)
-    
+    call timer%stop(TOT_SHT)
+
   end subroutine exec_sharp_Y_EB
 
   subroutine exec_sharp_Yt(self)
@@ -534,6 +543,7 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout) :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -547,6 +557,7 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt
 
@@ -556,11 +567,13 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt_scalar
 
@@ -569,6 +582,7 @@ subroutine tod2file_dp3(filename,d)
 
     class(comm_map), intent(inout) :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -581,6 +595,7 @@ subroutine tod2file_dp3(filename,d)
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW
 
@@ -591,11 +606,13 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW_scalar
   

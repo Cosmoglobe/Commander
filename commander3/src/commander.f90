@@ -86,9 +86,9 @@ program commander
   
   call initialize_mpi_struct(cpar, handle, handle_noise)
   call validate_params(cpar)  
-  call init_status(status, trim(cpar%outdir)//'/comm_status.txt')
+  call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)
   status%active = cpar%myid_chain == 0 !.false.
-
+  call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
 !!$  n = 100000
 !!$  q = 100000
@@ -211,6 +211,7 @@ program commander
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
+  call timer%stop(TOT_INIT)
   !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
@@ -226,6 +227,7 @@ program commander
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
+     call timer%start(TOT_GIBBSSAMP)
      if (cpar%myid_chain == 0) then
         call wall_time(t1)
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
@@ -253,7 +255,9 @@ program commander
      ! Process TOD structures
 
      if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+        call timer%start(TOT_TODPROC)
         call process_TOD(cpar, cpar%mychain, iter, handle)
+        call timer%stop(TOT_TODPROC)
      end if
 
      if (cpar%enable_tod_simulations) then
@@ -263,12 +267,15 @@ program commander
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
+        call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
+        call timer%stop(TOT_SPECIND)
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
+        call timer%start(TOT_AMPSAMP)
         do samp_group = 1, cpar%cg_num_user_samp_groups
            if (cpar%myid_chain == 0) then
               write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
@@ -279,17 +286,25 @@ program commander
            if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
         end do
+        call timer%stop(TOT_AMPSAMP)
+
         ! Perform joint alm-Cl Metropolis move
+        call timer%start(TOT_CLS)
         do i = 1, 3
            if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
         end do
+        call timer%stop(TOT_CLS)
      end if
 
      ! Sample power spectra
+     call timer%start(TOT_CLS)
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
+     call timer%stop(TOT_CLS)
 
      ! Output sample to disk
+     call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
+     call timer%stop(TOT_OUTPUT)
 
      ! Sample partial-sky templates
      !call sample_partialsky_tempamps(cpar, handle)
@@ -312,6 +327,10 @@ program commander
      end if
      
      first = .false.
+
+     call timer%stop(TOT_GIBBSSAMP)
+     call timer%incr_numsamp
+     call timer%dumpASCII(trim(cpar%outdir)//"/comm_timing.txt")
   end do
 
   

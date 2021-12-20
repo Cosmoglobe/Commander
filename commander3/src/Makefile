@@ -104,8 +104,9 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
            comm_camb_mod.f90 \
-           comm_tod_adc_mod.f90 comm_tod_adc_smod.f90\
-           commander.f90
+           comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
+	   comm_timing_mod.f90 \
+	   commander.f90
 
 all: commander
 
@@ -185,7 +186,7 @@ comm_shared_output_mod.o    : comm_utils.o comm_system_mod.o
 comm_signal_mod.o           : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_cmb_comp_mod.o comm_cmb_relquad_comp_mod.o comm_powlaw_comp_mod.o comm_physdust_comp_mod.o comm_spindust_comp_mod.o comm_spindust2_comp_mod.o comm_ame_lognormal_mod.o comm_mbb_comp_mod.o comm_freefree_comp_mod.o comm_line_comp_mod.o comm_md_comp_mod.o comm_template_comp_mod.o comm_ptsrc_comp_mod.o comm_cr_mod.o comm_cr_utils.o comm_hdf_mod.o comm_data_mod.o comm_chisq_mod.o
 comm_spindust2_comp_mod.o   : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_map_mod.o comm_f_int_2d_mod.o comm_data_mod.o spline_2d_mod.o
 comm_spindust_comp_mod.o    : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_map_mod.o comm_f_int_1d_mod.o comm_data_mod.o spline_1d_mod.o
-comm_status_mod.o           : comm_utils.o comm_system_mod.o comm_shared_output_mod.o
+comm_status_mod.o           : comm_utils.o comm_system_mod.o comm_shared_output_mod.o comm_timing_mod.o
 comm_task_mod.o             : comm_utils.o
 comm_template_comp_mod.o    : math_tools.o comm_param_mod.o comm_comp_mod.o comm_f_int_mod.o comm_data_mod.o comm_hdf_mod.o comm_cr_utils.o comm_cr_precond_mod.o locate_mod.o spline_1d_mod.o
 comm_tod_adc_mod.o          : math_tools.o spline_1d_mod.o comm_tod_mod.o comm_map_mod.o comm_param_mod.o invsamp_mod.o comm_hdf_mod.o
@@ -216,3 +217,4 @@ sharp_test.o                : comm_map_mod.o comm_param_mod.o ars_mod.o
 spline_1d_mod.o             : locate_mod.o math_tools.o
 spline_2d_mod.o             : spline_1d_mod.o math_tools.o comm_utils.o
 comm_hdf_mod.o              : comm_utils.o
+comm_timing_mod.o           : comm_utils.o 

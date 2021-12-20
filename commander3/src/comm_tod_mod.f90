@@ -97,6 +97,7 @@ module comm_tod_mod
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
+     integer(i4b) :: band                                        ! Band ID
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
@@ -283,6 +284,7 @@ contains
     character(len=512) :: datadir
     character(len=4)   :: id
 
+    self%band          = id_abs
     self%tod_type      = tod_type
     self%myid          = cpar%myid_chain
     self%comm          = cpar%comm_chain

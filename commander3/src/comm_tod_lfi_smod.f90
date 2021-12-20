@@ -72,6 +72,8 @@ contains
     real(dp), dimension(:,:), allocatable :: filter_sum
     real(dp), dimension(:,:), allocatable :: noise_filter
 
+    call timer%start(TOD_INIT, id_abs)
+
     ! Allocate object
     allocate(res)
 
@@ -566,6 +568,8 @@ contains
        res%scans(i)%d%baseline = 0.d0
     end do
 
+    call timer%stop(TOD_INIT, id_abs)
+
   end function constructor
 
   !**************************************************
@@ -634,6 +638,7 @@ contains
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band)
 
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
@@ -676,6 +681,7 @@ contains
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
+       call timer%start(TOD_SL_PRE, self%band)
        if (self%myid == 0) write(*,*) '|  Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
           !write map_in to file
@@ -687,6 +693,7 @@ contains
                & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
+       call timer%stop(TOD_SL_PRE, self%band)
     end if
 !    write(*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -768,13 +775,17 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
+          call timer%start(TOD_NCORR, self%band)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          call timer%stop(TOD_NCORR, self%band)
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
+       call timer%start(TOD_XI_N, self%band)
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call timer%stop(TOD_XI_N, self%band)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -809,7 +820,9 @@ contains
        end if
 
        ! Bin TOD
+       call timer%start(TOD_MAPBIN, self%band)
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       call timer%stop(TOD_MAPBIN, self%band)
 
        ! Update scan list
        call wall_time(t2)
@@ -833,6 +846,7 @@ contains
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
+    call timer%start(TOD_MAPSOLVE, self%band)
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
@@ -842,6 +856,7 @@ contains
        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
+    call timer%stop(TOD_MAPSOLVE, self%band)
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -876,6 +891,7 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
+    call timer%stop(TOD_TOT, self%band)
 
   end subroutine process_lfi_tod
   
