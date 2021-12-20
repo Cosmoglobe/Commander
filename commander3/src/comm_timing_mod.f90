@@ -17,22 +17,22 @@ module comm_timing_mod
 
   ! Channel specific parameters
   integer(i4b), parameter, public :: NUM_TOD       = 16
-  integer(i4b), parameter, public :: TOD_INIT      =  1
-  integer(i4b), parameter, public :: TOD_SL_PRE    =  2
-  integer(i4b), parameter, public :: TOD_SL_INT    =  3
-  integer(i4b), parameter, public :: TOD_PROJECT   =  4
-  integer(i4b), parameter, public :: TOD_ORBITAL   =  5
-  integer(i4b), parameter, public :: TOD_DECOMP    =  6
-  integer(i4b), parameter, public :: TOD_ABSCAL    =  7
-  integer(i4b), parameter, public :: TOD_RELCAL    =  8
-  integer(i4b), parameter, public :: TOD_DELTAG    =  9
-  integer(i4b), parameter, public :: TOD_NCORR     = 10
-  integer(i4b), parameter, public :: TOD_XI_N      = 11
-  integer(i4b), parameter, public :: TOD_MAPBIN    = 12
-  integer(i4b), parameter, public :: TOD_MAPSOLVE  = 13
-  integer(i4b), parameter, public :: TOD_ZODI      = 14
-  integer(i4b), parameter, public :: TOD_IMBAL     = 15
-  integer(i4b), parameter, public :: TOD_TOT       = 16
+  integer(i4b), parameter, public :: TOD_TOT       =  1
+  integer(i4b), parameter, public :: TOD_INIT      =  2
+  integer(i4b), parameter, public :: TOD_SL_PRE    =  3
+  integer(i4b), parameter, public :: TOD_SL_INT    =  4
+  integer(i4b), parameter, public :: TOD_PROJECT   =  5
+  integer(i4b), parameter, public :: TOD_ORBITAL   =  6
+  integer(i4b), parameter, public :: TOD_DECOMP    =  7
+  integer(i4b), parameter, public :: TOD_ABSCAL    =  8
+  integer(i4b), parameter, public :: TOD_RELCAL    =  9
+  integer(i4b), parameter, public :: TOD_DELTAG    = 10
+  integer(i4b), parameter, public :: TOD_NCORR     = 11
+  integer(i4b), parameter, public :: TOD_XI_N      = 12
+  integer(i4b), parameter, public :: TOD_MAPBIN    = 13
+  integer(i4b), parameter, public :: TOD_MAPSOLVE  = 14
+  integer(i4b), parameter, public :: TOD_ZODI      = 15
+  integer(i4b), parameter, public :: TOD_IMBAL     = 16
 
   private
   public comm_timing
@@ -129,7 +129,7 @@ contains
     timer = timer_id; if (present(band)) timer = NUM_GLOBAL + NUM_TOD*(band-1) + timer_id
     if (self%t1(timer) > 0) then
        call wall_time(t2)
-       self%t(timer)  = t2 - self%t1(timer)
+       self%t(timer)  = self%t(timer) + t2 - self%t1(timer)
        self%t1(timer) = 0.d0
     end if
 
@@ -172,25 +172,28 @@ contains
 
     call mpi_reduce(self%t, t, self%n_tot, MPI_DOUBLE_PRECISION, &
          & MPI_SUM, 0, self%comm, ierr)
-     
+    t = t/3600 ! CPU-hours
+
     if (self%myid == 0) then
        unit = getlun()
        open(unit,file=trim(filename), recl=1024)
        write(unit,*) 'Timing summary'
        write(unit,*) ''
+       write(unit,*) '   Numbers are given in (CPU-hours,%)'
+       write(unit,*) ''
        write(unit,*) '   Global total timers:'
-       write(unit,*) '       Number of samples             = ', self%numsamp
-       write(unit,*) '       Total runtime                 = ', t(TOT_RUNTIME)
-       write(unit,*) '       Initialization                = ', t(TOT_INIT)
+       write(unit,*) '      Number of samples             = ', self%numsamp
+       write(unit,fmt='(a,f12.3,"h")') '       Total runtime                 = ', t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Initialization                = ', t(TOT_INIT), 100*t(TOT_INIT)/t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Total FFT                     = ', t(TOT_FFT), 100*t(TOT_FFT)/t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Total SHT                     = ', t(TOT_SHT), 100*t(TOT_SHT)/t(TOT_RUNTIME)
        write(unit,*) ''
        write(unit,*) '   Global per-sample timers:'
-       write(unit,*) '       Chain output                  = ', t(TOT_OUTPUT)  / self%numsamp
-       write(unit,*) '       Amplitude sampling            = ', t(TOT_AMPSAMP) / self%numsamp
-       write(unit,*) '       Spectral index sampling       = ', t(TOT_SPECIND) / self%numsamp
-       write(unit,*) '       Cls sampling                  = ', t(TOT_CLS)     / self%numsamp
-       write(unit,*) '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp
-       write(unit,*) '       Total FFT                     = ', t(TOT_FFT)     / self%numsamp
-       write(unit,*) '       Total SHT                     = ', t(TOT_SHT)     / self%numsamp
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Chain output                  = ', t(TOT_OUTPUT)  / self%numsamp, 100*t(TOT_OUTPUT)/t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Amplitude sampling            = ', t(TOT_AMPSAMP) / self%numsamp, 100*t(TOT_AMPSAMP)/t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Spectral index sampling       = ', t(TOT_SPECIND) / self%numsamp, 100*t(TOT_SPECIND)/t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Cls sampling                  = ', t(TOT_CLS)     / self%numsamp, 100*t(TOT_CLS)/t(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp, 100*t(TOT_TODPROC)/T(TOT_RUNTIME)
        write(unit,*) ''
        write(unit,*) '   Channel-specific global timers:'
 
@@ -199,22 +202,23 @@ contains
           if (all(t(b+1:b+NUM_TOD) == 0.d0)) cycle
           write(unit,*) 
           write(unit,*) '     Channel ID                   = ', band
-          write(unit,*) '     TOD initialization           = ', t(b+TOD_INIT)
-          write(unit,*) '     TOD sidelobe precomputation  = ', t(b+TOD_SL_PRE)   / self%numsamp
-          write(unit,*) '     TOD sidelobe interpolation   = ', t(b+TOD_SL_INT)   / self%numsamp
-          write(unit,*) '     TOD sky-to-tod projection    = ', t(b+TOD_PROJECT)  / self%numsamp
-          write(unit,*) '     TOD orbital dipole           = ', t(b+TOD_ORBITAL)  / self%numsamp
-          write(unit,*) '     TOD decompression            = ', t(b+TOD_DECOMP)   / self%numsamp
-          write(unit,*) '     TOD absolute calibration     = ', t(b+TOD_ABSCAL)   / self%numsamp
-          write(unit,*) '     TOD relative calibration     = ', t(b+TOD_RELCAL)   / self%numsamp
-          write(unit,*) '     TOD delta G calibration      = ', t(b+TOD_DELTAG)   / self%numsamp
-          write(unit,*) '     TOD transmission imbalance   = ', t(b+TOD_IMBAL)    / self%numsamp
-          write(unit,*) '     TOD correlated noise         = ', t(b+TOD_NCORR)    / self%numsamp
-          write(unit,*) '     TOD corr noise PSD           = ', t(b+TOD_XI_N)     / self%numsamp
-          write(unit,*) '     TOD binning                  = ', t(b+TOD_MAPBIN)   / self%numsamp
-          write(unit,*) '     TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp
-          write(unit,*) '     Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp
-          write(unit,*) '     Total TOD                    = ', t(b+TOD_TOT)     / self%numsamp
+          write(unit,fmt='(a,f12.3,"h")') '      TOD initialization           = ', t(b+TOD_INIT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sidelobe precomputation  = ', t(b+TOD_SL_PRE)   / self%numsamp, 100*t(b+TOD_SL_PRE)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sidelobe interpolation   = ', t(b+TOD_SL_INT)   / self%numsamp, 100*t(b+TOD_SL_INT)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sky-to-tod projection    = ', t(b+TOD_PROJECT)  / self%numsamp, 100*t(b+TOD_PROJECT)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD orbital dipole           = ', t(b+TOD_ORBITAL)  / self%numsamp, 100*t(b+TOD_ORBITAL)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD decompression            = ', t(b+TOD_DECOMP)   / self%numsamp, 100*t(b+TOD_DECOMP)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD absolute calibration     = ', t(b+TOD_ABSCAL)   / self%numsamp, 100*t(b+TOD_ABSCAL)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD relative calibration     = ', t(b+TOD_RELCAL)   / self%numsamp, 100*t(b+TOD_RELCAL)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD delta G calibration      = ', t(b+TOD_DELTAG)   / self%numsamp, 100*t(b+TOD_DELTAG)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD transmission imbalance   = ', t(b+TOD_IMBAL)    / self%numsamp, 100*t(b+TOD_IMBAL)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD correlated noise         = ', t(b+TOD_NCORR)    / self%numsamp, 100*t(b+TOD_NCORR)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD corr noise PSD           = ', t(b+TOD_XI_N)     / self%numsamp, 100*t(b+TOD_XI_N)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD binning                  = ', t(b+TOD_MAPBIN)   / self%numsamp, 100*t(b+TOD_MAPBIN)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp, 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp, 100*t(b+TOD_ZODI)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Other                        = ', (t(b+TOD_TOT)-sum(t(b+2:b+NUM_TOD))) / self%numsamp, 100*(t(b+TOD_TOT)-sum(t(b+2:b+NUM_TOD)))/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h")') '      Total TOD                    = ', t(b+TOD_TOT)     / self%numsamp
        end do
        close(unit)
     end if
