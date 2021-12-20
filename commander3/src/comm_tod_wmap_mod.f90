@@ -120,7 +120,7 @@ contains
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, 0.01, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
       constructor%xi_n_P_uni(4,:) = [0.0, 0.1]            ! slope
       constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
       constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
@@ -259,7 +259,8 @@ contains
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
       ! Allocate sidelobe convolution data structures
-      allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
+      allocate(constructor%slconvA(constructor%ndet), constructor%slconvB(constructor%ndet))
+      allocate(constructor%orb_dp)
       constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
       ! Initialize all baseline corrections to zero
@@ -375,8 +376,8 @@ contains
       self%output_n_maps = 1
       !self%output_aux_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 1
-         if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 6
+         !if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
       !self%output_n_maps = 7
 
@@ -411,9 +412,12 @@ contains
       if (self%correct_sl) then
          do i = 1, self%ndet
             call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-            self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+            self%slconvA(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
                  & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-                 & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
+                 & 100, 3, 100, self%slbeam(1)%p, map_in(i,1)%p, 2)
+            self%slconvB(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
+                 & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
+                 & 100, 3, 100, self%slbeam(3)%p, map_in(i,1)%p, 2)
                  ! lmax, nmaps, bmax, beam, map, optim
          end do
       end if
@@ -661,7 +665,8 @@ contains
 
       if (self%correct_sl) then
          do i = 1, self%ndet
-            call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
+            call self%slconvA(i)%p%dealloc(); deallocate(self%slconvA(i)%p)
+            call self%slconvB(i)%p%dealloc(); deallocate(self%slconvB(i)%p)
          end do
       end if
 

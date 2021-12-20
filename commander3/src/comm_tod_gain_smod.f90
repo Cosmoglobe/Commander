@@ -561,6 +561,7 @@ contains
           tod%x_im(1) = tod%x_im(1) + 1.d0/sqrt(sum(A(1:2))) * rand_gauss(handle)
           tod%x_im(3) = tod%x_im(3) + 1.d0/sqrt(sum(A(3:4))) * rand_gauss(handle)
        end if
+       !tod%x_im = 0d0
        tod%x_im(2) = tod%x_im(1)
        tod%x_im(4) = tod%x_im(3)
        if (tod%verbosity > 1) then
