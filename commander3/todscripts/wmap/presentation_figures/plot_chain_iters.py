@@ -8,7 +8,8 @@ from astropy.time import Time
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed_sample/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed_sample/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
 burn = 0
 thin = 10
 burn = max(burn, thin)
@@ -137,6 +138,7 @@ for band, labels in zip(bands, label_list):
             inds = np.array(inds)
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]/g
+            sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]
             if min(g) < mins[0]:
               mins[0] = min(g)
             if max(g) > maxs[0]:
@@ -175,6 +177,7 @@ for band, labels in zip(bands, label_list):
             inds = np.array(inds)
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
             sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]/g
+            sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]
             #t = np.arange(len(inds))
 
             g = data[str(1).zfill(6)+f'/tod/{band}/gain'][j][inds]
@@ -206,7 +209,7 @@ for band, labels in zip(bands, label_list):
             axes[1].set_ylabel(r'$f_\mathrm{k}$ [Hz]')
             axes[1].set_yscale('log')
             axes[2].set_ylabel(r'$\alpha$')
-            axes[3].set_ylabel(r'$\sigma_0$ [mK]')
+            axes[3].set_ylabel(r'$\sigma_0$ [du]')
             axes[4].set_ylabel(r'$(\chi^2-n_\mathrm{tod})/\sqrt{2n_\mathrm{tod}}$')
             axes[4].set_xlabel('Time [MJD]')
     
