@@ -236,7 +236,7 @@ contains
 
        do j = 1, data(n)%ndet
           data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
-          !! Fixing all bandpasses to be identical
+          ! Fixing all bandpasses to be identical
           !data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(1))
        end do
 
