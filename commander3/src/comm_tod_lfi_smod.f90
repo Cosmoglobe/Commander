@@ -658,7 +658,7 @@ contains
     npix            = 12*nside**2
     self%output_n_maps = 3
     if (self%output_aux_maps > 0) then
-       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
 
     call int2string(chain, ctext)
@@ -873,6 +873,7 @@ contains
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+    if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
 
     ! Clean up
     call binmap%dealloc()
@@ -1587,6 +1588,7 @@ contains
        call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
+       call timer%start(TOD_1HZ, self%band)
        allocate(res(tod%scans(i)%ntod))
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
@@ -1641,10 +1643,12 @@ contains
 
        ! Clean up
         call sd%dealloc
-       deallocate(res)
+        deallocate(res)
+        call timer%stop(TOD_1HZ, self%band)
     end do
 
     ! Compute smoothed templates
+    call timer%start(TOD_1HZ, self%band)
     s_sum = 0.d0
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
@@ -1685,6 +1689,7 @@ contains
 
     ! Clean up
     deallocate(s_bin, s_sum, nval)
+    call timer%stop(TOD_1HZ, self%band)
 
   end subroutine sample_1Hz_spikes
 

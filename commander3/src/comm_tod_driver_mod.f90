@@ -837,6 +837,7 @@ contains
              d_calib(7,:,j) = 0.
           end if
        end if
+       if (tod%output_n_maps > 7) d_calib(8,:,j) = sd%s_inst(:,j)                                               ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps
