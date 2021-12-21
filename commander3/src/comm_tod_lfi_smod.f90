@@ -1588,7 +1588,7 @@ contains
        call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
-       call timer%start(TOD_1HZ, self%band)
+       call timer%start(TOD_1HZ, tod%band)
        allocate(res(tod%scans(i)%ntod))
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
@@ -1644,11 +1644,11 @@ contains
        ! Clean up
         call sd%dealloc
         deallocate(res)
-        call timer%stop(TOD_1HZ, self%band)
+        call timer%stop(TOD_1HZ, tod%band)
     end do
 
     ! Compute smoothed templates
-    call timer%start(TOD_1HZ, self%band)
+    call timer%start(TOD_1HZ, tod%band)
     s_sum = 0.d0
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
@@ -1689,7 +1689,7 @@ contains
 
     ! Clean up
     deallocate(s_bin, s_sum, nval)
-    call timer%stop(TOD_1HZ, self%band)
+    call timer%stop(TOD_1HZ, tod%band)
 
   end subroutine sample_1Hz_spikes
 
