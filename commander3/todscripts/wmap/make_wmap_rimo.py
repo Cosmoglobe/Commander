@@ -253,11 +253,16 @@ def create_rimo(fname, rot=0):
       sllmax = 2*nside  # 256
       slmmax = 100
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+
+      radii =  np.pi/180*np.array([2.8, 2.5, 2.2, 2.2, 1.8, 1.8, 1.5, 1.5, 1.5, 1.5])
       fnames = glob('data/wmap_sidelobe*.fits')
+      # Need to do the year 1 processing to compare with Barnes et al.
+      fnames = glob('/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/far_sidelobe_maps/map*.fits')
+      fnames.sort()
       for i in range(len(labels)):
         lab = labels[i]
         for fname in fnames:
-          if lab in fname:
+          if lab.lower() in fname.lower():
             data = hp.read_map(fname)
             break
         
@@ -268,10 +273,14 @@ def create_rimo(fname, rot=0):
         # Not sure if this factor is needed...
         beamtot = hp.reorder(data, n2r=True)
         
-        beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
+        #beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
+        beam_A = np.copy(data)/(4*np.pi)
+        beam_A[hp.query_disc(128, dir_A_los[i], radii[i]*np.pi/180)] = 0
         #beam_A = hp.reorder(data, n2r=True)
         beam_A[beam_A < 0] = 0
-        beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
+        #beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
+        beam_B = np.copy(data)/(4*np.pi)
+        beam_B[hp.query_disc(128, dir_B_los[i], radii[i]*np.pi/180)] = 0
         #beam_B = hp.reorder(data, n2r=True)
         beam_B[beam_B > 0] = 0
         beam_B = -beam_B
@@ -511,7 +520,7 @@ def create_rimo(fname, rot=0):
      
 
 if __name__ == '__main__':
-    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
+    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9_yr1.h5'
     #fname_out = 'test.h5'
     #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
     create_rimo(fname_out)
