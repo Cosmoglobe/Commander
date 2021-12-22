@@ -147,7 +147,7 @@ contains
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info)
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
              data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)

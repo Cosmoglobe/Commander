@@ -228,7 +228,7 @@ contains
                 end if
              end do
              close(58)
-             write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)

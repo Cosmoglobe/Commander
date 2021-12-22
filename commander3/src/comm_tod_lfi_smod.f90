@@ -72,6 +72,8 @@ contains
     real(dp), dimension(:,:), allocatable :: filter_sum
     real(dp), dimension(:,:), allocatable :: noise_filter
 
+    call timer%start(TOD_INIT, id_abs)
+
     ! Allocate object
     allocate(res)
 
@@ -81,12 +83,9 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'    
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -97,12 +96,9 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -113,12 +109,9 @@ contains
        res%n_xi            = 3
        res%noise_psd_model = 'oof'
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
@@ -575,6 +568,8 @@ contains
        res%scans(i)%d%baseline = 0.d0
     end do
 
+    call timer%stop(TOD_INIT, id_abs)
+
   end function constructor
 
   !**************************************************
@@ -643,6 +638,7 @@ contains
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band)
 
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
@@ -662,7 +658,7 @@ contains
     npix            = 12*nside**2
     self%output_n_maps = 3
     if (self%output_aux_maps > 0) then
-       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
 
     call int2string(chain, ctext)
@@ -685,6 +681,7 @@ contains
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
+       call timer%start(TOD_SL_PRE, self%band)
        if (self%myid == 0) write(*,*) '|  Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
           !write map_in to file
@@ -696,6 +693,7 @@ contains
                & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
+       call timer%stop(TOD_SL_PRE, self%band)
     end if
 !    write(*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -708,6 +706,7 @@ contains
     ! Perform main sampling steps
     !------------------------------------
 
+
     ! Draw polarization angle from Tau-A prior (https://www.aanda.org/articles/aa/full_html/2016/10/aa26998-15/F3.html)
     if (sample_polang) then
        if (self%myid == 0) then
@@ -719,6 +718,7 @@ contains
     else
        self%polang = 0.d0
     end if
+
 
     ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
     if (.not. self%sample_L1_par .and. self%ndiode > 1) then
@@ -775,13 +775,17 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
+          call timer%start(TOD_NCORR, self%band)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          call timer%stop(TOD_NCORR, self%band)
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
+       call timer%start(TOD_XI_N, self%band)
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       call timer%stop(TOD_XI_N, self%band)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -806,17 +810,19 @@ contains
              do j = 1, sd%ndet
                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
              end do
-!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
-!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-!!$                  & self%scans(i)%d(:)%accept)
+             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+                  & samptext, self%scanid(i), self%nside, self%npsi, &
+                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+                  & self%scans(i)%d(:)%accept)
              deallocate(sigma0)
           end if
        end if
 
        ! Bin TOD
+       call timer%start(TOD_MAPBIN, self%band)
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
+       call timer%stop(TOD_MAPBIN, self%band)
 
        ! Update scan list
        call wall_time(t2)
@@ -840,6 +846,7 @@ contains
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
+    call timer%start(TOD_MAPSOLVE, self%band)
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
@@ -849,6 +856,7 @@ contains
        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
+    call timer%stop(TOD_MAPSOLVE, self%band)
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -865,6 +873,7 @@ contains
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+    if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
 
     ! Clean up
     call binmap%dealloc()
@@ -883,6 +892,7 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
+    call timer%stop(TOD_TOT, self%band)
 
   end subroutine process_lfi_tod
   
@@ -1578,6 +1588,7 @@ contains
        call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
+       call timer%start(TOD_1HZ, tod%band)
        allocate(res(tod%scans(i)%ntod))
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
@@ -1632,10 +1643,12 @@ contains
 
        ! Clean up
         call sd%dealloc
-       deallocate(res)
+        deallocate(res)
+        call timer%stop(TOD_1HZ, tod%band)
     end do
 
     ! Compute smoothed templates
+    call timer%start(TOD_1HZ, tod%band)
     s_sum = 0.d0
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
@@ -1676,6 +1689,7 @@ contains
 
     ! Clean up
     deallocate(s_bin, s_sum, nval)
+    call timer%stop(TOD_1HZ, tod%band)
 
   end subroutine sample_1Hz_spikes
 

@@ -111,11 +111,13 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Decompress pointing, psi and flags for current scan
+    call timer%start(TOD_DECOMP, tod%band)
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
     end do
+    call timer%stop(TOD_DECOMP, tod%band)
     !call update_status(status, "todinit_decomp")
     !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
@@ -124,6 +126,7 @@ contains
     
     ! Prepare TOD
     if (tod%ndiode == 1) then
+       call timer%start(TOD_DECOMP, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -132,6 +135,7 @@ contains
              self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
        end do
+       call timer%stop(TOD_DECOMP, tod%band)
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
     end if
@@ -139,6 +143,7 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
+    call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask, s_bp=self%s_bp)
@@ -163,6 +168,7 @@ contains
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
+    call timer%stop(TOD_PROJECT, tod%band)
     !call update_status(status, "todinit_bp")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
     !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
@@ -178,19 +184,23 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
-    !call update_status(status, "todinit_dipole")
+    call timer%start(TOD_ORBITAL, tod%band)
+    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
+    call timer%stop(TOD_ORBITAL, tod%band)
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
+       call timer%start(TOD_ZODI, tod%band)
        call compute_zodi_template(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%nu_c, self%s_zodi)
+       call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sidelobe template
     !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%correct_sl) then
+       call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
@@ -198,19 +208,20 @@ contains
                & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
        end do
+       call timer%stop(TOD_SL_INT, tod%band)
     else
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           self%s_sl(:,j) = 0.
        end do
     end if
-    if (tod%scanid(scan) == 3) then
-       open(58,file='sidelobe_BP10.dat')
-       do k = 1, size(self%s_sl,1)
-          write(58,*) k, self%s_sl(k,1)
-       end do
-       close(58)
-    end if
+!!$    if (tod%scanid(scan) == 3) then
+!!$       open(58,file='sidelobe_BP10.dat')
+!!$       do k = 1, size(self%s_sl,1)
+!!$          write(58,*) k, self%s_sl(k,1)
+!!$       end do
+!!$       close(58)
+!!$    end if
 
 
     !call update_status(status, "todinit_sl")
@@ -512,7 +523,7 @@ contains
     real(dp),                                  intent(in),   optional :: polang
     logical(lgt),                              intent(in),   optional :: smooth
 
-    integer(i4b) :: i, j, ext(2), ierr
+    integer(i4b) :: i, j, ext(2), ierr, timer_id
     real(dp)     :: t1, t2
     real(dp), allocatable, dimension(:)   :: A, b
     real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
@@ -537,6 +548,16 @@ contains
        stop
     end if
 
+    if (trim(mode) == 'abscal') then
+       timer_id = TOD_ABSCAL
+    else if (trim(mode) == 'relcal') then
+       timer_id = TOD_RELCAL
+    else if (trim(mode) == 'imbal') then
+       timer_id = TOD_IMBAL
+    else if (trim(mode) == 'deltaG') then
+       timer_id = TOD_DELTAG
+    end if
+
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
@@ -549,6 +570,7 @@ contains
        end if
 
        ! Set up filtered calibration signal, conditional contribution and mask
+       call timer%start(timer_id, tod%band)
        call tod%downsample_tod(sd%s_orb(:,1), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
@@ -638,6 +660,8 @@ contains
     if (allocated(A))          deallocate(A)
     if (allocated(b))          deallocate(b)
     if (allocated(dipole_mod)) deallocate(dipole_mod)
+
+    call timer%stop(timer_id, tod%band)
 
   end subroutine sample_calibration
 
@@ -815,7 +839,7 @@ contains
     ndet = size(flag,2)
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > 0.1*ntod) then    ! Discard scans with less than 10% good data
+       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
           tod%scans(scan)%d(j)%accept = .false.
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
@@ -824,7 +848,7 @@ contains
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-    !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
+   !  if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
@@ -858,7 +882,7 @@ contains
 
   end subroutine compute_chisq_abs_bp
 
-  subroutine compute_calibrated_data(tod, scan, sd, d_calib)
+  subroutine compute_calibrated_data(tod, scan, sd, d_calib, jump_template)
     !
     !  gets calibrated timestreams
     !
@@ -869,6 +893,7 @@ contains
     !  scan: integer
     !     integer label for scan
     !  sd:  comm_scandata object
+    !  jump_template:  baseline that traces jumping tod level
     !
     !  Returns:
     !  --------
@@ -891,6 +916,7 @@ contains
     integer(i4b),                          intent(in)   :: scan
     type(comm_scandata),                   intent(in)   :: sd
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
+    real(sp), dimension(:,:), intent(in), optional      :: jump_template
 
     integer(i4b) :: i, j, nout
     real(dp)     :: inv_gain
@@ -905,6 +931,7 @@ contains
        else
         d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+        if (present(jump_template)) d_calib(1,:,j) = d_calib(1,:,j) - jump_template(:,j) * inv_gain
        end if
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
@@ -918,6 +945,7 @@ contains
              d_calib(7,:,j) = 0.
           end if
        end if
+       if (tod%output_n_maps > 7) d_calib(8,:,j) = sd%s_inst(:,j)                                               ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps

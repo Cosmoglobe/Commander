@@ -238,6 +238,7 @@ contains
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
+
     converged = .false.
     nmask     = ntod - sum(mask)
     if (nmask == 0) then
@@ -466,17 +467,17 @@ contains
        currdet = i
 
        ! Commpute power spectrum
+       n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(1) * (n-1) / (samprate/2)), 2) ! Never include offset
+       n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(2) * (n-1) / (samprate/2)) 
+       dt     = n_corr(:,i)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       do l = n_low, n_high
+          ps(l) = abs(dv(l)) ** 2 / ntod          
+       end do
 
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 2, self%scans(scan)%d(i)%N_psd%npar
-             n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
-             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)) 
-             dt     = n_corr(:,i)
-             call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-             do l = n_low, n_high
-                ps(l) = abs(dv(l)) ** 2 / ntod          
-             end do
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 
@@ -634,13 +635,6 @@ contains
     real(dp),     optional,     dimension(:,:), intent(in)      :: filter
 
     integer(i4b) :: i, j
-    logical(lgt) :: do_filt
-
-    if(.not. present(filter)) then
-      do_filt = .false.
-    else
-      do_filt = .true.
-    end if
 
     do i=1, tod%nscan
         if(trim(tod%noise_psd_model) == 'oof') then

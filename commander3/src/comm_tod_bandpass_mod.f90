@@ -53,7 +53,7 @@ contains
           else
              accept = (rand_uni(handle) < accept_rate)
           end if
-          write(*,*) k, cp, cc, accept
+          !write(*,*) k, cp, cc, accept
           if (accept) then
              cc = cp
              current = k
