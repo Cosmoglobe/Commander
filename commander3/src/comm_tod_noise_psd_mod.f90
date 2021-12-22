@@ -51,7 +51,8 @@ module comm_tod_noise_psd_mod
      ! Class definition for basic 1/f noise PSD model
      !
      integer(i4b) :: npar                                            ! Number of free parameters
-     real(sp) ::  nu_fit(2)                                      ! Frequency range used to fit non-linear parameters
+     real(sp),     allocatable, dimension(:,:)  :: nu_fit            ! Frequency range used to fit non-linear parameters
+
      real(sp),     pointer :: sigma0                                 ! Pointer to xi_n(1)
      real(sp),     allocatable, dimension(:)    :: xi_n              ! Active sampling parameters, xi_n(1) = sigma0
      real(sp),     allocatable, dimension(:,:)  :: P_uni             ! Uniform prior on xi_n (n_xi,lower/upper)
@@ -138,7 +139,7 @@ contains
     real(sp),               dimension(:),   intent(in)      :: P_active_mean
     real(sp),               dimension(:),   intent(in)      :: P_active_rms
     real(sp),               dimension(:,:), intent(in)      :: P_uni
-    real(sp),               dimension(2),   intent(in)      :: nu_fit
+    real(sp),               dimension(:,:), intent(in)      :: nu_fit
     real(dp),     optional, dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd), pointer                         :: constructor_oof
 
@@ -169,7 +170,7 @@ contains
     real(sp),              dimension(:),   intent(in)      :: P_active_mean
     real(sp),              dimension(:),   intent(in)      :: P_active_rms
     real(sp),              dimension(:,:), intent(in)      :: P_uni
-    real(sp),              dimension(2),   intent(in)      :: nu_fit
+    real(sp),              dimension(:,:),  intent(in)      :: nu_fit
     real(dp),     optional, dimension(:,:), intent(in)   :: filter
 
     allocate(self%xi_n(self%npar))
@@ -277,7 +278,7 @@ contains
     real(sp),                   dimension(:),   intent(in)      :: P_active_mean
     real(sp),                   dimension(:),   intent(in)      :: P_active_rms
     real(sp),                   dimension(:,:), intent(in)      :: P_uni
-    real(sp),                   dimension(2),   intent(in)      :: nu_fit
+    real(sp),                   dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,     dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd_2oof), pointer                         :: constructor_2oof
 
@@ -381,7 +382,7 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_mean
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
-    real(sp),                        dimension(2),   intent(in)      :: nu_fit
+    real(sp),                        dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,          dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd_oof_gauss), pointer                         :: constructor_oof_gauss
 
@@ -494,7 +495,7 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_mean
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
-    real(sp),                        dimension(2),   intent(in)      :: nu_fit
+    real(sp),                        dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,          dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd_oof_f),     pointer                         :: constructor_oof_f
 

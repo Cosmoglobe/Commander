@@ -329,11 +329,14 @@ contains
     ! Decompress pointing, psi and flags for current scan
     ! Only called for one detector, det=1, since the pointing and polarization
     ! angles are the same for all detectors
+    call timer%start(TOD_DECOMP, tod%band)
     call tod%decompress_pointing_and_flags(scan, 1, self%pix(:,1,:), &
             & self%psi(:,1,:), self%flag(:,1))
+    call timer%stop(TOD_DECOMP, tod%band)
     
     ! Prepare TOD
     if (tod%ndiode == 1 .or. trim(tod%level) == 'L2') then
+       call timer%start(TOD_DECOMP, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -342,11 +345,13 @@ contains
              self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
        end do
+       call timer%stop(TOD_DECOMP, tod%band)
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
     end if
 
     ! Construct sky signal template
+    call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
        call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
@@ -384,6 +389,7 @@ contains
           end do
        end do
     end if
+    call timer%stop(TOD_PROJECT, tod%band)
 
     ! Perform sanity tests
     do j = 1, self%ndet
@@ -398,10 +404,12 @@ contains
     ! pixel B.
     ! The .true. refers to whether the orbital dipole (true) or solar dipole
     ! (false) is used.
+    call timer%start(TOD_ORBITAL, tod%band)
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), &
         & .true., 1, self%s_orbA, 1d3)
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), &
         & .true., 2, self%s_orbB, 1d3)
+    call timer%stop(TOD_ORBITAL, tod%band)
     ! OK, so this created an orbital dipole template for four timestreams, but
     ! they don't actually correspond to the horns A and B, I think they're
     ! switched.
@@ -416,6 +424,7 @@ contains
 
     ! Construct sidelobe template
     if (tod%correct_sl) then
+       call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           call tod%construct_sl_template(tod%slconvA(j)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
@@ -425,6 +434,7 @@ contains
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
           self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
+       call timer%stop(TOD_SL_INT, tod%band)
     else
        self%s_sl = 0.
     end if
@@ -445,6 +455,7 @@ contains
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
+       call timer%start(TOD_ZODI, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           call compute_zodi_template(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
@@ -454,6 +465,7 @@ contains
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
           self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
+       call timer%stop(TOD_ZODI, tod%band)
     else
        self%s_zodi = 0.
     end if

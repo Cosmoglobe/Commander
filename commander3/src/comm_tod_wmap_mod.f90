@@ -102,6 +102,8 @@ contains
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
       logical(lgt) :: pol_beam
 
+      call timer%start(TOD_INIT, id_abs)
+
       ! Initialize common parameters
       allocate (constructor)
 
@@ -114,6 +116,7 @@ contains
       constructor%noise_psd_model = 'oof_f'
 
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+      allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
   
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
@@ -125,43 +128,53 @@ contains
       constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
       constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
       if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(3,:) = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]   
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]   
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]   
          constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else
@@ -243,6 +256,8 @@ contains
       do i = 1, constructor%nscan
          constructor%scans(i)%d%baseline = 0.
       end do
+
+      call timer%stop(TOD_INIT, id_abs)
 
    end function constructor
 
@@ -334,6 +349,7 @@ contains
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
+      call timer%start(TOD_TOT, self%band)
 
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -386,6 +402,7 @@ contains
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
+         call timer%start(TOD_SL_PRE, self%band)
          do i = 1, self%ndet
             call map_in(i,1)%p%YtW()  ! Compute sky a_lms
             self%slconvA(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
@@ -396,6 +413,7 @@ contains
                  & 100, 3, 100, self%slbeam(3)%p, map_in(i,1)%p, 2)
                  ! lmax, nmaps, bmax, beam, map, optim
          end do
+         call timer%stop(TOD_SL_PRE, self%band)
       end if
       ! In order to not completely break the rest of Commander, I am making the
       ! notation a little different for the beam indexing. Essentially, when it
@@ -461,8 +479,10 @@ contains
          allocate(s_buf(sd%ntod,sd%ndet))
 
          ! Sample correlated noise
+         call timer%start(TOD_NCORR, self%band)
          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
            & sd%pix(:,1,:), dospike=.false.)
+         call timer%stop(TOD_NCORR, self%band)
 
          ! Explicitly set baseline to mean of correlated noise
          do j = 1, self%ndet
@@ -471,7 +491,9 @@ contains
 
 
          ! Compute noise spectrum parameters
+         call timer%start(TOD_XI_N, self%band)
          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         call timer%stop(TOD_XI_N, self%band)
 
          ! Compute chisquare
          do j = 1, sd%ndet
@@ -510,9 +532,11 @@ contains
          end if
          
          ! Bin TOD
+         call timer%start(TOD_MAPBIN, self%band)
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
            & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
            & comp_S)
+         call timer%stop(TOD_MAPBIN, self%band)
 
          ! Update scan list
          call wall_time(t2)
@@ -536,6 +560,7 @@ contains
       if (output_scanlist) call self%output_scan_list(slist)
 
 
+      call timer%start(TOD_MAPSOLVE, self%band)
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -570,7 +595,7 @@ contains
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
-      if (mod(iter,self%output_aux_maps) == 0) then
+      !if (mod(iter,self%output_aux_maps) == 0) then
         ! Solve for maps
         if (self%myid == 0) then 
            if (self%verbosity > 0) write(*,*) '|    Running BiCG'
@@ -585,7 +610,7 @@ contains
                           & prefix, postfix, comp_S)
         end do
         if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '|  Finished BiCG'
-      end if
+      !end if
 
       call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
@@ -614,6 +639,7 @@ contains
       do n = 2, self%output_n_maps
         call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
       end do
+      call timer%stop(TOD_MAPSOLVE, self%band)
 
       ! Sample bandpass parameters
       if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -648,6 +674,7 @@ contains
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)
+    call timer%stop(TOD_TOT, self%band)
 
       ! Parameter to check if this is first time routine has been
       self%first_call = .false.

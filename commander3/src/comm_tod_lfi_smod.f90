@@ -83,9 +83,12 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'    
        allocate(res%xi_n_P_uni(res%n_xi,2))
+       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       res%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
+       do k = 1, res%n_xi
+         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
+       end do
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -96,9 +99,12 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'
        allocate(res%xi_n_P_uni(res%n_xi,2))
+       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       res%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
+       do k = 1, res%n_xi
+         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.000d0]    ! More than max(2*fknee_DPC)
+       end do
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -109,9 +115,12 @@ contains
        res%n_xi            = 3
        res%noise_psd_model = 'oof'
        allocate(res%xi_n_P_uni(res%n_xi,2))
+       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-       res%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
+       do k = 1, res%n_xi
+         res%xi_n_nu_fit(k,:) = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
+       end do
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
