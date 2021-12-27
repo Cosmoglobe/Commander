@@ -5,18 +5,18 @@ module comm_timing_mod
   ! Global parameters
   integer(i4b), parameter, public :: NUM_GLOBAL    =  10
   integer(i4b), parameter, public :: TOT_RUNTIME   =  1
-  integer(i4b), parameter, public :: TOT_AMPSAMP   =  2
-  integer(i4b), parameter, public :: TOT_TODPROC   =  3
-  integer(i4b), parameter, public :: TOT_SPECIND   =  4
-  integer(i4b), parameter, public :: TOT_INIT      =  5
-  integer(i4b), parameter, public :: TOT_FFT       =  6
-  integer(i4b), parameter, public :: TOT_SHT       =  7
-  integer(i4b), parameter, public :: TOT_OUTPUT    =  8
-  integer(i4b), parameter, public :: TOT_GIBBSSAMP =  9
-  integer(i4b), parameter, public :: TOT_CLS       =  10
+  integer(i4b), parameter, public :: TOT_INIT      =  2
+  integer(i4b), parameter, public :: TOT_FFT       =  3
+  integer(i4b), parameter, public :: TOT_SHT       =  4
+  integer(i4b), parameter, public :: TOT_GIBBSSAMP =  5
+  integer(i4b), parameter, public :: TOT_AMPSAMP   =  6
+  integer(i4b), parameter, public :: TOT_TODPROC   =  7
+  integer(i4b), parameter, public :: TOT_SPECIND   =  8
+  integer(i4b), parameter, public :: TOT_CLS       =  9
+  integer(i4b), parameter, public :: TOT_OUTPUT    =  10
 
   ! Channel specific parameters
-  integer(i4b), parameter, public :: NUM_TOD       = 17
+  integer(i4b), parameter, public :: NUM_TOD       = 20
   integer(i4b), parameter, public :: TOD_TOT       =  1
   integer(i4b), parameter, public :: TOD_INIT      =  2
   integer(i4b), parameter, public :: TOD_SL_PRE    =  3
@@ -34,6 +34,9 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_ZODI      = 15
   integer(i4b), parameter, public :: TOD_IMBAL     = 16
   integer(i4b), parameter, public :: TOD_1HZ       = 17
+  integer(i4b), parameter, public :: TOD_4D        = 18
+  integer(i4b), parameter, public :: TOD_CHISQ     = 19
+  integer(i4b), parameter, public :: TOD_BP        = 20
 
   private
   public comm_timing
@@ -151,17 +154,19 @@ contains
   end subroutine comm_timer_incr_numsamp
 
 
-  subroutine comm_timer_dumpASCII(self, filename)
+  subroutine comm_timer_dumpASCII(self, labels, filename)
     ! 
     ! Routine for outputting timing information
     ! 
     ! Input variables:
     !    self     = comm_timing object
+    !    labels   = frequency channel labels
     !    filename = output filename
     ! 
     implicit none
-    class(comm_timing),              intent(inout) :: self
-    character(len=*),                intent(in)    :: filename
+    class(comm_timing),               intent(inout) :: self
+    character(len=*),   dimension(:), intent(in)    :: labels
+    character(len=*),                 intent(in)    :: filename
 
     integer(i4b) :: unit, ierr, band, b
     real(dp), dimension(self%n_tot) :: t
@@ -190,11 +195,13 @@ contains
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Total SHT                     = ', t(TOT_SHT), 100*t(TOT_SHT)/t(TOT_RUNTIME)
        write(unit,*) ''
        write(unit,*) '   Global per-sample timers:'
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Chain output                  = ', t(TOT_OUTPUT)  / self%numsamp, 100*t(TOT_OUTPUT)/t(TOT_RUNTIME)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Amplitude sampling            = ', t(TOT_AMPSAMP) / self%numsamp, 100*t(TOT_AMPSAMP)/t(TOT_RUNTIME)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Spectral index sampling       = ', t(TOT_SPECIND) / self%numsamp, 100*t(TOT_SPECIND)/t(TOT_RUNTIME)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Cls sampling                  = ', t(TOT_CLS)     / self%numsamp, 100*t(TOT_CLS)/t(TOT_RUNTIME)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp, 100*t(TOT_TODPROC)/T(TOT_RUNTIME)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Chain output                  = ', t(TOT_OUTPUT)  / self%numsamp, 100*t(TOT_OUTPUT)/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Amplitude sampling            = ', t(TOT_AMPSAMP) / self%numsamp, 100*t(TOT_AMPSAMP)/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Spectral index sampling       = ', t(TOT_SPECIND) / self%numsamp, 100*t(TOT_SPECIND)/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Cls sampling                  = ', t(TOT_CLS)     / self%numsamp, 100*t(TOT_CLS)/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp, 100*t(TOT_TODPROC)/T(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Other                         = ', (t(TOT_GIBBSSAMP)-sum(t(6:10))) / self%numsamp, 100*(t(TOT_GIBBSSAMP)-sum(t(6:10)))/t(TOT_GIBBSSAMP)
+          write(unit,fmt='(a,f12.3,"h")')        '       Total cost per Gibbs sample   = ', t(TOT_GIBBSSAMP)     / self%numsamp
        write(unit,*) ''
        write(unit,*) '   Channel-specific global timers:'
 
@@ -202,7 +209,7 @@ contains
           b = NUM_GLOBAL + (band-1)*NUM_TOD
           if (all(t(b+1:b+NUM_TOD) == 0.d0)) cycle
           write(unit,*) 
-          write(unit,*) '     Channel ID                   = ', band
+          write(unit,*) '     Channel                      = ', trim(labels(band))
           write(unit,fmt='(a,f12.3,"h")') '      TOD initialization           = ', t(b+TOD_INIT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sidelobe precomputation  = ', t(b+TOD_SL_PRE)   / self%numsamp, 100*t(b+TOD_SL_PRE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sidelobe interpolation   = ', t(b+TOD_SL_INT)   / self%numsamp, 100*t(b+TOD_SL_INT)/T(b+TOD_TOT)
@@ -217,8 +224,11 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD correlated noise         = ', t(b+TOD_NCORR)    / self%numsamp, 100*t(b+TOD_NCORR)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD corr noise PSD           = ', t(b+TOD_XI_N)     / self%numsamp, 100*t(b+TOD_XI_N)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD binning                  = ', t(b+TOD_MAPBIN)   / self%numsamp, 100*t(b+TOD_MAPBIN)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD chisq                    = ', t(b+TOD_CHISQ)   / self%numsamp, 100*t(b+TOD_CHISQ)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD bandpass                 = ', t(b+TOD_BP)   / self%numsamp, 100*t(b+TOD_BP)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp, 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp, 100*t(b+TOD_ZODI)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      4D map output                = ', t(b+TOD_4D)     / self%numsamp, 100*t(b+TOD_4D)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Other                        = ', (t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD))) / self%numsamp, 100*(t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD)))/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h")') '      Total TOD                    = ', t(b+TOD_TOT)     / self%numsamp
        end do

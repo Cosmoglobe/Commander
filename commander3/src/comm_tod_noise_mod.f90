@@ -24,6 +24,7 @@ module comm_tod_noise_mod
   use comm_fft_mod
   use InvSamp_mod
   use comm_tod_noise_psd_mod
+  use comm_status_mod
   implicit none
 
 
@@ -81,6 +82,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
+
+    call timer%start(TOD_NCORR, self%band)
 
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
@@ -210,6 +213,8 @@ contains
 
     call dfftw_destroy_plan(plan_fwd)                                           
     call dfftw_destroy_plan(plan_back)                                          
+
+    call timer%stop(TOD_NCORR, self%band)
   
   end subroutine sample_n_corr
 
@@ -431,6 +436,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+
+    call timer%start(TOD_XI_N, self%band)
     
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
@@ -498,6 +505,8 @@ contains
     deallocate(ps)
     
     call sfftw_destroy_plan(plan_fwd)
+
+    call timer%stop(TOD_XI_N, self%band)
     
   contains
 

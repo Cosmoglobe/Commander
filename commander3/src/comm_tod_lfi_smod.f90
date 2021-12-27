@@ -132,14 +132,15 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
-    res%correct_sl      = .true.
-    res%orb_4pi_beam    = .true.
-    res%use_dpc_adc     = .false.
+    res%correct_sl              = .true.
+    res%apply_inst_corr         = .true.
+    res%orb_4pi_beam            = .true.
+    res%use_dpc_adc             = .false.
     res%use_dpc_gain_modulation = .true.
-    res%symm_flags      = .true.
-    res%chisq_threshold = 5.d6 !9.d0
-    res%nmaps           = info%nmaps
-    res%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    res%symm_flags              = .true.
+    res%chisq_threshold         = 5.d6 !9.d0
+    res%nmaps                   = info%nmaps
+    res%ndet                    = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -730,9 +731,9 @@ contains
 
 
     ! Sample 1Hz spikes
-    if(trim(self%level) == 'L1') then
+!    if(trim(self%level) == 'L1') then
       call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
-    end if
+!    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
@@ -775,23 +776,21 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call timer%start(TOD_NCORR, self%band)
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-          call timer%stop(TOD_NCORR, self%band)
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
-       call timer%start(TOD_XI_N, self%band)
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-       call timer%stop(TOD_XI_N, self%band)
 
        ! Compute chisquare
+       call timer%start(TOD_CHISQ, self%band)
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
           call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
+       call timer%stop(TOD_CHISQ, self%band)
 
        ! Select data
        if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -806,6 +805,7 @@ contains
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
        if (self%output_4D_map > 0) then
           if (mod(iter-1,self%output_4D_map) == 0) then
+             call timer%start(TOD_4D, self%band)
              allocate(sigma0(sd%ndet))
              do j = 1, sd%ndet
                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
@@ -816,13 +816,12 @@ contains
                   & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
                   & self%scans(i)%d(:)%accept)
              deallocate(sigma0)
+             call timer%stop(TOD_4D, self%band)
           end if
        end if
 
        ! Bin TOD
-       call timer%start(TOD_MAPBIN, self%band)
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-       call timer%stop(TOD_MAPBIN, self%band)
 
        ! Update scan list
        call wall_time(t2)
@@ -846,7 +845,6 @@ contains
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
-    call timer%start(TOD_MAPSOLVE, self%band)
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
@@ -856,7 +854,6 @@ contains
        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
-    call timer%stop(TOD_MAPSOLVE, self%band)
 
     ! Sample bandpass parameters
     if (sample_rel_bandpass .or. sample_abs_bandpass) then
@@ -1560,7 +1557,7 @@ contains
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin
-    real(dp)     :: dt, t_tot, t, A, b, mval
+    real(dp)     :: dt, t_tot, t, A, b, mval, eta
     real(dp)     :: t1, t2
     character(len=6) :: scantext
     real(dp), allocatable, dimension(:)     :: nval
@@ -1659,7 +1656,7 @@ contains
     call mpi_allreduce(mpi_in_place, s_sum,  size(s_sum),  &
          & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
 
-    ! Normalize to maximum of unity
+    ! Normalize to maximum of unity, and subtract mean
     do j = 1, tod%ndet
        !s_sum(:,j) = s_sum(:,j) - median(s_sum(:,j)) 
        mval = maxval(abs(s_sum(:,j))) 
@@ -1667,24 +1664,37 @@ contains
           s_sum(k,j) = s_sum(k,j) / mval
        end do
        tod%spike_templates(:,j) = s_sum(:,j) 
+
+       tod%spike_templates(:,j) = tod%spike_templates(:,j) - &
+            & sum(tod%spike_templates(:,j))/nbin
     end do
 
     ! Compute amplitudes per scan and detector
     tod%spike_amplitude = 0.
-    do i = 1, tod%nscan
-       do j = 1, tod%ndet
+    do j = 1, tod%ndet
+       A = 0.d0; b = 0.d0
+       do i = 1, tod%nscan
           if (.not. tod%scans(i)%d(j)%accept) cycle
-          b = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
-          A = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
-          if (A == 0.d0) then
-             tod%spike_amplitude(i,j) = 0.d0
-          else
-             tod%spike_amplitude(i,j) = b/A
-             if (trim(tod%operation) == 'sample') &
-                  & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
-                  &                            rand_gauss(handle) / sqrt(A)
-          end if
+          b = b + sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
+          A = A + sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
        end do
+
+       if (tod%info%myid == 0) eta = rand_gauss(handle)
+       call mpi_bcast(eta, 1, MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
+       call mpi_allreduce(mpi_in_place, A, 1,  &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
+       call mpi_allreduce(mpi_in_place, b, 1,  &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
+
+       if (A == 0.d0) then
+          tod%spike_amplitude(:,j) = 0.d0
+       else
+          tod%spike_amplitude(:,j) = b/A
+          if (trim(tod%operation) == 'sample') then
+             tod%spike_amplitude(:,j) = tod%spike_amplitude(:,j) + eta / sqrt(A)
+          end if
+       end if
+       !if (tod%info%myid == 0) write(*,*) 'Spike amplitude =', j, tod%spike_amplitude(1,j)
     end do
 
     ! Clean up
@@ -1719,9 +1729,6 @@ contains
 
     integer(i4b) :: i, j, k, nbin, b
     real(dp)     :: dt, t_tot, t
-
-    s = 0.
-    return
 
     dt    = 1.d0/self%samprate   ! Sample time
     t_tot = 1.d0                ! Time range in sec

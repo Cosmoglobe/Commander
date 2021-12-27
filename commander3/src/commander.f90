@@ -330,7 +330,7 @@ program commander
 
      call timer%stop(TOT_GIBBSSAMP)
      call timer%incr_numsamp
-     call timer%dumpASCII(trim(cpar%outdir)//"/comm_timing.txt")
+     call timer%dumpASCII(cpar%ds_label, trim(cpar%outdir)//"/comm_timing.txt")
   end do
 
   
