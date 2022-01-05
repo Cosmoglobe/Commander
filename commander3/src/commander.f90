@@ -361,6 +361,9 @@ contains
     type(planck_rng),  intent(inout) :: handle
 
     integer(i4b) :: i, j, k, l, ndet, ndelta, npar, ierr
+    character(len=4)  :: ctext
+    character(len=6)  :: samptext
+    character(len=512)  :: prefix, postfix, filename
     real(dp)     :: t1, t2, dnu_prop, rms_EE2_prior
     real(dp),      allocatable, dimension(:)     :: eta
     real(dp),      allocatable, dimension(:,:,:) :: delta
@@ -369,6 +372,7 @@ contains
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: cmbmap => null()
     class(comm_comp), pointer :: c => null()
+    class(comm_N),    pointer :: N
 
     ndelta      = cpar%num_bp_prop + 1
 
@@ -491,6 +495,19 @@ contains
          write(*,*) '|'
        end if
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
+       N => data(i)%N
+       select type (N)
+       class is (comm_N_lcut)
+          ! Remove filtered modes
+          call int2string(chain, ctext)
+          call int2string(iter, samptext)
+          prefix = trim(cpar%outdir) // '/tod_' // trim(data(i)%tod%freq) // '_'
+          postfix = '_c' // ctext // '_k' // samptext // '.fits'
+          call N%P(data(i)%map)
+          call data(i)%map%writeFITS(trim(prefix)//'lcut'//trim(postfix))
+       end select
+
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
          write(*,*) '|  Finished processing ', trim(data(i)%label)

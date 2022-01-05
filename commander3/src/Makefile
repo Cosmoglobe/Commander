@@ -71,6 +71,7 @@ F90SOURCES=hashtbl.f90 \
            comm_n_mod.f90 \
            comm_n_rms_mod.f90 \
            comm_n_qucov_mod.f90 \
+           comm_n_lcut_mod.f90 \
            comm_b_mod.f90 \
            comm_b_bl_mod.f90 \
            comm_beam_mod.f90 \
@@ -172,9 +173,10 @@ comm_map_mod.o              : sharp.o comm_hdf_mod.o comm_param_mod.o
 comm_mbb_comp_mod.o         : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_map_mod.o comm_f_int_2d_mod.o comm_data_mod.o
 comm_md_comp_mod.o          : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_f_line_mod.o comm_data_mod.o comm_bp_utils.o
 comm_n_mod.o                : comm_param_mod.o comm_map_mod.o
-comm_noise_mod.o            : comm_n_mod.o comm_n_rms_mod.o comm_n_qucov_mod.o
+comm_noise_mod.o            : comm_n_mod.o comm_n_rms_mod.o comm_n_qucov_mod.o comm_n_lcut_mod.o 
 comm_nonlin_mod.o           : comm_param_mod.o comm_data_mod.o comm_comp_mod.o comm_chisq_mod.o comm_gain_mod.o comm_line_comp_mod.o comm_diffuse_comp_mod.o comm_signal_mod.o comm_utils.o
 comm_n_qucov_mod.o          : comm_n_mod.o comm_param_mod.o comm_map_mod.o
+comm_n_lcut_mod.o           : comm_n_mod.o comm_param_mod.o comm_map_mod.o
 comm_n_rms_mod.o            : comm_n_mod.o comm_param_mod.o comm_map_mod.o
 comm_output_mod.o           : comm_param_mod.o comm_comp_mod.o comm_chisq_mod.o comm_hdf_mod.o
 comm_param_mod.o            : comm_utils.o comm_status_mod.o hashtbl.o

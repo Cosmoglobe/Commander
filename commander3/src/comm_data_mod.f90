@@ -220,6 +220,10 @@ contains
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
+       case ('lcut') 
+          data(n)%N       => comm_N_lcut(cpar, data(n)%info, n, i, 0, data(n)%mask, handle)
+          call data(n)%N%P(data(n)%map)
+          call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
        case ('QUcov') 
           data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
