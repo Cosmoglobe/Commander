@@ -51,6 +51,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/ars_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_fft_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_qucov_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_n_lcut_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_4d_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_int_0d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_rms_mod.f90

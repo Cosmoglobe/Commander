@@ -21,6 +21,7 @@
 module comm_tod_bandpass_mod
   use comm_tod_mod
   use comm_utils  
+  use comm_status_mod
   implicit none
 
 contains
@@ -39,6 +40,7 @@ contains
     logical(lgt) :: accept
     real(dp)     :: cp, cc, c0, accept_rate, diff
 
+    call timer%start(TOD_BP, tod%band)
     if (tod%myid == 0) then
        ndelta  = size(chisq_S,2)
        current = 1
@@ -72,6 +74,7 @@ contains
        map_sky(:,:,:,1) = map_sky(:,:,:,current)
        delta(:,:,1) =  delta(:,:,current)
     end if
+    call timer%stop(TOD_BP, tod%band)
     
   end subroutine sample_bp
 

@@ -238,10 +238,10 @@ contains
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then
        call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
-       end do
+!!$       do j = 1, self%ndet
+!!$          if (.not. tod%scans(scan)%d(j)%accept) cycle
+!!$          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
+!!$       end do
     end if
     !call update_status(status, "todinit_instcorr")
 
@@ -250,6 +250,7 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
+       if (tod%apply_inst_corr) self%s_tot(:,j) = self%s_tot(:,j) + self%s_inst(:,j)
     end do
     !call update_status(status, "todinit_stot")
 
@@ -877,6 +878,7 @@ contains
     integer(i4b) :: j, k
     real(sp), allocatable, dimension(:,:) :: s_buf
 
+    call timer%start(TOD_BP, tod%band)
     allocate(s_buf(sd%ntod,sd%ndet))
     do j = 1, tod%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -891,6 +893,7 @@ contains
        end do
     end do
     deallocate(s_buf)
+    call timer%stop(TOD_BP, tod%band)
 
   end subroutine compute_chisq_abs_bp
 
@@ -933,6 +936,7 @@ contains
     integer(i4b) :: i, j, nout
     real(dp)     :: inv_gain
 
+    call timer%start(TOD_MAPBIN, tod%band)
     nout = size(d_calib,1)
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -965,6 +969,7 @@ contains
        end do
 
     end do
+    call timer%stop(TOD_MAPBIN, tod%band)
 
   end subroutine compute_calibrated_data
 

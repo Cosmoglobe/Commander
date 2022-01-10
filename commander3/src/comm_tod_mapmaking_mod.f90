@@ -129,6 +129,7 @@ contains
 
     if (.not. self%shared) return
 
+    call timer%start(TOD_MAPSOLVE, tod%band)
     do i = 0, self%numprocs_shared-1
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
@@ -157,6 +158,7 @@ contains
     
     call mpi_win_fence(0, self%sA_map%win, ierr)
     call mpi_win_fence(0, self%sb_map%win, ierr)
+    call timer%stop(TOD_MAPSOLVE, tod%band)
 
   end subroutine synchronize_binmap
 
@@ -198,6 +200,8 @@ contains
     integer(i4b) :: det, i, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq
 
+    call timer%start(TOD_MAPBIN, tod%band)
+
     nout = size(data,1) 
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
@@ -236,19 +240,11 @@ contains
                 binmap%b_map(i,det+3,pix_) = binmap%b_map(i,det+3,pix_) + data(i,t,det) * inv_sigmasq 
              end do
           end if
-
-          
-          
-         end do
-         
-         
-         
+ 
+         end do            
       end do
       
-
-
-
-      ! stop
+    call timer%stop(TOD_MAPBIN, tod%band)
 
   end subroutine bin_TOD
 
@@ -531,6 +527,8 @@ end subroutine bin_differential_TOD
     class(comm_mapinfo), pointer :: info 
     class(comm_map),     pointer :: smap 
 
+    call timer%start(TOD_MAPSOLVE, tod%band)
+
     myid  = tod%myid
     nprocs= tod%numprocs
     comm  = tod%comm
@@ -665,11 +663,8 @@ end subroutine bin_differential_TOD
             call smap%dealloc
          end if
       end if
-
-      
-
-
       deallocate (A_inv, As_inv, A_tot, b_tot, bs_tot, W, eta)
+      call timer%stop(TOD_MAPSOLVE, tod%band)
 
    end subroutine finalize_binned_map
 

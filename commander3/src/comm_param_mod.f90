@@ -106,6 +106,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_label
      character(len=512), allocatable, dimension(:)   :: ds_unit
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
+     integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
      character(len=512), allocatable, dimension(:)   :: ds_mapfile
      character(len=512), allocatable, dimension(:)   :: ds_noisefile
      character(len=512), allocatable, dimension(:)   :: ds_regnoise
@@ -506,7 +507,7 @@ contains
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
-    allocate(cpar%ds_regnoise(n))
+    allocate(cpar%ds_regnoise(n), cpar%ds_noise_lcut(n))
     allocate(cpar%ds_noise_rms_smooth(n,cpar%num_smooth_scales))
     allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
@@ -532,6 +533,9 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext, par_int=cpar%ds_lmax(i))
        call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext, len_itext=len_itext, par_string=cpar%ds_unit(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext, par_string=cpar%ds_noise_format(i))
+       if (trim(cpar%ds_noise_format(i)) == 'lcut') then
+          call get_parameter_hashtable(htbl, 'BAND_NOISE_LCUT'//itext, len_itext=len_itext, par_int=cpar%ds_noise_lcut(i))
+       end if
        call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext, par_string=cpar%ds_mapfile(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_noisefile(i))
        call get_parameter_hashtable(htbl, 'BAND_REG_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_regnoise(i))
