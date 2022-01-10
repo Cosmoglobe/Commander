@@ -262,7 +262,7 @@ def create_rimo(fname, rot=0):
       for i in range(len(labels)):
         lab = labels[i]
         for fname in fnames:
-          if lab.lower() in fname.lower():
+          if lab.lower() in fname.lower()[:-10]:
             data = hp.read_map(fname)
             break
         
@@ -371,13 +371,13 @@ def create_rimo(fname, rot=0):
       X = np.arange(-11.98, 11.98+0.04, 0.04)*np.pi/180
       Y = np.arange(11.98, -11.98-0.04, -0.04)*np.pi/180
 
-      nside = 8192
-      X2 = np.linspace(X[0], X[-1], len(X)*10)
-      Y2 = np.linspace(Y[0], Y[-1], len(Y)*10)
+      #nside = 8192
+      #X2 = np.linspace(X[0], X[-1], len(X)*10)
+      #Y2 = np.linspace(Y[0], Y[-1], len(Y)*10)
 
-      #nside = 1024
-      #X2 = np.linspace(X[0], X[-1], len(X)*5)
-      #Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
+      nside = 1024
+      X2 = np.linspace(X[0], X[-1], len(X)*5)
+      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
 
       xx, yy = np.meshgrid(X,Y)
       theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
