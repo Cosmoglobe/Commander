@@ -188,7 +188,11 @@ contains
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn           = 2
       constructor%ndiode          = 1
-      constructor%compressed_tod  = .true.
+      if (trim(constructor%level) == 'L1') then
+          constructor%compressed_tod  = .true.
+      else
+          constructor%compressed_tod  = .false.
+      end if
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
@@ -429,9 +433,11 @@ contains
       ! the mapmaking for several iterations, maybe looping over the
       ! polarization angles in the sidelobe corrections.
       !call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
-      call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
-      call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-      call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      if (trim(self%level) == 'L1') then
+          call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+          call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+          call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      end if
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
 
 
