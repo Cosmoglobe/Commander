@@ -91,6 +91,7 @@ fknees *= 1e-3
 # version 44 changes todtree, todsymb to hufftree2, huffsymb2
 # version 45 uses commmander_tools package, and fixes sign flip of timestream to be constant over tod
 # version 46 uses JPL Horizons ephemerides directly
+# version 47 uses same as above, just uses the precalibrated data
 
 from time import sleep
 from time import time as timer
@@ -402,10 +403,9 @@ def test_flags(band=2):
 def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, alpha, n_per_day,
-        ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version, compress=False):
+        ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version,
+        compress=False, precal=False):
 
-    prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
-    file_out =  prefix + f'data/wmap_{band}_{str(file_ind+1).zfill(6)}_v{version}.h5'
     dt0 = np.diff(time).mean()
     det_list = []
     for j in range(len(band_labels)):
@@ -418,13 +418,12 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
               gain = -gain
 
 
-            todi = np.array_split(TOD, n_per_day)[i].astype('int')
-            deltatod = np.diff(todi)
-            deltatod = np.insert(deltatod, 0, todi[0])
+            #todi = np.array_split(TOD, n_per_day)[i].astype('int')
+            todi = np.array_split(TOD, n_per_day)[i]
 
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
             scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
-            if (version == 'cal'):
+            if precal:
                 baseline = 0
             else:
                 baseline = np.median(todi)
@@ -466,33 +465,35 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
                     comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
                             psiB, compArray)
                 else:
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag',
-                            data=flags)
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag', 
+                             flags)
                     
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
-                            data=pixA)
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
-                            data=pixB)
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
+                            pixA)
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
+                            pixB)
 
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
-                            data=psiA)
-                    f.create_dataset(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
-                            data=psiB)
-            if version != 'cal':
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
+                            psiA)
+                    comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
+                            psiB)
+            if precal:
               if compress:
                 huffTod = ['huffman', {'dictNum':2}]
                 compArr = [huffTod]
                 comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
                         todi, compArr)
               else:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                         data=todi)
             else:
               if compress:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
-                        data=np.void(bytes(h_Tod.byteCode(deltatod))))
+                huffTod = ['huffman', {'dictNum':2}]
+                compArr = [huffTod]
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                        todi, compArr)
               else:
-                f.create_dataset(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                         data=todi)
             # Link to the pointing and flag information
             comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/flag',
@@ -840,11 +841,7 @@ def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
 #@profile(sort_by='cumulative', strip_dirs=True)
-def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
-    prefix = '/mn/stornext/d16/cmbco/bp/wmap/'
-    file_out = prefix + f'data/wmap_K1_{str(file_ind+1).zfill(6)}_v{version}.h5'
-    if (os.path.exists(file_out) and file_ind != 1):
-        return
+def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center, precal):
     t0 = timer()
 
     # from programs.pars
@@ -919,7 +916,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
             gain_guesses.append([gain_guesses0[i] for g in gain_split])
             #gain_guesses.append([g.mean() for g in gain_split])
         gain_guesses = np.array(gain_guesses)
-        if (version == 'cal'):
+        if precal:
             gain_guesses = gain_guesses*0 + 1
 
 
@@ -1014,7 +1011,8 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
         args = [(comm_tod, file_ind, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
                 band_labels, band, psi_A_all, psi_B_all, pix_A_all, pix_B_all, 
                 alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-                fsamp*Nobs_array[ind], pos_all, vel_all, time_all, version, compress) for i in range(len(obs_inds))]
+                fsamp*Nobs_array[ind], pos_all, vel_all, time_all, version,
+                compress, precal) for i in range(len(obs_inds))]
         for i in range(n_per_day):
             write_file_parallel(*args[i])
 
@@ -1023,15 +1021,16 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center):
     return
 
 def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
-        center=True):
+        center=True, precal=False):
 
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
-    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
-    if (version == 'cal'):
+    if (precal):
         files = glob(prefix + 'calibrated/*.fits')
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_precal/'
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
     files.sort()
 
     get_all_ephems(files)
@@ -1066,13 +1065,13 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     if par:
         nprocs = 128
         nprocs = 72
-        nprocs = 64
+        nprocs = 24
         os.environ['OMP_NUM_THREADS'] = '1'
 
 
         pool = Pool(processes=nprocs)
         print('pool set up')
-        x = [pool.apply_async(fits_to_h5, args=[comm_tod, f, i, compress, plot, version, center]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[comm_tod, f, i, compress, plot, version, center, precal]) for i, f in zip(inds, files)]
         for i in tqdm(range(len(x)), smoothing=0):
             x[i].get()
             #res.wait()
@@ -1086,5 +1085,5 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 if __name__ == '__main__':
-    main(version=46)
+    main(version=47, precal=True, compress=True)
     #test_flags()
