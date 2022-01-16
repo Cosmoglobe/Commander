@@ -442,6 +442,8 @@ contains
 
 
 
+
+
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
          allocate(chisq_S(self%ndet,size(delta,3)))
@@ -591,10 +593,10 @@ contains
         allocate (bicg_sol(0:npix-1, nmaps,   self%output_n_maps))
       end if
       bicg_sol = 0.0d0
-      !allocate (m_buf(0:npix-1,nmaps))
-      !call map_in(1,1)%p%bcast_fullsky_map(m_buf)
-      !bicg_sol(:,:,1) = m_buf
-      !deallocate(m_buf)
+      allocate (m_buf(0:npix-1,nmaps))
+      call map_in(1,1)%p%bcast_fullsky_map(m_buf)
+      bicg_sol(:,1:nmaps,1) = m_buf
+      deallocate(m_buf)
 
       epsil = 1d-6
       epsil(1)   = 1d-10
@@ -639,7 +641,7 @@ contains
 
 
       map_out%map = outmaps(1)%p%map
-      rms_out%map = M_diag(self%info%pix, 1:nmaps)**(-0.5)
+      rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
       call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       do n = 2, self%output_n_maps
