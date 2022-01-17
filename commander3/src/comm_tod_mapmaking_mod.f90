@@ -743,6 +743,7 @@ end subroutine bin_differential_TOD
      character(len=512)                         :: i_str, l_str
 
      write_cg = .false.
+     write_cg = .true.
      !write_cg = tod%first_call
 
      if (tod%myid==0) then
@@ -774,7 +775,7 @@ end subroutine bin_differential_TOD
         i_max = 500
         i_min = 0
 
-        if (.false. .and. l == 1) then
+        if (l == 1) then
            call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol(:,:,1), v)
            r = b_map(:, :, l) - v 
         else
@@ -787,12 +788,12 @@ end subroutine bin_differential_TOD
         ! This is if we are not solving for S
         ! In this case, M_diag(:,4) is the QU covariance term
         if (comp_S) then
-          rhat =  r/M_diag
+          rhat =  r0/M_diag
         else
           determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
-          rhat(:,1) =  r(:,1)/M_diag(:,1)
-          rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
-          rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
+          rhat(:,1) =  r0(:,1)/M_diag(:,1)
+          rhat(:,2) = (r0(:,2)*M_diag(:,3)- r0(:,2)*M_diag(:,4))/determ
+          rhat(:,3) = (r0(:,3)*M_diag(:,2)- r0(:,3)*M_diag(:,4))/determ
         end if
         
         delta_r = sum(r*rhat)
@@ -859,9 +860,9 @@ end subroutine bin_differential_TOD
              write(i_str, '(I0.3)') 2*i-1
              write(l_str, '(I1)') l
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & bicg_sol(:,:,l))
+                          & bicg_sol(:,1:3,l))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & r)
+                          & r(:, 1:3))
            end if
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
@@ -902,15 +903,15 @@ end subroutine bin_differential_TOD
              write(i_str, '(I0.3)') 2*i
              write(l_str, '(I1)') l
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & bicg_sol(:,:,l))
+                          & bicg_sol(:,1:3,l))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & r)
+                          & r(:, 1:3))
            end if
 
-           ! If you are not solving for S
            ! If you are solving for S
            if (comp_S) then
              rhat = r/M_diag
+           ! If you are not solving for S
            else
              rhat(:,1) =  r(:,1)/M_diag(:,1)
              rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
