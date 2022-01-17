@@ -341,8 +341,13 @@ contains
       ! biconjugate gradient-stab parameters
       integer(i4b) :: num_cg_iters
       real(dp) ::  epsil(7)
+      real(dp) ::  nullval
       real(dp), allocatable, dimension(:, :, :) :: bicg_sol
       real(dp), allocatable, dimension(:)       :: map_full
+      class(comm_map), pointer :: wmap_guess
+
+      character(len=80), dimension(180) :: header
+
 
 
       ! Parameters used for testing
@@ -375,7 +380,7 @@ contains
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 6
          !if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
-      !self%output_n_maps = 7
+      self%output_n_maps = 1
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -433,12 +438,14 @@ contains
       ! the mapmaking for several iterations, maybe looping over the
       ! polarization angles in the sidelobe corrections.
       !call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
-      if (trim(self%level) == 'L1') then
-          call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
-          call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-          call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
-      end if
-      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+
+      ! Testing without any sampling
+      !if (trim(self%level) == 'L1') then
+      !    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+      !    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+      !    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      !end if
+      !call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
 
 
 
@@ -500,7 +507,8 @@ contains
 
          ! Compute noise spectrum parameters
          call timer%start(TOD_XI_N, self%band)
-         call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         !TODO uncomment this
+         !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
          call timer%stop(TOD_XI_N, self%band)
 
          ! Compute chisquare
@@ -593,13 +601,32 @@ contains
         allocate (bicg_sol(0:npix-1, nmaps,   self%output_n_maps))
       end if
       bicg_sol = 0.0d0
-      allocate (m_buf(0:npix-1,nmaps))
-      call map_in(1,1)%p%bcast_fullsky_map(m_buf)
-      bicg_sol(:,1:nmaps,1) = m_buf
-      deallocate(m_buf)
+      if (iter == 1) then
+          if (self%myid == 0) write(*,*) 'Initializing on WMAP solution'
 
-      epsil = 1d-6
-      epsil(1)   = 1d-10
+          allocate (m_buf(0:npix-1,nmaps))
+          m_buf = 0
+          call input_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP9_Q1_pol_n512_mK_dipole.fits', m_buf, npix, nmaps)
+
+          bicg_sol(0:npix-1,1:nmaps,1) = m_buf(0:npix-1, 1:nmaps)
+          deallocate(m_buf)
+      else if (iter == 2) then
+          if (self%myid == 0) write(*,*) 'Initializing on Commander solution'
+          allocate (m_buf(0:npix-1,nmaps))
+          call map_in(1,1)%p%bcast_fullsky_map(m_buf)
+          bicg_sol(:,1:nmaps,1) = m_buf
+          deallocate(m_buf)
+      else if (iter == 3) then 
+        if (self%myid == 0) write(*,*) 'Initializing on 100 mK'
+        bicg_sol(:,1:nmaps,1) = 100.
+      else
+        if (self%myid == 0) write(*,*) 'Initializing on 0'
+      end if
+       
+
+      !epsil = 1d-6
+      !epsil(1)   = 1d-10
+      epsil = 1d-15
       num_cg_iters = 0
 
       ! Doing this now because it's still burning in...
