@@ -380,7 +380,7 @@ contains
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 6
          !if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
-      self%output_n_maps = 1
+      self%output_n_maps = 6
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -445,7 +445,7 @@ contains
       !    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
       !    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
       !end if
-      !call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
 
 
 

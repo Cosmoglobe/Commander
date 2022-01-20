@@ -805,6 +805,15 @@ end subroutine bin_differential_TOD
 
         rho_new = sum(r0*r)
         i = 0
+
+        if (write_cg) then
+          write(i_str, '(I0.3)') 0
+          write(l_str, '(I1)') l
+          call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                       & bicg_sol(:,1:3,l))
+          call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
+                       & r(:, 1:3))
+        end if
         bicg: do
            i = i + 1
            rho_old = rho_new
@@ -862,7 +871,7 @@ end subroutine bin_differential_TOD
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
                           & bicg_sol(:,1:3,l))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & r(:, 1:3))
+                          & s(:, 1:3))
            end if
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
