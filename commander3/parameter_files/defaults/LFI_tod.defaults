@@ -7,6 +7,7 @@ SAMPLE_ONLY_POLARIZATION      = .false.
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
 SAMPLE_POWSPEC                = .false.
+SAMPLE_CAMB_PARAMETERS        = .false.
 
 ENABLE_TOD_ANALYSIS           = .true.
 TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER = 10

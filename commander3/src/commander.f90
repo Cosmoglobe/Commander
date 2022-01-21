@@ -274,6 +274,9 @@ program commander
 
         end do
         ! Perform joint alm-Cl Metropolis move
+        ! Q1: What is the joint sampling? What does it mean to sample alm and Cl
+        ! jointly? 
+        ! Q2: Is this the line that needs to be replaced with sample_joint_alm_theta
         do i = 1, 3
            if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
         end do
@@ -281,6 +284,9 @@ program commander
 
      ! Sample power spectra
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
+
+     ! Sample CAMB parameters
+     if (cpar%sample_camb) call sample_joint_Cl_theta_sampler(handle)
 
      ! Output sample to disk
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
