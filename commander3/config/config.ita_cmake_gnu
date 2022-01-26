@@ -1,0 +1,156 @@
+# Config file for a generic GCC based compile,
+# Using the reference LAPACK/Blas and assuming
+# both LAPACK and CFITSIO are in /usr/local.
+
+
+# =============== Installation ===================
+
+# Final install location.  This defaults to a
+# subdirectory of the top-level directory called
+# install_$COMMANDER.
+#export INSTALL := /usr/local
+
+# To be used with the 'install_owl.sh' cmake script
+		
+ifeq ($(HOSTNAME), owl36.uio.no)
+	export LOCAL=../../build_owl3637_gnu/install
+else ifeq ($(HOSTNAME), owl37.uio.no)
+	export LOCAL=../../build_owl3637_gnu/install
+else ifeq ($(HOSTNAME), owl35.uio.no)
+	export LOCAL=../../build_owl3135_gnu/install
+else ifeq ($(HOSTNAME), owl34.uio.no)
+	export LOCAL=../../build_owl3135_gnu/install
+else ifeq ($(HOSTNAME), owl33.uio.no)
+	export LOCAL=../../build_owl3135_gnu/install
+else ifeq ($(HOSTNAME), owl32.uio.no)
+	export LOCAL=../../build_owl3135_gnu/install
+else ifeq ($(HOSTNAME), owl31.uio.no)
+	export LOCAL=../../build_owl3135_gnu/install
+else ifeq ($(HOSTNAME), owl30.uio.no)
+	export LOCAL=../../build_owl2930_gnu/install
+else ifeq ($(HOSTNAME), owl29.uio.no)
+	export LOCAL=../../build_owl2930_gnu/install
+else ifeq ($(HOSTNAME), owl28.uio.no)
+	export LOCAL=../../build_owl2528_gnu/install
+else ifeq ($(HOSTNAME), owl27.uio.no)
+	export LOCAL=../../build_owl2528_gnu/install
+else ifeq ($(HOSTNAME), owl26.uio.no)
+	export LOCAL=../../build_owl2528_gnu/install
+else ifeq ($(HOSTNAME), owl25.uio.no)
+	export LOCAL=../../build_owl2528_gnu/install
+else ifeq ($(HOSTNAME), owl24.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl23.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl22.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl21.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl20.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl19.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl18.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+else ifeq ($(HOSTNAME), owl17.uio.no)
+	export LOCAL=../../build_owl1724_gnu/install
+endif
+
+# =============== System Tools ===================
+
+# The defaults should be fine for any normal
+# GNU/Linux operating system...
+
+# Here you can override the make version to use
+#export MAKE := gmake
+
+# How to make a tar.gz file
+#export CTAR := tar czvf
+
+# The archive command
+#export AR := ar
+
+# Archive options to create a library
+#export ARFLAGS := crv
+
+# The ranlib command
+#export RANLIB := ranlib
+
+
+# ================= Compilers ====================
+
+# Serial Fortran 90 compiler.  Default is "f90".
+export F90 := gfortran #ifort
+
+# MPI Fortran 90 compiler.  Default is "mpif90".
+export MPF90 := mpif90 #mpiifort
+
+# MPI Fortran 77 compiler.  Default is "mpif77".
+export MPF77 := mpif90 #mpiifort
+
+# MPI C++ compiler.  Default is "mpicxx".
+export MPCC     := mpicc
+
+export OMPI_FC  := gfortran
+export OMPI_F77 := gfortran
+export OMPI_CC  := gcc
+
+# =========== Compiler Optimizations =============
+#main
+# This is for GNU v10+
+export F90FLAGS := -O2 -g -fcheck=all -fbounds-check -march=native -fbacktrace -finit-real=nan -fexternal-blas -fopenmp -ffree-line-length-none -fallow-argument-mismatch -cpp  
+
+# Fortran 77 compiler flags
+export FFLAGS := -O2
+
+# C compiler flags.
+export CFLAGS := -O3 
+
+# Extra flags used for linking
+export LDFLAGS := -lm -fopenmp -lstdc++
+
+# ============== Language Mixing =================
+
+export MPFCLIBS := -fopenmp
+
+# ============== Fortran Features ================
+
+# Set this variable to 1 if the fortran compiler
+# produces module files with capitalization (*.MOD)
+# instead of lowercase (*.mod).
+#export FORTRAN_UPPER := 1
+
+# =============== CFITSIO Linking ================
+
+# The include and linking commands for cfitsio + zlib.
+export CFITSIO_INCLUDE := -I$(LOCAL)/include 
+export CFITSIO_LINK := -L$(LOCAL)/lib -lcfitsio -lz 
+
+# =============== SHARP & HEALPix Linking ================
+
+# The include and linking commands for libsharp.
+export SHARP_INCLUDE := -I$(LOCAL)/healpix/include/libsharp 
+export SHARP_LINK := -L$(LOCAL)/healpix/lib -lsharp
+# The include and linking commands for HEALPix
+export HEALPIX := $(LOCAL)/healpix
+export HEALPIX_INCLUDE := -I$(HEALPIX)/include
+export HEALPIX_LINK := -L$(HEALPIX)/lib -lhealpix
+
+# =============== FFTW & LAPACK Linking =================
+
+# The include and linking commands for LAPACK.
+#MKLPATH := $(MKLROOT)
+export LAPACK_INCLUDE := -I$(LOCAL)/include 
+#export LAPACK_INCLUDE := 
+export LAPACK_LINK := -L$(LOCAL)/lib -lopenblas -lfftw3 -lfftw3f -lfftw3_omp -lfftw3f_omp -lfftw3_threads -lfftw3f_threads 
+#export LAPACK_LINK := -shared-intel -Wl,-rpath,$(MKLPATH)/lib/intel64 -L$(MKLPATH)/lib/intel64  -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -lpthread 
+
+# =============== HDF & AEC ============================                              
+#export LOCAL=/mn/stornext/u3/hke/owl/local
+export HDF_LINK := -L$(LOCAL)/lib/shared -lhdf5_fortran -lhdf5 -lhdf5_f90cstub -laec -lsz 
+export HDF_LINK_CPP := -L$(LOCAL)/lib -lhdf5_cpp -lhdf5 -laec -lsz
+export HDF_INCLUDE := -I$(LOCAL)/include/shared
+
+# =============== CAMB ============================                              
+#export CAMB_LINK := -L$(LOCAL)/local/lib -lcamb
+#export CAMB_INCLUDE := -I$(LOCAL)/mod

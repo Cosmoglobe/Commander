@@ -24,4 +24,6 @@ COMP_T_E_INT_FIX_PIXREG&&    = none
 COMP_T_E_POL_FIX_PIXREG&&    = none
 COMP_T_E_PIXREG_MAP&&        = fullsky    #  Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_T_E_PIXREG_INITVALUE_MAP&& = none
+COMP_T_E_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
+COMP_T_E_COMBINED_MONOPOLE_SAMPLING&& = .false.
 

@@ -520,7 +520,8 @@ contains
              end if
           else
              if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
-                write(unit,fmt='(2f10.4,2f16.3,4f8.3,f12.3,2a)') &
+                !write(unit,fmt='(2f10.4,2f16.3,4f8.3,f12.3,2a)') &
+                write(unit, *) &
                      & self%src(i)%glon*RAD2DEG, self%src(i)%glat*RAD2DEG, &
                      & self%x(i,1)*self%cg_scale, self%src(i)%amp_rms(1), self%src(i)%theta(:,1), &
                      & self%src(i)%theta_rms(:,1), min(self%src(i)%red_chisq,10000.d0), '  ', &
@@ -739,8 +740,8 @@ contains
     ! Initialize beam templates
     tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))
     do j = 1, self%nsrc
-       !if (mod(j,1000) == 0 .and. self%myid == 0) &
-       if (mod(j,100) == 0 .and. self%myid == 0) &
+       if (mod(j,1000) == 0 .and. self%myid == 0) &
+       !if (mod(j,100) == 0 .and. self%myid == 0) &
             & write(*,fmt='(a,i6,a,i6)') '   Initializing src no. ', j, ' of ', self%nsrc
        do i = 1, numband
           self%src(j)%T(i)%nside   = data(i)%info%nside
@@ -1559,7 +1560,7 @@ contains
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
-          if (self%myid == 0 .and. k<20) write(*,*) 'iter', iter2, n_gibbs
+          if (self%myid == 0) write(*,*) 'iter', iter2, n_gibbs
           do p = 1, self%nmaps
              do k = 1, self%nsrc             
                 p_lnL       = p

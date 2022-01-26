@@ -31,7 +31,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -105,7 +105,7 @@ contains
 
     integer(i4b)       :: i, j, ndet
     character(len=512) :: dir, label
-    character(len=16)  :: dets(1000)
+    character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
 
     label = cpar%ds_label(id_abs)
@@ -137,6 +137,8 @@ contains
        constructor%threshold = 0.d0
     case ('LB')
        constructor%threshold = 0.d0
+    case ('SPIDER')
+       constructor%threshold = 0.d0
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
     end select
@@ -162,7 +164,13 @@ contains
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
-          call get_tokens(subdets, ",", dets, ndet)
+          if (index(subdets, '.txt') /=0) then
+             ndet = count_detectors(subdets, cpar%datadir)
+             call get_detectors(subdets, cpar%datadir, dets, ndet)
+          else
+             call get_tokens(subdets, ",", dets, ndet)
+          end if
+
           call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
@@ -198,6 +206,9 @@ contains
     ! Initialize active bandpass 
     call constructor%update_tau(constructor%delta)
 
+    ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
+    constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
+
   end function constructor
   
 
@@ -230,6 +241,7 @@ contains
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
+         !  if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
        end do
        
     end select
@@ -271,7 +283,7 @@ contains
                        & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
-    case ('HFI_cmb', 'PSM_LFI') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
@@ -317,6 +329,16 @@ contains
                    & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
+   !  case ('SPIDER') 
+
+   !     self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+   !                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+   !     self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+   !                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
+   !     self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
+   !                       & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+   !     self%tau     = self%tau / tsum(self%nu, self%tau/a)
+
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)
 
@@ -349,6 +371,8 @@ contains
        SED2F = f(1) * self%a2t
     case ('LB')
        SED2F = tsum(self%nu, self%tau * f)
+    case ('SPIDER')
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case default
        write(*,*) 'Unsupported bandpass type'
        stop
@@ -404,7 +428,7 @@ contains
             & tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_cmb', 'PSM_LFI') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
           
        allocate(bnu_prime_RJ(self%n))
        bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)

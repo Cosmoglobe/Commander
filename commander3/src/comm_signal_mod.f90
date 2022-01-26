@@ -28,6 +28,7 @@ module comm_signal_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
+  use comm_ame_lognormal_mod
   use comm_MBB_comp_mod
   use comm_freefree_comp_mod
   use comm_line_comp_mod
@@ -50,13 +51,15 @@ contains
 
     integer(i4b) :: i, n
     class(comm_comp), pointer :: c => null()
-    
+    class(comm_comp), pointer :: c_two => null()
+    logical(lgt) :: prior_exists
+
     ncomp = 0
     do i = 1, cpar%cs_ncomp_tot
        if (.not. cpar%cs_include(i)) cycle
        ncomp = ncomp + 1
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Initializing component ', i, ' : ', trim(cpar%cs_label(i))
+            & write(*,fmt='(a,i5,a,a)') ' |  Initializing component ', i, ' : ', trim(cpar%cs_label(i))
        call update_status(status, "init_"//trim(cpar%cs_label(i)))
 
        ! Initialize object
@@ -130,6 +133,43 @@ contains
 !    call mpi_finalize(i)
 !    stop
        
+    ! go through compList and check if any diffuse component is using a band monopole
+    ! as the zero-level prior
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%mono_prior_type) == 'bandmono') then
+             prior_exists=.false.
+             c_two => compList
+             do while (associated(c_two))
+                select type (c_two)
+                class is (comm_md_comp)
+                   if (trim(c%mono_prior_band)==trim(c_two%label)) then
+                      if (c_two%mono_from_prior) then
+                         !Error, band already prior for another component
+                         call report_error("Component '"//trim(c%label)//"'. Band monopole '"//trim(c_two%label)//"' already in use as a zero-level prior of another component")
+                      end if
+                      c_two%mono_from_prior = .true.
+                      prior_exists = .true.
+                   end if
+                end select
+                c_two => c_two%next()
+             end do
+
+             if (.not. prior_exists) then
+                !Error, could not find band monopole used as prior
+                call report_error("Could not find band monopole '"//trim(c%mono_prior_band)//"' for zero-level prior of component "//trim(c%label))
+
+             end if
+
+          end if
+       end select
+       c => c%next()
+    end do
+
+
+
   end subroutine initialize_signal_mod
 
   subroutine dump_components(filename)
@@ -174,6 +214,26 @@ contains
        call c%CG_mask(samp_group, mask)
        c => c%next()
     end do
+
+    ! If mono-/dipole are sampled, check if they are priors for a component zero-level
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_md_comp)
+          if (c%active_samp_group(samp_group)) then
+             if (c%mono_from_prior) then
+                do i = 0, c%x%info%nalm-1
+                   call c%x%info%i2lm(i,l,m)
+                   if (l == 0) then ! save the monopole value
+                      c%mono_alm = c%x%alm(i,1)
+                   end if
+                end do
+             end if
+          end if
+       end select
+       c => c%next()
+    end do
+
     
     ! Solve the linear system
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
@@ -191,12 +251,12 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior
+          if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle)
        end select
        c => c%next()
     end do
 
-    ! If mono-/dipole components have been sampled, check if any are to be marginalized/sampled from prior
+    ! If mono-/dipole components is a zero-level prior, revert back to pre-sampling value if it has been sampled in the current CG group
     c => compList
     do while (associated(c))
        select type (c)
@@ -205,9 +265,19 @@ contains
              if (c%mono_from_prior) then
                 do i = 0, c%x%info%nalm-1
                    call c%x%info%i2lm(i,l,m)
-                   if (l == 0) then ! Monopole
+                   if (l == 0) then ! monopole
+
+                      write(*,fmt='(a)') "Band monopole of '"//&
+                           & trim(c%label)//"' used as zero-level prior"
+                      write(*,fmt='(a,f14.3)') "    Revert back to pre-CG value: ",&
+                           & c%mono_alm/sqrt(4.d0*pi)
+                      write(*,fmt='(a,f14.3,a)') "    (Sampled value in CG: ",&
+                           & c%x%alm(i,1)/sqrt(4.d0*pi)," )"
+
+                      c%x%alm(i,1) = c%mono_alm  ! revert to pre-CG search value 
                       !monopole in alm_uKRJ = mu_in_alm_uK_RJ + rms_in_alm_uKRJ * rand_gauss
-                      c%x%alm(i,1)  = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+                      !c%x%alm(i,1) = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+
                    end if
                 end do
              end if
@@ -274,12 +344,12 @@ contains
        ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
        do while (associated(c))
-          if (trim(c%type) /= 'cmb') then
+          if (.not. c%output) then
              c => c%next()
              cycle
           end if
           call update_status(status, "init_chain_"//trim(c%label))
-          if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+          if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
           call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
           c => c%next()
        end do
@@ -349,7 +419,7 @@ contains
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
-       if (cpar%myid == 0) write(*,*) ' Initializing from chain = ', trim(c%label)
+       if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
        if (trim(c%init_from_HDF) == 'default' .or. trim(c%init_from_HDF) == 'none') then
           call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
        else
@@ -368,7 +438,7 @@ contains
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
           if (trim(data(i)%tod%init_from_HDF) == 'none' .and. .not. present(init_from_output))     cycle
-          if (cpar%myid == 0) write(*,*) ' Initializing TOD par from chain = ', trim(data(i)%tod%freq)
+          if (cpar%myid == 0) write(*,*) '|  Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
           rms => comm_map(data(i)%info)
           select type (N)
@@ -402,7 +472,7 @@ contains
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
           !if (.not. data(i)%tod%init_from_HDF)  cycle
-          if (cpar%myid == 0) write(*,*) ' Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
+          if (cpar%myid == 0) write(*,*) '|  Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
           rms     => comm_map(data(i)%info)
