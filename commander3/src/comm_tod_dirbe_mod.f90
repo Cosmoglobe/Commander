@@ -56,16 +56,16 @@ module comm_tod_dirbe_mod
      integer(i4b) :: nbin_adc
      logical(lgt) :: use_dpc_adc
      logical(lgt) :: use_dpc_gain_modulation
-     real(dp),          allocatable, dimension(:)       :: mb_eff
-     real(dp),          allocatable, dimension(:,:)     :: diode_weights
-     type(spline_type), allocatable, dimension(:,:)     :: ref_splint ! ndet, ndiode/2
-     type(adc_pointer), allocatable, dimension(:,:)     :: adc_corrections ! ndet, n_diode
-     real(dp),          allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
-     real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
-     real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
-     type(double_pointer), allocatable, dimension(:)    :: gmf_splits      ! ndet
-     logical(lgt),      allocatable, dimension(:,:)     :: apply_adc       ! ndet, n_diode
-     character(len=10), allocatable, dimension(:,:)     :: adc_mode
+     real(dp),             allocatable, dimension(:)       :: mb_eff
+     real(dp),             allocatable, dimension(:,:)     :: diode_weights
+     type(spline_type),    allocatable, dimension(:,:)     :: ref_splint ! ndet, ndiode/2
+     type(adc_pointer),    allocatable, dimension(:,:)     :: adc_corrections ! ndet, n_diode
+     real(dp),             allocatable, dimension(:,:)     :: spike_templates ! nbin, ndet
+     real(dp),             allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
+     real(dp),             allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
+     type(double_pointer), allocatable, dimension(:)       :: gmf_splits      ! ndet
+     logical(lgt),         allocatable, dimension(:,:)     :: apply_adc       ! ndet, n_diode
+     character(len=10),    allocatable, dimension(:,:)     :: adc_mode
    contains
      procedure     :: process_tod             => process_dirbe_tod
      procedure     :: diode2tod_inst          => diode2tod_dirbe
@@ -123,7 +123,7 @@ interface
     integer(i4b),              intent(in)    :: id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
-    class(comm_dirbe_tod),       pointer       :: res
+    class(comm_dirbe_tod),     pointer       :: res
   end function constructor
 
   !**************************************************
@@ -167,7 +167,7 @@ interface
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_dirbe_tod),                      intent(inout) :: self
+    class(comm_dirbe_tod),                    intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -175,7 +175,7 @@ interface
     real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
     class(comm_map),                          intent(inout) :: map_out      ! Combined output map
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
-    type(map_ptr),       dimension(1:,1:),   intent(inout), optional :: map_gain       ! (ndet,1)
+    type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
   end subroutine process_dirbe_tod
   
   
@@ -195,7 +195,7 @@ interface
     ! 
     ! Returns : None
     implicit none
-    class(comm_dirbe_tod),                 intent(inout) :: self
+    class(comm_dirbe_tod),               intent(inout) :: self
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
   end subroutine load_instrument_dirbe
@@ -218,7 +218,7 @@ interface
     ! None
     !
     implicit none
-    class(comm_dirbe_tod),                 intent(inout)  :: self
+    class(comm_dirbe_tod),               intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_dirbe
@@ -243,7 +243,7 @@ interface
     !           Output detector TOD generated from raw diode data
     !
     implicit none
-    class(comm_dirbe_tod),                       intent(inout) :: self
+    class(comm_dirbe_tod),                     intent(inout) :: self
     integer(i4b),                              intent(in)    :: scan
     real(sp),          dimension(0:,1:,1:,1:), intent(in)    :: map_sky
     real(sp),          dimension(0:),          intent(in)    :: procmask
@@ -252,7 +252,7 @@ interface
 
   module function get_nsmooth(self)
     implicit none
-    class(comm_dirbe_tod),  intent(in)   :: self
+    class(comm_dirbe_tod),  intent(in) :: self
     integer(i4b)                       :: get_nsmooth  
   end function get_nsmooth
 
@@ -277,7 +277,7 @@ interface
     !              frequencies that index binned_out
     ! err        : error flag; 0 if OK, 1 if no data
     implicit none
-    class(comm_dirbe_tod),          intent(in)    :: self
+    class(comm_dirbe_tod),        intent(in)    :: self
     real(sp),     dimension(:,:), intent(in)    :: data_in
     real(dp),     dimension(:,:), intent(inout) :: binned_out
     real(dp),     dimension(:),   intent(in)    :: nu_out
@@ -286,13 +286,13 @@ interface
 
   module subroutine get_freq_bins(self, freqs)
     implicit none
-    class(comm_dirbe_tod),   intent(in)  :: self
+    class(comm_dirbe_tod),  intent(in)    :: self
     real(dp), dimension(:), intent(inout) :: freqs
   end subroutine get_freq_bins
 
 
   module subroutine filter_reference_load(self, det, data)
-    class(comm_dirbe_tod),               intent(in)      :: self
+    class(comm_dirbe_tod),             intent(in)      :: self
     integer(i4b),                      intent(in)      :: det
     real(sp), dimension(:,:),          intent(inout)   :: data
   end subroutine filter_reference_load
@@ -315,7 +315,7 @@ interface
     ! None
     !
     implicit none
-    class(comm_dirbe_tod),                 intent(in)     :: self
+    class(comm_dirbe_tod),               intent(in)     :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_dirbe
@@ -332,7 +332,7 @@ interface
     !             so that the same sequence can be resumed later on from that same point
     !   map_sky:
     implicit none
-    class(comm_dirbe_tod),                          intent(inout) :: tod
+    class(comm_dirbe_tod),                        intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
@@ -357,7 +357,7 @@ interface
     !  s:   real (sp)
     !       output template timestream
     implicit none
-    class(comm_dirbe_tod),                   intent(in)    :: self
+    class(comm_dirbe_tod),                 intent(in)    :: self
     integer(i4b),                          intent(in)    :: scan
     integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
     real(sp),            dimension(:,:),   intent(out)   :: s
@@ -366,7 +366,7 @@ interface
 
   module subroutine preprocess_L1_to_L2(self, map_sky, procmask)
     implicit none
-    class(comm_dirbe_tod),                          intent(inout) :: self
+    class(comm_dirbe_tod),                        intent(inout) :: self
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
     real(sp),            dimension(0:),           intent(in)    :: procmask
   end subroutine preprocess_L1_to_L2
@@ -385,7 +385,7 @@ interface
     ! None
     !
     implicit none
-    class(comm_dirbe_tod),                  intent(inout)  :: self
+    class(comm_dirbe_tod), intent(inout)  :: self
   end subroutine remove_fixed_scans_dirbe
 
 end interface
