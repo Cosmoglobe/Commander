@@ -228,7 +228,7 @@ contains
                 end if
              end do
              close(58)
-             write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+             !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
              open(68,file='g.unf', form='unformatted')
              write(68) size(g,1)
@@ -492,9 +492,9 @@ contains
        rhs(tod%ndet+1) = 0.d0
        call solve_system_real(coeff_matrix(ind(1:k),ind(1:k)), tmp(1:k), rhs(ind(1:k)))
        x(ind(1:k)) = tmp(1:k)
-       if (tod%verbosity > 1) then
-         write(*,*) '|  relcal = ', real(x,sp)
-       end if
+!!$       if (tod%verbosity > 1) then
+!!$         write(*,*) '|  relcal = ', real(x,sp)
+!!$       end if
     end if
     call mpi_bcast(x, tod%ndet+1, MPI_DOUBLE_PRECISION, 0, &
        & tod%info%comm, ierr)

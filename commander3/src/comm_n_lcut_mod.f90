@@ -18,16 +18,19 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_N_rms_mod
+module comm_N_lcut_mod
   use comm_N_mod
   use comm_param_mod
   use comm_map_mod
   implicit none
 
   private
-  public comm_N_rms, comm_N_rms_ptr
+  public comm_N_lcut, comm_N_lcut_ptr
   
-  type, extends (comm_N) :: comm_N_rms
+  type, extends (comm_N) :: comm_N_lcut
+     integer(i4b) :: lcut, nmode, np_tot
+     integer(i4b), allocatable, dimension(:,:) :: map2mask
+     real(dp),     allocatable, dimension(:,:) :: P0
      class(comm_map), pointer :: siN        => null()
      class(comm_map), pointer :: siN_lowres => null()
      class(comm_map), pointer :: rms0       => null()
@@ -40,16 +43,18 @@ module comm_N_rms_mod
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
      procedure :: rms         => returnRMS
      procedure :: rms_pix     => returnRMSpix
-     procedure :: update_N    => update_N_rms
-  end type comm_N_rms
+     procedure :: P           => apply_lcut
+     procedure :: update_N    => update_N_lcut
+     procedure :: init_P0   
+  end type comm_N_lcut
 
-  interface comm_N_rms
+  interface comm_N_lcut
      procedure constructor
-  end interface comm_N_rms
+  end interface comm_N_lcut
 
-  type comm_N_rms_ptr
-     type(comm_N_rms), pointer :: p => null()
-  end type comm_N_rms_ptr
+  type comm_N_lcut_ptr
+     type(comm_N_lcut), pointer :: p => null()
+  end type comm_N_lcut_ptr
 
   
 contains
@@ -59,7 +64,7 @@ contains
   !**************************************************
   function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask)
     implicit none
-    class(comm_N_rms),                  pointer       :: constructor
+    class(comm_N_lcut),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
     integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
@@ -72,7 +77,6 @@ contains
     real(dp)           :: sum_noise, npix
     character(len=512) :: dir
     type(comm_mapinfo), pointer :: info_smooth => null()
-
     
     ! General parameters
     allocate(constructor)
@@ -86,6 +90,7 @@ contains
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
     constructor%info              => info
+    constructor%lcut              = cpar%ds_noise_lcut(id_abs)
 
     if (id_smooth == 0) then
        constructor%nside        = info%nside
@@ -143,12 +148,14 @@ contains
        end where
     end do
 
+    call constructor%init_P0(mask)
+
   end function constructor
 
 
-  subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
+  subroutine update_N_lcut(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
-    class(comm_N_rms),                   intent(inout)          :: self
+    class(comm_N_lcut),                   intent(inout)          :: self
     class(comm_mapinfo),                 intent(in)             :: info
     type(planck_rng),                    intent(inout)          :: handle
     class(comm_map),                     intent(in),   optional :: mask
@@ -258,26 +265,31 @@ contains
     call iN%dealloc(); deallocate(iN)
     self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
 
-  end subroutine update_N_rms
+  end subroutine update_N_lcut
 
   ! Return map_out = invN * map
   subroutine matmulInvN_1map(self, map, samp_group)
     implicit none
-    class(comm_N_rms), intent(in)              :: self
+    class(comm_N_lcut), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    call self%P(map)
     map%map = (self%siN%map)**2 * map%map
+    call self%P(map)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
   end subroutine matmulInvN_1map
 
-  ! Return map_out = invN * map
+  ! Return map_out = invN * map; currently does not contribute to spec ind
   subroutine matmulInvN_1map_lowres(self, map, samp_group)
     implicit none
-    class(comm_N_rms), intent(in)              :: self
+    class(comm_N_lcut), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    map%map = 0.
+    return
+
     map%map = (self%siN_lowres%map)**2 * map%map
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -287,14 +299,16 @@ contains
   ! Return map_out = N * map
   subroutine matmulN_1map(self, map, samp_group)
     implicit none
-    class(comm_N_rms), intent(in)              :: self
+    class(comm_N_lcut), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    call self%P(map)
     where (self%siN%map > 0.d0)
        map%map = map%map / (self%siN%map)**2 
     elsewhere
        map%map = 0.d0
     end where
+    call self%P(map)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -303,10 +317,12 @@ contains
   ! Return map_out = sqrtInvN * map
   subroutine matmulSqrtInvN_1map(self, map, samp_group)
     implicit none
-    class(comm_N_rms), intent(in)              :: self
+    class(comm_N_lcut), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    call self%P(map)
     map%map = self%siN%map * map%map
+    call self%P(map)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -333,7 +349,7 @@ contains
   ! Return RMS map
   subroutine returnRMS(self, res, samp_group)
     implicit none
-    class(comm_N_rms), intent(in)              :: self
+    class(comm_N_lcut), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
     integer(i4b),      intent(in),   optional  :: samp_group
     where (self%siN%map > 0.d0)
@@ -353,7 +369,7 @@ contains
   ! Return rms for single pixel
   function returnRMSpix(self, pix, pol, samp_group)
     implicit none
-    class(comm_N_rms),   intent(in)              :: self
+    class(comm_N_lcut),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
     real(dp)                                     :: returnRMSpix
     integer(i4b),        intent(in),   optional  :: samp_group
@@ -371,4 +387,124 @@ contains
     end if
   end function returnRMSpix
 
-end module comm_N_rms_mod
+  ! 
+  subroutine init_P0(self, mask)
+    implicit none
+    class(comm_N_lcut), intent(inout)          :: self
+    class(comm_map),    intent(in)             :: mask
+
+    integer(i4b) :: i, j, k, n, np, nalm, l, m, pol, ierr
+    real(dp)     :: eps
+    real(dp), allocatable, dimension(:)   :: W
+    real(dp), allocatable, dimension(:,:) :: C, Y, V
+    class(comm_mapinfo), pointer :: info
+    class(comm_map), pointer :: map
+
+    if (self%lcut < 0 .or. self%lcut > self%info%lmax) then
+       write(*,*) 'Error -- invalid lcut value =', self%lcut
+       stop
+    end if
+
+    eps  = 1d-6
+    nalm = self%info%nmaps * (self%lcut+1)**2
+    np   = self%info%nmaps * self%info%np
+    info => comm_mapinfo(self%info%comm, self%info%nside, self%lcut, &
+         & self%info%nmaps, self%info%nmaps==3)
+    map => comm_map(info)
+
+    self%np_tot = count(mask%map > 0.5)
+    allocate(self%map2mask(0:self%np_tot-1,2))
+    k = 0
+    do i = 1, self%info%nmaps
+       do j = 0, self%info%np-1
+          if (mask%map(j,i) > 0.5d0) then
+             self%map2mask(k,:) = [j,i]
+             k                  = k+1
+          end if
+       end do
+    end do
+
+    allocate(Y(0:self%np_tot-1,nalm), C(nalm,nalm), W(nalm), V(nalm,nalm))
+
+    ! Construct Y
+    k = 1
+    do j = 1, self%info%nmaps
+       do l = 0, self%lcut
+          do m = -l, l
+             call self%info%lm2i(l,m,i)
+             map%alm = 0.d0
+             if (i /= -1) map%alm(i,j) = 1.d0
+             call map%Y()
+             do i = 0, self%np_tot-1
+                Y(i,k) = map%map(self%map2mask(i,1),self%map2mask(i,2))
+             end do
+             k = k+1
+          end do
+       end do
+    end do
+
+    ! Compute coupling matrix
+    C = matmul(transpose(Y), Y)
+    call mpi_allreduce(MPI_IN_PLACE, C,  size(C), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+
+    ! Compute eigen-decomposition
+    call get_eigen_decomposition(C, W, V)
+
+    ! Store relevant modes
+    self%nmode = count(W > eps*maxval(W))
+    allocate(self%P0(0:self%np_tot-1,self%nmode))
+    do i = 1, self%nmode
+       self%P0(:,i) = matmul(Y,V(:,nalm-i+1))
+       W(i)         = sum(self%P0(:,i)**2)
+    end do
+
+    ! Normalize vectors
+    call mpi_allreduce(MPI_IN_PLACE, W,  size(W), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+    do i = 1, self%nmode
+       self%P0(:,i) = self%P0(:,i) / sqrt(W(i))
+    end do
+
+!!$    do i = 1, self%nmode
+!!$       do j = 1, self%nmode
+!!$          eps = sum(self%P0(:,i)*self%P0(:,j))
+!!$          call mpi_allreduce(MPI_IN_PLACE, eps,  1, MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+!!$          if (self%info%myid == 0) then
+!!$             write(*,*) i, j, eps
+!!$          end if
+!!$       end do
+!!$    end do
+    
+    deallocate(Y, C, W, V)
+    call map%dealloc
+
+  end subroutine init_P0
+
+
+  ! Return map_out = invN * map
+  subroutine apply_lcut(self, map)
+    implicit none
+    class(comm_N_lcut), intent(in)              :: self
+    class(comm_map),    intent(inout)           :: map
+
+    integer(i4b) :: i, ierr
+    real(dp), allocatable, dimension(:) :: a, flat
+
+    allocate(a(self%nmode), flat(0:self%np_tot-1))
+    do i = 0, self%np_tot-1
+       flat(i) = map%map(self%map2mask(i,1),self%map2mask(i,2))
+    end do
+    a      = matmul(transpose(self%P0),flat)
+    call mpi_allreduce(MPI_IN_PLACE, a,  size(a), MPI_DOUBLE_PRECISION, &
+         & MPI_SUM, self%info%comm, ierr)
+    flat   = flat - matmul(self%P0,a)
+
+    map%map = 0.d0
+    do i = 0, self%np_tot-1
+       map%map(self%map2mask(i,1),self%map2mask(i,2)) = flat(i)
+    end do
+
+    deallocate(a, flat)
+  end subroutine apply_lcut
+
+
+end module comm_N_lcut_mod

@@ -76,8 +76,9 @@ contains
              j = 7
           end if
        end do
-       call hcode%get_symbol(node, buf)
-       x_out(k) = buf 
+       !call hcode%get_symbol(node, buf)
+       !x_out(k) = buf 
+       x_out(k) = hcode%int_symbs(node)
        if (k > 1)         x_out(k) = x_out(k-1) + x_out(k)
        if (present(imod)) x_out(k) = iand(x_out(k),imod)
     end do
@@ -113,8 +114,9 @@ contains
              j = 7
           end if
        end do
-       call hcode%get_symbol(node, buf)
-       x_out(k) = buf
+       !call hcode%get_symbol(node, buf)
+       !x_out(k) = buf
+       x_out(k) = hcode%sp_symbs(node)
        if (k > 1) x_out(k) = x_out(k-1) + x_out(k)
     end do
 
@@ -205,7 +207,6 @@ contains
 !!$          end if
 !!$       end do
 !!$    end do
-
     k = 1
     node=hcode%nodemax
     do i = 2, size(x_in)  ! First byte does not contain real data

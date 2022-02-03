@@ -72,6 +72,8 @@ contains
     real(dp), dimension(:,:), allocatable :: filter_sum
     real(dp), dimension(:,:), allocatable :: noise_filter
 
+    call timer%start(TOD_INIT, id_abs)
+
     ! Allocate object
     allocate(res)
 
@@ -81,12 +83,9 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'    
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 3*1.225d0]    ! More than max(7*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -97,12 +96,9 @@ contains
        res%n_xi            = 6
        res%noise_psd_model = 'oof_gauss'
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0, 1.d6, 0.d0, 0.d0] ! [sigma0, fknee, alpha, g_amp, g_loc, g_sig]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 3*1.00d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.002d0, 0.40d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
@@ -113,12 +109,9 @@ contains
        res%n_xi            = 3
        res%noise_psd_model = 'oof'
        allocate(res%xi_n_P_uni(res%n_xi,2))
-       allocate(res%xi_n_nu_fit(res%n_xi,2))
        allocate(res%xi_n_P_rms(res%n_xi))
        res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-       do k = 1, res%n_xi
-         res%xi_n_nu_fit(k,:) = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
-       end do
+       res%xi_n_nu_fit     = [0.d0, 0.140d0]    ! More than max(2*fknee_DPC)
        res%xi_n_P_uni(1,:) = [0.d0, 0.d0]
        res%xi_n_P_uni(2,:) = [0.001d0, 0.25d0]  ! fknee
        res%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
@@ -139,14 +132,15 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
-    res%correct_sl      = .true.
-    res%orb_4pi_beam    = .true.
-    res%use_dpc_adc     = .true.
+    res%correct_sl              = .true.
+    res%apply_inst_corr         = .true.
+    res%orb_4pi_beam            = .true.
+    res%use_dpc_adc             = .false.
     res%use_dpc_gain_modulation = .true.
-    res%symm_flags      = .true.
-    res%chisq_threshold = 5.d6 !9.d0
-    res%nmaps           = info%nmaps
-    res%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    res%symm_flags              = .true.
+    res%chisq_threshold         = 5.d6 !9.d0
+    res%nmaps                   = info%nmaps
+    res%ndet                    = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -197,17 +191,20 @@ contains
       end do
 
       allocate(res%apply_adc(res%ndet,res%ndiode))
+      allocate(res%adc_mode(res%ndet,res%ndiode))
       res%apply_adc(:,:) = .true.
+      res%adc_mode(:,:)  = 'commander'
       ! Define diode masks
       if (trim(res%freq) == '030') then
+         ! Do not apply corrections to any 30 GHz diodes
          res%apply_adc(:,:)  = .false.
-         ! Nothing to mask here
       else if (trim(res%freq) == '044') then
-         res%apply_adc(2,1)  = .false.
-         res%apply_adc(2,2)  = .false.
-         res%apply_adc(4,1)  = .false.
-         res%apply_adc(6,1)  = .false.
-         res%apply_adc(6,2)  = .false.
+         ! These ones are toughies
+         res%apply_adc(2,1)  = .false. !24S_ref10
+         res%apply_adc(2,2)  = .false. !24S_sky10
+         res%apply_adc(4,1)  = .false. !25S_ref10
+         res%apply_adc(6,1)  = .false. !26S_ref10
+         res%apply_adc(6,2)  = .false. !26S_sky10
       else if (trim(res%freq) == '070') then
          res%apply_adc(1,:)  = .false. !18M
          res%apply_adc(2,:)  = .false. !18S
@@ -215,8 +212,13 @@ contains
          res%apply_adc(5,:)  = .false. !20M
          res%apply_adc(6,:)  = .false. !20S
          res%apply_adc(7,:)  = .false. !21M
+         res%adc_mode(8,:)   = 'dpc'   !21S
+         res%adc_mode(9,3)   = 'dpc'   !22M_ref01
+         res%adc_mode(9,4)   = 'dpc'   !22M_sky01
          res%apply_adc(10,:) = .false. !22S
          res%apply_adc(11,:) = .false. !23M
+         res%adc_mode(12,3)  = 'dpc'   !23S_ref11
+         res%adc_mode(12,4)  = 'dpc'   !23S_sky11
       end if
     end if
 
@@ -258,7 +260,6 @@ contains
     end if
 
     ! Declare adc_mode 
-    res%adc_mode = 'gauss'
     res%nbin_adc = 500
 
     ! Load the instrument file
@@ -276,9 +277,10 @@ contains
              ! Determine v_min and v_max for each diode
              call update_status(status, "ADC_start")
              do i = 1, res%ndet
-                
                 do j=1, res%ndiode ! init the adc correction structures
-                   res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+                   if (trim(res%adc_mode(i,j)) == 'commander') then
+                      res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+                   end if
                 end do
                 
                 do k = 1, res%nscan ! determine vmin and vmax for each diode
@@ -287,7 +289,9 @@ contains
                    allocate(flag(res%scans(k)%ntod))
                    call res%decompress_diodes(k, i, diode_data, flag=flag)
                    do j = 1, res%ndiode
-                      call res%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,res%flag0)
+                      if (trim(res%adc_mode(i,j)) == 'commander') then
+                         call res%adc_corrections(i,j)%p%find_horn_min_max(diode_data(:,j), flag,res%flag0)
+                      end if
                    end do
                    deallocate(diode_data, flag)
                    
@@ -295,11 +299,13 @@ contains
                 
                 do j = 1, res%ndiode ! allreduce vmin and vmax
                    if (res%apply_adc(i,j)) then
-                      ! All reduce min and max
-                      call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,res%comm,ierr)
-                      call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,res%comm,ierr)
-                      call res%adc_corrections(i,j)%p%construct_voltage_bins
-                    end if
+                      if (trim(res%adc_mode(i,j)) == 'commander') then
+                         ! All reduce min and max
+                         call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_min,1,MPI_REAL,MPI_MIN,res%comm,ierr)
+                         call mpi_allreduce(mpi_in_place,res%adc_corrections(i,j)%p%v_max,1,MPI_REAL,MPI_MAX,res%comm,ierr)
+                         call res%adc_corrections(i,j)%p%construct_voltage_bins
+                      end if
+                   end if
                 end do
              end do
              call update_status(status, "ADC_range")
@@ -313,7 +319,7 @@ contains
                    if (.not. res%scans(k)%d(i)%accept) cycle
                    call res%decompress_diodes(k, i, diode_data, flag)
                    do j = 1, res%ndiode
-                      if (res%apply_adc(i,j)) then
+                      if (res%apply_adc(i,j) .and.(trim(res%adc_mode(i,j)) == 'commander') ) then
                          call res%adc_corrections(i,j)%p%bin_scan_rms(diode_data(:,j), flag,res%flag0)
                       end if
                    end do
@@ -325,12 +331,12 @@ contains
              if (res%myid == 0) write(*,*) '    Generate ADC correction tables'
              do i = 1, res%ndet
                 do j = 1, res%ndiode
-                    if (res%apply_adc(i,j)) then
-                       ! Build the actual adc correction tables (adc_in, adc_out)
+                   if (res%apply_adc(i,j) .and.(trim(res%adc_mode(i,j)) == 'commander') ) then
+                      ! Build the actual adc correction tables (adc_in, adc_out)
                       name = trim(res%label(i))//'_'//trim(res%diode_names(i,j))
                       if (res%myid == 0) write(*,*) '    Building table for '// trim(name)
                       call res%adc_corrections(i,j)%p%build_table(handle, name)
-                    end if
+                   end if
                 end do
              end do
              call update_status(status, "ADC_table")
@@ -340,19 +346,19 @@ contains
           ! Bin corrected data
           !================================================================
           if (.false.) then
-             if (res%use_dpc_adc) then
-                do i = 1, res%ndet
-                   do j = 1, res%ndiode ! init the adc correction structures
-                      if (res%apply_adc(i,j)) then
-                         ! res%adc_corrections(i,j)%p => comm_adc(cpar,info,res%nbin_adc)
+             do i = 1, res%ndet
+                do j = 1, res%ndiode ! init the adc correction structures
+                   if (res%apply_adc(i,j)) then
+                      if (trim(res%adc_mode(i,j)) == 'dpc') then
                          res%adc_corrections(i,j)%p%myid = cpar%myid_chain
                          res%adc_corrections(i,j)%p%comm = cpar%comm_chain
                          res%adc_corrections(i,j)%p%outdir = cpar%outdir
                          call res%adc_corrections(i,j)%p%construct_voltage_bins
                       end if
-                   end do
+                   end if
                 end do
-             end if
+             end do
+             ! end if
              if (res%myid == 0) write(*,*) '        correct and bin'
              ! Correct the data given the tables and bin again
              do k = 1, res%nscan
@@ -563,6 +569,8 @@ contains
        res%scans(i)%d%baseline = 0.d0
     end do
 
+    call timer%stop(TOD_INIT, id_abs)
+
   end function constructor
 
   !**************************************************
@@ -631,6 +639,7 @@ contains
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band)
 
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
@@ -650,7 +659,7 @@ contains
     npix            = 12*nside**2
     self%output_n_maps = 3
     if (self%output_aux_maps > 0) then
-       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
 
     call int2string(chain, ctext)
@@ -673,6 +682,7 @@ contains
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
+       call timer%start(TOD_SL_PRE, self%band)
        if (self%myid == 0) write(*,*) '|  Precomputing sidelobe convolved sky'
        do i = 1, self%ndet
           !write map_in to file
@@ -684,6 +694,7 @@ contains
                & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
        end do
+       call timer%stop(TOD_SL_PRE, self%band)
     end if
 !    write(*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -695,6 +706,7 @@ contains
     !------------------------------------
     ! Perform main sampling steps
     !------------------------------------
+
 
     ! Draw polarization angle from Tau-A prior (https://www.aanda.org/articles/aa/full_html/2016/10/aa26998-15/F3.html)
     if (sample_polang) then
@@ -708,6 +720,7 @@ contains
        self%polang = 0.d0
     end if
 
+
     ! Pre-process L1 data into L2 data if requested, and set ndiode = 1 to skip directly to L2 later on
     if (.not. self%sample_L1_par .and. self%ndiode > 1) then
        call self%preprocess_L1_to_L2(map_sky, procmask)
@@ -718,9 +731,9 @@ contains
 
 
     ! Sample 1Hz spikes
-    if(trim(self%level) == 'L1') then
+!    if(trim(self%level) == 'L1') then
       call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
-    end if
+!    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
@@ -772,10 +785,12 @@ contains
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
+       call timer%start(TOD_CHISQ, self%band)
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
           call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
+       call timer%stop(TOD_CHISQ, self%band)
 
        ! Select data
        if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -790,16 +805,18 @@ contains
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
        if (self%output_4D_map > 0) then
           if (mod(iter-1,self%output_4D_map) == 0) then
+             call timer%start(TOD_4D, self%band)
              allocate(sigma0(sd%ndet))
              do j = 1, sd%ndet
                 sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
              end do
-!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
-!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-!!$                  & self%scans(i)%d(:)%accept)
+             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+                  & samptext, self%scanid(i), self%nside, self%npsi, &
+                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+                  & self%scans(i)%d(:)%accept)
              deallocate(sigma0)
+             call timer%stop(TOD_4D, self%band)
           end if
        end if
 
@@ -853,6 +870,7 @@ contains
     if (self%output_n_maps > 4) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+    if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
 
     ! Clean up
     call binmap%dealloc()
@@ -871,6 +889,7 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
+    call timer%stop(TOD_TOT, self%band)
 
   end subroutine process_lfi_tod
   
@@ -929,7 +948,7 @@ contains
       self%diode_weights(band,1) = weight
       self%diode_weights(band,2) = 1.d0 - weight
 
-      if (self%use_dpc_adc .and. .not. self%L2_exist) then
+      if (.not. self%L2_exist) then
         ! Read ADC corrections
         path = trim(adjustl(self%label(band)))//'/'//'adc91-'//id//'0'
         self%adc_corrections(band,1)%p => comm_adc(instfile, path, .true.) !first half, load
@@ -1070,8 +1089,11 @@ contains
 
         ! Apply ADC corrections
         do j=1, self%ndiode
-          call self%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
-          !corrected_data(:,j) = diode_data(:,j)
+           if (self%apply_adc(i,j)) then
+              call self%adc_corrections(i,j)%p%adc_correct(diode_data(:,j), corrected_data(:,j))
+           else   
+              corrected_data(:,j) = diode_data(:,j)
+           end if
           !do k = 1, 10
           !   write(*,*) diode_data(k,j), corrected_data(k,j)
           !end do
@@ -1535,7 +1557,7 @@ contains
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin
-    real(dp)     :: dt, t_tot, t, A, b, mval
+    real(dp)     :: dt, t_tot, t, A, b, mval, eta
     real(dp)     :: t1, t2
     character(len=6) :: scantext
     real(dp), allocatable, dimension(:)     :: nval
@@ -1563,6 +1585,7 @@ contains
        call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
+       call timer%start(TOD_1HZ, tod%band)
        allocate(res(tod%scans(i)%ntod))
        do j = 1, tod%ndet
           if (.not. tod%scans(i)%d(j)%accept) cycle
@@ -1617,10 +1640,12 @@ contains
 
        ! Clean up
         call sd%dealloc
-       deallocate(res)
+        deallocate(res)
+        call timer%stop(TOD_1HZ, tod%band)
     end do
 
     ! Compute smoothed templates
+    call timer%start(TOD_1HZ, tod%band)
     s_sum = 0.d0
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
@@ -1631,7 +1656,7 @@ contains
     call mpi_allreduce(mpi_in_place, s_sum,  size(s_sum),  &
          & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
 
-    ! Normalize to maximum of unity
+    ! Normalize to maximum of unity, and subtract mean
     do j = 1, tod%ndet
        !s_sum(:,j) = s_sum(:,j) - median(s_sum(:,j)) 
        mval = maxval(abs(s_sum(:,j))) 
@@ -1639,28 +1664,42 @@ contains
           s_sum(k,j) = s_sum(k,j) / mval
        end do
        tod%spike_templates(:,j) = s_sum(:,j) 
+
+       tod%spike_templates(:,j) = tod%spike_templates(:,j) - &
+            & sum(tod%spike_templates(:,j))/nbin
     end do
 
     ! Compute amplitudes per scan and detector
     tod%spike_amplitude = 0.
-    do i = 1, tod%nscan
-       do j = 1, tod%ndet
+    do j = 1, tod%ndet
+       A = 0.d0; b = 0.d0
+       do i = 1, tod%nscan
           if (.not. tod%scans(i)%d(j)%accept) cycle
-          b = sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
-          A = sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
-          if (A == 0.d0) then
-             tod%spike_amplitude(i,j) = 0.d0
-          else
-             tod%spike_amplitude(i,j) = b/A
-             if (trim(tod%operation) == 'sample') &
-                  & tod%spike_amplitude(i,j) = tod%spike_amplitude(i,j) + &
-                  &                            rand_gauss(handle) / sqrt(A)
-          end if
+          b = b + sum(s_sum(:,j)*s_bin(:,j,i)) / tod%scans(i)%d(j)%N_psd%sigma0**2
+          A = A + sum(s_sum(:,j)**2)           / tod%scans(i)%d(j)%N_psd%sigma0**2
        end do
+
+       if (tod%info%myid == 0) eta = rand_gauss(handle)
+       call mpi_bcast(eta, 1, MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
+       call mpi_allreduce(mpi_in_place, A, 1,  &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
+       call mpi_allreduce(mpi_in_place, b, 1,  &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, tod%info%comm, ierr)
+
+       if (A == 0.d0) then
+          tod%spike_amplitude(:,j) = 0.d0
+       else
+          tod%spike_amplitude(:,j) = b/A
+          if (trim(tod%operation) == 'sample') then
+             tod%spike_amplitude(:,j) = tod%spike_amplitude(:,j) + eta / sqrt(A)
+          end if
+       end if
+       !if (tod%info%myid == 0) write(*,*) 'Spike amplitude =', j, tod%spike_amplitude(1,j)
     end do
 
     ! Clean up
     deallocate(s_bin, s_sum, nval)
+    call timer%stop(TOD_1HZ, tod%band)
 
   end subroutine sample_1Hz_spikes
 
@@ -1690,9 +1729,6 @@ contains
 
     integer(i4b) :: i, j, k, nbin, b
     real(dp)     :: dt, t_tot, t
-
-    s = 0.
-    return
 
     dt    = 1.d0/self%samprate   ! Sample time
     t_tot = 1.d0                ! Time range in sec

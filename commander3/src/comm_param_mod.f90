@@ -106,6 +106,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_label
      character(len=512), allocatable, dimension(:)   :: ds_unit
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
+     integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
      character(len=512), allocatable, dimension(:)   :: ds_mapfile
      character(len=512), allocatable, dimension(:)   :: ds_noisefile
      character(len=512), allocatable, dimension(:)   :: ds_regnoise
@@ -234,7 +235,6 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
-     character(len=512), allocatable, dimension(:)     :: cs_samp_mono_from_prior 
   end type comm_params
 
 contains
@@ -508,7 +508,7 @@ contains
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
-    allocate(cpar%ds_regnoise(n))
+    allocate(cpar%ds_regnoise(n), cpar%ds_noise_lcut(n))
     allocate(cpar%ds_noise_rms_smooth(n,cpar%num_smooth_scales))
     allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
     allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
@@ -534,6 +534,9 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext, par_int=cpar%ds_lmax(i))
        call get_parameter_hashtable(htbl, 'BAND_UNIT'//itext, len_itext=len_itext, par_string=cpar%ds_unit(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISE_FORMAT'//itext, len_itext=len_itext, par_string=cpar%ds_noise_format(i))
+       if (trim(cpar%ds_noise_format(i)) == 'lcut') then
+          call get_parameter_hashtable(htbl, 'BAND_NOISE_LCUT'//itext, len_itext=len_itext, par_int=cpar%ds_noise_lcut(i))
+       end if
        call get_parameter_hashtable(htbl, 'BAND_MAPFILE'//itext, len_itext=len_itext, par_string=cpar%ds_mapfile(i))
        call get_parameter_hashtable(htbl, 'BAND_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_noisefile(i))
        call get_parameter_hashtable(htbl, 'BAND_REG_NOISEFILE'//itext, len_itext=len_itext, par_string=cpar%ds_regnoise(i))
@@ -671,7 +674,7 @@ contains
 
     n = cpar%cs_ncomp_tot
     allocate(cpar%cs_include(n), cpar%cs_label(n), cpar%cs_type(n), cpar%cs_class(n))
-    allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n),cpar%cs_samp_mono_from_prior(n))
+    allocate(cpar%cs_spec_lnLtype(3,MAXPAR,n))
     allocate(cpar%cs_pixreg_init_theta(MAXPAR,n))
     allocate(cpar%cs_almsamp_init(MAXPAR,n),cpar%cs_theta_prior(2,3,MAXPAR,n))
     allocate(cpar%cs_spec_pixreg(3,MAXPAR,n),cpar%cs_spec_mask(MAXPAR,n))
@@ -718,8 +721,6 @@ contains
                & par_lgt=cpar%cs_polarization(i))
           call get_parameter_hashtable(htbl, 'COMP_MD_DEFINITION_FILE'//itext, len_itext=len_itext, &
                & par_string=cpar%cs_SED_template(1,i))
-          call get_parameter_hashtable(htbl, 'COMP_MD_MONO_FROM_PRIOR'//itext, len_itext=len_itext, &
-               & par_string=cpar%cs_samp_mono_from_prior(i))
 
        else if (trim(cpar%cs_class(i)) == 'template') then
           call get_parameter_hashtable(htbl, 'COMP_TEMPLATE_DEFINITION_FILE'//itext, len_itext=len_itext, &
@@ -2002,6 +2003,61 @@ contains
     if(present(num)) num = n
   end subroutine get_tokens
 
+  subroutine get_detectors(filename, directory, detectors, num_dets)
+     !
+     ! Reads detector names from a text file and saves them in a character array.
+     !
+     ! Arguments:
+     ! ----------
+     ! filename:  character string
+     !            Filename of the file where detector names are stored.
+     ! directory: character string
+     !            Directory where file is stored.
+     ! num_dets:  integer (optional)
+     !            Number of detectors
+     !
+     ! Return:
+     ! -------
+     ! detectors: character array
+     !            Initially empty array is filled with detector names. 
+     ! 
+     implicit none
+     character(len=*), intent(in)           :: filename, directory
+     character(len=*), intent(inout)        :: detectors(:)
+     integer(i4b),     intent(in), optional :: num_dets
+
+     character(len=500)           :: detector_list_file
+     integer(i4b)                 :: unit,io_error,counter, ndet, i
+     character(len=8)             :: line
+
+     if (present(num_dets)) then
+          ndet = num_dets
+     else
+          ndet = size(detectors)
+     end if
+
+     unit = 20
+     detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
+
+     open(unit,file=trim(detector_list_file),status='old',action='read',iostat=io_error)
+     if (io_error == 0) then
+     ! Do nothing
+     else
+         write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+         stop
+     end if
+
+     do i=1, ndet
+         read(unit,'(a)') line
+         if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+            cycle
+         else
+            detectors(i) = line
+         end if
+     end do
+     close(unit)
+  end subroutine get_detectors
+
   function has_token(token, string, sep, group, allow_empty) result(res)
     implicit none
     character(len=*) :: token, string, sep
@@ -2033,6 +2089,58 @@ contains
        call tokenize(string, sep, ext, group, allow_empty)
     end do
   end function num_tokens
+
+  integer(i4b) function count_detectors(filename, directory)
+     ! 
+     ! Takes in the filename and directory of a detector list and returns the number of 
+     ! detectors in that list. Each detector has to be written on a separate line, as 
+     ! the function simply counts the lines of the file that don't start in '#'.
+     !
+     ! Arguments:
+     ! ----------
+     ! filename:    character string
+     !              Filename of the detector list             
+     ! directory:   character string
+     !              Directory where file is located
+     !
+     ! Returns:
+     ! --------
+     ! count_detectors: integer
+     !                  Number of lines in the file that are not commented out using '#'.
+     !
+     implicit none
+     character(len=*) :: filename, directory
+
+     character(len=500)           :: detector_list_file
+     integer(i4b)                 :: unit,io_error,counter
+     logical                      :: counting
+     character(len=8)             :: line
+
+     unit = 20
+     detector_list_file = trim(adjustl(directory))//'/'//trim(adjustl(filename))
+
+     open(unit,file=detector_list_file, status='old', action='read', iostat=io_error)
+     if (io_error == 0) then
+          ! Do nothing
+     else
+          write(*,*) 'Could not open file: ', trim(adjustl(detector_list_file))
+          stop
+     end if
+
+     counting = .true.
+     counter = 0
+     do while(counting)
+          read(unit,'(a)',end=1) line
+          if ((line(1:1) == '#') .or. (line(1:1) == '')) then
+          cycle
+          else
+          counter = counter + 1
+          end if
+     end do
+     1  close(unit)
+
+     count_detectors = counter
+  end function count_detectors
 
   subroutine tokenize(string, sep, ext, group, allow_empty)
     implicit none
@@ -2161,7 +2269,7 @@ contains
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') &
                & call validate_file(trim(datadir)//trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
           call validate_file(trim(datadir)//trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
-          call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
+          if (trim(cpar%ds_tod_bp_init(i)) /= 'none') call validate_file(trim(datadir)//trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
        end if
 
     end do

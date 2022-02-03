@@ -94,7 +94,7 @@ module comm_diffuse_comp_mod
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
-     character(len=512) :: mono_prior_type
+     character(len=512) :: mono_prior_type, mono_prior_band
      real(dp)           :: mono_prior_gaussian_mean, mono_prior_gaussian_rms, mono_prior_fwhm
      integer(i4b)       :: mono_prior_nside, mono_prior_Nthresh
      real(dp), allocatable, dimension(:) :: mono_prior_threshold

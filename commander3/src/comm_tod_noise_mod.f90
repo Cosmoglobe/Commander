@@ -24,6 +24,7 @@ module comm_tod_noise_mod
   use comm_fft_mod
   use InvSamp_mod
   use comm_tod_noise_psd_mod
+  use comm_status_mod
   implicit none
 
 
@@ -81,6 +82,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
+
+    call timer%start(TOD_NCORR, self%band)
 
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
@@ -210,6 +213,8 @@ contains
 
     call dfftw_destroy_plan(plan_fwd)                                           
     call dfftw_destroy_plan(plan_back)                                          
+
+    call timer%stop(TOD_NCORR, self%band)
   
   end subroutine sample_n_corr
 
@@ -238,6 +243,7 @@ contains
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
+
     converged = .false.
     nmask     = ntod - sum(mask)
     if (nmask == 0) then
@@ -430,6 +436,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+
+    call timer%start(TOD_XI_N, self%band)
     
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
@@ -466,17 +474,17 @@ contains
        currdet = i
 
        ! Commpute power spectrum
+       n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(1) * (n-1) / (samprate/2)), 2) ! Never include offset
+       n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(2) * (n-1) / (samprate/2)) 
+       dt     = n_corr(:,i)
+       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+       do l = n_low, n_high
+          ps(l) = abs(dv(l)) ** 2 / ntod          
+       end do
 
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 2, self%scans(scan)%d(i)%N_psd%npar
-             n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
-             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)) 
-             dt     = n_corr(:,i)
-             call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-             do l = n_low, n_high
-                ps(l) = abs(dv(l)) ** 2 / ntod          
-             end do
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 
@@ -497,6 +505,8 @@ contains
     deallocate(ps)
     
     call sfftw_destroy_plan(plan_fwd)
+
+    call timer%stop(TOD_XI_N, self%band)
     
   contains
 
@@ -628,13 +638,6 @@ contains
     real(dp),     optional,     dimension(:,:), intent(in)      :: filter
 
     integer(i4b) :: i, j
-    logical(lgt) :: do_filt
-
-    if(.not. present(filter)) then
-      do_filt = .false.
-    else
-      do_filt = .true.
-    end if
 
     do i=1, tod%nscan
         if(trim(tod%noise_psd_model) == 'oof') then
