@@ -683,6 +683,7 @@ contains
     type(planck_rng),                                   intent(inout) :: rng_handle
     
     integer(i4b) :: l, m, k, index
+    class(comm_comp), pointer :: c => null()
     real(dp), dimension(2, (self%lmax+1)**2) :: s_lm, f_lm
     real(dp), dimension(3, 0: self%lmax) :: c_l  
     real(dp), dimension(2, 2) :: common_matrix, S_mat, N, S_inv, N_inv, S_sqrt_inv, N_sqrt_inv
@@ -691,6 +692,30 @@ contains
     c_l = cur_sample%c_l
     s_lm = 0.d0
     f_lm = 0.d0
+
+!!$    ! Solve for mean-field map
+!!$    call sample_amps_by_CG(...., include_mean=.true., include_fluct=.false.)
+!!$    s_lm = c
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       select type (c)
+!!$       class is (comm_cmb_comp)
+!!$          s_lm = c%x%alm
+!!$       end select
+!!$       c => c%next()
+!!$    end do
+!!$
+!!$    ! Solve for fluctuation map
+!!$    call sample_amps_by_CG(...., include_mean=.false., include_fluct=.true.)
+!!$    s_lm = c
+!!$    c => compList
+!!$    do while (associated(c))
+!!$       select type (c)
+!!$       class is (comm_cmb_comp)
+!!$          f_lm = c%x%alm
+!!$       end select
+!!$       c => c%next()
+!!$    end do
     
     do l = self%lmin, self%lmax
        S_inv      = reshape((/ c_l(1, l), c_l(3, l), c_l(3, l), c_l(2, l) /), shape(S_mat))

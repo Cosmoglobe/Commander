@@ -287,10 +287,10 @@ program commander
 
         end do
         call timer%stop(TOT_AMPSAMP)
-
+ 
         ! Perform joint alm-Cl Metropolis move
         call timer%start(TOT_CLS)
-        do i = 1, 3
+        do i = 1, 1
            if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
         end do
         call timer%stop(TOT_CLS)
