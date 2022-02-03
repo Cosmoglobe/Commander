@@ -286,7 +286,7 @@ program commander
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
 
      ! Sample CAMB parameters
-     if (cpar%sample_camb) call sample_joint_Cl_theta_sampler(handle)
+     !if (cpar%sample_camb) call sample_joint_Cl_theta_sampler(handle)
 
      ! Output sample to disk
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)

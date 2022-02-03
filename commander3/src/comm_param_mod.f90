@@ -83,7 +83,7 @@ module comm_param_mod
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec
+     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec, sample_camb
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
