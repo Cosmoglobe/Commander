@@ -80,7 +80,7 @@ module comm_camb_mod
 
 contains
 
-  function constructor(lmin, lmax)
+  function constructor(cpar, lmin, lmax)
     ! 
     ! Constructor for CAMB object
     ! 
@@ -116,6 +116,8 @@ contains
     constructor%correct_cosmo_param = [0.02202d0, 0.1153d0, 68.2d0, 0.066d0, 3.035d0, 0.960d0] ! Cosmo Params used to simulate CMB power spectra
     constructor%sigma_cosmo_param   = [0.001d0,   0.005d0,  1.d0,   0.005d0, 0.005d0, 0.005d0] ! Hard coded uncertainty in cosmo param proposal
     constructor%spectra_list        = ['TT', 'EE', 'TE']
+
+
 
   end function constructor
 
@@ -154,9 +156,15 @@ contains
     allocate(constructor_camb_sample%f_lm(0:nalm,nmaps))
 
     if (present(s_init)) then
-       constructor_camb_sample%c_l  = s_init%c_l
-       constructor_camb_sample%s_lm = s_init%s_lm
-       constructor_camb_sample%f_lm = s_init%f_lm
+       constructor_camb_sample%c_l   = s_init%c_l
+       constructor_camb_sample%s_lm  = s_init%s_lm
+       constructor_camb_sample%f_lm  = s_init%f_lm
+       constructor_camb_sample%theta = cpar%cmb_theta
+    else
+       constructor_camb_sample%c_l   = 0d0
+       constructor_camb_sample%s_lm  = 0d0
+       constructor_camb_sample%f_lm  = 0d0
+       constructor_camb_sample%theta = [0.02202d0, 0.1153d0, 68.2d0, 0.066d0, 3.035d0, 0.960d0] 
     end if
 
   end function constructor_camb_sample
