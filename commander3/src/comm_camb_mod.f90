@@ -20,6 +20,9 @@
 !================================================================================
 module comm_camb_mod
   use comm_utils
+  use comm_comp_mod
+  use comm_param_mod
+  use comm_cmb_comp_mod
   use CAMB
   implicit none
 
@@ -52,8 +55,10 @@ module comm_camb_mod
      real(dp),         dimension(6)   :: sigma_cosmo_param   ! [Ombh2, omch2, H0, tau, ln(10^10As), n_s]
      real(dp),         dimension(6,6) :: L_mat               ! Cholesky factor
      character(len=2), dimension(3)   :: spectra_list
+     
    contains
-     procedure sample_camb_params
+     !procedure sample_camb_params
+     procedure sample_joint_Cl_theta_sampler
      procedure get_new_sample
      procedure init_covariance_matrix
      procedure get_c_l_from_a_lm
@@ -196,7 +201,115 @@ contains
   end subroutine camb_sample_set_equal
 
 
-  subroutine sample_camb_params(self, rng_handle)
+!  subroutine sample_camb_params(self, handle)
+!    ! 
+!    ! Routine for drawing new samples with Metropolis MCMC and a joint (C_l, s) accept-reject ratio;
+!    ! see Racine et al. (2016) for details.
+!    ! 
+!    ! Arguments
+!    ! ---------
+!    ! self:    derived type (comm_camb)
+!    !          CAMB object
+!    ! handle: derived type (planck_rng)
+!    !          Random number handle
+!    ! 
+!    implicit none
+!    class(comm_camb), intent(inout) :: self
+!    type(planck_rng), intent(inout) :: handle
+!
+!    real(dp), dimension(:, :),    allocatable :: list_of_cosmo_param
+!    real(dp), dimension(:, :, :), allocatable :: list_of_sigma_l
+!
+!   real(dp), dimension(:, :),    allocatable :: cur_sigma_l, hat_c_l, d_lm, correct_c_l
+!
+!    integer(i4b) :: sample_nr, i, j, accepted_samples
+!    logical(lgt) :: accept
+!    real(dp), dimension(6) :: average, var
+!    class(comm_camb_sample), pointer :: old_sample, new_sample, correct_sample
+!
+!    integer(i4b) :: nalm, nspec, nmaps, lmax
+!
+!    lmax  = self%lmax
+!    nmaps = self%nmaps
+!    nspec = nmaps*(nmaps+1)/2
+!    nalm  = (lmax+1)**2
+!    
+!    allocate(d_lm(nmaps, nalm))
+!    allocate(list_of_cosmo_param(6, self%nr_of_samples))
+!    allocate(list_of_sigma_l(nmaps, 0 : lmax, self%nr_of_samples))
+!    allocate(cur_sigma_l(nmaps, 0 : lmax))
+!    allocate(hat_c_l(nmaps, 0 : lmax))
+!    allocate(old_sample%c_l(nmaps, 0 : lmax))
+!    allocate(new_sample%c_l(nmaps, 0 : lmax))
+!    list_of_sigma_l = 0.d0
+!    cur_sigma_l = 0.d0
+!    hat_c_l = 0.d0
+!    accepted_samples = 0
+!
+!    ! Initialize
+!    correct_sample%theta = self%correct_cosmo_param
+!    call self%get_c_l_from_camb(correct_sample)
+!    call self%init_CMB_and_noise(correct_sample, handle, d_lm)
+!    call self%init_covariance_matrix(self%L_mat)
+!    
+!    ! First sample, initial guess are the correct cosmological parameters
+!    old_sample%theta = self%correct_cosmo_param
+!    call self%get_c_l_from_camb(old_sample)
+!    call self%get_s_lm_f_lm(d_lm, handle, old_sample)
+!    
+!    DO sample_nr = 1, self%nr_of_samples
+!       ! Get new theta, get c_l, s_lm and f_lm from new theta. Then rescale f_lm
+!       call self%get_new_sample(old_sample, d_lm, self%L_mat, handle, accept, new_sample)
+!       
+!       print *, 'Sample:', sample_nr, 'Out of', self%nr_of_samples
+!       print *, 'New Sample OmbH2', new_sample%theta(1)
+!       print *, 'Old Sample OmbH2', old_sample%theta(1)
+!       
+!       ! Save information about new sample that will be printed to dat files
+!       list_of_cosmo_param(:, sample_nr) = new_sample%theta
+!       call self%get_c_l_from_a_lm(new_sample%s_lm + new_sample%f_lm, cur_sigma_l)
+!       list_of_sigma_l(:, :, sample_nr) = cur_sigma_l
+!       
+!       if (accept) then
+!          ! Sample was accepted
+!          accepted_samples = accepted_samples + 1 
+!          call old_sample%equal(new_sample)
+!       end if
+!    END DO
+!
+!    ! Done sampling, save data
+!    print*, 'Accepted Samples: ', accepted_samples, 'Ratio:', real(accepted_samples)/real(self%nr_of_samples)
+!    average = sum(list_of_cosmo_param, dim = 2)/self%nr_of_samples
+!    print *, 'Average:', average
+!    var = 0.d0
+!    DO i = 1, self%nr_of_samples
+!       var = var + (list_of_cosmo_param(:, i) - average)**2
+!    END DO
+!    var = var / (self%nr_of_samples - 1)
+!    print *, 'Deviation Param:', sqrt(var)
+!    
+!    call get_c_l_from_a_lm(self, d_lm, hat_c_l)
+!
+!    DO i = 1, 3
+!       open(unit=1, file='sigma_'//self%spectra_list(i)//'_l_out.dat', status='replace', action='write')
+!       open(unit=2, file='hat_'//self%spectra_list(i)//'_c_l_out.dat', status='replace', action='write')
+!       DO j = 1, self%nr_of_samples  
+!          write(1, '( '//self%dat_length//'(2X, ES14.6) )') list_of_sigma_l(i, :, j)
+!       END DO
+!       write(2, '( '//self%dat_length//'(2X, ES14.6) )') hat_c_l(i, :)
+!       close(1)
+!       close(2)
+!    END DO
+!
+!    open(unit=1, file='cosmo_param_out.dat', status='replace', action='write')
+!    do i = 1, self%nr_of_samples
+!       write(1, '( 6(2X, ES14.6) )') list_of_cosmo_param(:, i)
+!    end do
+!    close(1)
+!
+!  end subroutine sample_camb_params
+
+  subroutine sample_joint_Cl_theta_sampler(self, cpar, samp_group, handle, handle_noise)
     ! 
     ! Routine for drawing new samples with Metropolis MCMC and a joint (C_l, s) accept-reject ratio;
     ! see Racine et al. (2016) for details.
@@ -205,109 +318,50 @@ contains
     ! ---------
     ! self:    derived type (comm_camb)
     !          CAMB object
-    ! rng_handle: derived type (planck_rng)
+    ! handle: derived type (planck_rng)
     !          Random number handle
     ! 
+
     implicit none
-    class(comm_camb), intent(inout) :: self
-    type(planck_rng), intent(inout) :: rng_handle
-
-    real(dp), dimension(:, :),    allocatable :: list_of_cosmo_param
-    real(dp), dimension(:, :, :), allocatable :: list_of_sigma_l
-
-    real(dp), dimension(:, :),    allocatable :: cur_sigma_l, hat_c_l, d_lm, correct_c_l
-
-    integer(i4b) :: sample_nr, i, j, accepted_samples
-    logical(lgt) :: accept
-    real(dp), dimension(6) :: average, var
-    class(comm_camb_sample), pointer :: old_sample, new_sample, correct_sample
+    class(comm_camb),   intent(inout)       :: self
+    type(comm_params)                       :: cpar
+    type(planck_rng)                        :: handle, handle_noise
+    integer(i4b)                            :: samp_group
+    class(comm_camb_sample), pointer        :: old_sample, new_sample, init_sample
+    real(dp), dimension(:, :), allocatable  :: cur_sigma_l, hat_c_l, d_lm, correct_c_l
 
     integer(i4b) :: nalm, nspec, nmaps, lmax
+    logical(lgt) :: accept
 
     lmax  = self%lmax
     nmaps = self%nmaps
     nspec = nmaps*(nmaps+1)/2
     nalm  = (lmax+1)**2
-    
+
     allocate(d_lm(nmaps, nalm))
-    allocate(list_of_cosmo_param(6, self%nr_of_samples))
-    allocate(list_of_sigma_l(nmaps, 0 : lmax, self%nr_of_samples))
     allocate(cur_sigma_l(nmaps, 0 : lmax))
     allocate(hat_c_l(nmaps, 0 : lmax))
     allocate(old_sample%c_l(nmaps, 0 : lmax))
     allocate(new_sample%c_l(nmaps, 0 : lmax))
-    list_of_sigma_l = 0.d0
-    cur_sigma_l = 0.d0
-    hat_c_l = 0.d0
-    accepted_samples = 0
 
     ! Initialize
-    correct_sample%theta = self%correct_cosmo_param
-    call self%get_c_l_from_camb(correct_sample)
-    call self%init_CMB_and_noise(correct_sample, rng_handle, d_lm)
+    init_sample%theta = self%correct_cosmo_param
+    call self%get_c_l_from_camb(init_sample)
     call self%init_covariance_matrix(self%L_mat)
-    
+
     ! First sample, initial guess are the correct cosmological parameters
     old_sample%theta = self%correct_cosmo_param
     call self%get_c_l_from_camb(old_sample)
-    call self%get_s_lm_f_lm(d_lm, rng_handle, old_sample)
-    
-    DO sample_nr = 1, self%nr_of_samples
-       ! Get new theta, get c_l, s_lm and f_lm from new theta. Then rescale f_lm
-       call self%get_new_sample(old_sample, d_lm, self%L_mat, rng_handle, accept, new_sample)
-       
-       print *, 'Sample:', sample_nr, 'Out of', self%nr_of_samples
-       print *, 'New Sample OmbH2', new_sample%theta(1)
-       print *, 'Old Sample OmbH2', old_sample%theta(1)
-       
-       ! Save information about new sample that will be printed to dat files
-       list_of_cosmo_param(:, sample_nr) = new_sample%theta
-       call self%get_c_l_from_a_lm(new_sample%s_lm + new_sample%f_lm, cur_sigma_l)
-       list_of_sigma_l(:, :, sample_nr) = cur_sigma_l
-       
-       if (accept) then
-          ! Sample was accepted
-          accepted_samples = accepted_samples + 1 
-          call old_sample%equal(new_sample)
-       end if
-    END DO
+    call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, d_lm, new_sample)
 
-    ! Done sampling, save data
-    print*, 'Accepted Samples: ', accepted_samples, 'Ratio:', real(accepted_samples)/real(self%nr_of_samples)
-    average = sum(list_of_cosmo_param, dim = 2)/self%nr_of_samples
-    print *, 'Average:', average
-    var = 0.d0
-    DO i = 1, self%nr_of_samples
-       var = var + (list_of_cosmo_param(:, i) - average)**2
-    END DO
-    var = var / (self%nr_of_samples - 1)
-    print *, 'Deviation Param:', sqrt(var)
-    
-    call get_c_l_from_a_lm(self, d_lm, hat_c_l)
+    call self%get_new_sample(cpar, samp_group, handle, handle_noise, old_sample, d_lm, self%L_mat, accept, new_sample)
 
-    DO i = 1, 3
-       open(unit=1, file='sigma_'//self%spectra_list(i)//'_l_out.dat', status='replace', action='write')
-       open(unit=2, file='hat_'//self%spectra_list(i)//'_c_l_out.dat', status='replace', action='write')
-       DO j = 1, self%nr_of_samples  
-          write(1, '( '//self%dat_length//'(2X, ES14.6) )') list_of_sigma_l(i, :, j)
-       END DO
-       write(2, '( '//self%dat_length//'(2X, ES14.6) )') hat_c_l(i, :)
-       close(1)
-       close(2)
-    END DO
-
-    open(unit=1, file='cosmo_param_out.dat', status='replace', action='write')
-    do i = 1, self%nr_of_samples
-       write(1, '( 6(2X, ES14.6) )') list_of_cosmo_param(:, i)
-    end do
-    close(1)
-
-  end subroutine sample_camb_params
+  end subroutine sample_joint_Cl_theta_sampler
 
 
-  subroutine get_new_sample(self, old_sample, d_lm, L_mat, rng_handle, accept, new_sample)
-    ! 
-    ! Gets new cosmological parameter theta sample. Finds c_l from theta, and then s_lm
+   subroutine get_new_sample(self, cpar, samp_group, handle, handle_noise, old_sample, d_lm, L_mat, accept, new_sample)
+   ! 
+   ! Gets new cosmological parameter theta sample. Finds c_l from theta, and then s_lm
     ! and scaled f_lm
     ! 
     ! Arguments
@@ -322,7 +376,7 @@ contains
     ! L_mat: array
     !    Matrix Cholesky decomposition of covariance matrix used for to propose
     !    new cosmological parameters
-    ! rng_handle: derived type (planck_rng)
+    ! handle: derived type (planck_rng)
     !    Random number handle
     !
     ! Returns:
@@ -340,15 +394,17 @@ contains
     type(comm_camb_sample),                           intent(in)    :: old_sample
     real(dp),         dimension(2, (self%lmax+1)**2), intent(in)    :: d_lm
     real(dp),         dimension(6, 6),                intent(in)    :: L_mat
-    type(planck_rng),                                 intent(inout) :: rng_handle
+    type(comm_params)   :: cpar
+    type(planck_rng)    :: handle, handle_noise
+    integer(i4b)        :: samp_group
      
     real(dp), dimension(2, (self%lmax+1)**2) :: scaled_f_lm
     
-    call self%cosmo_param_proposal(old_sample, L_mat, rng_handle, new_sample)
+    call self%cosmo_param_proposal(old_sample, L_mat, handle, new_sample)
     call self%get_c_l_from_camb(new_sample)
-    call self%get_s_lm_f_lm(d_lm, rng_handle, new_sample)
+    call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, d_lm, new_sample)
     call self%get_scaled_f_lm(new_sample, old_sample, scaled_f_lm) 
-    accept = acceptance(self, scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
+    accept = acceptance(self, scaled_f_lm, new_sample, old_sample, d_lm, handle)
   end subroutine get_new_sample
 
   subroutine init_covariance_matrix(self, L)
@@ -489,7 +545,7 @@ contains
   end subroutine get_c_l_from_a_lm
 
 
-  subroutine cosmo_param_proposal(self, old_sample, L, rng_handle, new_sample)
+  subroutine cosmo_param_proposal(self, old_sample, L, handle, new_sample)
     ! 
     ! Proposal function w. Finds new sample based on covariance
     ! matrix L*L^T. Proposal_multiplier = 0.3 to make sure the proposal theta
@@ -503,7 +559,7 @@ contains
     ! L: array
     !    Matrix Cholesky decomposition of covariance matrix used for to propose
     !    new cosmological parameters
-    ! rng_handle: derived type (planck_rng)
+    ! handle: derived type (planck_rng)
     !    Random number handle
     !
     ! Returns:
@@ -515,21 +571,21 @@ contains
     class(comm_camb),                        intent(inout) :: self
     type(comm_camb_sample),                  intent(in)    :: old_sample
     real(dp),               dimension(6, 6), intent(in)    :: L
-    type(planck_rng),                        intent(inout) :: rng_handle
+    type(planck_rng),                        intent(inout) :: handle
     type(comm_camb_sample),                  intent(out)   :: new_sample
     
     real(dp), dimension(6) :: z
     integer(i4b) :: i
     
     do i = 1, 6
-       z(i) = self%proposal_multiplier * rand_gauss(rng_handle)
+       z(i) = self%proposal_multiplier * rand_gauss(handle)
     end do
     new_sample%theta = old_sample%theta + matmul(L, z)
     
   end subroutine cosmo_param_proposal
 
 
-  function acceptance(self, scaled_f_lm, new_sample, old_sample, d_lm, rng_handle)
+  function acceptance(self, scaled_f_lm, new_sample, old_sample, d_lm, handle)
     ! 
     ! This function determines if the new sample should be accepted or not.
     ! Assumes no priors and that the proposal is symmetric. Hence 
@@ -547,7 +603,7 @@ contains
     !    Previous sample with cosmological parameters, CAMB power spectras, s_lm and f_lm
     ! d_lm: array
     !    Observed alms
-    ! rng_handle: derived type (planck_rng)
+    ! handle: derived type (planck_rng)
     !    Random number handle
     !
     ! Returns
@@ -559,7 +615,7 @@ contains
     class(comm_camb),                                   intent(inout) :: self
     real(dp),               dimension(2, (self%lmax+1)**2),  intent(in)    :: scaled_f_lm, d_lm
     type(comm_camb_sample),                             intent(in)    :: old_sample, new_sample
-    type(planck_rng),                                   intent(inout) :: rng_handle
+    type(planck_rng),                                   intent(inout) :: handle
 
     real(dp), dimension(2, (self%lmax+1)**2) :: old_s_lm, old_f_lm, new_s_lm
     real(dp), dimension(3, 0: self%lmax) :: old_c_l, new_c_l
@@ -600,7 +656,7 @@ contains
     probability = exp(-(ln_pi_ip1 - ln_pi_i) / 2.0d0)
     print *, 'prob:', probability
   
-    uni = rand_uni(rng_handle) 
+    uni = rand_uni(handle) 
     if (uni < probability) then
        acceptance = .true.
        print *, '---------- ACCEPTED -----------'
@@ -610,7 +666,7 @@ contains
     end if
   end function acceptance
 
-  subroutine init_CMB_and_noise(self, cur_sample, rng_handle, d_lm)
+  subroutine init_CMB_and_noise(self, cur_sample, handle, d_lm)
     ! 
     ! Initializes simulated d_lm which is a_lm from CMB plus noise.
     !
@@ -620,7 +676,7 @@ contains
     !    CAMB object
     ! cur_sample: derived type (comm_camb_sample)
     !    Sample from which the power spectras are used to simulate d_lm
-    ! rng_handle: derived type (planck_rng)
+    ! handle: derived type (planck_rng)
     !    Random number handle
     !
     ! Returns
@@ -632,7 +688,7 @@ contains
     class(comm_camb),                           intent(inout) :: self
     real(dp),               dimension(2, (self%lmax+1)**2), intent(out)   :: d_lm
     type(comm_camb_sample),                             intent(in)    :: cur_sample
-    type(planck_rng),                                   intent(inout) :: rng_handle  
+    type(planck_rng),                                   intent(inout) :: handle  
     
     integer(i4b) :: index, i, l, m, k
     real(dp), dimension(4) :: z
@@ -644,7 +700,7 @@ contains
     do l = self%lmin, self%lmax
        do m = 0, l
           index = l**2 + l + m + 1
-          z = (/ rand_gauss(rng_handle), rand_gauss(rng_handle), rand_gauss(rng_handle), rand_gauss(rng_handle) /)  
+          z = (/ rand_gauss(handle), rand_gauss(handle), rand_gauss(handle), rand_gauss(handle) /)  
           
           d_lm(1, index) = sqrt(c_l(1, l)) * z(1) + sqrt(self%noise_l(1)) * z(2)
           d_lm(2, index) = c_l(3, l) / sqrt(c_l(1, l)) * z(1) + sqrt(c_l(2, l) - c_l(3, l)**2 / c_l(1, l)) * z(3) + sqrt(self%noise_l(2)) * z(4)
@@ -658,7 +714,7 @@ contains
 
   end subroutine init_CMB_and_noise
 
-  subroutine get_s_lm_f_lm(self, d_lm, rng_handle, cur_sample)
+  subroutine get_s_lm_f_lm(self, cpar, samp_group, handle, handle_noise, d_lm, cur_sample)
     ! 
     ! Calculates mean field s_lm and fluctuation f_lm from c_l from cur_sample
     !
@@ -668,7 +724,7 @@ contains
     !    CAMB object
     ! d_lm: Array
     !    The observed power spectra
-    ! rng_handle: derived type (planck_rng)
+    ! handle: derived type (planck_rng)
     !    Random number handle
     ! 
     ! Returns
@@ -678,11 +734,14 @@ contains
     !
     implicit none
     class(comm_camb),                           intent(inout) :: self
-    type(comm_camb_sample),                             intent(inout) :: cur_sample
-    real(dp),               dimension(2, (self%lmax+1)**2), intent(in)    :: d_lm
-    type(planck_rng),                                   intent(inout) :: rng_handle
+    type(comm_camb_sample),                     intent(inout) :: cur_sample
+    real(dp),  dimension(2, (self%lmax+1)**2),  intent(in)    :: d_lm
     
-    integer(i4b) :: l, m, k, index
+    type(comm_params)   :: cpar
+    type(planck_rng)    :: handle, handle_noise
+    integer(i4b)        :: samp_group
+    logical(lgt)        ::  include_mean, include_fluct
+    integer(i4b)        :: l, m, k, index
     class(comm_comp), pointer :: c => null()
     real(dp), dimension(2, (self%lmax+1)**2) :: s_lm, f_lm
     real(dp), dimension(3, 0: self%lmax) :: c_l  
@@ -693,29 +752,33 @@ contains
     s_lm = 0.d0
     f_lm = 0.d0
 
-!!$    ! Solve for mean-field map
-!!$    call sample_amps_by_CG(...., include_mean=.true., include_fluct=.false.)
-!!$    s_lm = c
-!!$    c => compList
-!!$    do while (associated(c))
-!!$       select type (c)
-!!$       class is (comm_cmb_comp)
-!!$          s_lm = c%x%alm
-!!$       end select
-!!$       c => c%next()
-!!$    end do
-!!$
-!!$    ! Solve for fluctuation map
-!!$    call sample_amps_by_CG(...., include_mean=.false., include_fluct=.true.)
-!!$    s_lm = c
-!!$    c => compList
-!!$    do while (associated(c))
-!!$       select type (c)
-!!$       class is (comm_cmb_comp)
-!!$          f_lm = c%x%alm
-!!$       end select
-!!$       c => c%next()
-!!$    end do
+    ! Solve for mean-field map
+    include_mean = .true.
+    include_fluct = .false.
+    call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
+    !s_lm = c
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+          s_lm = c%x%alm
+      end select
+      c => c%next()
+    end do
+
+    ! Solve for fluctuation map
+    include_mean = .false.
+    include_fluct = .true.
+    call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
+    !s_lm = c
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+          f_lm = c%x%alm
+      end select
+      c => c%next()
+    end do
     
     do l = self%lmin, self%lmax
        S_inv      = reshape((/ c_l(1, l), c_l(3, l), c_l(3, l), c_l(2, l) /), shape(S_mat))
@@ -731,8 +794,8 @@ contains
        do m = 0, l
           index          = l**2 + l + m + 1
           d_vector       = [d_lm(1, index), d_lm(2, index)]
-          omega_1        = [rand_gauss(rng_handle), rand_gauss(rng_handle)]
-          omega_2        = [rand_gauss(rng_handle), rand_gauss(rng_handle)]
+          omega_1        = [rand_gauss(handle), rand_gauss(handle)]
+          omega_2        = [rand_gauss(handle), rand_gauss(handle)]
           s_lm(:, index) = matmul(common_matrix, matmul(N_inv, d_vector))
           f_lm(:, index) = matmul(common_matrix, matmul(S_sqrt_inv, omega_1)) + matmul(common_matrix, matmul(N_sqrt_inv, omega_2))
        end do

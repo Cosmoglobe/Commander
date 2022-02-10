@@ -291,11 +291,15 @@ program commander
         ! Perform joint alm-Cl Metropolis move
         call timer%start(TOT_CLS)
         do i = 1, 1
-           if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
+          ! comm_signal_mod
+          !if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
+
+          ! comm_camb_mod
+          if (cpar%sample_camb) call sample_joint_Cl_theta_sampler(cpar, samp_group, handle, handle_noise)
+           
         end do
         call timer%stop(TOT_CLS)
      end if
-
      ! Sample power spectra
      call timer%start(TOT_CLS)
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
