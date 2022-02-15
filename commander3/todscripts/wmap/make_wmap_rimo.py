@@ -31,6 +31,8 @@ beam and sl are both alm representations of the beam and sidelobes.
 mbeam_eff is main beam efficiency, assume it is one.
 '''
 
+ola = '/mn/stornext/d16/cmbco/ola/wmap/ancillary_data'
+
 from scipy import interpolate
 from tqdm import tqdm
 
@@ -257,8 +259,9 @@ def create_rimo(fname, rot=0):
       radii =  np.pi/180*np.array([2.8, 2.5, 2.2, 2.2, 1.8, 1.8, 1.5, 1.5, 1.5, 1.5])
       fnames = glob('data/wmap_sidelobe*.fits')
       # Need to do the year 1 processing to compare with Barnes et al.
-      fnames = glob('/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/far_sidelobe_maps/map*.fits')
+      fnames = glob(f'{ola}/far_sidelobe_maps/*3yr_v2*.fits')
       fnames.sort()
+      print(fnames)
       for i in range(len(labels)):
         lab = labels[i]
         for fname in fnames:
@@ -273,14 +276,10 @@ def create_rimo(fname, rot=0):
         # Not sure if this factor is needed...
         beamtot = hp.reorder(data, n2r=True)
         
-        #beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
-        beam_A = np.copy(data)/(4*np.pi)
-        beam_A[hp.query_disc(128, dir_A_los[i], radii[i]*np.pi/180)] = 0
+        beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
         #beam_A = hp.reorder(data, n2r=True)
         beam_A[beam_A < 0] = 0
-        #beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
-        beam_B = np.copy(data)/(4*np.pi)
-        beam_B[hp.query_disc(128, dir_B_los[i], radii[i]*np.pi/180)] = 0
+        beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
         #beam_B = hp.reorder(data, n2r=True)
         beam_B[beam_B > 0] = 0
         beam_B = -beam_B
@@ -353,6 +352,7 @@ def create_rimo(fname, rot=0):
   
   
       fnames = glob('data/wmap_hybrid_beam_maps_*_9yr_v5.fits')
+      fnames = glob(f'{ola}/beam_maps/wmap_*_hybrid_beam_maps_3yr_v2.fits')
       fnames.sort()
       
       
@@ -485,8 +485,10 @@ def create_rimo(fname, rot=0):
           b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
           b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
           DA = fname.split('_')[4]
+          DA = fname.split('_')[3].upper().replace('KA', 'Ka')
            
           with h5py.File(fname_out, 'a') as f:
+              print(fname, DA)
               f.create_dataset(DA + '13/beam/T', data=b_lm_A)
               f.create_dataset(DA + '14/beam/T', data=b_lm_A)
               f.create_dataset(DA + '23/beam/T', data=b_lm_B)

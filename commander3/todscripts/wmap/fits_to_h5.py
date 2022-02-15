@@ -1065,7 +1065,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     if par:
         nprocs = 128
         nprocs = 72
-        nprocs = 24
+        nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
 
@@ -1085,5 +1085,5 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 if __name__ == '__main__':
-    main(version=47, precal=True, compress=True)
+    main(version=47, precal=False, compress=True)
     #test_flags()
