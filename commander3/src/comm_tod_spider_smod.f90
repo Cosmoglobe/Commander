@@ -60,6 +60,7 @@ contains
      integer(i4b)         :: det_index(1)
 
 
+     call timer%start(TOD_INIT, id_abs)
 
  
      ! Allocate object
@@ -199,6 +200,9 @@ contains
      do i = 1, constructor%nscan
         constructor%scans(i)%d%baseline = 0.d0
      end do
+
+     call timer%stop(TOD_INIT, id_abs)
+
  
    end function constructor
  
@@ -284,6 +288,8 @@ contains
      call int2string(iter, ctext)
      call int2string(iter, it_label)
      call update_status(status, "tod_start"//ctext)
+     call timer%start(TOD_TOT, self%band)
+
 
      ! Toggle optional operations
      sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -320,6 +326,8 @@ contains
 
      ! Precompute far sidelobe Conviqt structures
      if (self%correct_sl) then
+        call timer%start(TOD_SL_PRE, self%band)
+
         if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
         do i = 1, self%ndet
            !TODO: figure out why this is rotated
@@ -328,6 +336,7 @@ contains
                 & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                 & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
         end do
+        call timer%stop(TOD_SL_PRE, self%band)
      end if
  !    write(*,*) 'qqq', self%myid
  !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -589,11 +598,14 @@ contains
 
 
         ! Compute chisquare
+        call timer%start(TOD_CHISQ, self%band)
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
          !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
            call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
         end do
+        call timer%stop(TOD_CHISQ, self%band)
+
 
 
         ! Select data
@@ -613,6 +625,7 @@ contains
         ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
         if (self%output_4D_map > 0) then
            if (mod(iter-1,self%output_4D_map) == 0) then
+              call timer%start(TOD_4D, self%band)
               allocate(sigma0(sd%ndet))
               do j = 1, sd%ndet
                  sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
@@ -623,6 +636,7 @@ contains
                    & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
                    & self%scans(i)%d(:)%accept)
               deallocate(sigma0)
+              call timer%stop(TOD_4D, self%band)
            end if
         end if
 
@@ -700,6 +714,7 @@ contains
      self%first_call = .false.
  
      call update_status(status, "tod_end"//ctext)
+     call timer%stop(TOD_TOT, self%band)
  
    end subroutine process_SPIDER_tod
  
