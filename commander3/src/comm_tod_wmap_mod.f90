@@ -158,24 +158,24 @@ contains
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]
+         constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]
+         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000] 
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000] 
+         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.05]    ! fknee
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]  
+         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
@@ -201,6 +201,7 @@ contains
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
       constructor%x_im            = 0d0
+
 
       ! Iniitialize TOD labels
       allocate (constructor%labels(7))
@@ -322,8 +323,8 @@ contains
       real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
-      real(dp), allocatable, dimension(:, :)          :: M_diag
-      real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono
+      real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
+      real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
@@ -340,9 +341,9 @@ contains
 
       ! biconjugate gradient-stab parameters
       integer(i4b) :: num_cg_iters
-      real(dp) ::  epsil(7)
+      real(dp) ::  epsil
       real(dp) ::  nullval
-      real(dp), allocatable, dimension(:, :, :) :: bicg_sol
+      real(dp), allocatable, dimension(:, :)    :: bicg_sol
       real(dp), allocatable, dimension(:)       :: map_full
       class(comm_map), pointer :: wmap_guess
 
@@ -380,7 +381,6 @@ contains
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 6
          !if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
-      self%output_n_maps = 6
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -434,18 +434,16 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      ! Thinking about a test where I don't sample the parameters and just do
-      ! the mapmaking for several iterations, maybe looping over the
-      ! polarization angles in the sidelobe corrections.
-      !call sample_baseline(self, handle, map_sky, procmask, procmask2, polang)
-
-      ! Testing without any sampling
-      !if (trim(self%level) == 'L1') then
-      !    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
-      !    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-      !    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
-      !end if
+      if (trim(self%level) == 'L1') then
+          call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+          call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+          call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      end if
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+      !self%x_im(1) = 1d-2
+      !self%x_im(2) = 1d-2
+      if (self%myid == 0) write(*,*) '| x_im = ', self%x_im
+
 
 
 
@@ -474,8 +472,6 @@ contains
       if (self%myid == 0) write(*,*) '|    --> Sampling ncorr, xi_n, maps'
       do i = 1, self%nscan
          
-
-
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
@@ -495,8 +491,8 @@ contains
 
          ! Sample correlated noise
          call timer%start(TOD_NCORR, self%band)
-         call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
-           & sd%pix(:,1,:), dospike=.false.)
+         !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
+         !  & sd%pix(:,1,:), dospike=.false.)
          call timer%stop(TOD_NCORR, self%band)
 
          ! Explicitly set baseline to mean of correlated noise
@@ -507,7 +503,6 @@ contains
 
          ! Compute noise spectrum parameters
          call timer%start(TOD_XI_N, self%band)
-         !TODO uncomment this
          !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
          call timer%stop(TOD_XI_N, self%band)
 
@@ -527,7 +522,9 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
-         if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
+
+         !if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
+         if ((mod(iter,10) == 0)) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0) write(*,*) '| Writing tod to txt'
             do k = 1, self%ndet
@@ -576,13 +573,15 @@ contains
       if (output_scanlist) call self%output_scan_list(slist)
 
 
-      call timer%start(TOD_MAPSOLVE, self%band)
       call update_status(status, "Running allreduce on M_diag")
       call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-      call update_status(status, "Running allreduce on b")
+      call update_status(status, "Ran allreduce on M_diag")
+
+      call update_status(status, "Running allreduce on b_map")
       call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
            & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+      call update_status(status, "Ran allreduce on b_map")
 
 
       where (M_diag == 0d0)
@@ -593,77 +592,64 @@ contains
          M_diag(:,4) = 0d0
       end if
 
-      ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
-      call update_status(status, "Allocating cg arrays")
-      if (comp_S) then
-        allocate (bicg_sol(0:npix-1, nmaps+1, self%output_n_maps))
-      else
-        allocate (bicg_sol(0:npix-1, nmaps,   self%output_n_maps))
-      end if
-      bicg_sol = 0.0d0
-      if (iter == 1) then
-          if (self%myid == 0) write(*,*) 'Initializing on WMAP solution'
+      call timer%start(TOD_MAPSOLVE, self%band)
 
-          allocate (m_buf(0:npix-1,nmaps))
-          m_buf = 0
-          call input_map('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP9_Q1_pol_n512_mK_dipole.fits', m_buf, npix, nmaps)
-
-          bicg_sol(0:npix-1,1:nmaps,1) = m_buf(0:npix-1, 1:nmaps)
-          deallocate(m_buf)
-      else if (iter == 2) then
-          if (self%myid == 0) write(*,*) 'Initializing on Commander solution'
-          allocate (m_buf(0:npix-1,nmaps))
-          call map_in(1,1)%p%bcast_fullsky_map(m_buf)
-          bicg_sol(:,1:nmaps,1) = m_buf
-          deallocate(m_buf)
-      else if (iter == 3) then 
-        if (self%myid == 0) write(*,*) 'Initializing on 100 mK'
-        bicg_sol(:,1:nmaps,1) = 100.
-      else
-        if (self%myid == 0) write(*,*) 'Initializing on 0'
-      end if
-       
-
-      !epsil = 1d-6
-      !epsil(1)   = 1d-10
-      epsil = 1d-15
-      num_cg_iters = 0
-
-      ! Doing this now because it's still burning in...
-      !if (mod(iter,self%output_aux_maps) == 0) then
-        ! Solve for maps
-        if (self%myid == 0) then 
-           if (self%verbosity > 0) write(*,*) '|    Running BiCG'
-        end if
-        call update_status(status, "Starting bicg-stab")
-        do l=1, self%output_n_maps
-           if (self%verbosity > 0 .and. self%myid == 0) then
-             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
-           end if
-           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                          & epsil(l), procmask, map_full, M_diag, b_map, l, &
-                          & prefix, postfix, comp_S)
-        end do
-        if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '|  Finished BiCG'
-      !end if
-
-      call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-      call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
       allocate(outmaps(self%output_n_maps))
       do i = 1, self%output_n_maps
-         outmaps(i)%p => comm_map(self%info)
+       outmaps(i)%p => comm_map(self%info)
       end do
+
       if (comp_S) then
-         do l=1, self%output_n_maps
-            outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1, l)
-            map_out%map = outmaps(1)%p%map
-            call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
-         end do
+        allocate (bicg_sol(0:npix-1, nmaps+1))
+      else
+        allocate (bicg_sol(0:npix-1, nmaps  ))
       end if
-      do k = 1, self%output_n_maps
-         do j = 1, nmaps
-            outmaps(k)%p%map(:, j) = bicg_sol(self%info%pix, j, k)
-         end do
+
+
+      ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
+      do l = 1, self%output_n_maps
+        if (l .ne. 6) b_map(:,:,l) = 0d0
+        bicg_sol = 0.0d0
+
+        if (l == 1) then
+          allocate (m_buf(0:npix-1,nmaps))
+          call map_in(1,1)%p%bcast_fullsky_map(m_buf)
+          bicg_sol(:,1:nmaps) = m_buf
+          deallocate(m_buf)
+        end if
+
+        if (l == 1) then
+          epsil = 1d-10
+        else if (l == 3) then
+          epsil = 1d-3
+        else
+          epsil = 1d-6
+        end if
+        !epsil(3)   = 1d-3   ! Correlated noise takes a MUCH longer to converge
+        epsil = 1d-15
+        num_cg_iters = 0
+
+        ! Doing this now because it's still burning in...
+        if (mod(iter,self%output_aux_maps) == 0) then
+          ! Solve for maps
+          if (self%verbosity > 0 .and. self%myid == 0) then
+            write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
+          end if
+          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                         & epsil, procmask, map_full, M_diag, b_map, l, &
+                         & prefix, postfix, comp_S)
+        end if
+
+        call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+        call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+        if (comp_S) then
+           outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+           map_out%map = outmaps(1)%p%map
+           call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
+        end if
+        do j = 1, nmaps
+           outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
+        end do
       end do
 
 

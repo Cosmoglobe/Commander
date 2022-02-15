@@ -712,7 +712,7 @@ end subroutine bin_differential_TOD
      implicit none
      class(comm_tod),                         intent(in) :: tod
      type(planck_rng),                     intent(inout) :: handle
-     real(dp),         dimension(:, :, :), intent(inout) :: bicg_sol
+     real(dp),         dimension(:, :),    intent(inout) :: bicg_sol
      integer(i4b),                            intent(in) :: npix, nmaps
      integer(i4b),                         intent(inout) :: num_cg_iters
      real(dp),                                intent(in) :: epsil
@@ -743,7 +743,7 @@ end subroutine bin_differential_TOD
      character(len=512)                         :: i_str, l_str
 
      write_cg = .false.
-     write_cg = .true.
+     !write_cg = .true.
      !write_cg = tod%first_call
 
      if (tod%myid==0) then
@@ -775,8 +775,9 @@ end subroutine bin_differential_TOD
         i_max = 500
         i_min = 0
 
+
         if (l == 1) then
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol(:,:,1), v)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, v)
            r = b_map(:, :, l) - v 
         else
            r = b_map(:, :, l)
@@ -810,7 +811,7 @@ end subroutine bin_differential_TOD
           write(i_str, '(I0.3)') 0
           write(l_str, '(I1)') l
           call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                       & bicg_sol(:,1:3,l))
+                       & bicg_sol(:,1:3))
           call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
                        & r(:, 1:3))
         end if
@@ -860,16 +861,16 @@ end subroutine bin_differential_TOD
 
            if (tod%verbosity > 1) then 
               write(*,101) 2*i-1, delta_s/delta_0
-101           format (' |', 6X, I4, ':   delta_s/delta_0:',  2X, ES9.2)
+101           format (' |', 6X, I4, ':   delta_s/delta_0:',  2X, ES11.4)
            end if
 
-           bicg_sol(:,:,l) = bicg_sol(:,:,l) + alpha*phat
+           bicg_sol = bicg_sol + alpha*phat
 
            if (write_cg) then
              write(i_str, '(I0.3)') 2*i-1
              write(l_str, '(I1)') l
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & bicg_sol(:,1:3,l))
+                          & bicg_sol(:,1:3))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
                           & s(:, 1:3))
            end if
@@ -886,7 +887,7 @@ end subroutine bin_differential_TOD
            call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
-           bicg_sol(:,:,l) = bicg_sol(:,:,l) + omega*shat
+           bicg_sol = bicg_sol + omega*shat
 
 
            if (omega == 0d0) then
@@ -898,7 +899,7 @@ end subroutine bin_differential_TOD
 
            if (mod(i, recomp_freq) == 1 .or. beta > 1.d8) then
               call update_status(status, 'A xhat')
-              call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol(:,:,l), r)
+              call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, r)
               call update_status(status, 'done')
               r(:,1) = b_map(:,1,l) - monopole - r(:,1)
               r(:,2) = b_map(:,2,l)  - r(:,2)
@@ -912,7 +913,7 @@ end subroutine bin_differential_TOD
              write(i_str, '(I0.3)') 2*i
              write(l_str, '(I1)') l
              call write_map(trim(prefix)//'cgest_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
-                          & bicg_sol(:,1:3,l))
+                          & bicg_sol(:,1:3))
              call write_map(trim(prefix)//'cgres_'//trim(i_str)//'_'//trim(l_str)//trim(postfix), &
                           & r(:, 1:3))
            end if
@@ -931,7 +932,7 @@ end subroutine bin_differential_TOD
 
            if (tod%verbosity > 1) then 
               write(*,102) 2*i, delta_r/delta_0
-102           format (' |', 6X, I4, ':   delta_r/delta_0:',  2X, ES9.2)
+102           format (' |', 6X, I4, ':   delta_r/delta_0:',  2X, ES11.4)
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
               if (tod%verbosity > 1) write(*,*) '| Reached bicg-stab tolerance'
@@ -949,7 +950,7 @@ end subroutine bin_differential_TOD
 
         if (l == 1) then
            ! Maximum likelihood monopole
-           monopole = sum((bicg_sol(:,1,1)-map_full)*M_diag(:,1)*procmask) &
+           monopole = sum((bicg_sol(:,1)-map_full)*M_diag(:,1)*procmask) &
                   & / sum(M_diag(:,1)*procmask)
            if (trim(tod%operation) == 'sample') then
               ! Add fluctuation term if requested
@@ -961,7 +962,7 @@ end subroutine bin_differential_TOD
               end if
               monopole = monopole + sigma_mono * rand_gauss(handle)
            end if
-           bicg_sol(:,1,1) = bicg_sol(:,1,1) - monopole
+           bicg_sol(:,1) = bicg_sol(:,1) - monopole
         end if
      else
         loop: do while (.true.) 
