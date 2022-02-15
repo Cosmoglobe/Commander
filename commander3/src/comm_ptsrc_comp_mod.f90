@@ -1737,9 +1737,11 @@ contains
 
     if (self%myid == 0) open(68,file=trim(cpar%outdir)//'/ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
+    if (self%myid == 0) write(*,*) '| Gibbs sampling radio parameters'
+    if (self%myid == 0) write(*,*) '| Iteration, N_gibbs'
     do iter2 = 1, n_gibbs
 
-       if (self%myid == 0) write(*,*) iter2, n_gibbs
+       if (self%myid == 0) write(*,*) '| ', iter2, n_gibbs
 
        ! Sample spectral parameters
        do j = 1, self%npar

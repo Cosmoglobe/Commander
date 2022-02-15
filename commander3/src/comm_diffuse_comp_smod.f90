@@ -3660,9 +3660,9 @@ contains
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
        if (self%x%info%myid == 0) then
-             write(*,fmt='(a)') ' Monopole prior correction for component: '//trim(self%label)
-             write(*,fmt='(a,f11.3)') '  Monopole: ',mu(0)*self%cg_scale(1)
-             write(*,fmt='(a)') '  '
+             write(*,fmt='(a)') ' | Monopole prior correction for component: '//trim(self%label)
+             write(*,fmt='(a,f11.3)') ' |  Monopole: ',mu(0)*self%cg_scale(1)
+             write(*,fmt='(a)') ' | '
        end if
 
     else if (trim(self%mono_prior_type) == 'monopole-dipole' .or. trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole or monopole+dipole to zero outside user-specified mask. In both cases the dipole is computed, but only in the monopole+dipole case it is removed
@@ -3690,10 +3690,10 @@ contains
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
           if (self%x%info%myid == 0) then
-             write(*,fmt='(a)') ' Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
-             write(*,fmt='(a,f10.3,a,3f10.3,a)') '   Monopole (dipole):', &
+             write(*,fmt='(a)') ' | Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
+             write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |   Monopole (dipole):', &
                   & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'
-             write(*,fmt='(a)') '  '
+             write(*,fmt='(a)') ' | '
 
           end if
           mu(1:3)=0.d0 !in order to not subtract the dipole in alm space!
@@ -3708,7 +3708,7 @@ contains
              write(*,fmt='(a)') ' Monopole+dipole prior correction for component: '//trim(self%label)
              write(*,fmt='(a)') '      Monopole   Dipole_x   Dipole_y   Dipole_z'
              write(*,fmt='(a,4f11.3)') '   ',mu*self%cg_scale(1)
-             write(*,fmt='(a)') '  '
+             write(*,fmt='(a)') ' | '
           end if
        end if
 
@@ -3807,19 +3807,19 @@ contains
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
        if (self%x%info%myid == 0) then
-          write(*,fmt='(a)') ' Cross-correlation prior correction for component: '//trim(self%label)
-          write(*,fmt='(a,i2)') '   Number of linear fits (thresholds): ',&
+          write(*,fmt='(a)') ' | Cross-correlation prior correction for component: '//trim(self%label)
+          write(*,fmt='(a,i2)') ' |   Number of linear fits (thresholds): ',&
                & self%mono_prior_Nthresh
-          write(*,fmt='(a,f14.3,f14.3)') '   Drawing intersect to subtract from prior (mu,RMS)  ', &
+          write(*,fmt='(a,f14.3,f14.3)') ' |   Drawing intersect to subtract from prior (mu,RMS)  ', &
                & mean_intersect*self%cg_scale(1), &
                & std_intersect*self%cg_scale(1) 
-          write(*,fmt='(a,f14.3,f14.3)') '   New value             ', &
+          write(*,fmt='(a,f14.3,f14.3)') ' |   New value             ', &
                & (mean_intersect-mu(0))*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') '   Old value             ', &
+          write(*,fmt='(a,f14.3,f14.3)') ' |   Old value             ', &
                & mean_intersect*self%cg_scale(1)
-          write(*,fmt='(a,f14.3,f14.3)') '   Difference            ', &
+          write(*,fmt='(a,f14.3,f14.3)') ' |   Difference            ', &
                & -mu(0)*self%cg_scale(1)
-          write(*,fmt='(a)') '  '
+          write(*,fmt='(a)') ' |  '
 
        end if
 
@@ -3898,7 +3898,7 @@ contains
                & mean_intersect*self%cg_scale(1)
           write(*,fmt='(a,f14.3,f14.3)') '   Old value             ', amp_list(k)*self%cg_scale(1)
           write(*,fmt='(a,f14.3,f14.3)') '   Difference            ', -mu(0)*self%cg_scale(1)
-          write(*,fmt='(a)') '  '
+          write(*,fmt='(a)') ' | '
        end if
 
        deallocate(mask_list)
