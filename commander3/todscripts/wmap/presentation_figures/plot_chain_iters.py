@@ -9,9 +9,11 @@ from astropy.time import Time
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed_sample/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220123/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220129/chain_c0001.h5', 'r')
 burn = 0
-thin = 10
+thin = 1
 burn = max(burn, thin)
 
 DATA_DIR = '/mn/stornext/d16/cmbco/bp/wmap/data'
@@ -78,9 +80,9 @@ gain['W414'] = 0.2918
 gain['W423'] = 0.3796
 gain['W424'] = 0.3591
 
-bands=['023-WMAP_K']
-label_list = [
-         ['K113', 'K114', 'K123', 'K124']]
+#bands=['023-WMAP_K']
+#label_list = [
+#         ['K113', 'K114', 'K123', 'K124']]
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_opt/chain_c0001.h5', 'r')
 bands=['023-WMAP_K', 
@@ -88,30 +90,30 @@ bands=['023-WMAP_K',
        '040-WMAP_Q1',
        '040-WMAP_Q2',
        '060-WMAP_V1',
-       '060-WMAP_V2']
-       #'090-WMAP_W1',
-       #'090-WMAP_W2',
-       #'090-WMAP_W3',
-       #'090-WMAP_W4']
+       '060-WMAP_V2',
+       '090-WMAP_W1',
+       '090-WMAP_W2',
+       '090-WMAP_W3',
+       '090-WMAP_W4']
 label_list = [
          ['K113', 'K114', 'K123', 'K124'],
          ['Ka113', 'Ka114', 'Ka123', 'Ka124'],
          ['Q113', 'Q114', 'Q123', 'Q124'],
          ['Q213', 'Q214', 'Q223', 'Q224'],
          ['V113', 'V114', 'V123', 'V124'],
-         ['V213', 'V214', 'V223', 'V224']]
-         #['W113', 'W114', 'W123', 'W124'],
-         #['W213', 'W214', 'W223', 'W224'],
-         #['W313', 'W314', 'W323', 'W324'],
-         #['W413', 'W414', 'W423', 'W424']]
+         ['V213', 'V214', 'V223', 'V224'],
+         ['W113', 'W114', 'W123', 'W124'],
+         ['W213', 'W214', 'W223', 'W224'],
+         ['W313', 'W314', 'W323', 'W324'],
+         ['W413', 'W414', 'W423', 'W424']]
 
 
-bands = ['040-WMAP_Q1']
-label_list = [
-         ['Q113', 'Q114', 'Q123', 'Q124']
-         ]
-t = []
+#bands = ['040-WMAP_Q1']
+#label_list = [
+#         ['Q113', 'Q114', 'Q123', 'Q124']
+#         ]
 for band, labels in zip(bands, label_list):
+    t = []
     print('\n')
     print(band, labels)
     for j in range(4):
@@ -126,7 +128,7 @@ for band, labels in zip(bands, label_list):
         if j == 0:
             for k in range(1, len(g)+1):
                 # reading MJD from the raw data
-                orig = h5py.File(f'{DATA_DIR}/wmap_{labels[j][:2]}_{str(k).zfill(6)}.h5')
+                orig = h5py.File(f'{DATA_DIR}/wmap_{labels[j][:-2]}_{str(k).zfill(6)}.h5')
                 t.append(orig[f'{str(k).zfill(6)}/common/time'][0])
             #t = Time(np.array(t), format='mjd')
             t = np.array(t)
@@ -195,7 +197,7 @@ for band, labels in zip(bands, label_list):
     
             axes[4].axhline(0, color='r', linestyle=':', lw=0.5)
 
-            axes[1].axhline(fknee[labels[j]], color='r', linestyle=':', lw=0.5)
+            #axes[1].axhline(fknee[labels[j]], color='r', linestyle=':', lw=0.5)
    
             mu_chisq = np.mean(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds])
             mu_fknee = np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds])
