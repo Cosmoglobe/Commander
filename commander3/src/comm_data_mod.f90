@@ -31,6 +31,7 @@ module comm_data_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
   use locate_mod
+  use comm_bp_utils
   implicit none
 
   type comm_data_set
@@ -82,12 +83,15 @@ contains
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, n, nmaps, numband_tot, ierr
+    integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
+
+    real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
+    integer(i4b)                        :: n_dummy
 
     ! Read all data sets
     numband = count(cpar%ds_active)
@@ -236,13 +240,29 @@ contains
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
 
-       ! Initialize bandpass structures; 0 is full freq, i is detector
+       ! Initialize bandpass structures; 0 is full freq, i is detector       
        allocate(data(n)%bp(0:data(n)%ndet))
-
        do j = 1, data(n)%ndet
-          data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
-          ! Fixing all bandpasses to be identical
-          !data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(1))
+          if (j==1) then
+            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+          else
+            ! Check if bandpass already exists in detector list
+            call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
+                              & data(n)%tod%label(j), &
+                              & 0.d0, &
+                              & n_dummy, &
+                              & nu_dummy, &
+                              & tau_dummy)
+            do k=1, j
+               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+                  data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
+                  exit
+               else if (k==j) then
+                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+               end if
+            end do
+            deallocate(nu_dummy, tau_dummy)
+          end if
        end do
 
        if (trim(cpar%ds_tod_type(i)) == 'none') then

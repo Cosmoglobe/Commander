@@ -218,8 +218,21 @@ contains
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
 !       write(*,*) i, 'ndet = ', data(i)%ndet, shape(self%F), info%nside
        do j = 0, data(i)%ndet
-          self%F(i,j)%p    => comm_map(info)
-          self%F_null(i,j) =  .false.
+          if (j<=1) then
+            self%F(i,j)%p    => comm_map(info)
+            self%F_null(i,j) =  .false.
+          else
+            do k=1, j
+               if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+                  self%F(i,j)%p => self%F(i,k)%p
+                  self%F_null(i,j) =  .false.
+                  exit
+               else if (k==j) then
+                  self%F(i,j)%p    => comm_map(info)
+                  self%F_null(i,j) =  .false.
+               end if
+            end do
+          end if
        end do
     end do
     call update_status(status, "init_postmix")
