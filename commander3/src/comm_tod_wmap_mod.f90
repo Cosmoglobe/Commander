@@ -350,6 +350,9 @@ contains
       character(len=80), dimension(180) :: header
 
 
+      type(hdf_file) :: tod_file
+
+
 
       ! Parameters used for testing
       real(dp) :: polang
@@ -491,8 +494,8 @@ contains
 
          ! Sample correlated noise
          call timer%start(TOD_NCORR, self%band)
-         !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
-         !  & sd%pix(:,1,:), dospike=.false.)
+         call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
+           & sd%pix(:,1,:), dospike=.false.)
          call timer%stop(TOD_NCORR, self%band)
 
          ! Explicitly set baseline to mean of correlated noise
@@ -503,7 +506,7 @@ contains
 
          ! Compute noise spectrum parameters
          call timer%start(TOD_XI_N, self%band)
-         !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
          call timer%stop(TOD_XI_N, self%band)
 
          ! Compute chisquare
@@ -524,24 +527,27 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
 
          !if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
-         if ((mod(iter,10) == 0)) then
+         if ((mod(iter,10) == 1)) then
             call int2string(self%scanid(i), scantext)
-            if (self%verbosity > 0) write(*,*) '| Writing tod to txt'
+            if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '| Writing tod to hdf'
+            call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+            call write_hdf(tod_file, '/sl', sd%s_sl)
+            call write_hdf(tod_file, '/flag', sd%mask)
+            call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
+            call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
+            call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
+            call write_hdf(tod_file, '/psiB', sd%psi(:,1,2))
+            call write_hdf(tod_file, '/x_im', self%x_im)
+
             do k = 1, self%ndet
-               open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
-               write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
-                    & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
-               do j = 1, sd%ntod
-                  write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-                   &  sd%s_sky(j,k),  sd%s_tot(j, k), &
-                   &  sd%s_totA(j,k), sd%s_orbA(j,k), &
-                   &  sd%s_totB(j,k), sd%s_orbB(j,k), &
-                   &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
-                   &  sd%s_sl(j,k),  sd%s_bp(j,k), real(self%scans(i)%d(k)%gain, sp), &
-                   &  real(self%scans(i)%d(k)%N_psd%sigma0, sp)
-               end do
-               close(78)
+              call int2string(k, scantext)
+              call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
+              call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
             end do
+
+            call close_hdf_file(tod_file)
+
+
          end if
          
          ! Bin TOD
@@ -626,7 +632,7 @@ contains
           epsil = 1d-6
         end if
         !epsil(3)   = 1d-3   ! Correlated noise takes a MUCH longer to converge
-        epsil = 1d-15
+        !epsil = 1d-15
         num_cg_iters = 0
 
         ! Doing this now because it's still burning in...
