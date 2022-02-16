@@ -256,7 +256,7 @@ contains
                if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
-               else if (k==j) then
+               else if (k==j-1) then
                   data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
                end if
             end do
