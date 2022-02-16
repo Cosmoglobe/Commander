@@ -227,7 +227,7 @@ contains
                   self%F(i,j)%p => self%F(i,k)%p
                   self%F_null(i,j) =  .false.
                   exit
-               else if (k==j) then
+               else if (k==j-1) then
                   self%F(i,j)%p    => comm_map(info)
                   self%F_null(i,j) =  .false.
                end if
