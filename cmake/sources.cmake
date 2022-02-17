@@ -42,7 +42,10 @@ set(zlib_md5 "1c9f62f0778697a09d36121ead88e08e")
 # Official Git Repo is: https://gitlab.dkrz.de/k202009/libaec
 # Version to use now: https://gitlab.dkrz.de/k202009/libaec/-/tree/v1.0.4
 set(libaec_git_url "https://gitlab.dkrz.de/k202009/libaec.git")
-set(libaec_git_tag "0c0453a0e463da9c2183f46d0255f05645e0e5ef")
+#set(libaec_git_tag "0c0453a0e463da9c2183f46d0255f05645e0e5ef")
+# new version is 1.0.6
+# https://gitlab.dkrz.de/k202009/libaec/-/tree/v1.0.6
+set(libaec_git_tag "9ea83102b294ee6a93978c6f62db5cd88ed79410")
 #------------------------------------------------------------------------------
 # MbedTLS -- needed by LibSSH2 and cURL.
 #------------------------------------------------------------------------------
