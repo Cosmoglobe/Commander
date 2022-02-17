@@ -424,7 +424,7 @@ contains
 
     ! Output maps to the files
     map_out%map = outmaps(1)%p%map
-    rms_out%map = M_diag(self%info%pix, 1:nmaps)**-0.5
+    rms_out%map = M_diag(self%info%pix, 1:nmaps)**(-0.5)
     call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
     do n = 2, self%output_n_maps
