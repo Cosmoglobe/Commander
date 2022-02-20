@@ -532,7 +532,7 @@ contains
             if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
             call write_hdf(tod_file, '/sl', sd%s_sl)
-            call write_hdf(tod_file, '/flag', sd%mask)
+            call write_hdf(tod_file, '/flag', sd%flag)
             call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
             call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
             call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
