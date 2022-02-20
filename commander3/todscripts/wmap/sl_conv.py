@@ -364,14 +364,15 @@ if __name__ == '__main__':
         scipy.sparse.save_npz(f'M_{band}.npz', M)
         # M = scipy.sparse.load_npz('M.npz')
         
-        hp.write_map(f'b_{band}.fits', b_map, overwrite=True, dtype='float64')
+        hp.write_map(f'b_{band}.fits', b_map, overwrite=True)
         
         b = np.concatenate((b_map[0], b_map[1], b_map[2], b_map[3]))
        
         print('Solving Mx=b')
         x = scipy.sparse.linalg.spsolve(M, b)
+        print('Solved Mx=b')
         
         I,Q,U,S = np.split(x, 4)
         
         m = np.array([I,Q,U,S])
-        hp.write_map(f'x_{band}.fits', m, overwrite=True, dtype='float64')
+        hp.write_map(f'x_{band}.fits', m, overwrite=True)
