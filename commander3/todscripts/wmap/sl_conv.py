@@ -96,7 +96,7 @@ def dot_prod(b_map, pixA, pixB, res_A, res_B, psiA, psiB, flags, npnt,
       b_map[i] += b_mapi[i]
     return b_map
 
-def make_M(M, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
+def make_M(M, Prec, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
     '''
     Constructs the asymmetric mapmaking matrix
     M = P_{am}^T N^-1 P
@@ -146,6 +146,7 @@ def make_M(M, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
     P_am = P_A - P_B
 
     M += P_am.T.dot(P)
+    Prec += P_am.T.dot(P_am)
 
 
     data_A = np.concatenate(( dx*T, (1+x)*QA, (1+x)*UA, (1+x)*SA))
@@ -162,9 +163,10 @@ def make_M(M, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
     P_am = P_A - P_B
 
     M += P_am.T.dot(P)
+    Prec += P_am.T.dot(P_am)
 
 
-    return M
+    return M, Prec
 
 def accumulate(tod_ind, x1, x2, pmask):
     '''
@@ -202,12 +204,13 @@ def accumulate(tod_ind, x1, x2, pmask):
     res_B = interp_B.interpol(ptg)[0]
 
     M = scipy.sparse.csr_matrix((4*npix, 4*npix))
+    Prec = scipy.sparse.csr_matrix((4*npix, 4*npix))
     b_map = np.zeros((4, npix))
-    M_i = make_M(M, pixA, pixB, psiA_i, psiB_i, flags, pmask, x1, x2)
+    M_i, Prec_i = make_M(M, Prec, pixA, pixB, psiA_i, psiB_i, flags, pmask, x1, x2)
     b_i = dot_prod(b_map, pixA, pixB, res_A, res_B, psiA_i, psiB_i, flags,
         npnt, pmask, x1, x2)
 
-    return M_i, b_i
+    return M_i, b_i, Prec_i
 
 
 def make_dipole_alms(amp=3355, l=263.99, b=48.26, lmax=128):
@@ -294,8 +297,13 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100):
 
 if __name__ == '__main__':
 
+
+    # To what extent is this effect due to the mapmaking algorithm, and to what
+    # extent is it due to the imbalance parameters in the data model itself?
+
     MASK_DIR = '/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/masks'
     bands = np.array(['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4'])
+    bands = [bands[0]]
     for band in bands:
         print(band)
         # Sets maximum lmax, mmax for sidelobe convolution
@@ -319,6 +327,7 @@ if __name__ == '__main__':
         nside_out = 16
         npix = hp.nside2npix(nside_out)
         M = scipy.sparse.csr_matrix((4*npix, 4*npix))
+        Prec = scipy.sparse.csr_matrix((4*npix, 4*npix))
         b_map = np.zeros((4, 12*nside_out**2))
    
 
@@ -347,7 +356,7 @@ if __name__ == '__main__':
         import multiprocessing
         from functools import partial
         # Maximum number of cpus before my node throws an error
-        ncpus = 29
+        ncpus = 26
         pool = multiprocessing.Pool(processes=ncpus)
         pool_outputs = list(tqdm(pool.imap(
                            partial(accumulate, x1=x1, x2=x2, pmask=pmask),
@@ -357,11 +366,13 @@ if __name__ == '__main__':
         for i in range(len(pool_outputs)):
             M += pool_outputs[i][0]
             b_map += pool_outputs[i][1]
+            Prec += pool_outputs[i][2]
 
 
        
         # Useful for visualizing poorly measured modes
         scipy.sparse.save_npz(f'M_{band}.npz', M)
+        scipy.sparse.save_npz(f'Precond_{band}.npz', Prec)
         # M = scipy.sparse.load_npz('M.npz')
         
         hp.write_map(f'b_{band}.fits', b_map, overwrite=True)
