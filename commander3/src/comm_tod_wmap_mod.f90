@@ -443,9 +443,6 @@ contains
           call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
       end if
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
-      !self%x_im(1) = 1d-2
-      !self%x_im(2) = 1d-2
-      if (self%myid == 0) write(*,*) '| x_im = ', self%x_im
 
 
 
@@ -527,7 +524,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
 
          !if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
-         if ((mod(iter,10) == 1)) then
+         if ((mod(iter,10) == 0)) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -573,6 +570,7 @@ contains
 
       end do
 
+      call mpi_barrier(self%comm, ierr)
       if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
 
       ! Output latest scan list with new timing information
@@ -614,29 +612,28 @@ contains
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       do l = 1, self%output_n_maps
-        if (l .ne. 6) b_map(:,:,l) = 0d0
+        !if (l .ne. 6) b_map(:,:,l) = 0d0
+        !b_map = 0d0
         bicg_sol = 0.0d0
 
-        if (l == 1) then
-          allocate (m_buf(0:npix-1,nmaps))
-          call map_in(1,1)%p%bcast_fullsky_map(m_buf)
-          bicg_sol(:,1:nmaps) = m_buf
-          deallocate(m_buf)
-        end if
+        !if (l == 1) then
+        !  allocate (m_buf(0:npix-1,nmaps))
+        !  call map_in(1,1)%p%bcast_fullsky_map(m_buf)
+        !  bicg_sol(:,1:nmaps) = m_buf
+        !  deallocate(m_buf)
+        !end if
 
         if (l == 1) then
           epsil = 1d-10
         else if (l == 3) then
-          epsil = 1d-3
+          epsil = 1d-3! Correlated noise takes a MUCH longer to converge
         else
           epsil = 1d-6
         end if
-        !epsil(3)   = 1d-3   ! Correlated noise takes a MUCH longer to converge
-        !epsil = 1d-15
         num_cg_iters = 0
 
         ! Doing this now because it's still burning in...
-        if (mod(iter,self%output_aux_maps) == 0) then
+        !if (mod(iter,self%output_aux_maps) == 0) then
           ! Solve for maps
           if (self%verbosity > 0 .and. self%myid == 0) then
             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
@@ -644,7 +641,7 @@ contains
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                          & epsil, procmask, map_full, M_diag, b_map, l, &
                          & prefix, postfix, comp_S)
-        end if
+        !end if
 
         call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
         call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
