@@ -379,10 +379,8 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 1
-      !self%output_aux_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 6
-         !if (mod(iter,10*self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
 
       call int2string(chain, ctext)
@@ -443,10 +441,6 @@ contains
           call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
       end if
       call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
-
-
-
-
 
 
       ! Prepare intermediate data structures
@@ -523,8 +517,7 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         !if (((self%scanid(i) == 156) .or. (self%scanid(i) == 3) .or. (self.scanid(i) == 13) .or. (self.scanid(i) == 29)) .and.  (mod(iter,10) == 0)) then
-         if ((mod(iter,10) == 0)) then
+         if ((mod(iter,self%output_aux_maps))) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -616,17 +609,8 @@ contains
         !b_map = 0d0
         bicg_sol = 0.0d0
 
-        !if (l == 1) then
-        !  allocate (m_buf(0:npix-1,nmaps))
-        !  call map_in(1,1)%p%bcast_fullsky_map(m_buf)
-        !  bicg_sol(:,1:nmaps) = m_buf
-        !  deallocate(m_buf)
-        !end if
-
         if (l == 1) then
           epsil = 1d-10
-        else if (l == 3) then
-          epsil = 1d-3! Correlated noise takes a MUCH longer to converge
         else
           epsil = 1d-6
         end if
