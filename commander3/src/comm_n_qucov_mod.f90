@@ -146,18 +146,6 @@ contains
           allocate(Ninv_sp(2*self%npix,2*self%npix))
           call WMAP_Read_NInv(noisefile, status, Ninv_sp)
 
-          ! Scale with sigma0**2
-          if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_Ka_v5.fits') then
-             Ninv_sp = Ninv_sp !* 1.472**2 
-          else if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_Q_v5.fits') then
-             Ninv_sp = Ninv_sp !* 2.197**2 
-          else if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_V_v5.fits') then
-             Ninv_sp = Ninv_sp !* 3.141**2 
-          else
-             write(*,*) 'Unsupported file = ', trim(noisefile)
-             stop
-          end if
-
           ! Convert from nest to ring format
           do i = 1, 2*self%npix ! Rows
              call convert_nest2ring(self%nside, Ninv_sp(          1:  self%npix,i))

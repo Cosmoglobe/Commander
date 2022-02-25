@@ -3766,16 +3766,16 @@ contains
           !restructure so that we only have unmasked pixels, only 1 proc needs to do this
           if (lr_map%info%myid == 0) then
              k=-1
-             open(58, file='corr.dat')
-             do j = 0,lr_map%info%npix-1
-                if (mask_list(j) > 0.5d0) then
-                   k = k + 1
-                   corr_list(k) = corr_list(j)
-                   amp_list(k) = amp_list(j)
-                   write(58,*) corr_list(j), amp_list(j)
-                end if
-             end do
-             close(58)
+             !open(58, file='corr.dat')
+             !do j = 0,lr_map%info%npix-1
+             !   if (mask_list(j) > 0.5d0) then
+             !      k = k + 1
+             !      corr_list(k) = corr_list(j)
+             !      amp_list(k) = amp_list(j)
+             !      write(58,*) corr_list(j), amp_list(j)
+             !   end if
+             !end do
+             !close(58)
 
              !calculate intersection 
              corr_res = calc_linear_regression(corr_list(0:k), amp_list(0:k))
