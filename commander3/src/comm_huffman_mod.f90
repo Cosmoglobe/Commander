@@ -23,7 +23,7 @@ module comm_huffman_mod
   implicit none
 
   private get_symbol_int, get_symbol_sp, set_symbols_int, set_symbols_sp, alloc_symbols_int, alloc_symbols_sp
-  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate
+  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate, hufmake_compute_sp
 
 
   !TODO: this needs to be generalized somehow to support a sp symbols case 
@@ -65,6 +65,7 @@ contains
     do k = 1, n
        node=hcode%nodemax
        do while (node > hcode%nch)
+          ! btest(i, pos) returns logical .true. if the bit at pos in i is set.
           if (btest(x_in(i),j)) then 
              node=hcode%iright(node) 
           else
@@ -92,14 +93,12 @@ contains
     byte,           dimension(:), intent(in)  :: x_in
     real(sp),       dimension(:), intent(out) :: x_out
 
-    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node, curr, prev
-    real(sp) :: buf
+    integer(i4b) :: i, j, k, n, node
 
     n  = size(x_out)
    
     i = 2 ! Byte counter
     j = 7 ! Bit counter
-    curr = 0
     do k = 1, n
        node=hcode%nodemax
        do while (node > hcode%nch)
@@ -114,8 +113,6 @@ contains
              j = 7
           end if
        end do
-       !call hcode%get_symbol(node, buf)
-       !x_out(k) = buf
        x_out(k) = hcode%sp_symbs(node)
        if (k > 1) x_out(k) = x_out(k-1) + x_out(k)
     end do
@@ -303,6 +300,100 @@ contains
     hcode%iright(n+1:2*n-1) = tree(n+1:2*n-1)
 
   end subroutine hufmak_precomp_sp
+
+
+  subroutine hufmake_compute_sp(array, tree, symbols, hcode)
+    implicit none
+    real(sp), dimension(:), intent(in) :: array
+    real(sp), allocatable, dimension(:), intent(out) :: symbols
+    integer(i4b), allocatable, dimension(:), intent(out) :: tree
+    class(huffcode), intent(out) :: hcode
+
+    integer(i4b) :: i, j, k, n, nch, ll, ul, nused, node
+
+    real(sp), allocatable, dimension(:) :: delta
+    integer(i4b), allocatable, dimension(:) :: weights, indx, nprob
+
+    n = size(array)
+
+    allocate(delta(n))
+    delta(2:) = array(2:n) - array(1:n-1)
+    delta(1)  = array(1)
+
+    ll = int(minval(delta(2:)))
+    ul = int(maxval(delta(2:)))
+    nch = ul - ll + 1
+
+
+    ! Get weights array
+    allocate(weights(nch))
+    allocate(nprob(nch))
+    allocate(indx(nch))
+    weights = 0
+    do i = 2, n
+      weights(delta(i) - ll + 1) = weights(delta(i) - ll + 1) + 1
+    end do
+
+    nused = 0
+    do j=1, nch
+      nprob(j) = weights(j)
+      if (weights(j) .ne. 0) then
+        nused = nused + 1
+        indx(nused) = j
+      end if
+    end do
+
+    allocate(tree(2*nused + 1), symbols(nused))
+
+    do j = nused, 1, -1
+      call hufapp(j)
+    end do
+    k = nch
+    do
+      if (nused <= 1) exit
+      node = indx(1)
+      indx(1) = indx(nused)
+      nused = nused - 1
+      call hufapp(1)
+      k = k + 1
+      nprob(k) = nprob(indx(1)) + nprob(node)
+      ! left
+      tree(k) = node
+      ! iright   
+      tree(k + nused) = indx(1)
+      indx(1) = k
+      call hufapp(1)
+    end do
+
+
+
+    call hufmak_precomp_sp(symbols,tree,hcode)
+
+
+
+    contains
+      subroutine hufapp(l)
+        implicit none
+        integer(i4b), intent(in) :: l
+
+        integer(i4b) :: i,j,k,n
+
+        i = l
+        k = indx(i)
+        do
+          if (i > n/2) exit
+          j = i + i
+          if (j < n .and. weights(indx(j)) > weights(indx(j+1))) j = j+1
+          if (weights(k) <= weights(indx(j))) exit
+          indx(i) = indx(j)
+          i = j
+        end do
+        indx(i) = k
+        end subroutine hufapp
+
+
+    end subroutine hufmake_compute_sp
+    
 
 
 !  subroutine hufmak(symbols,nfreq,hcode)

@@ -1156,8 +1156,11 @@ contains
     ! Getting the full path and name of the current hdf file to overwrite
     !----------------------------------------------------------------------------------
     mystring = trim(self%hdfname(scan_id))
-    mysubstring = 'LFI_0'
-    myindex = index(trim(mystring), trim(mysubstring))
+    mysubstring = '/'
+
+    myindex = index(trim(mystring), trim(mysubstring), back=.true.) + 1
+
+
     call get_tokens(trim(mystring), "/", toks=toks, num=ntoks)
     currentHDFFile = trim(self%sims_output_dir)//'/'//trim(toks(ntoks))
     !write(*,*) "hdf5name "//trim(self%hdfname(scan_id))
