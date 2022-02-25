@@ -41,6 +41,7 @@ program commander
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
+  class(comm_camb),   pointer :: camb_obj => null()
 
   !----------------------------------------------------------------------------------
   ! Command line arguments
@@ -158,7 +159,8 @@ program commander
   !stop
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
-  call initialize_camb_mod(cpar);           call update_status(status, "init_camb")
+  camb_obj => initialize_camb_mod(cpar);    call update_status(status, "init_camb")
+  !call initialize_camb_mod(cpar);           call update_status(status, "init_camb")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
 !write(*,*) 'Setting gain to 1'
@@ -297,7 +299,7 @@ program commander
           !if (cpar%resamp_CMB .and. cpar%sample_powspec) call sample_joint_alm_Cl(handle)
 
           ! comm_camb_mod
-          if (cpar%sample_camb) call sample_joint_Cl_theta_sampler(cpar, samp_group, handle, handle_noise)
+          if (cpar%sample_camb) call camb_obj%sample_joint_Cl_theta_sampler(cpar, samp_group, handle, handle_noise)
            
         end do
         call timer%stop(TOT_CLS)

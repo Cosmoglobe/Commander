@@ -24,10 +24,11 @@ module comm_camb_mod
   use comm_param_mod
   use comm_cmb_comp_mod
   use CAMB
+  use comm_signal_mod
   implicit none
 
   private
-  public comm_camb, comm_camb_sample
+  public comm_camb, comm_camb_sample, initialize_camb_mod
 
   type comm_camb_sample
      real(dp), dimension(6)                :: theta    ! Cosmological parameters
@@ -57,7 +58,6 @@ module comm_camb_mod
      character(len=2), dimension(3)   :: spectra_list
      
    contains
-     !procedure sample_camb_params
      procedure sample_joint_Cl_theta_sampler
      procedure get_new_sample
      procedure init_covariance_matrix
@@ -80,6 +80,14 @@ module comm_camb_mod
 
 contains
 
+  function initialize_camb_mod(cpar)
+    implicit none
+    type(comm_params),         intent(in)  :: cpar
+    class(comm_camb), pointer             :: initialize_camb_mod
+
+    initialize_camb_mod => comm_camb(cpar, 50, 300)
+  end function initialize_camb_mod
+
   function constructor(cpar, lmin, lmax)
     ! 
     ! Constructor for CAMB object
@@ -99,6 +107,7 @@ contains
     implicit none
     integer(i4b),              intent(in) :: lmin, lmax
     class(comm_camb), pointer             :: constructor
+    type(comm_params)                     :: cpar
 
     allocate(constructor)
     constructor%lmin = lmin
@@ -106,7 +115,8 @@ contains
     constructor%nmaps = 3
     constructor%nspec = constructor%nmaps*(constructor%nmaps+1)/2
     constructor%nalm  = (lmax+1)**2
-    constructor%theta_curr => comm_camb_sample(lmin, lmax, constructor%nmaps)
+    !constructor%theta_curr => comm_camb_sample(lmin, lmax, constructor%nmaps)
+    constructor%theta_curr = constructor_camb_sample(cpar, lmin, lmax, constructor%nmaps)
 
     ! Static variables
     constructor%nr_of_samples       = 10
@@ -117,11 +127,9 @@ contains
     constructor%sigma_cosmo_param   = [0.001d0,   0.005d0,  1.d0,   0.005d0, 0.005d0, 0.005d0] ! Hard coded uncertainty in cosmo param proposal
     constructor%spectra_list        = ['TT', 'EE', 'TE']
 
-
-
   end function constructor
 
-  function constructor_camb_sample(lmin, lmax, nmaps, s_init)
+  function constructor_camb_sample(cpar, lmin, lmax, nmaps, s_init)
     ! 
     ! Constructor for CAMB sample object
     ! 
@@ -145,7 +153,8 @@ contains
     integer(i4b),                      intent(in)           :: lmin, lmax, nmaps
     class(comm_camb_sample),           intent(in), optional :: s_init
     class(comm_camb_sample),   pointer                      :: constructor_camb_sample
-  
+    type(comm_params)                                       :: cpar
+    
     integer(i4b) :: nalm, nspec
 
     nspec = nmaps*(nmaps+1)/2

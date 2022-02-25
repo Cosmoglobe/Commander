@@ -84,6 +84,9 @@ module comm_param_mod
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
      logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec, sample_camb
+
+     ! CAMB parameters
+     real(dp),           allocatable, dimension(:)    :: cmb_theta
      
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
@@ -429,7 +432,16 @@ contains
     call get_parameter_hashtable(htbl, 'SAMPLE_SIGNAL_AMPLITUDES', par_lgt=cpar%sample_signal_amplitudes)
     call get_parameter_hashtable(htbl, 'SAMPLE_SPECTRAL_INDICES',  par_lgt=cpar%sample_specind)
     call get_parameter_hashtable(htbl, 'SAMPLE_POWSPEC',           par_lgt=cpar%sample_powspec)
+
+    ! CAMB STUFF
     call get_parameter_hashtable(htbl, 'SAMPLE_CAMB_PARAMETERS',   par_lgt=cpar%sample_camb)
+    if (cpar%sample_camb) then
+      allocate(cpar%cmb_theta(6))
+      do i = 1, 6
+        call int2string(i, itext)
+        call get_parameter_hashtable(htbl, 'CAMB_COSMOLOGICAL_PARAMETERS'//itext, len_itext=len(trim(itext)), par_dp=cpar%cmb_theta(i))
+      end do
+    end if
 
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
 
