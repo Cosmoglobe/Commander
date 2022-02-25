@@ -107,7 +107,12 @@ contains
     constructor%noise_psd_model = 'oof'
     allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
-    
+
+    ! just so that it actually runs
+    constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
+    constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+    constructor%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
+
     constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
 
     ! Initialize common parameters
@@ -122,9 +127,16 @@ contains
     constructor%symm_flags      = .false.
     constructor%chisq_threshold = 20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
+<<<<<<< HEAD
+    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
+    constructor%ntime           = 1
+    constructor%HFI_flag        = .true.
+    constructor%partner         = -1
+=======
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
     constructor%ntime           = 1
     constructor%HFI_flag        = .true.
+>>>>>>> edc399596e2abca98f967668c83de9640e61030c
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -148,7 +160,9 @@ contains
 
     ! Allocate sidelobe convolution data structures
     !allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    !constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    
+    allocate(constructor%orb_dp)
+    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
@@ -281,9 +295,9 @@ contains
     !------------------------------------
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-    call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+    !call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
+    !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
+    !call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -331,7 +345,7 @@ contains
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), tod_arr=sd%tod)
        end do
 
        ! Select data

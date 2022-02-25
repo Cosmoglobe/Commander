@@ -386,7 +386,7 @@ contains
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, buffer, ext2, file%status)
     val = buffer(1:s(1),1:s(2))
     deallocate(buffer)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_int_2d_buffer(file, setname, val)
@@ -423,7 +423,7 @@ contains
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, buffer, ext2, file%status)
     val = buffer(1:s(1),1:s(2))
     deallocate(buffer)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_0d_dp(file, setname, val, opt)
@@ -465,7 +465,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_0d_sp(file, setname, val, opt)
@@ -507,7 +507,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_0d_int(file, setname, val, opt)
@@ -549,7 +549,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_0d_char(file, setname, val, opt)
@@ -591,7 +591,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_1d_dp(file, setname, val, opt)
@@ -633,7 +633,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_1d_sp(file, setname, val, opt)
@@ -675,7 +675,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_1d_int(file, setname, val, opt)
@@ -717,7 +717,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_1d_char(file, setname, val, opt)
@@ -759,7 +759,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_2d_dp(file, setname, val, opt)
@@ -801,7 +801,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_2d_sp(file, setname, val, opt)
@@ -843,7 +843,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_2d_int(file, setname, val, opt)
@@ -885,7 +885,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_2d_char(file, setname, val, opt)
@@ -927,7 +927,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_3d_dp(file, setname, val, opt)
@@ -969,7 +969,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_3d_sp(file, setname, val, opt)
@@ -1011,7 +1011,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_3d_int(file, setname, val, opt)
@@ -1053,7 +1053,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_3d_char(file, setname, val, opt)
@@ -1095,7 +1095,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !!call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_4d_dp(file, setname, val, opt)
@@ -1137,7 +1137,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_4d_sp(file, setname, val, opt)
@@ -1179,7 +1179,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_4d_int(file, setname, val, opt)
@@ -1221,7 +1221,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_4d_char(file, setname, val, opt)
@@ -1263,7 +1263,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_5d_dp(file, setname, val, opt)
@@ -1305,7 +1305,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_5d_sp(file, setname, val, opt)
@@ -1347,7 +1347,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_5d_int(file, setname, val, opt)
@@ -1389,7 +1389,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_5d_char(file, setname, val, opt)
@@ -1431,7 +1431,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_6d_dp(file, setname, val, opt)
@@ -1473,7 +1473,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_6d_sp(file, setname, val, opt)
@@ -1515,7 +1515,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_6d_int(file, setname, val, opt)
@@ -1557,7 +1557,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_6d_char(file, setname, val, opt)
@@ -1599,7 +1599,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_7d_dp(file, setname, val, opt)
@@ -1641,7 +1641,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_7d_sp(file, setname, val, opt)
@@ -1683,7 +1683,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_7d_int(file, setname, val, opt)
@@ -1725,7 +1725,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_hdf_7d_char(file, setname, val, opt)
@@ -1767,7 +1767,7 @@ contains
        write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_1d_dp(file, setname, val)
@@ -1794,7 +1794,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_1d_sp(file, setname, val)
@@ -1821,7 +1821,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_1d_int(file, setname, val)
@@ -1848,7 +1848,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_1d_char(file, setname, val)
@@ -1875,7 +1875,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_2d_dp(file, setname, val)
@@ -1902,7 +1902,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_2d_sp(file, setname, val)
@@ -1929,7 +1929,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_2d_int(file, setname, val)
@@ -1956,7 +1956,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_2d_char(file, setname, val)
@@ -1983,7 +1983,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_3d_dp(file, setname, val)
@@ -2010,7 +2010,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_3d_sp(file, setname, val)
@@ -2037,7 +2037,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_3d_int(file, setname, val)
@@ -2064,7 +2064,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_3d_char(file, setname, val)
@@ -2091,7 +2091,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_4d_dp(file, setname, val)
@@ -2118,7 +2118,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_4d_sp(file, setname, val)
@@ -2145,7 +2145,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_4d_int(file, setname, val)
@@ -2172,7 +2172,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_4d_char(file, setname, val)
@@ -2199,7 +2199,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_5d_dp(file, setname, val)
@@ -2226,7 +2226,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_5d_sp(file, setname, val)
@@ -2253,7 +2253,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_5d_int(file, setname, val)
@@ -2280,7 +2280,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_5d_char(file, setname, val)
@@ -2307,7 +2307,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_6d_dp(file, setname, val)
@@ -2334,7 +2334,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_6d_sp(file, setname, val)
@@ -2361,7 +2361,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_6d_int(file, setname, val)
@@ -2388,7 +2388,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_6d_char(file, setname, val)
@@ -2415,7 +2415,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_7d_dp(file, setname, val)
@@ -2442,7 +2442,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_DOUBLE, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_7d_sp(file, setname, val)
@@ -2469,7 +2469,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_REAL, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_7d_int(file, setname, val)
@@ -2496,7 +2496,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_INTEGER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
   subroutine read_alloc_hdf_7d_char(file, setname, val)
@@ -2523,7 +2523,7 @@ contains
        !write(*,*) opt_, 'Optional parameter'
     end if
     call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
-    call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+    !call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
 

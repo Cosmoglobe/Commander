@@ -686,9 +686,12 @@ contains
        end if
     end do
        !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
-    do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
-    end do
+    
+    if (tod%partner == -1) then   ! HFI check (no partners)
+       do j = 1, ndet
+           if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
+       end do
+    end if
 
   end subroutine remove_bad_data
 

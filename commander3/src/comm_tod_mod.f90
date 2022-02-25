@@ -1,4 +1,4 @@
-!================================================================================
+ed_tod_inst================================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
@@ -371,6 +371,9 @@ contains
     self%w      = 1.d0
     self%x_im   = 0d0
 
+    if (tod_type == 'HFI') then
+       self%partner(0) = -1
+
     if (trim(cpar%ds_bpmodel(id_abs)) == 'additive_shift') then
        ndelta = 1
     else if (trim(cpar%ds_bpmodel(id_abs)) == 'powlaw_tilt') then
@@ -436,6 +439,9 @@ contains
             self%pix2ind(pix(1)) = 1
             do k = 2, self%scans(i)%ntod
                pix(k)  = pix(k-1)  + pix(k)
+               if (pix(k) > 12*self%nside**2-1) then
+                   write(*,*) pix(k), k, pix(1), l, self%label(j),self%scans(i)%chunk_num
+               end if
                self%pix2ind(pix(k)) = 1
             end do
           end do
@@ -497,7 +503,8 @@ contains
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
+    !call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
     self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
 
     do i = 1, self%ndet
@@ -506,7 +513,7 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'mbeam_eff', self%mb_eff(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
        self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
        call self%mbeam(i)%p%Y()
     end do
@@ -562,6 +569,9 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
+       
+       !write(det_buf, *) "545-2" !HFI shortcut
+       
        ndet_tot = num_tokens(det_buf(1:n), ",")
        allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
        polang_buf = 0
@@ -729,7 +739,8 @@ contains
 
     self%chunk_num = scan
     call int2string(scan, slabel)
-
+    
+    !print *, filename
     call open_hdf_file(filename, file, "r")
 
     ! Find array sizes
@@ -774,6 +785,7 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+      
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        xi_n(1:3)            = scalars(2:4)

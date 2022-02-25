@@ -45,7 +45,7 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        self.outName = os.path.join(self.outPath, 'LFI_0' + str(freq) + '_' + str(od).zfill(6) + '.h5')
+        self.outName = os.path.join(self.outPath, 'HFI_' + str(freq) + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):

@@ -163,16 +163,22 @@ contains
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
           call get_tokens(subdets, ",", dets, ndet)
-          call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
-               & constructor%threshold, &
-               & constructor%n, constructor%nu0, constructor%tau0)
-          do i = 2, ndet
-             call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
-                  & constructor%threshold, constructor%n, nu0, tau0)
-             constructor%tau0 = constructor%tau0 + tau0
-             deallocate(nu0, tau0)
-          end do
-          constructor%tau0 = constructor%tau0 / ndet
+          if (constructor%threshold == 0.d0) then
+               call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
+                    & constructor%threshold, &
+                    & constructor%n, constructor%nu0, constructor%tau0)
+               do i = 2, ndet
+                    call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
+                        & constructor%threshold, constructor%n, nu0, tau0)
+                    constructor%tau0 = constructor%tau0 + tau0
+                    deallocate(nu0, tau0)
+               end do
+               constructor%tau0 = constructor%tau0 / ndet
+          else
+               call read_bandpass_nonzero_threshold(trim(dir)//cpar%ds_bpfile(id_abs), dets, ndet, &
+                    & constructor%threshold, &
+                    & constructor%n, constructor%nu0, constructor%tau0)
+          end if
        end if
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
