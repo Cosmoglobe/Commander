@@ -183,6 +183,7 @@ contains
       end if
 
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+      if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
 
       ! Set up WMAP specific parameters
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
@@ -372,6 +373,10 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
+
+      sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+      sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -437,13 +442,14 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      if (trim(self%level) == 'L1') then
-          call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
-          call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-          call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      if (.not. self%enable_tod_simulations) then
+          if (trim(self%level) == 'L1') then
+              call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+          end if
+          call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
       end if
-      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
-
 
 
 
@@ -469,7 +475,13 @@ contains
       b_map = 0d0
 
       ! Perform loop over scans
-      if (self%myid == 0) write(*,*) '|    --> Sampling ncorr, xi_n, maps'
+      if (self%myid == 0) then
+          if (self%enable_tod_simulations) then
+            write(*,*) '|    --> Simulating TODs'
+          else
+            write(*,*) '|    --> Sampling ncorr, xi_n, maps'
+          end if
+      endif
       do i = 1, self%nscan
          
          ! Skip scan if no accepted data
@@ -489,11 +501,14 @@ contains
          end if
          allocate(s_buf(sd%ntod,sd%ndet))
 
-         ! Sample correlated noise
-         call timer%start(TOD_NCORR, self%band)
-         call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
-           & sd%pix(:,1,:), dospike=.false.)
-         call timer%stop(TOD_NCORR, self%band)
+         ! Make simulations or Sample correlated noise
+         if (self%enable_tod_simulations) then
+            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+         else
+            call timer%start(TOD_NCORR, self%band)
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+            call timer%stop(TOD_NCORR, self%band)
+         end if
 
          ! Explicitly set baseline to mean of correlated noise
          do j = 1, self%ndet
@@ -630,6 +645,7 @@ contains
         else
           epsil = 1d-6
         end if
+        if (self%enable_tod_simulations) epsil = 1d6
         num_cg_iters = 0
 
         ! Doing this now because it's still burning in...

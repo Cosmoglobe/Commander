@@ -1058,7 +1058,7 @@ contains
     integer(HSIZE_T), dimension(1) :: dims
     ! Other variables
     integer(i4b)                          :: i, j, k !< loop variables
-    integer(i4b)       :: mpi_err !< MPI error status
+    integer(i4b)       :: mpi_err, errorcode !< MPI error status
     integer(i4b)       :: nomp !< Number of threads available
     integer(i4b)       :: omp_err !< OpenMP error status
     integer(i4b) :: omp_get_max_threads
@@ -1187,6 +1187,10 @@ contains
       call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
       ! Write tod data to a dataset
       call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+      if (hdf5_error == -1) then
+        write(*,*) 'HDF Write error'
+        stop
+      end if
       ! Close the dataset.
       call h5dclose_f(dset_id, hdf5_error)
     end do

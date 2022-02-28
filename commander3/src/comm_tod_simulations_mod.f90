@@ -69,7 +69,7 @@ contains
 !   end subroutine simulate_n_corr
 
 
-   subroutine copy_LFI_tod(cpar, ierr)
+   subroutine copy_tod(cpar, ierr)
      !
      ! Routine which copies the original hdf5 TODs for
      ! subsequent processing.
@@ -224,7 +224,7 @@ contains
      end do
      !call MPI_Finalize(ierr)
      !stop
-   end subroutine copy_LFI_tod
+   end subroutine copy_tod
 
 
   subroutine write_filelists_to_disk(cpar, ierr)
@@ -276,7 +276,9 @@ contains
       filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
       ! processing files only with Master process
       if (cpar%myid == 0) then
+        ! GENERALIZE THIS TO NON-LFI DATA
         mysubstring = 'LFI_0'
+        mysubstring = 'wmap_'
         n_lines = 0
         n_elem  = 0
         val     = 0
@@ -285,6 +287,7 @@ contains
         sims_filelist = trim(simsdir)//"filelist_"//trim(freq)//"_simulations.txt"
         write(*,*) "filelist is "//trim(filelist)
         write(*,*) "sims_filelist is "//trim(sims_filelist)
+
         call system("cp "//trim(filelist)//" "//trim(sims_filelist))
         ! Now, changing pointings inside the file
         unit = getlun()

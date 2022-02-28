@@ -26,6 +26,10 @@ module comm_huffman_mod
   public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate, hufmake_compute_sp
 
 
+  ! Most of this can be described in Numerical Recipes, and some of the original
+  ! implementation came directly from the 2nd Edition Fortran implementation
+
+
   !TODO: this needs to be generalized somehow to support a sp symbols case 
   type :: huffcode
     integer(i4b) :: nch, nodemax
@@ -55,8 +59,7 @@ contains
     integer(i4b),   dimension(:), intent(out) :: x_out
     integer(i4b),                 intent(in), optional :: imod
 
-    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node
-    integer(i4b) :: buf
+    integer(i4b) :: i, j, k, n, nb, l,nc,node
 
     n  = size(x_out)
     
@@ -77,8 +80,6 @@ contains
              j = 7
           end if
        end do
-       !call hcode%get_symbol(node, buf)
-       !x_out(k) = buf 
        x_out(k) = hcode%int_symbs(node)
        if (k > 1)         x_out(k) = x_out(k-1) + x_out(k)
        if (present(imod)) x_out(k) = iand(x_out(k),imod)
@@ -128,7 +129,7 @@ contains
     integer(i4b),   dimension(:), intent(out) :: x_out
     integer(i4b),                 intent(in), optional :: imod
 
-    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node
+    integer(i4b) :: i, j, k, n, nb, l,nc,node
     integer(i4b) :: buf
 
 !!$    if (.not. present(offset)) then
@@ -172,7 +173,7 @@ contains
     !an offset from the start of the chunk, data from offset:offset+len is
     !returned
 
-    integer(i4b) :: i, j, k, n, nb, ich, l,nc,node, offset_, buf_
+    integer(i4b) :: i, j, k, n, nb, l,nc,node, offset_, buf_
     integer(i4b), allocatable, dimension(:) :: buf
 
     if (.not. present(offset)) then
@@ -373,6 +374,7 @@ contains
 
     contains
       subroutine hufapp(l)
+        ! Maintains a heap structure.
         implicit none
         integer(i4b), intent(in) :: l
 
