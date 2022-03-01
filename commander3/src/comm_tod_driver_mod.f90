@@ -1050,7 +1050,7 @@ contains
     integer(i4b)       :: myindex     !< dummy value for string manipulation
     character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output
     character(len=6)   :: pidLabel
-    character(len=3)   :: detectorLabel
+    character(len=512) :: detectorLabel
     type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
     integer(i4b)       :: hdf5_error  !< hdf5 error status
     integer(HID_T)     :: hdf5_file_id !< File identifier
@@ -1134,18 +1134,9 @@ contains
       do j = 1, ndet
         ! skipping iteration if scan was not accepted
         if (.not. self%scans(scan_id)%d(j)%accept) cycle
-        ! getting gain for each detector (units, V / K)
-        ! (gain is assumed to be CONSTANT for EACH SCAN)
         gain   = self%scans(scan_id)%d(j)%gain
-        !write(*,*) "gain ", gain
         sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
-        !write(*,*) "sigma0 ", sigma0
-        ! Simulating tods
-        !tod_per_detector(i,j) = n_corr(i, j) + sigma0 * rand_gauss(handle)
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = 0
       end do
     end do
 
@@ -1184,12 +1175,15 @@ contains
     do j = 1, ndet
       detectorLabel = self%label(j)
       ! Open an existing dataset.
-      call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
-      ! Write tod data to a dataset
-      call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
-      if (hdf5_error == -1) then
-        write(*,*) 'HDF Write error'
-        stop
+      if (self%compressed_tod) then
+          call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'ztod', dset_id, hdf5_error)
+          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
+          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
+          write(*,*) 'Not implemented yet'
+          stop
+      else
+          call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+          call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
       end if
       ! Close the dataset.
       call h5dclose_f(dset_id, hdf5_error)
