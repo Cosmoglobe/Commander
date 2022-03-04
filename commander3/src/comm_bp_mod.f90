@@ -107,7 +107,7 @@ contains
     character(len=512) :: dir, label
     character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-
+    
     label = cpar%ds_label(id_abs)
     
     ! General parameters
@@ -151,6 +151,7 @@ contains
     else
        constructor%unit_scale = 1.d0
     end if
+
 
     ! Initialize raw bandpass
     if (trim(constructor%type) == 'delta') then
@@ -208,6 +209,7 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
+    
 
   end function constructor
   
@@ -458,5 +460,6 @@ contains
     lineAmp_RJ = lineAmp_RJ * 1.d9 ! Convert to uK_ant / (K_ant km/s)
 
   end function lineAmp_RJ
+
 
 end module comm_bp_mod
