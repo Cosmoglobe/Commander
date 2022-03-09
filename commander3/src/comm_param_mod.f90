@@ -2427,7 +2427,7 @@ contains
              open(units(depth),file=value,status="old",err=2)
           else if(key == '@DEFAULT') then
              if(stat /= 0) then
-               write(*,*) "Paramater file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
+               write(*,*) "Parameter file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
                stop
              end if
              ! Recurse to the default new file
