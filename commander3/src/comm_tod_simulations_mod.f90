@@ -165,7 +165,7 @@ contains
          close(unit)
          allocate(dummy_array(size(input_array)))
          write(*,*) "--------------------------------------------------------------"
-         do i = 2, size(input_array)
+         do i = 1, size(input_array)
            ! if the number already exists in result check next
            if (any(dummy_array == input_array(i))) cycle
            ! No match was found, so add it to the output

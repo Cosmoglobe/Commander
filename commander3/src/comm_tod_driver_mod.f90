@@ -9,6 +9,7 @@ module comm_tod_driver_mod
   use comm_tod_mapmaking_mod
   use comm_zodi_mod
   use comm_shared_arr_mod
+  use comm_huffman_mod
   use omp_lib
   implicit none
 
@@ -1190,6 +1191,10 @@ contains
             call h5eprint_f(hdf5_error)
             write(*,*) 'Error in identifying dtype'
           end if
+
+          ! Need to actually create the new zipped TODs
+          call huffman_encode2_sp(self%scans(scan_id)%todkey, tod_per_detector(:, j), self%scans(scan_id)%d(j)%ztod)
+
           call h5dwrite_f(dset_id, dtype, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
           if (hdf5_error /= 0) then 
             call h5eprint_f(hdf5_error)
