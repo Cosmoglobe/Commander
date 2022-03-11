@@ -532,7 +532,7 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if ((mod(iter,self%output_aux_maps))) then
+         if ((mod(iter,self%output_aux_maps) .and. .not. self%enable_tod_simulations)) then
             call int2string(self%scanid(i), scantext)
             if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -619,41 +619,42 @@ contains
 
 
       ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
-      do l = 1, self%output_n_maps
-        !if (l .ne. 6) b_map(:,:,l) = 0d0
-        !b_map = 0d0
-        bicg_sol = 0.0d0
+      if (.not. self%enable_tod_simulations) then
+        do l = 1, self%output_n_maps
+          !if (l .ne. 6) b_map(:,:,l) = 0d0
+          !b_map = 0d0
+          bicg_sol = 0.0d0
 
-        if (l == 1) then
-          epsil = 1d-10
-        else
-          epsil = 1d-6
-        end if
-        if (self%enable_tod_simulations) epsil = 1d6
-        num_cg_iters = 0
-
-        ! Doing this now because it's still burning in...
-        !if (mod(iter,self%output_aux_maps) == 0) then
-          ! Solve for maps
-          if (self%verbosity > 0 .and. self%myid == 0) then
-            write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
+          if (l == 1) then
+            epsil = 1d-10
+          else
+            epsil = 1d-6
           end if
-          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                         & epsil, procmask, map_full, M_diag, b_map, l, &
-                         & prefix, postfix, comp_S)
-        !end if
+          num_cg_iters = 0
 
-        call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-        call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
-        if (comp_S) then
-           outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
-           map_out%map = outmaps(1)%p%map
-           call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
-        end if
-        do j = 1, nmaps
-           outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
+          ! Doing this now because it's still burning in...
+          !if (mod(iter,self%output_aux_maps) == 0) then
+            ! Solve for maps
+            if (self%verbosity > 0 .and. self%myid == 0) then
+              write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
+            end if
+            call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                           & epsil, procmask, map_full, M_diag, b_map, l, &
+                           & prefix, postfix, comp_S)
+          !end if
+
+          call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+          call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+          if (comp_S) then
+             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+             map_out%map = outmaps(1)%p%map
+             call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
+          end if
+          do j = 1, nmaps
+             outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
+          end do
         end do
-      end do
+      end if
 
 
       map_out%map = outmaps(1)%p%map

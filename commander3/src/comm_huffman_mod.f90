@@ -23,7 +23,7 @@ module comm_huffman_mod
   implicit none
 
   private get_symbol_int, get_symbol_sp, set_symbols_int, set_symbols_sp, alloc_symbols_int, alloc_symbols_sp
-  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate, hufmake_compute_sp
+  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate, huffman_encode2_sp
 
 
   ! Most of this can be described in Numerical Recipes, and some of the original
@@ -132,11 +132,6 @@ contains
     integer(i4b) :: i, j, k, n, nb, l,nc,node
     integer(i4b) :: buf
 
-!!$    if (.not. present(offset)) then
-!!$      offset_ = 0
-!!$    else
-!!$      offset_ = offset
-!!$    end if
 
     n  = size(x_out)
     k = 1
@@ -185,26 +180,6 @@ contains
     n  = size(x_out)
     allocate(buf(offset_ + n))
 
-!!$    nb = 8       ! First byte does not contain real data
-!!$    do i = 1, n
-!!$       node=hcode%nodemax
-!!$       do 
-!!$          nc=shifta(nb,3)+1    !nc=nb/8+1
-!!$          l=iand(nb,7)         !l=mod(nb,8) 
-!!$          nb=nb+1
-!!$          if (btest(x_in(nc),7-l)) then 
-!!$             node=hcode%iright(node) 
-!!$          else
-!!$             node=hcode%left(node)
-!!$          end if
-!!$          if (node <= hcode%nch) then
-!!$             x_out(i) = hcode%symbols(node)
-!!$             if (i > 1) x_out(i) = x_out(i-1) + x_out(i)
-!!$             if (present(imod)) x_out(i) = iand(x_out(i),imod)
-!!$             exit
-!!$          end if
-!!$       end do
-!!$    end do
     k = 1
     node=hcode%nodemax
     do i = 2, size(x_in)  ! First byte does not contain real data
@@ -238,6 +213,50 @@ contains
     end do
 
   end subroutine huffman_decode3
+
+
+
+
+  subroutine huffman_encode2_sp(hcode, x_in, x_out) 
+      ! Modification of hufenc routine from Numerical Recipes Vol 2 for Fortran 90
+      implicit none
+      class(huffcode),         intent(in)  :: hcode
+      real(sp), dimension(:),  intent(in)  :: x_in
+      byte,     dimension(:),  intent(out) :: x_out
+  
+      integer(i4b) :: k,l,n,ntmp,nc,nb, symbind
+      real(sp), allocatable, dimension(:)  :: delta
+
+
+      allocate(delta(size(x_in)))
+
+      delta(2:) = x_in(2:) - x_in(1:size(x_in)-1)
+      delta(1) = x_in(1)
+
+      nc = 2 ! byte counter
+      nb = 7 ! bit counter
+      x_out = 0
+
+
+      ! ncode and icode are not allocated by default
+      do k = 1, size(delta)
+          symbind = findloc(hcode%sp_symbs, delta(k), dim=1)
+          do n = hcode%ncode(symbind),1,-1
+              l = mod(nb, 8)
+              if (l == 7) x_out(nc) = 0
+              if (btest(hcode%icode(symbind), n-1)) then
+                  ntmp = ibset(x_out(nc),l)
+                  x_out(nc) = int(ntmp, kind=i1b)
+              end if
+              nb = nb - 1
+              if (nb == -1) then
+                  nb = 7
+                  nc = nc + 1
+              end if
+          end do
+      end do
+  end subroutine huffman_encode2_sp
+
 
 
   ! Public routines
@@ -286,200 +305,66 @@ contains
     real(sp), dimension(:), intent(in) :: symbols
     class(huffcode) :: hcode
 
-    integer(i4b) :: n
+    integer(i4b) :: i,k,j,node,ibit,n 
+    integer(i4b), allocatable, dimension(:) :: iup
 
     call huff_deallocate(hcode)
     n             = size(symbols)
     hcode%nch     = n
     hcode%nodemax = tree(1)
     allocate(hcode%left(2*n-1), hcode%iright(2*n-1))
+    allocate(hcode%ncode(2*n-1), hcode%icode(2*n-1))
     call hcode%alloc_symbols(n, symbols(1))
     hcode%left    = 0
     hcode%iright  = 0
+    hcode%ncode   = 0
+    hcode%icode   = 0
     call hcode%set_symbols(1, symbols)
     hcode%left(n+1:2*n-1)   = tree(2:n)
     hcode%iright(n+1:2*n-1) = tree(n+1:2*n-1)
 
+    ! Reconstructing icode, ncode from left and right
+    allocate(iup(size(hcode%left)))
+    iup = 0
+    do i = 1, hcode%nch
+       k = i
+       do
+         j = findloc(hcode%left, k, dim=1)
+         if (j == 0) then
+             j = findloc(hcode%iright, k, dim=1)
+             iup(k) = -1*j
+         else
+             iup(k) = j
+         end if
+         k = j
+         if (k .eq. size(hcode%left)) exit
+       end do
+    end do
+
+
+
+    do j = 1, hcode%nch
+       n = 0
+       ibit = 0
+       node = iup(j)
+       do
+          if (node == 0 .or. abs(node) > hcode%nodemax) exit
+          if (node < 0) then
+             n = ibset(n, ibit)
+             node = -node
+          end if
+          node = iup(node)
+          ibit = ibit + 1
+      end do
+      hcode%icode(j) = n
+      hcode%ncode(j) = ibit
+    end do
+
+    deallocate(iup)
+
+
   end subroutine hufmak_precomp_sp
 
-
-  subroutine hufmake_compute_sp(array, tree, symbols, hcode)
-    implicit none
-    real(sp), dimension(:), intent(in) :: array
-    real(sp), allocatable, dimension(:), intent(out) :: symbols
-    integer(i4b), allocatable, dimension(:), intent(out) :: tree
-    class(huffcode), intent(out) :: hcode
-
-    integer(i4b) :: i, j, k, n, nch, ll, ul, nused, node
-
-    real(sp), allocatable, dimension(:) :: delta
-    integer(i4b), allocatable, dimension(:) :: weights, indx, nprob
-
-    n = size(array)
-
-    allocate(delta(n))
-    delta(2:) = array(2:n) - array(1:n-1)
-    delta(1)  = array(1)
-
-    ll = int(minval(delta(2:)))
-    ul = int(maxval(delta(2:)))
-    nch = ul - ll + 1
-
-
-    ! Get weights array
-    allocate(weights(nch))
-    allocate(nprob(nch))
-    allocate(indx(nch))
-    weights = 0
-    do i = 2, n
-      weights(delta(i) - ll + 1) = weights(delta(i) - ll + 1) + 1
-    end do
-
-    nused = 0
-    do j=1, nch
-      nprob(j) = weights(j)
-      if (weights(j) .ne. 0) then
-        nused = nused + 1
-        indx(nused) = j
-      end if
-    end do
-
-    allocate(tree(2*nused + 1), symbols(nused))
-
-    do j = nused, 1, -1
-      call hufapp(j)
-    end do
-    k = nch
-    do
-      if (nused <= 1) exit
-      node = indx(1)
-      indx(1) = indx(nused)
-      nused = nused - 1
-      call hufapp(1)
-      k = k + 1
-      nprob(k) = nprob(indx(1)) + nprob(node)
-      ! left
-      tree(k) = node
-      ! iright   
-      tree(k + nused) = indx(1)
-      indx(1) = k
-      call hufapp(1)
-    end do
-
-
-
-    call hufmak_precomp_sp(symbols,tree,hcode)
-
-
-
-    contains
-      subroutine hufapp(l)
-        ! Maintains a heap structure.
-        implicit none
-        integer(i4b), intent(in) :: l
-
-        integer(i4b) :: i,j,k,n
-
-        i = l
-        k = indx(i)
-        do
-          if (i > n/2) exit
-          j = i + i
-          if (j < n .and. weights(indx(j)) > weights(indx(j+1))) j = j+1
-          if (weights(k) <= weights(indx(j))) exit
-          indx(i) = indx(j)
-          i = j
-        end do
-        indx(i) = k
-        end subroutine hufapp
-
-
-    end subroutine hufmake_compute_sp
-    
-
-
-!  subroutine hufmak(symbols,nfreq,hcode)
-!    implicit none
-!    integer(i4b), dimension(:), intent(in)  :: symbols,nfreq
-!    class(huffcode) :: hcode
-!    integer(i4b) :: ibit,j,k,n,node,nused,nerr,itmp(1), ilong, nlong
-!    integer(i4b), dimension(2*size(nfreq)-1) :: indx,iup,nprob
-!    iup=0; indx=0; nprob=0
-!    hcode%nch=size(nfreq)
-!    call huff_allocate(hcode,size(nfreq))
-!    hcode%symbols = symbols
-!    hcode%nfreq = nfreq
-!    nused=0
-!    nprob(1:hcode%nch)=nfreq(1:hcode%nch)
-!    call array_copy(pack(arth(1,1,hcode%nch), nfreq(1:hcode%nch) /= 0 ),&
-!         indx,nused,nerr)
-!    do j=nused,1,-1 
-!       call hufapp(j)
-!    end do
-!    k=hcode%nch
-!    do 
-!       if (nused <= 1) exit
-!       node=indx(1)
-!       indx(1)=indx(nused)
-!       nused=nused-1
-!       call hufapp(1)
-!       k=k+1
-!       nprob(k)=nprob(indx(1))+nprob(node)
-!       hcode%left(k)=node        
-!       hcode%iright(k)=indx(1)
-!       iup(indx(1))=-k 
-!       iup(node)=k 
-!       indx(1)=k
-!       call hufapp(1)
-!    end do
-!    hcode%nodemax=k
-!    iup(hcode%nodemax)=0
-!    do j=1,hcode%nch 
-!       if (nprob(j) /= 0) then
-!          n=0
-!          ibit=0
-!          node=iup(j)
-!          do
-!             if (node == 0) exit
-!             if (node < 0) then
-!                n=ibset(n,ibit)
-!                node=-node
-!             end if
-!             node=iup(node)
-!             ibit=ibit+1
-!          end do
-!          hcode%icode(j)=n
-!          hcode%ncode(j)=ibit
-!       end if
-!    end do
-!    itmp=maxloc(hcode%ncode(1:hcode%nch))
-!    ilong=itmp(1)
-!    nlong=hcode%ncode(ilong)
-!    if (nlong > bit_size(1_i4b)) then
-!       write(*,*) 'Huffman error: Number of possible bits for code exceeded'
-!       stop
-!    end if
-!  contains
-!    subroutine hufapp(l)
-!      implicit none
-!      integer(i4b), intent(in) :: l
-!      integer(i4b) :: i,j,k,n
-!      n=nused
-!      i=l
-!      k=indx(i)
-!      do
-!         if (i > n/2) exit
-!         j=i+i
-!         if (j < n) then
-!            if (nprob(indx(j)) > nprob(indx(j+1))) j=j+1
-!         end if
-!         if (nprob(k) <= nprob(indx(j))) exit
-!         indx(i)=indx(j)
-!         i=j
-!      end do
-!      indx(i)=k
-!    end subroutine hufapp
-!  end subroutine hufmak
   
   function get_bitstring(hcode, i)
     implicit none
@@ -499,18 +384,6 @@ contains
 
   end function get_bitstring
 
-  ! routines
-!  subroutine huff_allocate(hcode,mc)
-!    implicit none
-!    class(huffcode) :: hcode
-!    integer(i4b) :: mc
-!    integer(i4b) :: mq
-!    mq=2*mc-1
-!    allocate(hcode%icode(mq),hcode%ncode(mq),hcode%left(mq),hcode%iright(mq),hcode%symbols(mc),hcode%nfreq(mc))
-!    hcode%icode(:)=0
-!    hcode%ncode(:)=0
-!  end subroutine huff_allocate
-
   subroutine huff_deallocate(hcode)
     implicit none
     class(huffcode) :: hcode
@@ -524,26 +397,6 @@ contains
   end subroutine huff_deallocate
 
 
-!!$  subroutine hufenc(ich,codep,nb,hcode)
-!!$    implicit none
-!!$    integer(i4b), intent(in) :: ich
-!!$    integer(i4b), intent(inout) :: nb
-!!$    character(1), allocatable, dimension(:) :: codep
-!!$    type(huffcode) :: hcode
-!!$    integer(i4b) :: k,l,n,nc,ntmp
-!!$    do n=hcode%ncode(k),1,-1 
-!!$       nc=nb/8+1 
-!!$       if (nc > size(codep)) codep=>reallocate(codep,2*size(codep))
-!!$       l=mod(nb,8)
-!!$       if (l == 0) codep(nc)=char(0)
-!!$       if (btest(hcode%icode(k),n-1)) then 
-!!$          ntmp=ibset(ichar(codep(nc)),l)
-!!$          codep(nc)=char(ntmp)
-!!$       end if
-!!$       nb=nb+1
-!!$    end do
-!!$  end subroutine hufenc
-  
   subroutine hufdec(ich,code,nb,hcode)
     implicit none
     integer(i4b), intent(out) :: ich

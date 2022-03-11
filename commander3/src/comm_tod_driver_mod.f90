@@ -1055,6 +1055,7 @@ contains
     integer(i4b)       :: hdf5_error  !< hdf5 error status
     integer(HID_T)     :: hdf5_file_id !< File identifier
     integer(HID_T)     :: dset_id     !< Dataset identifier
+    integer(hid_t)     :: dtype  ! hdf5 datatype
     integer(HSIZE_T), dimension(1) :: dims
     ! Other variables
     integer(i4b)                          :: i, j, k !< loop variables
@@ -1139,6 +1140,9 @@ contains
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
       end do
     end do
+    ! Digitizes the data to the nearest integer; probably should mimic the
+    ! actual ADC conversion process
+    if (self%compressed_tod) tod_per_detector = real(nint(tod_per_detector), kind=sp)
 
     !write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
 
@@ -1177,10 +1181,21 @@ contains
       ! Open an existing dataset.
       if (self%compressed_tod) then
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'ztod', dset_id, hdf5_error)
-          call h5dwrite_f(dset_id, H5T_NATIVE_DOUBLE, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
-          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
-          write(*,*) 'Not implemented yet'
-          stop
+          if (hdf5_error /= 0) then 
+            call h5eprint_f(hdf5_error)
+            write(*,*) 'Error in opening'
+          end if
+          call h5dget_type_f(dset_id, dtype, hdf5_error)
+          if (hdf5_error /= 0) then 
+            call h5eprint_f(hdf5_error)
+            write(*,*) 'Error in identifying dtype'
+          end if
+          call h5dwrite_f(dset_id, dtype, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
+          if (hdf5_error /= 0) then 
+            call h5eprint_f(hdf5_error)
+            write(*,*) 'Error in writing'
+            write(*,*) 'Not implemented yet'
+          end if
       else
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
           call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)

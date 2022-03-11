@@ -142,7 +142,7 @@ contains
          iostatus = 0
          do while(iostatus == 0)
            read(unit,*, iostat=iostatus) val
-           n_lines = n_lines + 1
+           if (iostatus == 0) n_lines = n_lines + 1
          end do
          close(unit)
          ! an input array of strings,
@@ -155,7 +155,7 @@ contains
          ! it from the top to bottom
          open(unit, file=trim(filelist), action="read")
          ! we need to ignore the first line, otherwise it will appear inside an input array
-         do i = 0, n_lines-2
+         do i = 0, n_lines-1
            if (i == 0) then
              read(unit,*) val
            else
@@ -288,6 +288,7 @@ contains
         write(*,*) "filelist is "//trim(filelist)
         write(*,*) "sims_filelist is "//trim(sims_filelist)
 
+        write(*,*) "cp "//trim(filelist)//" "//trim(sims_filelist)
         call system("cp "//trim(filelist)//" "//trim(sims_filelist))
         ! Now, changing pointings inside the file
         unit = getlun()
@@ -299,7 +300,7 @@ contains
         iostatus = 0
         do while(iostatus == 0)
           read(unit,*, iostat=iostatus) val
-          n_lines = n_lines + 1
+          if (iostatus == 0) n_lines = n_lines + 1
         end do
         write(*,*) "n_lines is ", n_lines
         close(unit)
@@ -315,7 +316,7 @@ contains
         ! also, we will get 1 additional line (i.e. the number n_lines will be  1 value larger
         ! than it should be, because of the way we count lines); thus, we need to loop from
         ! 1 to (n_lines - 1), or from 0 to (n_lines - 2)
-        do i = 0, n_lines-2
+        do i = 0, n_lines-1
           if (i == 0) then
             read(unit,*) val
           else
@@ -331,7 +332,7 @@ contains
         ! (recl=1024 is used so the last column won't be put into
         ! next row)
         open(unit, file=trim(sims_filelist), action="write", recl=1024)
-        do i = 0, n_lines-2
+        do i = 0, n_lines-1
           if (i == 0) then
             write(unit,*) val
           else

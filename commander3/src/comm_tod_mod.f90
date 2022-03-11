@@ -2316,6 +2316,8 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),            dimension(:),  intent(out) :: tod
 
+    byte,  allocatable, dimension(:)  :: test
+
     call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
 
   end subroutine decompress_tod
