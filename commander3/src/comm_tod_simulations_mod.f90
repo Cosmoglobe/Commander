@@ -147,7 +147,7 @@ contains
          close(unit)
          ! an input array of strings,
          ! which will store filenames
-         allocate(input_array(1:n_lines))
+         allocate(input_array(1:n_lines-1))
          ! array which will store pid values
          !allocate(pid_array(1:n_lines))
          write(*,*) "--------------------------------------------------------------"
@@ -288,7 +288,6 @@ contains
         write(*,*) "filelist is "//trim(filelist)
         write(*,*) "sims_filelist is "//trim(sims_filelist)
 
-        write(*,*) "cp "//trim(filelist)//" "//trim(sims_filelist)
         call system("cp "//trim(filelist)//" "//trim(sims_filelist))
         ! Now, changing pointings inside the file
         unit = getlun()
