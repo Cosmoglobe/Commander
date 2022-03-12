@@ -235,10 +235,8 @@ contains
 
       nc = 2 ! byte counter
       nb = 7 ! bit counter
-      x_out = 0
 
 
-      ! ncode and icode are not allocated by default
       do k = 1, size(delta)
           symbind = findloc(hcode%sp_symbs, delta(k), dim=1)
           do n = hcode%ncode(symbind),1,-1

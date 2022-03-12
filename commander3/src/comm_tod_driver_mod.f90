@@ -1182,25 +1182,17 @@ contains
       ! Open an existing dataset.
       if (self%compressed_tod) then
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'ztod', dset_id, hdf5_error)
-          if (hdf5_error /= 0) then 
-            call h5eprint_f(hdf5_error)
-            write(*,*) 'Error in opening'
-          end if
+          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
           call h5dget_type_f(dset_id, dtype, hdf5_error)
-          if (hdf5_error /= 0) then 
-            call h5eprint_f(hdf5_error)
-            write(*,*) 'Error in identifying dtype'
-          end if
+          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
 
           ! Need to actually create the new zipped TODs
-          call huffman_encode2_sp(self%scans(scan_id)%todkey, tod_per_detector(:, j), self%scans(scan_id)%d(j)%ztod)
+          ! Also need to create new huffman tree and symbols, since there's no
+          ! guarantee that the symbols will be the same in the simulated data.
+          !call huffman_encode2_sp(self%scans(scan_id)%todkey, tod_per_detector(:, j), self%scans(scan_id)%d(j)%ztod)
 
           call h5dwrite_f(dset_id, dtype, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
-          if (hdf5_error /= 0) then 
-            call h5eprint_f(hdf5_error)
-            write(*,*) 'Error in writing'
-            write(*,*) 'Not implemented yet'
-          end if
+          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
       else
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
           call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
