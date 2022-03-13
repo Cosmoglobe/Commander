@@ -1046,6 +1046,8 @@ contains
     real(dp) :: chisq
     integer(i4b)                          :: ntod !< total amount of ODs
     integer(i4b)                          :: ndet !< total amount of detectors
+    byte,    allocatable, dimension(:)    :: ztod 
+
     ! HDF5 variables
     character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
     integer(i4b)       :: myindex     !< dummy value for string manipulation
@@ -1166,7 +1168,7 @@ contains
     call int2string(self%myid, processor_label)
     !write(*,*) "!  Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
     write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) "!  "//trim(currentHDFFile)
+    write(*,*) "!  "//trim(toks(ntoks))
     ! For debugging
     !call MPI_Finalize(mpi_err)
     !stop
@@ -1177,22 +1179,35 @@ contains
     ! Open an existing file - returns hdf5_file_id
     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
     if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
+    ! Remake huffman, symbols for tod_per_detector
+
+
     do j = 1, ndet
       detectorLabel = self%label(j)
       ! Open an existing dataset.
       if (self%compressed_tod) then
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'ztod', dset_id, hdf5_error)
-          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
+          if (hdf5_error < 0) then
+            write(*,*) 'open_error', trim(pidLabel), ' ', trim(detectorLabel)
+            !call h5eprint_f(hdf5_error)
+          end if
           call h5dget_type_f(dset_id, dtype, hdf5_error)
-          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
+          if (hdf5_error < 0) then
+            write(*,*) 'type_error', trim(pidLabel), ' ', trim(detectorLabel)
+            !call h5eprint_f(hdf5_error)
+          end if
 
           ! Need to actually create the new zipped TODs
           ! Also need to create new huffman tree and symbols, since there's no
           ! guarantee that the symbols will be the same in the simulated data.
-          !call huffman_encode2_sp(self%scans(scan_id)%todkey, tod_per_detector(:, j), self%scans(scan_id)%d(j)%ztod)
-
-          call h5dwrite_f(dset_id, dtype, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
-          if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
+          call huffman_encode2_sp(self%scans(scan_id)%todkey, tod_per_detector(:, j), ztod)
+          !allocate(ztod(size(self%scans(scan_id)%d(j)%ztod)))
+          !ztod = self%scans(scan_id)%d(j)%ztod
+          !write(*,*) size(ztod), size(self%scans(scan_id)%d(j)%ztod)
+          !call h5dwrite_f(dset_id, dtype, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
+          call h5dwrite_f(dset_id, dtype, ztod, dims, hdf5_error)
+          if (hdf5_error < 0) call h5eprint_f(hdf5_error)
+          deallocate(ztod)
       else
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
           call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)

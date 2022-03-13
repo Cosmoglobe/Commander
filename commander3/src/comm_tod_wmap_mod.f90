@@ -579,47 +579,47 @@ contains
       end do
 
       call mpi_barrier(self%comm, ierr)
-      if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
-
-      ! Output latest scan list with new timing information
-      if (output_scanlist) call self%output_scan_list(slist)
-
-
-      call update_status(status, "Running allreduce on M_diag")
-      call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
-           & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-      call update_status(status, "Ran allreduce on M_diag")
-
-      call update_status(status, "Running allreduce on b_map")
-      call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
-           & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-      call update_status(status, "Ran allreduce on b_map")
-
-
-      where (M_diag == 0d0)
-         M_diag = 1d0
-      end where
-      if (.not. comp_S) then
-         ! If we want to not do the "better preconditioning"
-         M_diag(:,4) = 0d0
-      end if
-
-      call timer%start(TOD_MAPSOLVE, self%band)
-
-      allocate(outmaps(self%output_n_maps))
-      do i = 1, self%output_n_maps
-       outmaps(i)%p => comm_map(self%info)
-      end do
-
-      if (comp_S) then
-        allocate (bicg_sol(0:npix-1, nmaps+1))
-      else
-        allocate (bicg_sol(0:npix-1, nmaps  ))
-      end if
-
-
-      ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
       if (.not. self%enable_tod_simulations) then
+        if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
+
+        ! Output latest scan list with new timing information
+        if (output_scanlist) call self%output_scan_list(slist)
+
+
+        call update_status(status, "Running allreduce on M_diag")
+        call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
+             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+        call update_status(status, "Ran allreduce on M_diag")
+
+        call update_status(status, "Running allreduce on b_map")
+        call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
+             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+        call update_status(status, "Ran allreduce on b_map")
+
+
+        where (M_diag == 0d0)
+           M_diag = 1d0
+        end where
+        if (.not. comp_S) then
+           ! If we want to not do the "better preconditioning"
+           M_diag(:,4) = 0d0
+        end if
+
+        call timer%start(TOD_MAPSOLVE, self%band)
+
+        allocate(outmaps(self%output_n_maps))
+        do i = 1, self%output_n_maps
+         outmaps(i)%p => comm_map(self%info)
+        end do
+
+        if (comp_S) then
+          allocate (bicg_sol(0:npix-1, nmaps+1))
+        else
+          allocate (bicg_sol(0:npix-1, nmaps  ))
+        end if
+
+
+        ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = 1, self%output_n_maps
           !if (l .ne. 6) b_map(:,:,l) = 0d0
           !b_map = 0d0
@@ -654,22 +654,23 @@ contains
              outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
           end do
         end do
-      end if
+        deallocate(bicg_sol)
 
 
-      map_out%map = outmaps(1)%p%map
-      rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-      call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-      do n = 2, self%output_n_maps
-        call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
-      end do
-      call timer%stop(TOD_MAPSOLVE, self%band)
+        map_out%map = outmaps(1)%p%map
+        rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+        do n = 2, self%output_n_maps
+          call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
+        end do
+        call timer%stop(TOD_MAPSOLVE, self%band)
 
-      ! Sample bandpass parameters
-      if (sample_rel_bandpass .or. sample_abs_bandpass) then
-         call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
-         self%bp_delta = delta(:,:,1)
+        ! Sample bandpass parameters
+        if (sample_rel_bandpass .or. sample_abs_bandpass) then
+           call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+           self%bp_delta = delta(:,:,1)
+        end if
       end if
 
       ! Clean up temporary arrays
@@ -688,7 +689,7 @@ contains
          deallocate (outmaps)
       end if
 
-      deallocate (map_sky, bicg_sol)
+      deallocate(map_sky)
 
       if (self%correct_sl) then
          do i = 1, self%ndet

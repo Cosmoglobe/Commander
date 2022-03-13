@@ -23,7 +23,7 @@ module comm_huffman_mod
   implicit none
 
   private get_symbol_int, get_symbol_sp, set_symbols_int, set_symbols_sp, alloc_symbols_int, alloc_symbols_sp
-  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, huffman_decode3, huff_deallocate, huffman_encode2_sp
+  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, hufmak_comp_sp, huffman_decode3, huff_deallocate, huffman_encode2_sp
 
 
   ! Most of this can be described in Numerical Recipes, and some of the original
@@ -222,7 +222,7 @@ contains
       implicit none
       class(huffcode),         intent(in)  :: hcode
       real(sp), dimension(:),  intent(in)  :: x_in
-      byte,     dimension(:),  intent(out) :: x_out
+      byte,     dimension(:), allocatable, intent(out) :: x_out
   
       integer(i4b) :: k,l,n,ntmp,nc,nb, symbind
       real(sp), allocatable, dimension(:)  :: delta
@@ -233,12 +233,41 @@ contains
       delta(2:) = x_in(2:) - x_in(1:size(x_in)-1)
       delta(1) = x_in(1)
 
+      delta = 0
+
       nc = 2 ! byte counter
       nb = 7 ! bit counter
 
+      ! Count size of byte array needed
 
       do k = 1, size(delta)
           symbind = findloc(hcode%sp_symbs, delta(k), dim=1)
+          !if (symbind == 0) symbind = findloc(hcode%sp_symbs, 0, dim=1)
+          if (symbind == 0) cycle
+          do n = hcode%ncode(symbind),1,-1
+              !l = mod(nb, 8)
+              !if (l == 7) x_out(nc) = 0
+              !if (btest(hcode%icode(symbind), n-1)) then
+              !    ntmp = ibset(x_out(nc),l)
+              !    x_out(nc) = int(ntmp, kind=i1b)
+              !end if
+              nb = nb - 1
+              if (nb == -1) then
+                  nb = 7
+                  nc = nc + 1
+              end if
+          end do
+      end do
+
+      allocate(x_out(nc))
+
+      nc = 2 ! byte counter
+      nb = 7 ! bit counter
+
+      do k = 1, size(delta)
+          symbind = findloc(hcode%sp_symbs, delta(k), dim=1)
+          !if (symbind == 0) symbind = findloc(hcode%sp_symbs, 0, dim=1)
+          if (symbind == 0) cycle
           do n = hcode%ncode(symbind),1,-1
               l = mod(nb, 8)
               if (l == 7) x_out(nc) = 0
@@ -339,8 +368,6 @@ contains
        end do
     end do
 
-
-
     do j = 1, hcode%nch
        n = 0
        ibit = 0
@@ -362,6 +389,87 @@ contains
 
 
   end subroutine hufmak_precomp_sp
+
+  subroutine hufmak_comp_sp(symbols,tree,hcode)
+    implicit none
+    integer(i4b), dimension(:), intent(in) :: tree
+    real(sp), dimension(:), intent(in) :: symbols
+    class(huffcode) :: hcode
+
+    integer(i4b) :: i,k,j,node,ibit,n 
+    integer(i4b), allocatable, dimension(:) :: iup
+
+
+
+  end subroutine hufmak_comp_sp
+
+  !subroutine hufmak (nfreq, ilong, nlong, hcode)
+  !implicit none
+  !integer(i4b), intent(out) :: ilong, nlong
+  !integer(i4b), dimension(:), intent(in) :: nfreq
+  !type(huffcode) :: hcode
+  !integer(i4b) :: ibit,j,k,n,node,nused,nerr
+  !integer(i4b), dimension(2*size(nfreq)-1) :: indx, iup, nprob
+  !hcode%nch = size(nfreq)
+  !call huff_allocate(hcode, size(nfreq))
+  !nused = 0
+  !! Initializes
+  !indx = size(indx)
+  !nprob(1:hcode%nch) = nfreq(1:hcode%nch)
+  !call array_copy(pack(arth(1,1,hcode%nch), nfreq(1:hcode%nch) /= 0 ), indx, nused, nerr)
+  !
+  !do j=nused,1,-1
+  !   call hufapp(j, indx, nprob, nused)
+  !end do
+  !
+  !
+  !
+  !k = hcode%nch
+  !do
+  !    if (nused <= 1) exit
+  !    node = indx(1)
+  !    indx(1) = indx(nused)
+  !    nused = nused - 1
+  !    call hufapp(1, indx, nprob, nused)
+  !    k = k + 1
+  !    nprob(k) = nprob(indx(1)) + nprob(node)
+  !    hcode%left(k) = node
+  !    hcode%iright(k) = indx(1)
+  !    iup(indx(1)) = -k
+  !    iup(node) = k
+  !    indx(1) = k
+  !    call hufapp(1, indx, nprob, nused)
+  !end do
+  !
+  !hcode%nodemax = k
+  !iup(hcode%nodemax) = 0
+  !
+  !
+  !do j = 1, hcode%nch
+  !    if (nprob(j) /= 0) then
+  !        n = 0
+  !        ibit = 0
+  !        node = iup(j)
+  !        do
+  !            if (node == 0) exit
+  !            if (node < 0) then
+  !                n = ibset(n, ibit)
+  !                node = -node
+  !            end if
+  !            node = iup(node)
+  !            ibit = ibit + 1
+  !        end do
+  !        hcode%icode(j) = n
+  !        hcode%ncode(j) = ibit
+  !    end if
+  !end do
+  !ilong = imaxloc(hcode%ncode(1:hcode%nch))
+  !nlong = hcode%ncode(ilong)
+  !if (nlong > bit_size(1_i4b)) call nrerror('hfmak: Number of possible bits for code exceeded')
+  !
+  !
+  !end subroutine hufmak
+
 
   
   function get_bitstring(hcode, i)

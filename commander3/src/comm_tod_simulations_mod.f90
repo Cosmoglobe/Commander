@@ -127,7 +127,7 @@ contains
        val     = 0
        ! processing files only with Master process
        if (cpar%myid == 0) then
-         write(*,*) "   Starting copying files..."
+         write(*,*) "|   Starting copying files..."
          ! copying an existing filelist into simulation folder
          !call system("cp "//trim(filelist)//" "//trim(simsdir))
          !mystring = filelist
@@ -150,7 +150,7 @@ contains
          allocate(input_array(1:n_lines-1))
          ! array which will store pid values
          !allocate(pid_array(1:n_lines))
-         write(*,*) "--------------------------------------------------------------"
+         write(*,*) "| --------------------------------------------------------------"
          ! once again open the same file to start reading
          ! it from the top to bottom
          open(unit, file=trim(filelist), action="read")
@@ -164,7 +164,7 @@ contains
          end do
          close(unit)
          allocate(dummy_array(size(input_array)))
-         write(*,*) "--------------------------------------------------------------"
+         write(*,*) "| --------------------------------------------------------------"
          do i = 1, size(input_array)
            ! if the number already exists in result check next
            if (any(dummy_array == input_array(i))) cycle
@@ -173,7 +173,7 @@ contains
            dummy_array(n_elem) = input_array(i)
          end do
          deallocate(input_array)
-         write(*,*) "--------------------------------------------------------------"
+         write(*,*) "| --------------------------------------------------------------"
          ! reducing the size of output array of strings from 45000 to 1490
          allocate(output_array(1:n_elem))
          do i = 1, size(output_array)
@@ -218,8 +218,8 @@ contains
        !  !call system("cp "//trim(filelist)//" "//trim(simsdir))
        !  !call 
        !end if 
-       if (cpar%myid == 0) write(*,*) "Finished copying files!"
-       if (cpar%myid == 0) write(*,*) "--------------------------------------------------------------"
+       if (cpar%myid == 0) write(*,*) "| Finished copying files!"
+       if (cpar%myid == 0) write(*,*) "| --------------------------------------------------------------"
        call MPI_BARRIER(MPI_COMM_WORLD, ierr)
      end do
      !call MPI_Finalize(ierr)
@@ -285,8 +285,8 @@ contains
         ! copying an existing filelist and renaming it
         freq = cpar%ds_label(band)
         sims_filelist = trim(simsdir)//"filelist_"//trim(freq)//"_simulations.txt"
-        write(*,*) "filelist is "//trim(filelist)
-        write(*,*) "sims_filelist is "//trim(sims_filelist)
+        write(*,*) "| filelist is "//trim(filelist)
+        write(*,*) "| sims_filelist is "//trim(sims_filelist)
 
         call system("cp "//trim(filelist)//" "//trim(sims_filelist))
         ! Now, changing pointings inside the file
@@ -301,13 +301,12 @@ contains
           read(unit,*, iostat=iostatus) val
           if (iostatus == 0) n_lines = n_lines + 1
         end do
-        write(*,*) "n_lines is ", n_lines
         close(unit)
         allocate(input_array(n_lines), pid_array(n_lines), output_array(n_lines))
         allocate(column3(n_lines), column4(n_lines), column5(n_lines))
         ! array which will store pid values
         !allocate(pid_array(1:n_lines))
-        write(*,*) "--------------------------------------------------------------"
+        write(*,*) "| --------------------------------------------------------------"
         ! once again open the same file to start reading
         ! it from the top to bottom
         open(unit, file=trim(sims_filelist), action="read")
@@ -339,7 +338,7 @@ contains
           end if
         end do
         close(unit)
-        write(*,*) "--------------------------------------------------------------"
+        write(*,*) "| --------------------------------------------------------------"
         deallocate(input_array, pid_array, output_array)
         deallocate(column3, column4, column5)
       end if
