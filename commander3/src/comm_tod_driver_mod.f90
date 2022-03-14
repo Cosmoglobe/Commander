@@ -1206,7 +1206,10 @@ contains
           !write(*,*) size(ztod), size(self%scans(scan_id)%d(j)%ztod)
           !call h5dwrite_f(dset_id, dtype, self%scans(scan_id)%d(j)%ztod, dims, hdf5_error)
           call h5dwrite_f(dset_id, dtype, ztod, dims, hdf5_error)
-          if (hdf5_error < 0) call h5eprint_f(hdf5_error)
+          if (hdf5_error < 0) then
+            write(*,*) 'write_error ', trim(pidLabel), ' ', trim(detectorLabel)
+            call h5eprint_f(hdf5_error)
+          end if
           deallocate(ztod)
       else
           call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
