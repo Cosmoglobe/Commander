@@ -29,7 +29,6 @@ from astropy.io import fits
 import h5py
 import healpy as hp
 
-from pytest import approx
 from glob import glob
 import multiprocessing as mp
 from multiprocessing import Pool
@@ -92,6 +91,7 @@ fknees *= 1e-3
 # version 45 uses commmander_tools package, and fixes sign flip of timestream to be constant over tod
 # version 46 uses JPL Horizons ephemerides directly
 # version 47 uses same as above, just uses the precalibrated data
+# version 48 reverts to the center=False parameter
 
 from time import sleep
 from time import time as timer
@@ -233,14 +233,14 @@ def get_ephem(time, planet):
     return f_ra(time), f_dec(time)
 
 
-def get_flags(data, test=False):
+def get_flags(data, test=False, center=True):
 
     t2jd = data[1].header['TIME2JD']
 
     quat = data[1].data['QUATERN']
 
     ll_A, ll_B, p_A, p_B, t_list = quat_to_sky_coords(quat, lonlat=True,
-        center=True, ret_times=True,
+        center=center, ret_times=True,
             coord_out='C')
 
     time_majorframe = data[2].data['TIME'] + t2jd
@@ -966,7 +966,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center, 
 
         genflags = data[2].data['genflags']*2**11
         daflags = data[2].data['daflags']
-        daflags = get_flags(data)
+        daflags = get_flags(data, center=center)
         for i in range(10):
             Nobs = Nobs_array[i]
             for j in range(Nobs):
@@ -1085,5 +1085,5 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 if __name__ == '__main__':
-    main(version=47, precal=False, compress=True)
+    main(version=47, precal=False, compress=True, center=False)
     #test_flags()
