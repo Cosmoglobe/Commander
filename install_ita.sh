@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel
 toolchain="intel"
-buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -195,7 +195,7 @@ then
 	-DCFITSIO_USE_CURL:BOOL=OFF \
 	-DUSE_SYSTEM_FFTW:BOOL=OFF \
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	-DUSE_SYSTEM_HDF5:BOOL=ON \
+	-DUSE_SYSTEM_HDF5:BOOL=OFF \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
 	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build

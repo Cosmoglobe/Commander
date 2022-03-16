@@ -920,12 +920,12 @@ contains
     P%Max_l_tensor=2500
     P%Max_eta_k_tensor=6000
     
-    call CAMB_GetResults(camb_data, P)
+    !call CAMB_GetResults(camb_data, P)
     
     ! Set TT, EE, and TE
     c_l = 0.d0
     DO k = 1, 3
-       c_l(k, :) = camb_data%CLData%Cl_scalar(0:self%lmax, k)
+       !c_l(k, :) = camb_data%CLData%Cl_scalar(0:self%lmax, k)
        
        c_l(k, 0) = 0.d0
        c_l(k, 1) = 0.d0
