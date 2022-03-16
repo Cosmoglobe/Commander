@@ -23,7 +23,7 @@ module comm_huffman_mod
   implicit none
 
   private get_symbol_int, get_symbol_sp, set_symbols_int, set_symbols_sp, alloc_symbols_int, alloc_symbols_sp
-  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, hufmak_comp_sp, huffman_decode3, huff_deallocate, huffman_encode2_sp
+  public huffcode, huffman_decode, huffman_decode2_int, huffman_decode2_sp, get_bitstring, hufmak_precomp_int, hufmak_precomp_sp, hufmak_comp_sp, huffman_decode3, huff_deallocate, huff_allocate, huffman_encode2_sp
 
 
   ! Most of this can be described in Numerical Recipes, and some of the original
@@ -242,15 +242,7 @@ contains
 
       do k = 1, size(delta)
           symbind = findloc(hcode%sp_symbs, delta(k), dim=1)
-          !if (symbind == 0) symbind = findloc(hcode%sp_symbs, 0, dim=1)
-          if (symbind == 0) cycle
           do n = hcode%ncode(symbind),1,-1
-              !l = mod(nb, 8)
-              !if (l == 7) x_out(nc) = 0
-              !if (btest(hcode%icode(symbind), n-1)) then
-              !    ntmp = ibset(x_out(nc),l)
-              !    x_out(nc) = int(ntmp, kind=i1b)
-              !end if
               nb = nb - 1
               if (nb == -1) then
                   nb = 7
@@ -266,8 +258,6 @@ contains
 
       do k = 1, size(delta)
           symbind = findloc(hcode%sp_symbs, delta(k), dim=1)
-          !if (symbind == 0) symbind = findloc(hcode%sp_symbs, 0, dim=1)
-          if (symbind == 0) cycle
           do n = hcode%ncode(symbind),1,-1
               l = mod(nb, 8)
               if (l == 7) x_out(nc) = 0
@@ -403,72 +393,165 @@ contains
 
   end subroutine hufmak_comp_sp
 
-  !subroutine hufmak (nfreq, ilong, nlong, hcode)
-  !implicit none
-  !integer(i4b), intent(out) :: ilong, nlong
-  !integer(i4b), dimension(:), intent(in) :: nfreq
-  !type(huffcode) :: hcode
-  !integer(i4b) :: ibit,j,k,n,node,nused,nerr
-  !integer(i4b), dimension(2*size(nfreq)-1) :: indx, iup, nprob
-  !hcode%nch = size(nfreq)
-  !call huff_allocate(hcode, size(nfreq))
-  !nused = 0
-  !! Initializes
-  !indx = size(indx)
-  !nprob(1:hcode%nch) = nfreq(1:hcode%nch)
-  !call array_copy(pack(arth(1,1,hcode%nch), nfreq(1:hcode%nch) /= 0 ), indx, nused, nerr)
-  !
-  !do j=nused,1,-1
-  !   call hufapp(j, indx, nprob, nused)
-  !end do
-  !
-  !
-  !
-  !k = hcode%nch
-  !do
-  !    if (nused <= 1) exit
-  !    node = indx(1)
-  !    indx(1) = indx(nused)
-  !    nused = nused - 1
-  !    call hufapp(1, indx, nprob, nused)
-  !    k = k + 1
-  !    nprob(k) = nprob(indx(1)) + nprob(node)
-  !    hcode%left(k) = node
-  !    hcode%iright(k) = indx(1)
-  !    iup(indx(1)) = -k
-  !    iup(node) = k
-  !    indx(1) = k
-  !    call hufapp(1, indx, nprob, nused)
-  !end do
-  !
-  !hcode%nodemax = k
-  !iup(hcode%nodemax) = 0
-  !
-  !
-  !do j = 1, hcode%nch
-  !    if (nprob(j) /= 0) then
-  !        n = 0
-  !        ibit = 0
-  !        node = iup(j)
-  !        do
-  !            if (node == 0) exit
-  !            if (node < 0) then
-  !                n = ibset(n, ibit)
-  !                node = -node
-  !            end if
-  !            node = iup(node)
-  !            ibit = ibit + 1
-  !        end do
-  !        hcode%icode(j) = n
-  !        hcode%ncode(j) = ibit
-  !    end if
-  !end do
-  !ilong = imaxloc(hcode%ncode(1:hcode%nch))
-  !nlong = hcode%ncode(ilong)
-  !if (nlong > bit_size(1_i4b)) call nrerror('hfmak: Number of possible bits for code exceeded')
-  !
-  !
-  !end subroutine hufmak
+  subroutine hufmak(input_arr, hcode)
+    implicit none
+    real(sp), dimension(:,:), intent(in) :: input_arr
+    class(huffcode) :: hcode
+
+    real(sp), allocatable, dimension(:) :: delta_arr, nfreq, symbols
+
+    integer(i4b) :: i, j, k, ndet, ntod, det, n, nused, ibit, node
+    integer(i4b) :: vec(2)
+    integer(i4b), allocatable, dimension(:) :: indx, iup, nprob
+    real(sp) :: min_val, max_val
+
+
+
+    vec = shape(input_arr)
+    ntod = vec(1)
+    ndet = vec(2)
+
+    allocate(delta_arr(4*ntod))
+
+    do det = 1, ndet
+      delta_arr(ntod*(det-1)+1) = input_arr(1, det)
+      delta_arr(ntod*(det-1)+2: ntod*det) = input_arr(2:ntod, det) - input_arr(1:ntod-1, det)
+    end do
+
+    min_val = minval(delta_arr)
+    max_val = maxval(delta_arr)
+
+    n = int(max_val-min_val+1)
+
+
+
+    n = 0
+
+    do while (min_val<max_val)
+        n = n+1
+        min_val = minval(delta_arr, mask=delta_arr>min_val)
+    enddo
+
+    allocate(symbols(n))
+    allocate(nfreq(n))
+    nfreq = 0
+
+    i = 0
+    min_val = minval(delta_arr)
+    max_val = maxval(delta_arr)
+    do while (min_val<max_val)
+        i = i+1
+        min_val = minval(delta_arr, mask=delta_arr>min_val)
+        symbols(i) = min_val
+    enddo
+
+    do i = 1, n
+      nfreq(i) = count(delta_arr .eq. symbols(i))
+    end do
+
+    nused = 0
+
+    allocate(indx(2*size(nfreq)-1))
+    allocate(iup(2*size(nfreq)-1))
+    allocate(nprob(2*size(nfreq)-1))
+
+    call huff_deallocate(hcode)
+
+    hcode%nch = size(nfreq)
+    allocate(hcode%left(2*hcode%nch-1),  hcode%iright(2*hcode%nch-1))
+    allocate(hcode%ncode(2*hcode%nch-1), hcode%icode(2*hcode%nch-1))
+
+    hcode%left = 0
+    hcode%iright = 0
+    hcode%ncode = 0
+    hcode%icode = 0
+
+    indx = size(indx)
+    nprob = 0
+    nprob(1:hcode%nch) = nfreq(1:hcode%nch)
+
+    do i = 1, hcode%nch
+      if (nfreq(i) .ne. 0) then
+        indx(i) = i
+        nused = nused + 1
+      end if
+    end do
+
+    do j=nused,1,-1 
+       call hufapp(j)
+    end do
+
+
+  k = hcode%nch
+  do
+      if (nused <= 1) exit
+      node = indx(1)
+      indx(1) = indx(nused)
+      nused = nused - 1
+      call hufapp(1)
+      k = k + 1
+      nprob(k) = nprob(indx(1)) + nprob(node)
+      hcode%left(k) = node
+      hcode%iright(k) = indx(1)
+      iup(indx(1)) = -k
+      iup(node) = k
+      indx(1) = k
+      call hufapp(1)
+  end do
+
+  hcode%nodemax = k
+  iup(hcode%nodemax) = 0
+  write(*,*) 'left', hcode%left
+  write(*,*) 'right', hcode%iright
+  write(*,*) 'iup, ', iup
+  stop
+
+  do j = 1, hcode%nch
+      if (nprob(j) /= 0) then
+          n = 0
+          ibit = 0
+          node = iup(j)
+          do
+              if (node == 0) exit
+              if (node < 0) then
+                  n = ibset(n, ibit)
+                  node = -node
+              end if
+              node = iup(node)
+              ibit = ibit + 1
+          end do
+          hcode%icode(j) = n
+          hcode%ncode(j) = ibit
+      end if
+  end do
+
+  call hcode%alloc_symbols(n, symbols(1))
+  call hcode%set_symbols(1, symbols)
+
+  contains
+    subroutine hufapp(l)
+      implicit none
+      integer(i4b), intent(in) :: l
+      integer(i4b) :: i,j,k,n
+      n=nused
+      i=l
+      k=indx(i)
+      do
+         if (i > n/2) exit
+         j=i+i
+         if (j < n) then
+            if (nprob(indx(j)) > nprob(indx(j+1))) j=j+1
+         end if
+         if (nprob(k) <= nprob(indx(j))) exit
+         indx(i)=indx(j)
+         i=j
+      end do
+      indx(i)=k
+    end subroutine hufapp
+
+
+  end subroutine hufmak
+
 
 
   
@@ -501,6 +584,17 @@ contains
     if (allocated(hcode%ncode))   deallocate(hcode%ncode)
     if (allocated(hcode%nfreq))   deallocate(hcode%nfreq)
   end subroutine huff_deallocate
+
+  subroutine huff_allocate(hcode, mc)
+      implicit none
+      class(huffcode) :: hcode
+      integer(i4b) :: mc, mq
+      mq = 2*mc-1
+      allocate(hcode%icode(mq), hcode%ncode(mq), hcode%left(mq), hcode%iright(mq))
+      hcode%icode(:) = 0
+      hcode%ncode(:) = 0
+  end subroutine huff_allocate
+
 
 
   subroutine hufdec(ich,code,nb,hcode)
