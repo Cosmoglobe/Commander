@@ -517,9 +517,9 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if ((mod(iter,self%output_aux_maps))) then
+         if (mod(iter,self%output_aux_maps) == 0) then
             call int2string(self%scanid(i), scantext)
-            if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '| Writing tod to hdf'
+            if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
             call write_hdf(tod_file, '/sl', sd%s_sl)
             call write_hdf(tod_file, '/flag', sd%flag)

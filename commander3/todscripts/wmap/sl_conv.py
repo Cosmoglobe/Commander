@@ -256,12 +256,15 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100):
     SIDELOBE_DIR = '/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/far_sidelobe_maps'
     # Construct sidelobe model
     sidelobe = hp.read_map(f'{SIDELOBE_DIR}/wmap_sidelobe_map_{band}_9yr_v5.fits')
+    sidelobe = hp.reorder(sidelobe, n2r=True)
+    sidelobe = hp.read_map(f'{SIDELOBE_DIR}/map_{band.lower()}_sidelobes_yr1_v1.fits')
+
     
     # Normalized such that \int B_A d\Omega = 1, converting from 
     # sum(abs(sidelobe)) = 2*N_pix normalization
-    beam_A = hp.reorder(sidelobe, n2r=True)/(4*np.pi)
+    beam_A = sidelobe/(4*np.pi)
     beam_A[beam_A < 0] = 0
-    beam_B = hp.reorder(sidelobe, n2r=True)/(4*np.pi)
+    beam_B = sidelobe/(4*np.pi)
     beam_B[beam_B > 0] = 0
     beam_B = -beam_B
     
