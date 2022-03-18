@@ -58,15 +58,15 @@ class commander_tod:
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
-            if self.exists and self.overwrite:
-                os.remove(self.outName)
+            #if self.exists and self.overwrite:
+            #    os.remove(self.outName)
             try:
                 self.outFile = h5py.File(self.outName, 'a')
 
-                if self.exists and not self.overwrite:
-                    for pid in self.load_field('/common/pids'):
-                        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
-                        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+                #if self.exists and not self.overwrite:
+                #    for pid in self.load_field('/common/pids'):
+                #        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
+                #        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
             except (KeyError, OSError):
                 if(hasattr(self, 'outFile')):
                     self.outFile.close()
@@ -112,6 +112,10 @@ class commander_tod:
 
     #Single field write
     def add_field(self, fieldName, data, compression=None):
+          
+        if self.overwrite:
+            if fieldName in self.outFile.keys():
+                del self.outFile[fieldName]
         data = np.nan_to_num(data)
         writeField = True
         if(compression is not None and compression is not []):
@@ -178,11 +182,7 @@ class commander_tod:
             try:
                 self.outFile.create_dataset(fieldName, data=data)
             except OSError as e:
-                if self.overwrite:
-                    del self.outFile[fieldName]
-                    self.outFile.create_dataset(fieldName, data=data)
-                else:
-                    raise OSError(e)
+                raise OSError(e)
             for attr in self.attrDict.copy().keys():
                 fName, attrName = attr.split('@')
                 if fName == fieldName:

@@ -248,7 +248,7 @@ program commander
      ! If we are on 1st iteration and simulation was enabled,
      ! we copy real LFI data into specified folder.
      if ((iter == 1) .and. cpar%enable_tod_simulations) then
-       call copy_LFI_tod(cpar, ierr)
+       call copy_tod(cpar, ierr)
        call write_filelists_to_disk(cpar, ierr)
      end if
      !----------------------------------------------------------------------------------

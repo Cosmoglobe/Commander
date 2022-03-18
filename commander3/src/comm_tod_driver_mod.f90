@@ -9,6 +9,7 @@ module comm_tod_driver_mod
   use comm_tod_mapmaking_mod
   use comm_zodi_mod
   use comm_shared_arr_mod
+  use comm_huffman_mod
   use omp_lib
   implicit none
 
@@ -1045,20 +1046,25 @@ contains
     real(dp) :: chisq
     integer(i4b)                          :: ntod !< total amount of ODs
     integer(i4b)                          :: ndet !< total amount of detectors
+    byte,    allocatable, dimension(:)    :: ztod 
+
     ! HDF5 variables
+    character(len=6)   :: samptext, scantext
     character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
     integer(i4b)       :: myindex     !< dummy value for string manipulation
     character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output
     character(len=6)   :: pidLabel
-    character(len=3)   :: detectorLabel
+    character(len=512) :: detectorLabel
     type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
+    type(hdf_file)     :: tod_file
     integer(i4b)       :: hdf5_error  !< hdf5 error status
     integer(HID_T)     :: hdf5_file_id !< File identifier
     integer(HID_T)     :: dset_id     !< Dataset identifier
+    integer(hid_t)     :: dtype  ! hdf5 datatype
     integer(HSIZE_T), dimension(1) :: dims
     ! Other variables
     integer(i4b)                          :: i, j, k !< loop variables
-    integer(i4b)       :: mpi_err !< MPI error status
+    integer(i4b)       :: mpi_err, errorcode !< MPI error status
     integer(i4b)       :: nomp !< Number of threads available
     integer(i4b)       :: omp_err !< OpenMP error status
     integer(i4b) :: omp_get_max_threads
@@ -1134,82 +1140,73 @@ contains
       do j = 1, ndet
         ! skipping iteration if scan was not accepted
         if (.not. self%scans(scan_id)%d(j)%accept) cycle
-        ! getting gain for each detector (units, V / K)
-        ! (gain is assumed to be CONSTANT for EACH SCAN)
         gain   = self%scans(scan_id)%d(j)%gain
-        !write(*,*) "gain ", gain
         sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
-        !write(*,*) "sigma0 ", sigma0
-        ! Simulating tods
-        !tod_per_detector(i,j) = n_corr(i, j) + sigma0 * rand_gauss(handle)
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = 0
       end do
     end do
-
-    !write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
+    ! Digitizes the data to the nearest integer; probably should mimic the
+    ! actual ADC conversion process
+    if (self%compressed_tod) tod_per_detector = real(nint(tod_per_detector), kind=sp)
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file
     ! Getting the full path and name of the current hdf file to overwrite
     !----------------------------------------------------------------------------------
     mystring = trim(self%hdfname(scan_id))
-    mysubstring = 'LFI_0'
-    myindex = index(trim(mystring), trim(mysubstring))
+    mysubstring = '/'
+
+    myindex = index(trim(mystring), trim(mysubstring), back=.true.) + 1
+
+
     call get_tokens(trim(mystring), "/", toks=toks, num=ntoks)
     currentHDFFile = trim(self%sims_output_dir)//'/'//trim(toks(ntoks))
-    !write(*,*) "hdf5name "//trim(self%hdfname(scan_id))
-    !write(*,*) "currentHDFFile "//trim(currentHDFFile)
-    ! Converting PID number into string value
     call int2string(self%scanid(scan_id), pidLabel)
     call int2string(self%myid, processor_label)
-    !write(*,*) "!  Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
     write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) "!  "//trim(currentHDFFile)
-    ! For debugging
-    !call MPI_Finalize(mpi_err)
-    !stop
+    write(*,*) "!  "//trim(toks(ntoks))
 
     dims(1) = ntod
-    ! Initialize FORTRAN interface.
     call h5open_f(hdf5_error)
-    ! Open an existing file - returns hdf5_file_id
     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
     if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
-    do j = 1, ndet
-      detectorLabel = self%label(j)
-      ! Open an existing dataset.
-      call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
-      ! Write tod data to a dataset
-      call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
-      ! Close the dataset.
-      call h5dclose_f(dset_id, hdf5_error)
-    end do
-    ! Close the file.
+
+    ! Remake huffman, symbols for tod_per_detector
+    ! decompress the zipped tods to remake the tod
+    !do j = 1, 4
+    !   if (.not. self%scans(scan_id)%d(j)%accept) cycle
+    !   call self%decompress_tod(scan_id, j, tod_per_detector(:,j))
+    !end do
+    ! call hufmak(tod_per_detector, self%scans(scan_id)%todkey)
+    ! Need to overwrite the keys in the simulated data
+
+    if (self%compressed_tod) then
+      call open_hdf_file(trim(self%sims_output_dir)//'/tod_'//pidLabel//'.h5', tod_file, 'w')
+      do k = 1, self%ndet
+        detectorLabel = self%label(k)
+
+        call write_hdf(tod_file, '/'//trim(detectorLabel), tod_per_detector(:,k))
+        call write_hdf(tod_file, '/xi_n_'//trim(detectorLabel), self%scans(scan_id)%d(k)%N_psd%xi_n)
+        call write_hdf(tod_file, '/gain_'//trim(detectorLabel), self%scans(scan_id)%d(k)%gain)
+
+      end do
+      call write_hdf(tod_file, '/x_im', self%x_im)
+      call close_hdf_file(tod_file)
+    else
+      do j = 1, ndet
+        detectorLabel = self%label(j)
+        call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+      end do
+    end if
+    call h5dclose_f(dset_id, hdf5_error)
     call h5fclose_f(hdf5_file_id, hdf5_error)
-    ! Close FORTRAN interface.
     call h5close_f(hdf5_error)
 
 
-    !write(*,*) "hdf5_error",  hdf5_error
-    ! freeing memory up
     deallocate(tod_per_detector)
     write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
-    ! lastly, we need to copy an existing filelist.txt into simulation folder
-    ! and change the pointers to new files
-    !if (self%myid == 0) then
-    !  call system("cp "//trim(filelist)//" "//trim(simsdir))
-    !  !mystring = filelist
-    !  !mysubstring = ".txt"
-    !  !myindex = index(trim(mystring), trim(mysubstring))
-    !end if
-
-    ! For debugging
-    !call MPI_Finalize(mpi_err)
-    !stop
   end subroutine simulate_tod
 
 end module comm_tod_driver_mod

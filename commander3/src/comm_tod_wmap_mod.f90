@@ -183,6 +183,7 @@ contains
       end if
 
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+      if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
 
       ! Set up WMAP specific parameters
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
@@ -372,6 +373,10 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
+
+      sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+      sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -435,13 +440,14 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      if (trim(self%level) == 'L1') then
-          call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
-          call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-          call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+      if (.not. self%enable_tod_simulations) then
+          if (trim(self%level) == 'L1') then
+              call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+          end if
+          call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
       end if
-      call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
-
 
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -463,10 +469,16 @@ contains
       b_map = 0d0
 
       ! Perform loop over scans
-      if (self%myid == 0) write(*,*) '|    --> Sampling ncorr, xi_n, maps'
+      if (self%myid == 0) then
+          if (self%enable_tod_simulations) then
+            write(*,*) '|    --> Simulating TODs'
+          else
+            write(*,*) '|    --> Sampling ncorr, xi_n, maps'
+          end if
+      endif
       do i = 1, self%nscan
-         
          ! Skip scan if no accepted data
+
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
 
@@ -483,11 +495,14 @@ contains
          end if
          allocate(s_buf(sd%ntod,sd%ndet))
 
-         ! Sample correlated noise
-         call timer%start(TOD_NCORR, self%band)
-         call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, &
-           & sd%pix(:,1,:), dospike=.false.)
-         call timer%stop(TOD_NCORR, self%band)
+         ! Make simulations or Sample correlated noise
+         if (self%enable_tod_simulations) then
+            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+         else
+            call timer%start(TOD_NCORR, self%band)
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+            call timer%stop(TOD_NCORR, self%band)
+         end if
 
          ! Explicitly set baseline to mean of correlated noise
          do j = 1, self%ndet
@@ -517,7 +532,7 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if (mod(iter,self%output_aux_maps) == 0) then
+         if (mod(iter,self%output_aux_maps == 0) .and. .not. self%enable_tod_simulations) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -564,95 +579,98 @@ contains
       end do
 
       call mpi_barrier(self%comm, ierr)
-      if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
+      if (.not. self%enable_tod_simulations) then
+        if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
 
-      ! Output latest scan list with new timing information
-      if (output_scanlist) call self%output_scan_list(slist)
-
-
-      call update_status(status, "Running allreduce on M_diag")
-      call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
-           & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-      call update_status(status, "Ran allreduce on M_diag")
-
-      call update_status(status, "Running allreduce on b_map")
-      call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
-           & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-      call update_status(status, "Ran allreduce on b_map")
+        ! Output latest scan list with new timing information
+        if (output_scanlist) call self%output_scan_list(slist)
 
 
-      where (M_diag == 0d0)
-         M_diag = 1d0
-      end where
-      if (.not. comp_S) then
-         ! If we want to not do the "better preconditioning"
-         M_diag(:,4) = 0d0
-      end if
+        call update_status(status, "Running allreduce on M_diag")
+        call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
+             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+        call update_status(status, "Ran allreduce on M_diag")
 
-      call timer%start(TOD_MAPSOLVE, self%band)
-
-      allocate(outmaps(self%output_n_maps))
-      do i = 1, self%output_n_maps
-       outmaps(i)%p => comm_map(self%info)
-      end do
-
-      if (comp_S) then
-        allocate (bicg_sol(0:npix-1, nmaps+1))
-      else
-        allocate (bicg_sol(0:npix-1, nmaps  ))
-      end if
+        call update_status(status, "Running allreduce on b_map")
+        call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
+             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+        call update_status(status, "Ran allreduce on b_map")
 
 
-      ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
-      do l = 1, self%output_n_maps
-        !if (l .ne. 6) b_map(:,:,l) = 0d0
-        !b_map = 0d0
-        bicg_sol = 0.0d0
-
-        if (l == 1) then
-          epsil = 1d-10
-        else
-          epsil = 1d-6
+        where (M_diag == 0d0)
+           M_diag = 1d0
+        end where
+        if (.not. comp_S) then
+           ! If we want to not do the "better preconditioning"
+           M_diag(:,4) = 0d0
         end if
-        num_cg_iters = 0
 
-        ! Doing this now because it's still burning in...
-        !if (mod(iter,self%output_aux_maps) == 0) then
-          ! Solve for maps
-          if (self%verbosity > 0 .and. self%myid == 0) then
-            write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
-          end if
-          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                         & epsil, procmask, map_full, M_diag, b_map, l, &
-                         & prefix, postfix, comp_S)
-        !end if
+        call timer%start(TOD_MAPSOLVE, self%band)
 
-        call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-        call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
-        if (comp_S) then
-           outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
-           map_out%map = outmaps(1)%p%map
-           call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
-        end if
-        do j = 1, nmaps
-           outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
+        allocate(outmaps(self%output_n_maps))
+        do i = 1, self%output_n_maps
+         outmaps(i)%p => comm_map(self%info)
         end do
-      end do
+
+        if (comp_S) then
+          allocate (bicg_sol(0:npix-1, nmaps+1))
+        else
+          allocate (bicg_sol(0:npix-1, nmaps  ))
+        end if
 
 
-      map_out%map = outmaps(1)%p%map
-      rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-      call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-      do n = 2, self%output_n_maps
-        call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
-      end do
-      call timer%stop(TOD_MAPSOLVE, self%band)
+        ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
+        do l = 1, self%output_n_maps
+          !if (l .ne. 6) b_map(:,:,l) = 0d0
+          !b_map = 0d0
+          bicg_sol = 0.0d0
 
-      ! Sample bandpass parameters
-      if (sample_rel_bandpass .or. sample_abs_bandpass) then
-         call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
-         self%bp_delta = delta(:,:,1)
+          if (l == 1) then
+            epsil = 1d-10
+          else
+            epsil = 1d-6
+          end if
+          num_cg_iters = 0
+
+          ! Doing this now because it's still burning in...
+          !if (mod(iter,self%output_aux_maps) == 0) then
+            ! Solve for maps
+            if (self%verbosity > 0 .and. self%myid == 0) then
+              write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
+            end if
+            call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                           & epsil, procmask, map_full, M_diag, b_map, l, &
+                           & prefix, postfix, comp_S)
+          !end if
+
+          call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+          call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+          if (comp_S) then
+             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+             map_out%map = outmaps(1)%p%map
+             call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
+          end if
+          do j = 1, nmaps
+             outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
+          end do
+        end do
+        deallocate(bicg_sol)
+
+
+        map_out%map = outmaps(1)%p%map
+        rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+        do n = 2, self%output_n_maps
+          call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
+        end do
+        call timer%stop(TOD_MAPSOLVE, self%band)
+
+        ! Sample bandpass parameters
+        if (sample_rel_bandpass .or. sample_abs_bandpass) then
+           call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+           self%bp_delta = delta(:,:,1)
+        end if
       end if
 
       ! Clean up temporary arrays
@@ -671,7 +689,7 @@ contains
          deallocate (outmaps)
       end if
 
-      deallocate (map_sky, bicg_sol)
+      deallocate(map_sky)
 
       if (self%correct_sl) then
          do i = 1, self%ndet
