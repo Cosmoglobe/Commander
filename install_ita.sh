@@ -8,7 +8,7 @@
 # Possible values: nvidia, flang, gnu, intel
 toolchain="gnu"
 toolchain="intel"
-buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"

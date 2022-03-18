@@ -477,8 +477,8 @@ contains
           end if
       endif
       do i = 1, self%nscan
-         
          ! Skip scan if no accepted data
+
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
 

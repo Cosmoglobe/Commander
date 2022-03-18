@@ -1049,12 +1049,14 @@ contains
     byte,    allocatable, dimension(:)    :: ztod 
 
     ! HDF5 variables
+    character(len=6)   :: samptext, scantext
     character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
     integer(i4b)       :: myindex     !< dummy value for string manipulation
     character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output
     character(len=6)   :: pidLabel
     character(len=512) :: detectorLabel
     type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
+    type(hdf_file)     :: tod_file
     integer(i4b)       :: hdf5_error  !< hdf5 error status
     integer(HID_T)     :: hdf5_file_id !< File identifier
     integer(HID_T)     :: dset_id     !< Dataset identifier
@@ -1169,44 +1171,35 @@ contains
     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
     if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
 
-    if (self%myid == 1) write(*,*) 'ncode, ', self%scans(scan_id)%todkey%ncode
-    if (self%myid == 1) write(*,*) 'icode, ', self%scans(scan_id)%todkey%icode
-    if (self%myid == 1) write(*,*) 'left, ',  self%scans(scan_id)%todkey%left
-    if (self%myid == 1) write(*,*) 'right, ', self%scans(scan_id)%todkey%iright
-
     ! Remake huffman, symbols for tod_per_detector
-    call hufmak(tod_per_detector, self%scans(scan_id)%todkey)
+    ! decompress the zipped tods to remake the tod
+    !do j = 1, 4
+    !   if (.not. self%scans(scan_id)%d(j)%accept) cycle
+    !   call self%decompress_tod(scan_id, j, tod_per_detector(:,j))
+    !end do
+    ! call hufmak(tod_per_detector, self%scans(scan_id)%todkey)
     ! Need to overwrite the keys in the simulated data
 
-    if (self%myid == 1) write(*,*) 'ncode, ',  self%scans(scan_id)%todkey%ncode
-    if (self%myid == 1) write(*,*) 'icode, ',  self%scans(scan_id)%todkey%icode
-    if (self%myid == 1) write(*,*) 'left, ',   self%scans(scan_id)%todkey%left
-    if (self%myid == 1) write(*,*) 'right, ',  self%scans(scan_id)%todkey%iright
-    do j = 1, ndet
-      detectorLabel = self%label(j)
-      ! Open an existing dataset.
-      if (self%compressed_tod) then
-          call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'ztod', dset_id, hdf5_error)
-          if (hdf5_error < 0) call h5eprint_f(hdf5_error)
-          call h5dget_type_f(dset_id, dtype, hdf5_error)
-          if (hdf5_error < 0) call h5eprint_f(hdf5_error)
+    if (self%compressed_tod) then
+      call open_hdf_file(trim(self%sims_output_dir)//'/tod_'//pidLabel//'.h5', tod_file, 'w')
+      do k = 1, self%ndet
+        detectorLabel = self%label(k)
 
-          if (self%myid == 1 .and. j == 1) then
-             write(*,*) tod_per_detector(1:10,j)
-          end if
-          call huffman_encode2_sp(self%scans(scan_id)%todkey, tod_per_detector(:, j), ztod)
-          call huffman_decode2_sp(self%scans(scan_id)%todkey, ztod, tod_per_detector(:,j))
-          if (self%myid == 1 .and. j == 1) then
-             write(*,*) tod_per_detector(1:10,j)
-          end if
-          call h5dwrite_f(dset_id, dtype, ztod, dims, hdf5_error)
-          deallocate(ztod)
-      else
-          call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
-          call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
-      end if
-      call h5dclose_f(dset_id, hdf5_error)
-    end do
+        call write_hdf(tod_file, '/'//trim(detectorLabel), tod_per_detector(:,k))
+        call write_hdf(tod_file, '/xi_n_'//trim(detectorLabel), self%scans(scan_id)%d(k)%N_psd%xi_n)
+        call write_hdf(tod_file, '/gain_'//trim(detectorLabel), self%scans(scan_id)%d(k)%gain)
+
+      end do
+      call write_hdf(tod_file, '/x_im', self%x_im)
+      call close_hdf_file(tod_file)
+    else
+      do j = 1, ndet
+        detectorLabel = self%label(j)
+        call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+      end do
+    end if
+    call h5dclose_f(dset_id, hdf5_error)
     call h5fclose_f(hdf5_file_id, hdf5_error)
     call h5close_f(hdf5_error)
 

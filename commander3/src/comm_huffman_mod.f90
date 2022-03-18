@@ -418,6 +418,10 @@ contains
       delta_arr(ntod*(det-1)+2: ntod*det) = input_arr(2:ntod, det) - input_arr(1:ntod-1, det)
     end do
 
+    write(*,*) 'delta_arr', delta_arr(1:10)
+
+    ! Perhaps we should do delta_arr with just ten elements
+
     min_val = minval(delta_arr)
     max_val = maxval(delta_arr)
 
@@ -466,7 +470,7 @@ contains
     hcode%ncode = 0
     hcode%icode = 0
 
-    indx = size(indx)
+    indx = 0
     nprob = 0
     nprob(1:hcode%nch) = nfreq(1:hcode%nch)
 
@@ -501,10 +505,6 @@ contains
 
   hcode%nodemax = k
   iup(hcode%nodemax) = 0
-  write(*,*) 'left', hcode%left
-  write(*,*) 'right', hcode%iright
-  write(*,*) 'iup, ', iup
-  stop
 
   do j = 1, hcode%nch
       if (nprob(j) /= 0) then
