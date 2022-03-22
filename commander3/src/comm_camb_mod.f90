@@ -160,6 +160,7 @@ contains
     nspec = nmaps*(nmaps+1)/2
     nalm  = (lmax+1)**2
 
+    write(*,*) nspec, lmax
     allocate(constructor_camb_sample%c_l(0:lmax,nspec))
     allocate(constructor_camb_sample%s_lm(0:nalm,nmaps))    
     allocate(constructor_camb_sample%f_lm(0:nalm,nmaps))

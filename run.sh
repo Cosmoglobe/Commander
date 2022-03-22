@@ -23,6 +23,7 @@ do
 done
 echo $build
 
+export LD_LIBRARY_PATH=/mn/stornext/d16/cmbco/bp/johanres/commander_camb/Commander/build/install/lib:/mn/stornext/d16/cmbco/bp/johanres/commander_camb/Commander/build/install/healpix/lib:$LD_LIBRARY_PATH
 
 killall -9 commander3
 #COMMANDER_PARAMS_DEFAULT=$HOME"/Commander/commander3/parameter_files/defaults/"
@@ -35,4 +36,4 @@ dir=chains_camb_sim
 #pfile=param_WMAP_bp_comp_only.txt
 #dir=chains_WMAP_amps_220126
 mkdir -p $dir
-mpiexec -env I_MPI_FABRICS shm -n $n /mn/stornext/d16/cmbco/bp/johanres/commander_camb/Commander/build_$build"_intel/install/bin/commander3" $pfile --OUTPUT_DIRECTORY=$dir 2>&1| tee $dir/slurm.txt
+mpiexec -env I_MPI_FABRICS shm -n $n /mn/stornext/d16/cmbco/bp/johanres/commander_camb/Commander/commander3/src/commander $pfile --OUTPUT_DIRECTORY=$dir 2>&1| tee $dir/slurm.txt
