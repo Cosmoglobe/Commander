@@ -257,9 +257,7 @@ def create_rimo(fname, rot=0):
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
       radii =  np.pi/180*np.array([2.8, 2.5, 2.2, 2.2, 1.8, 1.8, 1.5, 1.5, 1.5, 1.5])
-      fnames = glob('data/wmap_sidelobe*.fits')
-      # Need to do the year 1 processing to compare with Barnes et al.
-      fnames = glob(f'{ola}/far_sidelobe_maps/*3yr_v2*.fits')
+      fnames = glob(f'{ola}/far_sidelobe_maps/*v5*.fits')
       fnames.sort()
       print(fnames)
       for i in range(len(labels)):
@@ -290,19 +288,16 @@ def create_rimo(fname, rot=0):
 
        
         #hp.mollview(beam_A, min=0, max=0.3)
-  
-        r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
-            deg=False, eulertype='ZYX')
-        beam_A_temp = r.rotate_map_pixel(beam_A)
 
-        #hp.mollview(beam_A_temp, min=0, max=0.3)
+        psi = 151*np.pi/180
   
-        r = hp.rotator.Rotator(rot=(rot*np.pi/180, 0, 0), \
-            deg=False, eulertype='ZYX')
-        beam_A = r.rotate_map_pixel(beam_A_temp)
-  
-        #hp.mollview(beam_A, min=0, max=0.3)
-  
+        r = hp.rotator.Rotator(rot=(0,theta,phi), \
+            deg=False, eulertype='X')
+        beam_A = r.rotate_map_pixel(beam_A)
+        r = hp.rotator.Rotator(rot=(0,0,psi), \
+            deg=False, eulertype='X')
+        beam_A = r.rotate_map_pixel(beam_A)
+
         alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
         s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)
   
@@ -310,15 +305,14 @@ def create_rimo(fname, rot=0):
         theta = np.arccos(dir_B[2])
         phi = np.arctan2(dir_B[1], dir_B[0])
         
-        r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
-            deg=False, eulertype='ZYX')
-        beam_B_temp = r.rotate_map_pixel(beam_B)
-  
-        r = hp.rotator.Rotator(rot=(-rot*np.pi/180, 0, 0), \
-            deg=False, eulertype='ZYX')
-        beam_B = r.rotate_map_pixel(beam_B_temp)
-  
-  
+
+        r = hp.rotator.Rotator(rot=(0,-theta,phi), \
+            deg=False, eulertype='X')
+        beam_B = r.rotate_map_pixel(beam_B)
+        r = hp.rotator.Rotator(rot=(0,0,-psi), \
+            deg=False, eulertype='X')
+        beam_B = r.rotate_map_pixel(beam_B)
+
         alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
         s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
 
@@ -351,8 +345,8 @@ def create_rimo(fname, rot=0):
   
   
   
+      #fnames = glob(f'{ola}/beam_maps/wmap_*v5.fits')
       fnames = glob('data/wmap_hybrid_beam_maps_*_9yr_v5.fits')
-      fnames = glob(f'{ola}/beam_maps/wmap_*_hybrid_beam_maps_3yr_v2.fits')
       fnames.sort()
       
       
@@ -485,7 +479,7 @@ def create_rimo(fname, rot=0):
           b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
           b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
           DA = fname.split('_')[4]
-          DA = fname.split('_')[3].upper().replace('KA', 'Ka')
+          #DA = fname.split('_')[3].upper().replace('KA', 'Ka')
            
           with h5py.File(fname_out, 'a') as f:
               print(fname, DA)
@@ -522,7 +516,7 @@ def create_rimo(fname, rot=0):
      
 
 if __name__ == '__main__':
-    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9_yr1.h5'
+    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v10.h5'
     #fname_out = 'test.h5'
     #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
     create_rimo(fname_out)
