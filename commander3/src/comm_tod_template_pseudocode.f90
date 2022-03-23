@@ -168,7 +168,7 @@ module comm_tod_TEMPLATE_mod
       end do main_it
 
 
-      call finalize_binned_map(self, handle, A_map, b_map, rms_out, outmaps=outmaps)
+      call finalize_binned_map(self, A_map, b_map, rms_out, outmaps=outmaps)
 
    end subroutine process_TEMPLATE_tod
 

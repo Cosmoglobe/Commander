@@ -125,18 +125,12 @@ contains
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .false.
-    constructor%chisq_threshold = 20.d0 ! 9.d0
+    constructor%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
-<<<<<<< HEAD
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     constructor%ntime           = 1
     constructor%HFI_flag        = .true.
     constructor%partner         = -1
-=======
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-    constructor%ntime           = 1
-    constructor%HFI_flag        = .true.
->>>>>>> edc399596e2abca98f967668c83de9640e61030c
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -401,9 +395,17 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       if (self%nmaps > 1) then
+         call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       else
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6, chisq_S=chisq_s, mask=procmask2)
+       end if
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
+       if(self%nmaps > 1) then
+         call finalize_binned_map(self, binmap, rms_out, 1.d6)
+       else 
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6)
+       end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
 

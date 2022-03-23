@@ -168,7 +168,6 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
-  !write(*,*) 'first', first_sample
   !first_sample = 1
 
   if (first_sample == -1) then

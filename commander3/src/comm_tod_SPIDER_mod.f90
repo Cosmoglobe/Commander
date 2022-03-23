@@ -1285,16 +1285,16 @@ contains
 !!$ HKE: commented out this
 !!$       if (do_oper(samp_mono)) then
 !!$          if (do_oper(prep_relbp)) then
-!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$             call finalize_binned_map(self, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
 !!$          else
-!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
+!!$             call finalize_binned_map(self, sA_map, sb_map, rms_out, outmaps=outmaps, sb_mono=sb_mono, sys_mono=sys_mono)
 !!$          end if
 !!$       else
 !!$          !condmap => comm_map(self%info)
 !!$          if (do_oper(prep_relbp)) then
-!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
+!!$             call finalize_binned_map(self, sA_map, sb_map, rms_out, outmaps=outmaps, chisq_S=chisq_S, Sfile=Sfilename, mask=sprocmask2%a)
 !!$          else
-!!$             call finalize_binned_map(self, handle, sA_map, sb_map, rms_out, outmaps=outmaps)
+!!$             call finalize_binned_map(self, sA_map, sb_map, rms_out, outmaps=outmaps)
 !!$          end if
 !!$          !call condmap%writeFITS("cond.fits")
 !!$          !call condmap%dealloc()

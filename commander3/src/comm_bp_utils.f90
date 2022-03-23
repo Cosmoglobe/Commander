@@ -277,8 +277,6 @@ contains
     nu  = x(first:last)
     tau = y(first:last)
 
-    print *, n, label
-
     deallocate(x, y)
 
   end subroutine read_bandpass

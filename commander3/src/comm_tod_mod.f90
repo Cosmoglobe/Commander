@@ -1,4 +1,4 @@
-ed_tod_inst================================================================================
+!===============================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
@@ -315,6 +315,7 @@ contains
     self%sims_output_dir = cpar%sims_output_dir
     self%enable_tod_simulations = cpar%enable_tod_simulations
 
+
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
@@ -370,9 +371,6 @@ contains
     self%stokes = [1,2,3]
     self%w      = 1.d0
     self%x_im   = 0d0
-
-    if (tod_type == 'HFI') then
-       self%partner(0) = -1
 
     if (trim(cpar%ds_bpmodel(id_abs)) == 'additive_shift') then
        ndelta = 1
@@ -820,7 +818,7 @@ contains
        call read_hdf_opaque(file, slabel // "/" // trim(field) // "/flag", self%d(i)%flag)
 
        if (tod%compressed_tod) then
-          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
+          call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
        else
           allocate(self%d(i)%tod(m))
           call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
