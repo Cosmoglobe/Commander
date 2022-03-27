@@ -182,6 +182,7 @@ def accumulate(tod_ind, x1, x2, pmask):
     psiA_i = comm_tod.load_field(f'{ind}/Q1/psiA')
     psiB_i = comm_tod.load_field(f'{ind}/Q1/psiB')
     flags = comm_tod.load_field(f'{ind}/Q1/flag')
+    flags *= 0
 
     nside_in = 512
     thetaA, phiA = hp.pix2ang(nside_in, pixA_i)
@@ -213,7 +214,7 @@ def accumulate(tod_ind, x1, x2, pmask):
     return M_i, b_i, Prec_i
 
 
-def make_dipole_alms(amp=3355, l=263.99, b=48.26, lmax=128):
+def make_dipole_alms(amp=3355, l=263.99, b=48.26, lmax=128, band='K1'):
     ipix = np.arange(12*512**2)
     x, y, z = hp.pix2vec(512, ipix)
 
@@ -221,13 +222,20 @@ def make_dipole_alms(amp=3355, l=263.99, b=48.26, lmax=128):
     amps = amp*np.array([np.cos(theta)*np.sin(phi), np.sin(theta)*np.sin(phi), np.cos(phi)])
 
     dipole = x*amps[0] + y*amps[1] + z*amps[2]
+    dipole = np.array([dipole, 0*dipole, 0*dipole])
     slm = hp.map2alm(dipole, lmax=lmax)
 
-    slm = slm[np.newaxis,:].astype('complex128')
+    m = hp.read_map(f'/mn/stornext/d16/cmbco/ola/wmap/freq_maps/wmap_iqusmap_r9_9yr_{band}_v5.fits',
+        field=(0,1,2))*1e3
+    #m[0] = m[0] + dipole[0]
+
+    slm = hp.map2alm(m, lmax=lmax)
+
+    #slm = slm[np.newaxis,:].astype('complex128')
     return slm
 
 
-def get_sidelobe_alms(band='Q1', lmax=128, kmax=100):
+def get_sidelobe_alms(band='Q1', lmax=128, kmax=100, theta_c=0, psi=0):
     # LOS geometry extracted from program.pars
     dir_A_los = np.array([
                 [  0.03993743194318,  0.92448267167832, -0.37912635267982],
@@ -255,8 +263,8 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100):
     bands = np.array(['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4'])
     SIDELOBE_DIR = '/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/far_sidelobe_maps'
     # Construct sidelobe model
-    sidelobe = hp.read_map(f'{SIDELOBE_DIR}/wmap_sidelobe_map_{band}_9yr_v5.fits')
-    sidelobe = hp.reorder(sidelobe, n2r=True)
+    #sidelobe = hp.read_map(f'{SIDELOBE_DIR}/wmap_sidelobe_map_{band}_3yr_v2.fits')
+    #sidelobe = hp.reorder(sidelobe, n2r=True)
     sidelobe = hp.read_map(f'{SIDELOBE_DIR}/map_{band.lower()}_sidelobes_yr1_v1.fits')
 
     
@@ -268,14 +276,15 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100):
     beam_B[beam_B > 0] = 0
     beam_B = -beam_B
     
+    # Angle psi is roughly the right value based on some tests
     
     dir_A = dir_A_los[band == bands][0]
     theta = np.arccos(dir_A[2])
     phi = np.arctan2(dir_A[1], dir_A[0])
     
     # Rotate so that main beam A is pointing in the z-direction
-    r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
-        deg=False, eulertype='ZYX')
+    r = hp.rotator.Rotator(rot=(phi, -theta, psi), \
+        deg=False, eulertype='Y')
     beam_A = r.rotate_map_pixel(beam_A)
     
     dir_B = dir_B_los[band == bands][0]
@@ -283,16 +292,28 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100):
     phi = np.arctan2(dir_B[1], dir_B[0])
     
     # Rotate so that main beam B is pointing in the z-direction
-    r = hp.rotator.Rotator(rot=(phi, -theta, 0), \
-        deg=False, eulertype='ZYX')
+    r = hp.rotator.Rotator(rot=(phi, -theta, -psi), \
+        deg=False, eulertype='Y')
     beam_B = r.rotate_map_pixel(beam_B)
 
+
+
+    if theta_c > 0:
+        pix = np.arange(len(beam_A))
+        thetaphi = hp.pix2ang(hp.npix2nside(len(beam_A)), pix)
+        r = hp.rotator.angdist(thetaphi, np.array([0,0]))
+        beam_A[r < theta_c*np.pi/180] = 0
+        beam_B[r < theta_c*np.pi/180] = 0
+        #hp.mollview(beam_A, rot=(0,90,0), min=0, max=0.5)
+        #plt.show()
 
     blm_A = hp.map2alm(beam_A, lmax=lmax, mmax=kmax)
     blm_B = hp.map2alm(beam_B, lmax=lmax, mmax=kmax)
 
-    blm_A = blm_A[np.newaxis,:].astype('complex128')
-    blm_B = blm_B[np.newaxis,:].astype('complex128')
+    #blm_A = blm_A[np.newaxis,:].astype('complex128')
+    #blm_B = blm_B[np.newaxis,:].astype('complex128')
+    blm_A = np.array([blm_A, blm_A*0, blm_A*0])
+    blm_B = np.array([blm_B, blm_B*0, blm_B*0])
 
     return blm_A, blm_B
 
@@ -306,8 +327,14 @@ if __name__ == '__main__':
 
     MASK_DIR = '/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/masks'
     bands = np.array(['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4'])
-    bands = [bands[0]]
-    for band in bands:
+    theta_cs = np.array([2.8, 2.5, 2.2,2.2, 1.8,1.8, 1.5, 1.5, 1.5, 1.5])
+    inds = np.array([0,2,5,6,8])
+    inds = np.array([1,3,4,7,9])
+    bands = bands[inds]
+    theta_cs = theta_cs[inds]
+    psis = np.array([135, 45, 135, 45, 45, 135, 135, 45, 135, 45])[inds]
+
+    for psi, theta_c, band in zip(psis, theta_cs, bands):
         print(band)
         # Sets maximum lmax, mmax for sidelobe convolution
         lmax = 128
@@ -315,7 +342,8 @@ if __name__ == '__main__':
    
         # Signal and sidelobe alm model
         slm = make_dipole_alms(lmax=lmax)
-        blm_A, blm_B = get_sidelobe_alms(band=band, lmax=lmax, kmax=kmax)
+        blm_A, blm_B = get_sidelobe_alms(band=band, lmax=lmax, kmax=kmax,
+            theta_c=theta_c, psi=np.pi/180*psi)
    
         # totalconvolver interpolator, grid in theta,phi,psi
         interp_A = totalconvolve.Interpolator(
@@ -353,8 +381,10 @@ if __name__ == '__main__':
                  'W4':  ( 0.02311, 0.02054)}
   
         x1, x2 = x_ims[band]
+        x1, x2 = 0,0
         # Valid weeks from 1--468
-        tod_inds = np.arange(1, 468+1)
+        tod_inds = np.arange(1, 52+1)
+        #tod_inds = np.arange(1, 468+1)
         
         import multiprocessing
         from functools import partial

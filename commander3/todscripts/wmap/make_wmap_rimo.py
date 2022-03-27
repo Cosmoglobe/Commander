@@ -253,32 +253,32 @@ def create_rimo(fname, rot=0):
       slmBs = []
       nside  = 2**7     # 128
       sllmax = 2*nside  # 256
+      sllmax = 3*nside - 1 
       slmmax = 100
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
 
       radii =  np.pi/180*np.array([2.8, 2.5, 2.2, 2.2, 1.8, 1.8, 1.5, 1.5, 1.5, 1.5])
       fnames = glob(f'{ola}/far_sidelobe_maps/*v5*.fits')
+      #fnames = glob(f'{ola}/far_sidelobe_maps/*v1*.fits')
       fnames.sort()
       print(fnames)
       for i in range(len(labels)):
         lab = labels[i]
         for fname in fnames:
           if lab.lower() in fname.lower()[:-10]:
-            data = hp.read_map(fname)
+            sidelobe = hp.read_map(fname)
             break
         
         print(lab, fname)
         # Beam is normalized such that sum(slAB) = Npix, or
         #                              \int B(\Omega)\,d\Omega = 4\pi
         # Commander expects \int B\,d\Omega = 1.
-        # Not sure if this factor is needed...
-        beamtot = hp.reorder(data, n2r=True)
+        sidelobe = hp.reorder(sidelobe, n2r=True)
         
-        beam_A = hp.reorder(data, n2r=True)/(4*np.pi)
-        #beam_A = hp.reorder(data, n2r=True)
+        
+        beam_A = sidelobe/(4*np.pi)
         beam_A[beam_A < 0] = 0
-        beam_B = hp.reorder(data, n2r=True)/(4*np.pi)
-        #beam_B = hp.reorder(data, n2r=True)
+        beam_B = sidelobe/(4*np.pi)
         beam_B[beam_B > 0] = 0
         beam_B = -beam_B
   
@@ -287,16 +287,20 @@ def create_rimo(fname, rot=0):
         phi = np.arctan2(dir_A[1], dir_A[0])
 
        
-        #hp.mollview(beam_A, min=0, max=0.3)
+        psi = 135*np.pi/180
+ 
+        # Note that the ZYZ rotation goes around the Y axis, and since this is a
+        # left-handed coordinate system the Y rotation direction must be
+        # reversed.
+        r = hp.rotator.Rotator(rot=(phi,-theta,psi), \
+            deg=False, eulertype='Y')
+        beam_A = r.rotate_map_pixel(beam_A)
 
-        psi = 151*np.pi/180
-  
-        r = hp.rotator.Rotator(rot=(0,theta,phi), \
-            deg=False, eulertype='X')
-        beam_A = r.rotate_map_pixel(beam_A)
-        r = hp.rotator.Rotator(rot=(0,0,psi), \
-            deg=False, eulertype='X')
-        beam_A = r.rotate_map_pixel(beam_A)
+        pix = np.arange(len(beam_A))
+        thetaphi = hp.pix2ang(hp.npix2nside(len(beam_A)), pix)
+        dists = hp.rotator.angdist(thetaphi, np.array([0,0]))
+
+        #beam_A[dists < radii[i]] = 0
 
         alm_A = hp.map2alm(beam_A, lmax=sllmax, mmax=slmmax)
         s_lm_A = complex2realAlms(alm_A, sllmax, slmmax)
@@ -306,12 +310,15 @@ def create_rimo(fname, rot=0):
         phi = np.arctan2(dir_B[1], dir_B[0])
         
 
-        r = hp.rotator.Rotator(rot=(0,-theta,phi), \
-            deg=False, eulertype='X')
+        r = hp.rotator.Rotator(rot=(phi,-theta,-psi), \
+            deg=False, eulertype='Y')
         beam_B = r.rotate_map_pixel(beam_B)
-        r = hp.rotator.Rotator(rot=(0,0,-psi), \
-            deg=False, eulertype='X')
-        beam_B = r.rotate_map_pixel(beam_B)
+
+        #beam_B[dists < radii[i]] = 0
+
+        #hp.mollview(beam_A, rot=(0,90,0))
+        #hp.mollview(beam_B, rot=(0,90,0))
+        #plt.show()
 
         alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
         s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
@@ -345,7 +352,7 @@ def create_rimo(fname, rot=0):
   
   
   
-      #fnames = glob(f'{ola}/beam_maps/wmap_*v5.fits')
+      #fnames = glob(f'{ola}/beam_maps/map_*v1.fits')
       fnames = glob('data/wmap_hybrid_beam_maps_*_9yr_v5.fits')
       fnames.sort()
       
@@ -365,9 +372,10 @@ def create_rimo(fname, rot=0):
       X = np.arange(-11.98, 11.98+0.04, 0.04)*np.pi/180
       Y = np.arange(11.98, -11.98-0.04, -0.04)*np.pi/180
 
-      #nside = 8192
-      #X2 = np.linspace(X[0], X[-1], len(X)*10)
-      #Y2 = np.linspace(Y[0], Y[-1], len(Y)*10)
+      # For year 1
+      # X = np.arange(-4.98, 4.98+0.04, 0.04)*np.pi/180
+      # Y = np.arange(4.98, -4.98-0.04, -0.04)*np.pi/180
+
 
       nside = 1024
       X2 = np.linspace(X[0], X[-1], len(X)*5)
@@ -385,6 +393,11 @@ def create_rimo(fname, rot=0):
           beamB = data[0].data[2]
           sigmA = data[0].data[1]
           sigmB = data[0].data[3]
+          # For year 1
+          #beamA = data[0].data[0]
+          #beamB = data[0].data[1]
+          #sigmA = data[0].data[2]
+          #sigmB = data[0].data[3]
           f = interpolate.interp2d(X, Y, beamA)
           beamA_2 = f(X2, Y2)
           f = interpolate.interp2d(X, Y, beamB)
@@ -392,6 +405,7 @@ def create_rimo(fname, rot=0):
 
 
           # 2D Gaussian fits
+          sigmA[~np.isfinite(beamA)] = np.inf
           beamA[~np.isfinite(beamA)] = 0
           mu_x = (beamA*xx).sum()/(beamA).sum()
           mu_y = (beamA*yy).sum()/(beamA).sum()
@@ -423,9 +437,6 @@ def create_rimo(fname, rot=0):
             source_idx = np.delete(source_idx, idx_t)
             fluxA = np.delete(fluxA, idx_t)
           mA[N > 0] = mA[N > 0]/N[N > 0]
-          #hp.write_map('testA.fits', mA)
-          #mA = mA/N
-          #mA[~np.isfinite(mA)] = 0
 
 
 
