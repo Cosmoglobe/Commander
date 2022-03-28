@@ -646,8 +646,8 @@ contains
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
           if (comp_S) then
-             outmaps(self%output_n_maps)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
-             map_out%map = outmaps(self%output_n_maps)%p%map
+             outmaps(l)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+             map_out%map = outmaps(l)%p%map
              call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
           do j = 1, nmaps
