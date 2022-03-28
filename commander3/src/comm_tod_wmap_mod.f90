@@ -385,7 +385,7 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter,self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
       end if
 
       call int2string(chain, ctext)
@@ -532,7 +532,7 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if (mod(iter,self%output_aux_maps) == 0 .and. .not. self%enable_tod_simulations) then
+         if (mod(iter-1,self%output_aux_maps) == 0 .and. .not. self%enable_tod_simulations) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -646,8 +646,8 @@ contains
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
           if (comp_S) then
-             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
-             map_out%map = outmaps(1)%p%map
+             outmaps(self%output_n_maps)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+             map_out%map = outmaps(self%output_n_maps)%p%map
              call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
           do j = 1, nmaps
