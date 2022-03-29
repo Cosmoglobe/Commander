@@ -109,13 +109,24 @@ F90SOURCES=hashtbl.f90 \
 	   comm_timing_mod.f90 \
 	   commander.f90
 
-all: commander
+
+ME_OBJS := math_tools.o sort_utils.o locate_mod.o comm_utils.o spline_1d_mod.o spline_2d_mod.o \
+        map_editor_utils.o map_editor_simple_ops_mod.o map_editor.o
+
+all: libmap_editor.a #map_editor #commander
 
 #MODDIR := .mod
 #ifneq ($(MODDIR),)
 #  $(shell test -d $(MODDIR) || mkdir -p $(MODDIR))
 #  F90COMP+= -module $(MODDIR)
 #endif
+
+map_editor : libmap_editor.a map_editor.o
+	$(MPF90) -o map_editor map_editor.o libmap_editor.a $(LINK)
+
+libmap_editor.a : $(ME_OBJS)
+	$(AR) $(ARFLAGS) libmap_editor.a $(COBJS)
+	$(RANLIB) libmap_editor.a
 
 commander: $(subst .f,.o,$(FSOURCES)) $(subst .f90,.o,$(F90SOURCES))
 	$(MPF90) -o commander $+ $(LINK) $(MPFCLIBS)
@@ -135,6 +146,9 @@ clean:
 %.o %.mod %.smod: %.cpp
 	$(MPCXX) $(CXXCOMP) -c $<
 	@touch $@
+
+map_editor_utils.o          : comm_utils.o
+map_editor_complex_ops_mod.o : comm_utils.o map_editor_utils.o
 
 ars_mod.o                   : sort_utils.o
 comm_4d_map_mod.o           : comm_utils.o hashtbl_4dmap.o comm_hdf_mod.o

@@ -101,12 +101,38 @@ contains
           call constructor%update_N(info, handle, mask, regnoise, &
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        end if
-    else
+    else if (id_smooth == 1) then
        tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
        info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
             & constructor%nmaps, constructor%pol)
        constructor%nside   = info_smooth%nside
        constructor%np      = info_smooth%np
+       constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+
+       where (constructor%siN%map > 0.d0) 
+          constructor%siN%map = 1.d0 / constructor%siN%map
+       elsewhere
+          constructor%siN%map = 0.d0
+       end where
+
+       ! Set siN to its mean; useful for debugging purposes
+       if (cpar%set_noise_to_mean) then
+          do i = 1, constructor%nmaps
+             sum_noise = sum(constructor%siN%map(:,i))
+             npix      = size(constructor%siN%map(:,i))
+             call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             constructor%siN%map(:,i) = sum_noise/npix
+          end do
+       end if
+    else ! Smooth the (id_smooth == 1) map to the varying degrees necessary
+       tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
+       info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
+            & constructor%nmaps, constructor%pol)
+       constructor%nside   = info_smooth%nside
+       constructor%np      = info_smooth%np
+
+       ! Here is where we want to smooth the rms maps, eh?
        constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
 
        where (constructor%siN%map > 0.d0) 

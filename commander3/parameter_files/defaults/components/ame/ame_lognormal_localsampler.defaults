@@ -3,7 +3,7 @@ COMP_NU_P_INT_LMAX&&          = -1          # alm sampling (>=0), local sampling
 COMP_NU_P_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_NU_P_INT_LNLTYPE&&       = marginal    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_NU_P_POL_LNLTYPE&&       = chisq       # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
-COMP_NU_P_INT_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_NU_P_INT_PIXREG&&        = single_pix     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_NU_P_POL_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_NU_P_INT_SAMPLE_NPROP&&  = .true.     # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
 COMP_NU_P_POL_SAMPLE_NPROP&&  = .false.     # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
@@ -36,7 +36,7 @@ COMP_W_AME_INT_LMAX&&          = -1           # alm sampling (>=0), local sampli
 COMP_W_AME_POL_LMAX&&          = -1           # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_W_AME_INT_LNLTYPE&&       = chisq     # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_W_AME_POL_LNLTYPE&&       = chisq        # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
-COMP_W_AME_INT_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_W_AME_INT_PIXREG&&        = single_pix      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_W_AME_POL_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_W_AME_INT_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
 COMP_W_AME_POL_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
