@@ -642,10 +642,10 @@ contains
     call timer%start(TOD_TOT, self%band)
 
     ! Toggle optional operations
-    sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
-    sample_abs_bandpass   =       self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
+    sample_rel_bandpass   = .false. !.not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
+    sample_abs_bandpass   = .false. !      self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
     sample_polang         = .false.
-    select_data           = self%first_call        ! only perform data selection the first time
+    select_data           = .false. !self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
     sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
@@ -658,9 +658,9 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0) then
-       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
-    end if
+    !if (self%output_aux_maps > 0) then
+    !   if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
+    !end if
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -732,16 +732,16 @@ contains
 
     ! Sample 1Hz spikes
 !    if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
+      !call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
 !    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-    if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
+    !if (.not. self%enable_tod_simulations) then
+    !   call sample_calibration(self, 'abscal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+    !   call sample_calibration(self, 'relcal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+    !   call sample_calibration(self, 'deltaG', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
        !call sample_gain_psd(self, handle)
-    end if
+    !end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -782,7 +782,7 @@ contains
        !sd%s_bp   = 0.
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        call timer%start(TOD_CHISQ, self%band)
@@ -803,22 +803,22 @@ contains
        call compute_calibrated_data(self, i, sd, d_calib)
        
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-       if (self%output_4D_map > 0) then
-          if (mod(iter-1,self%output_4D_map) == 0) then
-             call timer%start(TOD_4D, self%band)
-             allocate(sigma0(sd%ndet))
-             do j = 1, sd%ndet
-                sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-             end do
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
-             deallocate(sigma0)
-             call timer%stop(TOD_4D, self%band)
-          end if
-       end if
+       !if (self%output_4D_map > 0) then
+       !   if (mod(iter-1,self%output_4D_map) == 0) then
+       !      call timer%start(TOD_4D, self%band)
+       !      allocate(sigma0(sd%ndet))
+       !      do j = 1, sd%ndet
+       !         sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
+       !      end do
+       !      call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
+       !           & samptext, self%scanid(i), self%nside, self%npsi, &
+       !           & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
+       !           & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
+       !           & self%scans(i)%d(:)%accept)
+       !      deallocate(sigma0)
+       !      call timer%stop(TOD_4D, self%band)
+       !   end if
+       !end if
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -1783,6 +1783,17 @@ contains
        ! Generate detector TOD
        n = self%scans(i)%ntod
        allocate(tod(n, self%ndet))
+
+       ! choose magic number if half-ring
+       if (self%halfring_split == 0) then
+          m = get_closest_fft_magic_number(n)
+       else if (self%halfring_split == 1 .or. self%halfring_split == 2) then
+          m = get_closest_fft_magic_number(n/2)
+       else
+          write(*,*) "Unknown halfring_split value in preprocess_L1_to_L2"
+          stop
+       end if
+
        if (self%L2_exist) then
           call int2string(self%scanid(i), scantext)
           call read_hdf(h5_file, scantext, tod)
@@ -1795,8 +1806,13 @@ contains
        do j = 1, self%ndet
           if (any(isnan(tod(:,j)))) self%scans(i)%d(j)%accept = .false.
           if (.not. self%scans(i)%d(j)%accept) cycle 
-          allocate(self%scans(i)%d(j)%tod(n))
-          self%scans(i)%d(j)%tod = tod(:,j)
+          write(*,*) m 
+          allocate(self%scans(i)%d(j)%tod(m))
+          if (self%halfring_split == 2 )then
+              self%scans(i)%d(j)%tod = tod(m+1:2*m,j)
+          else
+              self%scans(i)%d(j)%tod = tod(1:m,j)
+          end if
        end do
 
 !!$       ! Find effective TOD length

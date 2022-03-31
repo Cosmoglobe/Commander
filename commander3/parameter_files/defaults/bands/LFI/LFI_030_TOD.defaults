@@ -35,7 +35,7 @@ BAND_COMPONENT_SENSITIVITY&&&  = broadband
 
 BAND_TOD_TYPE&&&               = LFI
 BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v1.dat
-BAND_TOD_HALFRING&&&           = 0
+BAND_TOD_HALFRING&&&           = 1
 BAND_TOD_START_SCANID&&&       = 3
 BAND_TOD_END_SCANID&&&         = 44072
 BAND_TOD_TOT_NUMSCAN&&&        = 45860
