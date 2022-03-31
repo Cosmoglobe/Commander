@@ -247,9 +247,6 @@ contains
       !load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-      do i = 1, constructor%ndet
-        call init_noise_model(constructor, i)
-      end do
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -258,10 +255,6 @@ contains
       allocate(constructor%orb_dp)
       constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
-      ! Initialize all baseline corrections to zero
-      do i = 1, constructor%nscan
-         constructor%scans(i)%d%baseline = 0.
-      end do
 
       call timer%stop(TOD_INIT, id_abs)
 
@@ -503,11 +496,6 @@ contains
             call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
             call timer%stop(TOD_NCORR, self%band)
          end if
-
-         ! Explicitly set baseline to mean of correlated noise
-         do j = 1, self%ndet
-           self%scans(i)%d(j)%baseline = sum(sd%n_corr(:,j))/sd%ntod
-         end do
 
 
          ! Compute noise spectrum parameters

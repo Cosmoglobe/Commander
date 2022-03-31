@@ -563,8 +563,6 @@ contains
 !!$        noise_filter(2, j) = sqrt((res%diode_weights(i,1) *(1 + splint(res%ref_splint(i,1), noise_filter(1,j))) + res%diode_weights(i,2) *(1 + splint(res%ref_splint(i,2), noise_filter(1,j))))/2.d0)
 !!$      end do
 
-      call init_noise_model(res, i)
-      !call init_noise_model(res, i, noise_filter)
 
 !!$      deallocate(noise_filter)
     end do
@@ -573,10 +571,6 @@ contains
     allocate(res%slconv(res%ndet), res%orb_dp)
     res%orb_dp => comm_orbdipole(res%mbeam)
 
-    ! Initialize all baseline corrections to zero
-    do i = 1, res%nscan
-       res%scans(i)%d%baseline = 0.d0
-    end do
 
     call timer%stop(TOD_INIT, id_abs)
 

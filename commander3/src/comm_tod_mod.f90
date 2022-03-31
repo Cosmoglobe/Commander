@@ -44,7 +44,6 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
-     real(sp)          :: baseline
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
@@ -57,8 +56,6 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
-     real(sp),           allocatable, dimension(:)    :: xi_n           ! noise model params
-
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -756,7 +753,6 @@ contains
     do i = 1, self%nscan
        do j = 1, self%ndet
           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
-          self%scans(i)%d(j)%baseline = 0.
        end do
     end do
 
@@ -833,7 +829,7 @@ contains
     character(len=128) :: field
     type(hdf_file)     :: file
     integer(i4b), allocatable, dimension(:)       :: hsymb
-    real(sp),     allocatable, dimension(:)       :: buffer_sp, hsymb_sp
+    real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
     self%chunk_num = scan
@@ -873,35 +869,35 @@ contains
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
          allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
        end if
-       allocate(self%d(i)%xi_n(tod%n_xi))
+       allocate(xi_n(tod%n_xi))
 
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
-       self%d(i)%xi_n(1:3)  = scalars(2:4)
-       self%d(i)%xi_n(1)    = self%d(i)%xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
+       xi_n(1:3)            = scalars(2:4)
+       xi_n(1)              = xi_n(1) * self%d(i)%gain_def ! Convert sigma0 to uncalibrated units
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
        if (trim(tod%noise_psd_model) == 'oof') then
-         self%d(i)%N_psd => comm_noise_psd(self%d(i)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+         self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
-          self%d(i)%xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
-          self%d(i)%xi_n(5) = -1.000 ! alpha2; arbitrary value
-       !   self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+          xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
+          xi_n(5) = -1.000 ! alpha2; arbitrary value
+          self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
        else if (trim(tod%noise_psd_model) == 'oof_gauss') then
-          self%d(i)%xi_n(4) =  0.00d0
-          self%d(i)%xi_n(5) =  1.35d0
-          self%d(i)%xi_n(6) =  0.40d0
-       !   self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+          xi_n(4) =  0.00d0
+          xi_n(5) =  1.35d0
+          xi_n(6) =  0.40d0
+          self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
        else if (trim(tod%noise_psd_model) == 'oof_f') then
-          self%d(i)%xi_n(4) =  0d0
-          self%d(i)%xi_n(5) =  0d0
-          !self%d(i)%N_psd => comm_noise_psd_oof_f(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+          xi_n(4) =  0d0
+          xi_n(5) =  0d0
+          self%d(i)%N_psd => comm_noise_psd_oof_f(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
@@ -914,6 +910,7 @@ contains
 !!$          stop
 
        end if
+       deallocate(xi_n)
 
        ! Read Huffman coded data arrays
        if (nhorn == 2 .and. i == 1) then
@@ -1387,7 +1384,7 @@ contains
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
 
-    npar = 4+self%n_xi
+    npar = 3+self%n_xi
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     ! Collect all parameters
@@ -1398,9 +1395,7 @@ contains
           output(k,j,1)      = self%scans(i)%d(j)%gain
           output(k,j,2)      = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
           output(k,j,3)      = self%scans(i)%d(j)%chisq
-          output(k,j,4)      = self%scans(i)%d(j)%baseline
-         !  output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
-          output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
+          output(k,j,4:npar) = self%scans(i)%d(j)%N_psd%xi_n
        end do
     end do
 
@@ -1456,8 +1451,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
-       call write_hdf(chainfile, trim(adjustl(path))//'baseline',output(:,:,4))
-       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,5:npar))
+       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])

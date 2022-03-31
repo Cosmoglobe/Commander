@@ -199,10 +199,6 @@ contains
      allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
      if (constructor%orb_4pi_beam) constructor%orb_dp => comm_orbdipole(constructor%mbeam)
  
-     ! Initialize all baseline corrections to zero
-     do i = 1, constructor%nscan
-        constructor%scans(i)%d%baseline = 0.d0
-     end do
 
      call timer%stop(TOD_INIT, id_abs)
 

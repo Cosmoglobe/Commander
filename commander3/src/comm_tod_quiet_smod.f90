@@ -117,10 +117,6 @@ contains
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
-    ! Initialize all baseline corrections to zero
-    !do i = 1, constructor%nscan
-    !   constructor%scans(i)%d%baseline = 0.d0
-    !end do
 
   end procedure constructor
 
@@ -216,7 +212,6 @@ contains
     ! Perform main sampling steps
     !------------------------------------
     ! For QUIET we need to only sample for absolute calibration
-    !call sample_baseline(self, handle, map_sky, procmask, procmask2)
     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
     !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
     !call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
@@ -296,24 +291,6 @@ contains
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)
-       if (.false. .and. i==1 .and. mod(iter,10) == 0) then
-          call int2string(self%scanid(i), scantext)
-          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
-          do k = 1, self%ndet
-             open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
-             write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
-                  & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
-             do j = 1, sd%ntod
-                write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-                 &  sd%s_totA(j,k), sd%s_orbA(j,k), &
-                 &  sd%s_totB(j,k), sd%s_orbB(j,k), &
-                 &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
-                 &  sd%s_sl(j,k),  sd%s_bp(j,k), real(self%scans(i)%d(k)%gain, sp), &
-                 &  real(self%scans(i)%d(k)%N_psd%sigma0, sp)
-             end do
-             close(78)
-          end do
-       end if
        
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
        ! if (self%output_4D_map > 0) then
