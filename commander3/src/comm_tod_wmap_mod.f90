@@ -433,14 +433,14 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      !if (.not. self%enable_tod_simulations) then
-      !    if (trim(self%level) == 'L1') then
-      !        call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
-      !        call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-      !        call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
-      !    end if
-      !    call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
-      !end if
+      if (.not. self%enable_tod_simulations) then
+          if (trim(self%level) == 'L1') then
+              call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+          end if
+          call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+      end if
 
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -630,9 +630,9 @@ contains
             if (self%verbosity > 0 .and. self%myid == 0) then
               write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
             end if
-            !call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-            !               & epsil, procmask, map_full, M_diag, b_map, l, &
-            !               & prefix, postfix, comp_S)
+            call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                           & epsil, procmask, map_full, M_diag, b_map, l, &
+                           & prefix, postfix, comp_S)
           !end if
 
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
