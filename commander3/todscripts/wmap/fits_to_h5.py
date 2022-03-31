@@ -92,6 +92,7 @@ fknees *= 1e-3
 # version 46 uses JPL Horizons ephemerides directly
 # version 47 uses same as above, just uses the precalibrated data
 # version 48 reverts to the center=False parameter
+# version 49 back to center False
 
 from time import sleep
 from time import time as timer
@@ -841,7 +842,8 @@ def ang2pix_multiprocessing(nside, theta, phi):
     return hp.ang2pix(nside, theta, phi)
 
 #@profile(sort_by='cumulative', strip_dirs=True)
-def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center, precal):
+def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
+    precal, simulate):
     t0 = timer()
 
     # from programs.pars
@@ -916,7 +918,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center, 
             gain_guesses.append([gain_guesses0[i] for g in gain_split])
             #gain_guesses.append([g.mean() for g in gain_split])
         gain_guesses = np.array(gain_guesses)
-        if precal:
+        if precal or simulate:
             gain_guesses = gain_guesses*0 + 1
 
 
@@ -1001,6 +1003,22 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center, 
             pix_A_all[b] = np.concatenate((pix_A_all[b], pix_A[b]))
             pix_B_all[b] = np.concatenate((pix_B_all[b], pix_B[b]))
 
+    if simulate:
+        #TODs_all[index] = np.concatenate((TODs_all[index], tod))
+        # Overwrite all bands with the simple dipole + CMB fluctuations
+        T, Q, U = hp.read_map('cmb_plus_dip.fits', field=(0,1,2))
+        for b in range(40):
+            pixA = pix_A_all[b//4]
+            pixB = pix_B_all[b//4]
+            psiA = psi_A_all[b//4]
+            psiB = psi_B_all[b//4]
+            if (b % 4) < 2:
+                TODs_all[b] = np.rint((T[pixA] + Q[pixA]*np.cos(2*psiA) + U[pixA]*np.sin(2*psiA)) \
+                                    - (T[pixB] + Q[pixB]*np.cos(2*psiB) + U[pixB]*np.sin(2*psiB)))
+            else:
+                TODs_all[b] = np.rint((T[pixA] - Q[pixA]*np.cos(2*psiA) - U[pixA]*np.sin(2*psiA)) \
+                                    - (T[pixB] - Q[pixB]*np.cos(2*psiB) - U[pixB]*np.sin(2*psiB)))
+            
 
     obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
     obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
@@ -1021,7 +1039,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center, 
     return
 
 def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
-        center=True, precal=False):
+        center=True, precal=False, simulate=False):
 
 
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
@@ -1032,6 +1050,10 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         files = glob(prefix + 'uncalibrated/*.fits')
         outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
     files.sort()
+
+    if (simulate):
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_sim/'
+        
 
     get_all_ephems(files)
 
@@ -1065,13 +1087,14 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     if par:
         nprocs = 128
         nprocs = 72
-        nprocs = 64
+        #nprocs = 64
         os.environ['OMP_NUM_THREADS'] = '1'
 
 
         pool = Pool(processes=nprocs)
         print('pool set up')
-        x = [pool.apply_async(fits_to_h5, args=[comm_tod, f, i, compress, plot, version, center, precal]) for i, f in zip(inds, files)]
+        x = [pool.apply_async(fits_to_h5, args=[comm_tod, f, i, compress, plot,
+          version, center, precal, simulate]) for i, f in zip(inds, files)]
         for i in tqdm(range(len(x)), smoothing=0):
             x[i].get()
             #res.wait()
@@ -1085,5 +1108,6 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 
 if __name__ == '__main__':
-    main(version=47, precal=False, compress=True, center=False)
+    #main(version=49, precal=False, compress=True, center=True)
+    main(version=49, precal=False, compress=True, center=True, simulate=True)
     #test_flags()
