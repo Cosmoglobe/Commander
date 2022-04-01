@@ -437,7 +437,7 @@ contains
 
          
            
-           ! Retrieve offsets from previous run, if they exist
+           ! Retrieve offset template from previous run, if it exist
            if (allocated(self%scans(i)%d(j)%offset_range)) then
               call expand_offset_list(              &
                  & self%scans(i)%d(j)%offset_range, &
@@ -457,8 +457,6 @@ contains
 
          
          ! Scanning for jumps
-
-
          if (.true.) then
             call jump_scan(                                 &
             & sd%tod(:,j) - sd%s_sky(:,j) - s_jump(:,j), &
@@ -474,7 +472,7 @@ contains
             
 
 
-              ! Add offsets to persistent list
+              ! Add offsets to persistent list that survives until the next Gibbs iteration
               if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
                  allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
                  allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
@@ -489,7 +487,7 @@ contains
                     & self%scans(i)%d(j)%offset_level)
               end if
 
-              ! Add jump flags to persistent list
+              ! Add jump flags to persistent list that survives until the next Gibbs iteration
               if (allocated(jumpflag_range)) then
                  if (.not. allocated(self%scans(i)%d(j)%jumpflag_range)) then
                     allocate(self%scans(i)%d(j)%jumpflag_range(size(jumpflag_range)/2,2))
@@ -499,13 +497,14 @@ contains
                  end if
               end if
 
+              ! Create offset template to be subtracted from tod
               call expand_offset_list(                &
                   & self%scans(i)%d(j)%offset_range,  &
                   & self%scans(i)%d(j)%offset_level,  & 
                   & s_jump(:,j))
            end if
 
-
+           ! Create gap-less and jump subtracted TOD, called 'tod_gapfill'
            call gap_fill_linear(           &
               & sd%tod(:,j) - s_jump(:,j), &
               & sd%flag(:,j),              &
