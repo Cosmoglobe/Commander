@@ -14,6 +14,14 @@ module comm_tod_jump_mod
 contains
 
   subroutine tod2file_sp(filename,d)
+    ! Subroutine that saves a 1d array to disk
+    ! 
+    ! Arguments:
+    ! ----------
+    ! filename: (string)
+    !    Filename of the text file to be generated, e.g. tod_clean.txt
+    ! d: (real)
+    !    1d array to be written to disk
     implicit none
     character(len=*),                 intent(in)            :: filename
     real(sp),           dimension(:), intent(in)            :: d
@@ -36,6 +44,14 @@ contains
 
 
   subroutine tod2file_dp(filename,d)
+    ! Subroutine that saves a 1d array to disk
+    ! 
+    ! Arguments:
+    ! ----------
+    ! filename: (string)
+    !    Filename of the text file to be generated, e.g. tod_clean.txt
+    ! d: (real)
+    !    1d array to be written to disk
     implicit none
     character(len=*),                 intent(in)            :: filename
     real(dp),           dimension(:), intent(in)            :: d
@@ -57,6 +73,14 @@ contains
 
 
   subroutine tod2file_int(filename,d)
+    ! Subroutine that saves a 1d array to disk
+    ! 
+    ! Arguments:
+    ! ----------
+    ! filename: (string)
+    !    Filename of the text file to be generated, e.g. tod_clean.txt
+    ! d: (int)
+    !    1d array to be written to disk
     implicit none
     character(len=*),                 intent(in)            :: filename
     integer(i4b),       dimension(:), intent(in)            :: d
@@ -78,6 +102,14 @@ contains
 
 
   subroutine tod2file_complex(filename,d)
+    ! Subroutine that saves a 1d array to disk
+    ! 
+    ! Arguments:
+    ! ----------
+    ! filename: (string)
+    !    Filename of the text file to be generated, e.g. tod_clean.txt
+    ! d: (complex)
+    !    1d array to be written to disk
    implicit none
    character(len=*),                 intent(in)            :: filename
    complex(spc),       dimension(:), intent(in)            :: d
@@ -107,7 +139,6 @@ contains
 
 
     mean_new = mean_old + (x_new-x_old)/N
-   !  welford_var = std_old**2 + (x_new**2-x_old**2-N*(mean_new**2-mean_old**2))/(N-1)
     welford_var = std_old + (x_new**2-x_old**2-N*(mean_new**2-mean_old**2))/(N-1)
 
 
@@ -327,6 +358,23 @@ contains
 
 
   subroutine gap_fill_linear(tod, flag, tod_gapfill, handle, noise)
+   ! Subroutine that interpolates gaps in time stream
+   !
+   ! Arguments:
+   ! ----------
+   ! tod: (real) 1d array
+   !     Time stream with gaps to be interpolated
+   ! flag: (int) 1d array
+   !     Invalid data of 'tod' array
+   ! tod_gapfill: (real) 1d array
+   !     Interpolated copy of 'tod' array
+   ! handle: handle for random number generator
+   ! noise: (bool)
+   !     false: linear interpolation; true: linear interpolation + white noise
+   !
+   ! Returns:
+   ! --------
+   ! Modifies 'tod_gapfill', which is a gap-less copy of 'tod'
    implicit none
    real(sp),     dimension(:), intent(in)    :: tod
    integer(i4b), dimension(:), intent(in)    :: flag
@@ -340,8 +388,8 @@ contains
    real(dp)                               :: mean_low, mean_high
    real(sp)                               :: std_low, std_high, std_combined
 
-   ! noise: If "true", then white noise is added ontop of the interpolation
-   !write(*,*) "Routine: Gap fill"
+   ! noise: If "true", then white noise is added on top of the interpolation
+
    N = 100
 
    tod_gapfill = tod
@@ -404,6 +452,45 @@ contains
 
 
   subroutine jump_scan(tod, flag, jumps, offset_range, offset_level, handle, jumpflag_range, it_label, chaindir, debug)
+   ! Subroutine that scans time stream for jumps
+   !
+   ! Arguments:
+   ! ----------
+   ! tod: (real) 1d array
+   !     Time stream with jumps to be scanned
+   !
+   ! flag: (int) 1d array
+   !     Flags for TOD to mark invalid data
+   !
+   ! jumps: (int) 1d array
+   !     Time stream that marks the position where a jump occurrs
+   !  
+   ! offset_range: (int) 2d array
+   !     Lists the start and end indices of segments separated by jumps
+   !     Number of rows is number of segments. First column corresponds to start indices,
+   !     second column coressponds to end intices
+   !
+   ! offset_level: (real) 1d array
+   !     Gives the amplitude of the individual segments given in 'offset_range', i.e. the mean level of these segments
+   !
+   ! handle: handle for random number generator
+   !
+   ! jumpflag_range: (int) 2d array
+   !     Equivalent to 'offset_range', but marks the beginning index and end index of jumps
+   !
+   ! it_label: string
+   !     Iteration label for output files
+   ! 
+   ! chaindir: string
+   !     Chain directory
+   !
+   ! debug: bool
+   !     Write time streams to disk for debugging
+   !
+   ! Returns:
+   ! --------
+   ! No returns, but populates offset_range, offset_level, jumpflag_range and modifies flags, jumps
+
     implicit none
     real(sp),     dimension(:),                   intent(in)    :: tod
     integer(i4b), dimension(:),                   intent(inout) :: flag
@@ -423,20 +510,16 @@ contains
     character(len=100)                         :: filename
     logical                                    :: switch, first_call, counting, downsampled
 
-   !   write(*,*) 'Routine: Jump scan'
-
-
     downsampled = .true.
     
     if (downsampled) then
-      N = 20
-      len_min = 200
+      N = 20         ! Window size for moving variance
+      len_min = 200  ! Minimum number of samples bordered by jumps. 
     else
       N = 100
       len_min = 2000
     end if
     
-   !  threshold = 2
     threshold = 3
     tod_len = size(tod)
     jumps(:) = 0
@@ -447,7 +530,7 @@ contains
 
 
 
-    ! Compute rolling standard deviation
+    ! Compute rolling variance
     allocate(rolling_var(tod_len))
     rolling_var = 0
 
@@ -527,14 +610,10 @@ contains
        if (first_call .and. jumps(i)==0) then
           offset_range(counter,1) = i
           first_call = .false.
-      !  elseif (jumps(i)==1 .and. switch .and. first_call .eqv. .false.) then
-      !  elseif (jumps(i)==1 .and. switch .and. first_call==.false.) then
        elseif (jumps(i)==1 .and. switch .and. (.not. first_call)) then
           offset_range(counter,2) = i-1
           switch = .false.
           counter = counter + 1
-      !  elseif (jumps(i)==0 .and. switch .eqv. .false.) then
-      !  elseif (jumps(i)==0 .and. switch==.false.) then
        elseif (jumps(i)==0 .and. (.not. switch)) then
           offset_range(counter,1) = i
           switch = .true.
