@@ -77,6 +77,8 @@ contains
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("spindust2")
              c => comm_spindust2_comp(cpar, ncomp, i)
+          case ("lognormal")
+             c => comm_ame_lognormal_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("freefree")
