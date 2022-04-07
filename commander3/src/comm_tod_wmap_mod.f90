@@ -520,7 +520,7 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if (mod(iter-1,self%output_aux_maps) == 0 .and. .not. self%enable_tod_simulations) then
+         if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
