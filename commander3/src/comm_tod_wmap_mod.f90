@@ -520,7 +520,7 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
+         if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations .and. iter .ne. 1) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -599,10 +599,8 @@ contains
 
         call timer%start(TOD_MAPSOLVE, self%band)
 
-        allocate(outmaps(self%output_n_maps))
-        do i = 1, self%output_n_maps
-         outmaps(i)%p => comm_map(self%info)
-        end do
+        allocate(outmaps(1))
+        outmaps(1)%p => comm_map(self%info)
 
         if (comp_S) then
           allocate (bicg_sol(0:npix-1, nmaps+1))
@@ -638,24 +636,26 @@ contains
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
           if (comp_S) then
-             outmaps(l)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
-             map_out%map = outmaps(l)%p%map
+             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+             map_out%map = outmaps(1)%p%map
              call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
           do j = 1, nmaps
-             outmaps(l)%p%map(:, j) = bicg_sol(self%info%pix, j)
+             outmaps(1)%p%map(:, j) = bicg_sol(self%info%pix, j)
           end do
+
+          if (l == 1) then
+             map_out%map = outmaps(1)%p%map
+             rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+             call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+             call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+          else
+             call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
+          end if
         end do
         deallocate(bicg_sol)
 
 
-        map_out%map = outmaps(1)%p%map
-        rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-        call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-        call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-        do n = 2, self%output_n_maps
-          call outmaps(n)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(n)))//trim(postfix))
-        end do
         call timer%stop(TOD_MAPSOLVE, self%band)
 
         ! Sample bandpass parameters
@@ -675,9 +675,7 @@ contains
       if (allocated(slist)) deallocate (slist)
 
       if (allocated(outmaps)) then
-         do i = 1, self%output_n_maps
-            call outmaps(i)%p%dealloc
-         end do
+         call outmaps(1)%p%dealloc
          deallocate (outmaps)
       end if
 
