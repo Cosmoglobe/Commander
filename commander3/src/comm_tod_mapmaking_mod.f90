@@ -396,6 +396,136 @@ end subroutine bin_differential_TOD
       logical(lgt) :: finished
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
       integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
+      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, monopole, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi
+      real(dp), allocatable, dimension(:,:) :: x, y
+      nhorn = tod%nhorn
+      ndet  = tod%ndet
+      nside = tod%nside
+      nmaps = tod%nmaps
+      npix  = 12*nside**2
+
+      if (comp_S) then
+         allocate(x(nmaps+1,0:npix-1), y(nmaps+1,0:npix-1))
+      else
+         allocate(x(nmaps,0:npix-1),   y(nmaps,0:npix-1))
+      end if
+      if (tod%myid == 0) then
+         finished = .false.
+         call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+         x = transpose(x_in)
+      end if
+      call mpi_bcast(x, size(x),  MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
+
+      x_im     = 0.5*(x_imarr(1) + x_imarr(3))
+      dx_im    = 0.5*(x_imarr(1) - x_imarr(3))
+      x_im_pos = 1.d0 + x_im
+      x_im_neg = 1.d0 - x_im
+
+      y      = 0.d0
+      do j = 1, tod%nscan
+         ntod = tod%scans(j)%ntod
+         allocate (pix(ntod, nhorn))             ! Decompressed pointing
+         allocate (psi(ntod, nhorn))             ! Decompressed pol angle
+         allocate (flag(ntod))                   ! Decompressed flags
+         !do k = 1, tod%ndet
+         if (tod%scans(j)%d(1)%accept) then
+            !call update_status(status, 'decomp')
+            call tod%decompress_pointing_and_flags(j, 1, pix, &
+                & psi, flag)
+            !call update_status(status, 'done')
+
+            var = 0.d0
+            do k = 1, 4
+               var = var + (tod%scans(j)%d(k)%N_psd%sigma0/tod%scans(j)%d(k)%gain)**2/4
+            end do
+            inv_sigmasq = 1.d0/var
+
+            !call update_status(status, 'loop')
+            do t = 1, ntod
+
+               if (iand(flag(t),tod%flag0) .ne. 0) cycle
+               lpix = pix(t, 1)
+               rpix = pix(t, 2)
+               lcos2psi = tod%cos2psi(psi(t,1))
+               lsin2psi = tod%sin2psi(psi(t,1))
+               rcos2psi = tod%cos2psi(psi(t,2))
+               rsin2psi = tod%sin2psi(psi(t,2))
+
+               ! This is the model for each timestream
+               iA = x(1,lpix)
+               sA = x(2,lpix)*lcos2psi + x(3,lpix)*lsin2psi
+               if (comp_S) sA = sA + x(4,lpix)
+               iB = x(1,rpix)
+               sB = x(2,rpix)*rcos2psi + x(3,rpix)*rsin2psi
+               if (comp_S) sB = sB + x(4,rpix)
+
+               d  = (x_im_pos*iA - x_im_neg*iB + dx_im*(sA + sB)) * inv_sigmasq
+               p  = (x_im_pos*sA - x_im_neg*sB + dx_im*(iA + iB)) * inv_sigmasq
+
+               if (pmask(rpix) > 0.5d0) then
+                  sigT      = x_im_pos*d + dx_im*p 
+                  sigP      = x_im_pos*p + dx_im*d
+                  y(1,lpix) = y(1,lpix) + sigT 
+                  y(2,lpix) = y(2,lpix) + sigP * lcos2psi
+                  y(3,lpix) = y(3,lpix) + sigP * lsin2psi
+                  if (comp_S) y(4,lpix) = y(4,lpix) + sigP
+               end if
+
+               if (pmask(lpix) > 0.5d0) then
+                  sigT       = -(x_im_neg*d - dx_im*p)
+                  sigP       = -(x_im_neg*p - dx_im*d)
+                  y(1,rpix) = y(1,rpix) + sigT
+                  y(2,rpix) = y(2,rpix) + sigP * rcos2psi
+                  y(3,rpix) = y(3,rpix) + sigP * rsin2psi
+                  if (comp_S) y(4,rpix) = y(4,rpix) + sigP
+               end if
+
+            end do
+            !call update_status(status, 'done')
+         end if
+         deallocate (pix, psi, flag)
+      end do
+
+      if (tod%myid == 0) then
+         call mpi_reduce(y, x, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
+              & 0, tod%info%comm, ierr)
+         y_out    = transpose(x)
+         monopole = sum(y_out(:,1)*M_diag(:,1)*pmask) &
+                & / sum(M_diag(:,1)*pmask)
+         y_out(:,1) = y_out(:,1) - monopole
+      else
+         call mpi_reduce(y, x,     size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
+              & 0, tod%info%comm, ierr)
+      end if
+
+      deallocate(x, y)
+
+   end subroutine compute_Ax
+
+
+   subroutine compute_Ax2(tod, x_imarr, pmask, comp_S, M_diag, x_in, y_out)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      ! Code to compute matrix product P^T N^-1 P m
+      ! y = Ax
+      ! Explicitly removes the monopole in temperature, since this mode is
+      ! formally solvable for due to transmission imbalance, but takes the
+      ! majority of the BICG-Stab iterations to solve for.
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      implicit none
+      class(comm_tod),                 intent(in)              :: tod
+      real(dp),     dimension(1:),     intent(in)              :: x_imarr
+      real(sp),     dimension(0:),     intent(in)              :: pmask
+      logical(lgt), intent(in)                                 :: comp_S
+      real(dp),                dimension(:,:), intent(in) :: M_diag
+      real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
+      real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
+
+      integer(i4b), allocatable, dimension(:)         :: flag
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+
+      logical(lgt) :: finished
+      integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
+      integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
       real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, monopole
       real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
@@ -491,7 +621,7 @@ end subroutine bin_differential_TOD
 
       deallocate(x, y)
 
-   end subroutine compute_Ax
+   end subroutine compute_Ax2
 
   subroutine finalize_binned_map(tod, binmap, handle, rms, scale, chisq_S, Sfilename, mask)
     !
