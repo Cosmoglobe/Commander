@@ -1669,8 +1669,8 @@ contains
     real(dp),                            intent(in)    :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
 
-    integer(i4b) :: j, pix_, pix_prev, psi_prev
-    real(dp)     :: psi_
+    integer(i4b) :: j, pix_, pix_prev, psi_prev, bpsi, psii, psiu
+    real(dp)     :: psi_, unwrap, x0, x1
 
     pix_prev = -1; psi_prev = -1
     do j = 1, size(pix)
@@ -1679,12 +1679,57 @@ contains
           s_sl(j) = s_sl(j-1)
        else
           psi_    = self%psi(psi(j))-polangle
-          s_sl(j) = slconv%interp(pix_, psi_)
+          !s_sl(j) = slconv%interp(pix_, psi_)
+          unwrap = modulo(-real(psi_,sp), real(2.d0*pi,sp))
+          if (slconv%optim == 2) then
+             bpsi = max(nint(unwrap / slconv%psires),0)
+             if (bpsi == slconv%psisteps) bpsi = 0
+             s_sl(j) = slconv%c%a(pix_+1, bpsi+1)
+          else 
+             !index of the lower and upper bound of psi in the array
+             psii = int(unwrap / slconv%psires)
+             psiu = psii + 1
+             if (psiu >= slconv%psisteps) psiu = 0
+    
+             !linear interpolation between evaluated samples in psi
+             ! y = (y_0 (x_1 - x) + y_1 (x - x_0))/(x_1 - x_0)
+             x0      = psii * slconv%psires
+             x1      = psiu * slconv%psires
+             s_sl(j) = (slconv%c%a(pix_+1, psii+1) * (x1 - unwrap) + &
+                  & slconv%c%a(pix_+1, psiu+1) * (unwrap - x0))/(x1 - x0)
+          end if
           pix_prev = pix_; psi_prev = psi(j)
        end if
     end do
 
   end subroutine construct_sl_template
+
+
+!!$  !construct a sidelobe template in the time domain
+!!$  subroutine construct_sl_template2(self, slconv, pix, psi, s_sl, polangle)
+!!$    implicit none
+!!$    class(comm_tod),                     intent(in)    :: self
+!!$    class(comm_conviqt),                 intent(in)    :: slconv
+!!$    integer(i4b),        dimension(:),   intent(in)    :: pix, psi
+!!$    real(dp),                            intent(in)    :: polangle
+!!$    real(sp),            dimension(:),   intent(out)   :: s_sl
+!!$
+!!$    integer(i4b) :: j, pix_, pix_prev, psi_prev
+!!$    real(dp)     :: psi_
+!!$
+!!$    pix_prev = -1; psi_prev = -1
+!!$    do j = 1, size(pix)
+!!$       pix_    = self%ind2sl(self%pix2ind(pix(j)))
+!!$       if (pix_prev == pix_ .and. psi(j) == psi_prev) then
+!!$          s_sl(j) = s_sl(j-1)
+!!$       else
+!!$          psi_    = self%psi(psi(j))-polangle
+!!$          s_sl(j) = slconv%interp(pix_, psi_)
+!!$          pix_prev = pix_; psi_prev = psi(j)
+!!$       end if
+!!$    end do
+!!$
+!!$  end subroutine construct_sl_template2
 
 
   subroutine construct_corrtemp_inst(self, scan, pix, psi, s)
