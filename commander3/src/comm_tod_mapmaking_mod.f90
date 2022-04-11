@@ -542,7 +542,7 @@ end subroutine bin_differential_TOD
       if (tod%myid == 0) then
          finished = .false.
          call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
-         x = x_in
+         x = transpose(x_in)
       end if
       call mpi_bcast(x, size(x),  MPI_DOUBLE_PRECISION, 0, tod%info%comm, ierr)
 
@@ -578,30 +578,30 @@ end subroutine bin_differential_TOD
                f_A = pmask(rpix)
                f_B = pmask(lpix)
                ! This is the model for each timestream
-               iA = x(lpix, 1)
-               iB = x(rpix, 1)
+               iA = x(1, lpix)
+               iB = x(1, rpix)
                if (comp_S) then
-                  sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi) + x(lpix, 4)
-                  sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi) + x(rpix, 4)
+                  sA = x(2, lpix)*tod%cos2psi(lpsi) + x(3, lpix)*tod%sin2psi(lpsi) + x(4, lpix)
+                  sB = x(2, rpix)*tod%cos2psi(rpsi) + x(3, rpix)*tod%sin2psi(rpsi) + x(4, rpix)
                else
-                  sA = x(lpix, 2)*tod%cos2psi(lpsi) + x(lpix, 3)*tod%sin2psi(lpsi)
-                  sB = x(rpix, 2)*tod%cos2psi(rpsi) + x(rpix, 3)*tod%sin2psi(rpsi)
+                  sA = x(2, lpix)*tod%cos2psi(lpsi) + x(3, lpix)*tod%sin2psi(lpsi)
+                  sB = x(2, rpix)*tod%cos2psi(rpsi) + x(3, rpix)*tod%sin2psi(rpsi)
                end if
                d  = (1.d0+x_im)*iA - (1.d0-x_im)*iB + dx_im*(sA + sB)
                p  = (1.d0+x_im)*sA - (1.d0-x_im)*sB + dx_im*(iA + iB)
                ! Temperature
-               y(lpix, 1) = y(lpix, 1) + f_A*((1.d0 + x_im)*d + dx_im*p) * inv_sigmasq
-               y(rpix, 1) = y(rpix, 1) - f_B*((1.d0 - x_im)*d - dx_im*p) * inv_sigmasq
+               y(1, lpix) = y(1, lpix) + f_A*((1.d0 + x_im)*d + dx_im*p) * inv_sigmasq
+               y(1, rpix) = y(1, rpix) - f_B*((1.d0 - x_im)*d - dx_im*p) * inv_sigmasq
                ! Q
-               y(lpix, 2) = y(lpix, 2) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%cos2psi(lpsi)*inv_sigmasq
-               y(rpix, 2) = y(rpix, 2) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%cos2psi(rpsi)*inv_sigmasq
+               y(2, lpix) = y(2, lpix) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%cos2psi(lpsi)*inv_sigmasq
+               y(2, rpix) = y(2, rpix) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%cos2psi(rpsi)*inv_sigmasq
                ! U
-               y(lpix, 3) = y(lpix, 3) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%sin2psi(lpsi)*inv_sigmasq
-               y(rpix, 3) = y(rpix, 3) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%sin2psi(rpsi)*inv_sigmasq
+               y(3, lpix) = y(3, lpix) + f_A*((1.d0 + x_im)*p + dx_im*d) * tod%sin2psi(lpsi)*inv_sigmasq
+               y(3, rpix) = y(3, rpix) - f_B*((1.d0 - x_im)*p - dx_im*d) * tod%sin2psi(rpsi)*inv_sigmasq
                ! S
                if (comp_S) then
-                 y(lpix, 4) = y(lpix, 4) + f_A*((1.d0 + x_im)*p + dx_im*d) * inv_sigmasq
-                 y(rpix, 4) = y(rpix, 4) - f_B*((1.d0 - x_im)*p - dx_im*d) * inv_sigmasq
+                 y(4, lpix) = y(4, lpix) + f_A*((1.d0 + x_im)*p + dx_im*d) * inv_sigmasq
+                 y(4, rpix) = y(4, rpix) - f_B*((1.d0 - x_im)*p - dx_im*d) * inv_sigmasq
                end if
             end do
          end if
@@ -611,6 +611,7 @@ end subroutine bin_differential_TOD
       if (tod%myid == 0) then
          call mpi_reduce(y, y_out, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
+         y_out    = transpose(y)
          monopole = sum(y_out(:,1)*M_diag(:,1)*pmask) &
                 & / sum(M_diag(:,1)*pmask)
          y_out(:,1) = y_out(:,1) - monopole
