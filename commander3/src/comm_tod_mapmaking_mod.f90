@@ -535,9 +535,9 @@ end subroutine bin_differential_TOD
       npix  = 12*nside**2
 
       if (comp_S) then
-         allocate(x(0:npix-1,nmaps+1), y(0:npix-1,nmaps+1))
+         allocate(x(nmaps+1, 0:npix-1), y(nmaps+1,0:npix-1))
       else
-         allocate(x(0:npix-1,nmaps),   y(0:npix-1,nmaps))
+         allocate(x(nmaps, 0:npix-1),   y(nmaps, 0:npix-1))
       end if
       if (tod%myid == 0) then
          finished = .false.

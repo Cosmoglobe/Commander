@@ -610,7 +610,7 @@ contains
 
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
-        do l = 1, self%output_n_maps
+        do l = self%output_n_maps, 1, -1
           !if (l .ne. 6) b_map(:,:,l) = 0d0
           !b_map = 0d0
           bicg_sol = 0.0d0
