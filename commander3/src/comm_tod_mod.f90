@@ -212,6 +212,7 @@ module comm_tod_mod
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
      procedure                           :: remove_fixed_scans
+     procedure                           :: apply_map_precond
   end type comm_tod
 
   abstract interface
@@ -2582,4 +2583,14 @@ contains
     class(comm_tod),                     intent(inout)  :: self
   end subroutine remove_fixed_scans
 
+  subroutine apply_map_precond(self, map, map_out)
+    implicit none
+    class(comm_tod),                   intent(in)    :: self
+    real(dp),        dimension(0:,1:), intent(in)    :: map
+    real(dp),        dimension(0:,1:), intent(out)   :: map_out
+
+    map_out = map
+
+  end subroutine apply_map_precond
+  
 end module comm_tod_mod

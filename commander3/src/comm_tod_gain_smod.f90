@@ -164,8 +164,8 @@ contains
 !    real(sp), dimension(:, :) :: inv_gain_covar ! To be replaced by proper matrix, and to be input as an argument
     integer(i4b) :: i, j, k, l, ndet, nscan_tot, ierr, ind(1)
     integer(i4b) :: currstart, currend, window, i1, i2, pid_id, range_end
-    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha, invvar, minvar, var
-    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth
+    real(dp)     :: mu, denom, sum_inv_sigma_squared, sum_weighted_gain, g_tot, g_curr, sigma_curr, fknee, sigma_0, alpha, invvar, minvar, var, x
+    real(dp), allocatable, dimension(:)     :: lhs, rhs, g_smooth, a, xx, yy
     real(dp), allocatable, dimension(:)     :: g_over_s, temp_invsigsquared
     real(dp), allocatable, dimension(:)     :: summed_invsigsquared, smoothed_gain
     real(dp), allocatable, dimension(:,:,:) :: g
@@ -208,6 +208,59 @@ contains
              tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
           end do
        end do
+
+       ! Perform poly-fit
+       allocate(xx(tod%nscan_tot), yy(tod%nscan_tot))
+       allocate(a(0:8))
+       do j = 1, tod%ndet
+          xx = 0.d0
+          do i = 1, tod%nscan
+             xx(tod%scanid(i)) = tod%scans(i)%d(j)%dgain
+          end do
+          call mpi_allreduce(xx, yy, size(xx), MPI_DOUBLE_PRECISION, &
+               & MPI_SUM, tod%comm, ierr)
+
+          do i = 1, tod%nscan_tot
+             xx(i) = (i-1.d0)/tod%nscan_tot
+          end do
+
+!!$          if (tod%myid == 0) then
+!!$             open(58, file='gain1.dat')
+!!$             do i = 1, tod%nscan_tot
+!!$                write(58,*) xx(i), yy(i) 
+!!$             end do
+!!$             close(58)
+!!$          end if
+
+          call fit_polynomial(xx, yy, a)
+          do i = 1, tod%nscan
+             x = (tod%scanid(i)-1.d0)/tod%nscan_tot
+             tod%scans(i)%d(j)%dgain = 0.d0
+             do k = 0, size(a)-1 
+                tod%scans(i)%d(j)%dgain = tod%scans(i)%d(j)%dgain + a(k)*x**k
+             end do
+             tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
+          end do
+
+!!$          xx = 0.d0
+!!$          do i = 1, tod%nscan
+!!$             xx(tod%scanid(i)) = tod%scans(i)%d(j)%dgain
+!!$          end do
+!!$          call mpi_allreduce(xx, yy, size(xx), MPI_DOUBLE_PRECISION, &
+!!$               & MPI_SUM, tod%comm, ierr)
+!!$
+!!$          if (tod%myid == 0) then
+!!$             open(58, file='gain2.dat')
+!!$             do i = 1, tod%nscan_tot
+!!$                xx(i) = (i-1.d0)/tod%nscan_tot
+!!$                write(58,*) xx(i), yy(i) 
+!!$             end do
+!!$             close(58)
+!!$          end if
+
+       end do
+       deallocate(a, xx, yy)
+
     else
        call mpi_allreduce(mpi_in_place, g, size(g), MPI_DOUBLE_PRECISION, MPI_SUM, &
             & tod%comm, ierr)

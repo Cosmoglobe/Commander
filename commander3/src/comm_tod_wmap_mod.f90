@@ -54,9 +54,14 @@ module comm_tod_WMAP_mod
    public comm_WMAP_tod
 
    type, extends(comm_tod) :: comm_WMAP_tod
+      integer(i4b) :: nside_M_lowres, nmaps_M_lowres
+      logical(lgt) :: comp_S
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
+      real(dp), allocatable, dimension(:,:)        :: M_lowres, M_diag
    contains
       procedure     :: process_tod           => process_WMAP_tod
+      procedure     :: precompute_M_lowres
+      procedure     :: apply_map_precond     => apply_wmap_precond
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
@@ -114,6 +119,7 @@ contains
 
       constructor%n_xi            = 5
       constructor%noise_psd_model = 'oof_f'
+      constructor%comp_S          = .false.
 
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
@@ -203,6 +209,9 @@ contains
       constructor%verbosity       = cpar%verbosity
       constructor%x_im            = 0d0
 
+      if (constructor%myid == 0) then
+         allocate(constructor%M_diag(0:info%npix-1,info%nmaps+1))
+      end if
 
       ! Iniitialize TOD labels
       allocate (constructor%labels(7))
@@ -247,6 +256,8 @@ contains
       !load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
+      ! Precompute low-resolution preconditioner
+      call constructor%precompute_M_lowres
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -331,7 +342,6 @@ contains
       real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
       real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
       class(map_ptr),     allocatable, dimension(:) :: outmaps
-      logical(lgt)                                  :: comp_S
 
       ! biconjugate gradient-stab parameters
       integer(i4b) :: num_cg_iters
@@ -352,6 +362,14 @@ contains
       real(dp) :: polang
       !polang = mod(2*PI*iter/12, 2*PI)
       polang = 0d0
+
+
+!!$      do i = 1, self%ndet
+!!$         call int2string(i, ctext)
+!!$         call map_in(i,1)%p%writeFITS('map'//ctext//'.fits')
+!!$      end do
+!!$      call mpi_finalize(ierr)
+!!$      stop
 
 
       call int2string(iter, ctext)
@@ -395,18 +413,12 @@ contains
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
 
+
       ! Distribute processing masks
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
-
-
-      ! this is a flag for the spurious component, the "polarization
-      ! angle-independent polarization component" in the WMAP pipeline
-      comp_S = .true.
-
-
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -453,7 +465,7 @@ contains
       end if
 
       allocate (M_diag(0:npix-1, nmaps+1))
-      if (comp_S) then
+      if (self%comp_S) then
          allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
       else
          allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
@@ -494,6 +506,7 @@ contains
          else
             call timer%start(TOD_NCORR, self%band)
             call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+            !sd%n_corr = 0.
             call timer%stop(TOD_NCORR, self%band)
          end if
 
@@ -520,13 +533,19 @@ contains
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          call compute_calibrated_data(self, i, sd, d_calib)
 
-         if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations .and. iter .ne. 1) then
+!!$         do j = 1, self%ndet
+!!$            write(*,*) i, j, minval(d_calib(4,:,j)), maxval(d_calib(4,:,j)), sqrt(variance(1.d0*d_calib(4,:,j)))
+!!$         end do
+
+         !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations .and. iter .ne. 1) then
+         if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
             call write_hdf(tod_file, '/sl', sd%s_sl)
             call write_hdf(tod_file, '/s_orb', sd%s_orb)
             call write_hdf(tod_file, '/n_corr', sd%n_corr)
+            call write_hdf(tod_file, '/bpcorr', sd%s_bp)
             call write_hdf(tod_file, '/s_tot', sd%s_tot)
             call write_hdf(tod_file, '/tod',   sd%tod)
             call write_hdf(tod_file, '/flag', sd%flag)
@@ -551,7 +570,7 @@ contains
          call timer%start(TOD_MAPBIN, self%band)
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
            & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
-           & comp_S)
+           & self%comp_S)
          call timer%stop(TOD_MAPBIN, self%band)
 
          ! Update scan list
@@ -592,17 +611,18 @@ contains
         where (M_diag == 0d0)
            M_diag = 1d0
         end where
-        if (.not. comp_S) then
+        if (.not. self%comp_S) then
            ! If we want to not do the "better preconditioning"
            M_diag(:,4) = 0d0
         end if
+        if (self%myid == 0) self%M_diag = M_diag
 
         call timer%start(TOD_MAPSOLVE, self%band)
 
         allocate(outmaps(1))
         outmaps(1)%p => comm_map(self%info)
 
-        if (comp_S) then
+        if (self%comp_S) then
           allocate (bicg_sol(0:npix-1, nmaps+1))
         else
           allocate (bicg_sol(0:npix-1, nmaps  ))
@@ -630,12 +650,12 @@ contains
             end if
             call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                            & epsil, procmask, map_full, M_diag, b_map, l, &
-                           & prefix, postfix, comp_S)
+                           & prefix, postfix, self%comp_S)
           !end if
 
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
-          if (comp_S) then
+          if (self%comp_S) then
              outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
              map_out%map = outmaps(1)%p%map
              call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
@@ -696,6 +716,162 @@ contains
       self%first_call = .false.
 
    end subroutine process_WMAP_tod
+
+
+   subroutine precompute_M_lowres(self)
+      !
+      ! Routine that precomputes the low-resolution preconditioner, M_lowres = (P^t invN_w P)^{-1}
+      !
+      ! Arguments:
+      ! ----------
+      ! self:     pointer of comm_WMAP_tod class
+      !           Points to output of the constructor
+      !
+      implicit none
+      class(comm_WMAP_tod),             intent(inout) :: self
+
+      integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, ierr, ntod, lpix, rpix, q, nhorn
+      real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
+      real(dp), allocatable, dimension(:)   :: wl, wr
+      real(dp), allocatable, dimension(:,:) :: M
+      integer(i4b), allocatable, dimension(:)         :: flag, dgrade
+      integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+
+      call update_status(status, "M_lowres")
+
+      self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
+      self%nside_M_lowres = 8
+      npix                = 12  *self%nside_M_lowres**2
+      ntot                = npix*self%nmaps_M_lowres
+      nhorn               = self%nhorn
+
+      ! Precompute udgrade lookup table
+      allocate(dgrade(0:12*self%info%nside**2-1))
+      q = (self%info%nside / self%nside_M_lowres)**2
+      do i = 0, 12*self%info%nside**2-1
+         call ring2nest(self%info%nside, i, j)
+         j = j/q
+         call ring2nest(self%nside_M_lowres, j, dgrade(i))
+      end do
+
+      ! Allocate local coupling matrix
+      allocate(M(0:ntot-1,0:ntot-1), wl(self%nmaps_M_lowres), wr(self%nmaps_M_lowres))
+      M = 0.d0
+
+      ! Loop over scans
+      do i = 1, self%nscan
+         ! Skip scan if no accepted data
+         if (.not. self%scans(i)%d(1)%accept) cycle
+
+         ntod = self%scans(i)%ntod
+         allocate(pix(ntod, nhorn))             ! Decompressed pointing
+         allocate(psi(ntod, nhorn))             ! Decompressed pol angle
+         allocate(flag(ntod))                   ! Decompressed flags
+         call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
+
+         var = 0.d0
+         do k = 1, 4
+            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/4
+         end do
+         inv_sigma = sqrt(1.d0/var)
+
+         do t = 1, ntod
+            if (iand(flag(t),self%flag0) .ne. 0) cycle
+            lpix = dgrade(pix(t, 1))
+            rpix = dgrade(pix(t, 2))
+
+            wl(1) = inv_sigma
+            wl(2) = inv_sigma * self%cos2psi(psi(t,1))
+            wl(3) = inv_sigma * self%sin2psi(psi(t,1))
+
+            wr(1) = -inv_sigma
+            wr(2) = -inv_sigma * self%cos2psi(psi(t,2))
+            wr(3) = -inv_sigma * self%sin2psi(psi(t,2))
+
+            do k1 = 1, self%nmaps_M_lowres
+               p1 = (k1-1)*npix + lpix
+               do k2 = 1, self%nmaps_M_lowres
+                  p2 = (k2-1)*npix + rpix
+                  M(p1,p1) = M(p1,p1) + wl(k1) * wl(k1)
+                  M(p1,p2) = M(p1,p2) + wl(k1) * wr(k2)
+                  M(p2,p1) = M(p2,p1) + wr(k2) * wl(k1)
+                  M(p2,p2) = M(p2,p2) + wr(k2) * wr(k2)
+               end do
+            end do
+
+         end do
+
+         deallocate(pix, psi, flag)
+      end do
+
+      ! Collect contributions from all cores 
+      if (self%myid == 0) then
+         allocate(self%M_lowres(ntot,ntot))
+         call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
+         call invert_matrix(self%M_lowres)
+      else
+         call mpi_reduce(M, M,             size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
+      end if
+
+      deallocate(M, dgrade, wl, wr)
+
+      call update_status(status, "M_lowres_done")
+
+    end subroutine precompute_M_lowres
+
+
+  subroutine apply_wmap_precond(self, map, map_out)
+    implicit none
+    class(comm_WMAP_tod),              intent(in)    :: self
+    real(dp),        dimension(0:,1:), intent(in)    :: map
+    real(dp),        dimension(0:,1:), intent(out)   :: map_out
+
+    integer(i4b) :: i, npix_lowres, n_lowres, nmaps
+    real(dp) :: determ
+    real(dp), allocatable, dimension(:)   :: m_lin, m
+
+    if (self%comp_S) then
+       map_out =  map/self%M_diag
+    else
+!!$
+!!$       npix_lowres = 12*self%nside_M_lowres**2
+!!$       nmaps       = self%nmaps_M_lowres
+!!$
+!!$       ! Apply lowres preconditioner
+!!$       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+!!$       do i = 1, nmaps
+!!$          m = map(:,i)
+!!$          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+!!$          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
+!!$       end do
+!!$       m_lin = matmul(self%M_lowres, m_lin)
+       
+       ! Apply highres preconditioner to residual
+       map_out = map !- map_out
+       do i = 0, size(map,1)-1
+          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+       end do
+
+!!$       do i = 1, nmaps
+!!$          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+!!$          map_out(:,i) = map_out(:,i) + m
+!!$       end do
+!!$
+!!$       deallocate(m, m_lin)
+       
+
+!!$       do i = 0, size(map,1)-1
+!!$          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!!$          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+!!$          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+!!$          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+!!$       end do
+    end if
+
+  end subroutine apply_wmap_precond
 
 
 

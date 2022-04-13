@@ -31,7 +31,7 @@ program commander
   use comm_tod_gain_mod
   implicit none
 
-  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
+  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
   logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
@@ -158,6 +158,7 @@ program commander
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
+
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
