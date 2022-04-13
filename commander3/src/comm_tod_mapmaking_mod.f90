@@ -377,9 +377,6 @@ end subroutine bin_differential_TOD
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
-      ! Explicitly removes the monopole in temperature, since this mode is
-      ! formally solvable for due to transmission imbalance, but takes the
-      ! majority of the BICG-Stab iterations to solve for.
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       implicit none
       class(comm_tod),                 intent(in)              :: tod
@@ -396,7 +393,7 @@ end subroutine bin_differential_TOD
       logical(lgt) :: finished
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
       integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
-      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, monopole, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi
+      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi
       real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
       ndet  = tod%ndet
@@ -490,9 +487,6 @@ end subroutine bin_differential_TOD
          call mpi_reduce(y, x, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
          y_out    = transpose(x)
-!!$         monopole = sum(y_out(:,1)*M_diag(:,1)*pmask) &
-!!$                & / sum(M_diag(:,1)*pmask)
-!!$         y_out(:,1) = y_out(:,1) - monopole
       else
          call mpi_reduce(y, x,     size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
@@ -745,7 +739,6 @@ end subroutine bin_differential_TOD
      real(dp)                                   :: delta_0
      real(dp)                                   :: alpha, beta, sigma_mono
      real(dp),     allocatable, dimension(:, :) :: r, s, q
-     real(dp)                                   :: monopole
      logical(lgt)                               :: finished, write_cg
      real(dp)                                   :: rho_old, rho_new
      real(dp)                                   :: omega, delta_r, delta_s
@@ -793,21 +786,8 @@ end subroutine bin_differential_TOD
         else
            r = b_map(:, :, l)
         end if
-!!$        monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
-!!$               & / sum(M_diag(:,1)*procmask)
         r0 = b_map(:, :, l)
-!!$        r0(:, 1) = b_map(:, 1, l) - monopole
-        ! This is if we are not solving for S
-        ! In this case, M_diag(:,4) is the QU covariance term
         call tod%apply_map_precond(r0, rhat)
-!!$        if (comp_S) then
-!!$          rhat =  r0/M_diag
-!!$        else
-!!$          determ = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
-!!$          rhat(:,1) =  r0(:,1)/M_diag(:,1)
-!!$          rhat(:,2) = (r0(:,2)*M_diag(:,3)- r0(:,2)*M_diag(:,4))/determ
-!!$          rhat(:,3) = (r0(:,3)*M_diag(:,2)- r0(:,3)*M_diag(:,4))/determ
-!!$        end if
         
         delta_r = sum(r*rhat)
         delta_0 = delta_r
@@ -848,13 +828,6 @@ end subroutine bin_differential_TOD
            end if
 
            call tod%apply_map_precond(p, phat)
-!!$           if (comp_S) then
-!!$             phat =  p/M_diag
-!!$           else
-!!$             phat(:,1) =  p(:,1)/M_diag(:,1)
-!!$             phat(:,2) = (p(:,2)*M_diag(:,3)- p(:,2)*M_diag(:,4))/determ
-!!$             phat(:,3) = (p(:,3)*M_diag(:,2)- p(:,3)*M_diag(:,4))/determ
-!!$           end if
            
            call update_status(status, 'v=A phat')
            call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, phat, v)
@@ -864,13 +837,6 @@ end subroutine bin_differential_TOD
            alpha         = rho_new/sum(r0*v)
            s             = r - alpha*v
            call tod%apply_map_precond(s, shat)
-!!$           if (comp_S) then
-!!$             shat =  s/M_diag
-!!$           else
-!!$             shat(:,1) =  s(:,1)/M_diag(:,1)
-!!$             shat(:,2) = (s(:,2)*M_diag(:,3)- s(:,2)*M_diag(:,4))/determ
-!!$             shat(:,3) = (s(:,3)*M_diag(:,2)- s(:,3)*M_diag(:,4))/determ
-!!$           end if
            delta_s       = sum(s*shat)
 
            if (tod%verbosity > 1) then 
@@ -916,7 +882,6 @@ end subroutine bin_differential_TOD
               call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, r)
               call update_status(status, 'done')
               r(:,1) = b_map(:,1,l)  - r(:,1)
-              !r(:,1) = b_map(:,1,l) - monopole - r(:,1)
               r(:,2) = b_map(:,2,l)  - r(:,2)
               r(:,3) = b_map(:,3,l)  - r(:,3)
               if (comp_S)  r(:,4) = b_map(:,4,l)  - r(:,4)
@@ -934,15 +899,6 @@ end subroutine bin_differential_TOD
            end if
 
            call tod%apply_map_precond(r, rhat)
-!!$           ! If you are solving for S
-!!$           if (comp_S) then
-!!$             rhat = r/M_diag
-!!$           ! If you are not solving for S
-!!$           else
-!!$             rhat(:,1) =  r(:,1)/M_diag(:,1)
-!!$             rhat(:,2) = (r(:,2)*M_diag(:,3)- r(:,2)*M_diag(:,4))/determ
-!!$             rhat(:,3) = (r(:,3)*M_diag(:,2)- r(:,3)*M_diag(:,4))/determ
-!!$           end if
            delta_r      = sum(r*rhat)
            num_cg_iters = num_cg_iters + 1
 
@@ -964,22 +920,6 @@ end subroutine bin_differential_TOD
            end if
         end do bicg
 
-!!$        if (l == 1) then
-!!$           ! Maximum likelihood monopole
-!!$           monopole = sum((bicg_sol(:,1)-map_full)*M_diag(:,1)*procmask) &
-!!$                  & / sum(M_diag(:,1)*procmask)
-!!$           if (trim(tod%operation) == 'sample') then
-!!$              ! Add fluctuation term if requested
-!!$              sigma_mono = sum(M_diag(:,1) * procmask)
-!!$              if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
-!!$              if (tod%verbosity > 1) then
-!!$                write(*,*) '| monopole, fluctuation sigma'
-!!$                write(*,*) '| ', monopole, sigma_mono
-!!$              end if
-!!$              monopole = monopole + sigma_mono * rand_gauss(handle)
-!!$           end if
-!!$           bicg_sol(:,1) = bicg_sol(:,1) - monopole
-!!$        end if
      else
         loop: do while (.true.) 
            call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
