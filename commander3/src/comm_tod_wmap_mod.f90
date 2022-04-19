@@ -59,9 +59,10 @@ module comm_tod_WMAP_mod
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
       real(dp), allocatable, dimension(:,:)        :: M_lowres, M_diag
    contains
-      procedure     :: process_tod           => process_WMAP_tod
+      procedure     :: process_tod             => process_WMAP_tod
       procedure     :: precompute_M_lowres
-      procedure     :: apply_map_precond     => apply_wmap_precond
+      procedure     :: apply_map_precond       => apply_wmap_precond
+      procedure     :: construct_corrtemp_inst => construct_corrtemp_wmap
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
@@ -195,6 +196,8 @@ contains
       constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
       constructor%nhorn           = 2
       constructor%ndiode          = 1
+      constructor%baseline_order  = 1
+      constructor%apply_inst_corr = .true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
       else
@@ -445,6 +448,17 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
+      ! Sample baseline for curren scan
+      self%apply_inst_corr = .false. ! Disable baseline correction for just this call
+      do i = 1, self%nscan
+         if (.not. any(self%scans(i)%d%accept)) cycle
+         call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
+         call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+         call sd%dealloc
+      end do
+      self%apply_inst_corr = .true.
+
+      ! Sample calibration
       if (.not. self%enable_tod_simulations) then
           if (trim(self%level) == 'L1') then
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
@@ -873,6 +887,95 @@ contains
 
   end subroutine apply_wmap_precond
 
+  subroutine sample_baseline(tod, scan, raw, s_tot, mask, handle)
+    !   Sample LFI specific 1Hz spikes shapes and amplitudes
+    !
+    !   Arguments:
+    !   ----------
+    !   tod:      comm_tod derived type
+    !             contains TOD-specific information
+    !   scan:     local scan ID
+    !   raw:      raw tod in du
+    !   s_tot:    total signal model in mK
+    !   mask:     list of accepted samples
+    !   handle:   planck_rng derived type
+    !             Healpix definition for random number generation
+    implicit none
+    class(comm_wmap_tod),                   intent(inout) :: tod
+    integer(i4b),                           intent(in)    :: scan
+    real(sp),            dimension(1:,1:),  intent(in)    :: raw, s_tot, mask
+    type(planck_rng),                       intent(inout) :: handle
+
+    integer(i4b) :: i, j, k, n
+    real(dp)     :: dt, t_tot, t, A, b, mval, eta
+    real(dp), allocatable, dimension(:) :: x, y 
+
+    allocate(x(tod%scans(scan)%ntod), y(tod%scans(scan)%ntod))
+    dt = 1.d0 / tod%scans(scan)%ntod
+
+
+    do j = 1, tod%ndet
+       if (.not. tod%scans(scan)%d(j)%accept) cycle
+
+       t = 0.d0
+       n = 0
+       do k = 1, tod%scans(scan)%ntod
+          t      = t + dt
+          if (mask(k,j) > 0.5) then
+             n    = n + 1
+             x(n) = t
+             y(n) = raw(k,j) - tod%scans(scan)%d(j)%gain * s_tot(k,j)
+          end if
+       end do
+
+       call fit_polynomial(x(1:n), y(1:n), tod%scans(scan)%d(j)%baseline)
+    end do
+
+    deallocate(x, y)
+
+  end subroutine sample_baseline
+
+  subroutine construct_corrtemp_wmap(self, scan, pix, psi, s)
+    !  Construct an WMAP instrument-specific correction template; for now contains 1Hz tem
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_wmap_tod),                  intent(in)    :: self
+    integer(i4b),                          intent(in)    :: scan
+    integer(i4b),        dimension(:,:),   intent(in)    :: pix, psi
+    real(sp),            dimension(:,:),   intent(out)   :: s
+
+    integer(i4b) :: i, j, k, nbin, b
+    real(dp)     :: dt, t
+
+    dt = 1.d0 / self%scans(scan)%ntod
+    t = 0.d0
+    do j = 1, self%ndet
+       if (.not. self%scans(scan)%d(j)%accept) cycle
+       do k = 1, self%scans(scan)%ntod
+          t      = t + dt
+          s(k,j) = 0.
+          do i = 0, self%baseline_order
+             s(k,j) = s(k,j) + self%scans(scan)%d(j)%baseline(i) * t**i
+          end do
+       end do
+    end do
+
+  end subroutine construct_corrtemp_wmap
 
 
 end module comm_tod_WMAP_mod

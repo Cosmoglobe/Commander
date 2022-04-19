@@ -56,6 +56,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
+     real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -105,6 +106,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
+     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -316,6 +318,7 @@ contains
     self%accept_threshold = 0.9d0 ! default
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
+    self%baseline_order  = -1
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -882,6 +885,11 @@ contains
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
+       if (tod%baseline_order >= 0) then
+          allocate(self%d(i)%baseline(0:tod%baseline_order))
+          self%d(i)%baseline = 0.
+       end if
+
        if (trim(tod%noise_psd_model) == 'oof') then
          self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
@@ -1386,17 +1394,21 @@ contains
     real(dp), allocatable, dimension(:,:,:) :: output
 
     npar = 3+self%n_xi
+    if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
     allocate(output(self%nscan_tot,self%ndet,npar))
 
     ! Collect all parameters
     output = 0.d0
     do j = 1, self%ndet
        do i = 1, self%nscan
-          k                  = self%scanid(i)
-          output(k,j,1)      = self%scans(i)%d(j)%gain
-          output(k,j,2)      = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3)      = self%scans(i)%d(j)%chisq
-          output(k,j,4:npar) = self%scans(i)%d(j)%N_psd%xi_n
+          k                         = self%scanid(i)
+          output(k,j,1)             = self%scans(i)%d(j)%gain
+          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,3)             = self%scans(i)%d(j)%chisq
+          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+          if (self%baseline_order >= 0) then
+             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+          end if
        end do
     end do
 
@@ -1452,7 +1464,8 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
-       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:npar))
+       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:3+self%n_xi))
+       if (self%baseline_order >= 0) call write_hdf(chainfile, trim(adjustl(path))//'baseline',   output(:,:,4+self%n_xi:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
@@ -1461,6 +1474,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0', self%gain_sigma_0)
        call write_hdf(chainfile, trim(adjustl(path))//'gain_fknee', self%gain_fknee)
        call write_hdf(chainfile, trim(adjustl(path))//'gain_alpha', self%gain_alpha)
+       
     end if
 
     call map%writeMapToHDF(chainfile, path, 'map')
@@ -1498,7 +1512,7 @@ contains
 !       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
 !       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,2))
-       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:npar))
+       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:2+self%n_xi))
 !       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
@@ -1554,7 +1568,7 @@ contains
           k             = self%scanid(i)
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
-          self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
+          self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:2+self%n_xi)
           !self%scans(i)%d(j)%N_psd%xi_n(1)        = self%scans(i)%d(j)%N_psd%xi_n(1) * 1d-2
           if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
