@@ -306,6 +306,7 @@ contains
     allocate(self%s_totB(self%ntod, self%ndet))
     allocate(self%s_orbA(self%ntod, self%ndet))
     allocate(self%s_orbB(self%ntod, self%ndet))
+    allocate(self%s_inst(self%ntod, self%ndet))
     allocate(self%mask(self%ntod, self%ndet))
     allocate(self%pix(self%ntod, 1, self%nhorn))
     allocate(self%psi(self%ntod, 1, self%nhorn))
@@ -455,6 +456,15 @@ contains
        self%s_mono = 0.d0 
     end if
 
+    ! Generate and apply instrument-specific correction template
+    if (tod%apply_inst_corr) then
+       call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
+       end do
+    end if
+
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
@@ -473,7 +483,7 @@ contains
     end if
 
     ! Clean-up
-    deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B)
+    deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B, self%s_inst)
 
   end subroutine init_scan_data_differential
 
