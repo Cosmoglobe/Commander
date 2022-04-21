@@ -216,6 +216,7 @@ program commander
   !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
+
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.

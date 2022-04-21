@@ -2026,7 +2026,6 @@ contains
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%map(:,1:nmaps)
     end if
-       
 
     ! Clean up
     call m%dealloc(); deallocate(m)
