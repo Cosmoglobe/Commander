@@ -268,6 +268,7 @@ contains
     case ('WMAP')
           
        ! See Appendix E of Bennett et al. (2013) for details
+       self%tau     = self%tau / sum(self%tau)
        self%a2t     = sum(self%tau) / sum(self%tau/a)
        self%a2sz    = sum(self%tau) / sum(self%tau/a * sz) * 1.d-6
        self%f2t     = sum(self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * &
@@ -302,7 +303,7 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
+ 
     case ('DIRBE') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
