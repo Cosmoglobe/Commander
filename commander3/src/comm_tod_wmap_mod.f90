@@ -463,10 +463,11 @@ contains
           if (trim(self%level) == 'L1') then
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
               call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang)
           end if
           call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
       end if
+
 
       ! Prepare intermediate data structures
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
