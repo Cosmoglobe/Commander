@@ -150,6 +150,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
+     real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -215,6 +216,7 @@ module comm_tod_mod
      procedure                           :: read_jumplist
      procedure                           :: remove_fixed_scans
      procedure                           :: apply_map_precond
+     procedure                           :: collect_v_sun
   end type comm_tod
 
   abstract interface
@@ -1872,7 +1874,7 @@ contains
     real(dp),               intent(in), optional     :: factor
 
     integer(i4b) :: i, j, ntod
-    real(dp)     :: v_ref(3), f
+    real(dp)     :: v_ref(3), v_ref_next(3), f
     real(dp), allocatable, dimension(:,:) :: P
     logical(lgt)  :: relativistic
 
@@ -1885,8 +1887,14 @@ contains
     j = 1
     if (self%orbital) then
        v_ref = self%scans(scan)%v_sun
+       if (self%scanid(scan) == self%nscan_tot) then
+          v_ref_next = v_ref
+       else
+          v_ref_next = self%v_sun(:,self%scanid(scan)+1)
+       end if
     else
-       v_ref = v_solar
+       v_ref      = v_solar
+       v_ref_next = v_solar
     end if
     if (self%orb_4pi_beam) then
        do i = 1, ntod
@@ -1906,10 +1914,10 @@ contains
        ! data.
        if (horn_ind == 1) then
           call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
-               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, v_ref_next=v_ref_next)
        else if (horn_ind == 2) then
           call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
-               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, v_ref_next=v_ref_next)
        else
           write(*,*) "Should only be 1 or 2"
           stop
@@ -2606,5 +2614,22 @@ contains
     map_out = map
 
   end subroutine apply_map_precond
+
+  subroutine collect_v_sun(self)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+
+    integer(i4b) :: i, j, ierr
+
+    allocate(self%v_sun(3,self%nscan_tot))
+    self%v_sun = 0.d0
+    do i = 1, self%nscan
+       self%v_sun(:,self%scanid(i)) = self%scans(i)%v_sun
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, self%v_sun, size(self%v_sun), &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+
+  end subroutine collect_v_sun
   
 end module comm_tod_mod

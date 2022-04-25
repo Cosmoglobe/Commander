@@ -236,7 +236,7 @@ contains
           do i = 1, tod%nscan
              x = (tod%scanid(i)-1.d0)/tod%nscan_tot
              tod%scans(i)%d(j)%dgain = 0.d0
-             do k = 0, size(a)-1 
+             do k = 1, size(a)-1 
                 tod%scans(i)%d(j)%dgain = tod%scans(i)%d(j)%dgain + a(k)*x**k
              end do
              tod%scans(i)%d(j)%gain  = tod%gain0(0) + tod%gain0(j) + tod%scans(i)%d(j)%dgain
