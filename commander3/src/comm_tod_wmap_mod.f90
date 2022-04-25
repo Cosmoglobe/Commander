@@ -197,14 +197,14 @@ contains
       constructor%nhorn           = 2
       constructor%ndiode          = 1
       constructor%baseline_order  = 1
-      constructor%apply_inst_corr = .true.
+      constructor%apply_inst_corr = .false. !.true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
       else
           constructor%compressed_tod  = .false.
       end if
-      constructor%correct_sl      = .true.
-      constructor%orb_4pi_beam    = .true.
+      constructor%correct_sl      = .false. !.true.
+      constructor%orb_4pi_beam    = .false. !.true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 50.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -262,13 +262,19 @@ contains
       ! Precompute low-resolution preconditioner
       call constructor%precompute_M_lowres
 
+      ! Collect Sun velocities from all scals
+      call constructor%collect_v_sun
+
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
       ! Allocate sidelobe convolution data structures
       allocate(constructor%slconvA(constructor%ndet), constructor%slconvB(constructor%ndet))
       allocate(constructor%orb_dp)
-      constructor%orb_dp => comm_orbdipole(constructor%mbeam)
-
+      if (constructor%orb_4pi_beam) then
+         constructor%orb_dp => comm_orbdipole(beam=constructor%mbeam)
+      else
+         constructor%orb_dp => comm_orbdipole(comm=constructor%info%comm)
+      end if
 
       call timer%stop(TOD_INIT, id_abs)
 
@@ -382,7 +388,7 @@ contains
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-      bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
+      bp_corr               = .false. !.true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
@@ -463,9 +469,16 @@ contains
           if (trim(self%level) == 'L1') then
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
               call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
-              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang)
-          end if
-          call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+              call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+           else
+              do j = 1, self%nscan
+                 do i = 1, self%ndet
+                    self%scans(j)%d(i)%gain = 1.d0
+                 end do
+              end do
+              self%gain0 = [1.d0, 0.d0, 0.d0, 0.d0]
+           end if
       end if
 
 
@@ -553,7 +566,7 @@ contains
 !!$         end do
 
          !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations .and. iter .ne. 1) then
-         if (.false.) then
+         if (self%scanid(i) == 300) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -562,6 +575,7 @@ contains
             call write_hdf(tod_file, '/n_corr', sd%n_corr)
             call write_hdf(tod_file, '/bpcorr', sd%s_bp)
             call write_hdf(tod_file, '/s_tot', sd%s_tot)
+            call write_hdf(tod_file, '/s_sky', sd%s_sky)
             call write_hdf(tod_file, '/tod',   sd%tod)
             call write_hdf(tod_file, '/flag', sd%flag)
             call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
