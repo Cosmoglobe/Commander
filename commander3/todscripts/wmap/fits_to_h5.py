@@ -479,12 +479,6 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
                     comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
                             psiB)
             if precal:
-              if compress:
-                huffTod = ['huffman', {'dictNum':2}]
-                compArr = [huffTod]
-                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
-                        todi, compArr)
-              else:
                 comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/tod',
                         data=todi)
             else:
@@ -1109,5 +1103,5 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
 if __name__ == '__main__':
     #main(version=49, precal=False, compress=True, center=True)
-    main(version=49, precal=False, compress=True, center=True, simulate=True)
+    main(version=49, precal=True, compress=True, center=True, simulate=False)
     #test_flags()

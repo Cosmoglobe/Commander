@@ -38,8 +38,17 @@ def dot_prod(b_map, pixA, pixB, res_A, res_B, psiA, psiB, flags, npnt,
 
     d1 = (1+x1)*res_A - (1-x1)*res_B
     d2 = (1+x2)*res_A - (1-x2)*res_B
+
+    # Trying to induce a 5% relative gain error
+    d1 *= 1.05
+
     d = 0.5*(d1+d2)
     p = 0.5*(d1-d2)
+
+    #d1 = (1+x1)*res_A
+    #d2 = (1+x2)*res_A
+    #d = 0.5*(d1+d2)
+    #p = 0.5*(d1-d2)
 
     inds = ((flags % 2) == 0)
     if ~np.any(inds):
@@ -78,6 +87,7 @@ def dot_prod(b_map, pixA, pixB, res_A, res_B, psiA, psiB, flags, npnt,
     P_A = scipy.sparse.csr_matrix((data_A, (t, pixA)), shape=(len(t)//4, 4*npix))
     P_B = scipy.sparse.csr_matrix((data_B, (t, pixB)), shape=(len(t)//4, 4*npix))
     P = P_A - P_B
+    #P = P_A
 
     b_vec = np.zeros(b_map.size)
 
@@ -89,6 +99,7 @@ def dot_prod(b_map, pixA, pixB, res_A, res_B, psiA, psiB, flags, npnt,
     P_A = scipy.sparse.csr_matrix((data_A, (t, pixA)), shape=(len(t)//4, 4*npix))
     P_B = scipy.sparse.csr_matrix((data_B, (t, pixB)), shape=(len(t)//4, 4*npix))
     P = P_A - P_B
+    #P = P_A
     b_vec += P.T.dot(p)
 
     b_mapi = np.split(b_vec,4)
@@ -138,12 +149,14 @@ def make_M(M, Prec, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
     P_A = scipy.sparse.csr_matrix((data_A, (t, pixA)), shape=(len(t)//4, 4*npix))
     P_B = scipy.sparse.csr_matrix((data_B, (t, pixB)), shape=(len(t)//4, 4*npix))
     P = P_A - P_B
+    #P = P_A
 
     data_A = np.concatenate((f_A*(1+x)*T, f_A*dx*QA,  f_A*dx*UA,  f_A*dx*SA))
     data_B = np.concatenate((f_B*(1-x)*T, f_B*-dx*QB, f_B*-dx*UB, f_B*-dx*SB))
     P_A = scipy.sparse.csr_matrix((data_A, (t, pixA)), shape=(len(t)//4, 4*npix))
     P_B = scipy.sparse.csr_matrix((data_B, (t, pixB)), shape=(len(t)//4, 4*npix))
     P_am = P_A - P_B
+    #P_am = P_A
 
     M += P_am.T.dot(P)
     Prec += P_am.T.dot(P_am)
@@ -155,12 +168,14 @@ def make_M(M, Prec, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
     P_A = scipy.sparse.csr_matrix((data_A, (t, pixA)), shape=(len(t)//4, 4*npix))
     P_B = scipy.sparse.csr_matrix((data_B, (t, pixB)), shape=(len(t)//4, 4*npix))
     P = P_A - P_B
+    #P = P_A
 
     data_A = np.concatenate((f_A*dx*T,  f_A*(1+x)*QA, f_A*(1+x)*UA, f_A*(1+x)*SA))
     data_B = np.concatenate((f_B*-dx*T, f_B*(1-x)*QB, f_B*(1-x)*UB, f_B*(1-x)*SB))
     P_A = scipy.sparse.csr_matrix((data_A, (t, pixA)), shape=(len(t)//4, 4*npix))
     P_B = scipy.sparse.csr_matrix((data_B, (t, pixB)), shape=(len(t)//4, 4*npix))
     P_am = P_A - P_B
+    #P_am = P_A
 
     M += P_am.T.dot(P)
     Prec += P_am.T.dot(P_am)
@@ -168,21 +183,21 @@ def make_M(M, Prec, pixA, pixB, psiA, psiB, flags, pmask, x1, x2):
 
     return M, Prec
 
-def accumulate(tod_ind, x1, x2, pmask):
+def accumulate(tod_ind, x1, x2, pmask, band):
     '''
     For given week of mission, tod_ind, get timestream given pointing and
     polarization angle for horns A and B, then accumulate this week's
     contributions to M_i = P_{am}^T N^{-1} P and b_i = P_{am}^T N^{-1} d.
     '''
     ind = str(tod_ind).zfill(6)
-    comm_tod.init_file('Q1', ind)
+    comm_tod.init_file(band, ind)
     
-    pixA_i = comm_tod.load_field(f'{ind}/Q1/pixA').astype('int')
-    pixB_i = comm_tod.load_field(f'{ind}/Q1/pixB').astype('int')
-    psiA_i = comm_tod.load_field(f'{ind}/Q1/psiA')
-    psiB_i = comm_tod.load_field(f'{ind}/Q1/psiB')
-    flags = comm_tod.load_field(f'{ind}/Q1/flag')
-    flags *= 0
+    pixA_i = comm_tod.load_field(f'{ind}/{band}/pixA').astype('int')
+    pixB_i = comm_tod.load_field(f'{ind}/{band}/pixB').astype('int')
+    psiA_i = comm_tod.load_field(f'{ind}/{band}/psiA')
+    psiB_i = comm_tod.load_field(f'{ind}/{band}/psiB')
+    flags = comm_tod.load_field(f'{ind}/{band}/flag')
+    #flags *= 0
 
     nside_in = 512
     thetaA, phiA = hp.pix2ang(nside_in, pixA_i)
@@ -223,15 +238,18 @@ def make_dipole_alms(amp=3355, l=263.99, b=48.26, lmax=128, band='K1'):
 
     dipole = x*amps[0] + y*amps[1] + z*amps[2]
     dipole = np.array([dipole, 0*dipole, 0*dipole])
-    slm = hp.map2alm(dipole, lmax=lmax)
+    #slm = hp.map2alm(dipole, lmax=lmax)
 
     m = hp.read_map(f'/mn/stornext/d16/cmbco/ola/wmap/freq_maps/wmap_iqusmap_r9_9yr_{band}_v5.fits',
         field=(0,1,2))*1e3
-    #m[0] = m[0] + dipole[0]
+    m *= 0
+    m[0] = m[0] + dipole[0]
+    m[0] = m[0] + 1000
+    #m[1] *= 0
+    #m[2] *= 0
 
     slm = hp.map2alm(m, lmax=lmax)
 
-    #slm = slm[np.newaxis,:].astype('complex128')
     return slm
 
 
@@ -263,9 +281,11 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100, theta_c=0, psi=0):
     bands = np.array(['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4'])
     SIDELOBE_DIR = '/mn/stornext/d16/cmbco/ola/wmap/ancillary_data/far_sidelobe_maps'
     # Construct sidelobe model
-    #sidelobe = hp.read_map(f'{SIDELOBE_DIR}/wmap_sidelobe_map_{band}_3yr_v2.fits')
-    #sidelobe = hp.reorder(sidelobe, n2r=True)
-    sidelobe = hp.read_map(f'{SIDELOBE_DIR}/map_{band.lower()}_sidelobes_yr1_v1.fits')
+    sidelobe = hp.read_map(f'{SIDELOBE_DIR}/wmap_sidelobe_map_{band}_3yr_v2.fits')
+    sidelobe = hp.reorder(sidelobe, n2r=True)
+    #sidelobe = hp.read_map(f'{SIDELOBE_DIR}/map_{band.lower()}_sidelobes_yr1_v1.fits')
+    # Higher resolution makes the interpolation from rotation less of a mess.
+    sidelobe = hp.ud_grade(sidelobe, 1024)
 
     
     # Normalized such that \int B_A d\Omega = 1, converting from 
@@ -275,6 +295,13 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100, theta_c=0, psi=0):
     beam_B = sidelobe/(4*np.pi)
     beam_B[beam_B > 0] = 0
     beam_B = -beam_B
+
+
+    # This is only possible for the 4pi beam
+    #beam_A = beam_A/(sum(beam_A)*hp.nside2pixarea(2048))
+    #beam_B = beam_B/(sum(beam_B)*hp.nside2pixarea(2048))
+
+    print(sum(beam_A)*hp.nside2pixarea(512))
     
     # Angle psi is roughly the right value based on some tests
     
@@ -286,6 +313,7 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100, theta_c=0, psi=0):
     r = hp.rotator.Rotator(rot=(phi, -theta, psi), \
         deg=False, eulertype='Y')
     beam_A = r.rotate_map_pixel(beam_A)
+    print(sum(beam_A)*hp.nside2pixarea(512))
     
     dir_B = dir_B_los[band == bands][0]
     theta = np.arccos(dir_B[2])
@@ -306,6 +334,9 @@ def get_sidelobe_alms(band='Q1', lmax=128, kmax=100, theta_c=0, psi=0):
         beam_B[r < theta_c*np.pi/180] = 0
         #hp.mollview(beam_A, rot=(0,90,0), min=0, max=0.5)
         #plt.show()
+
+    #beam_A = hp.ud_grade(beam_A, 128)
+    #beam_B = hp.ud_grade(beam_B, 128)
 
     blm_A = hp.map2alm(beam_A, lmax=lmax, mmax=kmax)
     blm_B = hp.map2alm(beam_B, lmax=lmax, mmax=kmax)
@@ -329,16 +360,23 @@ if __name__ == '__main__':
     bands = np.array(['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4'])
     theta_cs = np.array([2.8, 2.5, 2.2,2.2, 1.8,1.8, 1.5, 1.5, 1.5, 1.5])
     inds = np.array([0,2,5,6,8])
-    inds = np.array([1,3,4,7,9])
+    #inds = np.array([1,3,4,7,9])
+    inds = np.array([2, 0])
     bands = bands[inds]
     theta_cs = theta_cs[inds]
     psis = np.array([135, 45, 135, 45, 45, 135, 135, 45, 135, 45])[inds]
+    psis = np.array([135, 135, 135, 135, 135, 135, 135, 135, 135, 135])[inds]
+
+    theta_cs *= 0
 
     for psi, theta_c, band in zip(psis, theta_cs, bands):
         print(band)
         # Sets maximum lmax, mmax for sidelobe convolution
         lmax = 128
         kmax = 100
+        
+        #lmax = 3*128 - 1
+        #kmax = 3*128 - 1
    
         # Signal and sidelobe alm model
         slm = make_dipole_alms(lmax=lmax)
@@ -381,10 +419,14 @@ if __name__ == '__main__':
                  'W4':  ( 0.02311, 0.02054)}
   
         x1, x2 = x_ims[band]
-        x1, x2 = 0,0
+        x1, x2 = 0, 0
+        #x1 *= 10
+        #x2 *= 10
+        x1, x2 = 0, 0.01
+        #x1, x2 = 0,0
         # Valid weeks from 1--468
-        tod_inds = np.arange(1, 52+1)
-        #tod_inds = np.arange(1, 468+1)
+        tod_inds = np.arange(1, 26+1)
+        #tod_inds = np.arange(1, 156+1)
         
         import multiprocessing
         from functools import partial
@@ -392,7 +434,8 @@ if __name__ == '__main__':
         ncpus = 26
         pool = multiprocessing.Pool(processes=ncpus)
         pool_outputs = list(tqdm(pool.imap(
-                           partial(accumulate, x1=x1, x2=x2, pmask=pmask),
+                           partial(accumulate, x1=x1, x2=x2, pmask=pmask,
+                             band=band),
                            tod_inds), total=len(tod_inds)))
         pool.close()
         pool.join()
