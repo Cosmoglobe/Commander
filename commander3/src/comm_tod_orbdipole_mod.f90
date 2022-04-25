@@ -217,20 +217,21 @@ contains
     if (.not. beam_4pi) then
        do i = 1, ntod !length of the tod
           xx       = real(i-1,dp)/real(ntod-1,dp)
-          v        = xx * v_ref + (1.d0-xx)*vp_ref
+          v        = (1.d0-xx) * v_ref + xx*vp_ref
           b_dot    = dot_product(v, P(:,i))/c
           s_dip(i) = b_dot
           if (relativistic) then
              b         = sqrt(sum(v**2))/c
              s_dip(i)  = s_dip(i) + q*(b_dot**2  - b**2/3. )
           end if
+          s_dip(i)  = f * T_CMB * s_dip(i)
        end do
     else 
        s_len = ntod/subsample
        allocate(x_vec(s_len), y_vec(s_len))
        do k = 1, s_len !number of subsampled samples
           xx       = real(k-1,dp)/real(s_len-1,dp)
-          v        = xx*v_ref + (1.d0-xx)*vp_ref
+          v        = (1.d0-xx)*v_ref + xx*vp_ref
           j        = subsample * (k-1) + 1
           X_vec(k) = j
           y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v) * f
