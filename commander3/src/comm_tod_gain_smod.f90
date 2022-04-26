@@ -211,7 +211,7 @@ contains
 
        ! Perform poly-fit
        allocate(xx(tod%nscan_tot), yy(tod%nscan_tot))
-       allocate(a(0:8))
+       allocate(a(0:16))
        do j = 1, tod%ndet
           xx = 0.d0
           do i = 1, tod%nscan
@@ -273,7 +273,7 @@ contains
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-          if (j == 1) then
+          if (.false.) then
              open(58,file='gain_in.dat')
              do k = 1, size(g,1)
                 if (g(k,j,2) > 0) then
@@ -325,7 +325,7 @@ contains
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-          if (j == 1) then
+          if (.false.) then
              open(58,file='gain_out.dat')
              do k = 1, size(g,1)
                 if (g(k,j,2) > 0) then

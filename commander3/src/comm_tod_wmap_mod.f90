@@ -197,14 +197,14 @@ contains
       constructor%nhorn           = 2
       constructor%ndiode          = 1
       constructor%baseline_order  = 1
-      constructor%apply_inst_corr = .false. !.true.
+      constructor%apply_inst_corr = .true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
       else
           constructor%compressed_tod  = .false.
       end if
-      constructor%correct_sl      = .false. !.true.
-      constructor%orb_4pi_beam    = .false. !.true.
+      constructor%correct_sl      = .true.
+      constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 50.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -388,7 +388,7 @@ contains
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-      bp_corr               = .false. !.true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
+      bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
@@ -566,7 +566,7 @@ contains
 !!$         end do
 
          !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations .and. iter .ne. 1) then
-         if (self%scanid(i) == 300) then
+         if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
