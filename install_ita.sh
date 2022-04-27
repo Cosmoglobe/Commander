@@ -30,10 +30,16 @@ bee3742="$prefix+(3[7-9]|4[0-2])+$suffix"
 bee4345="$prefix+(4[3-5])+$suffix"
 bee46="$prefix+(46)+$suffix"
 bee47="$prefix+(47)+$suffix"
+prefix="hyades"
+hya13="$prefix+([1-3])+$suffix"
+hya5="$prefix+(5)+$suffix"
+hya6="$prefix+(6)+$suffix"
+hya79="$prefix+([7-9])+$suffix"
+hya1016="$prefix+(1[0-6])+$suffix"
 #------------------------------------------------------------------------------
 # Will compile commander only if on owl/beehive!
 #------------------------------------------------------------------------------
-if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]]
+if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]]
 then
 	#------------------------------------------------------------------------------
 	# Getting the total number of CPUs, taken from this answer:
@@ -98,7 +104,18 @@ then
     build_dir="build_bee46_$toolchain"
   elif [[ "${HOSTNAME}" =~ $bee47 ]]; then
     build_dir="build_bee47_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
+    build_dir="build_hya5_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
+    build_dir="build_hya6_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya79 ]]; then
+    build_dir="build_hya716_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
+    build_dir="build_hya716_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya13 ]]; then
+    build_dir="build_hya13_$toolchain"
 	fi
+  echo $build_dir
 	#------------------------------------------------------------------------------
 	# Unloading any loaded module
 	module purge

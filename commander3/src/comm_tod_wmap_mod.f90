@@ -406,6 +406,7 @@ contains
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (iter .eq. 1) self%output_n_maps = 1
       end if
 
       call int2string(chain, ctext)
@@ -455,6 +456,9 @@ contains
       !------------------------------------
 
       ! Sample baseline for curren scan
+      if (self%myid == 0) then
+            write(*,*) '|    --> Sampling baseline'
+      end if
       self%apply_inst_corr = .false. ! Disable baseline correction for just this call
       do i = 1, self%nscan
          if (.not. any(self%scans(i)%d%accept)) cycle
@@ -672,7 +676,7 @@ contains
           num_cg_iters = 0
 
           ! Doing this now because it's still burning in...
-          if (mod(iter-1,self%output_aux_maps) == 0) then
+          !if (mod(iter-1,self%output_aux_maps) == 0) then
             ! Solve for maps
             if (self%verbosity > 0 .and. self%myid == 0) then
               write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
@@ -680,7 +684,7 @@ contains
             call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                            & epsil, procmask, map_full, M_diag, b_map, l, &
                            & prefix, postfix, self%comp_S)
-          end if
+          !end if
 
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)

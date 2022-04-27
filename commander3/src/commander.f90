@@ -458,7 +458,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
-               !  write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
