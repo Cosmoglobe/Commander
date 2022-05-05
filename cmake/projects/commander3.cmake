@@ -151,6 +151,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
 	# CAMB
 	${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_camb_eval_mod.f90
 	)
 
 # Setting executable name

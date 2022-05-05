@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel
 toolchain="intel"
-buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="RelWithDebInfo" #"Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
