@@ -13,7 +13,7 @@ VERBOSITY                     = 3       # [0,...,3]
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
-CHAIN_STATUS     = append
+CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = none
 
@@ -86,7 +86,7 @@ INCLUDE_COMP01                = .true.  # Cmb # CMB; no monopole or dipole
 NUM_CG_SAMPLING_GROUPS = 1
 CG_SAMPLING_GROUP01          = cmb
 CG_SAMPLING_GROUP_MASK01     = fullsky
-CG_SAMPLING_GROUP_MAXITER01  = 10000
+CG_SAMPLING_GROUP_MAXITER01  = 100
 
 # CMB
 @START 01
