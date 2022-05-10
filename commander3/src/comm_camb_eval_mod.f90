@@ -28,26 +28,26 @@ module comm_camb_eval_mod
 contains
 
 
-  subroutine get_c_l_from_camb(params, Cl)
+  subroutine get_c_l_from_camb(cosmo_param, Cl)
     ! 
     ! Gets TT, EE, and TE power spectra from camb using the cosmological
     ! parameters in theta.
     !
     ! Arguments
     ! ---------
-    ! params: List of CAMB parameters
+    ! cosmo_param: List of CAMB parameters
     !
     ! Returns
     ! -------
     ! Cl: Power spectrum
     ! 
     implicit none
-    real(8), dimension(1:),    intent(in) :: params
     real(8), dimension(1:,0:), intent(out) :: Cl
+    real(8), dimension(6), intent(in) :: cosmo_param
     
     !class(comm_camb),                           intent(inout) :: self
     !type(comm_camb_sample) :: new_sample 
-    real(8), dimension(6) :: cosmo_param
+
     integer(4) :: l, k, lmax
     
     type(CAMBparams) P

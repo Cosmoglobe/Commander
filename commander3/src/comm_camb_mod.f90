@@ -24,6 +24,8 @@ module comm_camb_mod
   use comm_param_mod
   use comm_cmb_comp_mod
   use comm_signal_mod
+
+  use comm_camb_eval_mod
   implicit none
 
   private
@@ -123,9 +125,9 @@ contains
     type(comm_params)                     :: cpar
     class(comm_camb_sample), pointer      :: old_sample
     type(planck_rng), intent(inout)       :: handle, handle_noise
+    real(dp), dimension(4, 0: lmax)       :: init_sample_c_l, first_sample_c_l
 
     integer(i4b) :: samp_group
-
 
     allocate(constructor)
     allocate(constructor%L_mat(6, 6))
@@ -150,12 +152,14 @@ contains
 
     ! Initialize
     constructor%sample_prev%theta = constructor%correct_cosmo_param
-    !!!!call get_c_l_from_camb(constructor%sample_prev)
+    call get_c_l_from_camb(constructor%sample_prev%theta, init_sample_c_l)
+    constructor%sample_prev%c_l = init_sample_c_l
     call constructor%init_covariance_matrix(constructor%L_mat)
 
     ! First sample, initial guess are the correct cosmological parameters
     constructor%sample_curr%theta = constructor%correct_cosmo_param
-    !!!!call get_c_l_from_camb(constructor%sample_curr)
+    call get_c_l_from_camb(constructor%sample_curr%theta, first_sample_c_l)
+    constructor%sample_curr%c_l = first_sample_c_l
 
     call constructor%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, constructor%sample_curr, constructor%sample_curr, .false.)
 
@@ -333,6 +337,8 @@ contains
     type(comm_params), intent(in)   :: cpar
     type(planck_rng), intent(inout)    :: handle, handle_noise
     integer(i4b), intent(in)        :: samp_group
+
+    real(dp), dimension(4, 0: self%lmax)       :: new_sample_c_l
     integer(i4b) :: ierr
     real(dp), dimension(:, :), allocatable :: scaled_f_lm
 
@@ -340,14 +346,14 @@ contains
     do_scale_f_lm = .true.
 
     call self%cosmo_param_proposal(old_sample, L_mat, handle, new_sample)
-    !!!!call self%get_c_l_from_camb(new_sample)
+    call get_c_l_from_camb(new_sample%theta, new_sample_c_l)
+    new_sample%c_l = new_sample_c_l
+
     call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm)
-    call mpi_finalize(ierr)
-    ! Here we have to gather all alms. Since we need to scale the fluctuation terms for different ell
-    write(*,*) '2 -'
     
     !call self%get_scaled_f_lm(new_sample, old_sample, scaled_f_lm) 
     accept = acceptance(self, new_sample, old_sample, handle)
+    !call mpi_finalize(ierr)
   end subroutine get_new_sample
 
   subroutine init_covariance_matrix(self, L)
@@ -553,17 +559,17 @@ contains
     !    Returns true if sample is accepted
     ! 
     implicit none
-    class(comm_camb),                                   intent(inout) :: self
-    type(comm_camb_sample),                             intent(in)    :: old_sample, new_sample
-    type(planck_rng),                                   intent(inout) :: handle
+    class(comm_camb),                    intent(inout) :: self
+    type(comm_camb_sample),              intent(in)    :: old_sample, new_sample
+    type(planck_rng),                    intent(inout) :: handle
 
-    class(comm_comp), pointer                           :: c => null()
-    real(dp), dimension(:, :), allocatable :: old_f_lm, scaled_f_lm
-    real(dp), dimension(4, 0: self%lmax) :: old_c_l, new_c_l
-    real(dp) :: ln_pi_ip1, ln_pi_i, probability, uni
-    real(dp), dimension(2, 2) :: new_S, old_S
-    integer(i4b) :: k, i, l, m, comm, ierr
-    logical(i4b) :: acceptance
+    class(comm_comp), pointer                          :: c => null()
+    real(dp), dimension(:, :), allocatable             :: old_f_lm, scaled_f_lm
+    real(dp), dimension(4, 0: self%lmax)               :: old_c_l, new_c_l
+    real(dp)                                           :: ln_pi_ip1, ln_pi_i, log_probability, uni
+    real(dp), dimension(2, 2)                          :: new_S, old_S
+    integer(i4b)                                       :: k, i, l, m, comm, ierr
+    logical(i4b)                                       :: acceptance
 
     allocate(old_f_lm(size(old_sample%f_lm,1), size(old_sample%f_lm,2)))
     allocate(scaled_f_lm(size(new_sample%scaled_f_lm,1), size(new_sample%scaled_f_lm,2)))
@@ -596,7 +602,7 @@ contains
       end select
       c => c%next()
     end do
-  
+    
     !DO l = self%lmin, self%lmax
     !   new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
     !   old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
@@ -618,18 +624,18 @@ contains
     !   END DO
     !END DO
   
-    probability = exp(-(ln_pi_ip1 - ln_pi_i) / 2.0d0)
-    
-    call mpi_allreduce(MPI_IN_PLACE, probability, 1, MPI_DOUBLE_PRECISION, MPI_PROD, comm, ierr)
-    print *, 'prob:', probability
+    log_probability = -(ln_pi_ip1 - ln_pi_i) / 2.0d0
+    write(*,*) 'one core prob:', log_probability
+    call mpi_allreduce(MPI_IN_PLACE, log_probability, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+    write(*,*) 'prob:', log_probability
     
     uni = rand_uni(handle) 
-    if (uni < probability) then
+    if (uni < exp(log_probability)) then
        acceptance = .true.
-       print *, '---------- ACCEPTED -----------'
+       write(*,*) '---------- ACCEPTED -----------'
     else
        acceptance = .false.
-       print *, '-------- NOT ACCEPTED ---------'
+       write(*,*) '-------- NOT ACCEPTED ---------'
     end if
   end function acceptance
 
