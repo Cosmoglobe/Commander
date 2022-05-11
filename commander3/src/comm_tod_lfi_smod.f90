@@ -134,7 +134,7 @@ contains
       res%compressed_tod = .false.
       res%ndiode          = 1
     end if    
-    res%correct_sl      = .true.
+    res%correct_sl      = .false.
     res%orb_4pi_beam    = .true.
     res%use_dpc_adc     = .true.
     res%use_dpc_gain_modulation = .true.
@@ -524,8 +524,8 @@ contains
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
 
-    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
-    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
+    sample_rel_bandpass   = .false.
+    sample_abs_bandpass   = .false.
 
     ! Initialize local variables
     ndelta          = size(delta,3)
