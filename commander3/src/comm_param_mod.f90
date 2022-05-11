@@ -2430,6 +2430,14 @@ contains
     unit = getlun()
     open(unit, file=trim(outfile),err=1)
 
+    write(unit,fmt="(a)",advance="no") '# Arguments:'
+    do i = 1, command_argument_count() !iargc()
+       call getarg(i, line)
+       if(line(1:2) /= "--") cycle
+       write(unit,fmt="(a)",advance="no") " '" // trim(line) // "'"
+    end do
+    write(unit,*)
+
     do i=1, size(ascii_table) 
       write(unit, '(a)') trim(ascii_table(i))
     end do
