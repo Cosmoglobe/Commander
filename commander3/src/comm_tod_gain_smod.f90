@@ -822,7 +822,9 @@ contains
      ntime = size(time)
      dt(1:ntime) = time
      !dt(2*ntime:ntime+1:-1) = dt(1:ntime)
+     call timer%start(TOT_FFT)
      call dfftw_execute_dft_r2c(plan_fwd, dt, fourier)
+     call timer%stop(TOT_FFT)
      fourier = fourier/sqrt(real(size(dt),dp))
 
    end subroutine fft_fwd
@@ -850,7 +852,9 @@ contains
      real(dp),     dimension(size(time))         :: dt
      integer*8,                   intent(in)     :: plan_back
 
+     call timer%start(TOT_FFT)
      call dfftw_execute_dft_c2r(plan_back, fourier, dt)
+     call timer%stop(TOT_FFT)
      dt = dt/sqrt(real(size(dt),dp))
      time = dt(1:size(time))
 

@@ -94,12 +94,17 @@ contains
     fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
     n        = nfft / 2 + 1
 
+
+    call timer%start(TOT_FFT)
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
+    call timer%stop(TOT_FFT)
 
+    call timer%start(TOT_FFT)
     allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT)
 
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -161,7 +166,9 @@ contains
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call timer%start(TOT_FFT)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call timer%stop(TOT_FFT)
 
           if (trim(self%operation) == "sample") then
              dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
@@ -187,7 +194,9 @@ contains
                 dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
              end if
           end do
+          call timer%start(TOT_FFT)
           call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          call timer%stop(TOT_FFT)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
@@ -344,9 +353,13 @@ contains
       allocate(dt(nfft), dv(0:n-1))
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call timer%stop(TOT_FFT)
       dv = dv * mat
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
       dt = dt / nfft
       res(:) = dt(1:ntod)
       deallocate(dt, dv)
@@ -464,9 +477,11 @@ contains
 
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
+    call timer%start(TOT_FFT)
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
     call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT)
 
     ! Sample non-linear spectral parameters
     do i = 1, ndet
@@ -481,7 +496,9 @@ contains
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              dt     = n_corr(:,i)
+             call timer%start(TOT_FFT)
              call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+             call timer%stop(TOT_FFT)
              do l = n_low, n_high
                 ps(l) = abs(dv(l)) ** 2 / ntod
              end do
@@ -590,10 +607,12 @@ contains
     samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
     
     allocate(dt(2*ntod,m), dv(0:n-1,m))
+    call timer%start(TOT_FFT)
     call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
          & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
     call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
          & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
+    call timer%stop(TOT_FFT)
     
     j = 0
     do i = 1, ndet
@@ -603,7 +622,9 @@ contains
        dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
     end do
 
+    call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
 
     j = 0
     do i = 1, ndet
@@ -618,8 +639,10 @@ contains
           dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
        end do
     end do
-       
+      
+    call timer%start(TOT_FFT) 
     call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call timer%stop(TOT_FFT) 
     dt = dt / (2*ntod)
 
     j = 0

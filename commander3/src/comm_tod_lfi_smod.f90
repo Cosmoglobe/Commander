@@ -1337,8 +1337,10 @@ contains
     fsamp   = self%samprate
 
     allocate(dt_sky(n), dt_ref(n), dv_sky(0:nfft-1), dv_ref(0:nfft-1), filter(nfft-1))
-    
+   
+    call timer%start(TOT_FFT) 
     call sfftw_plan_dft_r2c_1d(plan_fwd, n, dt_ref, dv_ref, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT) 
 
 
     do i = 1, size(data_in(1,:))/2
@@ -1349,11 +1351,13 @@ contains
        sum_ref = sum(dt_ref)
        sum_sky = sum(dt_sky)
 
+      call timer%start(TOT_FFT)
       ! FFT of ref signal
       call sfftw_execute_dft_r2c(plan_fwd, dt_ref, dv_ref)
 
       ! FFT of sky signal
       call sfftw_execute_dft_r2c(plan_fwd, dt_sky, dv_sky)     
+      call timer%stop(TOT_FFT)
 
       ! Compute cross correlation
       do j = 1, nfft-1
@@ -1430,8 +1434,10 @@ contains
       dt = data(:, 2*i -1)
       if(all(dt == 0)) cycle
 
-      ! FFT of ref signal
+      ! FFT of ref signalA
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call timer%stop(TOT_FFT)
 
       ! Filter ref with cross correlation transfer function
 !      open(58,file='filter.dat')
@@ -1445,7 +1451,9 @@ contains
 !     close(58)
 
       ! IFFT ref signal
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
       
       ! Normalize
       data(:, 2*i-1) = dt/n

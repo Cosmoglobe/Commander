@@ -483,7 +483,7 @@ contains
     end if
 
     ! Clean-up
-    deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B, self%s_inst)
+    deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B)
 
   end subroutine init_scan_data_differential
 
@@ -787,6 +787,7 @@ contains
     !  d_calib(5,:,:) - orbital dipole
     !  d_calib(6,:,:) - sidelobe
     !  d_calib(7,:,:) - zodiacal light emission
+    !  d_calib(8,:,:) - instrument correction
     !
     implicit none
     class(comm_tod),                       intent(in)   :: tod
@@ -823,7 +824,7 @@ contains
              d_calib(7,:,j) = 0.
           end if
        end if
-       if (tod%output_n_maps > 7) d_calib(8,:,j) = sd%s_inst(:,j)                                               ! instrument specific
+       if (tod%output_n_maps > 7) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps
@@ -981,7 +982,9 @@ contains
         dv(k) = cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(N_c) /sqrt(2.0)
       end do
       ! Executing Backward FFT
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
       dt = dt / sqrt(1.d0*nfft)
       n_corr(:,j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
