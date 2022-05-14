@@ -217,7 +217,7 @@ contains
       end if
 
       ! Iniitialize TOD labels
-      allocate (constructor%labels(7))
+      allocate (constructor%labels(8))
       constructor%labels(1) = 'map'
       constructor%labels(2) = 'res'
       constructor%labels(3) = 'ncorr'
@@ -225,6 +225,7 @@ contains
       constructor%labels(5) = 'orb'
       constructor%labels(6) = 'sl'
       constructor%labels(7) = 'zodi'
+      constructor%labels(8) = 'baseline'
 
       ! Initialize beams
       nside_beam                  = 512
@@ -405,7 +406,7 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
       end if
 
       call int2string(chain, ctext)
@@ -454,7 +455,7 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      ! Sample baseline for curren scan
+      ! Sample baseline for current scan
       if (self%myid == 0) then
             write(*,*) '|    --> Sampling baseline'
       end if
