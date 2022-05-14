@@ -3,7 +3,7 @@ module comm_timing_mod
   implicit none
 
   ! Global parameters
-  integer(i4b), parameter, public :: NUM_GLOBAL    =  10
+  integer(i4b), parameter, public :: NUM_GLOBAL    =  11
   integer(i4b), parameter, public :: TOT_RUNTIME   =  1
   integer(i4b), parameter, public :: TOT_INIT      =  2
   integer(i4b), parameter, public :: TOT_FFT       =  3
@@ -14,6 +14,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_SPECIND   =  8
   integer(i4b), parameter, public :: TOT_CLS       =  9
   integer(i4b), parameter, public :: TOT_OUTPUT    =  10
+  integer(i4b), parameter, public :: TOT_WAIT      =  11
 
   ! Channel specific parameters
   integer(i4b), parameter, public :: NUM_TOD       = 20
