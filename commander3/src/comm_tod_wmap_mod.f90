@@ -622,9 +622,9 @@ contains
 
       end do
 
-      call timer%start(TOT_WAIT)
+      call timer%start(TOD_WAIT, self%band)
       call mpi_barrier(self%comm, ierr)
-      call timer%stop(TOT_WAIT)
+      call timer%stop(TOD_WAIT, self%band)
       if (.not. self%enable_tod_simulations) then
         if (self%myid == 0) write(*,*) '|    --> Finalizing binned maps'
 

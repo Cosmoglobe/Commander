@@ -256,6 +256,9 @@ def create_rimo(fname, rot=0):
       sllmax = 3*nside - 1 
       slmmax = 100
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+      psis   = [135,  225,    135,  225, 225,  135,  135, 225,  135, 225]
+      # From Figure 6 of Bennett et al. 2001
+
 
       radii =  np.pi/180*np.array([2.8, 2.5, 2.2, 2.2, 1.8, 1.8, 1.5, 1.5, 1.5, 1.5])
       fnames = glob(f'{ola}/far_sidelobe_maps/*v5*.fits')
@@ -287,7 +290,7 @@ def create_rimo(fname, rot=0):
         phi = np.arctan2(dir_A[1], dir_A[0])
 
        
-        psi = 135*np.pi/180
+        psi = psis[i]*np.pi/180
  
         # Note that the ZYZ rotation goes around the Y axis, and since this is a
         # left-handed coordinate system the Y rotation direction must be
@@ -527,7 +530,7 @@ def create_rimo(fname, rot=0):
      
 
 if __name__ == '__main__':
-    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v10.h5'
+    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v12.h5'
     #fname_out = 'test.h5'
     #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
     create_rimo(fname_out)

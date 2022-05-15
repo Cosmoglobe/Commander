@@ -242,9 +242,9 @@ def make_dipole_alms(amp=3355, l=263.99, b=48.26, lmax=128, band='K1'):
 
     m = hp.read_map(f'/mn/stornext/d16/cmbco/ola/wmap/freq_maps/wmap_iqusmap_r9_9yr_{band}_v5.fits',
         field=(0,1,2))*1e3
-    m *= 0
-    m[0] = m[0] + dipole[0]
-    m[0] = m[0] + 1000
+    #m *= 0
+    #m[0] = m[0] + dipole[0]
+    #m[0] = m[0] + 1000
     #m[1] *= 0
     #m[2] *= 0
 
@@ -362,10 +362,11 @@ if __name__ == '__main__':
     inds = np.array([0,2,5,6,8])
     #inds = np.array([1,3,4,7,9])
     inds = np.array([2, 0])
+    inds = np.arange(10)
     bands = bands[inds]
     theta_cs = theta_cs[inds]
     psis = np.array([135, 45, 135, 45, 45, 135, 135, 45, 135, 45])[inds]
-    psis = np.array([135, 135, 135, 135, 135, 135, 135, 135, 135, 135])[inds]
+    #psis = np.array([135, 135, 135, 135, 135, 135, 135, 135, 135, 135])[inds]
 
     theta_cs *= 0
 
@@ -422,7 +423,7 @@ if __name__ == '__main__':
         x1, x2 = 0, 0
         #x1 *= 10
         #x2 *= 10
-        x1, x2 = 0, 0.01
+        #x1, x2 = 0, 0.01
         #x1, x2 = 0,0
         # Valid weeks from 1--468
         tod_inds = np.arange(1, 26+1)

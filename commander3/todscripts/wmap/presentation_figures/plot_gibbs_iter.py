@@ -9,8 +9,7 @@ bands=['023-WMAP_K']
 burn = 3
 thin = 1
 
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220126/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Ka_220426/chain_c0001.h5', 'r')
 #
 bands=['023-WMAP_K', 
        '030-WMAP_Ka',
@@ -22,7 +21,8 @@ bands=['023-WMAP_K',
        '090-WMAP_W2',
        '090-WMAP_W3',
        '090-WMAP_W4']
-#burn = 25
+burn = 25
+bands = ['030-WMAP_Ka']
 
 x_imw9 = {}
 x_imw9['023-WMAP_K'] = [-0.00067, 0.00536]
@@ -70,7 +70,7 @@ for band in bands:
     axes[j+5].axhline(x_imw9[band][j] + x_imw9u[band][j], color='k',
         linestyle='--')
     axes[j+5].set_ylim(ylim)
-  plt.suptitle(band)
+  plt.suptitle(band.replace('_', '\_'))
 
   axes[0].set_ylabel(r'$g_0$')
   axes[1].set_ylabel(r'$g_1$')

@@ -10,10 +10,14 @@ from astropy.time import Time
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed_sample/chain_c0001.h5', 'r')
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220123/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220129/chain_c0001.h5', 'r')
-burn = 0
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220123/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220129/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Ka_220428/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_BP_Ktod/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Q1_220428/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Q1_220501/chain_c0001.h5', 'r')
 thin = 1
+burn = 1
 burn = max(burn, thin)
 
 DATA_DIR = '/mn/stornext/d16/cmbco/bp/wmap/data'
@@ -108,9 +112,21 @@ label_list = [
          ['W413', 'W414', 'W423', 'W424']]
 
 
-#bands = ['040-WMAP_Q1']
+bands = ['030-WMAP_Ka']
+label_list = [
+         ['Ka113', 'Ka114', 'Ka123', 'Ka124']
+         ]
+bands = ['023-WMAP_K']
+label_list = [
+         ['K113', 'K114', 'K123', 'K124']
+         ]
+bands = ['040-WMAP_Q1']
+label_list = [
+         ['Q113', 'Q114', 'Q123', 'Q124']
+         ]
+#bands = ['040-WMAP_Q2']
 #label_list = [
-#         ['Q113', 'Q114', 'Q123', 'Q124']
+#         ['Q213', 'Q214', 'Q223', 'Q224']
 #         ]
 for band, labels in zip(bands, label_list):
     t = []
@@ -187,7 +203,6 @@ for band, labels in zip(bands, label_list):
             #axes[0].axhline(gain[labels[j]], color='r')
 
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
-            b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
             axes[0].plot(t[inds], g, '.', color=c, ms=1)
             #axes[0].plot(t[inds], b, '.', color=c, ms=1)
             axes[1].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds], '.', color=c, ms=1)

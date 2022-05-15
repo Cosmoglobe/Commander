@@ -3,7 +3,7 @@ module comm_timing_mod
   implicit none
 
   ! Global parameters
-  integer(i4b), parameter, public :: NUM_GLOBAL    =  11
+  integer(i4b), parameter, public :: NUM_GLOBAL    =  10
   integer(i4b), parameter, public :: TOT_RUNTIME   =  1
   integer(i4b), parameter, public :: TOT_INIT      =  2
   integer(i4b), parameter, public :: TOT_FFT       =  3
@@ -14,10 +14,9 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_SPECIND   =  8
   integer(i4b), parameter, public :: TOT_CLS       =  9
   integer(i4b), parameter, public :: TOT_OUTPUT    =  10
-  integer(i4b), parameter, public :: TOT_WAIT      =  11
 
   ! Channel specific parameters
-  integer(i4b), parameter, public :: NUM_TOD       = 20
+  integer(i4b), parameter, public :: NUM_TOD       = 21
   integer(i4b), parameter, public :: TOD_TOT       =  1
   integer(i4b), parameter, public :: TOD_INIT      =  2
   integer(i4b), parameter, public :: TOD_SL_PRE    =  3
@@ -38,6 +37,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_4D        = 18
   integer(i4b), parameter, public :: TOD_CHISQ     = 19
   integer(i4b), parameter, public :: TOD_BP        = 20
+  integer(i4b), parameter, public :: TOD_WAIT      = 21
 
   private
   public comm_timing
@@ -228,6 +228,7 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD chisq                    = ', t(b+TOD_CHISQ)   / self%numsamp, 100*t(b+TOD_CHISQ)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD bandpass                 = ', t(b+TOD_BP)   / self%numsamp, 100*t(b+TOD_BP)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp, 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD load-balancing           = ', t(b+TOD_WAIT)  /  self%numsamp,   100*t(b+TOD_WAIT)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp, 100*t(b+TOD_ZODI)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      4D map output                = ', t(b+TOD_4D)     / self%numsamp, 100*t(b+TOD_4D)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Other                        = ', (t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD))) / self%numsamp, 100*(t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD)))/t(b+TOD_TOT)
