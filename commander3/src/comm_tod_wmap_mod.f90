@@ -475,7 +475,6 @@ contains
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
               call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
               call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
-              call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
            else
               self%correct_sl      = .false.
               do j = 1, self%nscan
@@ -485,6 +484,7 @@ contains
               end do
               self%gain0 = [1.d0, 0.d0, 0.d0, 0.d0]
            end if
+           call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
       end if
 
 
