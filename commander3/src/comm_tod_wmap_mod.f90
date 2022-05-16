@@ -455,27 +455,29 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
-      ! Sample baseline for current scan
-      if (self%myid == 0) then
-            write(*,*) '|    --> Sampling baseline'
-      end if
-      self%apply_inst_corr = .false. ! Disable baseline correction for just this call
-      do i = 1, self%nscan
-         if (.not. any(self%scans(i)%d%accept)) cycle
-         call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
-         call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
-         call sd%dealloc
-      end do
-      self%apply_inst_corr = .true.
 
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
           if (trim(self%level) == 'L1') then
+              ! Sample baseline for current scan
+              if (self%myid == 0) then
+                    write(*,*) '|    --> Sampling baseline'
+              end if
+              self%apply_inst_corr = .false. ! Disable baseline correction for just this call
+              do i = 1, self%nscan
+                 if (.not. any(self%scans(i)%d%accept)) cycle
+                 call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
+                 call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+                 call sd%dealloc
+              end do
+              self%apply_inst_corr = .true.
+
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
               call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
               call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
               call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
            else
+              self%correct_sl      = .false.
               do j = 1, self%nscan
                  do i = 1, self%ndet
                     self%scans(j)%d(i)%gain = 1.d0
