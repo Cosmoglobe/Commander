@@ -281,7 +281,7 @@ contains
         ! Compute ADC correction tables for each diode
         if (.not. res%L2_exist) then
           if (.not. res%use_dpc_adc) then
-             if (res%myid == 0) write(*,*) '   Building ADC correction tables'
+             if (res%myid == 0) write(*,*) '|   Building ADC correction tables'
              
              ! Determine v_min and v_max for each diode
              call update_status(status, "ADC_start")
@@ -320,7 +320,7 @@ contains
              call update_status(status, "ADC_range")
              
              ! Now bin rms for all scans and compute the correction table
-             if (res%myid == 0) write(*,*) '    Bin RMS for ADC corrections'
+             if (res%myid == 0) write(*,*) '|    Bin RMS for ADC corrections'
              do k = 1, res%nscan ! compute and bin the rms as a function of voltage for each scan
                 allocate(diode_data(res%scans(k)%ntod, res%ndiode))
                 allocate(flag(res%scans(k)%ntod))
@@ -337,13 +337,13 @@ contains
              end do
              call update_status(status, "ADC_bin")
              
-             if (res%myid == 0) write(*,*) '    Generate ADC correction tables'
+             if (res%myid == 0) write(*,*) '|    Generate ADC correction tables'
              do i = 1, res%ndet
                 do j = 1, res%ndiode
                    if (res%apply_adc(i,j) .and.(trim(res%adc_mode(i,j)) == 'commander') ) then
                       ! Build the actual adc correction tables (adc_in, adc_out)
                       name = trim(res%label(i))//'_'//trim(res%diode_names(i,j))
-                      if (res%myid == 0) write(*,*) '    Building table for '// trim(name)
+                      if (res%myid == 0) write(*,*) '|    Building table for '// trim(name)
                       call res%adc_corrections(i,j)%p%build_table(handle, name)
                    end if
                 end do
@@ -368,7 +368,7 @@ contains
                 end do
              end do
              ! end if
-             if (res%myid == 0) write(*,*) '        correct and bin'
+             if (res%myid == 0) write(*,*) '|        correct and bin'
              ! Correct the data given the tables and bin again
              do k = 1, res%nscan
                 allocate(diode_data(res%scans(k)%ntod, res%ndiode), corrected_data(res%scans(k)%ntod, res%ndiode))
@@ -409,7 +409,7 @@ contains
           end if
                     
           ! Compute reference load filter spline
-          if (res%myid == 0) write(*,*) '   Build reference load filter'
+          if (res%myid == 0) write(*,*) '|   Build reference load filter'
           nsmooth = res%get_nsmooth()
           ! hardcode low frequency components of load filter to 1
           nfixed = 6
@@ -444,7 +444,7 @@ contains
                 call res%decompress_diodes(k, i, diode_data)
                 
                 if (any(diode_data == 0.)) then
-                   write(*,*) 'Contains zeros', res%scanid(k), i
+                   write(*,*) '| Contains zeros', res%scanid(k), i
                    res%scans(k)%d(i)%accept = .false.
                    deallocate(diode_data, corrected_data)
                    cycle
@@ -510,7 +510,7 @@ contains
                   end do
                   write(100, fmt='(f30.8,f30.8)') res%samprate/2, splint(res%ref_splint(i,j), res%samprate/2)
                   close(100)
-                  write(*,*) 'Writing file ', trim(res%outdir)//'/load_filter_'//trim(res%label(i))//'_'//trim(res%diode_names(i,2*j-1))//'.dat'
+                  write(*,*) '| Writing file ', trim(res%outdir)//'/load_filter_'//trim(res%label(i))//'_'//trim(res%diode_names(i,2*j-1))//'.dat'
                 end if
              
              end do
@@ -1083,7 +1083,7 @@ contains
 
        if(gmf_split) then 
         !self%scans(scan)%d(i)%accept = .false.
-        write(*,*) trim(self%label(i)), " Not cutting scan", self%scans(scan)%chunk_num, "because of gmf split", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), k, size(self%gmf_splits(i)%p) 
+        write(*,*) trim(self%label(i)), "| Not cutting scan", self%scans(scan)%chunk_num, "because of gmf split", self%scans(scan)%t0(2), t1, self%gmf_splits(i)%p(k), k, size(self%gmf_splits(i)%p) 
         !cycle
        end if
 
@@ -1853,7 +1853,7 @@ contains
        ! Write preprocessed data to file in round-robin manner
        barrier = self%nscan
        if (self%myid == 0) then
-          write(*,*) "Writing L2 to ", trim(self%L2file)
+          write(*,*) "| Writing L2 to ", trim(self%L2file)
           call open_hdf_file(self%L2file, h5_file, 'w')
           call write_hdf(h5_file, "freq", trim(self%freq))
        end if
