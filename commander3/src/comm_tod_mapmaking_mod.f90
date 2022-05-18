@@ -739,6 +739,7 @@ end subroutine bin_differential_TOD
      real(dp)                                   :: delta_0
      real(dp)                                   :: alpha, beta, sigma_mono
      real(dp),     allocatable, dimension(:, :) :: r, s, q
+     real(dp)                                   :: monopole
      logical(lgt)                               :: finished, write_cg
      real(dp)                                   :: rho_old, rho_new
      real(dp)                                   :: omega, delta_r, delta_s
@@ -919,6 +920,22 @@ end subroutine bin_differential_TOD
              exit bicg
            end if
         end do bicg
+        if (l == 1) then
+           ! Maximum likelihood monopole
+           monopole = sum((bicg_sol(:,1)-map_full)*M_diag(:,1)*procmask) &
+                  & / sum(M_diag(:,1)*procmask)
+           if (trim(tod%operation) == 'sample') then
+              ! Add fluctuation term if requested
+              sigma_mono = sum(M_diag(:,1) * procmask)
+              if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
+              if (tod%verbosity > 1) then
+                write(*,*) '| monopole, fluctuation sigma'
+                write(*,*) '| ', monopole, sigma_mono
+              end if
+              monopole = monopole + sigma_mono * rand_gauss(handle)
+           end if
+           bicg_sol(:,1) = bicg_sol(:,1) - monopole
+        end if
 
      else
         loop: do while (.true.) 
