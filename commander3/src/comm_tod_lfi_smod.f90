@@ -1783,7 +1783,7 @@ contains
     !open(unit, file=trim(self%L2file), form='unformatted')
 
     if (self%L2_exist) then
-       if (self%myid == 0) write(*,*) "Reading L2 from ", trim(self%L2file)
+       if (self%myid == 0) write(*,*) "| Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
     end if
     
