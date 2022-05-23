@@ -252,7 +252,7 @@ contains
       call constructor%read_tod(constructor%label)
 
       ! Initialize bandpass mean and proposal matrix
-      call constructor%initialize_bp_covar(trim(cpar%datadir)//cpar%ds_tod_bp_init(id_abs))
+      call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
       call constructor%precompute_lookups()
