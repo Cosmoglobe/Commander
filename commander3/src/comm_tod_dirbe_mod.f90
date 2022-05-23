@@ -45,6 +45,7 @@ module comm_tod_dirbe_mod
   use comm_4D_map_mod
   use comm_tod_driver_mod
   use comm_utils
+
   implicit none
 
   private
@@ -131,14 +132,13 @@ contains
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
-    nside_beam                  = 512
+    nside_beam                  = 128
     nmaps_beam                  = 3
     pol_beam                    = .true.
     constructor%nside_beam      = nside_beam
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
-
     ! Define detector partners
     do i = 1, constructor%ndet
        if (mod(i,2) == 1) then
@@ -181,7 +181,7 @@ contains
   !**************************************************
   subroutine process_dirbe_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     ! 
-    ! Routine that processes the LiteBIRD time ordered data. 
+    ! Routine that processes the DIRBE Calibrated Individual Observations. 
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain, 
     ! perform data selection, correct for sidelobes, compute chisquare  and outputs maps and rms. 
     ! Writes maps to disc in fits format
