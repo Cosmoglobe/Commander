@@ -360,7 +360,7 @@ contains
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
           unit        = getlun()
-          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
+          self%L2file = trim(self%datadir) // 'precomp_L2_'//trim(self%freq)//'.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
        else
           self%L2_exist = .false.
@@ -1616,7 +1616,7 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filename
 
-    integer(i4b) :: j, k, ndet, npar, unit, par
+    integer(i4b) :: j, k, ndet, npar, unit, par, ios
     real(dp)     :: val
     character(len=16)   :: label, det1, det2
     character(len=1024) :: line
@@ -1630,7 +1630,12 @@ contains
     self%prop_bp      = 0.d0
     self%prop_bp_mean = 0.d0
 
-    open(unit,file=trim(filename))
+
+    open(unit,file=trim(filename), iostat=ios)
+    if (ios .ne. 0) then
+      write(*,*) 'Could not open ', trim(filename)
+      stop
+    end if
     do while (.true.)
        read(unit,'(a)',end=34) line
        line = trim(adjustl(line))
