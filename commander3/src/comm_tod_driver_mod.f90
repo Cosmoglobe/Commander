@@ -853,6 +853,7 @@ contains
     npix  = map_in(1,1)%p%info%npix
     nmaps = map_in(1,1)%p%info%nmaps
     allocate(m_buf(0:npix-1,nmaps))
+    if (present(map_full)) map_full = 0
     do j = 1, size(map_in,2)
        do i = 1, size(map_in,1)
           map_in(i,j)%p%map = scale * map_in(i,j)%p%map ! unit conversion
@@ -868,6 +869,9 @@ contains
           end do
        end do
     end do
+
+    if (present(map_full)) map_full = map_full/tod%ndet
+
     deallocate(m_buf)
 
   end subroutine distribute_sky_maps

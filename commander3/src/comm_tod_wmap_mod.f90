@@ -125,7 +125,8 @@ contains
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
-  
+ 
+      ! Using Bennett 2013 x_im as initial guess for precomputing preconditioner 
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
@@ -139,51 +140,61 @@ contains
          constructor%xi_n_nu_fit(3,:) = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [-0.00067, -0.00067, 0.00536, 0.00536]
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]    
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.00353, 0.00353, 0.00154, 0.00154]
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]    
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [-0.00013, -0.00013, 0.00414, 0.00414]
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]   
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]   
          constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.00756, 0.00756, 0.00986, 0.00986]
       else if (trim(constructor%freq) == '060-WMAP_V1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.00053, 0.00053, 0.00250, 0.00250]
       else if (trim(constructor%freq) == '060-WMAP_V2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
          constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.00352, 0.00352, 0.00245, 0.00245]
       else if (trim(constructor%freq) == '090-WMAP_W1') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]
          constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.01134, 0.01134, 0.00173, 0.00173]
       else if (trim(constructor%freq) == '090-WMAP_W2') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]
          constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.01017, 0.01017, 0.01142, 0.01142]
       else if (trim(constructor%freq) == '090-WMAP_W3') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000] 
          constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [-0.00122, -0.00122, 0.00463, 0.00463]
       else if (trim(constructor%freq) == '090-WMAP_W4') then
          constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]  
          constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         constructor%x_im = [0.02311, 0.02311, 0.02054, 0.02054]
       else
          write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
          stop
@@ -210,7 +221,6 @@ contains
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
-      constructor%x_im            = 0d0
 
       if (constructor%myid == 0) then
          allocate(constructor%M_diag(0:info%npix-1,info%nmaps+1))
@@ -331,7 +341,7 @@ contains
       class(comm_map), intent(inout) :: rms_out      ! Combined output rms
       type(map_ptr), dimension(1:, 1:), intent(inout), optional :: map_gain    ! (ndet,1)
 
-      real(dp)     :: t1, t2
+      real(dp)     :: t1, t2, monopole, sigma_mono
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
       integer(i4b) :: ierr, ndelta
@@ -420,7 +430,6 @@ contains
       ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
       allocate(map_full(0:npix-1))
-      map_full = 0.d0
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
 
@@ -698,6 +707,24 @@ contains
              map_out%map = outmaps(1)%p%map
              call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
+          if (l == 1) then
+             ! Maximum likelihood monopole
+             monopole = sum((bicg_sol(:,1)-map_full)*M_diag(:,1)*procmask) &
+                    & / sum(M_diag(:,1)*procmask)
+             if (trim(self%operation) == 'sample') then
+                ! Add fluctuation term if requested
+                sigma_mono = sum(M_diag(:,1) * procmask)
+                if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
+                if (self%verbosity > 1) then
+                  write(*,*) '| monopole, fluctuation sigma'
+                  write(*,*) '| ', monopole, sigma_mono
+                end if
+                monopole = monopole + sigma_mono * rand_gauss(handle)
+             end if
+             bicg_sol(:,1) = bicg_sol(:,1) - monopole
+          end if
+
+
           do j = 1, nmaps
              outmaps(1)%p%map(:, j) = bicg_sol(self%info%pix, j)
           end do
@@ -769,7 +796,7 @@ contains
       class(comm_WMAP_tod),             intent(inout) :: self
 
       integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, ierr, ntod, lpix, rpix, q, nhorn
-      real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
+      real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi, dx, xbar, x_pl, x_mi
       real(dp), allocatable, dimension(:)   :: wl, wr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
@@ -782,6 +809,12 @@ contains
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn
+
+      ! Computing the factors involving imbalance parameters
+      dx   = (self%x_im(1) - self%x_im(3))*0.5
+      xbar = (self%x_im(1) + self%x_im(3))*0.5
+      x_pl = dx + xbar + 1
+      x_mi = dx + xbar - 1
 
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
@@ -821,16 +854,18 @@ contains
             wl(1) = inv_sigma
             wl(2) = inv_sigma * self%cos2psi(psi(t,1))
             wl(3) = inv_sigma * self%sin2psi(psi(t,1))
+            wl    = wl * x_pl
 
-            wr(1) = -inv_sigma
-            wr(2) = -inv_sigma * self%cos2psi(psi(t,2))
-            wr(3) = -inv_sigma * self%sin2psi(psi(t,2))
+            wr(1) = inv_sigma
+            wr(2) = inv_sigma * self%cos2psi(psi(t,2))
+            wr(3) = inv_sigma * self%sin2psi(psi(t,2))
+            wr    = wr * x_mi
 
             do k1 = 1, self%nmaps_M_lowres
                p1 = (k1-1)*npix + lpix
                do k2 = 1, self%nmaps_M_lowres
                   p2 = (k2-1)*npix + rpix
-                  M(p1,p1) = M(p1,p1) + wl(k1) * wl(k1)
+                  M(p1,p1) = M(p1,p1) + wl(k1) * wl(k1) 
                   M(p1,p2) = M(p1,p2) + wl(k1) * wr(k2)
                   M(p2,p1) = M(p2,p1) + wr(k2) * wl(k1)
                   M(p2,p2) = M(p2,p2) + wr(k2) * wr(k2)
@@ -871,7 +906,7 @@ contains
     if (self%comp_S) then
        map_out =  map/self%M_diag
     else
-!!$
+
 !!$       npix_lowres = 12*self%nside_M_lowres**2
 !!$       nmaps       = self%nmaps_M_lowres
 !!$
@@ -901,12 +936,12 @@ contains
 !!$       deallocate(m, m_lin)
        
 
-!!$       do i = 0, size(map,1)-1
-!!$          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-!!$          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-!!$          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-!!$          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
-!!$       end do
+       do i = 0, size(map,1)-1
+          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+       end do
     end if
 
   end subroutine apply_wmap_precond
