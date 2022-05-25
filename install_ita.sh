@@ -133,7 +133,9 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load Intel_parallel_studio/2020/4.912
+		#module load Intel_parallel_studio/2020/4.912
+    module load intel/oneapi
+    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
 		#module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
