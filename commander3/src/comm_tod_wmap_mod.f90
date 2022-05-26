@@ -703,15 +703,7 @@ contains
                            & epsil, procmask, map_full, M_diag, b_map, l, &
                            & prefix, postfix, self%comp_S)
           !end if
-
-          call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-          call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
-          if (self%comp_S) then
-             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
-             map_out%map = outmaps(1)%p%map
-             call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
-          end if
-          if (l == 1) then
+          if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
              monopole = sum((bicg_sol(:,1)-map_full)*M_diag(:,1)*procmask) &
                     & / sum(M_diag(:,1)*procmask)
@@ -726,6 +718,15 @@ contains
                 monopole = monopole + sigma_mono * rand_gauss(handle)
              end if
              bicg_sol(:,1) = bicg_sol(:,1) - monopole
+          end if
+
+          call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+          call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+
+          if (self%comp_S) then
+             outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
+             map_out%map = outmaps(1)%p%map
+             call map_out%writeFITS(trim(prefix)//'S_'//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
 
 
