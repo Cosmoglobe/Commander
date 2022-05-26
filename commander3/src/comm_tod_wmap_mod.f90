@@ -474,6 +474,7 @@ contains
                     write(*,*) '|    --> Sampling baseline'
               end if
               self%apply_inst_corr = .false. ! Disable baseline correction for just this call
+              call update_status(status, "baseline")
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
                  call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
@@ -482,8 +483,11 @@ contains
               end do
               self%apply_inst_corr = .true.
 
+              call update_status(status, "abscal")
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+              call update_status(status, "relcal")
               call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+              call update_status(status, "deltaG")
               call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
            else
               self%correct_sl      = .false.
