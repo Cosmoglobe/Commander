@@ -136,6 +136,7 @@ then
 		#module load Intel_parallel_studio/2020/4.912
     module load intel/oneapi
     module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
+    module load mkl/latest
 		#module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
