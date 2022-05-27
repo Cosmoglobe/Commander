@@ -173,13 +173,13 @@ def create_rimo(fname, rot=0):
   with h5py.File(fname_out, 'a') as f:
       labels = ['K', 'Ka', 'Q', 'V', 'W']
       # Bandpasses
-      fnames = glob('data/wmap_bandpass_*_v5.cbp')
+      fnames = glob(f'{ola}/bandpass/wmap_bandpass_*_v5.cbp')
       fnames.sort()
-      
+
       
       totals = [[],[],[],[],[]]
       for i in range(len(fnames)):
-          band = fnames[i].split('_')[2]
+          band = fnames[i].split('_')[-2]
           nu, B1, B2 = np.loadtxt(fnames[i]).T
           f.create_dataset(band + '3/bandpassx', data=nu)
           f.create_dataset(band + '4/bandpassx', data=nu)
@@ -207,7 +207,7 @@ def create_rimo(fname, rot=0):
       ## From radial beam profiles
       DAs = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
       fwhms = [0.93, 0.68, 0.53, 0.53, 0.35, 0.35, 0.23, 0.23, 0.23, 0.23]
-      fnames = glob('data/wmap_symm_beam_profile_*_9yr_v5.txt')
+      fnames = glob(f'{ola}/beam_profiles/wmap_symm_beam_profile_*_9yr_v5.txt')
       fnames.sort()
       for ind, fname in enumerate(fnames):
           theta, B = np.loadtxt(fname).T
@@ -226,10 +226,8 @@ def create_rimo(fname, rot=0):
           #plt.axvline(hwhm_deg)
           #sigma = fwhm_deg/np.sqrt(8*np.log2(2))
           #plt.plot(theta, np.exp(-theta**2/(2*theta_sigma**2)))
-      
-          DA = fname.split('_')[4]
-          #print(DA, fwhm_arcmin)
-          #print('\n')
+     
+          DA = fname.split('_')[-3]
           f.create_dataset(DA + '13/fwhm', data=[fwhm_arcmin])
           f.create_dataset(DA + '14/fwhm', data=[fwhm_arcmin])
           f.create_dataset(DA + '23/fwhm', data=[fwhm_arcmin])
@@ -356,7 +354,7 @@ def create_rimo(fname, rot=0):
   
   
       #fnames = glob(f'{ola}/beam_maps/map_*v1.fits')
-      fnames = glob('data/wmap_hybrid_beam_maps_*_9yr_v5.fits')
+      fnames = glob(f'{ola}/beam_maps/wmap_hybrid_beam_maps_*_9yr_v5.fits')
       fnames.sort()
       
       
@@ -389,6 +387,7 @@ def create_rimo(fname, rot=0):
       phi = np.arctan2(yy, xx)
 
 
+      psis   = [135,  225,    135,  225, 225,  135,  135, 225,  135, 225]
 
       for beam_ind, fname in enumerate(fnames):
           data = fits.open(fname)
@@ -477,6 +476,16 @@ def create_rimo(fname, rot=0):
             fluxB = np.delete(fluxB, idx_t)
           mB[N > 0] = mB[N > 0]/N[N > 0]
 
+          psi = psis[beam_ind]
+
+          r = hp.rotator.Rotator(rot=(0,0,psi), \
+              deg=False, eulertype='Y')
+          mA = r.rotate_map_pixel(mA)
+
+          r = hp.rotator.Rotator(rot=(0,0,-psi), \
+              deg=False, eulertype='Y')
+          mB = r.rotate_map_pixel(mB)
+
 
           # Normalizing, assuming that s_lms are correct
           s_lm_A = slmAs[beam_ind]
@@ -492,7 +501,7 @@ def create_rimo(fname, rot=0):
 
           b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
           b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
-          DA = fname.split('_')[4]
+          DA = fname.split('_')[-3]
           #DA = fname.split('_')[3].upper().replace('KA', 'Ka')
            
           with h5py.File(fname_out, 'a') as f:
@@ -530,7 +539,7 @@ def create_rimo(fname, rot=0):
      
 
 if __name__ == '__main__':
-    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v12.h5'
+    fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v13.h5'
     #fname_out = 'test.h5'
     #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
     create_rimo(fname_out)
