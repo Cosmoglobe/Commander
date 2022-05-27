@@ -999,7 +999,7 @@ contains
   end subroutine sample_baseline
 
   subroutine construct_corrtemp_wmap(self, scan, pix, psi, s)
-    !  Construct an WMAP instrument-specific correction template; for now contains 1Hz tem
+    !  Construct an WMAP instrument-specific correction template; for now contains baseline
     !
     !  Arguments:
     !  ----------

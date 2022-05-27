@@ -668,9 +668,13 @@ contains
        deallocate(s_invsqrtN, s_buf, mask_lowres)
     end do
 
+    call timer%stop(timer_id, tod%band)
+
     call timer%start(TOD_WAIT, tod%band)
     call mpi_barrier(tod%info%comm, ierr)
     call timer%stop(TOD_WAIT, tod%band)
+
+    call timer%start(timer_id, tod%band)
     ! Perform sampling operations
     if (trim(mode) == 'abscal') then
        call sample_abscal_from_orbital(tod, handle, A, b)
