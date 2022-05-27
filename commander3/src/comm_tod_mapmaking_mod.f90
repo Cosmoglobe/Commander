@@ -393,7 +393,7 @@ end subroutine bin_differential_TOD
       logical(lgt) :: finished
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
       integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
-      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi
+      real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi, monopole
       real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
       ndet  = tod%ndet
@@ -487,6 +487,9 @@ end subroutine bin_differential_TOD
          call mpi_reduce(y, x, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
          y_out    = transpose(x)
+         monopole = sum(y_out(:,1)*M_diag(:,1)*pmask) &
+                & / sum(M_diag(:,1)*pmask)
+         y_out(:,1) = y_out(:,1) - monopole
       else
          call mpi_reduce(y, x,     size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)

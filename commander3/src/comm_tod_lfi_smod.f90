@@ -842,6 +842,10 @@ contains
 
     end do
 
+    call timer%start(TOD_WAIT, self%band)
+    call mpi_barrier(self%comm, ierr)
+    call timer%stop(TOD_WAIT, self%band)
+
     if (self%myid == 0) write(*,*) '|    --> Finalizing maps, bp'
 
     ! Output latest scan list with new timing information
@@ -1783,7 +1787,7 @@ contains
     !open(unit, file=trim(self%L2file), form='unformatted')
 
     if (self%L2_exist) then
-       if (self%myid == 0) write(*,*) "| Reading L2 from ", trim(self%L2file)
+       if (self%myid == 0) write(*,*) "|  Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
     end if
     
