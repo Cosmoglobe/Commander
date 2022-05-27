@@ -407,7 +407,7 @@ contains
              if (cpar%myid_chain == 0) then
                allocate(buffer(c%npixreg(pl,j)))
                buffer = c%pixreg_priors(:c%npixreg(pl,j),pl,j)
-               write(*,regfmt) ' using region priors', buffer
+               write(*,regfmt) ' | using region priors', buffer
                deallocate(buffer)
              end if
           else 
