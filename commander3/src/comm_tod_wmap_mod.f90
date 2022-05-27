@@ -683,8 +683,7 @@ contains
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = self%output_n_maps, 1, -1
           !if (l .ne. 6) b_map(:,:,l) = 0d0
-          !b_map = 0d0
-          bicg_sol = 0.0d0
+          bicg_sol = 0d0
 
           if (l == 1) then
             epsil = 1d-10
@@ -749,10 +748,10 @@ contains
         call timer%stop(TOD_MAPSOLVE, self%band)
 
         ! Sample bandpass parameters
-        if (sample_rel_bandpass .or. sample_abs_bandpass) then
-           call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
-           self%bp_delta = delta(:,:,1)
-        end if
+        !if (sample_rel_bandpass .or. sample_abs_bandpass) then
+        !   call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
+        !   self%bp_delta = delta(:,:,1)
+        !end if
       end if
 
       ! Clean up temporary arrays
@@ -782,8 +781,8 @@ contains
       call update_status(status, "tod_end"//ctext)
     call timer%stop(TOD_TOT, self%band)
 
-      ! Parameter to check if this is first time routine has been
-      self%first_call = .false.
+    ! Parameter to check if this is first time routine has been called
+    self%first_call = .false.
 
    end subroutine process_WMAP_tod
 
