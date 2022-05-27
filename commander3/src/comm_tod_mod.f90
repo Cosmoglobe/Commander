@@ -1674,7 +1674,7 @@ contains
     end do
 34  close(unit)
 
-    if (maxval(abs(self%prob_bp)) == 0) then
+    if (maxval(abs(self%prop_bp)) == 0) then
         write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
         stop
     end if
