@@ -4011,13 +4011,13 @@ contains
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
        if (self%x%info%myid == 0) then 
-          write(*,fmt='(a)') 'Band monopole prior  correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
-          write(*,fmt='(a,f14.3,f14.3)') '  Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
-          write(*,fmt='(a,f14.3)') '  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)
-          write(*,fmt='(a,f14.3)') '  Old band monopole            ',a*mono_mix/sqrt(4.d0*pi)
-          write(*,fmt='(a,f14.3)') '  Change to band monopole      ',diff_mono*mono_mix
-          write(*,fmt='(a,f14.3)') '  Change to component monopole ',-diff_comp*self%cg_scale(1)
-          write(*,fmt='(a)') ' '
+          write(*,fmt='(a)') ' | Band monopole prior  correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
+          write(*,fmt='(a,f14.3,f14.3)') ' |   Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
+          write(*,fmt='(a,f14.3)') ' |  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)
+          write(*,fmt='(a,f14.3)') ' |  Old band monopole            ',a*mono_mix/sqrt(4.d0*pi)
+          write(*,fmt='(a,f14.3)') ' |  Change to band monopole      ',diff_mono*mono_mix
+          write(*,fmt='(a,f14.3)') ' |  Change to component monopole ',-diff_comp*self%cg_scale(1)
+          write(*,fmt='(a)') ' | '
        end if
 
        deallocate(all_thetas)

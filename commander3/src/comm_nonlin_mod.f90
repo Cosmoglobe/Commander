@@ -686,13 +686,13 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " | - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
                    regs(i,:,pl) = c%theta_pixreg(:,pl,j)
-                   write(outmessage,fmt=regfmt) " regs:", theta_pixreg_prop(1:)
+                   write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
                    write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
@@ -1893,7 +1893,7 @@ contains
              write(*,*) '|   label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
              do i = 1,numband
                 if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
-                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
+                     & ' | '//trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
              end do
 
              write(*,*) '|   '
