@@ -1674,6 +1674,13 @@ contains
     end do
 34  close(unit)
 
+    if (maxval(abs(self%prob_bp)) == 0) then
+        write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
+        stop
+    end if
+
+
+
     ! Compute square root; mean will be projected out after proposal generation
     do par = 1, npar
       call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)

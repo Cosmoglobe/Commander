@@ -266,7 +266,7 @@ contains
                    call c%x%info%i2lm(i,l,m)
                    if (l == 0) then ! monopole
 
-                      write(*,fmt='(a)') " | Band monopole of '"//&
+                      write(*,fmt='(a)') " |  Band monopole of '"//&
                            & trim(c%label)//"' used as zero-level prior"
                       write(*,fmt='(a,f14.3)') " |     Revert back to pre-CG value: ",&
                            & c%mono_alm/sqrt(4.d0*pi)

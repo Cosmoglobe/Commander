@@ -711,8 +711,8 @@ contains
                 sigma_mono = sum(M_diag(:,1) * procmask)
                 if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
                 if (self%verbosity > 1) then
-                  write(*,*) '| monopole, fluctuation sigma'
-                  write(*,*) '| ', monopole, sigma_mono
+                  write(*,*) '|  monopole, fluctuation sigma'
+                  write(*,*) '|  ', monopole, sigma_mono
                 end if
                 monopole = monopole + sigma_mono * rand_gauss(handle)
              end if

@@ -686,8 +686,8 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(*,*) "|"//adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
@@ -747,7 +747,7 @@ contains
                    write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
 
                    ! Format region info
-                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) "| regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -1892,16 +1892,16 @@ contains
              write(*,*) '|   Monopoles of active bands in sampling '
              write(*,*) '|   label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
              do i = 1,numband
-                if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
-                     & ' | '//trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
+                if (monopole_active(i)) write(*,fmt='(a,a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
+                     & ' |',trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
              end do
 
              write(*,*) '|   '
              write(*,*) '|   And in band units'
              write(*,*) '|   label         band_number  mono        mu        rms'
              do i = 1,numband
-                if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3, i6)') &
-                     & trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
+                if (monopole_active(i)) write(*,fmt='(a,a15,i13,e13.3,e11.3,e11.3, i6)') &
+                     & ' |',trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
                      & monopole_rms(i)*monopole_mixing(i)
              end do
 
@@ -2094,8 +2094,8 @@ contains
                 ! bcast new monopole to other processors
                 call mpi_bcast(mu, 1, MPI_DOUBLE_PRECISION, 0, info_lr%comm, ierr)
                 if (cpar%verbosity>2 .and. myid_pix==0) then
-                   if (monopole_active(j)) write(*,fmt='(a15,e15.5,e15.5,e15.5,e15.5)') &
-                        & trim(data(j)%label),monopole_val(j)*monopole_mixing(j), &
+                   if (monopole_active(j)) write(*,fmt='(a,a15,e15.5,e15.5,e15.5,e15.5)') &
+                        & ' |',trim(data(j)%label),monopole_val(j)*monopole_mixing(j), &
                         & mu*monopole_mixing(j),monopole_mu(j)*monopole_mixing(j), &
                         & monopole_rms(j)*monopole_mixing(j)
                 end if
