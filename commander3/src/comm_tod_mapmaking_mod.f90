@@ -743,7 +743,7 @@ end subroutine bin_differential_TOD
      real(dp)                                   :: alpha, beta
      real(dp),     allocatable, dimension(:, :) :: r, s, q
      logical(lgt)                               :: finished, write_cg
-     real(dp)                                   :: rho_old, rho_new
+     real(dp)                                   :: rho_old, rho_new, monopole
      real(dp)                                   :: omega, delta_r, delta_s
      real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
      real(dp),        allocatable, dimension(:) :: determ
@@ -789,7 +789,9 @@ end subroutine bin_differential_TOD
         else
            r = b_map(:, :, l)
         end if
-        r0 = b_map(:, :, l)
+        monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
+               & / sum(M_diag(:,1)*procmask)
+        r0 = b_map(:, :, l) - monopole
         call tod%apply_map_precond(r0, rhat)
         
         delta_r = sum(r*rhat)
@@ -859,7 +861,7 @@ end subroutine bin_differential_TOD
            end if
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
-              if (tod%verbosity > 1) write(*,*) '| Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) '|  Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
@@ -884,7 +886,7 @@ end subroutine bin_differential_TOD
               call update_status(status, 'A xhat')
               call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, r)
               call update_status(status, 'done')
-              r(:,1) = b_map(:,1,l)  - r(:,1)
+              r(:,1) = b_map(:,1,l)  - r(:,1) - monopole
               r(:,2) = b_map(:,2,l)  - r(:,2)
               r(:,3) = b_map(:,3,l)  - r(:,3)
               if (comp_S)  r(:,4) = b_map(:,4,l)  - r(:,4)
