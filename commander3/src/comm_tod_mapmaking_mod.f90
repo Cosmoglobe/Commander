@@ -487,7 +487,7 @@ end subroutine bin_differential_TOD
          call mpi_reduce(y, x, size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
          y_out    = transpose(x)
-         monopole = sum(y_out(:,1)*M_diag(:,1)*pmask) &
+         monopole = sum(x(1)*M_diag(:,1)*pmask) &
                 & / sum(M_diag(:,1)*pmask)
          y_out(:,1) = y_out(:,1) - monopole
       else
@@ -783,12 +783,13 @@ end subroutine bin_differential_TOD
         i_min = 0
 
 
-        if (l == 1) then
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, v)
-           r = b_map(:, :, l) - v 
-        else
-           r = b_map(:, :, l)
-        end if
+        !if (l == 1) then
+        !   call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, v)
+        !   r = b_map(:, :, l) - v 
+        !else
+        !   r = b_map(:, :, l)
+        !end if
+        r = b_map(:, :, l)
         monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
                & / sum(M_diag(:,1)*procmask)
         r0 = b_map(:, :, l) - monopole
