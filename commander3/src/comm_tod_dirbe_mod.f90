@@ -113,7 +113,7 @@ contains
        constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
     else
-       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(constructor%freq)
+       write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
        stop
     end if
 
@@ -133,8 +133,8 @@ contains
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
 
     nside_beam                  = 128
-    nmaps_beam                  = 3
-    pol_beam                    = .true.
+    nmaps_beam                  = 1
+    pol_beam                    = .false.
     constructor%nside_beam      = nside_beam
 
     ! Get detector labels
