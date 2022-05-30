@@ -69,7 +69,6 @@ module comm_camb_mod
      procedure acceptance
      procedure init_CMB_and_noise
      procedure get_s_lm_f_lm
-     procedure get_scaled_f_lm
   end type comm_camb
 
   interface comm_camb
@@ -156,7 +155,7 @@ contains
     constructor%sample_prev%c_l = init_sample_c_l
     call constructor%init_covariance_matrix(constructor%L_mat)
 
-    ! First sample, initial guess are the correct cosmological parameters
+    ! First sample
     constructor%sample_curr%theta = constructor%correct_cosmo_param
     call get_c_l_from_camb(constructor%sample_curr%theta, first_sample_c_l)
     constructor%sample_curr%c_l = first_sample_c_l
@@ -351,9 +350,8 @@ contains
 
     call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm)
     
-    !call self%get_scaled_f_lm(new_sample, old_sample, scaled_f_lm) 
     accept = acceptance(self, new_sample, old_sample, handle)
-    !call mpi_finalize(ierr)
+    call mpi_finalize(ierr)
   end subroutine get_new_sample
 
   subroutine init_covariance_matrix(self, L)
@@ -569,7 +567,7 @@ contains
     real(dp)                                           :: ln_pi_ip1, ln_pi_i, log_probability, uni
     real(dp), dimension(2, 2)                          :: new_S, old_S
     integer(i4b)                                       :: k, i, l, m, comm, ierr
-    logical(i4b)                                       :: acceptance
+    logical(i4b)                                       :: acceptance, finished
 
     allocate(old_f_lm(size(old_sample%f_lm,1), size(old_sample%f_lm,2)))
     allocate(scaled_f_lm(size(new_sample%scaled_f_lm,1), size(new_sample%scaled_f_lm,2)))
@@ -578,6 +576,7 @@ contains
     old_c_l  = old_sample%c_l
     new_c_l  = new_sample%c_l
     scaled_f_lm = new_sample%scaled_f_lm
+    finished = .false.
 
     ln_pi_ip1 = 0.d0
     ln_pi_i   = 0.d0
@@ -589,54 +588,55 @@ contains
         comm = c%x%info%comm
         do i = 0, c%x%info%nalm-1
           l = c%x%info%lm(1, i)
-          m = c%x%info%lm(2, i)
-
-          new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
-          old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
-          call invert_matrix(new_S)
-          call invert_matrix(old_S)
-
-          ln_pi_ip1 = ln_pi_ip1 + dot_product(new_sample%s_lm(i, :), matmul(new_S, new_sample%s_lm(i, :)))
-          ln_pi_i   = ln_pi_i + dot_product(old_sample%s_lm(i, :), matmul(old_S, old_sample%s_lm(i, :)))
+          if (l >= 2) then
+            m = c%x%info%lm(2, i)
+            
+            new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
+            old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
+            call invert_matrix(new_S)
+            call invert_matrix(old_S)
+            ln_pi_ip1 = ln_pi_ip1 + dot_product(new_sample%s_lm(i, :), matmul(new_S, new_sample%s_lm(i, :)))
+            ln_pi_i   = ln_pi_i + dot_product(old_sample%s_lm(i, :), matmul(old_S, old_sample%s_lm(i, :)))
+          end if
         end do
       end select
       c => c%next()
     end do
-    
-    !DO l = self%lmin, self%lmax
-    !   new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
-    !   old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
-    !   call invert_matrix(new_S)
-    !   call invert_matrix(old_S)
-    !   DO m = 0, l   ! HKE: Shouldn't this sum run from -m to m?
-    !      i = l**2 + l + m + 1
-          
-          ! This part is a bit ugly. Everything is diagonal except c_l (because of
-          ! C^TE) and so that is done after the k loop. k=1 is a^T_lm and k=2 is
-          ! a^E_lm
-
-          !DO k = 1, 2   
-          !   ln_pi_ip1 = ln_pi_ip1 + (d_lm(k, i) - new_s_lm(k, i))**2 / self%noise_l(k) + scaled_f_lm(k, i)**2 / self%noise_l(k)
-          !   ln_pi_i   = ln_pi_i   + (d_lm(k, i) - old_s_lm(k, i))**2 / self%noise_l(k) + old_f_lm(k, i)**2 / self%noise_l(k)
-          !END DO
-    !      ln_pi_ip1 = ln_pi_ip1 + dot_product(new_s_lm(:, i), matmul(new_S, new_s_lm(:, i)))
-    !      ln_pi_i   = ln_pi_i + dot_product(old_s_lm(:, i), matmul(old_S, old_s_lm(:, i)))
-    !   END DO
-    !END DO
   
     log_probability = -(ln_pi_ip1 - ln_pi_i) / 2.0d0
-    write(*,*) 'one core prob:', log_probability
     call mpi_allreduce(MPI_IN_PLACE, log_probability, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
-    write(*,*) 'prob:', log_probability
+
+
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+        comm = c%x%info%comm
+        if (c%x%info%myid == 0) then
+          write(*,*) 'Total log prob:', log_probability
+          uni = rand_uni(handle) 
+          if (uni < exp(log_probability)) then
+            acceptance = .true.
+            write(*,*) '---------- ACCEPTED -----------'
+          else
+            acceptance = .false.
+            write(*,*) '-------- NOT ACCEPTED ---------'
+          end if
+          call mpi_bcast(acceptance, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
+          finished = .true.
+          call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
+        else
+          loop: do while (.true.)
+            call mpi_bcast(acceptance, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
+            call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
+            if (finished) exit loop
+          end do loop
+        end if
+      end select
+      c => c%next()
+    end do
     
-    uni = rand_uni(handle) 
-    if (uni < exp(log_probability)) then
-       acceptance = .true.
-       write(*,*) '---------- ACCEPTED -----------'
-    else
-       acceptance = .false.
-       write(*,*) '-------- NOT ACCEPTED ---------'
-    end if
+    
   end function acceptance
 
   subroutine init_CMB_and_noise(self, cur_sample, handle, d_lm)
@@ -711,7 +711,7 @@ contains
     logical(lgt)                                        :: do_scale_f_lm
     type(comm_params)                                   :: cpar
     type(planck_rng)                                    :: handle, handle_noise
-    integer(i4b)                                        :: samp_group, i, l
+    integer(i4b)                                        :: samp_group, i, l, m
     logical(lgt)                                        :: include_mean, include_fluct
     class(comm_comp), pointer                           :: c => null()
     real(dp), dimension(2, 2)                           :: new_S, old_S
@@ -732,6 +732,13 @@ contains
       class is (comm_cmb_comp)
           allocate(new_sample%s_lm(0:c%x%info%nalm-1, 2))
           new_sample%s_lm = c%x%alm(:, 1:2)
+          do i = 0, c%x%info%nalm-1
+            l = c%x%info%lm(1, i)
+            m = c%x%info%lm(2, i)
+            if (l==2) then
+              write(*,*) l, m, new_sample%s_lm(i, 1)
+            end if
+          end do
       end select
       c => c%next()
     end do
@@ -761,6 +768,10 @@ contains
                 call compute_hermitian_root(old_S, -0.5d0)
 
                 new_sample%scaled_f_lm(i, :) = matmul(new_S, matmul(old_S, new_sample%f_lm(i, :)))
+                if (l==2) then
+                  m = c%x%info%lm(2, i)
+                  write(*,*) l, m, new_sample%scaled_f_lm(i, 1)
+                end if
               end if
             end do
             !new_sample%scaled_f_lm = c%x%alm
@@ -791,63 +802,6 @@ contains
     !end do
     
   end subroutine get_s_lm_f_lm
-  
-  subroutine get_scaled_f_lm(self, new_sample, old_sample, scaled_f_lm)
-    ! 
-    ! Scaled f_lm from new_sample. f_scaled = sqrt(c_l^{i+1}/c_l^i)f^{i+1}
-    !
-    ! Arguments
-    ! ---------
-    ! self: derived type (comm_camb)
-    !    CAMB object
-    ! new_sample: derived type (comm_camb_sample)
-    !    Proposed sample with cosmological parameters, CAMB power spectras, s_lm and f_lm
-    ! old_sample: derived type (comm_camb_sample)
-    !    Previous sample with cosmological parameters, CAMB power spectras, s_lm and f_lm
-    !
-    ! Returns
-    ! -------
-    ! scaled_f_lm: array
-    !    Scaled fluctutaion term f_lm. See Racine et al. (2016) for details.
-    ! 
-    implicit none
-
-    class(comm_camb),       intent(inout) :: self
-    type(comm_camb_sample), intent(in)    :: new_sample, old_sample
-
-    integer(i4b) :: index, l, m, k, ierr
-    real(dp) :: prefactor
-    real(dp), dimension(4, 0: self%lmax)      :: old_c_l, new_c_l
-    real(dp), dimension(:, :), allocatable    :: old_f_lm
-    real(dp), dimension(:, :), allocatable    :: scaled_f_lm
-    real(dp), dimension(2, 2)                 :: new_S, old_S, inv_old_S
-    
-    allocate(old_f_lm(size(old_sample%f_lm,1), size(old_sample%f_lm,2)))
-    allocate(scaled_f_lm(size(old_sample%f_lm,1), size(old_sample%f_lm,2)))
-    old_f_lm = old_sample%f_lm
-    old_c_l  = old_sample%c_l
-    new_c_l  = new_sample%c_l
-
-    !do i = 0, info%nalm-1
-    !  l = info%lm(i,1)
-    !  m = info%lm(i,2)
-    !  flm_new%alm(i,1) = sqrt(Cl_new(l)/Cl_old(l)) * flm_old%alm(i,1)
-    !end do
-
-
-    do l = self%lmin, self%lmax
-       !Scaling is non-trivial when C^TE != 0, then we need to do matrix operations
-       new_S = reshape((/ new_c_l(1, l), new_c_l(3, l), new_c_l(3, l), new_c_l(2, l) /), shape(new_S))
-       call compute_hermitian_root(new_S, 0.5d0)
-       old_S = reshape((/ old_c_l(1, l), old_c_l(3, l), old_c_l(3, l), old_c_l(2, l) /), shape(old_S))
-       call compute_hermitian_root(old_S, -0.5d0)
-       write(*,*) 'herher', shape(new_S), shape(old_S), shape(old_f_lm)
-       DO m = 0, l ! HKE: Should this loop run from 0 to l?
-          index = l**2 + l + m + 1
-          scaled_f_lm(:, index) = matmul(new_S, matmul(old_S, old_f_lm(:, index)))
-       END DO
-    END DO
-  end subroutine get_scaled_f_lm
   
 !!$  subroutine get_c_l_from_camb(self, new_sample)
 !!$    ! 

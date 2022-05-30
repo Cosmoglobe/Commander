@@ -311,15 +311,15 @@ program commander
       write(*,*) 'samp_group', samp_group
       stop
      end if
+
+     ! Sample CAMB parameters
      if (cpar%sample_camb) call camb_obj%sample_joint_Cl_theta_sampler(cpar, samp_group, handle, handle_noise)
+     
      call timer%stop(TOT_CLS)
      ! Sample power spectra
      call timer%start(TOT_CLS)
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
      call timer%stop(TOT_CLS)
-
-     ! Sample CAMB parameters
-     !if (cpar%sample_camb) call sample_joint_Cl_theta_sampler(handle)
 
      ! Output sample to disk
      call timer%start(TOT_OUTPUT)
