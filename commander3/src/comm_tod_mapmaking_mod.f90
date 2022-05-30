@@ -301,6 +301,9 @@ contains
 
       integer(i4b) :: f_A, f_B
 
+
+      call timer%start(TOD_MAPBIN, tod%band)
+
       nout = size(b, dim=3)
       ! Note that x_imarr is duplicated
       dx_im = 0.5*(x_imarr(1) - x_imarr(3))
@@ -370,6 +373,7 @@ contains
 
          end do
        end if
+      call timer%stop(TOD_MAPBIN, tod%band)
 
 end subroutine bin_differential_TOD
 
@@ -749,6 +753,7 @@ end subroutine bin_differential_TOD
      real(dp),        allocatable, dimension(:) :: determ
      character(len=512)                         :: i_str, l_str
 
+     call timer%start(TOD_MAPSOLVE, tod%band)
      write_cg = .false.
      !write_cg = .true.
      !write_cg = tod%first_call
@@ -935,6 +940,8 @@ end subroutine bin_differential_TOD
      end if
      if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf)
      if (tod%myid == 0 .and. .not. comp_S) deallocate (determ)
+
+     call timer%stop(TOD_MAPSOLVE, tod%band)
 
    end subroutine run_bicgstab
 
