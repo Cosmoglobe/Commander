@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_tod_dirbe_mod
+module comm_tod_DIRBE_mod
   !   Module which contains all the LiteBIRD time ordered data processing and routines
   !   for a given frequency band
   !
@@ -27,7 +27,7 @@ module comm_tod_dirbe_mod
   !   constructor(cpar, id_abs, info, tod_type)
   !       Initialization routine that reads in, allocates and associates 
   !       all data needed for TOD processing
-  !   process_dirbe_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+  !   process_DIRBE_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
 
@@ -53,7 +53,7 @@ module comm_tod_dirbe_mod
 
   type, extends(comm_tod) :: comm_dirbe_tod
    contains
-     procedure     :: process_tod          => process_dirbe_tod
+     procedure     :: process_tod          => process_DIRBE_tod
   end type comm_dirbe_tod
 
   interface comm_dirbe_tod
@@ -179,7 +179,7 @@ contains
   !**************************************************
   !             Driver routine
   !**************************************************
-  subroutine process_dirbe_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
+  subroutine process_DIRBE_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
     ! 
     ! Routine that processes the DIRBE Calibrated Individual Observations. 
     ! Samples absolute and relative bandpass, gain and correlated noise in time domain, 
@@ -444,7 +444,7 @@ contains
 
     call update_status(status, "tod_end"//ctext)
 
-  end subroutine process_dirbe_tod   
+  end subroutine process_DIRBE_tod   
 
 
-end module comm_tod_dirbe_mod
+end module comm_tod_DIRBE_mod
