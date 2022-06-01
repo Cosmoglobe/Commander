@@ -878,9 +878,9 @@ contains
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
-       !if (trim(tod%noise_psd_model) == 'oof') then
-       !   self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
-       if (trim(tod%noise_psd_model) == '2oof') then
+       if (trim(tod%noise_psd_model) == 'oof') then
+         self%d(i)%N_psd => comm_noise_psd(self%d(i)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+       else if (trim(tod%noise_psd_model) == '2oof') then
           self%d(i)%xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
           self%d(i)%xi_n(5) = -1.000 ! alpha2; arbitrary value
        !   self%d(i)%N_psd => comm_noise_psd_2oof(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
@@ -1380,7 +1380,8 @@ contains
           output(k,j,2)      = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
           output(k,j,3)      = self%scans(i)%d(j)%chisq
           output(k,j,4)      = self%scans(i)%d(j)%baseline
-          output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
+         !  output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
+          output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
        end do
     end do
 
