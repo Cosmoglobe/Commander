@@ -199,7 +199,7 @@ def get_temp(Res, mnem, SerialNum='UG89', SensorID='IHK1_AC_17'):
     return Temp
 
 def get_prt_temp(resist, SerialNum):
-    table = readsav('wmap_routines/ref/prt_data/prt_splinedata.xdr')
+    table = readsav(f'{prefix}/software/ref/prt_data/prt_splinedata.xdr')
     splinedata = table['splinedata']
     serial_nos = []
     for b in splinedata['serial']:
