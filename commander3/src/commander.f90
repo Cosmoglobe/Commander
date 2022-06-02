@@ -314,7 +314,6 @@ program commander
      !call output_FITS_sample(cpar, 1000, .true.)
     
      call wall_time(t2)
-     if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'

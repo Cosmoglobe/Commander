@@ -130,7 +130,7 @@ contains
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      constructor%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
       constructor%xi_n_P_uni(4,:) = [0.0, 0.1]            ! slope
       constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
       constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
@@ -416,9 +416,27 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
+         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 3
          if (iter .eq. 1)                           self%output_n_maps = 1
       end if
+
+
+      !! Set bad scans by hand
+      !do i = 1, self%nscan
+      !    k = self%scanid(i)
+      !    ! It's definitely between 468/2 and 3*468/4
+      !    ! Is it above 293? If yes, it's between 293 and 351
+      !    !                          Check above 322
+      !    !                  If no,  it's between 234 and 293
+      !    !                          Check above 264
+      !    !if (k > 250 .and. k < 350) self%scans(i)%d%accept = .false.
+      !    !if (k > 100 .and. k < 200) self%scans(i)%d%accept = .false.
+      !    if (k == 29) self%scans(i)%d%accept = .false.
+      !    if (k == 105) self%scans(i)%d%accept = .false.
+      !    if (k == 184) self%scans(i)%d%accept = .false.
+      !    !if (i .ne. 1) self%scans(i)%d%accept = .false.
+      !end do
+
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -552,17 +570,13 @@ contains
          if (self%enable_tod_simulations) then
             call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
          else
-            call timer%start(TOD_NCORR, self%band)
             call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
             !sd%n_corr = 0.
-            call timer%stop(TOD_NCORR, self%band)
          end if
 
 
          ! Compute noise spectrum parameters
-         call timer%start(TOD_XI_N, self%band)
          call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-         call timer%stop(TOD_XI_N, self%band)
 
          ! Compute chisquare
          do j = 1, sd%ndet
@@ -590,25 +604,25 @@ contains
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
-            call write_hdf(tod_file, '/sl', sd%s_sl)
-            call write_hdf(tod_file, '/s_orb', sd%s_orb)
+            !call write_hdf(tod_file, '/sl', sd%s_sl)
+            !call write_hdf(tod_file, '/s_orb', sd%s_orb)
             call write_hdf(tod_file, '/n_corr', sd%n_corr)
-            call write_hdf(tod_file, '/bpcorr', sd%s_bp)
-            call write_hdf(tod_file, '/s_tot', sd%s_tot)
-            call write_hdf(tod_file, '/s_sky', sd%s_sky)
+            !call write_hdf(tod_file, '/bpcorr', sd%s_bp)
+            !call write_hdf(tod_file, '/s_tot', sd%s_tot)
+            !call write_hdf(tod_file, '/s_sky', sd%s_sky)
             call write_hdf(tod_file, '/tod',   sd%tod)
             call write_hdf(tod_file, '/flag', sd%flag)
-            call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
-            call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
-            call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
-            call write_hdf(tod_file, '/psiB', sd%psi(:,1,2))
-            call write_hdf(tod_file, '/x_im', self%x_im)
+            !call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
+            !call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
+            !call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
+            !call write_hdf(tod_file, '/psiB', sd%psi(:,1,2))
+            !call write_hdf(tod_file, '/x_im', self%x_im)
 
-            do k = 1, self%ndet
-              call int2string(k, scantext)
-              call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
-              call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
-            end do
+            !do k = 1, self%ndet
+            !  call int2string(k, scantext)
+            !  call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
+            !  call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
+            !end do
 
             call close_hdf_file(tod_file)
 
@@ -616,11 +630,9 @@ contains
          end if
          
          ! Bin TOD
-         call timer%start(TOD_MAPBIN, self%band)
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
            & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
            & self%comp_S)
-         call timer%stop(TOD_MAPBIN, self%band)
 
          ! Update scan list
          call wall_time(t2)
@@ -668,7 +680,6 @@ contains
         end if
         if (self%myid == 0) self%M_diag = M_diag
 
-        call timer%start(TOD_MAPSOLVE, self%band)
 
         allocate(outmaps(1))
         outmaps(1)%p => comm_map(self%info)
@@ -745,7 +756,6 @@ contains
         deallocate(bicg_sol)
 
 
-        call timer%stop(TOD_MAPSOLVE, self%band)
 
         ! Sample bandpass parameters
         !if (sample_rel_bandpass .or. sample_abs_bandpass) then
