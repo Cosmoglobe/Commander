@@ -602,7 +602,7 @@ def write_file_serial(comm_tod, i, obsid, obs_ind, daflags, TODs, gain_guesses,
 
 
         sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-        scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
+        scalars = np.array([gain, sigma_0, fknees[j//2], alphas[j//2]])
         if precal:
             baseline = 0
         else:
