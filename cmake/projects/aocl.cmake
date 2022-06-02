@@ -63,10 +63,10 @@
 #	find_package(LAPACK) #REQUIRED)
 #endif()
 
-# Download OpenBLAS from source if neither MKL/AMD or OpenBLAS
+# Download OpenBLAS from source if neither MKL or OpenBLAS
 # were found on the host system.
 #if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-if(COMPILE_OPENBLAS)
+if(COMPILE_BLAS)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.
@@ -77,7 +77,7 @@ if(COMPILE_OPENBLAS)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${BLAS_SOURCE_DIR}/CMakeLists.txt")
-    #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
+		message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
 		ExternalProject_Add(
 			blas_src
 			DEPENDS						required_libraries
@@ -94,7 +94,7 @@ if(COMPILE_OPENBLAS)
 			INSTALL_COMMAND		""
 			)
 	else()
-    #message(STATUS "Found an existing BLAS sources inside:\n${BLAS_SOURCE_DIR}")
+		message(STATUS "Found an existing BLAS sources inside:\n${BLAS_SOURCE_DIR}")
 		add_custom_target(blas_src
 			ALL ""
 			)
@@ -161,10 +161,4 @@ else()
 	#message(STATUS "LAPACK LINKER FLAGS: ${LAPACK_LINKER_FLAGS}")
 	#message(STATUS "LAPACK LIBRARIES:    ${LAPACK_LIBRARIES}")
 	#------------------------------------------------------------------------------
-endif()
-
-
-if(COMPILE_FLAME)
- #TODO: 
- # Write the code here to compile both BLIS and FLAME from AMD
 endif()

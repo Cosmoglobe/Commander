@@ -247,7 +247,7 @@ target_link_libraries(${commander3}
 	#-lssl
 	#CURL::libcurl
 	# Including FFTW3
-	${FFTW_LIBRARIES}
+  #####${FFTW_LIBRARIES}
 	# Linking commander *.cpp file(s)
 	comm_system_backend
 	)

@@ -43,10 +43,12 @@ include(sources)
 include(toolchains)
 # including project defined variables
 include(variables)
+# custom functions
+include(functions)
 # including required and dependent libraries
 include(libraries)
 # including configuration summary of installation
-include(summary)
+#include(summary)
 #------------------------------------------------------------------------------
 
 #message(STATUS "Finished looking for packages.")

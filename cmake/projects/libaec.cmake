@@ -48,7 +48,7 @@ if(COMPILE_LIBAEC)
 	# Getting LIBAEC from source.
 	#------------------------------------------------------------------------------
 	if(NOT EXISTS "${LIBAEC_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No LIBAEC sources were found; thus, will download it from source:\n${libaec_git_url}")
+    #message(STATUS "No LIBAEC sources were found; thus, will download it from source:\n${libaec_git_url}")
 		ExternalProject_Add(
 			libaec_src
 			GIT_REPOSITORY		"${libaec_git_url}"
@@ -63,7 +63,7 @@ if(COMPILE_LIBAEC)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing LIBAEC sources inside:\n${LIBAEC_SOURCE_DIR}")
+    #message(STATUS "Found an existing LIBAEC sources inside:\n${LIBAEC_SOURCE_DIR}")
 		add_custom_target(libaec_src
 			ALL ""
 			)

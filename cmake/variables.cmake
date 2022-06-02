@@ -74,40 +74,7 @@ set(DOXYGEN_BUILD_DOCS OFF
 	"Determine whether to use doxygen or not."
 	)
 #------------------------------------------------------------------------------
-# If any problems with installation will occur, which cannot be fixed quickly,
-# these variables will force a fresh installation for every specified library.
-# If USE_SYSTEM_LIBS is set to FALSE, all libraries will be recompiled,
-# whereas if set to TRUE, the libraries will first be searched on the
-# system and only if not found, compiled from source. However, If USE_SYSTEM_LIBS
-# is set to TRUE but, e.g. USE_SYSTEM_HDF5 is set to FALSE, then HDF5 will
-# be compiled from source (i.e. the latter variable is having the advantage).
-#------------------------------------------------------------------------------
-option(USE_SYSTEM_LIBS    "Enables search for LIBS on the system."        ON)
-# BLAS/LAPACK
-option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
-# HDF5
-option(USE_SYSTEM_ZLIB    "Enables search for ZLIB on the system."        ON)
-option(USE_SYSTEM_LIBAEC  "Enables search for LibAEC on the system."      ON)
-option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        ON) #OFF)
-# FFTW
-option(USE_SYSTEM_FFTW    "Enables search for FFTW on the system."        ON) #OFF)
-option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"          OFF)
-option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         ON)
-option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"          OFF)
-option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"         OFF)
-# CFITSIO
-option(USE_SYSTEM_MBEDTLS "Enables search for MbedTLS on the system."     ON)
-option(USE_SYSTEM_LIBSSH2 "Enables search for LibSSH2 on the system."     ON)
-option(USE_SYSTEM_CURL    "Enables search for cURL on the system."        ON)
-option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     ON) #OFF)
-# Can choose whether to compile CFITSIO with or without cURL support
-option(CFITSIO_USE_CURL   "Installs CFITSIO with cURL support."           OFF)
-# HEALPix
-option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     ON) #OFF)
-# Doxygen
-option(USE_SYSTEM_FLEX    "Enables search for FLEX on the system."        ON)
-option(USE_SYSTEM_BISON   "Enables search for BISON on the system."       ON)
-option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
+# Subprojects' source directories. 
 #------------------------------------------------------------------------------
 # Commander3 source dir
 set(COMMANDER3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/commander3/src")
@@ -132,4 +99,78 @@ set(HEALPIX_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/healpix")
 set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
 set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
 set(BLAS_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/blas")
-#
+#------------------------------------------------------------------------------
+# If any problems with installation will occur, which cannot be fixed quickly,
+# these variables will force a fresh installation for every specified library.
+# If USE_SYSTEM_LIBS is set to FALSE, all libraries will be recompiled,
+# whereas if set to TRUE, the libraries will first be searched on the
+# system and only if not found, compiled from source. However, If USE_SYSTEM_LIBS
+# is set to TRUE but, e.g. USE_SYSTEM_HDF5 is set to FALSE, then HDF5 will
+# be compiled from source (i.e. the latter variable is having the advantage).
+#------------------------------------------------------------------------------
+option(USE_SYSTEM_LIBS    "Enables search for all LIBS on the system."    ON)
+# BLAS/LAPACK
+option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
+# FFTW
+option(USE_SYSTEM_FFTW    "Enables search for FFTW on the system."        ON) #OFF)
+option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"          OFF)
+option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         ON)
+option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"          OFF)
+option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"         OFF)
+# HDF5
+option(USE_SYSTEM_ZLIB    "Enables search for ZLIB on the system."        ON)
+option(USE_SYSTEM_LIBAEC  "Enables search for LibAEC on the system."      ON)
+option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        ON) #OFF)
+# CFITSIO
+option(USE_SYSTEM_MBEDTLS "Enables search for MbedTLS on the system."     ON)
+option(USE_SYSTEM_LIBSSH2 "Enables search for LibSSH2 on the system."     ON)
+option(USE_SYSTEM_CURL    "Enables search for cURL on the system."        ON)
+option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     ON) #OFF)
+# Can choose whether to compile CFITSIO with or without cURL support
+option(CFITSIO_USE_CURL   "Installs CFITSIO with cURL support."           OFF)
+# HEALPix
+option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     ON) #OFF)
+# Doxygen
+option(USE_SYSTEM_FLEX    "Enables search for FLEX on the system."        ON)
+option(USE_SYSTEM_BISON   "Enables search for BISON on the system."       ON)
+option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
+#------------------------------------------------------------------------------
+# Commander3 can use various BLAS/LAPACK & FFT implementations from different 
+# vendors (AMD, Intel etc.). The following variables define the particular 
+# implementation to use -- the backend.
+#------------------------------------------------------------------------------
+set(COMM3_BACKEND "any"
+  CACHE STRING
+  "Defines which BLAS/LAPACK & FFT implementation to use. 
+  Possible values are: aocl, mkl, opensrc, any. Default: any."
+  )
+#------------------------------------------------------------------------------
+# To have a summary of the installation, we need to have a summary of the Host 
+# system. These variables serve this purpose.
+#------------------------------------------------------------------------------
+# CPU 
+cmake_host_system_information(RESULT CPU_DESCRIPTION       QUERY PROCESSOR_DESCRIPTION)
+cmake_host_system_information(RESULT N_LOGICAL_CORES       QUERY NUMBER_OF_LOGICAL_CORES)
+cmake_host_system_information(RESULT N_PHYSICAL_CORES      QUERY NUMBER_OF_PHYSICAL_CORES)
+cmake_host_system_information(RESULT CPU_HAS_SERIAL_NUMBER QUERY HAS_SERIAL_NUMBER)
+cmake_host_system_information(RESULT CPU_SERIAL_NUMBER     QUERY PROCESSOR_SERIAL_NUMBER)
+cmake_host_system_information(RESULT CPU_IS_64BIT          QUERY IS_64BIT)
+cmake_host_system_information(RESULT CPU_HAS_FPU           QUERY HAS_FPU)
+cmake_host_system_information(RESULT CPU_HAS_MMX           QUERY HAS_MMX)
+# One if processor supports Ext. MMX instructions
+cmake_host_system_information(RESULT CPU_HAS_MMX_PLUS      QUERY HAS_MMX_PLUS) 
+cmake_host_system_information(RESULT CPU_HAS_SSE           QUERY HAS_SSE)
+cmake_host_system_information(RESULT CPU_HAS_SSE2          QUERY HAS_SSE2)
+cmake_host_system_information(RESULT CPU_HAS_SSE_FP        QUERY HAS_SSE_FP)
+# One if processor supports SSE MMX instructions
+cmake_host_system_information(RESULT CPU_HAS_SSE_MMX       QUERY HAS_SSE_MMX)
+# OS information
+cmake_host_system_information(RESULT HOST_OS_RELEASE       QUERY OS_RELEASE)
+cmake_host_system_information(RESULT HOST_OS_VERSION       QUERY OS_VERSION)
+cmake_host_system_information(RESULT HOST_OS_PLATFORM      QUERY OS_PLATFORM)
+# RAM information
+cmake_host_system_information(RESULT TOT_VIRTUAL_MEMORY    QUERY TOTAL_VIRTUAL_MEMORY)
+cmake_host_system_information(RESULT AVAIL_VIRTUAL_MEMORY  QUERY AVAILABLE_VIRTUAL_MEMORY)
+cmake_host_system_information(RESULT TOT_PHYSICAL_MEMORY   QUERY TOTAL_PHYSICAL_MEMORY)
+cmake_host_system_information(RESULT AVAIL_PHYSICAL_MEMORY QUERY AVAILABLE_PHYSICAL_MEMORY)
+#------------------------------------------------------------------------------

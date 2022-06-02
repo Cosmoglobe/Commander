@@ -5,9 +5,9 @@
 # Global configuration:
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
-# Possible values: nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
-toolchain="gnu" #"intel"
-buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
+# Possible values: oneapi, nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
+toolchain="oneapi"
+buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -117,8 +117,24 @@ then
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
 		module load Intel_parallel_studio/2020/4.912
 		#module load Intel_parallel_studio/2018/3.051
+	elif [[ "$toolchain" =~ "oneapi" ]]
+	then
+		# Compilers
+		fc="ifort"
+		cc="icc"
+		cxx="icpc"
+		# MPI compilers
+		mpifc="mpiifort" 
+		mpicc="mpiicc"
+		mpicxx="mpiicpc"
+		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    #module load intel/oneapi
+    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
+    module load mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
+    export BLAS_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/blis"
+    export LAPACK_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/libflame"
 		# Compilers
 		fc="gfortran"
 		cc="gcc"
@@ -198,12 +214,12 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=OFF\
+	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount #-v 
+	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount -v 
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi

@@ -57,7 +57,7 @@ if(COMPILE_FFTW)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${FFTW_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No FFTW sources were found; thus, will download it from source:\n${fftw_url}")
+    #message(STATUS "No FFTW sources were found; thus, will download it from source:\n${fftw_url}")
 		ExternalProject_Add(
 			fftw_src
 			URL								"${fftw_url}"
@@ -74,7 +74,7 @@ if(COMPILE_FFTW)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing FFTW sources inside:\n${FFTW_SOURCE_DIR}")
+    #message(STATUS "Found an existing FFTW sources inside:\n${FFTW_SOURCE_DIR}")
 		add_custom_target(fftw_src
 			ALL ""
 			)

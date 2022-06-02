@@ -120,7 +120,7 @@ if(COMPILE_HEALPIX)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${HEALPIX_SOURCE_DIR}/configure")
-		message(STATUS "No HEALPIX sources were found; thus, will download it from source:\n${healpix_url}")
+    #message(STATUS "No HEALPIX sources were found; thus, will download it from source:\n${healpix_url}")
 		ExternalProject_Add(
 			healpix_src
 			URL								"${healpix_url}"
@@ -137,7 +137,7 @@ if(COMPILE_HEALPIX)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing HEALPIX sources inside:\n${HEALPIX_SOURCE_DIR}")
+    #message(STATUS "Found an existing HEALPIX sources inside:\n${HEALPIX_SOURCE_DIR}")
 		add_custom_target(healpix_src
 			ALL ""
 			)
