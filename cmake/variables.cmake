@@ -69,10 +69,6 @@ set(CMAKE_LOG_DIR "${CMAKE_INSTALL_PREFIX}/logs"
 if(NOT EXISTS "${CMAKE_LOG_DIR}")
   file(MAKE_DIRECTORY "${CMAKE_LOG_DIR}")
 endif()
-set(DOXYGEN_BUILD_DOCS OFF 
-	CACHE BOOL
-	"Determine whether to use doxygen or not."
-	)
 #------------------------------------------------------------------------------
 # Subprojects' source directories. 
 #------------------------------------------------------------------------------
@@ -130,10 +126,6 @@ option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     ON) #O
 option(CFITSIO_USE_CURL   "Installs CFITSIO with cURL support."           OFF)
 # HEALPix
 option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     ON) #OFF)
-# Doxygen
-option(USE_SYSTEM_FLEX    "Enables search for FLEX on the system."        ON)
-option(USE_SYSTEM_BISON   "Enables search for BISON on the system."       ON)
-option(USE_SYSTEM_DOXYGEN "Enables search for DOXYGEN on the system."     ON)
 #------------------------------------------------------------------------------
 # Commander3 can use various BLAS/LAPACK & FFT implementations from different 
 # vendors (AMD, Intel etc.). The following variables define the particular 
