@@ -46,15 +46,32 @@ from tqdm import tqdm
 from astroquery.jplhorizons import Horizons
 from astropy.time import Time
 from datetime import datetime
+from get_gain_model import get_gain
 
 
 Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
-fknees = np.array([6.13, 5.37, 1.66, 1.29,
-                   3.21, 3.13, 5.76, 8.62,
-                   2.56, 4.49, 2.43, 8.35,
+fknees = np.array([0.7,  0.5, 1.2, 0.6,
+                   1.1, 0.6, 3.0, 4.0,
+                   1.3, 2.2, 1.5, 4.0,
                   16.17,15.05, 9.02, 7.47,
                    1.84, 2.39, 46.5, 26.0]) # mHz
 fknees *= 1e-3
+
+alphas = np.array([-0.8, -0.7, -1.0, -0.9,
+                   -1.0, -1.0, -1.1, -1.1,
+                   -1.0, -0.9, -1.1, -1.0,
+                   -1.0, -1.0, -1.0, -1.0,
+                   -1.0, -1.0, -1.0, -1.0])
+
+
+# All of the events listed in the explanatory supplement. Each is listed with a
+# "beginning" and an ending".
+data = np.loadtxt('events.txt', dtype=str)
+t = Time(data)
+t.format = 'mjd'
+events = t.value
+
+
 # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
 # characterization", using the higher of the in-flight versus GSFC measurements.
 
@@ -153,7 +170,6 @@ def profile(output_file=None, sort_by='cumulative', lines_to_print=None, strip_d
 
     return inner
 
-from get_gain_model import get_gain
 
 
 def get_all_ephems(files):
@@ -234,21 +250,23 @@ def get_ephem(time, planet):
     return f_ra(time), f_dec(time)
 
 
-def get_flags(data, test=False, center=True):
+def get_flags(data, test=False, center=True, bands=np.arange(10)):
+
+    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 
     t2jd = data[1].header['TIME2JD']
 
     quat = data[1].data['QUATERN']
+    Nobs_arr = Nobs_array[bands]
 
     ll_A, ll_B, p_A, p_B, t_list = quat_to_sky_coords(quat, lonlat=True,
         center=center, ret_times=True,
-            coord_out='C')
+            coord_out='C', Nobs_array = Nobs_arr)
 
     time_majorframe = data[2].data['TIME'] + t2jd
 
     daflags = data[2].data['daflags']
 
-    bands = np.arange(10)
     planets = ['mars', 'jupiter', 'saturn', 'uranus', 'neptune']
     radii   = np.array([
               [2.0,     3.0,      2.0,      2.0,       2.0], #K (yr!=2)
@@ -287,29 +305,29 @@ def get_flags(data, test=False, center=True):
         myflags.append([])
         daflags_copy.append([])
 
-    for band in bands:
-        myflags[band] = np.zeros(len(t_list[band]))
-        daflags_copy[band] = np.zeros(len(t_list[band]))
+    for b,band in enumerate(bands):
+        myflags[b] = np.zeros(len(t_list[b]))
+        daflags_copy[b] = np.zeros(len(t_list[b]))
         for i,p in enumerate(planets):
-            t = t_list[band] + time_majorframe[0]
+            t = t_list[b] + time_majorframe[0]
             ra_p, dec_p = get_ephem(t, p)
             ll_p = np.array([ra_p, dec_p])
 
-            d_A = hp.rotator.angdist(ll_A[band].T, ll_p, lonlat=True)
+            d_A = hp.rotator.angdist(ll_A[b].T, ll_p, lonlat=True)
             inds = (d_A <= radii[band][i])
-            myflags[band][inds] += 2**(2*i+1)
+            myflags[b][inds] += 2**(2*i+1)
 
-            d_B = hp.rotator.angdist(ll_B[band].T, ll_p, lonlat=True)
+            d_B = hp.rotator.angdist(ll_B[b].T, ll_p, lonlat=True)
             inds = (d_B <= radii[band][i])
-            myflags[band][inds] += 2**(2*i+1+1)
+            myflags[b][inds] += 2**(2*i+1+1)
 
 
-    for band in bands:
+    for b, band in enumerate(bands):
         Nobs = Nobs_array[band]
         for i in range(Nobs):
-            daflags_copy[band][i::Nobs] = daflags[:,band]
-        ind1 = (daflags_copy[band] % 2 == 1)
-        myflags[band] = np.where(ind1, daflags_copy[band], myflags[band])
+            daflags_copy[b][i::Nobs] = daflags[:,band]
+        ind1 = (daflags_copy[b] % 2 == 1)
+        myflags[b] = np.where(ind1, daflags_copy[b], myflags[b])
 
     if test:
         return daflags_copy, myflags
@@ -401,29 +419,33 @@ def test_flags(band=2):
 
     return
 
-def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, gain_guesses,
+def write_file_parallel(comm_tod, i, obsid, obs_ind, daflags, TODs, gain_guesses,
         baseline_guesses,
         band_labels, band, psi_A, psi_B, pix_A, pix_B, alpha, n_per_day,
-        ntodsigma, npsi, psiBins, nside, fsamp, pos, vel, time, version,
+         npsi, psiBins, nside, fsamp, pos, vel, time, version,
         compress=False, precal=False):
+
+    for ni in range(len(events)):
+        if any(time > events[ni][0]) or (any(time < events[ni][1])):
+            print(events[ni])
+
+    for t in TODs_all:
+      print(len(t), np.log2(len(t)), len(t) - 2**(int(np.log2(len(t)))))
 
     dt0 = np.diff(time).mean()
     det_list = []
     for j in range(len(band_labels)):
         label = band_labels[j]
         if label[:-2] == band.upper():
-            TOD = TODs[j]
+            todi = TODs[j]
             gain = gain_guesses[j][i]
             if gain < 0:
-              TOD = -TOD
+              todi = -todi
               gain = -gain
 
 
-            #todi = np.array_split(TOD, n_per_day)[i].astype('int')
-            todi = np.array_split(TOD, n_per_day)[i]
-
             sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
-            scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
+            scalars = np.array([gain, sigma_0, fknees[j//2], alphas[j//2]])
             if precal:
                 baseline = 0
             else:
@@ -563,6 +585,152 @@ def write_file_parallel(comm_tod, file_ind, i, obsid, obs_ind, daflags, TODs, ga
 
     return
 
+def write_file_serial(comm_tod, i, obsid, obs_ind, daflags, TODs, gain_guesses,
+        labels, band, psiA, psiB, pixA, pixB, alpha, n_per_day,
+         npsi, psiBins, nside, fsamp, pos, vel, time, version, Nobs,
+        compress=False, precal=False):
+
+    dt0 = np.diff(time).mean()
+    det_list = []
+    for j in range(len(labels)):
+        label = labels[j]
+        todi = TODs[j]
+        gain = gain_guesses[j]
+        if gain < 0:
+          todi = -todi
+          gain = -gain
+
+
+        sigma_0 = np.diff(todi).std()/2**0.5 # Using Eqn 18 of BP06
+        scalars = np.array([gain, sigma_0, fknees[j//2], alpha])
+        if precal:
+            baseline = 0
+        else:
+            baseline = np.median(todi)
+
+        psiA = np.where(psiA < 0,           2*np.pi+psiA,   psiA)
+        psiA = np.where(psiA >= 2*np.pi,    psiA - 2*np.pi, psiA)
+
+        psiB = np.where(psiB < 0,           2*np.pi+psiB,   psiB)
+        psiB = np.where(psiB >= 2*np.pi,    psiB - 2*np.pi, psiB)
+
+        N = Nobs
+        flags = daflags
+
+        if j == 0:
+            comm_tod.init_file(label.replace('KA', 'Ka')[:-2], obsid, mode='w')
+            if compress:
+                huffman = ['huffman', {'dictNum':1}]
+                compArr = [huffman]
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag', 
+                         flags, compArr)
+                
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
+                        pixA, compArr)
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
+                        pixB, compArr)
+
+                psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi}]
+                compArray = [psiDigitize, huffman]
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
+                        psiA, compArray)
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
+                        psiB, compArray)
+            else:
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag', 
+                         flags)
+                
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixA',
+                        pixA)
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/pixB',
+                        pixB)
+
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiA',
+                        psiA)
+                comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')[:-2]+ '/psiB',
+                        psiB)
+        if precal:
+            comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                    data=todi)
+        else:
+          if compress:
+            huffTod = ['huffman', {'dictNum':2}]
+            compArr = [huffTod]
+            comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/ztod',
+                    todi, compArr)
+          else:
+            comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/tod',
+                    data=todi)
+        # Link to the pointing and flag information
+        comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/flag',
+                    '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/flag')
+        comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/pixA',
+                    '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixA')
+        comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/pixB',
+                    '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/pixB')
+        comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/psiA',
+                    '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiA')
+        comm_tod.add_softlink(obsid + '/' + label.replace('KA','Ka') + '/psiB',
+                    '/' + obsid + '/' + label.replace('KA','Ka')[:-2] + '/psiB')
+
+
+
+        det_list.append(label.replace('KA','Ka'))
+
+        comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+'/scalars', 
+            data=scalars)
+        comm_tod.add_attribute(obsid + '/' + label.replace('KA', 'Ka') + '/scalars',
+            'index','gain, sigma0, fknee, alpha')
+
+        comm_tod.add_field(obsid + '/' + label.replace('KA','Ka')+ '/baseline',
+                data=baseline)
+        comm_tod.add_attribute(obsid + '/' + label.replace('KA','Ka') + '/baseline', 
+            'index', 'baseline')
+        # filler 
+        comm_tod.add_field(obsid +'/'+label.replace('KA', 'Ka') + '/outP',
+            data=np.array([0,0]))
+
+
+
+
+    #satelite position
+    comm_tod.add_field(obsid +  '/common/satpos',  pos)
+    comm_tod.add_attribute(obsid + '/common/satpos','index','X, Y, Z')
+    comm_tod.add_attribute(obsid + '/common/satpos','coords','heliocentric')
+
+
+    comm_tod.add_field(obsid + '/common/vsun', vel)
+    comm_tod.add_attribute(obsid + '/common/vsun','index', '[x, y, z]')
+    comm_tod.add_attribute(obsid + '/common/vsun','coords','galactic')
+
+
+
+
+
+    #time field
+    comm_tod.add_field(obsid + '/common/time',[time[0],0,0])
+    comm_tod.add_attribute(obsid + '/common/time','index','MJD, null, null')
+
+    comm_tod.add_field(obsid + '/common/ntod',
+            data=[len(TODs[0])])
+
+    comm_tod.add_field('/common/det', data=np.string_(', '.join(det_list)))
+    comm_tod.add_field('/common/fsamp', fsamp)
+    comm_tod.add_field('/common/nside', [nside])
+
+    # fillers
+
+    comm_tod.add_field('/common/polang', np.array([0,0,0,0]))
+    comm_tod.add_attribute('/common/polang', 'index', ', '.join(det_list))
+
+    comm_tod.add_field('/common/mbang', np.array([0,0,0,0]))
+    comm_tod.add_attribute('/common/mbang', 'index', ', '.join(det_list))
+
+    comm_tod.finalize_chunk(int(obsid), loadBalance=np.array([0,0]))
+    comm_tod.finalize_file()
+
+    return
+
 def coord_trans(pos_in, coord_in, coord_out, lonlat=False):
     if coord_in == coord_out:
         return pos_in
@@ -672,8 +840,8 @@ def gamma_from_pol(gal, pol):
 
 def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
     ret_times=False,
-        coord_out='G'):
-    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+        coord_out='G',Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30,
+          30])):
     '''
     Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
     beginning and two redundant ones at the end, that match the adjacent frames.
@@ -825,6 +993,10 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
         return gal_A, gal_B, pol_A, pol_B
 
 
+def get_psi_band(gal, pol):
+    psi = []
+    sing, cosg = gamma_from_pol(gal, pol)
+    return np.arctan2(sing, cosg)
 def get_psi(gal, pol, band_labels):
     psi = []
     for band in range(len(band_labels)):
@@ -870,15 +1042,13 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
 
 
     # From Jarosik et al. 2003, Figure 3.
+    # Get the alphas and fknees from the mean of each of the Commander runs
     alpha = -1
 
     nside = 512
-    ntodsigma = 100
     npsi = 2048
     psiBins = np.linspace(0, 2*np.pi, npsi)
     fsamp = 1/1.536 # A single TOD record contains 30 1.536 second major science frames
-    chunk_size = 1875
-    nsamp = chunk_size*fsamp
     n_per_day = 1
 
 
@@ -919,10 +1089,10 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
 
         TODs = []
         for index, key in enumerate(band_labels):
-            TOD = data[2].data[key]
-            tod = np.zeros(TOD.size)
-            for n in range(len(TOD[0])):
-                tod[n::len(TOD[0])] = TOD[:,n]
+            tod = data[2].data[key].flatten()
+            #tod = np.zeros(TOD.size)
+            #for n in range(len(TOD[0])):
+            #    tod[n::len(TOD[0])] = TOD[:,n]
             TODs.append(tod)
             if len(TODs_all[index]) == 0:
               TODs_all[index] = tod
@@ -997,6 +1167,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
             pix_A_all[b] = np.concatenate((pix_A_all[b], pix_A[b]))
             pix_B_all[b] = np.concatenate((pix_B_all[b], pix_B[b]))
 
+
     if simulate:
         #TODs_all[index] = np.concatenate((TODs_all[index], tod))
         # Overwrite all bands with the simple dipole + CMB fluctuations
@@ -1012,25 +1183,424 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
             else:
                 TODs_all[b] = np.rint((T[pixA] - Q[pixA]*np.cos(2*psiA) - U[pixA]*np.sin(2*psiA)) \
                                     - (T[pixB] - Q[pixB]*np.cos(2*psiB) - U[pixB]*np.sin(2*psiB)))
-            
 
-    obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
-    obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
-    pos_all = np.array(pos_all)
-    vel_all = np.array(vel_all)
-    time_all = np.array(time_all)
-    for ind, band in enumerate(bands):
-        args = [(comm_tod, file_ind, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
-                band_labels, band, psi_A_all, psi_B_all, pix_A_all, pix_B_all, 
-                alpha, n_per_day, ntodsigma, npsi, psiBins, nside,
-                fsamp*Nobs_array[ind], pos_all, vel_all, time_all, version,
-                compress, precal) for i in range(len(obs_inds))]
-        for i in range(n_per_day):
-            write_file_parallel(*args[i])
+
+    for e in events:
+      if any(np.searchsorted(e, time) == 1):
+        print('Found jump at ', e, file_input)
+
+    #asdfsad
+    # Do we just have two obs_inds per file?
+    #obs_inds = np.arange(n_per_day) + n_per_day*file_ind + 1
+    #obsids = [str(obs_ind).zfill(6) for obs_ind in obs_inds]
+    #pos_all = np.array(pos_all)
+    #vel_all = np.array(vel_all)
+    #time_all = np.array(time_all)
+    #for ind, band in enumerate(bands):
+    #    args = [(comm_tod, i, obsids[i], obs_inds[i], flags_all, TODs_all, gain_guesses, baseline,
+    #            band_labels, band, psi_A_all, psi_B_all, pix_A_all, pix_B_all, 
+    #            alpha, n_per_day, npsi, psiBins, nside,
+    #            fsamp*Nobs_array[ind], pos_all, vel_all, time_all, version,
+    #            compress, precal) for i in range(len(obs_inds))]
+    #    for i in range(n_per_day):
+    #        write_file_parallel(*args[i])
 
 
 
     return
+
+def split_pow2(comm_tod, band='K1', band_ind=0,
+        par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
+        center=True, precal=False, simulate=False):
+    prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
+    if (precal):
+        files = glob(prefix + 'calibrated/*.fits')
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_precal/'
+    else:
+        files = glob(prefix + 'uncalibrated/*.fits')
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n/'
+    files.sort()
+
+    if (simulate):
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_sim/'
+        
+    gain_guesses0=np.array([ -0.9700,  0.9938,  1.1745, -1.1200, 
+                              0.8668, -0.8753, -1.0914,  1.0033, 
+                              1.0530, -0.9834,  0.4914, -0.5365, 
+                             -0.9882,  1.0173, -0.8135,  0.7896, 
+                              0.4896, -0.5380, -0.5840,  0.5840, 
+                             -0.4948,  0.4872,  0.4096, -0.3802, 
+                              0.3888, -0.4139,  0.3290, -0.3003, 
+                             -0.3587,  0.3701,  0.3655, -0.3666, 
+                             -0.3255,  0.3517, -0.3291,  0.3225, 
+                              0.2841, -0.2918,  0.3796, -0.3591 ])
+
+    print(band)
+    i = band_ind
+    labels = ['13', '14', '23', '24']
+    Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
+
+    npsi = 2048
+    psiBins = np.linspace(0, 2*np.pi, npsi)
+    fsamp = 1/1.536 
+    alpha = -1
+    obs_ind = 0
+    n_per_day = 1
+    band_labels = [f'{band}{labels[i]}' for i in range(4)]
+
+    #files = files[:10]
+    inds = np.arange(len(files))
+
+    N = 2**21
+    nside = 512
+
+    TOD_all = [[],[],[],[]]
+    time_all = []
+    pos_all = []
+    vel_all = []
+    TODs = [[],[],[],[]]
+    times = []
+    flags_all = []
+    psi_A_all = []
+    psi_B_all = []
+    pix_A_all = []
+    pix_B_all = []
+    plot = False
+    for f_ind, f in enumerate(files):
+        print(f_ind, band)
+        data = fits.open(f, memmap=False)
+        t2jd = data[1].header['time2jd']
+
+
+        pos = data[1].data['POSITION']*1e3
+        vel = data[1].data['VELOCITY']*1e3
+        vel = coord_trans(vel, 'C', 'G', lonlat=False)
+
+
+
+
+
+        genflags = data[2].data['genflags']*2**11
+        daflags = data[2].data['daflags']
+        daflags = get_flags(data, center=center, bands=np.array([i]))
+        daflags = np.array(daflags).flatten()
+        Nobs = Nobs_array[i]
+        for j in range(Nobs):
+            daflags[j::Nobs] += genflags
+
+
+
+
+        quat = data[1].data['QUATERN']
+        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center,
+            Nobs_array=[Nobs])
+        psi_A = get_psi_band(gal_A[0], pol_A[0])
+        psi_B = get_psi_band(gal_B[0], pol_B[0])
+
+        args_A = (nside, gal_A[0][:,0], gal_A[0][:,1])
+        args_B = (nside, gal_B[0][:,0], gal_B[0][:,1])
+        pix_A = ang2pix_multiprocessing(*args_A)
+        pix_B = ang2pix_multiprocessing(*args_B)
+
+
+
+
+        if len(TODs[0]) == 0:
+            for n, lab in enumerate(labels):
+               TODs[n] = data[2].data[f'{band}{lab}'].flatten()
+
+            times = data[2].data['TIME'] + t2jd - 2_400_000.5
+            dt = np.diff(times)[0]*len(times)/len(TODs[0])
+            times = np.arange(times[0], times[0] + len(TODs[0])*dt, dt)
+
+            t_lores = data[1].data['time']
+            t_hires = times - t2jd + 2_400_000.5
+
+            pos_arr = np.array([interp1d(t_lores, pos[:,i], fill_value='extrapolate')(t_hires) 
+              for i in range(3)])
+            vel_arr = np.array([interp1d(t_lores, vel[:,i], fill_value='extrapolate')(t_hires) 
+              for i in range(3)])
+
+
+            pos_arr   = pos_arr.T
+            vel_arr   = vel_arr.T
+            pix_A_arr = pix_A
+            pix_B_arr = pix_B
+            psi_A_arr = psi_A
+            psi_B_arr = psi_B
+            flags_arr = daflags
+        else:
+            for n, lab in enumerate(labels):
+               TODs_ = data[2].data[f'{band}{lab}'].flatten()
+               TODs[n] = np.concatenate((TODs[n], TODs_))
+            times_ = data[2].data['TIME'] + t2jd - 2_400_000.5
+
+            dt = np.diff(times_)[0]*len(times_)/len(TODs_)
+            times_ = np.arange(times_[0], times_[0] + len(TODs_)*dt, dt)
+            times = np.concatenate((times, times_))
+
+            t_lores = data[1].data['time']
+            t_hires = times_ - t2jd + 2_400_000.5
+
+            pos_ = np.array([interp1d(t_lores, pos[:,i], fill_value='extrapolate')(t_hires) 
+              for i in range(3)]).T
+            vel_ = np.array([interp1d(t_lores, vel[:,i], fill_value='extrapolate')(t_hires) 
+              for i in range(3)]).T
+
+
+            pos_arr = np.concatenate((pos_arr, pos_))
+            vel_arr = np.concatenate((vel_arr, vel_))
+            pix_A_arr = np.concatenate((pix_A_arr, pix_A))
+            pix_B_arr = np.concatenate((pix_B_arr, pix_B))
+            psi_A_arr = np.concatenate((psi_A_arr, psi_A))
+            psi_B_arr = np.concatenate((psi_B_arr, psi_B))
+            flags_arr = np.concatenate((flags_arr, daflags))
+
+
+        for e in events:
+          if any(np.searchsorted(e, times) == 1):
+            i0, i1 = np.searchsorted(times, e)
+            TODs_old = [[],[],[],[]]
+            TODs_ev  = [[],[],[],[]]
+            if (i1 < len(times)) & (i0 > 0):
+              times_old = times[:i0]
+              for n in range(4):
+                  TODs_old[n] = TODs[n][:i0]
+              pos_old =     pos_arr[:i0]
+              vel_old =     vel_arr[:i0]
+              pix_A_old = pix_A_arr[:i0]
+              pix_B_old = pix_B_arr[:i0]
+              psi_A_old = psi_A_arr[:i0]
+              psi_B_old = psi_B_arr[:i0]
+              flags_old = flags_arr[:i0]
+              if len(times_old) >= N:
+                time_all.append(times_old[:N])
+                for n in range(4):
+                    TOD_all[n].append(TODs_old[n][:N])
+                pos_all.append(    pos_old[0])
+                vel_all.append(    vel_old[0])
+                pix_A_all.append(pix_A_old[:N])
+                pix_B_all.append(pix_B_old[:N])
+                psi_A_all.append(psi_A_old[:N])
+                psi_B_all.append(psi_B_old[:N])
+                flags_all.append(flags_old[:N])
+
+                times_old = times_old[N:]
+                for n in range(4):
+                    TODs_old[n] = TODs_old[n][N:]
+                pos_old =     pos_old[N:]
+                vel_old =     vel_old[N:]
+                pix_A_old = pix_A_old[N:]
+                pix_B_old = pix_B_old[N:]
+                psi_A_old = psi_A_old[N:]
+                psi_B_old = psi_B_old[N:]
+                flags_old = flags_old[N:]
+
+              N0 = min(20, int(np.log2(len(TODs_old[-1]))))
+              while ((len(TODs_old[-1]) > 2**19)
+                  and (not np.log2(len(TODs_old[-1])).is_integer())):
+                time_all.append(times_old[:2**N0])
+                for n in range(4):
+                    TOD_all[n].append(TODs_old[n][:2**N0])
+                pos_all.append(    pos_old[0])
+                vel_all.append(    vel_old[0])
+                pix_A_all.append(pix_A_old[:2**N0])
+                pix_B_all.append(pix_B_old[:2**N0])
+                psi_A_all.append(psi_A_old[:2**N0])
+                psi_B_all.append(psi_B_old[:2**N0])
+                flags_all.append(flags_old[:2**N0])
+
+                times_old = times_old[2**N0:]
+                pos_old =     pos_old[2**N0:]
+                vel_old =     vel_old[2**N0:]
+                pix_A_old = pix_A_old[2**N0:]
+                pix_B_old = pix_B_old[2**N0:]
+                psi_A_old = psi_A_old[2**N0:]
+                psi_B_old = psi_B_old[2**N0:]
+                flags_old = flags_old[2**N0:]
+                for n in range(4):
+                    TODs_old[n] = TODs_old[n][2**N0:]
+
+                N0 -= 1
+
+
+              times_ev = times[i0:i1]
+              for n in range(4):
+                  TODs_ev[n] = TODs[n][i0:i1]
+              pos_ev =     pos_arr[i0:i1]
+              vel_ev =     vel_arr[i0:i1]
+              pix_A_ev = pix_A_arr[i0:i1]
+              pix_B_ev = pix_B_arr[i0:i1]
+              psi_A_ev = psi_A_arr[i0:i1]
+              psi_B_ev = psi_B_arr[i0:i1]
+              flags_ev = flags_arr[i0:i1]
+
+              times = times[i1:]
+              for n in range(4):
+                  TODs[n] = TODs[n][i1:]
+              pos_arr =     pos_arr[i1:]
+              vel_arr =     vel_arr[i1:]
+              pix_A_arr = pix_A_arr[i1:]
+              pix_B_arr = pix_B_arr[i1:]
+              psi_A_arr = psi_A_arr[i1:]
+              psi_B_arr = psi_B_arr[i1:]
+              flags_arr = flags_arr[i1:]
+
+
+              time_all.append(times_old)
+              for n in range(4):
+                  TOD_all[n].append(TODs_old[n])
+              pos_all.append(pos_old[0])
+              vel_all.append(vel_old[0])
+              pix_A_all.append(pix_A_old)
+              pix_B_all.append(pix_B_old)
+              psi_A_all.append(psi_A_old)
+              psi_B_all.append(psi_B_old)
+              flags_all.append(flags_old)
+
+              time_all.append(times_ev)
+              for n in range(4):
+                  TOD_all[n].append(TODs_ev[n])
+              pos_all.append(pos_ev[0])
+              vel_all.append(vel_ev[0])
+              pix_A_all.append(pix_A_ev)
+              pix_B_all.append(pix_B_ev)
+              psi_A_all.append(psi_A_ev)
+              psi_B_all.append(psi_B_ev)
+              flags_all.append(flags_ev)
+            elif (i0 > 0):
+              times_old = times[:i0]
+              for n in range(4):
+                  TODs_old[n] = TODs[n][:i0]
+              pos_old =     pos_arr[:i0]
+              vel_old =     vel_arr[:i0]
+              pix_A_old = pix_A_arr[:i0]
+              pix_B_old = pix_B_arr[:i0]
+              psi_A_old = psi_A_arr[:i0]
+              psi_B_old = psi_B_arr[:i0]
+              flags_old = flags_arr[:i0]
+
+              time_all.append(times_old)
+              for n in range(4):
+                  TOD_all[n].append(TODs_old[n])
+              pos_all.append(pos_old[0])
+              vel_all.append(vel_old[0])
+              pix_A_all.append(pix_A_old)
+              pix_B_all.append(pix_B_old)
+              psi_A_all.append(psi_A_old)
+              psi_B_all.append(psi_B_old)
+              flags_all.append(flags_old)
+
+              times = times[i1:]
+              for n in range(4):
+                  TODs[n] = TODs[n][i1:]
+              pos_arr =     pos_arr[i1:]
+              vel_arr =     vel_arr[i1:]
+              pix_A_arr = pix_A_arr[i1:]
+              pix_B_arr = pix_B_arr[i1:]
+              psi_A_arr = psi_A_arr[i1:]
+              psi_B_arr = psi_B_arr[i1:]
+              flags_arr = flags_arr[i1:]
+            break
+
+
+        TODs_old = [[],[],[],[]]
+        if len(TODs[0]) >= N:
+          times_old = times[:N]
+          for n in range(4):
+              TODs_old[n] = TODs[n][:N]
+          pos_old =     pos_arr[:N]
+          vel_old =     vel_arr[:N]
+          pix_A_old = pix_A_arr[:N]
+          pix_B_old = pix_B_arr[:N]
+          psi_A_old = psi_A_arr[:N]
+          psi_B_old = psi_B_arr[:N]
+          flags_old = flags_arr[:N]
+
+          times = times[N:]
+          for n in range(4):
+              TODs[n] = TODs[n][N:]
+          pos_arr   =   pos_arr[N:]
+          vel_arr   =   vel_arr[N:]
+          pix_A_arr = pix_A_arr[N:]
+          pix_B_arr = pix_B_arr[N:]
+          psi_A_arr = psi_A_arr[N:]
+          psi_B_arr = psi_B_arr[N:]
+          flags_arr = flags_arr[N:]
+
+          time_all.append(times_old)
+          for n in range(4):
+              TOD_all[n].append(TODs_old[n])
+          pos_all.append(pos_old[0])
+          vel_all.append(vel_old[0])
+          pix_A_all.append(pix_A_old)
+          pix_B_all.append(pix_B_old)
+          psi_A_all.append(psi_A_old)
+          psi_B_all.append(psi_B_old)
+          flags_all.append(flags_old)
+        #if (times[-1] > 52140) and plot:
+        #  fig, axes = plt.subplots(nrows=4, sharex=True)
+        #  for n in range(4):
+        #      for k in range(len(TOD_all[0])):
+        #        axes[n].plot(time_all[k], TOD_all[n][k])
+        #  plt.savefig(f'{band}.png')
+        #  #plt.show()
+        #  for k in range(len(TOD_all[0])):
+        #    plt.plot(time_all[k], psi_A_all[k])
+        #  #plt.show()
+        #  plot = False
+        #  plt.close('all')
+        #  break
+
+
+        if (len(time_all) > 0) & ((len(time_all) % 5) == 0):
+            for ii in range(len(time_all)):
+              TOD_in = np.array([TOD_all[n][ii] for n in range(4)])
+              obs_ind += 1
+              obsid = str(obs_ind).zfill(6)
+              write_file_serial(comm_tod, ii, obsid, obs_ind, flags_all[ii],
+                  TOD_in, gain_guesses0, band_labels, band, psi_A_all[ii], psi_B_all[ii],
+                  pix_A_all[ii], pix_B_all[ii], alpha, n_per_day, npsi, psiBins, nside,
+                  fsamp*Nobs, pos_all[ii], vel_all[ii], time_all[ii], version, Nobs, compress=compress,
+                  precal=precal)
+              #print(f'   {ii} of {band}')
+
+            TOD_all = [[],[],[],[]]
+            time_all = []
+            pos_all = []
+            vel_all = []
+            flags_all = []
+            psi_A_all = []
+            psi_B_all = []
+            pix_A_all = []
+            pix_B_all = []
+
+    time_all.append(times)
+    for n in range(4):
+        TOD_all[n].append(TODs[n])
+    pos_all.append(pos_arr[0])
+    vel_all.append(vel_arr[0])
+    pix_A_all.append(pix_A_arr)
+    pix_B_all.append(pix_B_arr)
+    psi_A_all.append(psi_A_arr)
+    psi_B_all.append(psi_B_arr)
+    flags_all.append(flags_arr)
+
+    print(f"On {band}'s final iteration")
+
+    for ii in range(len(time_all)):
+      TOD_in = np.array([TOD_all[n][ii] for n in range(4)])
+      obs_ind += 1
+      obsid = str(obs_ind).zfill(6)
+      write_file_serial(comm_tod, ii, obsid, obs_ind, flags_all[ii],
+          TOD_in, gain_guesses0, band_labels, band, psi_A_all[ii], psi_B_all[ii],
+          pix_A_all[ii], pix_B_all[ii], alpha, n_per_day, npsi, psiBins, nside,
+          fsamp*Nobs, pos_all[ii], vel_all[ii], time_all[ii], version, Nobs, compress=compress,
+          precal=precal)
+      #print(f'   {ii} of {band}')
+    print(f'finished {band}')
+
+
 
 def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         center=True, precal=False, simulate=False):
@@ -1042,7 +1612,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_precal/'
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
-        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n/'
     files.sort()
 
     if (simulate):
@@ -1065,7 +1635,9 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
     #inds = inds[3*len(files)//4:]
     #files = np.array(files)[3*len(files)//4:]
 
-    files = np.array_split(np.array(files), 3280//7)
+    #files = np.array_split(np.array(files), 3280//7)
+    files = np.array_split(np.array(files), 3280//3)
+    #files = np.array_split(np.array(files), 3280)
     inds = np.arange(len(files))
 
 
@@ -1080,8 +1652,11 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
 
     if par:
         nprocs = 128
-        nprocs = 72
-        #nprocs = 64
+        #nprocs = 72
+        nprocs = 64
+        nprocs = 47
+        #nprocs = 32
+        #nprocs = 2
         os.environ['OMP_NUM_THREADS'] = '1'
 
 
@@ -1098,10 +1673,31 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         comm_tod.make_filelists()
     else:
         for i, f in zip(inds, files):
-            fits_to_h5(comm_tod, f,i,compress, plot, version, center)
+            fits_to_h5(comm_tod, f,i,compress, plot, version, center, precal,
+                simulate)
 
+def main2():
+    manager = mp.Manager()
+    dicts = {'K1':manager.dict(), 'Ka1':manager.dict(), 'Q1':manager.dict(),
+             'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
+             'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
+             'W4':manager.dict(),}
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n/'
+    version = 50
+    comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
+        overwrite=True)
+    bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
+    pool = Pool(processes=10)
+    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind])
+           for ind, band in enumerate(bands)]
+    for i in tqdm(range(len(x)), smoothing=0):
+        x[i].get()
+        #res.wait()
+    pool.close()
+    pool.join()
+    comm_tod.make_filelists()
 
 if __name__ == '__main__':
-    #main(version=49, precal=False, compress=True, center=True)
-    main(version=49, precal=True, compress=True, center=True, simulate=False)
-    #test_flags()
+    #main(version=49, precal=False, compress=True, center=True, par=False)
+    #main(version=49, precal=True, compress=True, center=True, simulate=False)
+    main2()
