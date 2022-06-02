@@ -39,8 +39,6 @@ def dot_prod(b_map, pixA, pixB, res_A, res_B, psiA, psiB, flags, npnt,
     d1 = (1+x1)*res_A - (1-x1)*res_B
     d2 = (1+x2)*res_A - (1-x2)*res_B
 
-    # Trying to induce a 5% relative gain error
-    d1 *= 1.05
 
     d = 0.5*(d1+d2)
     p = 0.5*(d1-d2)
