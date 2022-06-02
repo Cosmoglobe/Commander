@@ -1394,13 +1394,16 @@ contains
     character(len=6)   :: itext
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
+    real(dp), allocatable, dimension(:)     :: mjds
 
     npar = 3+self%n_xi
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
     allocate(output(self%nscan_tot,self%ndet,npar))
+    allocate(  mjds(self%nscan_tot))
 
     ! Collect all parameters
     output = 0.d0
+    mjds   = 0.d0
     do j = 1, self%ndet
        do i = 1, self%nscan
           k                         = self%scanid(i)
@@ -1411,14 +1414,21 @@ contains
           if (self%baseline_order >= 0) then
              output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
           end if
+          if (j == 1) then
+             mjds(k)                = self%scans(i)%t0(1)
+          end if
        end do
     end do
 
     if (self%myid == 0) then
        call mpi_reduce(mpi_in_place, output, size(output), &
             & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call mpi_reduce(mpi_in_place, mjds, size(mjds), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
     else
        call mpi_reduce(output,       output, size(output), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call mpi_reduce(mjds,         mjds,   size(mjds), &
             & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
     end if
 
@@ -1467,6 +1477,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
        call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:3+self%n_xi))
+       call write_hdf(chainfile, trim(adjustl(path))//'MJD',    mjds)
        if (self%baseline_order >= 0) call write_hdf(chainfile, trim(adjustl(path))//'baseline',   output(:,:,4+self%n_xi:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
@@ -1485,7 +1496,7 @@ contains
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
 
-    deallocate(output)
+    deallocate(output, mjds)
 
   end subroutine dumpToHDF
 
