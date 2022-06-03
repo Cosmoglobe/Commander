@@ -254,4 +254,6 @@ target_link_libraries(${commander3}
 
 # Installing Commander3 into appropriate folder
 #install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${commander3} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${commander3} 
+  DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+  )

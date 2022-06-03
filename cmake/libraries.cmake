@@ -120,6 +120,10 @@ if(USE_SYSTEM_LIBS)
 	#------------------------------------------------------------------------------
 	# Performing search for BLAS and LAPACK
 	#------------------------------------------------------------------------------
+  # From docs: Note C, CXX or Fortran must be enabled to detect a BLAS/LAPACK 
+  # library. C or CXX must be enabled to use Intel Math Kernel Library (MKL).
+  # Note: Because native (shipped with Linux) BLAS/LAPACK implementations are not 
+  # optimized, we require usage of AOCL, MKL or OpenBLAS. 
 	if(USE_SYSTEM_BLAS)
     if(COMM3_BACKEND MATCHES "any")
 
@@ -129,7 +133,17 @@ if(USE_SYSTEM_LIBS)
         message(STATUS "Looking for MKL...")
         # Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
         # for some weird reason. In this case it is a good idea to logout and login
-        # to refresh terminal.
+        # to refresh terminal. In addition, defining two variables, since it may also
+        # affect finding MKL on some systems (sometimes it just ignores BLA_VENDOR & 
+        # sometimes it needs $ENV{BLA_VENDOR} for MKL)
+        set(BLA_VENDOR
+            Intel10_32
+            Intel10_64lp 
+            Intel10_64lp_seq
+            Intel10_64ilp
+            Intel10_64ilp_seq
+            Intel10_64_dyn
+          )
         set($ENV{BLA_VENDOR}
             Intel10_32
             Intel10_64lp 
@@ -188,6 +202,14 @@ if(USE_SYSTEM_LIBS)
 
     elseif(COMM3_BACKEND MATCHES "mkl")
       message(STATUS "Looking for MKL...")
+      set(BLA_VENDOR
+          Intel10_32
+          Intel10_64lp 
+          Intel10_64lp_seq
+          Intel10_64ilp
+          Intel10_64ilp_seq
+          Intel10_64_dyn
+        )
       set($ENV{BLA_VENDOR}
           Intel10_32
           Intel10_64lp 
@@ -199,11 +221,16 @@ if(USE_SYSTEM_LIBS)
       find_package(BLAS)
       find_package(LAPACK)
       if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-        message(STATUS "MKL is not found => will compile OpenBLAS & FFTW3 instead")
-        # TODO:
-        # Figure out whether the search for OpenBLAS needs to be performed here 
-        # before defining this variable
-        set(COMPILE_OPENBLAS TRUE)
+        message(STATUS "MKL is not found => looking for OpenBLAS instead")#& FFTW3 instead")
+        set(BLA_VENDOR
+            OpenBLAS
+          )
+        find_package(BLAS)
+        find_package(LAPACK)
+        if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          message(STATUS "OpenBLAS is not found => will compile it from source")
+          set(COMPILE_OPENBLAS TRUE)
+        endif()
       endif()
     
     elseif(COMM3_BACKEND MATCHES "opensrc")
@@ -214,6 +241,7 @@ if(USE_SYSTEM_LIBS)
       find_package(BLAS)
       find_package(LAPACK)
       if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+        message(STATUS "OpenBLAS is not found => will compile it from source")
         set(COMPILE_OPENBLAS TRUE)
       endif()
     else()

@@ -94,7 +94,8 @@ set(CFITSIO_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio")
 set(HEALPIX_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/healpix")
 set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
 set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
-set(BLAS_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/blas")
+set(OPENBLAS_SOURCE_DIR	  "${CMAKE_DOWNLOAD_DIRECTORY}/openblas")
+set(BLIS_SOURCE_DIR	      "${CMAKE_DOWNLOAD_DIRECTORY}/blis")
 #------------------------------------------------------------------------------
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
@@ -110,7 +111,7 @@ option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
 # FFTW
 option(USE_SYSTEM_FFTW    "Enables search for FFTW on the system."        ON) #OFF)
 option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"          OFF)
-option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         ON)
+option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         OFF)
 option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"          OFF)
 option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"         OFF)
 # HDF5

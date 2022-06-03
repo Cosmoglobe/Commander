@@ -96,7 +96,7 @@ if(COMPILE_LIBAEC)
 				-DCMAKE_INSTALL_INCLUDEDIR:PATH=include
 				# Specifying compilers
 				-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-				# Building only shared libraries
+				# Building both static and shared libraries
 				${_bool_val_}
 			)
 	endforeach()
@@ -133,7 +133,7 @@ if(COMPILE_LIBAEC)
 	#message(STATUS "LIBAEC INCLUDE DIRS will be: ${LIBAEC_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
-	add_custom_target(${project} ALL "")
+	add_custom_target(libaec ALL "")
 	#------------------------------------------------------------------------------
 	#message(STATUS "LIBAEC LIBRARIES are: ${LIBAEC_LIBRARIES}")
 	#message(STATUS "LIBAEC INCLUDE DIRS are: ${LIBAEC_INCLUDE_DIRS}")

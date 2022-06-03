@@ -76,9 +76,9 @@ set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
 #set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
-set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
+set(openblas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
 #set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
-set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
+set(openblas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
@@ -86,6 +86,12 @@ set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 set(fftw_url "http://fftw.org/fftw-3.3.9.tar.gz")
 #set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
+#------------------------------------------------------------------------------
+# AOCL -  Open Source Implementation of BLAS, LAPACK & FFTW from AMD
+#------------------------------------------------------------------------------
+# v3.1
+set(blis_git_url "https://github.com/amd/blis.git")
+set(blis_git_tag "3aa004442781d703c46b39cb0b9c166451f55902")
 #------------------------------------------------------------------------------
 # HDF5
 #------------------------------------------------------------------------------
