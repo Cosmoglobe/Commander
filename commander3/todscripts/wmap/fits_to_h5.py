@@ -48,6 +48,18 @@ from astropy.time import Time
 from datetime import datetime
 from get_gain_model import get_gain
 
+all_band_labels = np.array([
+  'K113', 'K114', 'K123', 'K124',
+  'Ka113', 'Ka114', 'Ka123', 'Ka124',
+  'Q113', 'Q114', 'Q123', 'Q124',
+  'Q213', 'Q214', 'Q223', 'Q224',
+  'V113', 'V114', 'V123', 'V124',
+  'V213', 'V214', 'V223', 'V224',
+  'W113', 'W114', 'W123', 'W124',
+  'W213', 'W214', 'W223', 'W224',
+  'W313', 'W314', 'W323', 'W324',
+  'W413', 'W414', 'W423', 'W424'])
+
 
 Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
 fknees = np.array([0.7,  0.5, 1.2, 0.6,
@@ -595,7 +607,7 @@ def write_file_serial(comm_tod, i, obsid, obs_ind, daflags, TODs, gain_guesses,
     for j in range(len(labels)):
         label = labels[j]
         todi = TODs[j]
-        gain = gain_guesses[j]
+        gain = gain_guesses[label == all_band_labels][0]
         if gain < 0:
           todi = -todi
           gain = -gain
@@ -1267,7 +1279,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
     pix_B_all = []
     plot = False
     for f_ind, f in enumerate(files):
-        print(f_ind, band)
         data = fits.open(f, memmap=False)
         t2jd = data[1].header['time2jd']
 
@@ -1554,6 +1565,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
 
 
         if (len(time_all) > 0) & ((len(time_all) % 5) == 0):
+            print(f_ind, band)
             for ii in range(len(time_all)):
               TOD_in = np.array([TOD_all[n][ii] for n in range(4)])
               obs_ind += 1
