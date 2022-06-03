@@ -809,26 +809,35 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, ierr, ntod, lpix, rpix, q, nhorn
-      real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi, dx, xbar, x_pl, x_mi
-      real(dp), allocatable, dimension(:)   :: wl, wr
+      integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn
+      real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
+      real(dp)     :: dx, xbar, x_pos, x_neg, fA, fB, mA, mB
+      real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
+      integer(sp),  allocatable, dimension(:)         :: pmask
+      integer(dp),  allocatable, dimension(:, :)      :: m_buf
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+      type(hdf_file) :: precond_file
 
       call update_status(status, "M_lowres")
+      if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
       self%nside_M_lowres = 8
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn
+      npix_hi             = 12  * self%info%nside**2
+
+      !allocate( pmask(0:npix_hi-1), m_buf(0:npix_hi-1, self%nmaps_M_lowres))
+      !call self%procmask%bcast_fullsky_map(m_buf);  pmask  = m_buf(:,1)
 
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
       xbar = (self%x_im(1) + self%x_im(3))*0.5
-      x_pl = dx + xbar + 1
-      x_mi = dx + xbar - 1
+      x_pos = 1 + xbar
+      x_neg = 1 - xbar
 
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
@@ -836,13 +845,17 @@ contains
       do i = 0, 12*self%info%nside**2-1
          call ring2nest(self%info%nside, i, j)
          j = j/q
-         call ring2nest(self%nside_M_lowres, j, dgrade(i))
+         call nest2ring(self%nside_M_lowres, j, dgrade(i))
       end do
 
       ! Allocate local coupling matrix
-      allocate(M(0:ntot-1,0:ntot-1), wl(self%nmaps_M_lowres), wr(self%nmaps_M_lowres))
+      allocate(M(0:ntot-1,0:ntot-1), dl(self%nmaps_M_lowres), dr(self%nmaps_M_lowres))
+      allocate(pl(self%nmaps_M_lowres), pr(self%nmaps_M_lowres))
       M = 0.d0
 
+      inv_sigma = 1
+      fA = 1
+      fB = 1
       ! Loop over scans
       do i = 1, self%nscan
          ! Skip scan if no accepted data
@@ -858,31 +871,64 @@ contains
          do k = 1, 4
             var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/4
          end do
-         inv_sigma = sqrt(1.d0/var)
+         ! TODO
+         !inv_sigma = sqrt(1.d0/var)
 
          do t = 1, ntod
             if (iand(flag(t),self%flag0) .ne. 0) cycle
             lpix = dgrade(pix(t, 1))
             rpix = dgrade(pix(t, 2))
 
-            wl(1) = inv_sigma
-            wl(2) = inv_sigma * self%cos2psi(psi(t,1))
-            wl(3) = inv_sigma * self%sin2psi(psi(t,1))
-            wl    = wl * x_pl
+            !mA = pmask(pix(t,1))
+            !mB = pmask(pix(t,2))
 
-            wr(1) = inv_sigma
-            wr(2) = inv_sigma * self%cos2psi(psi(t,2))
-            wr(3) = inv_sigma * self%sin2psi(psi(t,2))
-            wr    = wr * x_mi
+            ! Asymmetric masking; if pixel A is hot and B isn't, then mask pixel
+            ! B, and vice versa;
+            !if (mA == 0 .and. mB == 1) then
+            !    fA = 1
+            !    fB = 0  
+            !else if (mA == 1 .and. mB == 0) then
+            !    fB = 0
+            !    fA = 1
+            !else
+            !    fA = 1
+            !    fB = 1
+            !end if 
+
+            dl(1) = x_pos
+            dl(2) = dx * self%cos2psi(psi(t,1))
+            dl(3) = dx * self%sin2psi(psi(t,1))
+            dl    = dl * inv_sigma * fA
+
+            dr(1) = x_neg
+            dr(2) = -dx * self%cos2psi(psi(t,2))
+            dr(3) = -dx * self%sin2psi(psi(t,2))
+            dr    = dr * inv_sigma * fB
+
+
+            pl(1) = dx
+            pl(2) = x_pos * self%cos2psi(psi(t,1))
+            pl(3) = x_pos * self%sin2psi(psi(t,1))
+            pl    = pl * inv_sigma * fA
+
+            pr(1) = -dx
+            pr(2) = x_neg * self%cos2psi(psi(t,2))
+            pr(3) = x_neg * self%sin2psi(psi(t,2))
+            pr    = pr * inv_sigma * fB
 
             do k1 = 1, self%nmaps_M_lowres
                p1 = (k1-1)*npix + lpix
                do k2 = 1, self%nmaps_M_lowres
                   p2 = (k2-1)*npix + rpix
-                  M(p1,p1) = M(p1,p1) + wl(k1) * wl(k1) 
-                  M(p1,p2) = M(p1,p2) + wl(k1) * wr(k2)
-                  M(p2,p1) = M(p2,p1) + wr(k2) * wl(k1)
-                  M(p2,p2) = M(p2,p2) + wr(k2) * wr(k2)
+                  M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
+                  M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
+                  M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
+                  M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
+
+                  M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
+                  M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
+                  M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
+                  M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
                end do
             end do
 
@@ -895,12 +941,19 @@ contains
       if (self%myid == 0) then
          allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
+
+         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+         call write_hdf(precond_file, '/M', self%M_lowres)
+         call close_hdf_file(precond_file)
+
          call invert_matrix(self%M_lowres)
       else
          call mpi_reduce(M, M,             size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
       end if
 
-      deallocate(M, dgrade, wl, wr)
+      deallocate(M, dgrade, dl, dr, pl, pr)
+      !deallocate(pmask, m_buf)
+
 
       call update_status(status, "M_lowres_done")
 
@@ -921,41 +974,41 @@ contains
        map_out =  map/self%M_diag
     else
 
-!!$       npix_lowres = 12*self%nside_M_lowres**2
-!!$       nmaps       = self%nmaps_M_lowres
-!!$
-!!$       ! Apply lowres preconditioner
-!!$       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
-!!$       do i = 1, nmaps
-!!$          m = map(:,i)
-!!$          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
-!!$          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
-!!$       end do
-!!$       m_lin = matmul(self%M_lowres, m_lin)
+       npix_lowres = 12*self%nside_M_lowres**2
+       nmaps       = self%nmaps_M_lowres
+
+       ! Apply lowres preconditioner
+       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+       do i = 1, nmaps
+          m = map(:,i)
+          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
+       end do
+       m_lin = matmul(self%M_lowres, m_lin)
        
-       ! Apply highres preconditioner to residual
-       map_out = map !- map_out
-       do i = 0, size(map,1)-1
-          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+!       ! Apply highres preconditioner to residual
+!       map_out = map !- map_out
+!       do i = 0, size(map,1)-1
+!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+!       end do
+
+       do i = 1, nmaps
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+          map_out(:,i) = map_out(:,i) + m
        end do
 
-!!$       do i = 1, nmaps
-!!$          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
-!!$          map_out(:,i) = map_out(:,i) + m
-!!$       end do
-!!$
-!!$       deallocate(m, m_lin)
+       deallocate(m, m_lin)
        
 
-       do i = 0, size(map,1)-1
-          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
-       end do
+!       do i = 0, size(map,1)-1
+!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+!       end do
     end if
 
   end subroutine apply_wmap_precond
