@@ -108,6 +108,10 @@ contains
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
       logical(lgt) :: pol_beam
 
+      integer(dp),  allocatable, dimension(:, :)      :: m_buf
+
+
+
       call timer%start(TOD_INIT, id_abs)
 
       ! Initialize common parameters
@@ -275,6 +279,7 @@ contains
 
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
+
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -815,10 +820,12 @@ contains
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
-      integer(sp),  allocatable, dimension(:)         :: pmask
+      integer(sp),  allocatable, dimension(:)         :: procmask
       integer(dp),  allocatable, dimension(:, :)      :: m_buf
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       type(hdf_file) :: precond_file
+
+
 
       call update_status(status, "M_lowres")
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
@@ -829,9 +836,10 @@ contains
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn
       npix_hi             = 12  * self%info%nside**2
-
-      !allocate( pmask(0:npix_hi-1), m_buf(0:npix_hi-1, self%nmaps_M_lowres))
-      !call self%procmask%bcast_fullsky_map(m_buf);  pmask  = m_buf(:,1)
+    
+      !   allocate(m_buf(0:npix_hi-1,3), procmask(0:npix_hi-1))
+      !   call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
+      !   deallocate(m_buf)
 
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
@@ -895,25 +903,25 @@ contains
             !    fB = 1
             !end if 
 
-            dl(1) = x_pos
+            dl(1) = 1+xbar
             dl(2) = dx * self%cos2psi(psi(t,1))
             dl(3) = dx * self%sin2psi(psi(t,1))
             dl    = dl * inv_sigma * fA
 
-            dr(1) = x_neg
+            dr(1) = 1-xbar
             dr(2) = -dx * self%cos2psi(psi(t,2))
             dr(3) = -dx * self%sin2psi(psi(t,2))
             dr    = dr * inv_sigma * fB
 
 
             pl(1) = dx
-            pl(2) = x_pos * self%cos2psi(psi(t,1))
-            pl(3) = x_pos * self%sin2psi(psi(t,1))
+            pl(2) = (1+xbar) * self%cos2psi(psi(t,1))
+            pl(3) = (1+xbar) * self%sin2psi(psi(t,1))
             pl    = pl * inv_sigma * fA
 
             pr(1) = -dx
-            pr(2) = x_neg * self%cos2psi(psi(t,2))
-            pr(3) = x_neg * self%sin2psi(psi(t,2))
+            pr(2) = (1-xbar) * self%cos2psi(psi(t,2))
+            pr(3) = (1-xbar) * self%sin2psi(psi(t,2))
             pr    = pr * inv_sigma * fB
 
             do k1 = 1, self%nmaps_M_lowres
@@ -974,41 +982,43 @@ contains
        map_out =  map/self%M_diag
     else
 
-       npix_lowres = 12*self%nside_M_lowres**2
-       nmaps       = self%nmaps_M_lowres
-
-       ! Apply lowres preconditioner
-       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
-       do i = 1, nmaps
-          m = map(:,i)
-          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
-          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
-       end do
-       m_lin = matmul(self%M_lowres, m_lin)
-       
-!       ! Apply highres preconditioner to residual
-!       map_out = map !- map_out
-!       do i = 0, size(map,1)-1
-!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-!          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
-!          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
-!          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+!       map_out = 0d0
+!
+!       npix_lowres = 12*self%nside_M_lowres**2
+!       nmaps       = self%nmaps_M_lowres
+!
+!       ! Apply lowres preconditioner
+!       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+!       do i = 1, nmaps
+!          m = map(:,i)
+!          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
 !       end do
-
-       do i = 1, nmaps
-          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
-          map_out(:,i) = map_out(:,i) + m
+!       m_lin = matmul(self%M_lowres, m_lin)
+       
+       ! Apply highres preconditioner to residual
+       map_out = map !- map_out
+       do i = 0, size(map,1)-1
+          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
        end do
 
-       deallocate(m, m_lin)
+!       do i = 1, nmaps
+!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+!          map_out(:,i) = map_out(:,i) + m
+!       end do
+!
+!       deallocate(m, m_lin)
        
 
-!       do i = 0, size(map,1)-1
-!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-!          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-!          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-!          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
-!       end do
+       do i = 0, size(map,1)-1
+          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+       end do
     end if
 
   end subroutine apply_wmap_precond
