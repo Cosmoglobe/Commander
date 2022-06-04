@@ -141,7 +141,7 @@ elseif(COMPILE_FLAME)
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
       SOURCE_DIR				"${BLIS_SOURCE_DIR}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
-      LOG_DOWNLOAD			OFF
+      LOG_DOWNLOAD			ON 
 			# commands how to build the project
 			CONFIGURE_COMMAND ""
 			BUILD_COMMAND			""
@@ -153,10 +153,89 @@ elseif(COMPILE_FLAME)
 			ALL ""
 			)
 	endif()
+	#------------------------------------------------------------------------------
+  # Getting FLAME from source
+	#------------------------------------------------------------------------------
+  if(NOT EXISTS "${FLAME_SOURCE_DIR}/CMakeLists.txt")
+    #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
+		ExternalProject_Add(
+			flame_src
+			DEPENDS						required_libraries
+      GIT_REPOSITORY		"${flame_git_url}"
+      GIT_TAG						"${flame_git_tag}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+      SOURCE_DIR				"${FLAME_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+      LOG_DOWNLOAD			OFF
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+    #message(STATUS "Found an existing BLAS sources inside:\n${BLIS_SOURCE_DIR}")
+		add_custom_target(flame_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+  # Compiling and Installing Static and Shared BLIS
+	#------------------------------------------------------------------------------
+  # Note: For BLIS configure to properly work it needs to find the 
+  # blis.pc.in file located inside the root directory. Therefore, 
+  # either the file should be copied to `${LIBS_BUILD_DIR}/src/blis-build` 
+  # or the `BINARY_DIR` should have the same value as `SOURCE_DIR`. The 
+  # latter, of course, undermines the purpose of `subbuilds` directory;
+  # thus, the `copy` command is added to the `configure`. For future
+  # references, the respective error is the following:
+  # `gmake[4]: *** No rule to make target 'blis.pc.in', needed by`
+	#------------------------------------------------------------------------------
+	list(APPEND 
+    blis_configure_command 
+    "${CMAKE_COMMAND}" "-E" "copy"
+    "${BLIS_SOURCE_DIR}/blis.pc.in"
+    "${LIBS_BUILD_DIR}/src/blis-build"
+    "&&"
+		"${CMAKE_COMMAND}" "-E" "env" 
+    "FC=${MPI_Fortran_COMPILER}" 
+		"CXX=${MPI_CXX_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CC=${MPI_C_COMPILER}" 
+		"MPICC=${MPI_C_COMPILER}" 
+		#"./configure" 
+    "${BLIS_SOURCE_DIR}/configure" 
+    "--prefix=<INSTALL_DIR>"
+    "auto"
+    #"--enable-static-build" 
+    #"--enable-dynamic-build" 
+    #"--enable-blas-ext-gemmt" 
+    #"--enable-optimizations" 
+    #"--enable-warnings" 
+    #"--enable-max-arg-list-hack" 
+    #"--enable-lapack2flame"
+    )
+	ExternalProject_Add(
+		blis      
+		DEPENDS						blis_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+    SOURCE_DIR				"${BLIS_SOURCE_DIR}"
+    #BINARY_DIR				"${BLIS_SOURCE_DIR}" 
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+    LOG_CONFIGURE			OFF
+    LOG_BUILD					OFF
+    LOG_INSTALL				OFF
+		# Disabling download
+		DOWNLOAD_COMMAND	""
+		# Commands to configure, build and install the project
+		CONFIGURE_COMMAND "${blis_configure_command}"
+		)
 
 	add_custom_target(blas 
 		ALL ""
-		DEPENDS blis_src 
+		DEPENDS blis
+            flame_src
 		)
 else()
 	# to avoid cmake errors we create and empty target

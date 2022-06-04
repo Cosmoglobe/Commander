@@ -96,6 +96,7 @@ set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
 set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
 set(OPENBLAS_SOURCE_DIR	  "${CMAKE_DOWNLOAD_DIRECTORY}/openblas")
 set(BLIS_SOURCE_DIR	      "${CMAKE_DOWNLOAD_DIRECTORY}/blis")
+set(FLAME_SOURCE_DIR	    "${CMAKE_DOWNLOAD_DIRECTORY}/flame")
 #------------------------------------------------------------------------------
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
