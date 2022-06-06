@@ -78,10 +78,15 @@ alphas = np.array([-0.8, -0.7, -1.0, -0.9,
 
 # All of the events listed in the explanatory supplement. Each is listed with a
 # "beginning" and an ending".
-data = np.loadtxt('events.txt', dtype=str)
+data = np.loadtxt('events2.txt', dtype=str, usecols=(0,1))
 t = Time(data)
 t.format = 'mjd'
 events = t.value
+events_flags = np.loadtxt('events2.txt', usecols=(2,3,4,5,6,7,8,9,10,11))
+print(events.shape)
+print(events_flags[0])
+print(events_flags[0].shape)
+print(events_flags.shape)
 
 
 # From Table 2 of Jarosik et al. 2003, "On-orbit radiometer
@@ -1230,7 +1235,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
         outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_precal/'
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
-        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n/'
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_temp/'
     files.sort()
 
     if (simulate):
@@ -1263,7 +1268,10 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
     #files = files[:10]
     inds = np.arange(len(files))
 
-    N = 2**21
+    if ('V' in band) or ('W' in band):
+      N = 2**22
+    else:
+      N = 2**21
     nside = 512
 
     TOD_all = [[],[],[],[]]
@@ -1368,8 +1376,9 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
             flags_arr = np.concatenate((flags_arr, daflags))
 
 
-        for e in events:
-          if any(np.searchsorted(e, times) == 1):
+        for e, ef in zip(events, events_flags):
+          if any(np.searchsorted(e, times) == 1) and (ef[i] == 1):
+            print(band, e, ef)
             i0, i1 = np.searchsorted(times, e)
             TODs_old = [[],[],[],[]]
             TODs_ev  = [[],[],[],[]]
@@ -1407,32 +1416,32 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
                 psi_B_old = psi_B_old[N:]
                 flags_old = flags_old[N:]
 
-              N0 = min(20, int(np.log2(len(TODs_old[-1]))))
-              while ((len(TODs_old[-1]) > 2**19)
-                  and (not np.log2(len(TODs_old[-1])).is_integer())):
-                time_all.append(times_old[:2**N0])
-                for n in range(4):
-                    TOD_all[n].append(TODs_old[n][:2**N0])
-                pos_all.append(    pos_old[0])
-                vel_all.append(    vel_old[0])
-                pix_A_all.append(pix_A_old[:2**N0])
-                pix_B_all.append(pix_B_old[:2**N0])
-                psi_A_all.append(psi_A_old[:2**N0])
-                psi_B_all.append(psi_B_old[:2**N0])
-                flags_all.append(flags_old[:2**N0])
+              #N0 = min(20, int(np.log2(len(TODs_old[-1]))))
+              #while ((len(TODs_old[-1]) > 2**19)
+              #    and (not np.log2(len(TODs_old[-1])).is_integer())):
+              #  time_all.append(times_old[:2**N0])
+              #  for n in range(4):
+              #      TOD_all[n].append(TODs_old[n][:2**N0])
+              #  pos_all.append(    pos_old[0])
+              #  vel_all.append(    vel_old[0])
+              #  pix_A_all.append(pix_A_old[:2**N0])
+              #  pix_B_all.append(pix_B_old[:2**N0])
+              #  psi_A_all.append(psi_A_old[:2**N0])
+              #  psi_B_all.append(psi_B_old[:2**N0])
+              #  flags_all.append(flags_old[:2**N0])
 
-                times_old = times_old[2**N0:]
-                pos_old =     pos_old[2**N0:]
-                vel_old =     vel_old[2**N0:]
-                pix_A_old = pix_A_old[2**N0:]
-                pix_B_old = pix_B_old[2**N0:]
-                psi_A_old = psi_A_old[2**N0:]
-                psi_B_old = psi_B_old[2**N0:]
-                flags_old = flags_old[2**N0:]
-                for n in range(4):
-                    TODs_old[n] = TODs_old[n][2**N0:]
+              #  times_old = times_old[2**N0:]
+              #  pos_old =     pos_old[2**N0:]
+              #  vel_old =     vel_old[2**N0:]
+              #  pix_A_old = pix_A_old[2**N0:]
+              #  pix_B_old = pix_B_old[2**N0:]
+              #  psi_A_old = psi_A_old[2**N0:]
+              #  psi_B_old = psi_B_old[2**N0:]
+              #  flags_old = flags_old[2**N0:]
+              #  for n in range(4):
+              #      TODs_old[n] = TODs_old[n][2**N0:]
 
-                N0 -= 1
+              #  N0 -= 1
 
 
               times_ev = times[i0:i1]
@@ -1445,6 +1454,8 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_ev = psi_A_arr[i0:i1]
               psi_B_ev = psi_B_arr[i0:i1]
               flags_ev = flags_arr[i0:i1]
+              # Explicitly flags all data in the event
+              flags_ev[(flags_ev % 2 == 0)] += 1
 
               times = times[i1:]
               for n in range(4):
@@ -1624,7 +1635,7 @@ def main(par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_precal/'
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
-        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n/'
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_temp/'
     files.sort()
 
     if (simulate):
@@ -1694,7 +1705,7 @@ def main2():
              'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
              'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
              'W4':manager.dict(),}
-    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_temp/'
     version = 50
     comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
         overwrite=True)

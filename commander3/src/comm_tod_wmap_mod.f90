@@ -108,7 +108,7 @@ contains
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
       logical(lgt) :: pol_beam
 
-      integer(dp),  allocatable, dimension(:, :)      :: m_buf
+      real(dp),  allocatable, dimension(:, :)      :: m_buf
 
 
 
@@ -820,8 +820,8 @@ contains
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
-      integer(sp),  allocatable, dimension(:)         :: procmask
-      integer(dp),  allocatable, dimension(:, :)      :: m_buf
+      real(sp),  allocatable, dimension(:)         :: procmask
+      real(dp),  allocatable, dimension(:, :)      :: m_buf
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
       type(hdf_file) :: precond_file
 
@@ -837,9 +837,9 @@ contains
       nhorn               = self%nhorn
       npix_hi             = 12  * self%info%nside**2
     
-      !   allocate(m_buf(0:npix_hi-1,3), procmask(0:npix_hi-1))
-      !   call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
-      !   deallocate(m_buf)
+      allocate(m_buf(0:npix_hi-1,3), procmask(0:npix_hi-1))
+      call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
+      deallocate(m_buf)
 
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
@@ -887,30 +887,17 @@ contains
             lpix = dgrade(pix(t, 1))
             rpix = dgrade(pix(t, 2))
 
-            !mA = pmask(pix(t,1))
-            !mB = pmask(pix(t,2))
-
-            ! Asymmetric masking; if pixel A is hot and B isn't, then mask pixel
-            ! B, and vice versa;
-            !if (mA == 0 .and. mB == 1) then
-            !    fA = 1
-            !    fB = 0  
-            !else if (mA == 1 .and. mB == 0) then
-            !    fB = 0
-            !    fA = 1
-            !else
-            !    fA = 1
-            !    fB = 1
-            !end if 
+            fA = procmask(pix(t, 2))
+            fB = procmask(pix(t, 1))
 
             dl(1) = 1+xbar
             dl(2) = dx * self%cos2psi(psi(t,1))
             dl(3) = dx * self%sin2psi(psi(t,1))
             dl    = dl * inv_sigma * fA
 
-            dr(1) = 1-xbar
-            dr(2) = -dx * self%cos2psi(psi(t,2))
-            dr(3) = -dx * self%sin2psi(psi(t,2))
+            dr(1) = -(1-xbar)
+            dr(2) = dx * self%cos2psi(psi(t,2))
+            dr(3) = dx * self%sin2psi(psi(t,2))
             dr    = dr * inv_sigma * fB
 
 
@@ -919,7 +906,7 @@ contains
             pl(3) = (1+xbar) * self%sin2psi(psi(t,1))
             pl    = pl * inv_sigma * fA
 
-            pr(1) = -dx
+            pr(1) = dx
             pr(2) = (1-xbar) * self%cos2psi(psi(t,2))
             pr(3) = (1-xbar) * self%sin2psi(psi(t,2))
             pr    = pr * inv_sigma * fB
@@ -982,43 +969,43 @@ contains
        map_out =  map/self%M_diag
     else
 
-!       map_out = 0d0
-!
-!       npix_lowres = 12*self%nside_M_lowres**2
-!       nmaps       = self%nmaps_M_lowres
-!
-!       ! Apply lowres preconditioner
-!       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
-!       do i = 1, nmaps
-!          m = map(:,i)
-!          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
-!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
-!       end do
-!       m_lin = matmul(self%M_lowres, m_lin)
+       map_out = 0d0
+
+       npix_lowres = 12*self%nside_M_lowres**2
+       nmaps       = self%nmaps_M_lowres
+
+       ! Apply lowres preconditioner
+       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+       do i = 1, nmaps
+          m = map(:,i)
+          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
+       end do
+       m_lin = matmul(self%M_lowres, m_lin)
        
-       ! Apply highres preconditioner to residual
-       map_out = map !- map_out
-       do i = 0, size(map,1)-1
-          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+!       ! Apply highres preconditioner to residual
+!       map_out = map !- map_out
+!       do i = 0, size(map,1)-1
+!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+!       end do
+
+       do i = 1, nmaps
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+          map_out(:,i) = map_out(:,i) + m
        end do
 
-!       do i = 1, nmaps
-!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
-!          map_out(:,i) = map_out(:,i) + m
-!       end do
-!
-!       deallocate(m, m_lin)
+       deallocate(m, m_lin)
        
-
-       do i = 0, size(map,1)-1
-          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
-       end do
+!
+!       do i = 0, size(map,1)-1
+!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+!       end do
     end if
 
   end subroutine apply_wmap_precond
