@@ -102,7 +102,6 @@ F90SOURCES=hashtbl.f90 \
            comm_signal_mod.f90 \
            comm_output_mod.f90 \
            comm_tod_wmap_mod.f90 \
-           comm_tod_dirbe_mod.f90 \
            comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
 	   comm_tod_dirbe_mod.f90 \
