@@ -124,6 +124,7 @@ if(USE_SYSTEM_LIBS)
   # library. C or CXX must be enabled to use Intel Math Kernel Library (MKL).
   # Note: Because native (shipped with Linux) BLAS/LAPACK implementations are not 
   # optimized, we require usage of AOCL, MKL or OpenBLAS. 
+	#------------------------------------------------------------------------------
 	if(USE_SYSTEM_BLAS)
     if(COMM3_BACKEND MATCHES "any")
 
@@ -254,25 +255,24 @@ if(USE_SYSTEM_LIBS)
 # Since MKL and/or AOCL will be handled above this chunk will be simpler then the one 
 # above (?). However, there is no FindFFTW for AMD FFT, so may need to write it myself,
 # or do a workaround.
-#	#------------------------------------------------------------------------------
-#	# Performing search for FFTW
-#	#------------------------------------------------------------------------------
-#	if(USE_SYSTEM_FFTW)
-#		message(STATUS "---------------------------------------------------------------")
-#		find_package(FFTW
-#			COMPONENTS
-#			DOUBLE
-#			DOUBLE_THREADS
-#			FLOAT
-#			FLOAT_OPENMP
-#			FLOAT_THREADS
-#			)
-#		if(NOT FFTW_FOUND)
-#			set(COMPILE_FFTW TRUE)
-#		endif()
-#	else()
-#		set(COMPILE_FFTW TRUE)
-#	endif()
+	#------------------------------------------------------------------------------
+	# Performing search for FFTW
+	#------------------------------------------------------------------------------
+	if(USE_SYSTEM_FFTW)
+		find_package(FFTW
+			COMPONENTS
+			DOUBLE
+			DOUBLE_THREADS
+			FLOAT
+			FLOAT_OPENMP
+			FLOAT_THREADS
+			)
+		if(NOT FFTW_FOUND)
+			set(COMPILE_FFTW TRUE)
+		endif()
+	else()
+		set(COMPILE_FFTW TRUE)
+	endif()
 	#------------------------------------------------------------------------------
 	# Performing search for HDF5 and its dependencies
 	#------------------------------------------------------------------------------
