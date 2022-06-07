@@ -135,7 +135,7 @@ option(USE_SYSTEM_HEALPIX "Enables search for HEALPIX on the system."     ON) #O
 #------------------------------------------------------------------------------
 set(COMM3_BACKEND "any"
   CACHE STRING
-  "Defines which BLAS/LAPACK & FFT implementation to use. 
+  "Defines which BLAS/LAPACK & FFTW implementation to use. 
   Possible values are: aocl, mkl, opensrc, any. Default: any."
   )
 #------------------------------------------------------------------------------

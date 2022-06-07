@@ -251,6 +251,30 @@ if(USE_SYSTEM_LIBS)
         "Possible values are: aocl, mkl, opensrc, any."
         )
     endif()
+  elseif()
+    # This part is used when -DUSE_SYSTEM_BLAS=OFF
+    elseif(COMM3_BACKEND MATCHES "any")
+      get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+
+      if(CPU_VENDOR MATCHES "Intel")
+        set(COMPILE_OPENBLAS TRUE)
+      elseif(CPU_VENDOR MATCHES "AMD")
+        set(COMPILE_FLAME TRUE)
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        set(COMPILE_OPENBLAS TRUE)
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
+    
+    elseif(COMM3_BACKEND MATCHES "aocl")
+      set(COMPILE_FLAME TRUE)
+    elseif(COMM3_BACKEND MATCHES "mkl")
+      set(COMPILE_OPENBLAS TRUE)
+    elseif(COMM3_BACKEND MATCHES "opensrc")
+      set(COMPILE_OPENBLAS TRUE)
+    endif()
   endif()
 # Since MKL and/or AOCL will be handled above this chunk will be simpler then the one 
 # above (?). However, there is no FindFFTW for AMD FFT, so may need to write it myself,

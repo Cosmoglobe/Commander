@@ -110,7 +110,9 @@ if(COMPILE_OPENBLAS)
 	set(LAPACK_LIBRARIES
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
+	#------------------------------------------------------------------------------
   # Creating ALIASes
+	#------------------------------------------------------------------------------
   add_library(BLAS::BLAS INTERFACE IMPORTED)
   set_target_properties(BLAS::BLAS PROPERTIES
     INTERFACE_LINK_LIBRARIES "${BLAS_LIBRARIES}"
@@ -297,7 +299,9 @@ elseif(COMPILE_FLAME)
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}flame${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}aocldtl${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
+	#------------------------------------------------------------------------------
   # Creating ALIASes
+	#------------------------------------------------------------------------------
   add_library(BLAS::BLAS INTERFACE IMPORTED)
   set_target_properties(BLAS::BLAS PROPERTIES
     INTERFACE_LINK_LIBRARIES "${BLAS_LIBRARIES}"
