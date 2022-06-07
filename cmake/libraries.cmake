@@ -251,16 +251,19 @@ if(USE_SYSTEM_LIBS)
         "Possible values are: aocl, mkl, opensrc, any."
         )
     endif()
-  elseif()
-    # This part is used when -DUSE_SYSTEM_BLAS=OFF
-    elseif(COMM3_BACKEND MATCHES "any")
+  else()
+    # This part is used when -DUSE_SYSTEM_BLAS=OFF but -DUSE_SYSTEM_LIBS=ON
+    if(COMM3_BACKEND MATCHES "any")
       get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
 
       if(CPU_VENDOR MATCHES "Intel")
+        message(STATUS "Will compile OpenBLAS")
         set(COMPILE_OPENBLAS TRUE)
       elseif(CPU_VENDOR MATCHES "AMD")
+      message(STATUS "Will compile AOCL")
         set(COMPILE_FLAME TRUE)
       elseif(CPU_VENDOR MATCHES "Unknown")
+        message(STATUS "Will compile OpenBLAS")
         set(COMPILE_OPENBLAS TRUE)
       else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
         message(FATAL_ERROR 
@@ -269,10 +272,13 @@ if(USE_SYSTEM_LIBS)
       endif()
     
     elseif(COMM3_BACKEND MATCHES "aocl")
+      message(STATUS "Will compile AOCL")
       set(COMPILE_FLAME TRUE)
     elseif(COMM3_BACKEND MATCHES "mkl")
+      message(STATUS "Will compile OpenBLAS")
       set(COMPILE_OPENBLAS TRUE)
     elseif(COMM3_BACKEND MATCHES "opensrc")
+      message(STATUS "Will compile OpenBLAS")
       set(COMPILE_OPENBLAS TRUE)
     endif()
   endif()

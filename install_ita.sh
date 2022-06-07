@@ -133,8 +133,8 @@ then
     module load mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
-    export BLAS_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/blis"
-    export LAPACK_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/libflame"
+    #export BLAS_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/blis"
+    #export LAPACK_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/libflame"
 		# Compilers
 		fc="gfortran"
 		cc="gcc"
@@ -214,12 +214,13 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=ON \
+  -DCOMM3_BACKEND=any \
+	-DUSE_SYSTEM_BLAS:BOOL=OFF\
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	cmake --build $comm3_root_dir/$build_dir --target install -j $physicalCpuCount -v 
+	cmake --build $comm3_root_dir/$build_dir --target blas -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi
