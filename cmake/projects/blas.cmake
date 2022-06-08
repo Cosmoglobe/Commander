@@ -25,10 +25,6 @@
 # sumed by Commander3. If BLAS/LAPACK implementation was found by find_package(),
 # then `blas` target is empty.
 #================================================================================
-# TODO:
-# [ ] Define the BLAS::BLAS etc. as the find_package() does and use it to compile 
-#     Commander3 (instead o explicitly defining libraries).
-#
 if(COMPILE_OPENBLAS)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
@@ -71,24 +67,27 @@ if(COMPILE_OPENBLAS)
   foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _OPENBLAS_LIB_TYPES_ _OPENBLAS_LIB_BOOL_VALS_)
     ExternalProject_Add(
 			openblas_${_lib_type_}
-      DEPENDS						required_libraries
+      DEPENDS           required_libraries 
                         openblas_src
-      PREFIX						"${LIBS_BUILD_DIR}"
-      SOURCE_DIR				"${OPENBLAS_SOURCE_DIR}"
-      INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-      LOG_DIR						"${CMAKE_LOG_DIR}"
-      LOG_CONFIGURE 		OFF
-      LOG_BUILD					OFF
-      LOG_INSTALL				OFF
+      PREFIX            "${LIBS_BUILD_DIR}"
+      SOURCE_DIR        "${OPENBLAS_SOURCE_DIR}"
+      INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}"
+      LOG_DIR	          "${CMAKE_LOG_DIR}"
+      LOG_CONFIGURE     ON 
+      LOG_BUILD         ON 
+			LOG_INSTALL       ON 
       # commands how to build the project
-      DOWNLOAD_COMMAND	""
+      DOWNLOAD_COMMAND  ""
       CMAKE_ARGS
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-        -DUSE_OPENMP=ON
         -DCMAKE_Fortran_COMPILER=${MPI_Fortran_COMPILER}
         -DCMAKE_C_COMPILER=${MPI_C_COMPILER}
         -DCMAKE_INSTALL_LIBDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+        -DUSE_OPENMP=OFF #<= HKE said we are not using OMP version of BLAS/LAPACK
+        # To fix error Nils had with SMP_SERVER, this variable should be set to `false`
+        # For me, however, it does absolutely nothing for some reason
+        -DUSE_THREAD=OFF
         # Building both static and shared libraries to be consistent 
         # with Make and Autotools
 				${_bool_val_}
