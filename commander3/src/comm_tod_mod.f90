@@ -385,7 +385,7 @@ contains
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
       self%ndet = count_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir)
     else
-      self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+      self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if
 
 
@@ -605,7 +605,7 @@ contains
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
-       call read_hdf_string2(file, "/common/det",    det_buf, n)
+       call read_hdf_string2(file, "/common/det", det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
@@ -628,7 +628,9 @@ contains
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
 
-
+      ! do i = 1, size(dets)
+      !    print *, dets(i)
+      ! end do
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
 !!$       end do
@@ -642,15 +644,16 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-!!$          do j = 1, ndet_tot
-!!$             write(*,*) j, trim(dets(j))
-!!$          end do
+      !  do j = 1, ndet_tot
+      !     print *,  j, trim(dets(j))
+      !  end do
        do i = 1, self%ndet
           do j = 1, ndet_tot
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
                 exit
              end if
           end do
+
           if (j > ndet_tot) then
              write(*,*) ' Error -- detector not found in HDF file: ', trim(adjustl(detlabels(i)))
              stop
@@ -830,6 +833,7 @@ contains
     real(sp),     allocatable, dimension(:)       :: buffer_sp, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
+
     self%chunk_num = scan
     call int2string(scan, slabel)
 
@@ -855,10 +859,10 @@ contains
     self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
 
     ! Read common scan data
-    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
+    call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
     call read_hdf(file, slabel // "/common/time",  self%t0)
     ! HKE: LFI files should be regenerated with (x,y,z) info
-    !call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
+    call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))

@@ -52,9 +52,13 @@ contains
          end if
          do i = 1, tod%scans(scan_id)%ntod
             p = tod%pix2ind(pix(i,det))
-            s_sky(i,det) = map(1,p,det) + &
-                         & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
-                         & map(3,p,det) * tod%sin2psi(psi(i,det))
+            if (size(map, 1) == 1) then
+               s_sky(i,det) = map(1,p,det)
+            else
+               s_sky(i,det) = map(1,p,det) + &
+                           & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
+                           & map(3,p,det) * tod%sin2psi(psi(i,det))
+            end if
             tmask(i,det) = pmask(pix(i,det))
             if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
          end do
@@ -68,9 +72,13 @@ contains
             end if
             do i = 1, tod%scans(scan_id)%ntod
                p = tod%pix2ind(pix(i,det))
-               s = map(1,p,0) + &
-                 & map(2,p,0) * tod%cos2psi(psi(i,det)) + &
-                 & map(3,p,0) * tod%sin2psi(psi(i,det))
+               if (size(map, 1) == 1) then
+                  s = map(1,p,0)
+               else
+                  s = map(1,p,0) + &
+                  & map(2,p,0) * tod%cos2psi(psi(i,det)) + &
+                  & map(3,p,0) * tod%sin2psi(psi(i,det))
+               end if
                s_bp(i,det) = s_sky(i,det) - s
             end do
          end do

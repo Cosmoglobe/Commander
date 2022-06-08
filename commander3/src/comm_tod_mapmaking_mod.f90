@@ -70,6 +70,10 @@ contains
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
        self%nout = tod%output_n_maps + tod%n_bp_prop
        !write(*,*) 'hei!', size(tod%bp_delta,2)
+    else if (tod%nmaps == 1) then
+       self%ncol = tod%nmaps
+       self%n_A  = tod%nmaps
+       self%nout = tod%output_n_maps
     else
        self%ncol = tod%nmaps
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2
@@ -216,19 +220,26 @@ contains
           pix_    = tod%pix2ind(pix(t,det))  ! pixel index for pix t and detector det
           psi_    = psi(t,det)
 
-         
-          binmap%A_map(1,pix_) = binmap%A_map(1,pix_) + 1.d0                                 * inv_sigmasq
-          binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq
-          binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq
-          binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq
-          binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq
-          binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq
+          if (size(binmap%A_map, 1) == 1) then
+            binmap%A_map(1,pix_) = binmap%A_map(1,pix_) + 1.d0 * inv_sigmasq
+          else 
+            binmap%A_map(1,pix_) = binmap%A_map(1,pix_) + 1.d0                                 * inv_sigmasq
+            binmap%A_map(2,pix_) = binmap%A_map(2,pix_) + tod%cos2psi(psi_)                    * inv_sigmasq
+            binmap%A_map(3,pix_) = binmap%A_map(3,pix_) + tod%cos2psi(psi_)**2                 * inv_sigmasq
+            binmap%A_map(4,pix_) = binmap%A_map(4,pix_) + tod%sin2psi(psi_)                    * inv_sigmasq
+            binmap%A_map(5,pix_) = binmap%A_map(5,pix_) + tod%cos2psi(psi_)*tod%sin2psi(psi_) * inv_sigmasq
+            binmap%A_map(6,pix_) = binmap%A_map(6,pix_) + tod%sin2psi(psi_)**2                 * inv_sigmasq
+          end if
           !binmap%A_map(1,pix_) = binmap%A_map(8,pix_) + 1.d0
 
           do i = 1, nout
+            if (size(binmap%A_map, 1) == 1) then
+             binmap%b_map(i,1,pix_) = binmap%b_map(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
+            else
              binmap%b_map(i,1,pix_) = binmap%b_map(i,1,pix_) + data(i,t,det)                      * inv_sigmasq
              binmap%b_map(i,2,pix_) = binmap%b_map(i,2,pix_) + data(i,t,det) * tod%cos2psi(psi_) * inv_sigmasq
              binmap%b_map(i,3,pix_) = binmap%b_map(i,3,pix_) + data(i,t,det) * tod%sin2psi(psi_) * inv_sigmasq
+            end if
           end do
           
           if (binmap%solve_S .and. det < tod%ndet) then
@@ -500,15 +511,25 @@ end subroutine bin_differential_TOD
       end if
       call mpi_win_fence(0, binmap%sb_map%win, ierr)
 
-      allocate (A_tot(n_A, 0:np0 - 1), b_tot(nout, nmaps, 0:np0 - 1), bs_tot(nout, ncol, 0:np0 - 1), W(nmaps), eta(nmaps))
+      allocate(A_tot(n_A, 0:np0 - 1), b_tot(nout, nmaps, 0:np0 - 1), bs_tot(nout, ncol, 0:np0 - 1), W(nmaps), eta(nmaps))
 
       A_tot = binmap%sA_map%a(:, tod%info%pix + 1)
       b_tot = binmap%sb_map%a(:, 1:nmaps, tod%info%pix + 1)
       bs_tot = binmap%sb_map%a(:, :, tod%info%pix + 1)
 
+      write(*, *) "!!!"
+      write(*, *) "A_tot", A_tot(1, 1)
+      write(*, *) "np0:",np0
 
+      write(*, *) "A_map size 1:",size(binmap%A_map, 1)
+      write(*, *) "A_map size 2:",size(binmap%A_map, 2)
+
+      ! write(*, *) "A_tot:",A_tot
+      write(*, *) "!!!"
+      ! write(*, *) "A_map:", binmap%A_map
+      ! write(*, *) "!!!"
       ! Solve for local map and rms
-      allocate (A_inv(nmaps, nmaps), As_inv(ncol, ncol))
+      allocate(A_inv(nmaps, nmaps), As_inv(ncol, ncol))
       if (present(chisq_S)) chisq_S = 0.d0
 
       do i = 0, np0 - 1
@@ -521,17 +542,20 @@ end subroutine bin_differential_TOD
             end if
             cycle
          end if
-
-         A_inv = 0.d0
-         A_inv(1, 1) = A_tot(1, i)
-         A_inv(2, 1) = A_tot(2, i)
-         A_inv(1, 2) = A_inv(2, 1)
-         A_inv(2, 2) = A_tot(3, i)
-         A_inv(3, 1) = A_tot(4, i)
-         A_inv(1, 3) = A_inv(3, 1)
-         A_inv(3, 2) = A_tot(5, i)
-         A_inv(2, 3) = A_inv(3, 2)
-         A_inv(3, 3) = A_tot(6, i)
+         if (size(binmap%A_map, 1) == 1) then
+            A_inv = 1.d0 / A_tot(1, i)  ! Not sure if this is correct
+         else
+            A_inv = 0.d0
+            A_inv(1, 1) = A_tot(1, i)
+            A_inv(2, 1) = A_tot(2, i)
+            A_inv(1, 2) = A_inv(2, 1)
+            A_inv(2, 2) = A_tot(3, i)
+            A_inv(3, 1) = A_tot(4, i)
+            A_inv(1, 3) = A_inv(3, 1)
+            A_inv(3, 2) = A_tot(5, i)
+            A_inv(2, 3) = A_inv(3, 2)
+            A_inv(3, 3) = A_tot(6, i)
+         end if
          if (present(chisq_S)) then
             As_inv = 0.d0
             As_inv(1:nmaps, 1:nmaps) = A_inv

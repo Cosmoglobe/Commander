@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from ...python.commander_tools.tod_tools.commander_instrument import \
         commander_instrument
 
-sys.path.insert(0, "/mn/stornext/u3/duncanwa/Commander/commander3/python")
+sys.path.insert(0, "/mn/stornext/d16/cmbco/bp/metins/Commander/commander3/python")
 import numpy as np
 from commander_tools.tod_tools.commander_instrument import commander_instrument
 from numpy.typing import NDArray
@@ -38,22 +38,19 @@ def write_dirbe_instrument_file(output_path: str, version: int) -> None:
     sidelobes = dirbe_utils.get_dirbe_sidelobes()
     for idx, detector in enumerate(dirbe_utils.DETECTORS):
         wavelength = dirbe_utils.WAVELENGHTS[idx]
-        detector_group_name = f"dirbe_{detector:02}_{wavelength}um"
-        if idx < 3:
-            instrument_file.add_bandpass(
-                detector_group_name, wavelengths, bandpasses[idx]
-            )
+        detector_group_name = f"{detector:02}_{wavelength}um"
+        instrument_file.add_bandpass(
+            detector_group_name, wavelengths, bandpasses[idx]
+        )
 
         for band in dirbe_utils.BANDS_LABELS:
             if idx > 2 and band in dirbe_utils.BANDS_LABELS[1:]:
                 break
 
-            band_group_name = f"dirbe_{detector:02}{band}_{wavelength}um"
-            if idx > 2:
-                instrument_file.add_bandpass(
-                    band_group_name, wavelengths, bandpasses[idx]
-                )
-
+            band_group_name = f"{detector:02}_{band}"
+            instrument_file.add_bandpass(
+                band_group_name, wavelengths, bandpasses[idx]
+            )
             _add_fields(
                 instrument_file=instrument_file,
                 band_label=band_group_name,
@@ -65,7 +62,7 @@ def write_dirbe_instrument_file(output_path: str, version: int) -> None:
                 mbeam_Eff=TEMP_MBEAM_EFF,
                 central_wavelength=wavelength,
             )
-
+            
     instrument_file.finalize()
 
 
