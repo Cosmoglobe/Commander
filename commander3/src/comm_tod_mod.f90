@@ -628,9 +628,7 @@ contains
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
 
-      ! do i = 1, size(dets)
-      !    print *, dets(i)
-      ! end do
+
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
 !!$       end do
@@ -653,7 +651,6 @@ contains
                 exit
              end if
           end do
-
           if (j > ndet_tot) then
              write(*,*) ' Error -- detector not found in HDF file: ', trim(adjustl(detlabels(i)))
              stop

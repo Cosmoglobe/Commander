@@ -159,20 +159,22 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
-    else if (trim(constructor%type) == 'DIRBE') then
-       if (index(subdets, '.txt') /=0) then
-          ndet = count_detectors(subdets, cpar%datadir)
-          call get_detectors(subdets, cpar%datadir, dets, ndet)
-       else
-          call get_tokens(subdets, ",", dets, ndet)
-       end if
-       call read_bandpass_dirbe(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
-               & constructor%threshold, &
-               & constructor%n, constructor%nu0, constructor%tau0)
-       allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
+   !  else if (trim(constructor%type) == 'DIRBE') then
+   !     if (index(subdets, '.txt') /=0) then
+   !        ndet = count_detectors(subdets, cpar%datadir)
+   !        call get_detectors(subdets, cpar%datadir, dets, ndet)
+   !     else
+   !        call get_tokens(subdets, ",", dets, ndet)
+   !     end if
+   !     write(*, *) "dets", dets(1)
+   !     write(*, *) "alldets", dets
+   !     call read_bandpass_dirbe(trim(dir)//trim(cpar%ds_bpfile(id_abs)), dets(1), &
+   !             & constructor%threshold, &
+   !             & constructor%n, constructor%nu0, constructor%tau0)
+   !     allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
-          call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
+          call read_bandpass(trim(dir)//trim(cpar%ds_bpfile(id_abs)), detlabel, &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
