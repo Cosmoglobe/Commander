@@ -788,15 +788,13 @@ end subroutine bin_differential_TOD
         i_min = 0
 
 
-        !if (l == 1) then
-        !   call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, v)
-        !   r = b_map(:, :, l) - v 
-        !else
-        !   r = b_map(:, :, l)
-        !end if
         r = b_map(:, :, l)
-        monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
-               & / sum(M_diag(:,1)*procmask)
+        if (l == 1) then
+          monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
+                 & / sum(M_diag(:,1)*procmask)
+        else
+          monopole = 0d0
+        end if
         r0 = b_map(:, :, l) - monopole
         call tod%apply_map_precond(r0, rhat)
         

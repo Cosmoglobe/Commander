@@ -1523,7 +1523,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_arr = psi_A_arr[i1:]
               psi_B_arr = psi_B_arr[i1:]
               flags_arr = flags_arr[i1:]
-            break
 
 
         TODs_old = [[],[],[],[]]

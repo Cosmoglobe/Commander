@@ -831,7 +831,7 @@ contains
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
-      self%nside_M_lowres = 8
+      self%nside_M_lowres = 16
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn
@@ -932,6 +932,7 @@ contains
          deallocate(pix, psi, flag)
       end do
 
+      if (self%myid == 0) write(*,*) '|    Finalizing'
       ! Collect contributions from all cores 
       if (self%myid == 0) then
          allocate(self%M_lowres(ntot,ntot))
@@ -961,30 +962,51 @@ contains
     real(dp),        dimension(0:,1:), intent(in)    :: map
     real(dp),        dimension(0:,1:), intent(out)   :: map_out
 
-    integer(i4b) :: i, npix_lowres, n_lowres, nmaps
+    integer(i4b) :: i, npix_lowres, n_lowres, nmaps, n, p, q, j
     real(dp) :: determ
     real(dp), allocatable, dimension(:)   :: m_lin, m
+    real(dp), allocatable, dimension(:,:) :: m_low
+    !
+    !   Routine follows Section 3.4.7 of Jarosik et al. 2007
+    !
+    !   Arguments: 
+    !   ----------
+    !   self:     pointer of comm_WMAP_tod class
+    !             Points to output of the constructor
+    !   map:      Map to be preconditioned
+    !
+    !   map_out:  Map after being preconditioned
+    !
+    !   Intermediate steps:
+    !   -------------------
+    !   m_lin - a linearized map, length nmaps * npix
 
     if (self%comp_S) then
        map_out =  map/self%M_diag
     else
 
-!       map_out = 0d0
-!
-!       npix_lowres = 12*self%nside_M_lowres**2
-!       nmaps       = self%nmaps_M_lowres
-!
-!       ! Apply lowres preconditioner
-!       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
-!       do i = 1, nmaps
-!          m = map(:,i)
-!          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
-!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, map_out(:,i), self%info%nside)
-!       end do
-!       m_lin = matmul(self%M_lowres, m_lin)
+       map_out = 0d0
+
+       npix_lowres = 12*self%nside_M_lowres**2
+       nmaps       = self%nmaps_M_lowres
+
+       ! Apply lowres preconditioner
+       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+       allocate(m_low(0:size(map,1)-1, nmaps))
+       do i = 1, nmaps
+          m = map(:,i)
+          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+       end do
+       ! m_lin is now the low resolution linearized version of the map
+       m_lin = matmul(self%M_lowres, m_lin)
+       ! m_lin has now been preconditioned.
+
+       do i = 1, nmaps
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m_low(:,i), self%info%nside)
+       end do
        
        ! Apply highres preconditioner to residual
-       map_out = map !- map_out
+       map_out = map - m_low
        do i = 0, size(map,1)-1
           determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
           map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
@@ -992,20 +1014,22 @@ contains
           map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
        end do
 
-!       do i = 1, nmaps
-!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
-!          map_out(:,i) = map_out(:,i) + m
-!       end do
-!
-!       deallocate(m, m_lin)
+       do i = 1, nmaps
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+          map_out(:,i) = map_out(:,i) + m_low(:,i)
+       end do
+
+       deallocate(m, m_lin, m_low)
        
 
-       do i = 0, size(map,1)-1
-          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
-       end do
+!       do i = 0, size(map,1)-1
+!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+!       end do
+
+
     end if
 
   end subroutine apply_wmap_precond
