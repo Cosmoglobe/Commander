@@ -96,6 +96,8 @@ def write_detector(comm_tod: commander_tod, detector: int) -> None:
     comm_tod.add_field(COMMON_GROUP + "/mbang", common_mbang)
     comm_tod.add_attribute(COMMON_GROUP + "/mbang", "index", detector_names)
 
+    rotator = hp.Rotator(coord=["E", "G"])
+
     for chunk in range(1, NUM_CHUNKS_PER_BAND + 1):
         day = chunk
         print(f"processing chunk: {chunk:03}...")
@@ -135,7 +137,7 @@ def write_detector(comm_tod: commander_tod, detector: int) -> None:
                     band_chunk_group + "/tod", tods
                 )
 
-            pixels = get_chunk_band_pixels(chunk_label, hdf5_filename, band)
+            pixels = get_chunk_band_pixels(chunk_label, hdf5_filename, band, rotator, NSIDE)
             if pixels.size > 0:
                 comm_tod.add_field(
                     band_chunk_group + "/pix", pixels, HUFFMAN_COMPRESSION
@@ -163,6 +165,8 @@ def write_detector(comm_tod: commander_tod, detector: int) -> None:
 
         comm_tod.finalize_chunk(chunk)
 
+        # if chunk > 2:
+        #     break
     comm_tod.finalize_file()
 
 
@@ -211,17 +215,30 @@ def get_ntods(chunk_label: str, hdf5_filename: str) -> int:
         return len(file[f"{chunk_label}/A/tod"])
 
 def get_chunk_band_psi(chunk_label: str, hdf5_filename: str, band: str) -> NDArray[np.floating]:
-    """Gets dirbe pixels from gustavs files."""
+    """Gets dirbe polang from gustavs files. TODO: rotate to galactic."""
 
     with h5py.File(hdf5_filename, "r") as file:
         return file[f"{chunk_label}/{band}/polang"][()]
 
 
-def get_chunk_band_pixels(chunk_label: str, hdf5_filename: str, band: str) -> NDArray[np.integer]:
+def get_chunk_band_pixels(chunk_label: str, hdf5_filename: str, band: str, rotator: hp.Rotator, nside: int) -> NDArray[np.integer]:
     """Gets dirbe pixels from gustavs files."""
 
     with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{band}/pix"][()]
+        pixels_ecl = file[f"{chunk_label}/{band}/pix"][()]
+
+    import matplotlib.pyplot as plt
+    unit_vectors_ecl = hp.pix2vec(nside, pixels_ecl)
+    fft = np.fft.fft(unit_vectors_ecl)
+    print(fft)
+    plt.plot(fft)
+    plt.show()
+    exit()
+    unit_vectors_gal = rotator(unit_vectors_ecl)
+
+
+    return hp.vec2pix(nside, *unit_vectors_gal)
+    
 
 def get_out_ang() -> NDArray[np.floating]:
     """TODO: get correct out ang maybe..?"""

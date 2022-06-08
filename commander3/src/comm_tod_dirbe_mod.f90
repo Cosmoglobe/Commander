@@ -244,7 +244,7 @@ contains
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
-    print *, "got here 1"
+   !  print *, "got here 1"
 
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -279,7 +279,7 @@ contains
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
-    print *, "got here 2"
+   !  print *, "got here 2"
 
     ! Precompute far sidelobe Conviqt structures
    !  if (self%correct_sl) then
@@ -324,7 +324,7 @@ contains
        allocate(slist(self%nscan))
        slist   = ''
     end if
-    print *, "got here 3"
+   !  print *, "got here 3"
 
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
@@ -362,7 +362,7 @@ contains
        end do
 
        ! Select data
-       if (select_data) call remove_bad_data(self, i, sd%flag)
+      !  if (select_data) call remove_bad_data(self, i, sd%flag) # remember to comment back in
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -370,7 +370,7 @@ contains
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
-       print *, "got here 4"
+      !  print *, "got here 4"
 
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
 !!$       if (self%output_4D_map > 0) then
@@ -402,7 +402,7 @@ contains
        deallocate(s_buf, d_calib)
 
     end do
-    print *, "got here 5"
+   !  print *, "got here 5"
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 

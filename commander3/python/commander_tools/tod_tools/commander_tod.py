@@ -62,6 +62,7 @@ class commander_tod:
             self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
         
         self.exists = False
+
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
