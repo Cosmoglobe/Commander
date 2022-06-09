@@ -985,49 +985,49 @@ contains
        map_out =  map/self%M_diag
     else
 
-       map_out = 0d0
-
-       npix_lowres = 12*self%nside_M_lowres**2
-       nmaps       = self%nmaps_M_lowres
-
-       ! Apply lowres preconditioner
-       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
-       allocate(m_low(0:size(map,1)-1, nmaps))
-       do i = 1, nmaps
-          m = map(:,i)
-          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
-       end do
-       ! m_lin is now the low resolution linearized version of the map
-       m_lin = matmul(self%M_lowres, m_lin)
-       ! m_lin has now been preconditioned.
-
-       do i = 1, nmaps
-          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m_low(:,i), self%info%nside)
-       end do
-       
-       ! Apply highres preconditioner to residual
-       map_out = map - m_low
-       do i = 0, size(map,1)-1
-          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
-       end do
-
-       do i = 1, nmaps
-          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
-          map_out(:,i) = map_out(:,i) + m_low(:,i)
-       end do
-
-       deallocate(m, m_lin, m_low)
-       
-
+!       map_out = 0d0
+!
+!       npix_lowres = 12*self%nside_M_lowres**2
+!       nmaps       = self%nmaps_M_lowres
+!
+!       ! Apply lowres preconditioner
+!       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+!       allocate(m_low(0:size(map,1)-1, nmaps))
+!       do i = 1, nmaps
+!          m = map(:,i)
+!          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+!       end do
+!       ! m_lin is now the low resolution linearized version of the map
+!       m_lin = matmul(self%M_lowres, m_lin)
+!       ! m_lin has now been preconditioned.
+!
+!       do i = 1, nmaps
+!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m_low(:,i), self%info%nside)
+!       end do
+!       
+!       ! Apply highres preconditioner to residual
+!       map_out = map - m_low
 !       do i = 0, size(map,1)-1
 !          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-!          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-!          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-!          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+!          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
 !       end do
+!
+!       do i = 1, nmaps
+!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+!          map_out(:,i) = map_out(:,i) + m_low(:,i)
+!       end do
+!
+!       deallocate(m, m_lin, m_low)
+       
+
+       do i = 0, size(map,1)-1
+          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+       end do
 
 
     end if

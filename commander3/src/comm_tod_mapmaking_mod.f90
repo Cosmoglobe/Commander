@@ -795,6 +795,7 @@ end subroutine bin_differential_TOD
           bicg_sol = transpose(map_full)
         else
           monopole = 0d0
+          bicg_sol = 0d0
         end if
         r0 = b_map(:, :, l) - monopole
         call tod%apply_map_precond(r0, rhat)

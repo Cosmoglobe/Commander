@@ -857,8 +857,9 @@ def gamma_from_pol(gal, pol):
 
 def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
     ret_times=False,
-        coord_out='G',Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30,
-          30])):
+        coord_out='G',
+        Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30]),
+        n_ind      = np.arange(10)):
     '''
     Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
     beginning and two redundant ones at the end, that match the adjacent frames.
@@ -938,7 +939,7 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
     gal_B = []
     pol_B = []
     t_list = []
-    for n, Nobs in enumerate(Nobs_array):
+    for n, Nobs in zip(n_ind, Nobs_array):
         # for each group from 0--4, the interpolation is valid between 1.5--2.5,
         # which is equivalent to cutting out the first 1.5 time units from the
         # beginning of the total array and the final set of quaternions does not
@@ -1312,7 +1313,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
 
         quat = data[1].data['QUATERN']
         gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center,
-            Nobs_array=[Nobs])
+            Nobs_array=[Nobs], n_ind=[i])
         psi_A = get_psi_band(gal_A[0], pol_A[0])
         psi_B = get_psi_band(gal_B[0], pol_B[0])
 
