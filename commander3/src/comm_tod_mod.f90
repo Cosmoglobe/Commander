@@ -1,4 +1,4 @@
-!================================================================================
+!===============================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
@@ -108,6 +108,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
+     integer(i4b) :: ntime                                        ! Number of time values
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -117,6 +118,7 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
+     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -324,6 +326,7 @@ contains
       self%orbital = .true.
     end if
 
+
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
@@ -480,6 +483,9 @@ contains
             self%pix2ind(pix(1)) = 1
             do k = 2, self%scans(i)%ntod
                pix(k)  = pix(k-1)  + pix(k)
+               if (pix(k) > 12*self%nside**2-1) then
+                   write(*,*) pix(k), k, pix(1), l, self%label(j),self%scans(i)%chunk_num
+               end if
                self%pix2ind(pix(k)) = 1
             end do
           end do
@@ -540,23 +546,18 @@ contains
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
+    !call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       if (self%correct_sl) then
-         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-         call self%slbeam(i)%p%Y()
-       end if
-       if (self%orb_4pi_beam) then
-         self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
-         call self%mbeam(i)%p%Y()
-       end if
-       call self%load_instrument_inst(h5_file, i)
+       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+       call self%mbeam(i)%p%Y()
     end do
 
     call close_hdf_file(h5_file)
@@ -833,7 +834,8 @@ contains
 
     self%chunk_num = scan
     call int2string(scan, slabel)
-
+    
+    !print *, filename
     call open_hdf_file(filename, file, "r")
 
     ! Find array sizes
@@ -872,6 +874,7 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+      
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        self%d(i)%xi_n(1:3)  = scalars(2:4)

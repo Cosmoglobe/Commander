@@ -412,9 +412,17 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       if (self%nmaps > 1) then
+         call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+       else
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6, chisq_S=chisq_s, mask=procmask2)
+       end if
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0)
+       if(self%nmaps > 1) then
+         call finalize_binned_map(self, binmap, rms_out, 1.d6)
+       else 
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6)
+       end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
 

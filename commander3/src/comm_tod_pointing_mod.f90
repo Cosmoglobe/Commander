@@ -39,11 +39,14 @@ contains
       real(sp),     dimension(:,:),      intent(out)            :: s_sky, tmask
       real(sp),     dimension(:,:),      intent(out), optional  :: s_bp
 
-      integer(i4b)                                      :: i, p, det
+      integer(i4b)                                      :: i, p, det, nmap
       real(sp)                                          :: s
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
+!      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+
+      nmap = SIZE(map, 1)
       do det = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(det)%accept) then
             s_sky(:, det) = 0.d0
@@ -52,13 +55,18 @@ contains
          end if
          do i = 1, tod%scans(scan_id)%ntod
             p = tod%pix2ind(pix(i,det))
-            if (size(map, 1) == 1) then
-               s_sky(i,det) = map(1,p,det)
-            else
-               s_sky(i,det) = map(1,p,det) + &
-                           & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
-                           & map(3,p,det) * tod%sin2psi(psi(i,det))
-            end if
+            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
+            
+            if (nmap == 3) then
+                s_sky(i,det) = map(1,p,det) + &
+                         & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
+                         & map(3,p,det) * tod%sin2psi(psi(i,det))
+            else if (nmap == 1) then
+                s_sky(i,det) = map(1,p,det)  ! HFI 545 thing
+            end if  
+
+
+            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             tmask(i,det) = pmask(pix(i,det))
             if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
          end do
@@ -72,12 +80,12 @@ contains
             end if
             do i = 1, tod%scans(scan_id)%ntod
                p = tod%pix2ind(pix(i,det))
-               if (size(map, 1) == 1) then
-                  s = map(1,p,0)
-               else
-                  s = map(1,p,0) + &
-                  & map(2,p,0) * tod%cos2psi(psi(i,det)) + &
-                  & map(3,p,0) * tod%sin2psi(psi(i,det))
+               if (nmap == 3) then
+                   s = map(1,p,0) + &
+                      & map(2,p,0) * tod%cos2psi(psi(i,det)) + &
+                      & map(3,p,0) * tod%sin2psi(psi(i,det))
+               else if (nmap == 1) then
+                   s = map(1,p,0)
                end if
                s_bp(i,det) = s_sky(i,det) - s
             end do
