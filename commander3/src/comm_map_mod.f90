@@ -391,8 +391,10 @@ subroutine tod2file_dp3(filename,d)
 !!$      info%lmax = lmax
 !!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
-      ! call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file) #temporary fix this will break polarized data
-      ! call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
+      if (info%nmaps == 3) then
+         call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
+         call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
+      end if
     else 
       constructor_alms%alm = 0.d0
 
