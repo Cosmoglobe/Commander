@@ -729,7 +729,7 @@ end subroutine bin_differential_TOD
      integer(i4b),                         intent(inout) :: num_cg_iters
      real(dp),                                intent(in) :: epsil
      real(sp),                  dimension(:), intent(in) :: procmask
-     real(dp),               dimension(:), intent(inout) :: map_full
+     real(dp),                dimension(:,:), intent(in) :: map_full
      real(dp),                dimension(:,:), intent(in) :: M_diag
      real(dp),              dimension(:,:,:), intent(in) :: b_map
      integer(i4b),                            intent(in) :: l
@@ -756,7 +756,7 @@ end subroutine bin_differential_TOD
      call timer%start(TOD_MAPSOLVE, tod%band)
      write_cg = .false.
      !write_cg = .true.
-     !write_cg = tod%first_call
+     write_cg = tod%first_call
 
      if (tod%myid==0) then
         if (comp_S) then
@@ -792,6 +792,7 @@ end subroutine bin_differential_TOD
         if (l == 1) then
           monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
                  & / sum(M_diag(:,1)*procmask)
+          bicg_sol = transpose(map_full)
         else
           monopole = 0d0
         end if

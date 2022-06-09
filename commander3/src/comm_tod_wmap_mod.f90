@@ -373,7 +373,7 @@ contains
       real(dp) ::  epsil
       real(dp) ::  nullval
       real(dp), allocatable, dimension(:, :)    :: bicg_sol
-      real(dp), allocatable, dimension(:)       :: map_full
+      real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
 
       character(len=80), dimension(180) :: header
@@ -452,7 +452,7 @@ contains
       ! Distribute maps
       ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-      allocate(map_full(0:npix-1))
+      allocate(map_full(nmaps, 0:npix-1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
 
@@ -720,7 +720,7 @@ contains
           !end if
           if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
-             monopole = sum((bicg_sol(:,1)-map_full)*M_diag(:,1)*procmask) &
+             monopole = sum((bicg_sol(:,1)-map_full(1,:))*M_diag(:,1)*procmask) &
                     & / sum(M_diag(:,1)*procmask)
              if (trim(self%operation) == 'sample') then
                 ! Add fluctuation term if requested
@@ -831,7 +831,7 @@ contains
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
-      self%nside_M_lowres = 16
+      self%nside_M_lowres = 8
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn

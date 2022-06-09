@@ -153,7 +153,6 @@ contains
     integer(i4b) :: num_cg_iters
     real(dp) ::  epsil(6)
     real(dp), allocatable, dimension(:, :, :) :: bicg_sol
-    real(dp), allocatable, dimension(:)       :: map_full
 
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -182,10 +181,8 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    allocate(map_full(0:npix-1))
-    map_full = 0.d0
     !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
-    call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
+    call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -379,9 +376,6 @@ contains
          if (self%verbosity > 0 .and. self%myid == 0) then
            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          end if
-         !call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-         !               & epsil(l), procmask, map_full, M_diag, b_map, l, &
-         !               & prefix, postfix)
       end do
       if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
     !end if
@@ -417,7 +411,6 @@ contains
     ! Clean up temporary arrays
     deallocate(procmask, procmask2)
     deallocate(b_map, M_diag)
-    deallocate(map_full)
     if (allocated(chisq_S)) deallocate (chisq_S)
     if (allocated(b_mono)) deallocate (b_mono)
     if (allocated(sys_mono)) deallocate (sys_mono)

@@ -849,7 +849,7 @@ contains
     type(map_ptr), dimension(1:,1:),       intent(inout)  :: map_in       ! (ndet,ndelta)    
     real(sp),                              intent(in)     :: scale
     real(sp),      dimension(1:,1:,0:,1:), intent(out)    :: map_out
-    real(dp),      dimension(0:), intent(out), optional   :: map_full
+    real(dp),      dimension(1:, 0:), intent(out), optional   :: map_full
 
     integer(i4b) :: i, j, k, l, npix, nmaps
     real(dp),     allocatable, dimension(:,:) :: m_buf
@@ -865,7 +865,7 @@ contains
           do k = 1, tod%nobs
              map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
           end do
-          if (j == 1 .and. present(map_full)) map_full = map_full + m_buf(:,1)
+          if (present(map_full)) map_full(j,:) = map_full(j,:) + m_buf(:,j)
        end do
        do k = 1, tod%nobs
           do l = 1, tod%nmaps
