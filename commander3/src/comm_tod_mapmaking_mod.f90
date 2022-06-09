@@ -513,6 +513,9 @@ end subroutine bin_differential_TOD
          rms%map(i, 1) = sqrt(A_inv)*scale
          do k = 1, tod%output_n_maps
             binmap%outmaps(k)%p%map(i, 1) = b_tot(k, 1, i)/A_inv*scale
+            if(i == 1234) then
+                write(*,*) "binmap", binmap%outmaps(k)%p%map(i, 1), b_tot(k, 1, i), A_inv, scale
+            end if
          end do
       end do
 

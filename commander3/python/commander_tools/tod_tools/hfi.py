@@ -26,7 +26,6 @@ import numpy as np
 import healpy as hp
 import random
 import math
-
 class hfi(object):   
  
     freqs = [100, 143, 217, 353, 545, 857]
@@ -99,6 +98,56 @@ class hfi(object):
             for entry in reduced:
                 outFlags[np.logical_and(times > entry[0],times < entry[1])] = 128
         return outFlags
+
+    #computes the pre-differencing gains from the insturment calibration params
+    #at a given time
+    #heavily based on https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
+
+    def compute_l1_gain(detector, time, hsk):
+        if(type(time) == np.int64):
+            time = np.array([time])
+        params = hsk[detector.encode()]  # python 3
+
+        # Fixed IMO params
+        GC_bc = params[b'GC_bc']
+        F1_bc = params[b'F1_bc']
+        HFI_REU_ETAL = params[b'HFI_REU_ETAL']
+        REU_bc_offset = params[b'REU_bc_offset'] 
+        
+        gamp = hfi.expand_hsk(hsk, params[b'gamp'], time)
+        nsamp = hfi.expand_hsk(hsk, params[b'nsamp'], time)
+        nblanck = hfi.expand_hsk(hsk, params[b'nblanck'], time)
+
+        nsamp[nsamp == 0] = 45
+        nsamp[nsamp == 1] = 40
+        nsamp[nsamp == 2] = 36
+        nsamp[nsamp == 3] = 45
+
+        #print(GC_bc, F1_bc, HFI_REU_ETAL, REU_bc_offset)
+        #print(gamp, nsamp, nblanck)
+
+        return F1_bc * GC_bc[gamp] * (nsamp - nblanck).astype(np.float64)/GC_bc[HFI_REU_ETAL], (nsamp - nblanck).astype(np.float64) * REU_bc_offset
+
+    #produces a housekeeping estimate at time(s) t
+    def expand_hsk(hsk, field, time):
+        grp, obj = field.split(b'/')
+        t, x = hsk[grp][obj]
+
+        i0 = len(time) // 2
+
+        if time[i0] < 1e10:
+            # from nanoseconds to seconds
+            tt = t.astype(np.float64) * 1e-9
+        elif time[i0] < 1e18:
+            # from nanoseconds to OBT ticks
+            tt = t.astype(np.float64) * 1e-9 * 2.**16.
+        else:
+            tt = t
+
+        # interpolate
+
+        ind = np.searchsorted(tt, time)
+        return x[ind - 1]
 
     @staticmethod
     def instrument_filename(version):

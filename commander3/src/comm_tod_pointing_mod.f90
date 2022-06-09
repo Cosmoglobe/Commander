@@ -62,7 +62,7 @@ contains
                          & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
             else if (nmap == 1) then
-                s_sky(i,det) = map(1,p,det)  ! HFI 545 thing
+                s_sky(i,det) = map(1,p,det)  ! Unpolarized channel
             end if  
 
 

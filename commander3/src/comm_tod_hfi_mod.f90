@@ -125,7 +125,7 @@ contains
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .false.
-    constructor%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
+    constructor%chisq_threshold = 1500.d0 !20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     constructor%ntime           = 1
@@ -368,6 +368,11 @@ contains
              deallocate(sigma0)
           end if
        end if
+
+       if(self%scans(i)%chunk_num == 25083) then
+         write(*,*) "gain:", self%scans(i)%d(1)%gain
+         write(*,*) sd%tod(1:1000, 1)
+       end if 
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)

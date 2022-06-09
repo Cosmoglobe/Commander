@@ -29,12 +29,12 @@ import os
 import sys
 
 class commander_tod:
-
-    def __init__(self, outPath, name, version=None, dicts=None, overwrite=False):
+    
+    def __init__(self, outPath, experiment, version=None, dicts=None, overwrite=False):
         self.outPath = outPath
         self.filelists = dicts
         self.version = version
-        self.name = name
+        self.experiment = experiment
         #TODO: something with the version number
         self.overwrite = overwrite
 
@@ -49,17 +49,14 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name.lower() == 'planck':
+        if self.name.lower() == 'lfi':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
         if not self.od:
-            if not self.name:
-                self.outName = os.path.join(self.outPath, sfreq + '.h5')
-            else:
-                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+            self.outName = os.path.join(self.outPath, self.experiment+ '_' + sfreq + '.h5')
         else:
-            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+            self.outName = os.path.join(self.outPath, self.experiment+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
         
         self.exists = False
 
