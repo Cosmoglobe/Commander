@@ -36,6 +36,7 @@ NUM_CHUNKS_PER_BAND = 285
 NSIDE = 128
 NPSI = 2048
 FSAMP = 8
+BAD_DATA_SENTINEL = -16375
 
 
 def write_dirbe_commmander_tods(output_path: str, version: int) -> None:
@@ -197,9 +198,17 @@ def get_chunk_band_flags(
     chunk_label: str, hdf5_filename: str, band: str
 ) -> NDArray[np.integer]:
     """Gets dirbe flags from gustavs files."""
+    
+    bit_13 = int(2**13)
 
     with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{band}/flag"][()]
+        tods =  file[f"{chunk_label}/{band}/tod"][()]
+        flags =  file[f"{chunk_label}/{band}/flag"][()]
+
+        condition = tods <= BAD_DATA_SENTINEL
+        flags[condition] += bit_13
+
+        return flags
 
 
 def get_chunk_band_tods(chunk_label: str, hdf5_filename: str, band: str) -> NDArray[np.floating]:
@@ -227,15 +236,8 @@ def get_chunk_band_pixels(chunk_label: str, hdf5_filename: str, band: str, rotat
     with h5py.File(hdf5_filename, "r") as file:
         pixels_ecl = file[f"{chunk_label}/{band}/pix"][()]
 
-    import matplotlib.pyplot as plt
     unit_vectors_ecl = hp.pix2vec(nside, pixels_ecl)
-    fft = np.fft.fft(unit_vectors_ecl)
-    print(fft)
-    plt.plot(fft)
-    plt.show()
-    exit()
     unit_vectors_gal = rotator(unit_vectors_ecl)
-
 
     return hp.vec2pix(nside, *unit_vectors_gal)
     

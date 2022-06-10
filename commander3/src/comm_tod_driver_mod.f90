@@ -741,11 +741,11 @@ contains
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-   !  if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
-    do j = 1, ndet
-        if (.not. tod%scans(scan)%d(j)%accept .and. tod%partner(j) >= 0) tod%scans(scan)%d(tod%partner(j))%accept = .false.
-    end do
-
+    if (tod%symm_flags) then
+       do j = 1, ndet
+           if (.not. tod%scans(scan)%d(j)%accept .and. tod%partner(j) >= 0) tod%scans(scan)%d(tod%partner(j))%accept = .false.
+       end do
+    end if
   end subroutine remove_bad_data
 
   subroutine compute_chisq_abs_bp(tod, scan, sd, chisq)
@@ -815,7 +815,7 @@ contains
 
     integer(i4b) :: i, j, nout
     real(dp)     :: inv_gain
-
+   !  write(*, *) "s_bp:", sd%s_sky(:,1)
     call timer%start(TOD_MAPBIN, tod%band)
     nout = size(d_calib,1)
     do j = 1, sd%ndet

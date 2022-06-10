@@ -240,7 +240,7 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-
+   type(hdf_file) :: tod_file
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -262,6 +262,7 @@ contains
     self%output_n_maps = 3
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+
     end if
 
     call int2string(chain, ctext)
@@ -270,33 +271,15 @@ contains
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
+   ! write(*, *) "nobs:", self%nobs
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
     call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
 
-    ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
-   !  print *, "got here 2"
-
-    ! Precompute far sidelobe Conviqt structures
-   !  if (self%correct_sl) then
-   !     if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
-   !     do i = 1, self%ndet
-   !        !TODO: figure out why this is rotated
-   !        call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-   !        self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-   !             & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-   !             & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-   !     end do
-   !  end if
-
-!    write(*,*) 'qqq', self%myid
-!    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     call update_status(status, "tod_init")
 
@@ -362,27 +345,47 @@ contains
        end do
 
        ! Select data
-      !  if (select_data) call remove_bad_data(self, i, sd%flag) # remember to comment back in
+       if (select_data) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
+      ! write(*, *) "tods: max, min, ntods"
+      ! write(*, *) maxval(self%scans(1)%d(1)%tod), minval(self%scans(1)%d(1)%tod), shape(self%scans(1)%d(1)%tod)
+
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-       call compute_calibrated_data(self, i, sd, d_calib)    
-      !  print *, "got here 4"
+       d_calib(1, :, :) = 1
+      !  call compute_calibrated_data(self, i, sd, d_calib)    
 
-       ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-!!$       if (self%output_4D_map > 0) then
-!!$          if (mod(iter-1,self%output_4D_map) == 0) then
-!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
-!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-!!$                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-!!$                  & self%scans(i)%d(:)%accept)
-!!$          end if
-!!$       end if
+      if (.false.) then
+            call int2string(self%scanid(i), scantext)
+            if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
+            call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+            ! call write_hdf(tod_file, '/n_corr', sd%n_corr)
+            !call write_hdf(tod_file, '/bpcorr', sd%s_bp)
+            !call write_hdf(tod_file, '/s_tot', sd%s_tot)
+            !call write_hdf(tod_file, '/s_sky', sd%s_sky)
+            call write_hdf(tod_file, '/tod',   sd%tod)
+            call write_hdf(tod_file, '/flag', sd%flag)
+            call write_hdf(tod_file, '/pix', sd%pix)
+            !call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
+            !call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
+            !call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
+            !call write_hdf(tod_file, '/psiB', sd%psi(:,1,2))
+            !call write_hdf(tod_file, '/x_im', self%x_im)
+
+            !do k = 1, self%ndet
+            !  call int2string(k, scantext)
+            !  call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
+            !  call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
+            !end do
+
+            call close_hdf_file(tod_file)
+
+
+         end if
+
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -437,13 +440,12 @@ contains
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    !if (self%output_n_maps > 3) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
+    if (self%output_n_maps > 2) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
     if (self%output_n_maps > 4) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 7) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
 
-    print *, "got here 6"
 
     ! Clean up
     call binmap%dealloc()
