@@ -97,6 +97,9 @@ contains
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
+    call timer%start(TOD_INIT, id_abs)
+
+
     ! Allocate object
     allocate(constructor)
 
@@ -174,6 +177,8 @@ contains
        constructor%scans(i)%d%baseline = 0.d0
     end do
 
+    call timer%stop(TOD_INIT, id_abs)
+
   end function constructor
 
   !**************************************************
@@ -242,10 +247,11 @@ contains
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
    type(hdf_file) :: tod_file
 
+
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
    !  print *, "got here 1"
-
+    call timer%start(TOD_TOT, self%band)
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
@@ -355,7 +361,7 @@ contains
 
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-       d_calib(1, :, :) = 1
+       d_calib(1, :, :) = sd%tod
       !  call compute_calibrated_data(self, i, sd, d_calib)    
 
       if (.false.) then
@@ -416,15 +422,15 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
        else
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6, chisq_S=chisq_s, mask=procmask2)
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
        end if
     else
        if(self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d6)
+         call finalize_binned_map(self, binmap, rms_out, 1.d0)
        else 
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6)
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
        end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
@@ -440,7 +446,7 @@ contains
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    if (self%output_n_maps > 2) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
+   !  if (self%output_n_maps > 2) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
     if (self%output_n_maps > 4) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
     if (self%output_n_maps > 5) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
@@ -461,6 +467,8 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
+    
+    call timer%stop(TOD_TOT, self%band)
 
   end subroutine process_DIRBE_tod   
 
