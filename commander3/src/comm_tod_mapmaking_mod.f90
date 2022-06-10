@@ -792,7 +792,8 @@ end subroutine bin_differential_TOD
         if (l == 1) then
           monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
                  & / sum(M_diag(:,1)*procmask)
-          bicg_sol = transpose(map_full)
+          !bicg_sol = transpose(map_full)
+          bicg_sol = 0d0
         else
           monopole = 0d0
           bicg_sol = 0d0
