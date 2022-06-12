@@ -789,15 +789,14 @@ end subroutine bin_differential_TOD
 
 
         r = b_map(:, :, l)
-        if (l == 1) then
-          monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
-                 & / sum(M_diag(:,1)*procmask)
-          !bicg_sol = transpose(map_full)
-          bicg_sol = 0d0
-        else
-          monopole = 0d0
-          bicg_sol = 0d0
-        end if
+        monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
+               & / sum(M_diag(:,1)*procmask)
+        !if (l == 1) then
+        !  !bicg_sol = transpose(map_full)
+        !else
+        !  bicg_sol = 0d0
+        !end if
+        bicg_sol = 0d0
         r0 = b_map(:, :, l) - monopole
         call tod%apply_map_precond(r0, rhat)
         
@@ -920,6 +919,11 @@ end subroutine bin_differential_TOD
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
               if (tod%verbosity > 1) write(*,*) '| Reached bicg-stab tolerance'
+              finished = .true.
+              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
+              exit bicg
+           else if (delta_r > delta_0*1000) then
+              write(*,*) '| Solution is diverging, killing search'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
