@@ -1,4 +1,5 @@
 from __future__ import annotations
+from cProfile import label
 
 from typing import TYPE_CHECKING
 import sys
@@ -117,7 +118,39 @@ def main() -> None:
     hp.mollview(tods_total, norm="hist")
     plt.show()
 
+
+def test():
+    with h5py.File(PATH_TO_HDF5_FILES + "Phot06_128.hdf5", "r") as file:
+        tods = file["000001/A/tod"][()]
+        pix_ecl = file["000001/A/pix"][()]
+        flags = file["000001/A/flag"][()]
+
+    def smooth(y, box_pts=30):
+        box = np.ones(box_pts)/box_pts
+        y_smooth = np.convolve(y, box, mode='same')
+        return y_smooth
+
+    condition1 = tods > BAD_DATA_SENTINEL
+    condition2 = np.bitwise_and(flags, FLAGS_SUM) == 0
+    condition = np.logical_and(condition1, condition2)
+
+    vec_ecl = np.asarray(hp.pix2vec(NSIDE, pix_ecl))
+    vec_x = vec_ecl[0, condition][:2000]
+    plt.plot(vec_x, label="vec", linewidth=2)
+    w=30
+    plt.plot(smooth(vec_x, w), label=w)
+    
+    plt.legend()
+
+    # from scipy.signal import savgol_filter
+    # plt.plot(vec_ecl)
+    # plt.plot(savgol_filter(vec_ecl, 51, 3))
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # main()
-    read_tods()
+    test()
+    # read_tods()
     # test_smoothing()

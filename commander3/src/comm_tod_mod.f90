@@ -249,6 +249,7 @@ contains
     if (initialized) return
 
     call initialize_fft_mod(cpar)
+    write(*, *) "zodi:", cpar%include_tod_zodi
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
