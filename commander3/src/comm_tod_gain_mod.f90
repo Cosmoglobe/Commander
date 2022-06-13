@@ -174,7 +174,7 @@ interface
   end subroutine get_smoothing_windows
 
 
-  module subroutine wiener_filtered_gain(b, inv_N_wn, sigma_0, alpha, fknee, sample, &
+  module subroutine wiener_filtered_gain(b, inv_N_wn, samprate, sigma_0, alpha, fknee, sample, &
      & handle)
      !
      ! Given a spectral model for the gain, samples a wiener filtered (smoothed)
@@ -198,6 +198,8 @@ interface
      !              calculate_gain_mean_std_per_scan. Will contain the solution.
      ! inv_N_wn:    real(dp) array
      !              The inverse white noise diagonal covariance matrix
+     ! samprate:    real(dp)
+     !              Estimate of sample rate; not very accurate
      ! sigma_0:     real(dp)
      !              The current estimate of sigma_0 in the spectral model
      ! alpha:       real(dp)
@@ -220,7 +222,7 @@ interface
 
      real(dp), dimension(:), intent(inout)   :: b
      real(dp), dimension(:), intent(in)      :: inv_N_wn
-     real(dp), intent(in)                    :: sigma_0, alpha, fknee
+     real(dp), intent(in)                    :: samprate, sigma_0, alpha, fknee
      logical(lgt), intent(in)                :: sample
      type(planck_rng)                        :: handle
   end subroutine wiener_filtered_gain
