@@ -140,20 +140,20 @@ contains
       constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
       constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
       if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
-         constructor%xi_n_nu_fit(3,:) = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(2,:) = [0.0, 0.005]    
+         constructor%xi_n_nu_fit(3,:) = [0.0, 0.005]    
          constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00067, -0.00067, 0.00536, 0.00536]
       else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]    
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00353, 0.00353, 0.00154, 0.00154]
       else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]    
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]    
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
          constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00013, -0.00013, 0.00414, 0.00414]
@@ -164,38 +164,38 @@ contains
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00756, 0.00756, 0.00986, 0.00986]
       else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00053, 0.00053, 0.00250, 0.00250]
       else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00352, 0.00352, 0.00245, 0.00245]
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01134, 0.01134, 0.00173, 0.00173]
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01017, 0.01017, 0.01142, 0.01142]
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000] 
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00122, -0.00122, 0.00463, 0.00463]
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 2.000]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 2.000]  
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.02311, 0.02311, 0.02054, 0.02054]
@@ -429,25 +429,8 @@ contains
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 3
-         if (iter .eq. 1)                           self%output_n_maps = 1
+         !if (iter .eq. 1)                           self%output_n_maps = 1
       end if
-
-
-      !! Set bad scans by hand
-      !do i = 1, self%nscan
-      !    k = self%scanid(i)
-      !    ! It's definitely between 468/2 and 3*468/4
-      !    ! Is it above 293? If yes, it's between 293 and 351
-      !    !                          Check above 322
-      !    !                  If no,  it's between 234 and 293
-      !    !                          Check above 264
-      !    !if (k > 250 .and. k < 350) self%scans(i)%d%accept = .false.
-      !    !if (k > 100 .and. k < 200) self%scans(i)%d%accept = .false.
-      !    if (k == 29) self%scans(i)%d%accept = .false.
-      !    if (k == 105) self%scans(i)%d%accept = .false.
-      !    if (k == 184) self%scans(i)%d%accept = .false.
-      !    !if (i .ne. 1) self%scans(i)%d%accept = .false.
-      !end do
 
 
       call int2string(chain, ctext)
@@ -992,49 +975,49 @@ contains
        map_out =  map/self%M_diag
     else
 
-!       map_out = 0d0
-!
-!       npix_lowres = 12*self%nside_M_lowres**2
-!       nmaps       = self%nmaps_M_lowres
-!
-!       ! Apply lowres preconditioner
-!       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
-!       allocate(m_low(0:size(map,1)-1, nmaps))
-!       do i = 1, nmaps
-!          m = map(:,i)
-!          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
-!       end do
-!       ! m_lin is now the low resolution linearized version of the map
-!       m_lin = matmul(self%M_lowres, m_lin)
-!       ! m_lin has now been preconditioned.
-!
-!       do i = 1, nmaps
-!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m_low(:,i), self%info%nside)
-!       end do
-!       
-!       ! Apply highres preconditioner to residual
-!       map_out = map - m_low
-!       do i = 0, size(map,1)-1
-!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-!          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
-!          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
-!          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
-!       end do
-!
-!       do i = 1, nmaps
-!          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
-!          map_out(:,i) = map_out(:,i) + m_low(:,i)
-!       end do
-!
-!       deallocate(m, m_lin, m_low)
-       
+       map_out = 0d0
 
+       npix_lowres = 12*self%nside_M_lowres**2
+       nmaps       = self%nmaps_M_lowres
+
+       ! Apply lowres preconditioner
+       allocate(m_lin(0:npix_lowres*nmaps-1), m(0:size(map,1)-1))
+       allocate(m_low(0:size(map,1)-1, nmaps))
+       do i = 1, nmaps
+          m = map(:,i)
+          call udgrade_ring(m, self%info%nside, m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres)
+       end do
+       ! m_lin is now the low resolution linearized version of the map
+       m_lin = matmul(self%M_lowres, m_lin)
+       ! m_lin has now been preconditioned.
+
+       do i = 1, nmaps
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m_low(:,i), self%info%nside)
+       end do
+       
+       ! Apply highres preconditioner to residual
+       map_out = map - m_low
        do i = 0, size(map,1)-1
           determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
-          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
-          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+          map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+          map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+          map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
        end do
+
+       do i = 1, nmaps
+          call udgrade_ring(m_lin((i-1)*npix_lowres:i*npix_lowres-1), self%nside_M_lowres, m, self%info%nside)
+          map_out(:,i) = map_out(:,i) + m_low(:,i)
+       end do
+
+       deallocate(m, m_lin, m_low)
+       
+
+!       do i = 0, size(map,1)-1
+!          determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+!          map_out(i,1) =  map(i,1)/self%M_diag(i,1)
+!          map_out(i,2) = (map(i,2)*self%M_diag(i,3) - map(i,2)*self%M_diag(i,4))/determ
+!          map_out(i,3) = (map(i,3)*self%M_diag(i,2) - map(i,3)*self%M_diag(i,4))/determ
+!       end do
 
 
     end if

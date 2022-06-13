@@ -278,7 +278,7 @@ def get_flags(data, test=False, center=True, bands=np.arange(10)):
 
     ll_A, ll_B, p_A, p_B, t_list = quat_to_sky_coords(quat, lonlat=True,
         center=center, ret_times=True,
-            coord_out='C', Nobs_array = Nobs_arr)
+            coord_out='C', Nobs_array = Nobs_arr, n_ind = bands)
 
     time_majorframe = data[2].data['TIME'] + t2jd
 
