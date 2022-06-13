@@ -158,8 +158,8 @@ contains
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00013, -0.00013, 0.00414, 0.00414]
       else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]   
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]   
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
          constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00756, 0.00756, 0.00986, 0.00986]
@@ -176,26 +176,26 @@ contains
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.00352, 0.00352, 0.00245, 0.00245]
       else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01134, 0.01134, 0.00173, 0.00173]
       else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.01017, 0.01017, 0.01142, 0.01142]
       else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200] 
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00122, -0.00122, 0.00463, 0.00463]
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.200]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.200]  
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.02311, 0.02311, 0.02054, 0.02054]
