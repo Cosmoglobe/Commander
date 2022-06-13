@@ -229,7 +229,7 @@ contains
       ! Gain PSD Wiener filter parameters; determined by trial-and-error
       constructor%gain_tune_sigma0 = .false.
       constructor%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
-      constructor%gain_sigma_0     = 1d-3 !3d-4                           ! Default from LFI
+      constructor%gain_sigma_0     = 3d-3 !3d-4                           ! Default from LFI
       constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
       constructor%gain_alpha       = -1.d0                          ! Default from LFI
 
