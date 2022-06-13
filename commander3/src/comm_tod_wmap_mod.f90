@@ -226,6 +226,13 @@ contains
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
 
+      ! Gain PSD Wiener filter parameters; determined by trial-and-error
+      constructor%gain_tune_sigma0 = .false.
+      constructor%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
+      constructor%gain_sigma_0     = 3d-4                           ! Default from LFI
+      constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
+      constructor%gain_alpha       = -1.d0                          ! Default from LFI
+
       if (constructor%myid == 0) then
          allocate(constructor%M_diag(0:info%npix-1,info%nmaps+1))
       end if
@@ -511,7 +518,7 @@ contains
               call update_status(status, "relcal")
               call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
               call update_status(status, "deltaG")
-              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.false.)
+              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.true.)
            else
               self%correct_sl      = .false.
               do j = 1, self%nscan
@@ -938,9 +945,9 @@ contains
          allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-         call write_hdf(precond_file, '/M', self%M_lowres)
-         call close_hdf_file(precond_file)
+!!$         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+!!$         call write_hdf(precond_file, '/M', self%M_lowres)
+!!$         call close_hdf_file(precond_file)
 
          call invert_matrix(self%M_lowres)
       else

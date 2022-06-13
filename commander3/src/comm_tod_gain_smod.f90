@@ -251,29 +251,29 @@ contains
          if (all(g(:, j, 1) == 0)) continue
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
-          if (count(g(:,j,2)>0) > 500) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
-          tod%gain_alpha(j) = -1.d0             ! Physically motivated value
-          tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
+         if (tod%gain_tune_sigma0) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
+         !tod%gain_alpha(j) = -1.d0             ! Physically motivated value
+         !tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-          if (.false.) then
-             open(58,file='gain_in.dat')
-             do k = 1, size(g,1)
-                if (g(k,j,2) > 0) then
-                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
-                end if
-             end do
-             close(58)
-             !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
-
-             open(68,file='g.unf', form='unformatted')
-             write(68) size(g,1)
-             write(68) g(:,j,1)
-             write(68) g(:,j,2)
-             write(68) tod%gain_sigma_0(j)
-             write(68) tod%gain_alpha(j)
-             write(68) tod%gain_fknee(j)
-             close(68)
-          end if
+!!$          if (j==1) then
+!!$             open(58,file='gain_in_hke.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
+!!$             !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+!!$
+!!$             open(68,file='g.unf', form='unformatted')
+!!$             write(68) size(g,1)
+!!$             write(68) g(:,j,1)
+!!$             write(68) g(:,j,2)
+!!$             write(68) tod%gain_sigma_0(j)
+!!$             write(68) tod%gain_alpha(j)
+!!$             write(68) tod%gain_fknee(j)
+!!$             close(68)
+!!$          end if
 
           sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
           if (sample_per_jump) then
@@ -281,14 +281,14 @@ contains
                 write(*, *) 'Estimating per gain jump'
              end if
              do k = 1, size(tod%jumplist(j, :)) - 2
-                call wiener_filtered_gain(g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 1), g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
-                   & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+                call wiener_filtered_gain(g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 1), g(tod%jumplist(j, k):tod%jumplist(j, k+1), j, 2), &
+                     & tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
              end do
                ! Final chunk
-             call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
-                  & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
+             call wiener_filtered_gain(g(tod%jumplist(j, k):, j, 1), g(tod%jumplist(j, k):, j, 2), &
+                  & tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           else
-             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_sigma_0(j), tod%gain_alpha(j), &
+             call wiener_filtered_gain(g(:, j, 1), g(:, j, 2), tod%gain_samprate, tod%gain_sigma_0(j), tod%gain_alpha(j), &
                 & tod%gain_fknee(j), trim(tod%operation)=='sample', handle)
           end if
 
@@ -307,16 +307,18 @@ contains
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-          if (.false.) then
-             open(58,file='gain_out.dat')
-             do k = 1, size(g,1)
-                if (g(k,j,2) > 0) then
-                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
-                end if
-             end do
-             close(58)
-          end if
+!!$          if (j==1) then
+!!$             open(58,file='gain_out_hke.dat')
+!!$             do k = 1, size(g,1)
+!!$                if (g(k,j,2) > 0) then
+!!$                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+!!$                end if
+!!$             end do
+!!$             close(58)
+!!$          end if
        end do
+!!$       call mpi_finalize(ierr)
+!!$       stop
 
        ! Distribute and update results
        do j = 1, ndet
@@ -673,7 +675,7 @@ contains
   end subroutine get_smoothing_windows
 
 
-  module subroutine wiener_filtered_gain(b, inv_N_wn, sigma_0, alpha, fknee, sample, &
+  module subroutine wiener_filtered_gain(b, inv_N_wn, samprate, sigma_0, alpha, fknee, sample, &
      & handle)
      !
      ! Given a spectral model for the gain, samples a wiener filtered (smoothed)
@@ -719,29 +721,35 @@ contains
 
      real(dp), dimension(:), intent(inout)   :: b
      real(dp), dimension(:), intent(in)      :: inv_N_wn
-     real(dp), intent(in)                    :: sigma_0, alpha, fknee
+     real(dp), intent(in)                    :: samprate, sigma_0, alpha, fknee
      logical(lgt), intent(in)                :: sample
      type(planck_rng)                        :: handle
 
-     real(dp), allocatable, dimension(:)     :: freqs, dt, inv_N_corr
+     real(dp), allocatable, dimension(:)     :: freqs, dt, inv_N_corr, b2, inv_N_wn2
      complex(dpc), allocatable, dimension(:) :: dv
      real(dp), allocatable, dimension(:)     :: fluctuations, temp
      real(dp), allocatable, dimension(:)     :: precond
      complex(dpc), allocatable, dimension(:) :: fourier_fluctuations
      integer*8          :: plan_fwd, plan_back
      integer(i4b)       :: nscan, nfft, n, nomp, err
-     real(dp)           :: samprate, sigma0_wn
+     real(dp)           :: sigma0_wn
 
      integer(i4b)   :: i
 
      nscan = size(b)
-     nfft = nscan
+     nfft = 2*nscan
      n = nfft / 2 + 1
-     samprate = 1.d0 / (60.d0 * 60.d0) ! Just assuming a pid per hour for now
+     !samprate = 1.d0 / (24.d0*60.d0 * 60.d0) ! Just assuming a pid per hour for now
      allocate(freqs(0:n-1))
      do i = 0, n - 1
         freqs(i) = i * (samprate * 0.5) / (n - 1)
      end do
+
+     allocate(b2(nfft), inv_N_wn2(nfft))
+     b2(1:nscan)                   = b
+     b2(2*nscan:nscan+1:-1)        = b
+     inv_N_wn2(1:nscan)            = inv_N_wn
+     inv_N_wn2(2*nscan:nscan+1:-1) = inv_N_wn
 
      nomp = OMP_GET_THREAD_NUM()
      call dfftw_init_threads(err)
@@ -754,7 +762,7 @@ contains
      deallocate(dt, dv)
 
      allocate(inv_N_corr(0:n-1))
-     allocate(fluctuations(nscan))
+     allocate(fluctuations(nfft))
      allocate(precond(0:n-1))
      allocate(fourier_fluctuations(0:n-1))
 
@@ -770,27 +778,31 @@ contains
         end do
         call fft_back(fourier_fluctuations, fluctuations, plan_back)
 
-        do i = 1, nscan
-           if (inv_N_wn(i) > 0) then
-              fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn(i)) * rand_gauss(handle)
+        do i = 1, nfft
+           if (inv_N_wn2(i) > 0) then
+              fluctuations(i) = fluctuations(i) + sqrt(inv_N_wn2(i)) * rand_gauss(handle)
            end if
-           b(i) = b(i) + fluctuations(i)
+           b2(i) = b2(i) + fluctuations(i)
          end do
       end if
 
       !write(*,*) 'precond = ', maxval(inv_N_wn), median(inv_N_wn)
       do i = 0, n-1
-         precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn))
+         precond(i) = 1.d0/(inv_N_corr(i) + maxval(inv_N_wn2))
          !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
          !precond(i) = 1.d0/inv_N_wn(i)
       end do
       !write(*,*) i, inv_N_corr(i), maxval(inv_N_wn), precond(i)
 
-      b = solve_cg_gain(inv_N_wn, inv_N_corr, b, precond, plan_fwd, plan_back)
+      b2 = solve_cg_gain(inv_N_wn2, inv_N_corr, b2, precond, plan_fwd, plan_back)
       deallocate(inv_N_corr, freqs, fluctuations, fourier_fluctuations, precond)
-          
+        
+      b = b2(1:nscan)
+  
       call dfftw_destroy_plan(plan_fwd)                                           
       call dfftw_destroy_plan(plan_back) 
+
+     deallocate(b2, inv_N_wn2)
 
   end subroutine wiener_filtered_gain
 
@@ -1173,7 +1185,7 @@ contains
      integer(i4b) :: i
      real(dp) :: apod
 
-     invcov(0) = 1d12 !0.d0
+     invcov(0) = 0.d0
      target_apod_freq = 1d-6
       do i = 1, size(freqs) -1
          apod = (1 + freqs(i)/target_apod_freq)**5

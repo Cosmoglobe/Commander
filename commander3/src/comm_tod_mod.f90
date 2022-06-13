@@ -177,6 +177,7 @@ module comm_tod_mod
      real(dp)                                          :: accept_threshold ! Required fraction of unflagged data in a detscan in order to be accepted 
      logical(lgt)                                      :: orbital ! flag for whether the orbital or solar dipole is used as the template in construct_dipole_template()
      ! Gain parameters
+     logical(lgt)                            :: gain_tune_sigma0
      real(dp)                                :: gain_samprate
      real(dp), allocatable, dimension(:)     :: gain_sigma_0  ! size(ndet), the estimated white noise level of that scan. Not truly a white noise since our model is sigma_0**2 * (f/fknee)**alpha instead of sigma_0 ** 2 (1 + f/fknee ** alpha)
      real(dp), allocatable, dimension(:)    :: gain_fknee ! size(ndet)
@@ -419,18 +420,18 @@ contains
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
 
-    !Allocate and initialize gain structures
+    !Allocate and initialize gain PSD Wiener filter structures; set to LFI defaults for now
     allocate(self%gain_sigma_0(self%ndet))
-    ! To be initialized at first call
     allocate(self%gain_fknee(self%ndet))
     allocate(self%gain_alpha(self%ndet))
-    self%gain_samprate = 1.d0 / 3600.d0
-    self%gain_sigma_0 = 3d-4
-    self%gain_fknee =  self%gain_samprate ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
-    self%gain_alpha =  -2.5d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
-    self%gain_sigma0_std = abs(self%gain_sigma_0(1) * 0.01)
-    self%gain_fknee_std = abs(self%gain_fknee(1) * 0.01)
-    self%gain_alpha_std = abs(self%gain_alpha(1) * 0.01)
+    self%gain_tune_sigma0 = .true.
+    self%gain_samprate    = 1.d0 / 3600.d0
+    self%gain_sigma_0     = 3d-4
+    self%gain_fknee       = self%gain_samprate ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_alpha       = -1.d0              ! This value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_sigma0_std  = abs(self%gain_sigma_0(1) * 0.01)
+    self%gain_fknee_std   = abs(self%gain_fknee(1) * 0.01)
+    self%gain_alpha_std   = abs(self%gain_alpha(1) * 0.01)
 
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
