@@ -1395,7 +1395,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_B_old = psi_B_arr[:i0]
               flags_old = flags_arr[:i0]
 
-              if (len(times_old) < N) and (len(time_all) > 0):
+              if (len(time_all) > 0):
                 time_all[-1] = np.concatenate((time_all[-1], times_old))
                 for n in range(4):
                     TOD_all[n][-1] = np.concatenate((TOD_all[n][-1], TODs_old[n]))
@@ -1497,18 +1497,42 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_ev = psi_A_arr[i0:]
               psi_B_ev = psi_B_arr[i0:]
               flags_ev = np.ones_like(flags_arr[i0:])
+
+              time_all.append(times_ev)
+              for n in range(4):
+                  TOD_all[n].append(TODs_ev[n])
+              pos_all.append(pos_ev[0])
+              vel_all.append(vel_ev[0])
+              pix_A_all.append(pix_A_ev)
+              pix_B_all.append(pix_B_ev)
+              psi_A_all.append(psi_A_ev)
+              psi_B_all.append(psi_B_ev)
+              flags_all.append(flags_ev)
+
+
+              times = np.array([])
+              for n in range(4):
+                  TODs[n] = np.array([])
+              pos_arr =     np.array([])
+              vel_arr =     np.array([])
+              pix_A_arr =   np.array([])
+              pix_B_arr =   np.array([])
+              psi_A_arr =   np.array([])
+              psi_B_arr =   np.array([])
+              flags_arr =   np.array([])
+
             elif (i1 < len(times)) & (i0 == 0):
 
-              times_ev = np.concatenate((times_ev, times[:i1]))
+              times_ev = times[:i1]
               for n in range(4):
-                  TODs_ev[n] = np.concatenate((TODs_ev[n], TODs[n][:i1]))
-              pos_ev =   np.concatenate((pos_ev,   pos_arr[:i1]))
-              vel_ev =   np.concatenate((vel_ev,   vel_arr[:i1]))
-              pix_A_ev = np.concatenate((pix_A_ev, pix_A_arr[:i1]))
-              pix_B_ev = np.concatenate((pix_B_ev, pix_B_arr[:i1]))
-              psi_A_ev = np.concatenate((psi_A_ev, psi_A_arr[:i1]))
-              psi_B_ev = np.concatenate((psi_B_ev, psi_B_arr[:i1]))
-              flags_ev = np.concatenate((flag_ev, np.ones_like(flags_arr[:i1])))
+                  TODs_ev[n] = TODs[n][:i1]
+              pos_ev =   pos_arr[:i1]
+              vel_ev =   vel_arr[:i1]
+              pix_A_ev = pix_A_arr[:i1]
+              pix_B_ev = pix_B_arr[:i1]
+              psi_A_ev = psi_A_arr[:i1]
+              psi_B_ev = psi_B_arr[:i1]
+              flags_ev = np.ones_like(flags_arr[:i1])
 
               times = times[i1:]
               for n in range(4):
@@ -1520,6 +1544,42 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_arr = psi_A_arr[i1:]
               psi_B_arr = psi_B_arr[i1:]
               flags_arr = flags_arr[i1:]
+
+
+              time_all.append(times_ev)
+              for n in range(4):
+                  TOD_all[n].append(TODs_ev[n])
+              pos_all.append(pos_ev[0])
+              vel_all.append(vel_ev[0])
+              pix_A_all.append(pix_A_ev)
+              pix_B_all.append(pix_B_ev)
+              psi_A_all.append(psi_A_ev)
+              psi_B_all.append(psi_B_ev)
+              flags_all.append(flags_ev)
+
+            elif (i1 == len(times)) & (i0 == 0):
+
+              times_ev = np.concatenate((times_ev, times))
+              for n in range(4):
+                  TODs_ev[n] = TODs[n]
+              pos_ev =   pos_arr
+              vel_ev =   vel_arr
+              pix_A_ev = pix_A_arr
+              pix_B_ev = pix_B_arr
+              psi_A_ev = psi_A_arr
+              psi_B_ev = psi_B_arr
+              flags_ev = np.ones_like(flags_arr)
+
+              times = np.array([])
+              for n in range(4):
+                  TODs[n] = np.array([])
+              pos_arr =     np.array([])
+              vel_arr =     np.array([])
+              pix_A_arr =   np.array([])
+              pix_B_arr =   np.array([])
+              psi_A_arr =   np.array([])
+              psi_B_arr =   np.array([])
+              flags_arr =   np.array([])
 
 
               time_all.append(times_ev)
