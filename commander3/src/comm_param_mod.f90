@@ -58,7 +58,7 @@ module comm_param_mod
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
      character(len=512) :: output_comps
-     logical(lgt)       :: only_pol
+     logical(lgt)       :: only_pol, only_I
      logical(lgt)       :: enable_TOD_analysis
      logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
      integer(i4b)       :: tod_freq
@@ -396,6 +396,7 @@ contains
        call get_parameter_hashtable(htbl, 'INIT_CHAIN'//itext,     par_string=cpar%init_chain_prefixes(i))
     end do
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
+    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_TEMPERATURE', par_lgt=cpar%only_I)
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
     call get_parameter_hashtable(htbl, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
     call get_parameter_hashtable(htbl, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)

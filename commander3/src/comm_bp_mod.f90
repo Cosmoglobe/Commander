@@ -222,11 +222,7 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
-    
-
   end function constructor
-  
-
   
   subroutine update_tau(self, delta)
     implicit none
