@@ -1379,7 +1379,8 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
         for e, ef in zip(events, events_flags):
           if any(np.searchsorted(e, times) == 1) and (ef[i] == 1):
             i0, i1 = np.searchsorted(times, e)
-            print(band, e, ef, i1-i0)
+            print(i0, i1, times.shape)
+            print(band, Time(e, format='mjd').yday, ef, i1-i0)
             TODs_old = [[],[],[],[]]
             TODs_ev  = [[],[],[],[]]
             if (i1 < len(times)) & (i0 > 0):
@@ -1393,28 +1394,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_old = psi_A_arr[:i0]
               psi_B_old = psi_B_arr[:i0]
               flags_old = flags_arr[:i0]
-              #if len(times_old) >= N:
-              #  time_all.append(times_old[:N])
-              #  for n in range(4):
-              #      TOD_all[n].append(TODs_old[n][:N])
-              #  pos_all.append(    pos_old[0])
-              #  vel_all.append(    vel_old[0])
-              #  pix_A_all.append(pix_A_old[:N])
-              #  pix_B_all.append(pix_B_old[:N])
-              #  psi_A_all.append(psi_A_old[:N])
-              #  psi_B_all.append(psi_B_old[:N])
-              #  flags_all.append(flags_old[:N])
-
-              #  times_old = times_old[N:]
-              #  for n in range(4):
-              #      TODs_old[n] = TODs_old[n][N:]
-              #  pos_old =     pos_old[N:]
-              #  vel_old =     vel_old[N:]
-              #  pix_A_old = pix_A_old[N:]
-              #  pix_B_old = pix_B_old[N:]
-              #  psi_A_old = psi_A_old[N:]
-              #  psi_B_old = psi_B_old[N:]
-              #  flags_old = flags_old[N:]
 
               if (len(times_old) < N) and (len(time_all) > 0):
                 time_all[-1] = np.concatenate((time_all[-1], times_old))
@@ -1450,7 +1429,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_B_ev = psi_B_arr[i0:i1]
               flags_ev = flags_arr[i0:i1]
               # Explicitly flags all data in the event
-              flags_ev[(flags_ev % 2 == 0)] += 1
+              flags_ev = np.ones_like(flags_ev)
 
               times = times[i1:]
               for n in range(4):
@@ -1475,7 +1454,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_all.append(psi_A_ev)
               psi_B_all.append(psi_B_ev)
               flags_all.append(flags_ev)
-            elif (i0 > 0):
+            elif (i0 > 0) and (i1 == len(times)):
               times_old = times[:i0]
               for n in range(4):
                   TODs_old[n] = TODs[n][:i0]
@@ -1485,18 +1464,28 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               pix_B_old = pix_B_arr[:i0]
               psi_A_old = psi_A_arr[:i0]
               psi_B_old = psi_B_arr[:i0]
-              flags_old = flags_arr[:i0]
+              flags_old = np.ones_like(flags_arr[:i0])
 
-              time_all.append(times_old)
-              for n in range(4):
-                  TOD_all[n].append(TODs_old[n])
-              pos_all.append(pos_old[0])
-              vel_all.append(vel_old[0])
-              pix_A_all.append(pix_A_old)
-              pix_B_all.append(pix_B_old)
-              psi_A_all.append(psi_A_old)
-              psi_B_all.append(psi_B_old)
-              flags_all.append(flags_old)
+              if (len(times_old) < N) and (len(time_all) > 0):
+                time_all[-1] = np.concatenate((time_all[-1], times_old))
+                for n in range(4):
+                    TOD_all[n][-1] = np.concatenate((TOD_all[n][-1], TODs_old[n]))
+                pix_A_all[-1] = np.concatenate((pix_A_all[-1], pix_A_old))
+                pix_B_all[-1] = np.concatenate((pix_B_all[-1], pix_B_old))
+                psi_A_all[-1] = np.concatenate((psi_A_all[-1], psi_A_old))
+                psi_B_all[-1] = np.concatenate((psi_B_all[-1], psi_B_old))
+                flags_all[-1] = np.concatenate((flags_all[-1], flags_old))
+              else:
+                time_all.append(times_old)
+                for n in range(4):
+                    TOD_all[n].append(TODs_old[n])
+                pos_all.append(pos_old[0])
+                vel_all.append(vel_old[0])
+                pix_A_all.append(pix_A_old)
+                pix_B_all.append(pix_B_old)
+                psi_A_all.append(psi_A_old)
+                psi_B_all.append(psi_B_old)
+                flags_all.append(flags_old)
 
               times = times[i1:]
               for n in range(4):
@@ -1508,6 +1497,77 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_arr = psi_A_arr[i1:]
               psi_B_arr = psi_B_arr[i1:]
               flags_arr = flags_arr[i1:]
+            elif (i1 < len(times)) & (i0 == 0):
+              times_old = times
+              for n in range(4):
+                  TODs_old[n] = TODs[n]
+              pos_old =     pos_arr
+              vel_old =     vel_arr
+              pix_A_old = pix_A_arr
+              pix_B_old = pix_B_arr
+              psi_A_old = psi_A_arr
+              psi_B_old = psi_B_arr
+              flags_old = flags_arr
+
+              if (len(times_old) < N) and (len(time_all) > 0):
+                time_all[-1] = np.concatenate((time_all[-1], times_old))
+                for n in range(4):
+                    TOD_all[n][-1] = np.concatenate((TOD_all[n][-1], TODs_old[n]))
+                pix_A_all[-1] = np.concatenate((pix_A_all[-1], pix_A_old))
+                pix_B_all[-1] = np.concatenate((pix_B_all[-1], pix_B_old))
+                psi_A_all[-1] = np.concatenate((psi_A_all[-1], psi_A_old))
+                psi_B_all[-1] = np.concatenate((psi_B_all[-1], psi_B_old))
+                flags_all[-1] = np.concatenate((flags_all[-1], flags_old))
+              else:
+                time_all.append(times_old)
+                for n in range(4):
+                    TOD_all[n].append(TODs_old[n])
+                pos_all.append(pos_old[0])
+                vel_all.append(vel_old[0])
+                pix_A_all.append(pix_A_old)
+                pix_B_all.append(pix_B_old)
+                psi_A_all.append(psi_A_old)
+                psi_B_all.append(psi_B_old)
+                flags_all.append(flags_old)
+
+
+
+              times_ev = times[i0:i1]
+              for n in range(4):
+                  TODs_ev[n] = TODs[n][i0:i1]
+              pos_ev =     pos_arr[i0:i1]
+              vel_ev =     vel_arr[i0:i1]
+              pix_A_ev = pix_A_arr[i0:i1]
+              pix_B_ev = pix_B_arr[i0:i1]
+              psi_A_ev = psi_A_arr[i0:i1]
+              psi_B_ev = psi_B_arr[i0:i1]
+              flags_ev = flags_arr[i0:i1]
+              # Explicitly flags all data in the event
+              flags_ev = np.ones_like(flags_ev)
+
+              times = times[i1:]
+              for n in range(4):
+                  TODs[n] = TODs[n][i1:]
+              pos_arr =     pos_arr[i1:]
+              vel_arr =     vel_arr[i1:]
+              pix_A_arr = pix_A_arr[i1:]
+              pix_B_arr = pix_B_arr[i1:]
+              psi_A_arr = psi_A_arr[i1:]
+              psi_B_arr = psi_B_arr[i1:]
+              flags_arr = flags_arr[i1:]
+
+
+
+              time_all.append(times_ev)
+              for n in range(4):
+                  TOD_all[n].append(TODs_ev[n])
+              pos_all.append(pos_ev[0])
+              vel_all.append(vel_ev[0])
+              pix_A_all.append(pix_A_ev)
+              pix_B_all.append(pix_B_ev)
+              psi_A_all.append(psi_A_ev)
+              psi_B_all.append(psi_B_ev)
+              flags_all.append(flags_ev)
 
 
         TODs_old = [[],[],[],[]]
@@ -1544,19 +1604,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
           psi_A_all.append(psi_A_old)
           psi_B_all.append(psi_B_old)
           flags_all.append(flags_old)
-        #if (times[-1] > 52140) and plot:
-        #  fig, axes = plt.subplots(nrows=4, sharex=True)
-        #  for n in range(4):
-        #      for k in range(len(TOD_all[0])):
-        #        axes[n].plot(time_all[k], TOD_all[n][k])
-        #  plt.savefig(f'{band}.png')
-        #  #plt.show()
-        #  for k in range(len(TOD_all[0])):
-        #    plt.plot(time_all[k], psi_A_all[k])
-        #  #plt.show()
-        #  plot = False
-        #  plt.close('all')
-        #  break
 
 
         if (len(time_all) > 0) & ((len(time_all) % 5) == 0):
