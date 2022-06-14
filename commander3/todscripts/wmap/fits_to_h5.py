@@ -1236,7 +1236,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
         outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_precal/'
     else:
         files = glob(prefix + 'uncalibrated/*.fits')
-        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_temp/'
+        outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_longer/'
     files.sort()
 
     if (simulate):
@@ -1266,7 +1266,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
     n_per_day = 1
     band_labels = [f'{band}{labels[i]}' for i in range(4)]
 
-    #files = files[:10]
     inds = np.arange(len(files))
 
     if ('V' in band) or ('W' in band):
@@ -1379,8 +1378,8 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
 
         for e, ef in zip(events, events_flags):
           if any(np.searchsorted(e, times) == 1) and (ef[i] == 1):
-            print(band, e, ef)
             i0, i1 = np.searchsorted(times, e)
+            print(band, e, ef, i1-i0)
             TODs_old = [[],[],[],[]]
             TODs_ev  = [[],[],[],[]]
             if (i1 < len(times)) & (i0 > 0):
@@ -1394,55 +1393,50 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               psi_A_old = psi_A_arr[:i0]
               psi_B_old = psi_B_arr[:i0]
               flags_old = flags_arr[:i0]
-              if len(times_old) >= N:
-                time_all.append(times_old[:N])
-                for n in range(4):
-                    TOD_all[n].append(TODs_old[n][:N])
-                pos_all.append(    pos_old[0])
-                vel_all.append(    vel_old[0])
-                pix_A_all.append(pix_A_old[:N])
-                pix_B_all.append(pix_B_old[:N])
-                psi_A_all.append(psi_A_old[:N])
-                psi_B_all.append(psi_B_old[:N])
-                flags_all.append(flags_old[:N])
-
-                times_old = times_old[N:]
-                for n in range(4):
-                    TODs_old[n] = TODs_old[n][N:]
-                pos_old =     pos_old[N:]
-                vel_old =     vel_old[N:]
-                pix_A_old = pix_A_old[N:]
-                pix_B_old = pix_B_old[N:]
-                psi_A_old = psi_A_old[N:]
-                psi_B_old = psi_B_old[N:]
-                flags_old = flags_old[N:]
-
-              #N0 = min(20, int(np.log2(len(TODs_old[-1]))))
-              #while ((len(TODs_old[-1]) > 2**19)
-              #    and (not np.log2(len(TODs_old[-1])).is_integer())):
-              #  time_all.append(times_old[:2**N0])
+              #if len(times_old) >= N:
+              #  time_all.append(times_old[:N])
               #  for n in range(4):
-              #      TOD_all[n].append(TODs_old[n][:2**N0])
+              #      TOD_all[n].append(TODs_old[n][:N])
               #  pos_all.append(    pos_old[0])
               #  vel_all.append(    vel_old[0])
-              #  pix_A_all.append(pix_A_old[:2**N0])
-              #  pix_B_all.append(pix_B_old[:2**N0])
-              #  psi_A_all.append(psi_A_old[:2**N0])
-              #  psi_B_all.append(psi_B_old[:2**N0])
-              #  flags_all.append(flags_old[:2**N0])
+              #  pix_A_all.append(pix_A_old[:N])
+              #  pix_B_all.append(pix_B_old[:N])
+              #  psi_A_all.append(psi_A_old[:N])
+              #  psi_B_all.append(psi_B_old[:N])
+              #  flags_all.append(flags_old[:N])
 
-              #  times_old = times_old[2**N0:]
-              #  pos_old =     pos_old[2**N0:]
-              #  vel_old =     vel_old[2**N0:]
-              #  pix_A_old = pix_A_old[2**N0:]
-              #  pix_B_old = pix_B_old[2**N0:]
-              #  psi_A_old = psi_A_old[2**N0:]
-              #  psi_B_old = psi_B_old[2**N0:]
-              #  flags_old = flags_old[2**N0:]
+              #  times_old = times_old[N:]
               #  for n in range(4):
-              #      TODs_old[n] = TODs_old[n][2**N0:]
+              #      TODs_old[n] = TODs_old[n][N:]
+              #  pos_old =     pos_old[N:]
+              #  vel_old =     vel_old[N:]
+              #  pix_A_old = pix_A_old[N:]
+              #  pix_B_old = pix_B_old[N:]
+              #  psi_A_old = psi_A_old[N:]
+              #  psi_B_old = psi_B_old[N:]
+              #  flags_old = flags_old[N:]
 
-              #  N0 -= 1
+              if (len(times_old) < N) and (len(time_all) > 0):
+                time_all[-1] = np.concatenate((time_all[-1], times_old))
+                for n in range(4):
+                    TOD_all[n][-1] = np.concatenate((TOD_all[n][-1], TODs_old[n]))
+                pix_A_all[-1] = np.concatenate((pix_A_all[-1], pix_A_old))
+                pix_B_all[-1] = np.concatenate((pix_B_all[-1], pix_B_old))
+                psi_A_all[-1] = np.concatenate((psi_A_all[-1], psi_A_old))
+                psi_B_all[-1] = np.concatenate((psi_B_all[-1], psi_B_old))
+                flags_all[-1] = np.concatenate((flags_all[-1], flags_old))
+              else:
+                time_all.append(times_old)
+                for n in range(4):
+                    TOD_all[n].append(TODs_old[n])
+                pos_all.append(pos_old[0])
+                vel_all.append(vel_old[0])
+                pix_A_all.append(pix_A_old)
+                pix_B_all.append(pix_B_old)
+                psi_A_all.append(psi_A_old)
+                psi_B_all.append(psi_B_old)
+                flags_all.append(flags_old)
+
 
 
               times_ev = times[i0:i1]
@@ -1470,16 +1464,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0,
               flags_arr = flags_arr[i1:]
 
 
-              time_all.append(times_old)
-              for n in range(4):
-                  TOD_all[n].append(TODs_old[n])
-              pos_all.append(pos_old[0])
-              vel_all.append(vel_old[0])
-              pix_A_all.append(pix_A_old)
-              pix_B_all.append(pix_B_old)
-              psi_A_all.append(psi_A_old)
-              psi_B_all.append(psi_B_old)
-              flags_all.append(flags_old)
 
               time_all.append(times_ev)
               for n in range(4):
@@ -1705,7 +1689,7 @@ def main2():
              'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
              'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
              'W4':manager.dict(),}
-    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_temp/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_longer/'
     version = 50
     comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
         overwrite=True)
