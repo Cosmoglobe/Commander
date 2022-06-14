@@ -194,8 +194,8 @@ contains
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [-0.00122, -0.00122, 0.00463, 0.00463]
       else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.040]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.040]  
+         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
+         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
          constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
          constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
          constructor%x_im = [0.02311, 0.02311, 0.02054, 0.02054]
