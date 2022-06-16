@@ -223,14 +223,17 @@ contains
             self%F_null(i,j) =  .false.
           else
             do k=1, j
-               if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+             if(size(data(i)%bp(k)%p%tau0) == size(data(i)%bp(j)%p%tau0)) then
+              if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
                   self%F(i,j)%p => self%F(i,k)%p
                   self%F_null(i,j) =  .false.
                   exit
-               else if (k==j-1) then
-                  self%F(i,j)%p    => comm_map(info)
-                  self%F_null(i,j) =  .false.
-               end if
+              end if
+             end if
+             if (k==j) then !if we got through the whole loop above
+               self%F(i,j)%p    => comm_map(info)
+               self%F_null(i,j) =  .false.
+             end if
             end do
           end if
        end do

@@ -49,7 +49,7 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name.lower() == 'lfi':
+        if self.experiment.lower() == 'lfi':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)

@@ -77,7 +77,7 @@ contains
           end if
        end do
        !call hcode%get_symbol(node, buf)
-       !x_out(k) = buf 
+       !x_out(k) = buf
        x_out(k) = hcode%int_symbs(node)
        if (k > 1)         x_out(k) = x_out(k-1) + x_out(k)
        if (present(imod)) x_out(k) = iand(x_out(k),imod)

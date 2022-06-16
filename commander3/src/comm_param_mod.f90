@@ -2429,7 +2429,7 @@ contains
     type(comm_params), intent(inout) :: cpar
 
     integer(i4b) :: i, j
-    character(len=512) :: datadir, chaindir
+    character(len=512) :: datadir, chaindir, filename, filename1
     logical(lgt) :: exist
 
     datadir  = trim(cpar%datadir) // '/'
@@ -2506,7 +2506,14 @@ contains
                call validate_file(trim(datadir)//trim(cpar%cs_mask(i)))          
           if (trim(cpar%cs_indmask(i)) /= 'fullsky') &
                call validate_file(trim(datadir)//trim(cpar%cs_indmask(i)))          
-          
+          if (trim(cpar%cs_mono_prior(i)) /= 'none') then
+            filename = get_token(cpar%cs_mono_prior(i), ":", 2)
+            filename1 = get_token(filename, ",", 1)
+            call validate_file(trim(datadir)//trim(filename1))
+          end if 
+
+
+ 
           select case (trim(cpar%cs_type(i)))
           case ('power_law')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &

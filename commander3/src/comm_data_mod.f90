@@ -251,20 +251,23 @@ contains
        allocate(data(n)%bp(0:data(n)%ndet))
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+            data(n)%bp(1)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
           else
             ! Check if bandpass already exists in detector list
             call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
                               & data(n)%tod%label(j), &
-                              & 0.d0, &
+                              & data(n)%bp(1)%p%threshold, &
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)
             do k=1, j
-               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+               if(size(tau_dummy)==size(data(n)%bp(k)%p%tau0)) then
+                if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
-               else if (k==j-1) then
+                end if
+               end if
+               if(k==j) then !if we got through the whole loop above
                   data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
                end if
             end do

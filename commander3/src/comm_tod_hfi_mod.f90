@@ -121,6 +121,7 @@ contains
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
     constructor%nhorn           = 1
+    constructor%ndiode          = 1
     constructor%compressed_tod  = .true.
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.

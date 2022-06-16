@@ -821,9 +821,9 @@ contains
     character(len=*), dimension(:), intent(in)    :: detlabels
     character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j,k,l, n, m, ext(1)
+    integer(i4b)       :: i,j,k,l, n, m, ext(1), setsize(1)
     real(sp)           :: nu
-    real(dp)           :: scalars(4)
+    real(dp)           :: scalars(4), time
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
@@ -859,8 +859,15 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
-    call read_hdf(file, slabel // "/common/time",  self%t0)
-    ! HKE: LFI files should be regenerated with (x,y,z) info
+   
+    call get_size_hdf(file, slabel // "/common/time", setsize)
+
+    if(setsize(1) == 3) then
+      call read_hdf(file, slabel // "/common/time",  self%t0)
+    else 
+      call read_hdf(file, slabel // "/common/time", time)
+      self%t0(2) = time
+    end if
     call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
 
     ! Read detector scans
@@ -991,10 +998,11 @@ contains
     if (tod%compressed_tod) then
 !!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
 !!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
+       !TODO: this needs to be generalized to work for both floats and ints
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
-       deallocate(hsymb_sp, htree)
+       call hufmak_precomp_int(hsymb,htree,self%todkey)
+       deallocate(hsymb, htree)
     end if
 
     ! Read instrument-specific infomation
@@ -2281,6 +2289,8 @@ contains
     integer(i4b) :: i
 
     allocate(tod_int(size(tod)))
+
+    !write(*,*) self%scans(scan)%d(det)%label, self%scans(scan)%chunk_num, size(self%scans(scan)%d(det)%ztod)
 
     call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
 

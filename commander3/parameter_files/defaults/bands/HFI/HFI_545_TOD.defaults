@@ -32,6 +32,7 @@ BAND_DEFAULT_GAIN&&&           =   1.
 BAND_DEFAULT_BP_DELTA&&&       =   0.
 BAND_DEFAULT_NOISEAMP&&&       =   1.
 BAND_COMPONENT_SENSITIVITY&&&  = broadband
+BAND_TOD_LEVEL&&&              = L1
 
 BAND_TOD_TYPE&&&               = HFI
 BAND_TOD_BP_INIT_PROP&&&       = none
