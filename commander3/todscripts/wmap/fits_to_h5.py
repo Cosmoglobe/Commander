@@ -1297,7 +1297,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
     plot = False
     t0 = perf_counter()
     for f_ind, f in enumerate(files):
-        if (((f_ind % 5) == 0) & (f_ind > 0)):
+        if (((f_ind % 25) == 0) & (f_ind > 0)):
           print(band, f_ind, len(psi_A_arr), perf_counter()-t0)
           t0 = perf_counter()
           obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind =  mega_write(comm_tod, obs_ind, flags_arr, TODs, gain_guesses0, band_labels, band, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp*Nobs, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=N, N=N)

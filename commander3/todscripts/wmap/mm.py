@@ -473,7 +473,7 @@ if __name__ == '__main__':
         print('Solving Mx=b')
         #x = scipy.sparse.linalg.spsolve(M, b)
         #x = np.linalg.inv(np.array(M.todense())).dot(b)
-        x = np.linalg.solve(np.array(M.todense()), b)
+        #x = np.linalg.solve(np.array(M.todense()), b)
         print('Solved Mx=b')
         
         I,Q,U,S = np.split(x, 4)

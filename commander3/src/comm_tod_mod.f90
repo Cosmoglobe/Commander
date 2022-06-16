@@ -1717,6 +1717,8 @@ contains
     type(spline_type) :: spline
 
     subsamp = 20 
+    !subsamp = 1
+    ! If I want to test, set subsamp = 1 and compare the sidelobe output
 
     allocate(sub_sl(size(pix)/subsamp), x_sl(size(pix)/subsamp))
 
