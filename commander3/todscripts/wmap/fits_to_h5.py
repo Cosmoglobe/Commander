@@ -1248,8 +1248,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
         #outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_longer/'
     files.sort()
 
-    files = files[:10]
-
     #if (simulate):
     #    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_sim/'
         
@@ -1299,7 +1297,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
     plot = False
     t0 = perf_counter()
     for f_ind, f in enumerate(files):
-        if (((f_ind % 10) == 0) & (f_ind > 0)):
+        if (((f_ind % 5) == 0) & (f_ind > 0)):
           print(band, f_ind, len(psi_A_arr), perf_counter()-t0)
           t0 = perf_counter()
           obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind =  mega_write(comm_tod, obs_ind, flags_arr, TODs, gain_guesses0, band_labels, band, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp*Nobs, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=N, N=N)
@@ -1328,7 +1326,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
 
         quat = data[1].data['QUATERN']
         gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center,
-            Nobs_array=[Nobs], n_ind=[i])
+            Nobs_array=[Nobs], n_ind=[band_ind])
         psi_A = get_psi_band(gal_A[0], pol_A[0])
         psi_B = get_psi_band(gal_B[0], pol_B[0])
 
@@ -1365,6 +1363,8 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
             psi_A_arr = psi_A.tolist()
             psi_B_arr = psi_B.tolist()
             flags_arr = daflags.tolist()
+            #print('a len(pix_A_arr), len(flags_arr), len(vel_arr[0]), len(TODs[0]')
+            #print(len(pix_A_arr), len(flags_arr), len(vel_arr[0]), len(TODs[0]))
         else:
             for n, lab in enumerate(labels):
                TODs_ = data[2].data[f'{band}{lab}'].flatten().tolist()
@@ -1379,26 +1379,30 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
             t_lores = data[1].data['time']
             t_hires = np.array(times_) - t2jd + 2_400_000.5
 
-            pos_ = [interp1d(t_lores, pos[:,i], fill_value='extrapolate')(t_hires).tolist()
-              for i in range(3)]
-            vel_ = [interp1d(t_lores, vel[:,i], fill_value='extrapolate')(t_hires).tolist() 
-              for i in range(3)]
+            pos_ = [interp1d(t_lores, pos[:,j], fill_value='extrapolate')(t_hires).tolist()
+              for j in range(3)]
+            vel_ = [interp1d(t_lores, vel[:,j], fill_value='extrapolate')(t_hires).tolist() 
+              for j in range(3)]
 
 
-            for i in range(3):
-                pos_arr[i].extend(pos_[i])
-                vel_arr[i].extend(vel_[i])
+            for j in range(3):
+                pos_arr[j].extend(pos_[j])
+                vel_arr[j].extend(vel_[j])
             pix_A_arr.extend(pix_A.tolist())
             pix_B_arr.extend(pix_B.tolist())
             psi_A_arr.extend(psi_A.tolist())
             psi_B_arr.extend(psi_B.tolist())
             flags_arr.extend(daflags.tolist())
+            #print('b len(pix_A), len(daflags), len(TODs_)')
+            #print(len(pix_A), len(daflags), len(TODs_))
+            #print('b len(pix_A_arr), len(flags_arr), len(vel_arr[0]), len(TODs[0]')
+            #print(len(pix_A_arr), len(flags_arr), len(vel_arr[0]), len(TODs[0]))
 
 
-    print(f'final - band: {band}, len(pix_A_arr), {len(pix_A_arr)}')
-    print(f'len(pos_arr), {len(pos_arr)}')
-    print(f'len(pos_arr[0]), {len(pos_arr[0])}')
-    obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind =  mega_write(comm_tod, obs_ind, flags_arr, TODs, gain_guesses0, band_labels, band, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp*Nobs, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=0, N=N)
+    #print(f'final - band: {band}, len(pix_A_arr), {len(pix_A_arr)}')
+    #print(f'len(pos_arr), {len(pos_arr)}')
+    #print(f'len(pos_arr[0]), {len(pos_arr[0])}')
+    obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind =  mega_write(comm_tod, obs_ind, flags_arr, TODs, gain_guesses0, band_labels, band, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp*Nobs, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=0, N=N, final=True)
 
 
 
@@ -1407,7 +1411,9 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
 def mega_write(comm_tod, obs_ind, flags_arr, TODs,
     gain_guesses0, band_labels, band, psi_A_arr, psi_B_arr, pix_A_arr,
     pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr,
-    vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=2**22, N=2**22):
+    vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=2**22,
+    N=2**22,
+    final = False):
     prev = False
     i = band_ind
     while len(times) > minlin:
@@ -1452,7 +1458,6 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
                   obs_ind += 1
                   obsid = str(obs_ind).zfill(6)
                   TOD_in = np.array([TODs_curr[n] for n in range(4)])
-                  print(TOD_in.shape)
                   write_file_serial(comm_tod, obs_ind, obsid, obs_ind, flag_curr,
                       TOD_in, gain_guesses0, band_labels, band, psiA_curr, psiB_curr,
                       pixA_curr, pixB_curr, alpha, n_per_day, npsi, psiBins, nside,
@@ -1560,7 +1565,19 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
         flags_arr = flags_arr[N:]
         for n in range(4):
           TODs[n] = TODs[n][N:]
-        print(f"band: {band}, len(times), {len(times)}, len(pos_arr[0]), {len(pos_arr[0])}")
+        #print(f"band: {band}, len(times), {len(times)}, len(pos_arr[0]), {len(pos_arr[0])}")
+        #print(f"band: {band}, len(pix_A_arr), {len(pix_A_arr)}, len(TODs[0]), {len(TODs[0])}")
+
+
+    if final:
+        obs_ind += 1
+        obsid = str(obs_ind).zfill(6)
+        TOD_in = np.array([TODs_curr[n] for n in range(4)])
+        write_file_serial(comm_tod, obs_ind, obsid, obs_ind, flag_curr,
+            TOD_in, gain_guesses0, band_labels, band, psiA_curr, psiB_curr,
+            pixA_curr, pixB_curr, alpha, n_per_day, npsi, psiBins, nside,
+            fsamp, pos_curr, vel_curr, time_curr, version, Nobs, compress=compress,
+            precal=precal)
 
     return obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind
 
@@ -1652,25 +1669,20 @@ def main2():
     bands = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
     pool = Pool(processes=10)
     inds = np.arange(len(bands))
-    #Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30])
-    inds0 = [inds[0], inds[1], inds[2], inds[3], inds[4], inds[5]]
-    inds1 = [inds[6], inds[7], inds[8], inds[9]]
-    bands0 = [bands[0], bands[1], bands[2], bands[3], bands[4], bands[5]]
-    bands1 = [bands[6], bands[7], bands[8], bands[9]]
 
-    #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
-    #    for ind, band in zip(inds, bands)]
-    #for i in tqdm(range(len(x)), smoothing=0):
-    #    x[i].get()
+    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+        for ind, band in zip(inds, bands)]
+    for i in tqdm(range(len(x)), smoothing=0):
+        x[i].get()
     #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
     #    for ind, band in zip(inds0, bands0)]
     #for i in tqdm(range(len(x)), smoothing=0):
     #    x[i].get()
 
-    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
-        for ind, band in zip(inds1, bands1)]
-    for i in tqdm(range(len(x)), smoothing=0):
-        x[i].get()
+    #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+    #    for ind, band in zip(inds1, bands1)]
+    #for i in tqdm(range(len(x)), smoothing=0):
+    #    x[i].get()
 
     pool.close()
     pool.join()
