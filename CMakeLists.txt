@@ -92,8 +92,8 @@ list(APPEND CMAKE_MODULE_PATH
 	"${CMAKE_SOURCE_DIR}/cmake/projects"
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/cfitsio/cmake"
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/curl/CMake"
-  "${CMAKE_SOURCE_DIR}/cmake/third_party/cmake-optimize-architecture-flag"
-  "${CMAKE_SOURCE_DIR}/cmake/third_party/marian-dev/cmake"
+  #"${CMAKE_SOURCE_DIR}/cmake/third_party/cmake-optimize-architecture-flag"
+  "${CMAKE_SOURCE_DIR}/cmake/third_party/sse/cmake"
 	)
 # Including custom cmake modules
 include(main)
