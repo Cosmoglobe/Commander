@@ -24,6 +24,11 @@ processor Vendor (Intel, AMD, Unknown).
 #### CMake:
 - Changed OpenBLAS version to 0.3.20.
 
+### Fixed
+
+#### CMake
+- Fixed bug associated with libaec installation while it tried to create a symlink
+
 ### Removed 
 
 #### CMake:

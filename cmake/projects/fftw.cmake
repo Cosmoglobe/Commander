@@ -126,16 +126,6 @@ if(COMPILE_FFTW)
 		endforeach()
 	endforeach()
 	#------------------------------------------------------------------------------
-	# Creating Unified Target
-	#------------------------------------------------------------------------------
-	add_custom_target(fftw 
-		ALL ""
-		DEPENDS fftw_float_static
-						fftw_double_static
-		        fftw_float_shared
-						fftw_double_shared
-		)
-	#------------------------------------------------------------------------------
 	# Adding fftw3, fftw3_threads, and fftws3_omp into a library variable
 	# Defining this variable just to not to overwrite FFTW_LIBRARIES created by FindFFTW
 	set(FFTW_LIBRARIES
@@ -152,6 +142,16 @@ if(COMPILE_FFTW)
 	#------------------------------------------------------------------------------
 	#message(STATUS "FFTW LIBRARIES will be: ${FFTW_LIBRARIES}")
 	#message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
+	#------------------------------------------------------------------------------
+	# Creating Unified Target
+	#------------------------------------------------------------------------------
+	add_custom_target(fftw 
+		ALL ""
+		DEPENDS fftw_float_static
+						fftw_double_static
+		        fftw_float_shared
+						fftw_double_shared
+		)
 	#------------------------------------------------------------------------------
 elseif(COMPILE_AMDFFTW)
   # TODO: Add compilation of FFTW from AMD
@@ -193,7 +193,9 @@ elseif(COMPILE_AMDFFTW)
   # So it will be ignored here as well.
   # 
   # In addition, there is an error when compiling tests with OpenMP support 
-  # (cannot find symbols for omp_num_threads etc.)
+  # (cannot find symbols for omp_num_threads etc.), so the tests are disabled. 
+  # The issue is resolved by adding `-fopenmp` flag while compiling and linking, 
+  # which is not the case for the tests.
 	#------------------------------------------------------------------------------
 	# Looping over libraries we need to compile
   list(APPEND _AMDFFTW_NAMES_ double float)
@@ -210,9 +212,9 @@ elseif(COMPILE_AMDFFTW)
 				#BINARY_DIR        "${FFTW_SOURCE_DIR}"
 				INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}"
 				LOG_DIR           "${CMAKE_LOG_DIR}"
-        LOG_CONFIGURE     OFF
-        LOG_BUILD         OFF
-        LOG_INSTALL       OFF
+        LOG_CONFIGURE     ON 
+        LOG_BUILD         ON 
+        LOG_INSTALL       ON 
 				# Disabling download
 				DOWNLOAD_COMMAND  ""
 				CMAKE_ARGS
@@ -225,7 +227,7 @@ elseif(COMPILE_AMDFFTW)
 					-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 					# Building both static and shared libraries
 					${_bool_val_}
-					# Which libraries to produce
+          # Which libraries to produce (only libfftw3_omp)
           #-DENABLE_THREADS:BOOL=ON
 					-DENABLE_OPENMP:BOOL=ON
           #-DENABLE_SSE:BOOL=${FFTW_ENABLE_SSE}
@@ -242,11 +244,26 @@ elseif(COMPILE_AMDFFTW)
 					${_amdfftw_arg_}
 					# ensuring it will be installed inside `lib` and not `lib64`
 					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-          #
+          # This gives an error, described above
           -DBUILD_TESTS:BOOL=OFF
 				)
 		endforeach()
 	endforeach()
+	#------------------------------------------------------------------------------
+	# Adding fftw3, fftw3_threads, and fftws3_omp into a library variable
+	# Defining this variable just to not to overwrite FFTW_LIBRARIES created by FindFFTW
+	set(FFTW_LIBRARIES
+    #"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3_threads${CMAKE_STATIC_LIBRARY_SUFFIX}"	
+		#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		#"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f_threads${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3_omp${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}fftw3f_omp${CMAKE_STATIC_LIBRARY_SUFFIX}"		
+		)
+	set(FFTW_INCLUDE_DIRS
+		"${CMAKE_INSTALL_PREFIX}/include"	
+		)
+	include_directories(${FFTW_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
 	# Creating Unified Target
 	#------------------------------------------------------------------------------
@@ -257,6 +274,7 @@ elseif(COMPILE_AMDFFTW)
 		        amdfftw_float_shared
 						amdfftw_double_shared
 		)
+	#------------------------------------------------------------------------------
   
 else()
 	# adding empty targets in case FFTW was found on the system

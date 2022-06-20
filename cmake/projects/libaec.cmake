@@ -73,11 +73,15 @@ if(COMPILE_LIBAEC)
 	#------------------------------------------------------------------------------
 	list(APPEND _AEC_LIB_TYPES_ static shared)
 	list(APPEND _AEC_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
-	foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _AEC_LIB_TYPES_ _AEC_LIB_BOOL_VALS_)
+  list(APPEND _AEC_LIB_DEPENDENTS_ "" "libaec_static")
+	foreach(_lib_type_ _bool_val_ _dependents_ 
+      IN ZIP_LISTS 
+      _AEC_LIB_TYPES_ _AEC_LIB_BOOL_VALS_ _AEC_LIB_DEPENDENTS_)
 		ExternalProject_Add(
 			libaec_${_lib_type_}
 			DEPENDS						required_libraries 
 												libaec_src
+                        ${_dependents_}
 			PREFIX						"${LIBS_BUILD_DIR}"
 			SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
 			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
@@ -87,6 +91,7 @@ if(COMPILE_LIBAEC)
 			LOG_INSTALL				ON
 			# Disabling download
 			DOWNLOAD_COMMAND	""
+      #INSTALL_COMMAND "make" "install"
 			# commands how to build the project
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release
