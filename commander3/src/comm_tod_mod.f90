@@ -1716,7 +1716,7 @@ contains
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
     type(spline_type) :: spline
 
-    subsamp = 20 
+    subsamp = 5
     !subsamp = 1
     ! If I want to test, set subsamp = 1 and compare the sidelobe output
 
