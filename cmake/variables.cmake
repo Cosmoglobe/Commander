@@ -23,10 +23,8 @@
 # This file contains general instructions how to
 # fetch and build the Commander dependencies
 #==============================================================================
-
-#==============================================================================
 # PROJECT'S DOWNLOAD/INSTALL/OUTPUT DIRECTORIES 
-#==============================================================================
+#------------------------------------------------------------------------------
 # Download dir
 # Setting default values if this variable wasn't defined
 set(CMAKE_DOWNLOAD_DIRECTORY "${CMAKE_SOURCE_DIR}/build/downloads"
@@ -93,10 +91,92 @@ set(CURL_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/curl")
 set(CFITSIO_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/cfitsio")
 set(HEALPIX_SOURCE_DIR		"${CMAKE_DOWNLOAD_DIRECTORY}/healpix")
 set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
+# Open Source alternatives 
 set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
 set(OPENBLAS_SOURCE_DIR	  "${CMAKE_DOWNLOAD_DIRECTORY}/openblas")
+# AMD AOCL
 set(BLIS_SOURCE_DIR	      "${CMAKE_DOWNLOAD_DIRECTORY}/blis")
 set(FLAME_SOURCE_DIR	    "${CMAKE_DOWNLOAD_DIRECTORY}/flame")
+set(AMDFFTW_SOURCE_DIR  	"${CMAKE_DOWNLOAD_DIRECTORY}/amdfftw")
+#------------------------------------------------------------------------------
+# To have a summary of the installation, we need to have a summary of the Host 
+# system. These variables serve this purpose.
+#------------------------------------------------------------------------------
+# CPU 
+cmake_host_system_information(RESULT CPU_DESCRIPTION       QUERY PROCESSOR_DESCRIPTION)
+cmake_host_system_information(RESULT N_LOGICAL_CORES       QUERY NUMBER_OF_LOGICAL_CORES)
+cmake_host_system_information(RESULT N_PHYSICAL_CORES      QUERY NUMBER_OF_PHYSICAL_CORES)
+cmake_host_system_information(RESULT CPU_HAS_SERIAL_NUMBER QUERY HAS_SERIAL_NUMBER)
+cmake_host_system_information(RESULT CPU_SERIAL_NUMBER     QUERY PROCESSOR_SERIAL_NUMBER)
+cmake_host_system_information(RESULT CPU_IS_64BIT          QUERY IS_64BIT)
+cmake_host_system_information(RESULT CPU_HAS_FPU           QUERY HAS_FPU)
+cmake_host_system_information(RESULT CPU_HAS_MMX           QUERY HAS_MMX)
+# One if processor supports Ext. MMX instructions
+cmake_host_system_information(RESULT CPU_HAS_MMX_PLUS      QUERY HAS_MMX_PLUS) 
+cmake_host_system_information(RESULT CPU_HAS_SSE           QUERY HAS_SSE)
+cmake_host_system_information(RESULT CPU_HAS_SSE2          QUERY HAS_SSE2)
+cmake_host_system_information(RESULT CPU_HAS_SSE_FP        QUERY HAS_SSE_FP)
+# One if processor supports SSE MMX instructions
+cmake_host_system_information(RESULT CPU_HAS_SSE_MMX       QUERY HAS_SSE_MMX)
+# Third-party package to identify the presence of SSE, AVX etc.
+# Returns: 
+# SSE2_FOUND, SSE3_FOUND, SSSE3_FOUND, SSE4_1_FOUND, SSE4_2_FOUND, 
+# AVX_FOUND, AVX2_FOUND, AVX512_FOUND
+find_package(SSE)
+# To conform to the style above, creating new variables
+if(SSE3_FOUND)
+  set(CPU_HAS_SSE3   1)
+else()
+  set(CPU_HAS_SSE3   0)
+endif()
+if(SSSE3_FOUND)
+  set(CPU_HAS_SSSE3  1)
+else()
+  set(CPU_HAS_SSSE3  0)
+endif()
+if(SSE4_1_FOUND)
+  set(CPU_HAS_SSE4_1 1)
+else()
+  set(CPU_HAS_SSE4_1 0)
+endif()
+if(SSE4_2_FOUND)
+  set(CPU_HAS_SSE4_2 1)
+else()
+  set(CPU_HAS_SSE4_2 0)
+endif()
+if(AVX_FOUND)
+  set(CPU_HAS_AVX    1)
+else()
+  set(CPU_HAS_AVX    0)
+endif()
+if(AVX2_FOUND)
+  set(CPU_HAS_AVX2   1)
+else()
+  set(CPU_HAS_AVX2   0)
+endif()
+if(AVX512_FOUND)
+  set(CPU_HAS_AVX512 1)
+else()
+  set(CPU_HAS_AVX512 0)
+endif()
+
+message("SSE2_FOUND   ${SSE2_FOUND}")
+message("SSE3_FOUND   ${SSE3_FOUND}")
+message("SSSE3_FOUND  ${SSSE3_FOUND}")
+message("SSE4_1_FOUND ${SSE4_1_FOUND}")
+message("SSE4_2_FOUND ${SSE4_2_FOUND}")
+message("AVX_FOUND    ${AVX_FOUND}")
+message("AVX2_FOUND   ${AVX2_FOUND}")
+message("AVX512_FOUND ${AVX512_FOUND}")
+# OS information
+cmake_host_system_information(RESULT HOST_OS_RELEASE       QUERY OS_RELEASE)
+cmake_host_system_information(RESULT HOST_OS_VERSION       QUERY OS_VERSION)
+cmake_host_system_information(RESULT HOST_OS_PLATFORM      QUERY OS_PLATFORM)
+# RAM information
+cmake_host_system_information(RESULT TOT_VIRTUAL_MEMORY    QUERY TOTAL_VIRTUAL_MEMORY)
+cmake_host_system_information(RESULT AVAIL_VIRTUAL_MEMORY  QUERY AVAILABLE_VIRTUAL_MEMORY)
+cmake_host_system_information(RESULT TOT_PHYSICAL_MEMORY   QUERY TOTAL_PHYSICAL_MEMORY)
+cmake_host_system_information(RESULT AVAIL_PHYSICAL_MEMORY QUERY AVAILABLE_PHYSICAL_MEMORY)
 #------------------------------------------------------------------------------
 # If any problems with installation will occur, which cannot be fixed quickly,
 # these variables will force a fresh installation for every specified library.
@@ -111,10 +191,34 @@ option(USE_SYSTEM_LIBS    "Enables search for all LIBS on the system."    ON)
 option(USE_SYSTEM_BLAS    "Enables search for BLAS/LAPACK on the system." ON)
 # FFTW
 option(USE_SYSTEM_FFTW    "Enables search for FFTW on the system."        ON) #OFF)
-option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"          OFF)
-option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"         OFF)
-option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"          OFF)
-option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"         OFF)
+if(NOT FFTW_ENABLE_AVX)
+  if(CPU_HAS_AVX)
+    option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"      ON)
+  else()
+    option(FFTW_ENABLE_AVX    "Enables AVX support for FFTW library"      OFF)
+  endif()
+endif()
+if(NOT FFTW_ENABLE_AVX2)
+  if(CPU_HAS_AVX2)
+    option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"     ON)
+  else()
+    option(FFTW_ENABLE_AVX2   "Enables AVX2 support for FFTW library"     OFF)
+  endif()
+endif()
+if(NOT FFTW_ENABLE_SSE)
+  if(CPU_HAS_SSE)
+    option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"      ON)
+  else()
+    option(FFTW_ENABLE_SSE    "Enables SSE support for FFTW library"      OFF)
+  endif()
+endif()
+if(NOT FFTW_ENABLE_SSE2)
+  if(CPU_HAS_SSE2)
+    option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"     ON)
+  else()
+    option(FFTW_ENABLE_SSE2   "Enables SSE2 support for FFTW library"     OFF)
+  endif()
+endif()
 # HDF5
 option(USE_SYSTEM_ZLIB    "Enables search for ZLIB on the system."        ON)
 option(USE_SYSTEM_LIBAEC  "Enables search for LibAEC on the system."      ON)
@@ -138,33 +242,4 @@ set(COMM3_BACKEND "any"
   "Defines which BLAS/LAPACK & FFTW implementation to use. 
   Possible values are: aocl, mkl, opensrc, any. Default: any."
   )
-#------------------------------------------------------------------------------
-# To have a summary of the installation, we need to have a summary of the Host 
-# system. These variables serve this purpose.
-#------------------------------------------------------------------------------
-# CPU 
-cmake_host_system_information(RESULT CPU_DESCRIPTION       QUERY PROCESSOR_DESCRIPTION)
-cmake_host_system_information(RESULT N_LOGICAL_CORES       QUERY NUMBER_OF_LOGICAL_CORES)
-cmake_host_system_information(RESULT N_PHYSICAL_CORES      QUERY NUMBER_OF_PHYSICAL_CORES)
-cmake_host_system_information(RESULT CPU_HAS_SERIAL_NUMBER QUERY HAS_SERIAL_NUMBER)
-cmake_host_system_information(RESULT CPU_SERIAL_NUMBER     QUERY PROCESSOR_SERIAL_NUMBER)
-cmake_host_system_information(RESULT CPU_IS_64BIT          QUERY IS_64BIT)
-cmake_host_system_information(RESULT CPU_HAS_FPU           QUERY HAS_FPU)
-cmake_host_system_information(RESULT CPU_HAS_MMX           QUERY HAS_MMX)
-# One if processor supports Ext. MMX instructions
-cmake_host_system_information(RESULT CPU_HAS_MMX_PLUS      QUERY HAS_MMX_PLUS) 
-cmake_host_system_information(RESULT CPU_HAS_SSE           QUERY HAS_SSE)
-cmake_host_system_information(RESULT CPU_HAS_SSE2          QUERY HAS_SSE2)
-cmake_host_system_information(RESULT CPU_HAS_SSE_FP        QUERY HAS_SSE_FP)
-# One if processor supports SSE MMX instructions
-cmake_host_system_information(RESULT CPU_HAS_SSE_MMX       QUERY HAS_SSE_MMX)
-# OS information
-cmake_host_system_information(RESULT HOST_OS_RELEASE       QUERY OS_RELEASE)
-cmake_host_system_information(RESULT HOST_OS_VERSION       QUERY OS_VERSION)
-cmake_host_system_information(RESULT HOST_OS_PLATFORM      QUERY OS_PLATFORM)
-# RAM information
-cmake_host_system_information(RESULT TOT_VIRTUAL_MEMORY    QUERY TOTAL_VIRTUAL_MEMORY)
-cmake_host_system_information(RESULT AVAIL_VIRTUAL_MEMORY  QUERY AVAILABLE_VIRTUAL_MEMORY)
-cmake_host_system_information(RESULT TOT_PHYSICAL_MEMORY   QUERY TOTAL_PHYSICAL_MEMORY)
-cmake_host_system_information(RESULT AVAIL_PHYSICAL_MEMORY QUERY AVAILABLE_PHYSICAL_MEMORY)
 #------------------------------------------------------------------------------

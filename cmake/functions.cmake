@@ -1,4 +1,3 @@
-
 function(get_cpu_vendor CPU_DESCRIPTION CPU_VENDOR)
   # Function's primary purpose is to identify the CPU Vendor
   # on the Host system, so the correct backend for BLAS/LAPACK

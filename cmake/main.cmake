@@ -22,7 +22,7 @@
 #================================================================================
 # Description: This script contains general instructions on how to fetch and build 
 # Commander3 and all its dependencies. It is split into three parts, each containing 
-# its set of instaructions/variables. It is done for easier maintenance. 
+# its set of instructions/variables. It is done for easier maintenance. 
 #================================================================================
 
 # TODO:

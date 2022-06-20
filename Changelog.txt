@@ -4,6 +4,7 @@ Version X.Y.Z:
 	inmplementation to use. Possible values are `aocl`, `mkl`, `opensrc` and
 	`any`. If "any" was chosen, the choice would be made automatically based on the 
 	processor Vendor (Intel, AMD, Unknown).
+	- Added detection of SSE3, SSE4_1, AVX, AVX2 etc. CPU feature 
 	- Added search for, compilation and linking of AMD BLIS 3.1
 	- Added search for, compilation and linking of AMD FLAME 3.1
 	- Changed OpenBLAS version to 0.3.20.
