@@ -103,7 +103,7 @@ if(COMPILE_FFTW)
 				# Disabling download
 				DOWNLOAD_COMMAND  ""
 				CMAKE_ARGS
-					-DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE:STRING=Release
 					# Specifying installations paths for binaries and libraries
 					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 					# Specifying compilers
@@ -182,6 +182,82 @@ elseif(COMPILE_AMDFFTW)
 			ALL ""
 			)
 	endif()
+	#------------------------------------------------------------------------------
+  # Compiling and Installing Static and Shared AMD FFTW
+	#------------------------------------------------------------------------------
+  # Note: There is some problem with enabling SSE support for AMD FFTW. Even the 
+  # official configure command omits it:
+  # ./configure --enable-sse2 --enable-avx --enable-avx2 --enable-mpi 
+  # --enable-openmp --enable-shared --enable-amd-opt --enable-amd-mpifft 
+  # --prefix=<your-install-dir>
+  # So it will be ignored here as well.
+  # 
+  # In addition, there is an error when compiling tests with OpenMP support 
+  # (cannot find symbols for omp_num_threads etc.)
+	#------------------------------------------------------------------------------
+	# Looping over libraries we need to compile
+  list(APPEND _AMDFFTW_NAMES_ double float)
+  list(APPEND _AMDFFTW_ARGS_ -DENABLE_FLOAT:BOOL=OFF -DENABLE_FLOAT:BOOL=ON)
+  list(APPEND _AMDFFTW_LIB_TYPE_ shared static)
+  list(APPEND _AMDFFTW_LIB_BOOL_VAL_ -DBUILD_SHARED_LIBS:BOOL=ON -DBUILD_SHARED_LIBS:BOOL=OFF)
+  foreach(_amdfftw_component_ _amdfftw_arg_ IN ZIP_LISTS _AMDFFTW_NAMES_ _AMDFFTW_ARGS_)
+    foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _AMDFFTW_LIB_TYPE_ _AMDFFTW_LIB_BOOL_VAL_)
+			ExternalProject_Add(
+				amdfftw_${_amdfftw_component_}_${_lib_type_}
+				DEPENDS           amdfftw_src
+				PREFIX            "${LIBS_BUILD_DIR}"
+        SOURCE_DIR        "${AMDFFTW_SOURCE_DIR}"
+				#BINARY_DIR        "${FFTW_SOURCE_DIR}"
+				INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}"
+				LOG_DIR           "${CMAKE_LOG_DIR}"
+        LOG_CONFIGURE     OFF
+        LOG_BUILD         OFF
+        LOG_INSTALL       OFF
+				# Disabling download
+				DOWNLOAD_COMMAND  ""
+				CMAKE_ARGS
+          -DCMAKE_BUILD_TYPE:STRING=Release
+					# Specifying installations paths for binaries and libraries
+					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+					# Specifying compilers
+          #-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+					-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+					-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+					# Building both static and shared libraries
+					${_bool_val_}
+					# Which libraries to produce
+          #-DENABLE_THREADS:BOOL=ON
+					-DENABLE_OPENMP:BOOL=ON
+          #-DENABLE_SSE:BOOL=${FFTW_ENABLE_SSE}
+          -DENABLE_SSE2:BOOL=${FFTW_ENABLE_SSE2}
+					-DENABLE_AVX:BOOL=${FFTW_ENABLE_AVX}
+					-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
+          # AMD optimizations
+          -DENABLE_AMD_OPT:BOOL=ON
+          -DENABLE_AMD_APP_OPT:BOOL=ON      # HPC optimizations, supported: float, double 
+          -DENABLE_AMD_FAST_PLANNER:BOOL=ON # supported in float and double
+          -DENABLE_AMD_TRANS:BOOL=ON
+          -DENABLE_MPI:BOOL=OFF
+          -DENABLE_AMD_MPIFFT:BOOL=OFF
+					${_amdfftw_arg_}
+					# ensuring it will be installed inside `lib` and not `lib64`
+					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+          #
+          -DBUILD_TESTS:BOOL=OFF
+				)
+		endforeach()
+	endforeach()
+	#------------------------------------------------------------------------------
+	# Creating Unified Target
+	#------------------------------------------------------------------------------
+	add_custom_target(fftw 
+		ALL ""
+		DEPENDS amdfftw_float_static
+						amdfftw_double_static
+		        amdfftw_float_shared
+						amdfftw_double_shared
+		)
+  
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(fftw ALL "")

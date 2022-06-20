@@ -213,13 +213,13 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-  -DCOMM3_BACKEND=opensrc \
+  -DCOMM3_BACKEND=any     \
 	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	cmake --build $comm3_root_dir/$build_dir --target amdfftw_src  -j $physicalCpuCount #-v 
+	cmake --build $comm3_root_dir/$build_dir --target fftw  -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi
