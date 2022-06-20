@@ -116,6 +116,7 @@ add_custom_target(required_libraries ALL ""
 # Dependent/Compiled libraries
 #------------------------------------------------------------------------------
 message(STATUS "COMM3_BACKEND was defined as '${COMM3_BACKEND}'")
+get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
 if(USE_SYSTEM_LIBS)
 	#------------------------------------------------------------------------------
 	# Performing search for BLAS and LAPACK
@@ -128,7 +129,7 @@ if(USE_SYSTEM_LIBS)
 	if(USE_SYSTEM_BLAS)
     if(COMM3_BACKEND MATCHES "any")
 
-      get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+      #get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
 
       if(CPU_VENDOR MATCHES "Intel")
         message(STATUS "Looking for MKL...")
@@ -309,7 +310,7 @@ if(USE_SYSTEM_LIBS)
 	  #------------------------------------------------------------------------------
     # This part is used when -DUSE_SYSTEM_BLAS=OFF but -DUSE_SYSTEM_LIBS=ON
     if(COMM3_BACKEND MATCHES "any")
-      get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+      #get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
 
       if(CPU_VENDOR MATCHES "Intel")
         message(STATUS "Your CPU Vendor is Intel => Will compile OpenBLAS")
@@ -345,13 +346,71 @@ if(USE_SYSTEM_LIBS)
 	#------------------------------------------------------------------------------
 	# Performing search for FFTW
 	#------------------------------------------------------------------------------
+  # Note: Intel FFTW is an internal part of Intel MKL which is searched for during 
+  # BLAS/LAPACK stage above. Therefore, we need to install FFTW only if MKL is not 
+  # found. In this case, we first search for FFTW3 on the system and, if not avai-
+  # lable, then we install it from source.
+	#------------------------------------------------------------------------------
 	if(USE_SYSTEM_FFTW)
     if(COMM3_BACKEND MATCHES "any")
       # Compile based on the CPU
+      # TODO: write this part to perform the search
+      if(CPU_VENDOR MATCHES "Intel")
+        if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          message("MKL FFTW was not found => Looking for FFTW3 instead")
+          find_package(FFTW
+            COMPONENTS
+            DOUBLE
+            DOUBLE_THREADS
+            FLOAT
+            FLOAT_OPENMP
+            FLOAT_THREADS
+            )
+          # Compile FFTW
+          if(NOT FFTW_FOUND)
+            set(COMPILE_FFTW TRUE)
+          endif()
+        endif()
+      elseif(CPU_VENDOR MATCHES "AMD")
+        set(COMPILE_AMDFFTW TRUE)
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        # If CPU is not Intel or AMD then we will install FFTW3
+        find_package(FFTW
+          COMPONENTS
+          DOUBLE
+          DOUBLE_THREADS
+          FLOAT
+          FLOAT_OPENMP
+          FLOAT_THREADS
+          )
+        # Compile FFTW
+        if(NOT FFTW_FOUND)
+          set(COMPILE_FFTW TRUE)
+        endif()
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
     elseif(COMM3_BACKEND MATCHES "mkl")
-      # Compile FFTW
+      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+        message("MKL FFTW was not found => Looking for FFTW3 instead")
+        find_package(FFTW
+          COMPONENTS
+          DOUBLE
+          DOUBLE_THREADS
+          FLOAT
+          FLOAT_OPENMP
+          FLOAT_THREADS
+          )
+        # Compile FFTW
+        if(NOT FFTW_FOUND)
+          set(COMPILE_FFTW TRUE)
+        endif()
+      endif()
     elseif(COMM3_BACKEND MATCHES "aocl")
       # Compile AMD FFTW
+      set(COMPILE_AMDFFTW TRUE)
     elseif(COMM3_BACKEND MATCHES "opensrc")
       find_package(FFTW
         COMPONENTS
@@ -366,12 +425,16 @@ if(USE_SYSTEM_LIBS)
       endif()
     endif()
 	else()
+    # Ignore search for FFTW
     if(COMM3_BACKEND MATCHES "any")
       # Compile based on CPU
+      if(CPU_VENDOR MATCHES "Intel")
     elseif(COMM3_BACKEND MATCHES "mkl")
       # Compile FFTW
+      set(COMPILE_FFTW TRUE)
     elseif(COMM3_BACKEND MATCHES "aocl")
       # Compile AMD FFTW
+      set(COMPILE_AMDFFTW TRUE)
     elseif(COMM3_BACKEND MATCHES "opensrc")
       set(COMPILE_FFTW TRUE)
     endif()
@@ -483,17 +546,20 @@ if(USE_SYSTEM_LIBS)
 	endif()
 
 else()
-  # This part is when USE_SYSTEM_LIBS=OFF
-  # Identifying which BLAS to compile
+  # This part is when USE_SYSTEM_LIBS=OFF (no search performed)
+  # Identifying which BLAS  and FFTW to compile
   if(COMM3_BACKEND MATCHES "any")
-    get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+    #get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
     if(CPU_VENDOR MATCHES "Intel")
       message(STATUS "Cannot compile MKL from source => will compile OpenBLAS & FFTW3 instead")
       set(COMPILE_OPENBLAS TRUE)
+			set(COMPILE_FFTW TRUE)
     elseif(CPU_VENDOR MATCHES "AMD")
       set(COMPILE_FLAME TRUE)
+      set(COMPILE_AMDFFTW TRUE)
     elseif(CPU_VENDOR MATCHES "Unknown")
       set(COMPILE_OPENBLAS TRUE)
+			set(COMPILE_FFTW TRUE)
     else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
       message(FATAL_ERROR 
         "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
@@ -501,11 +567,14 @@ else()
     endif()
   elseif(COMM3_BACKEND MATCHES "aocl")
     set(COMPILE_FLAME TRUE)
+    set(COMPILE_AMDFFTW TRUE)
   elseif(COMM3_BACKEND MATCHES "opensrc")
     set(COMPILE_OPENBLAS TRUE)
+    set(COMPILE_FFTW TRUE)
   elseif(COMM3_BACKEND MATCHES "mkl")
     message(STATUS "Cannot compile MKL from source => will compile OpenBLAS & FFTW3 instead")
     set(COMPILE_OPENBLAS TRUE)
+    set(COMPILE_FFTW TRUE)
   else()
     message(FATAL_ERROR 
       "COMM3_BACKEND was defined as ${COMM3_BACKEND}.\n"
@@ -513,7 +582,6 @@ else()
       )
   endif()
 
-#			set(COMPILE_FFTW TRUE)
   set(COMPILE_HDF5 TRUE)
   set(COMPILE_ZLIB TRUE)
   set(COMPILE_LIBAEC TRUE)

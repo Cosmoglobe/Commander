@@ -210,7 +210,6 @@ then
 	-DMPI_Fortran_COMPILER=$mpifc \
 	-DCFITSIO_USE_CURL:BOOL=OFF \
 	-DUSE_SYSTEM_FFTW:BOOL=OFF \
-  -DFFTW_ENABLE_AVX2:BOOL=OFF\
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
@@ -220,7 +219,8 @@ then
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
-	cmake --build $comm3_root_dir/$build_dir --target install  -j $physicalCpuCount -v 
+	cmake --build $comm3_root_dir/$build_dir --target install  -j $physicalCpuCount #-v 
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi
+  #-DFFTW_ENABLE_AVX2:BOOL=OFF\

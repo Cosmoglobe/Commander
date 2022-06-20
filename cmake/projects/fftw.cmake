@@ -97,9 +97,9 @@ if(COMPILE_FFTW)
 				#BINARY_DIR        "${FFTW_SOURCE_DIR}"
 				INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}"
 				LOG_DIR           "${CMAKE_LOG_DIR}"
-				LOG_CONFIGURE     ON 
-				LOG_BUILD         ON 
-				LOG_INSTALL       ON 
+        LOG_CONFIGURE     ON 
+        LOG_BUILD         ON 
+        LOG_INSTALL       ON 
 				# Disabling download
 				DOWNLOAD_COMMAND  ""
 				CMAKE_ARGS
@@ -107,7 +107,7 @@ if(COMPILE_FFTW)
 					# Specifying installations paths for binaries and libraries
 					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 					# Specifying compilers
-					-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+          #-DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
 					-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
 					-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 					# Building both static and shared libraries
@@ -115,6 +115,9 @@ if(COMPILE_FFTW)
 					# Which libraries to produce
 					-DENABLE_OPENMP:BOOL=ON
 					-DENABLE_THREADS:BOOL=ON
+          -DENABLE_SSE:BOOL=${FFTW_ENABLE_SSE}
+          -DENABLE_SSE2:BOOL=${FFTW_ENABLE_SSE2}
+					-DENABLE_AVX:BOOL=${FFTW_ENABLE_AVX}
 					-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
 					${_fftw_arg_}
 					# ensuring it will be installed inside `lib` and not `lib64`
@@ -150,6 +153,8 @@ if(COMPILE_FFTW)
 	#message(STATUS "FFTW LIBRARIES will be: ${FFTW_LIBRARIES}")
 	#message(STATUS "FFTW INCLUDE DIRS will be: ${FFTW_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
+elseif(COMPILE_AMDFFTW)
+  # TODO: Add compilation of FFTW from AMD
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(fftw ALL "")
