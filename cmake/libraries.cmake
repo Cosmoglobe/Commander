@@ -429,6 +429,16 @@ if(USE_SYSTEM_LIBS)
     if(COMM3_BACKEND MATCHES "any")
       # Compile based on CPU
       if(CPU_VENDOR MATCHES "Intel")
+        set(COMPILE_FFTW TRUE)
+      elseif(CPU_VENDOR MATCHES "AMD")
+        set(COMPILE_AMDFFTW TRUE)
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        set(COMPILE_FFTW TRUE)
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
     elseif(COMM3_BACKEND MATCHES "mkl")
       # Compile FFTW
       set(COMPILE_FFTW TRUE)

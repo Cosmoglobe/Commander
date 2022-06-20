@@ -155,6 +155,33 @@ if(COMPILE_FFTW)
 	#------------------------------------------------------------------------------
 elseif(COMPILE_AMDFFTW)
   # TODO: Add compilation of FFTW from AMD
+	#------------------------------------------------------------------------------
+  # Getting AMD FFTW from source
+	#------------------------------------------------------------------------------
+	# Checking whether we have source directory and this directory is not empty.
+  if(NOT EXISTS "${AMDFFTW_SOURCE_DIR}/CMakeLists.txt")
+    #message(STATUS "No FFTW sources were found; thus, will download it from source:\n${fftw_url}")
+		ExternalProject_Add(
+			amdfftw_src
+      GIT_REPOSITORY		"${amdfftw_git_url}"
+      GIT_TAG						"${amdfftw_git_tag}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+      SOURCE_DIR				"${AMDFFTW_SOURCE_DIR}"
+      BINARY_DIR				"${AMDFFTW_SOURCE_DIR}" 
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+			LOG_DOWNLOAD			ON
+			# Ommiting Configuration, build and install steps
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+			)
+	else()
+    #message(STATUS "Found an existing FFTW sources inside:\n${FFTW_SOURCE_DIR}")
+		add_custom_target(amdfftw_src
+			ALL ""
+			)
+	endif()
 else()
 	# adding empty targets in case FFTW was found on the system
 	add_custom_target(fftw ALL "")
