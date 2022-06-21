@@ -1,4 +1,4 @@
-!================================================================================
+!===============================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
@@ -108,6 +108,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
+     integer(i4b) :: ntime                                        ! Number of time values
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -117,6 +118,7 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
+     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -247,6 +249,7 @@ contains
     if (initialized) return
 
     call initialize_fft_mod(cpar)
+    write(*, *) "zodi:", cpar%include_tod_zodi
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
@@ -324,6 +327,7 @@ contains
       self%orbital = .true.
     end if
 
+
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
@@ -385,7 +389,7 @@ contains
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
       self%ndet = count_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir)
     else
-      self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+      self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if
 
 
@@ -480,6 +484,9 @@ contains
             self%pix2ind(pix(1)) = 1
             do k = 2, self%scans(i)%ntod
                pix(k)  = pix(k-1)  + pix(k)
+               if (pix(k) > 12*self%nside**2-1) then
+                   write(*,*) pix(k), k, pix(1), l, self%label(j),self%scans(i)%chunk_num
+               end if
                self%pix2ind(pix(k)) = 1
             end do
           end do
@@ -540,23 +547,18 @@ contains
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
+    !call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       if (self%correct_sl) then
-         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-         call self%slbeam(i)%p%Y()
-       end if
-       if (self%orb_4pi_beam) then
-         self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
-         call self%mbeam(i)%p%Y()
-       end if
-       call self%load_instrument_inst(h5_file, i)
+       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+       call self%mbeam(i)%p%Y()
     end do
 
     call close_hdf_file(h5_file)
@@ -605,7 +607,7 @@ contains
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
-       call read_hdf_string2(file, "/common/det",    det_buf, n)
+       call read_hdf_string2(file, "/common/det", det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
@@ -642,9 +644,9 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-!!$          do j = 1, ndet_tot
-!!$             write(*,*) j, trim(dets(j))
-!!$          end do
+      !  do j = 1, ndet_tot
+      !     print *,  j, trim(dets(j))
+      !  end do
        do i = 1, self%ndet
           do j = 1, ndet_tot
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
@@ -830,9 +832,11 @@ contains
     real(sp),     allocatable, dimension(:)       :: buffer_sp, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
+
     self%chunk_num = scan
     call int2string(scan, slabel)
-
+    
+    !print *, filename
     call open_hdf_file(filename, file, "r")
 
     ! Find array sizes
@@ -855,10 +859,10 @@ contains
     self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
 
     ! Read common scan data
-    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
+    call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
     call read_hdf(file, slabel // "/common/time",  self%t0)
     ! HKE: LFI files should be regenerated with (x,y,z) info
-    !call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
+    call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -871,6 +875,7 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+      
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        self%d(i)%xi_n(1:3)  = scalars(2:4)

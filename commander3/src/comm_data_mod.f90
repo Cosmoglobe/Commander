@@ -31,6 +31,7 @@ module comm_data_mod
   use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
+  use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   implicit none
@@ -164,6 +165,9 @@ contains
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
             data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
+          else if (trim(data(n)%tod_type) == 'HFI') then
+             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)

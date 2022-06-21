@@ -97,6 +97,9 @@ contains
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
+    call timer%start(TOD_INIT, id_abs)
+
+
     ! Allocate object
     allocate(constructor)
 
@@ -127,10 +130,10 @@ contains
     constructor%compressed_tod  = .false.
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.
-    constructor%symm_flags      = .true.
+    constructor%symm_flags      = .false.
     constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    constructor%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
 
     nside_beam                  = 128
     nmaps_beam                  = 1
@@ -138,16 +141,16 @@ contains
     constructor%nside_beam      = nside_beam
 
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+    call get_tokens(trim(cpar%ds_tod_dets(id_abs)), ",", constructor%label)
     ! Define detector partners
-    do i = 1, constructor%ndet
-       if (mod(i,2) == 1) then
-          constructor%partner(i) = i+1
-       else
-          constructor%partner(i) = i-1
-       end if
-       constructor%horn_id(i) = (i+1)/2
-    end do
+   !  do i = 1, constructor%ndet
+   !     if (mod(i,2) == 1) then
+   !        constructor%partner(i) = i+1
+   !     else
+   !        constructor%partner(i) = i-1
+   !     end if
+   !     constructor%horn_id(i) = (i+1)/2
+   !  end do
 
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
@@ -164,15 +167,17 @@ contains
     do i=1, constructor%ndet
       call init_noise_model(constructor, i)
     end do
-
+   ! Metin: Im commenting this out for now
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+   !  constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
        constructor%scans(i)%d%baseline = 0.d0
     end do
+
+    call timer%stop(TOD_INIT, id_abs)
 
   end function constructor
 
@@ -240,10 +245,13 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+   type(hdf_file) :: tod_file
+
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
-
+   !  print *, "got here 1"
+    call timer%start(TOD_TOT, self%band)
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
@@ -257,9 +265,9 @@ contains
     nside           = map_out%info%nside
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
-    self%output_n_maps = 3
+    self%output_n_maps = 8
     if (self%output_aux_maps > 0) then
-       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
+       if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
 
     call int2string(chain, ctext)
@@ -268,32 +276,15 @@ contains
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
+   ! write(*, *) "nobs:", self%nobs
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
     call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
 
-    ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
-
-    ! Precompute far sidelobe Conviqt structures
-    if (self%correct_sl) then
-       if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
-       do i = 1, self%ndet
-          !TODO: figure out why this is rotated
-          call map_in(i,1)%p%YtW()  ! Compute sky a_lms
-          self%slconv(i)%p => comm_conviqt(self%myid_shared, self%comm_shared, &
-               & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
-               & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
-       end do
-    end if
-
-!    write(*,*) 'qqq', self%myid
-!    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     call update_status(status, "tod_init")
 
@@ -321,6 +312,7 @@ contains
        allocate(slist(self%nscan))
        slist   = ''
     end if
+   !  print *, "got here 3"
 
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
@@ -358,26 +350,48 @@ contains
        end do
 
        ! Select data
-       if (select_data) call remove_bad_data(self, i, sd%flag)
+       if (select_data) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
+      ! write(*, *) "tods: max, min, ntods"
+      ! write(*, *) maxval(self%scans(1)%d(1)%tod), minval(self%scans(1)%d(1)%tod), shape(self%scans(1)%d(1)%tod)
+
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-       call compute_calibrated_data(self, i, sd, d_calib)    
+       d_calib(1, :, :) = sd%tod
+       d_calib(7, :, :) = sd%s_zodi
+      !  call compute_calibrated_data(self, i, sd, d_calib)    
 
-       ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-!!$       if (self%output_4D_map > 0) then
-!!$          if (mod(iter-1,self%output_4D_map) == 0) then
-!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
-!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-!!$                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-!!$                  & self%scans(i)%d(:)%accept)
-!!$          end if
-!!$       end if
+      if (.false.) then
+            call int2string(self%scanid(i), scantext)
+            if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
+            call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+            ! call write_hdf(tod_file, '/n_corr', sd%n_corr)
+            !call write_hdf(tod_file, '/bpcorr', sd%s_bp)
+            !call write_hdf(tod_file, '/s_tot', sd%s_tot)
+            !call write_hdf(tod_file, '/s_sky', sd%s_sky)
+            call write_hdf(tod_file, '/tod',   sd%tod)
+            call write_hdf(tod_file, '/flag', sd%flag)
+            call write_hdf(tod_file, '/pix', sd%pix)
+            !call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
+            !call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
+            !call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
+            !call write_hdf(tod_file, '/psiB', sd%psi(:,1,2))
+            !call write_hdf(tod_file, '/x_im', self%x_im)
+
+            !do k = 1, self%ndet
+            !  call int2string(k, scantext)
+            !  call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
+            !  call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
+            !end do
+
+            call close_hdf_file(tod_file)
+
+
+         end if
+
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -397,6 +411,7 @@ contains
        deallocate(s_buf, d_calib)
 
     end do
+   !  print *, "got here 5"
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
@@ -406,9 +421,17 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       if (self%nmaps > 1) then
+         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       else
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
+       end if
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0)
+       if(self%nmaps > 1) then
+         call finalize_binned_map(self, binmap, rms_out, 1.d0)
+       else 
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
+       end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
 
@@ -423,26 +446,29 @@ contains
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
     if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
     if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-    !if (self%output_n_maps > 3) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
-    if (self%output_n_maps > 4) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
-    if (self%output_n_maps > 5) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
-    if (self%output_n_maps > 6) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
+   !  if (self%output_n_maps > 2) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
+   !  if (self%output_n_maps > 4) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
+   !  if (self%output_n_maps > 5) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
+   !  if (self%output_n_maps > 6) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 7) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+
 
     ! Clean up
     call binmap%dealloc()
     if (allocated(slist)) deallocate(slist)
     deallocate(map_sky, procmask, procmask2)
-    if (self%correct_sl) then
-       do i = 1, self%ndet
-          call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
-       end do
-    end if
+   !  if (self%correct_sl) then
+   !     do i = 1, self%ndet
+   !        call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
+   !     end do
+   !  end if
 
     ! Parameter to check if this is first time routine has been
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
+    
+    call timer%stop(TOD_TOT, self%band)
 
   end subroutine process_DIRBE_tod   
 
