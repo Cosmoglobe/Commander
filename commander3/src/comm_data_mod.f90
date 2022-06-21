@@ -86,12 +86,17 @@ contains
     integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp => null()
+    class(comm_map), pointer  :: smoothed_rms => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
+    class(comm_mapinfo), pointer :: smoothed_rms_info => null()
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
 
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
+
+
+    character(len=1) :: j_str
 
     ! Read all data sets
     numband = count(cpar%ds_active)
@@ -270,20 +275,12 @@ contains
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
 
-!!$       if (trim(data(n)%label) == '070ds1' .or. trim(data(n)%label) == '070ds2' .or. trim(data(n)%label) == '070ds3') then
-!!$          write(*,*) 'Check bp'
-!!$          data(n)%bp(0)%p => comm_bp(cpar, n, i, '070')
-!!$       else
-!!$          
-!!$       end if
-       
-
-
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
        allocate(data(n)%B_postproc(cpar%num_smooth_scales))
        allocate(data(n)%N_smooth(cpar%num_smooth_scales))
        do j = 1, cpar%num_smooth_scales
+          ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
              info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
@@ -297,6 +294,7 @@ contains
           else
              nullify(data(n)%B_smooth(j)%p)
           end if
+          ! And postproc scales
           if (cpar%fwhm_postproc_smooth(j) > 0.d0) then
              info_postproc => comm_mapinfo(data(n)%info%comm, &
                   !& cpar%nside_smooth(j), cpar%lmax_smooth(j), &
@@ -316,14 +314,30 @@ contains
                 data(n)%N_smooth(j)%p => tmp
              end select
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
-             data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
+             ! Point to the regular old RMS map
+             tmp => data(n)%N
+             select type (tmp)
+             ! Now we smooth that RMS map to the new resolutions
+             class is (comm_N_rms)
+
+                ! Create map info for smoothed rms maps
+                smoothed_rms_info => comm_mapinfo(data(n)%info%comm, &
+                     & cpar%nside_smooth(j), cpar%lmax_smooth(j), &
+                     & data(n)%info%nmaps, data(n)%info%pol)
+
+                ! Smooth the rms map, make new comm_N_rms object for the result 
+                call smooth_rms(cpar, smoothed_rms_info, handle, &
+                     & data(n)%B(0)%p%b_l, tmp, &
+                     & data(n)%B_smooth(j)%p%b_l, smoothed_rms)
+
+                data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
+             end select
           else
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do
 
     end do
-    !numband = n
 
     ! Sort bands according to nominal frequency
     allocate(ind_ds(numband), nu(numband))
@@ -464,40 +478,6 @@ contains
 
   end subroutine apply_source_mask
 
-!!$  subroutine smooth_inside_procmask(data, fwhm)
-!!$    implicit none
-!!$    class(comm_data_set), intent(in) :: data
-!!$    real(dp),             intent(in) :: fwhm
-!!$
-!!$    integer(i4b) :: i, j
-!!$    real(dp)     :: w
-!!$    class(comm_mapinfo), pointer :: info
-!!$    class(comm_map),     pointer :: map
-!!$
-!!$    map => comm_map(data%map)
-!!$    call map%smooth(fwhm)
-!!$    do j = 1, data%map%info%nmaps
-!!$       do i = 0, data%map%info%np-1
-!!$          w = data%procmask%map(i,j)
-!!$          data%map%map(i,j) = w * data%map%map(i,j) + (1.d0-w) * map%map(i,j)
-!!$       end do
-!!$    end do
-!!$    deallocate(map)
-!!$
-!!$  end subroutine smooth_inside_procmask
-
-!!$  subroutine apply_proc_mask(self, map)
-!!$    implicit none
-!!$    class(comm_data_set), intent(in)    :: self
-!!$    class(comm_map),      intent(inout) :: map
-!!$
-!!$    if (.not. associated(self%procmask)) return
-!!$    where (self%procmask%map < 1.d0)  ! Apply processing mask
-!!$       map%map = -1.6375d30
-!!$    end where
-!!$
-!!$  end subroutine apply_proc_mask
-
   subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out)
     implicit none
     class(comm_mapinfo),                      intent(in),   target :: info
@@ -540,6 +520,111 @@ contains
     call map_out%Y
 
   end subroutine smooth_map
+
+  subroutine smooth_rms(cpar, info, handle, bl_in, map_in, bl_out, map_out)
+    ! 
+    ! Adoption of Kristians map_editor code which smooths rms maps. Hopefully with this addition,
+    ! smoothing of rms maps for component separation purposes is all done inside Commander itself.
+    ! The following block of text is what Kristian wrote in map_editor
+    !
+    ! Do one map at a time; has to be smoothed as spin-zero-maps (i.e. Temp maps)                       
+    ! The smoothing has to be done on the variance map with the square beam,                            
+    ! i.e., a beam that is FWHM/sqrt(2),                                                                
+    ! where FWHM is the effective beam given by                                                         
+    ! FWHM = sqrt(1 - (FWHM_in/FWHM_out)**2) * FWHM_out                                                 
+    ! The effective beam has the same beam weights (per l) as beam(FWHM_out)/beam(FWHM_in)              
+    ! so we do not need to calculate FWHM_effective, and it is not possible if we have beam files       
+    ! Further we use the fact that (in Stokes I, i.e. temperature)                                      
+    ! beam(fwhm') = beam(fwhm)**[(fwhm' /fwhm)**2] for all l > 0                                        
+    ! so that beam(fwhm/sqrt(2)) = beam(fwhm)**1/2 = sqrt(beam(fwhm))                                   
+    !
+    !
+    implicit none
+    type(comm_params),                        intent(in)           :: cpar
+    class(comm_mapinfo),                      intent(in),   target :: info
+    type(planck_rng),                         intent(inout)        :: handle
+    real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
+    class(comm_N),                            intent(inout)        :: map_in
+    class(comm_map),                                       pointer :: map_in_buffer => null()
+    class(comm_map),                                       pointer :: map_middle_buffer => null()
+    class(comm_map),                                       pointer :: map_out_buffer => null()
+    class(comm_map),                          intent(out), pointer :: map_out 
+
+    integer(i4b) :: i, j, l, lmax
+
+    real(dp), allocatable, dimension(:,:) :: pixwin_in, pixwin_out
+    character(len=4)         :: nside_in_str, nside_out_str
+    logical(lgt)             :: anynull
+    reaL(dp)                 :: nullval
+
+    ! Make a buffer for the variance map which we will operate on
+    ! Need to initialize comm_map objects in order to get access to 
+    ! the necessary alm/ud_grade routines
+    map_in_buffer  => comm_map(map_in%info)
+    map_out_buffer => comm_map(info)
+
+    ! Need to load in the pixel window information which doesn't seem to exist anywhere else
+    call int2string(map_in%info%nside,nside_in_str)
+    call int2string(info%nside,nside_out_str)
+
+    allocate(pixwin_in(0:4*map_in%info%nside,map_in%info%nmaps))
+    allocate(pixwin_out(0:4*info%nside,info%nmaps))
+
+    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, map_in%info%nmaps, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, info%nmaps, nullval, anynull)
+
+    ! Need to make sure we smooth before we ud_grade
+    ! Move variance map to alms
+    ! Create said variance map
+    do i = 0, map_in%info%np-1
+       do j = 1, map_in%info%nmaps 
+          map_in_buffer%map(i,j) = map_in%rms_pix(i,j)**2
+       end do
+    end do
+    call map_in_buffer%YtW
+    
+    ! Deconvolve old beam, and convolve with new beam
+    lmax  = min(size(bl_in,1)-1, size(bl_out,1)-1)
+    do i = 0, map_in%info%nalm-1
+       l = map_in%info%lm(1,i)
+       if (l > lmax) then
+          map_in_buffer%alm(i,:) = 0.d0
+          cycle
+       end if
+       do j = 1, map_in_buffer%info%nmaps
+          if (bl_in(l,j) > 1.d-12) then
+             ! smooth with 1/sqrt(2) of effective beam as describe above
+             map_in_buffer%alm(i,j) = map_in_buffer%alm(i,j) *  &!pixwin_out(i,j) / pixwin_in(i,j)*
+                  & dsqrt(bl_out(l,j) / bl_in(l,j))
+          else
+             map_in_buffer%alm(i,j) = 0.d0
+          end if
+       end do
+    end do    
+
+    ! Recompose map
+    call map_in_buffer%Y
+
+    ! Take square-root of smoothed variance map to get new rms map
+    do i = 0, map_in_buffer%info%np-1
+       do j = 1, map_in_buffer%info%nmaps 
+          map_in_buffer%map(i,j)=dsqrt(map_in_buffer%map(i,j))
+       end do
+    end do
+
+    ! If nsides don't agree, rescale the smoothed RMS map to ensure equal chi-squared values
+    if ( map_in%info%nside /= info%nside ) then
+       call map_in_buffer%udgrade(map_out_buffer)
+       map_out_buffer%map = map_out_buffer%map*(info%nside*1.d0/map_in%info%nside)
+    else
+       map_out_buffer%map = map_in_buffer%map
+    end if
+    
+    map_out => map_out_buffer
+
+    deallocate(pixwin_in, pixwin_out)
+
+  end subroutine smooth_rms
 
   subroutine get_mapfile(cpar, band, mapfile)
     implicit none
