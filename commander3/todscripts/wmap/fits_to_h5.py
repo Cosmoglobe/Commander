@@ -1283,6 +1283,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
     else:
       N = 2**21
     nside = 512
+    #N = 2**18
 
 
     TOD_all = [[],[],[],[]]
@@ -1307,21 +1308,10 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
         i1 = 0
         for e, ef in zip(events, events_flags):
             if any(np.searchsorted(e, np.array(times)) == 1) and (ef[i] == 1):
-              #proceed = False
               i0, i1 = np.searchsorted(np.array(times), e)
-              #print(band, e, Time(e, format='mjd').yday)
-              #print(Time(times[0], format='mjd').yday, Time(times[-1],format='mjd').yday)
-              #if (i0 > 0) and (i1 < len(times)):
-              #  skip = False
-              #elif (i0 == 0) and (i1 == 0):
-              #  skip = False
               if (i0 > 0) and (i1 > len(times)):
                 proceed = True
-              #elif (i0 == len(times)) and (i1 == len(times)):
-              #  skip = False
         if (len(times) > 4*N + i1) and (proceed):
-          #print(count, 'writing now')
-          t0 = perf_counter()
           obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind =  mega_write(comm_tod, obs_ind, flags_arr, TODs, gain_guesses0, band_labels, band, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind, minlin=2*N, N=N)
           timetowrite = False
         data = fits.open(f, memmap=False)
@@ -1331,14 +1321,6 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
         pos = data[1].data['POSITION']*1e3
         vel = data[1].data['VELOCITY']*1e3
         vel = coord_trans(vel, 'C', 'G', lonlat=False)
-
-        #print('a pos[0]')
-        #print('a vel[0]')
-        #print(pos[0])
-        #print(vel[0])
-
-
-
 
 
         genflags = data[2].data['genflags']*2**11
@@ -1459,7 +1441,7 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
     while len(times) > minlin:
         for e, ef in zip(events, events_flags):
           if any(np.searchsorted(e, times[:N]) == 1) and (ef[i] == 1):
-                print(band, e, Time(e, format='mjd').yday)
+                #print(band, e, Time(e, format='mjd').yday)
                 i0, i1 = np.searchsorted(times, e)
                 if (i0 > 0):
                   if prev:
@@ -1504,6 +1486,7 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
                     TODs_curr = [[],[],[],[]]
                     for n in range(4):
                       TODs_curr[n] = TODs[n][i0:i1]
+
                     obs_ind += 1
                     obsid = str(obs_ind).zfill(6)
                     TOD_in = np.array([TODs_curr[n] for n in range(4)])
@@ -1556,6 +1539,7 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
                     TODs_curr = [[],[],[],[]]
                     for n in range(4):
                       TODs_curr[n] = TODs[n][i0:i1]
+
                     obs_ind += 1
                     obsid = str(obs_ind).zfill(6)
                     TOD_in = np.array([TODs_curr[n] for n in range(4)])
@@ -1581,7 +1565,7 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
                 for n in range(4):
                   TODs[n] = TODs[n][i1:]
                 prev = False
-                print(f'Done events, {band}, {len(times)}')
+                #print(f'Done events, {band}, {len(times)}')
                 return obs_ind, flags_arr, TODs, psi_A_arr, psi_B_arr, pix_A_arr, pix_B_arr, alpha, n_per_day, npsi, psiBins, nside, fsamp, pos_arr, vel_arr, times, version, Nobs, compress, precal, band_ind
 
         time_curr = times[:N]
@@ -1632,6 +1616,15 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
           TODs[n] = TODs[n][N:]
         #print(f"band: {band}, len(times), {len(times)}, len(pos_arr[0]), {len(pos_arr[0])}")
         #print(f"band: {band}, len(pix_A_arr), {len(pix_A_arr)}, len(TODs[0]), {len(TODs[0])}")
+
+        if len(times) < minlin:
+            obs_ind += 1
+            obsid = str(obs_ind).zfill(6)
+            write_file_serial(comm_tod, obs_ind, obsid, obs_ind, flag_curr,
+                TOD_in, gain_guesses0, band_labels, band, psiA_curr, psiB_curr,
+                pixA_curr, pixB_curr, alpha, n_per_day, npsi, psiBins, nside,
+                fsamp*Nobs, pos_curr, vel_curr, time_curr, version, Nobs, compress=compress,
+                precal=precal)
 
 
     if final:
