@@ -101,6 +101,7 @@ contains
     character(len=4)             :: ctext
     character(len=6)             :: itext
     character(len=512)           :: postfix, chainfile, hdfpath, fg_file, temptxt, fg_txt
+    character(len=512)           :: label, label1, label2, label3
     character(len=2048)          :: outline, fg_header
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
@@ -192,56 +193,74 @@ contains
 
           !get mean values (and component labels) for fg mean print
           do i = 1,c%npar
+             label1 = ''
+             label2 = ''
+             label3 = ''
              if (cpar%myid_chain == 0) then 
-                if (new_header) then
-                   fg_txt=''
-                   if (c%poltype(i) == 1) then
-                      if (cpar%only_pol) then
-                         if (c%nmaps > 1) write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(QU)'
-                      else
-                         write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(IQU)'
+                fg_txt=''
+                if (c%poltype(i) == 1) then
+                   if (cpar%only_pol) then
+                      if (c%nmaps > 1) then
+                        write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_QU'
+                        label1 = fg_txt
                       end if
-                   else if (c%poltype(i) == 2) then
-                      if (cpar%only_pol) then
-                         if (c%nmaps > 1) then
-                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(QU)'
-                         end if
-                      else
-                         if (c%nmaps > 1) then
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(QU)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                         else
-                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
-                         end if
+                   else
+                      write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_IQU'
+                      label1 = fg_txt
+                   end if
+                else if (c%poltype(i) == 2) then
+                   if (cpar%only_pol) then
+                      if (c%nmaps > 1) then
+                         write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_QU'
+                         label1 = fg_txt
                       end if
-                   else if (c%poltype(i) == 3) then
-                      if (cpar%only_pol) then
-                         if (c%nmaps > 2) then
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(U)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                         else if (c%nmaps > 1) then
-                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
-                         end if
+                   else
+                      if (c%nmaps > 1) then
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_I'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label1 = temptxt
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_QU'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label2 = temptxt
                       else
-                         if (c%nmaps > 2) then
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(U)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                         else if (c%nmaps > 1) then
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                            write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(Q)'
-                            fg_txt=trim(fg_txt)//trim(temptxt)
-                         else
-                            write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'(I)'
-                         end if
+                         write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_I'
+                         label1 = temptxt
+                      end if
+                   end if
+                else if (c%poltype(i) == 3) then
+                   if (cpar%only_pol) then
+                      if (c%nmaps > 2) then
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_Q'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label1 = temptxt
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_U'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label2 = temptxt
+                      else if (c%nmaps > 1) then
+                         write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_Q'
+                         label1 = temptxt
+                      end if
+                   else
+                      if (c%nmaps > 2) then
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_I'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label1 = temptxt
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_Q'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label2 = temptxt
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_U'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label3 = temptxt
+                      else if (c%nmaps > 1) then
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_I'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label1 = temptxt
+                         write(temptxt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_Q'
+                         fg_txt=trim(fg_txt)//trim(temptxt)
+                         label2 = temptxt
+                      else
+                         write(fg_txt,fmt='(a20)') trim(c%label)//'_'//trim(c%indlabel(i))//'_I'
+                         label1 = temptxt
                       end if
                    end if
                 end if
@@ -271,6 +290,16 @@ contains
                 if (cpar%myid_chain == 0) then 
                    write(temptxt,fmt='(e20.7)') theta_sum/c%theta(i)%p%info%npix
                    outline = trim(outline)//trim(temptxt)
+
+                   if (j == 1) then
+                     label = label1
+                   else if (j == 2) then
+                     label = label2
+                   else if (j == 3) then
+                     label = label3
+                   end if
+                   call write_hdf(file, trim(adjustl(itext))//'/statistics/'//trim(adjustl(label)), &
+                       & theta_sum/c%theta(i)%p%info%npix)
                 end if
              end do
           end do
@@ -351,7 +380,6 @@ contains
        !need to find a nice way of only gathering high latitude chisq
 
 
-       ! HEREIAM
        call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq', &
               & chisq)
        call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq', &
