@@ -167,6 +167,9 @@ contains
        write(outline,fmt='(a10)') itext
     end if
 
+    if (cpar%myid_chain == 0) then
+       call create_hdf_group(file, trim(adjustl(itext))//'/statistics')
+    end if
 
     ! Output component results
     c => compList
@@ -346,6 +349,14 @@ contains
        write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(too be implemented)', '(too be implemented)'
        outline = trim(outline)//trim(temptxt)
        !need to find a nice way of only gathering high latitude chisq
+
+
+       ! HEREIAM
+       call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq', &
+              & chisq)
+       call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq', &
+              & chisq/(12*cpar%nside_chisq**2))
+             
 
        !write fg_mean info to file and close file
        if (new_header) write(unit,fmt='(a)') trim(fg_header)

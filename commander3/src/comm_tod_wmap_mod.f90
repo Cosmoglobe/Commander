@@ -343,6 +343,7 @@ contains
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
       end if
+      self%output_n_maps = 1
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
