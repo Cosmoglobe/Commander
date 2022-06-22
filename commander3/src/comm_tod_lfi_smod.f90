@@ -514,6 +514,8 @@ contains
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
+    type(hdf_file) :: tod_file
+
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
 
@@ -652,6 +654,20 @@ contains
        end if
        !sd%n_corr = 0.
        !sd%s_bp   = 0.
+
+       !if (.false.) then
+       if (mod(self%scanid(i), 1000) == 0) then
+       
+          call int2string(self%scanid(i), scantext)
+          if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
+          call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+          call write_hdf(tod_file, '/n_corr', sd%n_corr)
+          ! Mask is equal to 1 if data are flagged, 0 if not.
+          call write_hdf(tod_file, '/mask', sd%mask)
+          call close_hdf_file(tod_file)
+
+
+       end if
 
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)

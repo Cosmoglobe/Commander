@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
-toolchain="gnu" #"intel"
+toolchain="intel" #"intel"
 buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -133,8 +133,10 @@ then
 		#source /opt/rh/devtoolset-9/enable
 		#export PATH="/usr/local/opt/openmpi-4.0.5/bin:$PATH"
 		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
+    export PATH="$HOME/Commander_sims/build_owl1724_gnu/install/lib/openmpi-4.1.2/bin:$PATH"
+		export LD_LIBRARY_PATH="HOME/Commander_sims/build_owl1724_gnu/install/lib/openmpi-4.1.2/lib:$LD_LIBRARY_PATH"
 		module load gcc/10.2.1
-		module load myopenmpi/4.0.3
+		#module load myopenmpi/4.0.3
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		printf "\n"
 		$mpifc --version
@@ -198,7 +200,7 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=OFF\
+	-DUSE_SYSTEM_BLAS:BOOL=ON\
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
