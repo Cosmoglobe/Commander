@@ -203,14 +203,14 @@ comm_tod_jump_mod.o         : comm_utils.o
 comm_tod_lb_mod.o           : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_tod_driver_mod.o comm_utils.o
 comm_tod_lfi_mod.o          : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_tod_driver_mod.o comm_utils.o comm_tod_adc_mod.o
 comm_tod_lfi_smod.o         : comm_tod_lfi_mod.o
-comm_tod_quiet_mod.o				: comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_tod_driver_mod.o comm_utils.o
-comm_tod_quiet_smod.o				: comm_tod_quiet_mod.o
 comm_tod_mapmaking_mod.o    : comm_tod_mod.o comm_utils.o comm_shared_arr_mod.o comm_map_mod.o comm_param_mod.o
 comm_tod_mod.o              : comm_utils.o comm_param_mod.o comm_hdf_mod.o comm_map_mod.o comm_fft_mod.o comm_huffman_mod.o comm_conviqt_mod.o comm_zodi_mod.o comm_tod_orbdipole_mod.o comm_tod_noise_psd_mod.o
 comm_tod_noise_mod.o        : comm_tod_mod.o comm_utils.o comm_fft_mod.o invsamp_mod.o comm_tod_noise_psd_mod.o
 comm_tod_noise_psd_mod.o    : comm_utils.o
 comm_tod_orbdipole_mod.o    : comm_utils.o comm_defs.o comm_map_mod.o spline_1d_mod.o
 comm_tod_pointing_mod.o     : comm_tod_mod.o comm_map_mod.o comm_utils.o
+comm_tod_quiet_mod.o        : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_driver_mod.o comm_utils.o
+comm_tod_quiet_smod.o       : comm_tod_quiet_mod.o
 comm_tod_simulations_mod.o  : comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_param_mod.o comm_utils.o
 comm_tod_spider_mod.o       : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o comm_shared_arr_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_jump_mod.o
 comm_tod_wmap_mod.o         : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_driver_mod.o comm_utils.o
@@ -218,7 +218,7 @@ comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_
 comm_zodi_mod.o             : comm_utils.o comm_param_mod.o
 invsamp_mod.o               : spline_1d_mod.o
 sharp_test.o                : comm_map_mod.o comm_param_mod.o ars_mod.o
+sharp_test_minimal.o        : sharp.o
 spline_1d_mod.o             : locate_mod.o math_tools.o
 spline_2d_mod.o             : spline_1d_mod.o math_tools.o comm_utils.o
 comm_hdf_mod.o              : comm_utils.o
-sharp_test_minimal.o        : sharp.o

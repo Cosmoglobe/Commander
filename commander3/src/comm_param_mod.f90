@@ -2422,6 +2422,7 @@ contains
     implicit none
     character(len=512), intent(in) :: outfile
     character(len=512), dimension(:), intent(in) :: ascii_table
+    character(len=512) :: line
 
     integer(i4b)      :: unit, i
 

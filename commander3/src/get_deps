@@ -1,4 +1,8 @@
 #!/bin/bash
+#  Usage:
+# ./get_deps *.f90 *.f90.in > deps.txt
+# Import deps.txt into Makefile
+
 declare -A blacklist
 
 declare -A srcs_lower
