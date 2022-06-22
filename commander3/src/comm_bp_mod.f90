@@ -229,7 +229,7 @@ contains
     n = self%n
     select case (trim(self%model))
     case ('powlaw_tilt')
-       
+
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n
@@ -243,7 +243,7 @@ contains
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
-         !  if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
+          !if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
        end do
        
     end select
@@ -266,8 +266,11 @@ contains
        self%f2t  = 1.d0 / bnu_prime(1) * 1.d-14
        
     case ('WMAP')
+
+       !write(*,*) self%nu
           
        ! See Appendix E of Bennett et al. (2013) for details
+       self%tau     = self%tau / sum(self%tau)
        self%a2t     = sum(self%tau) / sum(self%tau/a)
        self%a2sz    = sum(self%tau) / sum(self%tau/a * sz) * 1.d-6
        self%f2t     = sum(self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * &
@@ -302,7 +305,7 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
+ 
     case ('DIRBE') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)

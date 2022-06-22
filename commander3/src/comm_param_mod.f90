@@ -2633,7 +2633,7 @@ contains
              open(units(depth),file=value,status="old",err=2)
           else if(key == '@DEFAULT') then
              if(stat /= 0) then
-               write(*,*) "Paramater file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
+               write(*,*) "Parameter file uses @DEFAULT command but the environment variable COMMANDER_PARAMS_DEFAULT returns ", stat
                stop
              end if
              ! Recurse to the default new file
@@ -2738,11 +2738,20 @@ contains
     character(len=512), dimension(:), intent(in) :: ascii_table
 
     integer(i4b)      :: unit, i
+    character(len=512) :: line
 
     write(*,*) "Saving parameter file to ", trim(outfile)
 
     unit = getlun()
     open(unit, file=trim(outfile),err=1)
+
+    write(unit,fmt="(a)",advance="no") '# Arguments:'
+    do i = 1, command_argument_count() !iargc()
+       call getarg(i, line)
+       if(line(1:2) /= "--") cycle
+       write(unit,fmt="(a)",advance="no") " '" // trim(line) // "'"
+    end do
+    write(unit,*)
 
     do i=1, size(ascii_table) 
       write(unit, '(a)') trim(ascii_table(i))
