@@ -12,7 +12,7 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
-NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
+NUM_GIBBS_ITER   = 10000       # Length of each Markov chain
 CHAIN_STATUS     = new
 NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = none
@@ -86,7 +86,7 @@ INCLUDE_COMP01                = .true.  # Cmb # CMB; no monopole or dipole
 NUM_CG_SAMPLING_GROUPS = 1
 CG_SAMPLING_GROUP01          = cmb
 CG_SAMPLING_GROUP_MASK01     = fullsky
-CG_SAMPLING_GROUP_MAXITER01  = 1000000
+CG_SAMPLING_GROUP_MAXITER01  = 20
 
 # CMB
 @START 01
@@ -95,9 +95,9 @@ COMP_INPUT_AMP_MAP&&          = ideal_cmb.fits
 COMP_INIT_FROM_HDF&&          = none default
 COMP_POLARIZATION&&           = .true.
 COMP_MONOPOLE_PRIOR&&         = none # monopole:mask_fullsky_n1024_TQU.fits
-COMP_L_APOD&&                 = 500
-COMP_LMAX_AMP&&               = 500
-COMP_CL_TYPE&&                = none     # {none, binned, power_law}
+COMP_L_APOD&&                 = 256
+COMP_LMAX_AMP&&               = 256
+COMP_CL_TYPE&&                = power_law     # {none, binned, power_law}
 COMP_MASK&&                   = fullsky
 COMP_INPUT_AMP_MAP&&          = none
 COMP_PRIOR_AMP_MAP&&          = none

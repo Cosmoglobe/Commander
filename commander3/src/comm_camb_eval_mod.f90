@@ -80,14 +80,19 @@ contains
     
     P%WantScalars           = .true.
     P%WantTensors           = .true.
-    P%Accuracy%AccurateBB   = .true.
     P%WantCls               = .true.
-    P%DoLensing             = .false.
+    P%DoLensing             = .true.
 
-    P%Max_l=lmax+2
+    P%Max_l=lmax+2 + 100 + 50
     P%Max_eta_k=6000
-    P%Max_l_tensor=lmax+2
+    P%Max_l_tensor=lmax+2 + 100 + 50
     P%Max_eta_k_tensor=6000
+
+    !P%Accuracy%AccuracyBoost = 2
+    !P%Accuracy%lAccuracyBoost = 2
+    !P%Accuracy%lSampleBoost = 2
+    P%Accuracy%AccurateReionization = .true.
+    P%Accuracy%AccurateBB   = .true.
 
     ! From the CAMB documentation you need this to get micro K^2.
     ! This is (2.726 K * 10^6)^2
@@ -102,13 +107,20 @@ contains
     !write(*,*) 'camb k=2', camb_data%CLData%Cl_scalar(2:4, 2)*CMB_outputscale
     !write(*,*) 'camb k=3', camb_data%CLData%Cl_scalar(2:4, 3)*CMB_outputscale
     !write(*, *) 'my cl', shape(c_l)
-    DO k = 1, 3
+    DO k = 1, 4
        Cl(k, 0) = 0.d0
        Cl(k, 1) = 0.d0
        DO l = 2, lmax
-          Cl(k, l) = 2.d0 * pi / (l * (l + 1)) * camb_data%CLData%Cl_scalar(l, k) * CMB_outputscale
+          Cl(k, l) = 2.d0 * pi / (l * (l + 1)) * (camb_data%CLData%Cl_lensed(l, k)+camb_data%CLData%Cl_tensor(l, k)) * CMB_outputscale
        END DO
     END DO
+    write(*,*) 'C^TT ell=100', Cl(1, 100), Cl(1, 100)*100*101/(2.d0*pi)
+    !open(unit=1, file='cosmo_cl_out.dat', position="append", action='write')
+    !  write(1, '( 6(2X, ES14.6) )') Cl(2, :)
+    !close(1)
+    !write(*,*) 'cl wirtten out!!!'
+          
+
     !new_sample%c_l = c_l
     
   end subroutine get_c_l_from_camb
