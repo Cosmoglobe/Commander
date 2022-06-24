@@ -96,7 +96,7 @@ contains
     logical(lgt),      intent(in) :: output_hdf
 
     integer(i4b)                 :: i, j, hdferr, ierr, unit, p_min, p_max
-    real(dp)                     :: chisq, t1, t2, t3, t4, theta_sum
+    real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, scale
     logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
     character(len=6)             :: itext
@@ -105,6 +105,7 @@ contains
     character(len=2048)          :: outline, fg_header
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
+    class(comm_map),     pointer :: rms_map => null(), chisq_map_eff => null()
     class(comm_comp),    pointer :: c => null()
     class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
@@ -326,6 +327,7 @@ contains
        if (cpar%output_chisq) then
           info      => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
           chisq_map => comm_map(info)
+          chisq_map_eff => comm_map(info)
        end if
        do i = 1, numband
           !call wall_time(t3)
@@ -349,12 +351,30 @@ contains
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
+
              
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
              chisq_sub => comm_map(info)
              call map%udgrade(chisq_sub)
+
+             ! Need to use unit_scale to make the relative contribution 
+             ! of bands with different units comparable
+             scale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                N => data(i)%N
+                select type (N)
+                ! Defining chisq_eff = -2*log(L) such that
+                ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
+                ! log(det(Sigma)) -> 2*log(2*pi*sigma)
+
+
+                class is (comm_N_rms)
+                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/scale)
+                class is (comm_N_lcut)
+                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/scale)
+                end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
@@ -364,10 +384,13 @@ contains
        
        if (cpar%output_chisq) then
           call mpi_reduce(sum(chisq_map%map), chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
+          call mpi_reduce(sum(chisq_map_eff%map), chisq_eff, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
+          call chisq_map_eff%writeFITS(trim(cpar%outdir)//'/chisq_eff_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & ' |  Chain = ', cpar%mychain, ' -- chisq = ', chisq
-          call chisq_map%dealloc(); deallocate(chisq_map)
+          call chisq_map%dealloc();     deallocate(chisq_map)
+          call chisq_map_eff%dealloc(); deallocate(chisq_map_eff)
        end if
        call update_status(status, "output_chisq")
     end if
@@ -384,6 +407,10 @@ contains
               & chisq)
        call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq', &
               & chisq/(12*cpar%nside_chisq**2))
+       call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq_eff', &
+              & chisq_eff)
+       call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq_eff', &
+              & chisq_eff/(12*cpar%nside_chisq**2))
              
 
        !write fg_mean info to file and close file
