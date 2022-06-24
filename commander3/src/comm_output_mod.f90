@@ -96,7 +96,7 @@ contains
     logical(lgt),      intent(in) :: output_hdf
 
     integer(i4b)                 :: i, j, hdferr, ierr, unit, p_min, p_max
-    real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, scale
+    real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, uscale
     logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
     character(len=6)             :: itext
@@ -359,7 +359,7 @@ contains
 
              ! Need to use unit_scale to make the relative contribution 
              ! of bands with different units comparable
-             scale =  data(i)%bp(0)%p%unit_scale
+             uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
@@ -371,9 +371,9 @@ contains
 
 
                 class is (comm_N_rms)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/scale)
+                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
                 class is (comm_N_lcut)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/scale)
+                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
                 end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
