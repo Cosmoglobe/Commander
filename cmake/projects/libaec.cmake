@@ -71,6 +71,10 @@ if(COMPILE_LIBAEC)
 	#------------------------------------------------------------------------------
 	# Compiling and Installing Static and Shared LibAEC
 	#------------------------------------------------------------------------------
+  # Note: To avoide errors associated with Libaec failed to symlink something 
+  # during installation phase, we build it sequentially, i.e. firt, static and 
+  # then shared version of the library.
+	#------------------------------------------------------------------------------
 	list(APPEND _AEC_LIB_TYPES_ static shared)
 	list(APPEND _AEC_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
   list(APPEND _AEC_LIB_DEPENDENTS_ "" "libaec_static")

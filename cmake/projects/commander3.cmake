@@ -212,10 +212,11 @@ target_link_libraries(${commander3}
 	OpenMP::OpenMP_Fortran
 	# including MKL
 	#-qopt-matmul
-	${LAPACK_LINKER_FLAGS} 
-	${LAPACK_LIBRARIES}
+  #${LAPACK_LINKER_FLAGS} 
+  #${LAPACK_LIBRARIES}
   #${BLAS_LINKER_FLAGS} 
 	#${BLAS_LIBRARIES}
+  LAPACK::LAPACK
   BLAS::BLAS
 	# including sharp2
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"

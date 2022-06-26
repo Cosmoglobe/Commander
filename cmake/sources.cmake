@@ -92,12 +92,12 @@ set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
 # AOCL -  Open Source Implementation of BLAS, LAPACK & FFTW from AMD
 #------------------------------------------------------------------------------
 # v3.1
-set(blis_git_url    "https://github.com/amd/blis.git")
-set(blis_git_tag    "3aa004442781d703c46b39cb0b9c166451f55902")
-set(flame_git_url   "https://github.com/amd/libflame.git")
-set(flame_git_tag   "51d901f5fa1729c018c19110d100d117b91a0e65")
-set(amdfftw_git_url "https://github.com/amd/amd-fftw.git")
-set(amdfftw_git_tag "2b0bbb5924c9e31cb58f34e10832d236bbc51af6")
+set(amdblis_git_url  "https://github.com/amd/blis.git")
+set(amdblis_git_tag  "3aa004442781d703c46b39cb0b9c166451f55902")
+set(amdflame_git_url "https://github.com/amd/libflame.git")
+set(amdflame_git_tag "51d901f5fa1729c018c19110d100d117b91a0e65")
+set(amdfftw_git_url  "https://github.com/amd/amd-fftw.git")
+set(amdfftw_git_tag  "2b0bbb5924c9e31cb58f34e10832d236bbc51af6")
 #------------------------------------------------------------------------------
 # HDF5
 #------------------------------------------------------------------------------

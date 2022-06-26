@@ -144,7 +144,7 @@ elseif(COMPILE_FLAME)
 	#------------------------------------------------------------------------------
   # Note: BLIS and FLAME have CMake implementation only for Windows.
 	#------------------------------------------------------------------------------
-  # Getting BLIS from source
+  # Getting AMD BLIS from source
 	#------------------------------------------------------------------------------
   # Note: For BLIS configure to properly work it needs to find the 
   # blis.pc.in file located inside the root directory. Therefore, 
@@ -155,57 +155,57 @@ elseif(COMPILE_FLAME)
   # references, the respective error is the following:
   # `gmake[4]: *** No rule to make target 'blis.pc.in', needed by`
 	#------------------------------------------------------------------------------
-  if(NOT EXISTS "${BLIS_SOURCE_DIR}/CMakeLists.txt")
+  if(NOT EXISTS "${AMDBLIS_SOURCE_DIR}/CMakeLists.txt")
     #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
 		ExternalProject_Add(
-			blis_src
+			amdblis_src
 			DEPENDS						required_libraries
-      GIT_REPOSITORY		"${blis_git_url}"
-      GIT_TAG						"${blis_git_tag}"
+      GIT_REPOSITORY		"${amdblis_git_url}"
+      GIT_TAG						"${amdblis_git_tag}"
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
-      SOURCE_DIR				"${BLIS_SOURCE_DIR}"
+      SOURCE_DIR				"${AMDBLIS_SOURCE_DIR}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
       LOG_DOWNLOAD			ON 
 			# commands how to build the project
 			CONFIGURE_COMMAND ""
 			BUILD_COMMAND			""
 			INSTALL_COMMAND		""
-      COMMAND ${CMAKE_COMMAND} -E copy "${BLIS_SOURCE_DIR}/blis.pc.in" "${LIBS_BUILD_DIR}/src/blis-build"
+      COMMAND ${CMAKE_COMMAND} -E copy "${AMDBLIS_SOURCE_DIR}/blis.pc.in" "${LIBS_BUILD_DIR}/src/amdblis-build"
 			)
 	else()
     #message(STATUS "Found an existing BLAS sources inside:\n${BLIS_SOURCE_DIR}")
-		add_custom_target(blis_src
+		add_custom_target(amdblis_src
 			ALL ""
 			)
 	endif()
 	#------------------------------------------------------------------------------
-  # Getting FLAME from source
+  # Getting AMD FLAME from source
 	#------------------------------------------------------------------------------
   # Note: LAPACK sources inside `src` directory is copied over to `subbuilds` , 
   # because, otherwise, it complains about missing files.
 	#------------------------------------------------------------------------------
-  if(NOT EXISTS "${FLAME_SOURCE_DIR}/CMakeLists.txt")
+  if(NOT EXISTS "${AMDFLAME_SOURCE_DIR}/CMakeLists.txt")
     #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
 		ExternalProject_Add(
-			flame_src
+			amdflame_src
 			DEPENDS						required_libraries
-      GIT_REPOSITORY		"${flame_git_url}"
-      GIT_TAG						"${flame_git_tag}"
+      GIT_REPOSITORY		"${amdflame_git_url}"
+      GIT_TAG						"${amdflame_git_tag}"
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
-      SOURCE_DIR				"${FLAME_SOURCE_DIR}"
+      SOURCE_DIR				"${AMDFLAME_SOURCE_DIR}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
       LOG_DOWNLOAD			ON 
 			# commands how to build the project
 			CONFIGURE_COMMAND ""
 			BUILD_COMMAND			""
 			INSTALL_COMMAND		""
-      COMMAND ${CMAKE_COMMAND} -E copy_directory "${FLAME_SOURCE_DIR}/src" "${LIBS_BUILD_DIR}/src/flame-build/src"
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${AMDFLAME_SOURCE_DIR}/src" "${LIBS_BUILD_DIR}/src/amdflame-build/src"
 			)
 	else()
     #message(STATUS "Found an existing BLAS sources inside:\n${BLIS_SOURCE_DIR}")
-		add_custom_target(flame_src
+		add_custom_target(amdflame_src
 			ALL ""
 			)
 	endif()
@@ -213,7 +213,7 @@ elseif(COMPILE_FLAME)
   # Compiling and Installing Static and Shared BLIS
 	#------------------------------------------------------------------------------
 	list(APPEND 
-    blis_configure_command 
+    amdblis_configure_command 
 		"${CMAKE_COMMAND}" "-E" "env" 
     "FC=${MPI_Fortran_COMPILER}" 
 		"CXX=${MPI_CXX_COMPILER}" 
@@ -221,15 +221,15 @@ elseif(COMPILE_FLAME)
 		"CC=${MPI_C_COMPILER}" 
 		"MPICC=${MPI_C_COMPILER}" 
 		#"./configure" 
-    "${BLIS_SOURCE_DIR}/configure" 
+    "${AMDBLIS_SOURCE_DIR}/configure" 
     "--prefix=<INSTALL_DIR>"
     "auto"
     )
 	ExternalProject_Add(
-		blis      
-		DEPENDS						blis_src
+		amdblis      
+		DEPENDS						amdblis_src
 		PREFIX						"${LIBS_BUILD_DIR}"
-    SOURCE_DIR				"${BLIS_SOURCE_DIR}"
+    SOURCE_DIR				"${AMDBLIS_SOURCE_DIR}"
     #BINARY_DIR				"${BLIS_SOURCE_DIR}" 
 		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR						"${CMAKE_LOG_DIR}"
@@ -239,17 +239,17 @@ elseif(COMPILE_FLAME)
 		# Disabling download
 		DOWNLOAD_COMMAND	""
 		# Commands to configure, build and install the project
-		CONFIGURE_COMMAND "${blis_configure_command}"
+		CONFIGURE_COMMAND "${amdblis_configure_command}"
 		)
 	#------------------------------------------------------------------------------
-  # Compiling and Installing Static and Shared FLAME
+  # Compiling and Installing Static and Shared AMD FLAME
 	#------------------------------------------------------------------------------
   # Note: Usage of MPi compilers result in the errors:
   # `Unrecognised command line option ...`
   # So the usual GCC/GFortran is used instead. 
 	#------------------------------------------------------------------------------
 	list(APPEND 
-    flame_configure_command 
+    amdflame_configure_command 
     #"rm" "Makefile" "&&"
     #"autoreconf" "-i" "&&" 
 		"${CMAKE_COMMAND}" "-E" "env" 
@@ -259,7 +259,7 @@ elseif(COMPILE_FLAME)
     "CC=${CMAKE_C_COMPILER}"#${MPI_C_COMPILER}" 
     #"MPICC=${MPI_C_COMPILER}" 
     #"./configure"
-    "${FLAME_SOURCE_DIR}/configure" 
+    "${AMDFLAME_SOURCE_DIR}/configure" 
     "--prefix=<INSTALL_DIR>"
     "--enable-static-build" 
     "--enable-dynamic-build" 
@@ -270,21 +270,21 @@ elseif(COMPILE_FLAME)
     "--enable-lapack2flame"
     )
 	ExternalProject_Add(
-		flame
-		DEPENDS						flame_src
-                      blis 
+		amdflame
+		DEPENDS						amdflame_src
+                      amdblis 
 		PREFIX						"${LIBS_BUILD_DIR}"
-    SOURCE_DIR				"${FLAME_SOURCE_DIR}"
+    SOURCE_DIR				"${AMDFLAME_SOURCE_DIR}"
     #BINARY_DIR				"${BLIS_SOURCE_DIR}" 
 		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
 		LOG_DIR						"${CMAKE_LOG_DIR}"
-    LOG_CONFIGURE			ON 
+    LOG_CONFIGURE			ON
     LOG_BUILD					ON 
     LOG_INSTALL				ON 
 		# Disabling download
 		DOWNLOAD_COMMAND	""
 		# Commands to configure, build and install the project
-		CONFIGURE_COMMAND "${flame_configure_command}"
+		CONFIGURE_COMMAND "${amdflame_configure_command}"
     # Note: For some reason CMake default install command results in errors,
     # but if `make install` is explicitly stated, everything works fine.
     INSTALL_COMMAND   "make" "install"
@@ -293,11 +293,12 @@ elseif(COMPILE_FLAME)
 	set(BLAS_LIBRARIES
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}blis${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
-	set(LAPACK_LINKER_FLAGS "")
+	set(LAPACK_LINKER_FLAGS "-lgfortran" "-lm" "-lquadmath")
 	set(LAPACK_LIBRARIES
-		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}flame${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}aocldtl${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}flame${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
+  include_directories(${CMAKE_INSTALL_PREFIX}/include/blis)
 	#------------------------------------------------------------------------------
   # Creating ALIASes
 	#------------------------------------------------------------------------------
@@ -320,8 +321,8 @@ elseif(COMPILE_FLAME)
 	#------------------------------------------------------------------------------
 	add_custom_target(blas 
 		ALL ""
-		DEPENDS blis
-            flame
+		DEPENDS amdblis
+            amdflame
 		)
 else()
 	# to avoid cmake errors we create an empty target

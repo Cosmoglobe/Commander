@@ -95,8 +95,8 @@ set(CAMB_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/camb")
 set(FFTW_SOURCE_DIR				"${CMAKE_DOWNLOAD_DIRECTORY}/fftw")
 set(OPENBLAS_SOURCE_DIR	  "${CMAKE_DOWNLOAD_DIRECTORY}/openblas")
 # AMD AOCL
-set(BLIS_SOURCE_DIR	      "${CMAKE_DOWNLOAD_DIRECTORY}/blis")
-set(FLAME_SOURCE_DIR	    "${CMAKE_DOWNLOAD_DIRECTORY}/flame")
+set(AMDBLIS_SOURCE_DIR	  "${CMAKE_DOWNLOAD_DIRECTORY}/amdblis")
+set(AMDFLAME_SOURCE_DIR	  "${CMAKE_DOWNLOAD_DIRECTORY}/amdflame")
 set(AMDFFTW_SOURCE_DIR  	"${CMAKE_DOWNLOAD_DIRECTORY}/amdfftw")
 #------------------------------------------------------------------------------
 # To have a summary of the installation, we need to have a summary of the Host 
