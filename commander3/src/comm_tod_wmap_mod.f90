@@ -282,7 +282,7 @@ contains
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       ! Precompute low-resolution preconditioner
-      call constructor%precompute_M_lowres
+      ! call constructor%precompute_M_lowres
 
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
