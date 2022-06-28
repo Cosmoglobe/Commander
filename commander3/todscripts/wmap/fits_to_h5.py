@@ -272,7 +272,7 @@ def get_flags(data, test=False, center=True, bands=np.arange(10)):
     quat = data[1].data['QUATERN']
     Nobs_arr = Nobs_array[bands]
 
-    ll_A, ll_B, p_A, p_B, t_list = quat_to_sky_coords(quat, lonlat=True,
+    ll_A, ll_B, p_A, p_B, t_list = quat_to_sky_coords(data, lonlat=True,
         center=center, ret_times=True,
             coord_out='C', Nobs_array = Nobs_arr, n_ind = bands)
 
@@ -323,6 +323,7 @@ def get_flags(data, test=False, center=True, bands=np.arange(10)):
         myflags[b] = np.zeros(len(t_list[b]))
         daflags_copy[b] = np.zeros(len(t_list[b]))
         for i,p in enumerate(planets):
+            #t = t_list[b] + t2jd
             t = t_list[b] + time_majorframe[0]
             ra_p, dec_p = get_ephem(t, p)
             ll_p = np.array([ra_p, dec_p])
@@ -346,10 +347,11 @@ def get_flags(data, test=False, center=True, bands=np.arange(10)):
     if test:
         return daflags_copy, myflags
     else:
-        return myflags
+        #return myflags
+        return daflags_copy
 
 
-def test_flags(band=2):
+def test_flags(band=0):
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     outdir = '/mn/stornext/d16/cmbco/bp/wmap/data/'
     files = glob(prefix + 'uncalibrated/*.fits')
@@ -374,14 +376,17 @@ def test_flags(band=2):
     files.sort()
     file_input = files[87]
 
-    file_input = np.random.choice(files[-365:])
-    file_input = np.random.choice(files)
+    #file_input = np.random.choice(files[-365:])
+    #file_input = np.random.choice(files)
     #file_input = files[-765]
     print(file_input)
 
     #file_input = files[3197]
     #file_input = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20100912350_20100922350_uncalibrated_v5.fits'
-    file_input = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20050102357_20050112357_uncalibrated_v5.fits'
+    #file_input = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20050102357_20050112357_uncalibrated_v5.fits'
+    #file_input = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20020112357_20050112357_uncalibrated_v5.fits'
+    file_input = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20020112359_20020122359_uncalibrated_v5.fits'
+    #file_input = '/mn/stornext/d16/cmbco/ola/wmap/tods/uncalibrated/wmap_tod_20013082358_20013091720_uncalibrated_v5.fits'
 
     data = fits.open(file_input)
     daflags, myflags = get_flags(data, test=True)
@@ -390,7 +395,7 @@ def test_flags(band=2):
 
     plt.figure()
 
-    tod_tile = data[2].data['Q113']
+    tod_tile = data[2].data['K113']
     tod = np.zeros(tod_tile.size)
     #daflag_all = np.zeros(tod_tile.size)
     myflag_all = np.zeros(tod_tile.size)
@@ -402,18 +407,30 @@ def test_flags(band=2):
     ind1 = (daflag_all % 2 == 1)
     myflag_all = np.where(ind1, daflag_all, myflag_all)
 
-    inds = (daflag_all != 0) & ((daflag_all % 2) != 1)
-    inds = np.bitwise_and(daflag_all.astype('int'), 2**3 + 2**4) != 0
-    t = np.arange(len(inds))*1.536/Nobs
-    plt.plot(t[tod > 1e3], tod[tod > 1e3], 'k.', alpha=0.5, ms=1)
-    plt.plot(t[inds], tod[inds], 'g.', ms=10)
-    inds = (myflag_all != 0) & ((myflag_all % 2) != 1)
-    inds = np.bitwise_and(myflag_all.astype('int'), 2**3 + 2**4) != 0
-    plt.plot(t[inds], tod[inds], 'r.', ms=7)
-    #plt.xlim([7230, 7250])
-    #plt.xlim([27420, 27440])
-    #plt.xlim([0,10000])
+    fig, axes = plt.subplots()
 
+    inds = (daflag_all != 0) & ((daflag_all % 2) != 1)
+    #inds = np.bitwise_and(daflag_all.astype('int'), 2**3 + 2**4) != 0
+    t = np.arange(len(inds))*1.536/Nobs
+    axes.plot(t[tod > 1e3], tod[tod > 1e3], 'k.', alpha=0.5)
+    axes.plot(t[inds], tod[inds], 'g.', ms=10)
+    inds = (myflag_all != 0) & ((myflag_all % 2) != 1)
+    #inds = np.bitwise_and(myflag_all.astype('int'), 2**3 + 2**4) != 0
+    axes.plot(t[inds], tod[inds], 'r.', ms=7)
+    #axes.set_xlim([85700, 86000])
+    axes.set_ylim([32060, 32180])
+
+
+    inds = (daflag_all != 0) & ((daflag_all % 2) != 1)
+    #inds = np.bitwise_and(daflag_all.astype('int'), 2**3 + 2**4) != 0
+    t = np.arange(len(inds))*1.536/Nobs
+    axes.plot(t[tod > 1e3], tod[tod > 1e3], 'k.', alpha=0.5)
+    axes.plot(t[inds], tod[inds], 'g.', ms=10)
+    inds = (myflag_all != 0) & ((myflag_all % 2) != 1)
+    #inds = np.bitwise_and(myflag_all.astype('int'), 2**3 + 2**4) != 0
+    axes.plot(t[inds], tod[inds], 'r.', ms=7)
+    #axes.set_xlim([85700, 86000])
+    axes.set_ylim([32060, 32180])
 
     plt.figure()
     plt.plot(t, daflag_all, '.', label='DAflags', ms=3)
@@ -431,7 +448,6 @@ def test_flags(band=2):
     ax.set_yticks([], minor=True)
 
     ax.yaxis.set_major_formatter(lambda x, pos: f"{int(x):011b}")
-
 
     plt.show()
 
@@ -623,7 +639,6 @@ def write_file_serial(comm_tod, i, obsid, obs_ind, daflags, TODs_, gain_guesses,
     pos = pos[:,0]
     vel = vel[:,0]
 
-    dt0 = np.diff(time).mean()
     det_list = []
     for j in range(len(labels)):
         label = labels[j]
@@ -871,7 +886,7 @@ def gamma_from_pol(gal, pol):
 
 
 
-def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
+def quat_to_sky_coords(data, center=True, lonlat=False, nointerp=False,
     ret_times=False,
         coord_out='G',
         Nobs_array = np.array([12, 12, 15, 15, 20, 20, 30, 30, 30, 30]),
@@ -880,6 +895,9 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
     Quaternion is of form (N_frames, 30, 4), with one redundant frame at the
     beginning and two redundant ones at the end, that match the adjacent frames.
     '''
+    quat = data[1].data['QUATERN']
+    t_major = data[2].data['time']
+    #print(data[1].data['time'][0] - data[2].data['time'][0])
     nt = len(quat)
     Q = np.zeros( (4, 33, nt))
     q0 = quat[:,0::4]
@@ -900,6 +918,10 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
     Q[2] = q2
     Q[3] = q3
     t0 = np.arange(0, 30*nt + 3)
+
+    #inds_0 = np.arange(len(t_major))
+    #inds_1 = np.arange(len(t_major)*30)
+    #t_major = interp1d(inds_0, t_major, fill_value='extrapolate')(inds_1)
 
     dir_A_los = np.array([
                 [  0.03993743194318,  0.92448267167832, -0.37912635267982],
@@ -975,6 +997,7 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
             k = np.arange(Npts)
             if center:
                 t = 1+(k+0.5)/Nobs
+                #t = 1+k/Nobs + 0.5
                 #t = np.arange(0, 30*nt, 1/Nobs) + 0.5
             else:
                 t = 1+k/Nobs
@@ -988,9 +1011,7 @@ def quat_to_sky_coords(quat, center=True, lonlat=False, nointerp=False,
                             fill_value='extrapolate')
                     M2[:,i,j] = f(t)
             # T is the sample number here, but I want the actual time elapsed
-            t *= 1.536/Nobs
-            # This is in seconds, need it in days
-            t /= 3600*24
+            t *= 1.536/3600/24
             t_list.append(t)
 
 
@@ -1158,10 +1179,8 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
           vel_all = np.concatenate((vel_all, pos))
           time_all = np.concatenate((time_all, time))
 
-        dt0 = np.median(np.diff(time))
 
-        quat = data[1].data['QUATERN']
-        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center)
+        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data, center=center)
 
         genflags = data[2].data['genflags']*2**11
         daflags = data[2].data['daflags']
@@ -1334,8 +1353,7 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
 
 
 
-        quat = data[1].data['QUATERN']
-        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(quat, center=center,
+        gal_A, gal_B, pol_A, pol_B = quat_to_sky_coords(data, center=center,
             Nobs_array=[Nobs], n_ind=[band_ind])
         psi_A = get_psi_band(gal_A[0], pol_A[0])
         psi_B = get_psi_band(gal_B[0], pol_B[0])
@@ -1352,15 +1370,15 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
 
         times = data[2].data['TIME'] + t2jd - 2_400_000.5
         t0 = times[0]
-        #inds0 = np.arange(len(times))
-        #inds1 = np.arange(n_tot)*len(times)/n_tot
-        #times = interp1d(inds0, times, fill_value='extrapolate')(inds1)
-        times = t0 + np.arange(n_tot)/(3600*24*fsamp*Nobs)
+        inds0 = np.arange(len(times))
+        inds1 = np.arange(n_tot)*len(times)/n_tot
+        times = interp1d(inds0, times, fill_value='extrapolate')(inds1)
+        #times = t0 + np.arange(n_tot)/(3600*24*fsamp*Nobs)
 
         t_lores = data[1].data['time']
         # 46.08 is the sampling rate for the housekeeping data
-        t_lores = t_lores[0] + np.arange(len(t_lores))*46.08/(3600*24)
-        t_hires = times - t2jd + 2_400_000.5
+        inds0 = np.arange(len(t_lores))
+        t_hires = interp1d(inds0, t_lores, fill_value='extrapolate')(inds1)
 
         pos_arr =[interp1d(t_lores, pos[:,i], fill_value='extrapolate')(t_hires).tolist()
           for i in range(3)]
@@ -1702,7 +1720,7 @@ def main2():
              'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
              'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
              'W4':manager.dict(),}
-    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_test4/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_origflags2/'
     version = 50
     comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
         overwrite=True)
@@ -1712,20 +1730,23 @@ def main2():
 
     bands1 =  [bands[0]]
     inds1 = [inds[0]]
-    #bands1 =  bands[:6]
-    #inds1 = inds[:6]
-    #bands2 =  bands[6:]
-    #inds2 = inds[6:]
-
     x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
         for ind, band in zip(inds1, bands1)]
     for i in tqdm(range(len(x)), smoothing=0):
         x[i].get()
-    #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
-    #    for ind, band in zip(inds2, bands2)]
-    #for i in tqdm(range(len(x)), smoothing=0):
-    #    x[i].get()
-
+    '''
+    bands1 =  bands[:2]
+    inds1 = inds[:2]
+    bands2 =  bands[2:4]
+    inds2 = inds[2:4]
+    for i in range(len(bands)):
+        inds1 = [inds1[i]]
+        bands1 = [bands1[i]]
+        x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+            for ind, band in zip(inds1, bands1)]
+        for i in tqdm(range(len(x)), smoothing=0):
+            x[i].get()
+    '''
     pool.close()
     pool.join()
     comm_tod.make_filelists()
