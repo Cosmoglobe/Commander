@@ -149,14 +149,11 @@ contains
     ! Static variables
     constructor%proposal_multiplier = 0.3d0
     constructor%correct_cosmo_param = [0.02237d0, 0.12d0, 67.36d0, 0.0544d0, 3.035d0, 0.9649d0] ! Cosmo Params used to simulate CMB power spectra
-    constructor%sigma_cosmo_param   = [0.0001d0,   0.001d0,  0.05d0,   0.001d0, 0.03d0, 0.01d0] ! Hard coded uncertainty in cosmo param proposal
+    constructor%sigma_cosmo_param   = [0.001d0,   0.001d0,  0.4d0,   0.001d0, 0.03d0, 0.01d0] ! Hard coded uncertainty in cosmo param proposal
     constructor%accepted_samples    = 0
     constructor%total_samples       = 0
 
     ! Initialize
-    constructor%sample_old%theta = constructor%correct_cosmo_param
-    constructor%sample_old%c_l = init_sample_c_l
-
     c => compList
     do while (associated(c))
       select type (c)
@@ -183,13 +180,12 @@ contains
       end select
       c => c%next()
     end do
+
     constructor%L_mat = L_mat
+    constructor%sample_old%theta = constructor%correct_cosmo_param
     constructor%sample_old%c_l = init_sample_c_l
 
-    ! First sample
-    !constructor%sample_new%theta = constructor%correct_cosmo_param
-    !call get_c_l_from_camb(constructor%sample_new%theta, first_sample_c_l)
-    !constructor%sample_new%c_l = first_sample_c_l
+    ! First s_lm and f_lm sample
     c => compList
     do while (associated(c))
       select type (c)
@@ -335,7 +331,7 @@ contains
     type(comm_params),                  intent(in)    :: cpar
     type(planck_rng),                   intent(inout) :: handle, handle_noise
     integer(i4b),                       intent(in)    :: samp_group
-    logical(lgt)                                      :: accept, do_scale_f_lm, finished
+    logical(lgt)                                      :: accept, finished
     type(comm_camb_sample), pointer                   :: new_sample
     type(comm_camb_sample)                            :: old_sample
     real(dp), dimension(:, :), allocatable            :: scaled_f_lm
@@ -348,7 +344,6 @@ contains
     allocate(new_sample%c_l(self%nmaps, 0 : self%lmax))
 
     old_sample = self%sample_old
-    do_scale_f_lm = .true.
     finished = .false.
 
     !call self%cosmo_param_proposal(old_sample, self%L_mat, handle, new_sample)
@@ -361,7 +356,7 @@ contains
         comm = c%x%info%comm
         if (c%x%info%myid == 0) then
           ! Root core is making a proposal and getting CAMB C_\ell
-          call self%cosmo_param_proposal(old_sample, self%L_mat, handle, new_theta_proposal)
+          call self%cosmo_param_proposal(old_sample, handle, new_theta_proposal)
           call get_c_l_from_camb(new_theta_proposal, new_sample_c_l)
           
           call mpi_bcast(new_theta_proposal, size(new_theta_proposal),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
@@ -385,7 +380,10 @@ contains
     do while (associated(c))
       select type (c)
       class is (comm_diffuse_comp)
+        ! Commander ordering
         !{TT,TE,TB,EE,EB,BB}
+
+        ! CAMB ordering
         ! TT, EE, BB, and TE
         
         do l = 2, self%lmax
@@ -404,7 +402,7 @@ contains
     new_sample%theta = new_theta_proposal
     new_sample%c_l = new_sample_c_l
 
-    call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm)
+    call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm=.true.)
     
     accept = acceptance(self, new_sample, old_sample, handle)
 
@@ -434,10 +432,11 @@ contains
   subroutine compute_fluctuation_acceptance(self, c, comm, res)
     implicit none
     class(comm_camb),                         intent(inout) :: self
-    integer(i4b),                             intent(in)    :: comm
     class(comm_cmb_comp),                     intent(in)    :: c
-    class(comm_map), pointer                                :: f_lm_map
+    integer(i4b),                             intent(in)    :: comm
     real(dp),                                 intent(out)   :: res
+    class(comm_map), pointer                                :: f_lm_map
+
     integer(i4b)                                            :: i, ierr, nmaps
     class(comm_mapinfo), pointer                            :: info 
 
@@ -467,7 +466,7 @@ contains
   end subroutine compute_fluctuation_acceptance
 
 
-  subroutine cosmo_param_proposal(self, old_sample, L, handle, new_theta_proposal)
+  subroutine cosmo_param_proposal(self, old_sample, handle, new_theta_proposal)
     ! 
     ! Proposal function w. Finds new sample based on covariance
     ! matrix L*L^T. Proposal_multiplier = 0.3 to make sure the proposal theta
@@ -492,17 +491,18 @@ contains
     implicit none
     class(comm_camb),                        intent(inout) :: self
     type(comm_camb_sample),                  intent(in)    :: old_sample
-    real(dp),               dimension(6, 6), intent(in)    :: L
     type(planck_rng),                        intent(inout) :: handle
     real(dp), dimension(6),                  intent(out)   :: new_theta_proposal
     
+    real(dp), dimension(6,6) :: L
     real(dp), dimension(6) :: z
     integer(i4b) :: i
+    
     
     do i = 1, 6
        z(i) = self%proposal_multiplier * rand_gauss(handle)
     end do
-    new_theta_proposal = old_sample%theta + matmul(L, z)
+    new_theta_proposal = old_sample%theta + matmul(self%L_mat, z)
     
   end subroutine cosmo_param_proposal
 
@@ -533,7 +533,7 @@ contains
     ! 
     implicit none
     class(comm_camb),                    intent(inout) :: self
-    type(comm_camb_sample),              intent(inout)    :: old_sample, new_sample
+    type(comm_camb_sample),              intent(inout) :: old_sample, new_sample
     type(planck_rng),                    intent(inout) :: handle
 
     class(comm_comp), pointer                          :: c => null()
@@ -543,7 +543,7 @@ contains
     real(dp), dimension(3, 3)                          :: new_S, old_S
     integer(i4b)                                       :: k, i, l, m, comm, ierr
     logical(i4b)                                       :: acceptance, finished
-    character(len=512) :: filename
+    character(len=512)                                 :: filename
 
     old_c_l  = old_sample%c_l
     new_c_l  = new_sample%c_l
@@ -720,12 +720,10 @@ contains
       select type (c)
       class is (comm_cmb_comp)
           allocate(new_sample%f_lm(0:c%x%info%nalm-1, 3))
-          
           new_sample%f_lm = c%x%alm
 
           if (do_scale_f_lm == .true.) then
             allocate(new_sample%scaled_f_lm(0:c%x%info%nalm-1, 3))
-            if (.not. allocated(old_sample%f_lm)) allocate(old_sample%f_lm(0:c%x%info%nalm-1, 3))
             do i = 0, c%x%info%nalm-1
               l = c%x%info%lm(1, i)
 
@@ -739,103 +737,12 @@ contains
                 new_sample%scaled_f_lm(i, :) = matmul(new_S, matmul(old_S, old_sample%f_lm(i, :)))
               end if
             end do
-            !new_sample%scaled_f_lm = c%x%alm
           end if
       end select
       c => c%next()
     end do
 
-    c => compList
-    do while (associated(c))
-      select type (c)
-      class is (comm_cmb_comp)
-
-      end select
-      c => c%next()
-    end do
-
   end subroutine get_s_lm_f_lm
-  
-!!$  subroutine get_c_l_from_camb(self, new_sample)
-!!$    ! 
-!!$    ! Gets TT, EE, and TE power spectra from camb using the cosmological
-!!$    ! parameters in theta.
-!!$    !
-!!$    ! Arguments
-!!$    ! ---------
-!!$    ! self: derived type (comm_camb)
-!!$    !    CAMB object
-!!$    !
-!!$    ! Returns
-!!$    ! -------
-!!$    ! new_sample: derived type (comm_camb_sample)
-!!$    !    Proposed sample with power spectras from CAMB
-!!$    ! 
-!!$    implicit none
-!!$    class(comm_camb),                           intent(inout) :: self
-!!$    type(comm_camb_sample) :: new_sample 
-!!$    real(dp), dimension(6) :: cosmo_param
-!!$    integer(i4b) :: l, k
-!!$    real(dp), dimension(4, 0: self%lmax) :: c_l
-!!$    
-!!$    type(CAMBparams) P
-!!$    type(CAMBdata) camb_data
-!!$    real(dp) :: CMB_outputscale
-!!$    cosmo_param = new_sample%theta
-!!$    call CAMB_SetDefParams(P)
-!!$    
-!!$    P%ombh2 = cosmo_param(1)
-!!$    P%omch2 = cosmo_param(2)
-!!$    P%omk = 0.d0
-!!$    P%H0= cosmo_param(3)
-!!$    !call P%set_H0_for_theta(0.0104d0)!cosmo_param(4)
-!!$    select type(InitPower=>P%InitPower)
-!!$    class is (TInitialPowerLaw)
-!!$       InitPower%As = exp(cosmo_param(5))*1e-10
-!!$       InitPower%ns = cosmo_param(6)
-!!$       InitPower%r = 0.0
-!!$    end select
-!!$    
-!!$    select type(Reion=>P%Reion)
-!!$    class is (TTanhReionization)
-!!$       Reion%use_optical_depth = .true.
-!!$       Reion%optical_depth = cosmo_param(4)
-!!$    end select
-!!$    
-!!$    P%WantScalars           = .true.
-!!$    P%WantTensors           = .true.
-!!$    P%Accuracy%AccurateBB   = .true.
-!!$    P%WantCls               = .true.
-!!$    P%DoLensing             = .false.
-!!$
-!!$    P%Max_l=self%lmax+2
-!!$    P%Max_eta_k=6000
-!!$    P%Max_l_tensor=self%lmax+2
-!!$    P%Max_eta_k_tensor=6000
-!!$
-!!$    ! From the CAMB documentation you need this to get micro K^2.
-!!$    ! This is (2.726 K * 10^6)^2
-!!$    CMB_outputscale = 7.4311e12
-!!$    
-!!$    call CAMB_GetResults(camb_data, P)
-!!$    
-!!$    ! Set TT, EE, and TE
-!!$    c_l = 0.d0
-!!$    !write(*,*) 'camb', shape(camb_data%CLData%Cl_scalar)
-!!$    !write(*,*) 'camb k=1', camb_data%CLData%Cl_scalar(2:4, 1)*CMB_outputscale
-!!$    !write(*,*) 'camb k=2', camb_data%CLData%Cl_scalar(2:4, 2)*CMB_outputscale
-!!$    !write(*,*) 'camb k=3', camb_data%CLData%Cl_scalar(2:4, 3)*CMB_outputscale
-!!$    !write(*, *) 'my cl', shape(c_l)
-!!$    DO k = 1, 3
-!!$       c_l(k, 0) = 0.d0
-!!$       c_l(k, 1) = 0.d0
-!!$       DO l = 2, self%lmax
-!!$          c_l(k, l) = 2.d0 * pi / (l * (l + 1)) * camb_data%CLData%Cl_scalar(l, k) * CMB_outputscale
-!!$       END DO
-!!$    END DO
-!!$    new_sample%c_l = c_l
-!!$    
-!!$  end subroutine get_c_l_from_camb
 
   subroutine init_covariance_matrix(self, L)
     ! 
