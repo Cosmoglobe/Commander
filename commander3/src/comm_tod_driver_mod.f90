@@ -1013,8 +1013,8 @@ contains
     call int2string(self%scanid(scan_id), pidLabel)
     call int2string(self%myid, processor_label)
     !write(*,*) "!  Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) "!  "//trim(currentHDFFile)
+    !write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
+    !write(*,*) "!  "//trim(currentHDFFile)
     ! For debugging
     !call MPI_Finalize(mpi_err)
     !stop
@@ -1043,7 +1043,7 @@ contains
     !write(*,*) "hdf5_error",  hdf5_error
     ! freeing memory up
     deallocate(tod_per_detector)
-    write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
+    !write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
     ! lastly, we need to copy an existing filelist.txt into simulation folder
     ! and change the pointers to new files
