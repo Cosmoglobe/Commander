@@ -671,7 +671,7 @@ contains
           unit = getlun()
           open(unit, file=trim(tod_file), status='new', action='write', recl=1024)
           do j = 1, sd%ntod
-            write(unit, fmt='(e16.8, e16.8, e16.8, e16.8, e16.8)') sd%mask(j,1), sd%sd%n_corr(j, 1), sd%n_corr(j, 2), sd%n_corr(j, 3), sd%n_corr(j, 4)
+            write(unit, fmt='(i1, e16.8, e16.8, e16.8, e16.8)') int(sd%mask(j,1)), sd%n_corr(j, 1), sd%n_corr(j, 2), sd%n_corr(j, 3), sd%n_corr(j, 4)
           end do
           close(unit)
 
