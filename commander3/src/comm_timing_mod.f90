@@ -211,6 +211,13 @@ contains
           write(unit,*) 
           write(unit,*) '     Channel                      = ', trim(labels(band))
           write(unit,fmt='(a,f12.3,"h")') '      TOD initialization           = ', t(b+TOD_INIT)
+          write(*,*) t(b+TOD_SL_PRE), self%numsamp, T(b+TOD_TOT)
+
+          if(T(b+TOD_TOT) == 0.d0) then !if we never used timing mod
+            close(unit)
+            return
+          end if
+
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sidelobe precomputation  = ', t(b+TOD_SL_PRE)   / self%numsamp, 100*t(b+TOD_SL_PRE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sidelobe interpolation   = ', t(b+TOD_SL_INT)   / self%numsamp, 100*t(b+TOD_SL_INT)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD sky-to-tod projection    = ', t(b+TOD_PROJECT)  / self%numsamp, 100*t(b+TOD_PROJECT)/T(b+TOD_TOT)

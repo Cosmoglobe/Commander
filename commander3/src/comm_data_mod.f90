@@ -260,14 +260,14 @@ contains
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)
-            do k=1, j
+            do k=1, j-1
                if(size(tau_dummy)==size(data(n)%bp(k)%p%tau0)) then
                 if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
                 end if
                end if
-               if(k==j) then !if we got through the whole loop above
+               if(k==j-1) then !if we got through the whole loop above
                   data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
                end if
             end do

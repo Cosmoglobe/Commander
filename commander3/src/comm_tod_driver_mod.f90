@@ -8,6 +8,7 @@ module comm_tod_driver_mod
   use comm_tod_simulations_mod
   use comm_tod_mapmaking_mod
   use comm_zodi_mod
+  use comm_tod_cray_mod
   use comm_shared_arr_mod
   use omp_lib
   implicit none

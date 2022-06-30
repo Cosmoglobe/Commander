@@ -109,11 +109,13 @@ contains
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
 
     ! just so that it actually runs
-    constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
+    constructor%xi_n_P_uni(2,:) = [0.10d0, 1.0d0]  ! fknee
     constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
     constructor%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
 
     constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+
+    constructor%n_cray_temps    = 3
 
     ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -130,8 +132,8 @@ contains
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
     constructor%ntime           = 1
-    constructor%HFI_flag        = .true.
     constructor%partner         = -1
+    constructor%n_cray_temps    = 3
 
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -323,7 +325,27 @@ contains
        else
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
+
        allocate(s_buf(sd%ntod,sd%ndet))
+ 
+       ! demodulate the data
+       s_buf = sd%tod * (1 - (iand(sd%flag, self%flag0)))
+       do j=1, sd%ndet
+         if (.not. self%scans(i)%d(j)%accept) cycle 
+         sd%tod(:,j) = sd%tod(:,j) - sum(s_buf(:,j))/sum((1 - (iand(sd%flag(:,j),self%flag0))))
+         do k=1, sd%ntod
+           if (sd%tod(k,j) < 0.d0) then 
+             sd%tod(k,j) = - sd%tod(k,j)
+           end if
+         end do
+       end do
+
+       ! remove cosmic rays
+       do j=1, sd%ndet
+        call self%cray(j)%p%build_cray_templates()
+        call self%cray(j)%p%fit_cray_amplitudes()
+       end do
+
 
        ! Calling Simulation Routine
        if (self%enable_tod_simulations) then
@@ -370,10 +392,14 @@ contains
           end if
        end if
 
+       open(123, file="todtest.txt")
        if(self%scans(i)%chunk_num == 25083) then
          write(*,*) "gain:", self%scans(i)%d(1)%gain
-         write(*,*) sd%tod(1:1000, 1)
+         do k=1, self%scans(i)%ntod
+           write(123,*) sd%tod(k, 1)
+         end do
        end if 
+       close(123)
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)

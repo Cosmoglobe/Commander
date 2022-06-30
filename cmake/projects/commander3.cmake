@@ -122,6 +122,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_status_mod.f90
 	${COMMANDER3_SOURCE_DIR}/locate_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_conviqt_mod.f90
+        ${COMMANDER3_SOURCE_DIR}/comm_tod_cray_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/math_tools.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_mod.f90
