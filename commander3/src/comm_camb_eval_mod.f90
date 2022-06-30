@@ -114,10 +114,10 @@ contains
           Cl(k, l) = 2.d0 * pi / (l * (l + 1)) * (camb_data%CLData%Cl_lensed(l, k)+camb_data%CLData%Cl_tensor(l, k)) * CMB_outputscale
        END DO
     END DO
-    write(*,*) 'C^TT ell=100', Cl(1, 100), Cl(1, 100)*100*101/(2.d0*pi)
-    !open(unit=1, file='cosmo_cl_out.dat', position="append", action='write')
-    !  write(1, '( 6(2X, ES14.6) )') Cl(2, :)
-    !close(1)
+    !write(*,*) 'C^TT ell=100', Cl(1, 100), Cl(1, 100)*100*101/(2.d0*pi)
+    open(unit=1, file='cosmo_cl_out.dat', position="append", action='write')
+      write(1, '( 6(2X, ES14.6) )') Cl(1, :)
+    close(1)
     !write(*,*) 'cl wirtten out!!!'
           
 

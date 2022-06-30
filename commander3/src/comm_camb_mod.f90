@@ -149,7 +149,7 @@ contains
     ! Static variables
     constructor%proposal_multiplier = 0.3d0
     constructor%correct_cosmo_param = [0.02237d0, 0.12d0, 67.36d0, 0.0544d0, 3.035d0, 0.9649d0] ! Cosmo Params used to simulate CMB power spectra
-    constructor%sigma_cosmo_param   = [0.001d0,   0.001d0,  0.4d0,   0.001d0, 0.03d0, 0.01d0] ! Hard coded uncertainty in cosmo param proposal
+    constructor%sigma_cosmo_param   = [0.0005d0,   0.0005d0,  0.3d0,   0.0005d0, 0.01d0, 0.005d0] ! Hard coded uncertainty in cosmo param proposal
     constructor%accepted_samples    = 0
     constructor%total_samples       = 0
 
@@ -163,6 +163,7 @@ contains
           ! Root core is running this
           ! First sample
           call get_c_l_from_camb(constructor%correct_cosmo_param, init_sample_c_l)
+          
           call constructor%init_covariance_matrix(L_mat)
           
           call mpi_bcast(init_sample_c_l, size(init_sample_c_l),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
@@ -406,6 +407,7 @@ contains
     
     accept = acceptance(self, new_sample, old_sample, handle)
 
+    self%total_samples = self%total_samples + 1 
     if (accept) then
       ! Sample was accepted
       self%accepted_samples = self%accepted_samples + 1
@@ -418,6 +420,8 @@ contains
       select type (c)
       class is (comm_cmb_comp)
         if (c%x%info%myid == 0) then
+          write(*, *) 'accepted samples, total samples, acceptance rate', self%accepted_samples, self%total_samples, self%accepted_samples / self%total_samples 
+
           open(unit=1, file='cosmo_param_out.dat', position="append", action='write')
             write(1, '( 6(2X, ES14.6) )') self%sample_old%theta
           close(1)
@@ -425,7 +429,7 @@ contains
       end select
       c => c%next()
     end do
-    self%total_samples = self%total_samples + 1 
+    
 
   end subroutine sample_joint_Cl_theta_sampler
 
@@ -617,13 +621,16 @@ contains
 
         c%x%alm = temp
 
+        call mpi_allreduce(MPI_IN_PLACE, ln_pi_ip1, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+        call mpi_allreduce(MPI_IN_PLACE, ln_pi_i, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+        
         log_probability = -(ln_pi_ip1 - ln_pi_i) / 2.0d0
-        call mpi_allreduce(MPI_IN_PLACE, log_probability, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
-
         if (c%x%info%myid == 0) then
-          write(*,*) 's_lm', log_probability
-          write(*,*) 'chi^2', chisq_ip1, chisq_i, -(chisq_ip1 - chisq_i)/2.0d0
-          write(*,*) 'f_lm chi^2', fluc_ip1, fluc_i, -(fluc_ip1 - fluc_i)/2.0d0
+          write(*,*) 's_lm cl', ln_pi_ip1, ln_pi_i, log_probability
+          write(*,*) 'd-As_lm', chisq_ip1, chisq_i, -(chisq_ip1 - chisq_i)/2.0d0
+          write(*,*) 'f_lm', fluc_ip1, fluc_i, -(fluc_ip1 - fluc_i)/2.0d0
+          write(*, *) 'new chi^2', ln_pi_ip1 + chisq_ip1 + fluc_ip1
+          write(*, *) 'old chi^2', ln_pi_i + chisq_i + fluc_i
           log_probability = log_probability - (chisq_ip1 - chisq_i)/2.0d0 - (fluc_ip1 - fluc_i)/2.0d0
           write(*,*) 'Total log prob:', log_probability
           uni = rand_uni(handle)
@@ -644,7 +651,6 @@ contains
             acceptance = .false.
             write(*,*) '-------- NOT ACCEPTED ---------'
           end if
-          write(*, *) 'accepted samples, total samples', self%accepted_samples, self%total_samples
           call mpi_bcast(acceptance, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
           finished = .true.
           call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
