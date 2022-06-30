@@ -514,7 +514,9 @@ contains
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
-    type(hdf_file) :: tod_file
+    ! type(hdf_file) :: tod_file
+    character(len=512) :: tod_file
+    integer(i4b) :: unit
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
@@ -659,12 +661,19 @@ contains
        if (mod(self%scanid(i), 1000) == 0) then
        
           call int2string(self%scanid(i), scantext)
-          if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
-          call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
-          call write_hdf(tod_file, '/n_corr', sd%n_corr)
-          ! Mask is equal to 1 if data are flagged, 0 if not.
-          call write_hdf(tod_file, '/mask', sd%mask)
-          call close_hdf_file(tod_file)
+          !if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
+          !write(*,*) shape(sd%n_corr)
+          !call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
+          !call write_hdf(tod_file, '/n_corr', sd%n_corr)
+          !call close_hdf_file(tod_file)
+          if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to text'
+          tod_file = trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.txt'
+          unit = getlun()
+          open(unit, file=trim(tod_file), status='new', action='write', recl=1024)
+          do j = 1, sd%ntod
+            write(unit, fmt='(e16.8, e16.8, e16.8, e16.8)') sd%n_corr(j, 1), sd%n_corr(j, 2), sd%n_corr(j, 3), sd%n_corr(j, 4)
+          end do
+          close(unit)
 
 
        end if
