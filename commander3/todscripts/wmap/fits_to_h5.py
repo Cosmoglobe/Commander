@@ -1295,7 +1295,8 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
     # This is the total number of dataframes.
     N_tot = 184430520*Nobs_array[i]
 
-    files = files[:365]
+    #files = files[:365]
+    #center = False
 
     npsi = 2048
     psiBins = np.linspace(0, 2*np.pi, npsi)
@@ -1315,15 +1316,15 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
     #N = 2**18
 
 
-    TOD_all = np.zeros((4, N_tot))
-    time_all = np.zeros(N_tot)
-    pos_all = np.zeros((3, N_tot))
-    vel_all = np.zeros((3, N_tot))
-    flags_all = np.zeros(N_tot)
-    psi_A_all = np.zeros(N_tot)
-    psi_B_all = np.zeros(N_tot)
-    pix_A_all = np.zeros(N_tot)
-    pix_B_all = np.zeros(N_tot)
+    TOD_all = np.random.randint(2**15, size=(4, N_tot))
+    time_all = np.random.random(N_tot)
+    pos_all = np.random.random((3, N_tot))
+    vel_all = np.random.random((3, N_tot))
+    flags_all = np.random.randint(2**24, size=N_tot)
+    psi_A_all = np.random.random(N_tot)
+    psi_B_all = np.random.random(N_tot)
+    pix_A_all = np.random.randint(12*512**2, size=N_tot)
+    pix_B_all = np.random.randint(12*512**2, size=N_tot)
     plot = False
     timetowrite = False
     timer_0 = perf_counter()
@@ -1395,12 +1396,12 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
         #pix_A_all = np.zeros(N_tot)
         #pix_B_all = np.zeros(N_tot)
         for n, lab in enumerate(labels):
-            TOD_all[n][ind_0:ind_0+n_tot] = data[2].data[f'{band}{lab}'].flatten()
+            TOD_all[n][ind_0:ind_0+n_tot] = data[2].data[f'{band}{lab}'].flatten().astype("int")
         pos_all[:,ind_0:ind_0+n_tot] = pos_arr
         vel_all[:,ind_0:ind_0+n_tot] = vel_arr
-        flags_all[ind_0:ind_0+n_tot] = daflags
-        pix_A_all[ind_0:ind_0+n_tot] = pix_A
-        pix_B_all[ind_0:ind_0+n_tot] = pix_B
+        flags_all[ind_0:ind_0+n_tot] = daflags.astype('int')
+        pix_A_all[ind_0:ind_0+n_tot] = pix_A.astype('int')
+        pix_B_all[ind_0:ind_0+n_tot] = pix_B.astype('int')
         psi_A_all[ind_0:ind_0+n_tot] = psi_A
         psi_B_all[ind_0:ind_0+n_tot] = psi_B
         time_all[ind_0:ind_0+n_tot] = times
@@ -1720,7 +1721,7 @@ def main2():
              'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
              'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
              'W4':manager.dict(),}
-    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_origflags2/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_test8/'
     version = 50
     comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
         overwrite=True)
@@ -1728,25 +1729,32 @@ def main2():
     pool = Pool(processes=10)
     inds = np.arange(len(bands))
 
-    bands1 =  [bands[0]]
-    inds1 = [inds[0]]
+    #bands1 =  [bands[0]]
+    #inds1 = [inds[0]]
+    #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+    #    for ind, band in zip(inds1, bands1)]
+    #for i in tqdm(range(len(x)), smoothing=0):
+    #    x[i].get()
+    
+    bands1 =  bands[:5]
+    inds1 = inds[:5]
+    bands2 =  bands[5:8]
+    inds2 = inds[5:8]
+    bands3 =  bands[8:]
+    inds3 = inds[8:]
     x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
         for ind, band in zip(inds1, bands1)]
     for i in tqdm(range(len(x)), smoothing=0):
         x[i].get()
-    '''
-    bands1 =  bands[:2]
-    inds1 = inds[:2]
-    bands2 =  bands[2:4]
-    inds2 = inds[2:4]
-    for i in range(len(bands)):
-        inds1 = [inds1[i]]
-        bands1 = [bands1[i]]
-        x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
-            for ind, band in zip(inds1, bands1)]
-        for i in tqdm(range(len(x)), smoothing=0):
-            x[i].get()
-    '''
+    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+        for ind, band in zip(inds2, bands2)]
+    for i in tqdm(range(len(x)), smoothing=0):
+        x[i].get()
+    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+        for ind, band in zip(inds3, bands3)]
+    for i in tqdm(range(len(x)), smoothing=0):
+        x[i].get()
+   
     pool.close()
     pool.join()
     comm_tod.make_filelists()
@@ -1754,5 +1762,5 @@ def main2():
 if __name__ == '__main__':
     #main(version=49, precal=False, compress=True, center=True, par=False)
     #main(version=49, precal=True, compress=True, center=True, simulate=False)
-    #main2()
-    test_flags()
+    main2()
+    #test_flags()

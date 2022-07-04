@@ -282,7 +282,7 @@ contains
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       ! Precompute low-resolution preconditioner
-      ! call constructor%precompute_M_lowres
+      call constructor%precompute_M_lowres
 
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
@@ -426,10 +426,10 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 0
+      self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 0
-         !if (iter .eq. 1)                           self%output_n_maps = 1
+         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (iter .eq. 1)                           self%output_n_maps = 1
       end if
 
 
@@ -594,7 +594,7 @@ contains
 !!$            write(*,*) i, j, minval(d_calib(4,:,j)), maxval(d_calib(4,:,j)), sqrt(variance(1.d0*d_calib(4,:,j)))
 !!$         end do
 
-         !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations .and. iter .ne. 1) then
+         !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
          if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -603,21 +603,22 @@ contains
             !call write_hdf(tod_file, '/s_orb', sd%s_orb)
             call write_hdf(tod_file, '/n_corr', sd%n_corr)
             !call write_hdf(tod_file, '/bpcorr', sd%s_bp)
-            !call write_hdf(tod_file, '/s_tot', sd%s_tot)
+            call write_hdf(tod_file, '/s_tot', sd%s_tot)
             !call write_hdf(tod_file, '/s_sky', sd%s_sky)
             call write_hdf(tod_file, '/tod',   sd%tod)
             call write_hdf(tod_file, '/flag', sd%flag)
+            call write_hdf(tod_file, '/mask', sd%mask)
             !call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
             !call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
             !call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
             !call write_hdf(tod_file, '/psiB', sd%psi(:,1,2))
             !call write_hdf(tod_file, '/x_im', self%x_im)
 
-            !do k = 1, self%ndet
-            !  call int2string(k, scantext)
-            !  call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
-            !  call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
-            !end do
+            do k = 1, self%ndet
+              call int2string(k, scantext)
+              call write_hdf(tod_file, '/xi_n_'//scantext, self%scans(i)%d(k)%N_psd%xi_n)
+              call write_hdf(tod_file, '/gain_'//scantext, self%scans(i)%d(k)%gain)
+            end do
 
             call close_hdf_file(tod_file)
 
