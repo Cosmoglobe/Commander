@@ -347,8 +347,8 @@ def get_flags(data, test=False, center=True, bands=np.arange(10)):
     if test:
         return daflags_copy, myflags
     else:
-        #return myflags
-        return daflags_copy
+        return myflags
+        #return daflags_copy
 
 
 def test_flags(band=0):
@@ -1379,12 +1379,15 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
         t_lores = data[1].data['time']
         # 46.08 is the sampling rate for the housekeeping data
         inds0 = np.arange(len(t_lores))
+        inds1 = np.arange(n_tot)*len(t_lores)/n_tot
         t_hires = interp1d(inds0, t_lores, fill_value='extrapolate')(inds1)
 
-        pos_arr =[interp1d(t_lores, pos[:,i], fill_value='extrapolate')(t_hires).tolist()
-          for i in range(3)]
-        vel_arr = [interp1d(t_lores, vel[:,i], fill_value='extrapolate')(t_hires).tolist()
-          for i in range(3)]
+
+        pos_arr = np.array([interp1d(t_lores, pos[:,i], fill_value='extrapolate')(t_hires).tolist()
+          for i in range(3)])
+        vel_arr = np.array([interp1d(t_lores, vel[:,i], fill_value='extrapolate')(t_hires).tolist()
+          for i in range(3)])
+
 
         #TOD_all = np.zeros((4, N_tot))
         #time_all = np.zeros(N_tot)
@@ -1721,7 +1724,7 @@ def main2():
              'Q2':manager.dict(), 'V1':manager.dict(), 'V2':manager.dict(),
              'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
              'W4':manager.dict(),}
-    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_test8/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_test9/'
     version = 50
     comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
         overwrite=True)
@@ -1736,12 +1739,14 @@ def main2():
     #for i in tqdm(range(len(x)), smoothing=0):
     #    x[i].get()
     
-    bands1 =  bands[:5]
-    inds1 = inds[:5]
-    bands2 =  bands[5:8]
-    inds2 = inds[5:8]
-    bands3 =  bands[8:]
-    inds3 = inds[8:]
+    bands1 =  bands[:4]
+    inds1 = inds[:4]
+    bands2 =  bands[4:6]
+    inds2 = inds[4:6]
+    bands3 =  bands[6:8]
+    inds3 = inds[6:8]
+    bands4 =  bands[8:]
+    inds4 = inds[8:]
     x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
         for ind, band in zip(inds1, bands1)]
     for i in tqdm(range(len(x)), smoothing=0):
@@ -1752,6 +1757,10 @@ def main2():
         x[i].get()
     x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
         for ind, band in zip(inds3, bands3)]
+    for i in tqdm(range(len(x)), smoothing=0):
+        x[i].get()
+    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+        for ind, band in zip(inds4, bands4)]
     for i in tqdm(range(len(x)), smoothing=0):
         x[i].get()
    
