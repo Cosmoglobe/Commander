@@ -1441,8 +1441,6 @@ def mega_write(comm_tod, obs_ind, flags_arr, TODs,
     prev = False
     i = band_ind
     while len(times) > minlin:
-        if band == 'Q1':
-          print(len(times))
         for e, ef in zip(events, events_flags):
           if any(np.searchsorted(e, times[:N]) == 1) and (ef[i] == 1):
                 #print(band, e, Time(e, format='mjd').yday)
@@ -1747,14 +1745,14 @@ def main2():
     inds3 = inds[6:8]
     bands4 =  bands[8:]
     inds4 = inds[8:]
-    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
-        for ind, band in zip(inds1, bands1)]
-    for i in tqdm(range(len(x)), smoothing=0):
-        x[i].get()
-    x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
-        for ind, band in zip(inds2, bands2)]
-    for i in tqdm(range(len(x)), smoothing=0):
-        x[i].get()
+    #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+    #    for ind, band in zip(inds1, bands1)]
+    #for i in tqdm(range(len(x)), smoothing=0):
+    #    x[i].get()
+    #x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
+    #    for ind, band in zip(inds2, bands2)]
+    #for i in tqdm(range(len(x)), smoothing=0):
+    #    x[i].get()
     x = [pool.apply_async(split_pow2, args=[comm_tod, band, ind, outdir])
         for ind, band in zip(inds3, bands3)]
     for i in tqdm(range(len(x)), smoothing=0):
