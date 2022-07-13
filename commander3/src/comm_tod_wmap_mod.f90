@@ -387,6 +387,7 @@ contains
 
 
       type(hdf_file) :: tod_file
+      real(dp) :: pow2  ! log2(ntod)
 
 
 
@@ -413,7 +414,7 @@ contains
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      select_data           = .false. !self%first_call        ! only perform data selection the first time
+      select_data           = self%first_call !.false.        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
@@ -431,6 +432,10 @@ contains
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
          if (iter .eq. 1)                           self%output_n_maps = 1
       end if
+
+      ! Perhaps a better x_im, gain, sigma solution will improve the
+      ! preconditioner.
+      ! if (mod(iter-1, 10) == 0) call precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -581,7 +586,15 @@ contains
          end do
 
          ! Select data
-         if (select_data) call remove_bad_data(self, i, sd%flag)
+         if (select_data) then 
+            call remove_bad_data(self, i, sd%flag)
+            pow2 = log(real(sd%ntod))/log(2.0)
+            do j = 1, sd%ndet
+                else if (nint(pow2) .ne. pow2) then
+                   self%scans(i)%d(j)%accept = .false.
+                end if
+            end do
+         end if
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
