@@ -387,7 +387,7 @@ contains
 
 
       type(hdf_file) :: tod_file
-      real(dp) :: pow2  ! log2(ntod)
+      real(sp) :: pow2  ! log2(ntod)
 
 
 
@@ -588,12 +588,13 @@ contains
          ! Select data
          if (select_data) then 
             call remove_bad_data(self, i, sd%flag)
-            pow2 = log(real(sd%ntod))/log(2.0)
-            do j = 1, sd%ndet
-                else if (nint(pow2) .ne. pow2) then
+            pow2 = log(real(sd%ntod, sp))/log(2.0)
+            if (2**(nint(pow2)) .ne. sd%ntod) then
+                write(*,*) self%scanid(i), sd%ntod, pow2
+                do j = 1, sd%ndet
                    self%scans(i)%d(j)%accept = .false.
-                end if
-            end do
+                end do
+            end if
          end if
 
          ! Compute chisquare for bandpass fit
