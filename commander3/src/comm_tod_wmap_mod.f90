@@ -567,7 +567,14 @@ contains
       do i = 1, self%nscan
          ! Skip scan if no accepted data
 
-         if (.not. any(self%scans(i)%d%accept)) cycle
+         if (.not. any(self%scans(i)%d%accept)) then
+            if (output_scanlist) then
+               write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
+                    & '"', 0.0, &
+                    & real(self%spinaxis(i,:),sp)
+            end if
+            cycle
+         end if
          call wall_time(t1)
 
          ! Prepare data
@@ -729,16 +736,14 @@ contains
           end if
           num_cg_iters = 0
 
-          ! Doing this now because it's still burning in...
-          !if (mod(iter-1,self%output_aux_maps) == 0) then
-            ! Solve for maps
-            if (self%verbosity > 0 .and. self%myid == 0) then
-              write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
-            end if
-            call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                           & epsil, procmask, map_full, M_diag, b_map, l, &
-                           & prefix, postfix, self%comp_S)
-          !end if
+          ! Solve for maps
+          if (self%verbosity > 0 .and. self%myid == 0) then
+            write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
+          end if
+          call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+                         & epsil, procmask, map_full, M_diag, b_map, l, &
+                         & prefix, postfix, self%comp_S)
+          
           if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
              monopole = sum((bicg_sol(:,1)-map_full(1,:))*M_diag(:,1)*procmask) &
