@@ -16,7 +16,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_OUTPUT    =  10
 
   ! Channel specific parameters
-  integer(i4b), parameter, public :: NUM_TOD       = 21
+  integer(i4b), parameter, public :: NUM_TOD       = 26
   integer(i4b), parameter, public :: TOD_TOT       =  1
   integer(i4b), parameter, public :: TOD_INIT      =  2
   integer(i4b), parameter, public :: TOD_SL_PRE    =  3
@@ -38,6 +38,10 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_CHISQ     = 19
   integer(i4b), parameter, public :: TOD_BP        = 20
   integer(i4b), parameter, public :: TOD_WAIT      = 21
+  integer(i4b), parameter, public :: TOD_MPI       = 22
+  integer(i4b), parameter, public :: TOD_BASELINE  = 23
+  integer(i4b), parameter, public :: TOD_SCANDATA  = 24
+  integer(i4b), parameter, public :: TOD_INSTCORR  = 25
 
   private
   public comm_timing
@@ -221,6 +225,7 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD relative calibration     = ', t(b+TOD_RELCAL)   / self%numsamp, 100*t(b+TOD_RELCAL)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD delta G calibration      = ', t(b+TOD_DELTAG)   / self%numsamp, 100*t(b+TOD_DELTAG)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD transmission imbalance   = ', t(b+TOD_IMBAL)    / self%numsamp, 100*t(b+TOD_IMBAL)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD baseline sampling        = ', t(b+TOD_BASELINE)  /  self%numsamp,   100*t(b+TOD_BASELINE)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD 1 Hz spikes              = ', t(b+TOD_1HZ)    / self%numsamp, 100*t(b+TOD_1HZ)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD correlated noise         = ', t(b+TOD_NCORR)    / self%numsamp, 100*t(b+TOD_NCORR)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD corr noise PSD           = ', t(b+TOD_XI_N)     / self%numsamp, 100*t(b+TOD_XI_N)/T(b+TOD_TOT)
@@ -229,6 +234,9 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD bandpass                 = ', t(b+TOD_BP)   / self%numsamp, 100*t(b+TOD_BP)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp, 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD load-balancing           = ', t(b+TOD_WAIT)  /  self%numsamp,   100*t(b+TOD_WAIT)/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD MPI operations           = ', t(b+TOD_MPI)  /  self%numsamp,   100*t(b+TOD_MPI)/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD scan (de)allocation      = ', t(b+TOD_SCANDATA)  /  self%numsamp,   100*t(b+TOD_SCANDATA)/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD instrument correction    = ', t(b+TOD_INSTCORR)  /  self%numsamp,   100*t(b+TOD_INSTCORR)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp, 100*t(b+TOD_ZODI)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      4D map output                = ', t(b+TOD_4D)     / self%numsamp, 100*t(b+TOD_4D)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Other                        = ', (t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD))) / self%numsamp, 100*(t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD)))/t(b+TOD_TOT)

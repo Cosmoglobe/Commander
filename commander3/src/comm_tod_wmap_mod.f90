@@ -282,7 +282,7 @@ contains
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       ! Precompute low-resolution preconditioner
-      call constructor%precompute_M_lowres
+      !call constructor%precompute_M_lowres
 
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
@@ -392,29 +392,23 @@ contains
 
 
       ! Parameters used for testing
-      real(dp) :: polang
-      !polang = mod(2*PI*iter/12, 2*PI)
-      polang = 0d0
+      real(dp) :: polang = 0d0
 
-
-!!$      do i = 1, self%ndet
-!!$         call int2string(i, ctext)
-!!$         call map_in(i,1)%p%writeFITS('map'//ctext//'.fits')
-!!$      end do
-!!$      call mpi_finalize(ierr)
-!!$      stop
 
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
 
+      call timer%start(TOD_SCANDATA, self%band)
+
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      select_data           = self%first_call !.false.        ! only perform data selection the first time
+      select_data           = .false.         ! no data selection
+      !select_data           = self%first_call ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
@@ -458,6 +452,36 @@ contains
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
       deallocate(m_buf)
 
+      ! Prepare intermediate data structures
+      if (sample_abs_bandpass .or. sample_rel_bandpass) then
+         allocate(chisq_S(self%ndet,size(delta,3)))
+         chisq_S = 0.d0
+      end if
+      if (output_scanlist) then
+         allocate(slist(self%nscan))
+         slist   = ''
+      end if
+
+      allocate (M_diag(0:npix-1, nmaps+1))
+      if (self%comp_S) then
+         allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
+      else
+         allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
+      end if
+      M_diag = 0d0
+      b_map = 0d0
+
+      allocate(outmaps(1))
+      outmaps(1)%p => comm_map(self%info)
+
+      if (self%comp_S) then
+        allocate (bicg_sol(0:npix-1, nmaps+1))
+      else
+        allocate (bicg_sol(0:npix-1, nmaps  ))
+      end if
+
+      call timer%stop(TOD_SCANDATA, self%band)
+
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
          call timer%start(TOD_SL_PRE, self%band)
@@ -483,6 +507,11 @@ contains
       ! Perform main sampling steps
       !------------------------------------
 
+      if (select_data) then 
+         do i = 1, self%nscan
+            self%scans(i)%d%accept = .true.
+         end do
+      end if
 
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
@@ -496,10 +525,16 @@ contains
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
                  call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
+                 call timer%start(TOD_BASELINE, self%band)
                  call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
+                 call timer%stop(TOD_BASELINE, self%band)
                  call sd%dealloc
               end do
               self%apply_inst_corr = .true.
+
+              call timer%start(TOD_WAIT, self%band)
+              call mpi_barrier(self%comm, ierr)
+              call timer%stop(TOD_WAIT, self%band)
 
               call update_status(status, "abscal")
               call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
@@ -520,24 +555,6 @@ contains
       end if
 
 
-      ! Prepare intermediate data structures
-      if (sample_abs_bandpass .or. sample_rel_bandpass) then
-         allocate(chisq_S(self%ndet,size(delta,3)))
-         chisq_S = 0.d0
-      end if
-      if (output_scanlist) then
-         allocate(slist(self%nscan))
-         slist   = ''
-      end if
-
-      allocate (M_diag(0:npix-1, nmaps+1))
-      if (self%comp_S) then
-         allocate ( b_map(0:npix-1, nmaps+1, self%output_n_maps))
-      else
-         allocate ( b_map(0:npix-1, nmaps,   self%output_n_maps))
-      end if
-      M_diag = 0d0
-      b_map = 0d0
 
       ! Perform loop over scans
       if (self%myid == 0) then
@@ -564,7 +581,10 @@ contains
             call sd%init_differential(self, i, map_sky, procmask, procmask2, &
               & init_s_bp=bp_corr, polang=polang)
          end if
+
+         call timer%start(TOD_SCANDATA, self%band)
          allocate(s_buf(sd%ntod,sd%ndet))
+         call timer%stop(TOD_SCANDATA, self%band)
 
          ! Make simulations or Sample correlated noise
          if (self%enable_tod_simulations) then
@@ -588,25 +608,25 @@ contains
          ! Select data
          if (select_data) then 
             call remove_bad_data(self, i, sd%flag)
-            pow2 = log(real(sd%ntod, sp))/log(2.0)
-            if (2**(nint(pow2)) .ne. sd%ntod) then
-                write(*,*) self%scanid(i), sd%ntod, pow2
-                do j = 1, sd%ndet
-                   self%scans(i)%d(j)%accept = .false.
-                end do
-            end if
+            !pow2 = log(real(sd%ntod, sp))/log(2.0)
+            !if (2**(nint(pow2)) .ne. sd%ntod) then
+            !    write(*,*) self%scanid(i), sd%ntod, pow2
+            !    do j = 1, sd%ndet
+            !       self%scans(i)%d(j)%accept = .false.
+            !    end do
+            !end if
          end if
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
          ! Compute binned map
+         call timer%start(TOD_SCANDATA, self%band)
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
+         call timer%stop(TOD_SCANDATA, self%band)
+
          call compute_calibrated_data(self, i, sd, d_calib)
 
-!!$         do j = 1, self%ndet
-!!$            write(*,*) i, j, minval(d_calib(4,:,j)), maxval(d_calib(4,:,j)), sqrt(variance(1.d0*d_calib(4,:,j)))
-!!$         end do
 
          !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
          if (.false.) then
@@ -656,7 +676,9 @@ contains
 
          ! Clean up
          call sd%dealloc
+         call timer%start(TOD_SCANDATA, self%band)
          deallocate(s_buf, d_calib)
+         call timer%stop(TOD_SCANDATA, self%band)
 
       end do
 
@@ -670,6 +692,7 @@ contains
         if (output_scanlist) call self%output_scan_list(slist)
 
 
+        call timer%start(TOD_MPI, self%band)
         call update_status(status, "Running allreduce on M_diag")
         call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
@@ -679,6 +702,7 @@ contains
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
         call update_status(status, "Ran allreduce on b_map")
+        call timer%stop(TOD_MPI, self%band)
 
 
         where (M_diag == 0d0)
@@ -691,14 +715,6 @@ contains
         if (self%myid == 0) self%M_diag = M_diag
 
 
-        allocate(outmaps(1))
-        outmaps(1)%p => comm_map(self%info)
-
-        if (self%comp_S) then
-          allocate (bicg_sol(0:npix-1, nmaps+1))
-        else
-          allocate (bicg_sol(0:npix-1, nmaps  ))
-        end if
 
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
@@ -763,7 +779,6 @@ contains
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
         end do
-        deallocate(bicg_sol)
 
 
 
@@ -775,9 +790,12 @@ contains
       end if
 
       ! Clean up temporary arrays
+
+      call timer%start(TOD_SCANDATA, self%band)
       deallocate(procmask, procmask2)
       deallocate(b_map, M_diag)
       deallocate(map_full)
+      deallocate(bicg_sol)
       if (allocated(chisq_S)) deallocate (chisq_S)
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
@@ -796,9 +814,11 @@ contains
             call self%slconvB(i)%p%dealloc(); deallocate(self%slconvB(i)%p)
          end do
       end if
+      call timer%stop(TOD_SCANDATA, self%band)
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)
+
     call timer%stop(TOD_TOT, self%band)
 
     ! Parameter to check if this is first time routine has been called
@@ -937,7 +957,7 @@ contains
          deallocate(pix, psi, flag)
       end do
 
-      if (self%myid == 0) write(*,*) '|    Finalizing'
+      if (self%myid == 0) write(*,*) '|    Inverting preconditioner'
       ! Collect contributions from all cores 
       if (self%myid == 0) then
          allocate(self%M_lowres(ntot,ntot))
@@ -1114,6 +1134,7 @@ contains
     integer(i4b) :: i, j, k, nbin, b
     real(dp)     :: dt, t
 
+
     dt = 1.d0 / self%scans(scan)%ntod
     t = 0.d0
     do j = 1, self%ndet
@@ -1126,6 +1147,7 @@ contains
           end do
        end do
     end do
+
 
   end subroutine construct_corrtemp_wmap
 

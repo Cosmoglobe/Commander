@@ -39,6 +39,7 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_totB     ! Total signal, horn B (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
+     integer(i4b) :: band                                        ! Band ID
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
      procedure  :: init_differential => init_scan_data_differential
@@ -68,6 +69,7 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
 
+    call timer%start(TOD_SCANDATA, tod%band)
     if (tod%nhorn /= 1) then
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
@@ -88,6 +90,7 @@ contains
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
     self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
+    self%band   = tod%band
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -108,6 +111,7 @@ contains
     if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
+    call timer%stop(TOD_SCANDATA, tod%band)
 
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -238,11 +242,13 @@ contains
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then
+       call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
 !!$       do j = 1, self%ndet
 !!$          if (.not. tod%scans(scan)%d(j)%accept) cycle
 !!$          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
 !!$       end do
+       call timer%stop(TOD_INSTCORR, tod%band)
     end if
     !call update_status(status, "todinit_instcorr")
 
@@ -276,6 +282,7 @@ contains
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
 
+    call timer%start(TOD_SCANDATA, tod%band)
     if (tod%nhorn /= 2) then
        write(*,*) 'Error: init_scan_data_differential only applicable for 2-horn experiments'
        stop
@@ -293,6 +300,7 @@ contains
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
     self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
+    self%band   = tod%band
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -328,6 +336,7 @@ contains
     allocate(s_bufB(self%ntod, self%ndet))
     allocate(s_buf2A(self%ntod, self%ndet))
     allocate(s_buf2B(self%ntod, self%ndet))
+    call timer%stop(TOD_SCANDATA, tod%band)
 
     ! Decompress pointing, psi and flags for current scan
     ! Only called for one detector, det=1, since the pointing and polarization
@@ -397,8 +406,8 @@ contains
     ! Perform sanity tests
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
-       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+       if (all(self%mask(:,j) == 0)) tod%scans(scan)%d%accept = .false.
+       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d%accept = .false.
     end do
     
     ! Construct orbital dipole template
@@ -412,10 +421,6 @@ contains
         & .true., 1, self%s_orbA, 1d3)
     call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), &
         & .true., 2, self%s_orbB, 1d3)
-    call timer%stop(TOD_ORBITAL, tod%band)
-    ! OK, so this created an orbital dipole template for four timestreams, but
-    ! they don't actually correspond to the horns A and B, I think they're
-    ! switched.
     self%s_totA = self%s_totA + self%s_orbA
     self%s_totB = self%s_totB + self%s_orbB
     do j = 1, self%ndet
@@ -423,6 +428,7 @@ contains
        self%s_orb(:,j)  = (1.+tod%x_im(j))*self%s_orbA(:,j)  - (1.-tod%x_im(j))*self%s_orbB(:,j)
        self%s_tot(:,j)  = self%s_tot(:,j)  + self%s_orb(:,j)
     end do
+    call timer%stop(TOD_ORBITAL, tod%band)
 
 
     ! Construct sidelobe template
@@ -458,11 +464,13 @@ contains
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then
+       call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
        end do
+       call timer%stop(TOD_INSTCORR, tod%band)
     end if
 
     ! Construct zodical light template
@@ -483,7 +491,9 @@ contains
     end if
 
     ! Clean-up
+    call timer%start(TOD_SCANDATA, tod%band)
     deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B)
+    call timer%stop(TOD_SCANDATA, tod%band)
 
   end subroutine init_scan_data_differential
 
@@ -491,6 +501,8 @@ contains
   subroutine dealloc_scan_data(self)
     implicit none
     class(comm_scandata), intent(inout) :: self    
+
+    call timer%start(TOD_SCANDATA, self%band)
 
     self%ntod = -1; self%ndet = -1; self%nhorn = -1
 
@@ -509,6 +521,7 @@ contains
     if (allocated(self%s_inst))      deallocate(self%s_inst)
     if (allocated(self%s_orbA))      deallocate(self%s_orbA)
     if (allocated(self%s_orbB))      deallocate(self%s_orbB)
+    call timer%stop(TOD_SCANDATA, self%band)
 
   end subroutine dealloc_scan_data
 
@@ -561,6 +574,18 @@ contains
 
     if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
 
+    if (trim(mode) == 'abscal') then
+       timer_id = TOD_ABSCAL
+    else if (trim(mode) == 'relcal') then
+       timer_id = TOD_RELCAL
+    else if (trim(mode) == 'imbal') then
+       timer_id = TOD_IMBAL
+    else if (trim(mode) == 'deltaG') then
+       timer_id = TOD_DELTAG
+    end if
+
+    call timer%start(timer_id, tod%band)
+
     if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))
        A = 0.d0; b = 0.d0
@@ -572,15 +597,8 @@ contains
        stop
     end if
 
-    if (trim(mode) == 'abscal') then
-       timer_id = TOD_ABSCAL
-    else if (trim(mode) == 'relcal') then
-       timer_id = TOD_RELCAL
-    else if (trim(mode) == 'imbal') then
-       timer_id = TOD_IMBAL
-    else if (trim(mode) == 'deltaG') then
-       timer_id = TOD_DELTAG
-    end if
+    call timer%stop(timer_id, tod%band)
+
 
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
@@ -659,6 +677,7 @@ contains
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
           end do
        end if
+       call timer%stop(timer_id, tod%band)
 
        ! Clean up
        call wall_time(t2)
@@ -668,7 +687,6 @@ contains
        deallocate(s_invsqrtN, s_buf, mask_lowres)
     end do
 
-    call timer%stop(timer_id, tod%band)
 
     call timer%start(TOD_WAIT, tod%band)
     call mpi_barrier(tod%info%comm, ierr)

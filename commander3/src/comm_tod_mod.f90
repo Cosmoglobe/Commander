@@ -2177,6 +2177,8 @@ contains
     real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
 
+    call timer%start(TOD_CHISQ, self%band)
+
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
@@ -2218,6 +2220,8 @@ contains
 !!$        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
 !!$             & ', chisq = ', self%scans(scan)%d(det)%chisq
 !!$    end if
+
+    call timer%stop(TOD_CHISQ, self%band)
 
   end subroutine compute_chisq
 
