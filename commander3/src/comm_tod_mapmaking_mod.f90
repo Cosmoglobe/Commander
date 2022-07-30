@@ -377,7 +377,7 @@ contains
 
 end subroutine bin_differential_TOD
 
-   subroutine compute_Ax(tod, x_imarr, pmask, comp_S, M_diag, x_in, y_out)
+   subroutine compute_Ax(tod, x_imarr, pmask, comp_S, M_diag, x, y, x_in, y_out)
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Code to compute matrix product P^T N^-1 P m
       ! y = Ax
@@ -388,6 +388,8 @@ end subroutine bin_differential_TOD
       real(sp),     dimension(0:),     intent(in)              :: pmask
       logical(lgt), intent(in)                                 :: comp_S
       real(dp),                dimension(:,:), intent(in) :: M_diag
+      real(dp),                dimension(1:,0:), intent(inout), optional :: x
+      real(dp),                dimension(1:,0:), intent(inout), optional :: y
       real(dp),     dimension(0:, 1:), intent(in),    optional :: x_in
       real(dp),     dimension(0:, 1:), intent(inout), optional :: y_out
 
@@ -398,18 +400,13 @@ end subroutine bin_differential_TOD
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
       integer(i4b) :: nhorn, t, f_A, f_B, nside, npix, nmaps
       real(dp)     :: inv_sigmasq, var, iA, iB, sA, sB, d, p, x_im, dx_im, x_im_pos, x_im_neg, sigT, sigP, lcos2psi, lsin2psi, rcos2psi, rsin2psi, monopole
-      real(dp), allocatable, dimension(:,:) :: x, y
       nhorn = tod%nhorn
       ndet  = tod%ndet
       nside = tod%nside
       nmaps = tod%nmaps
       npix  = 12*nside**2
 
-      if (comp_S) then
-         allocate(x(nmaps+1,0:npix-1), y(nmaps+1,0:npix-1))
-      else
-         allocate(x(nmaps,0:npix-1),   y(nmaps,0:npix-1))
-      end if
+      x      = 0.d0
       if (tod%myid == 0) then
          finished = .false.
          call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
@@ -423,6 +420,7 @@ end subroutine bin_differential_TOD
       x_im_neg = 1.d0 - x_im
 
       y      = 0.d0
+
       do j = 1, tod%nscan
          ntod = tod%scans(j)%ntod
          allocate (pix(ntod, nhorn))             ! Decompressed pointing
@@ -498,8 +496,6 @@ end subroutine bin_differential_TOD
          call mpi_reduce(y, x,     size(y), MPI_DOUBLE_PRECISION,MPI_SUM,&
               & 0, tod%info%comm, ierr)
       end if
-
-      deallocate(x, y)
 
    end subroutine compute_Ax
 
@@ -749,7 +745,7 @@ end subroutine bin_differential_TOD
      logical(lgt)                               :: finished, write_cg
      real(dp)                                   :: rho_old, rho_new, monopole
      real(dp)                                   :: omega, delta_r, delta_s
-     real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v
+     real(dp),     allocatable, dimension(:, :) :: rhat, r0, shat, p, phat, v, x_temp, y_temp
      real(dp),        allocatable, dimension(:) :: determ
      character(len=512)                         :: i_str, l_str
 
@@ -758,6 +754,13 @@ end subroutine bin_differential_TOD
      !write_cg = .true.
      write_cg = tod%first_call
 
+     if (comp_S) then
+        allocate (x_temp(nmaps+1,0:npix-1))
+        allocate (y_temp(nmaps+1,0:npix-1))
+     else
+        allocate (x_temp(nmaps,0:npix-1))
+        allocate (y_temp(nmaps,0:npix-1))
+     end if
      if (tod%myid==0) then
         if (comp_S) then
            allocate (r     (0:npix-1, nmaps+1))
@@ -841,7 +844,7 @@ end subroutine bin_differential_TOD
            call tod%apply_map_precond(p, phat)
            
            call update_status(status, 'v=A phat')
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, phat, v)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, x_temp, y_temp, phat, v)
            call update_status(status, 'done')
            num_cg_iters = num_cg_iters + 1
 
@@ -874,7 +877,7 @@ end subroutine bin_differential_TOD
            end if
 
            call update_status(status, 'q=A shat')
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, shat, q)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, x_temp, y_temp, shat, q)
            call update_status(status, 'done')
 
            omega         = sum(q*s)/sum(q*q)
@@ -890,7 +893,7 @@ end subroutine bin_differential_TOD
 
            if (mod(i, recomp_freq) == 1 .or. beta > 1.d8) then
               call update_status(status, 'A xhat')
-              call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, bicg_sol, r)
+              call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, x_temp, y_temp, bicg_sol, r)
               call update_status(status, 'done')
               r(:,1) = b_map(:,1,l)  - r(:,1) - monopole
               r(:,2) = b_map(:,2,l)  - r(:,2)
@@ -940,10 +943,11 @@ end subroutine bin_differential_TOD
         loop: do while (.true.) 
            call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
            if (finished) exit loop
-           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag)
+           call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, x_temp, y_temp)
         end do loop
      end if
      if (tod%myid == 0) deallocate (r, rhat, s, r0, q, shat, p, phat, v, m_buf)
+     deallocate (x_temp, y_temp)
      if (tod%myid == 0 .and. .not. comp_S) deallocate (determ)
 
      call timer%stop(TOD_MAPSOLVE, tod%band)
