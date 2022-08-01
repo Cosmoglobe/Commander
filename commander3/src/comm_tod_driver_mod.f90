@@ -741,9 +741,12 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
           tod%scans(scan)%d(j)%accept = .false.
+          write(*, fmt='(a, i4, a, i5, a, i8, a, i8)') ' | Reject scan, det = ', &
+            & tod%scanid(scan), ',', j, '. ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
+            &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
+          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
        end if
