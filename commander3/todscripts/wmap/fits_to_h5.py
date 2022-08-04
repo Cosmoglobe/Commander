@@ -653,7 +653,7 @@ def write_file_serial(comm_tod, i, obsid, obs_ind, daflags, TODs_, gain_guesses,
         label = labels[j]
         todi = TODs[j]
         gain = gain_guesses[label == all_band_labels][0]
-        if gain < 0:
+        if (gain < 0) and precal:
           todi = -todi
           gain = -gain
 
@@ -1272,6 +1272,7 @@ def fits_to_h5(comm_tod, file_input, file_ind, compress, plot, version, center,
 def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/bp/data',
         par=True, plot=False, compress=True, nfiles=sys.maxsize, version=18,
         center=True, precal=False, simulate=False):
+    precal = True
     prefix = '/mn/stornext/d16/cmbco/ola/wmap/tods/'
     if (precal):
         files = glob(prefix + 'calibrated/*.fits')
@@ -1326,8 +1327,11 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
     nside = 512
     #N = 2**18
 
-
-    TOD_all = np.random.randint(2**15, size=(4, N_tot))
+    
+    if precal:
+        TOD_all = np.random.random((4, N_tot))
+    else:
+        TOD_all = np.random.randint(2**15, size=(4, N_tot))
     time_all = np.random.random(N_tot)
     pos_all = np.random.random((3, N_tot))
     vel_all = np.random.random((3, N_tot))
@@ -1410,7 +1414,10 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
         #pix_A_all = np.zeros(N_tot)
         #pix_B_all = np.zeros(N_tot)
         for n, lab in enumerate(labels):
-            TOD_all[n][ind_0:ind_0+n_tot] = data[2].data[f'{band}{lab}'].flatten().astype("int")
+            if precal:
+               TOD_all[n][ind_0:ind_0+n_tot] = data[2].data[f'{band}{lab}'].flatten()
+            else:
+               TOD_all[n][ind_0:ind_0+n_tot] = data[2].data[f'{band}{lab}'].flatten().astype("int")
         pos_all[:,ind_0:ind_0+n_tot] = pos_arr
         vel_all[:,ind_0:ind_0+n_tot] = vel_arr
         flags_all[ind_0:ind_0+n_tot] = daflags.astype('int')
@@ -1724,6 +1731,7 @@ def main2():
              'W1':manager.dict(), 'W2':manager.dict(), 'W3':manager.dict(),
              'W4':manager.dict(),}
     outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_test11/'
+    outdir = '/mn/stornext/d16/cmbco/bp/wmap/data_2n_precal/'
     version = 50
     comm_tod = commander_tod.commander_tod(outdir, 'wmap', version, dicts,
         overwrite=True)

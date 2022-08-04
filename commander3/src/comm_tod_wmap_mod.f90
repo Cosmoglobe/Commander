@@ -223,7 +223,7 @@ contains
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 50.d0 ! 9.d0
+      constructor%chisq_threshold = 50
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
@@ -551,9 +551,11 @@ contains
                     self%scans(j)%d(i)%gain = 1.d0
                  end do
               end do
-              self%gain0 = [1.d0, 0.d0, 0.d0, 0.d0]
+              self%gain0(0) = 1
+              self%gain0(1:) = 0
+              self%x_im = 0
            end if
-           call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+           !call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
       end if
 
 
@@ -599,8 +601,8 @@ contains
          if (self%enable_tod_simulations) then
             call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
          else
-            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
-            !sd%n_corr = 0.
+            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+            sd%n_corr = 0.
          end if
 
 
