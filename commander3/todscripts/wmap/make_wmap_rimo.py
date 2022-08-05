@@ -48,6 +48,16 @@ from scipy.optimize import curve_fit, minimize
 def getOutidx(l, m):
     return l**2 + l + m
 
+def padAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2, dtype='complex64')
+
+    for l in range(0, lmax):
+        for m in range(0, mmax):
+            healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            outData[healpixI] = data[healpixI]
+
+    return outData
+
 def complex2realAlms(data, lmax, mmax):
     outData = np.zeros((lmax+1)**2)
 
@@ -61,9 +71,31 @@ def complex2realAlms(data, lmax, mmax):
             healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
             outI = getOutidx(l, m)
             outJ = getOutidx(l, -1*m)
-            outData[outI] = np.real(data[healpixI]) * scaling
             if(m != 0):
-                outData[outJ] = np.imag(data[healpixI]) * scaling
+                outData[outI] = np.real(data[healpixI]) * 2**0.5
+                outData[outJ] = np.imag(data[healpixI]) * 2**0.5
+            else:
+                outData[outI] = np.real(data[healpixI])
+
+    return outData
+
+def cl2realAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2)
+
+    for l in range(0, min(lmax, len(data))):
+        for m in range(0, mmax):
+            if(m > l):
+                continue
+            scaling = np.sqrt(2)
+            scaling = 1
+            if(m == 0):
+                scaling = 1
+            #healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            outI = getOutidx(l, m)
+            outJ = getOutidx(l, -1*m)
+            outData[outI] = np.real(data[l]) * scaling
+            if(m != 0):
+                outData[outJ] = np.imag(data[l]) * scaling
 
     return outData
 
@@ -71,6 +103,21 @@ def gauss(x, sigma):
     return np.exp(-x**2/(2*sigma**2))
 
 
+def real2complexAlms(data, lmax, mmax):
+    outData = np.zeros((lmax+1)**2, dtype='complex64')
+    for l in range(0, lmax):
+        for m in range(0, mmax):
+            if(m > l):
+                continue
+            healpixI = hp.sphtfunc.Alm.getidx(lmax, l, m)
+            realI = getOutidx(l, m)
+            realJ = getOutidx(l, -1*m)
+            if (m == 0):
+                outData[healpixI] = data[realI]
+            else:
+                outData[healpixI] = (data[realI] + 1j*data[realJ])/np.sqrt(2)
+
+    return outData
 
 
 dir_A_los = np.array([
@@ -101,8 +148,8 @@ rots = np.arange(0, 360, 45)
 rots = [0]
 for rot in rots:
   #fname_out = f'/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_rot{rot}.h5'
-  #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v8.h5'
-  fname_out = 'test.h5'
+  fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/WMAP_instrument_v9.h5'
+  #fname_out = 'test.h5'
   #fname_out = '/mn/stornext/d16/cmbco/bp/dwatts/WMAP/data_WMAP/test.h5'
   
   
@@ -180,172 +227,14 @@ for rot in rots:
           f.create_dataset(DA + '14/elip', data=[0])
           f.create_dataset(DA + '23/elip', data=[0])
           f.create_dataset(DA + '24/elip', data=[0])
-  
-  
-  
-  
-      fnames = glob('data/wmap_hybrid_beam_maps_*_9yr_v5.fits')
-      fnames.sort()
-      
-      
-      hdus = [fits.open(fname)[0] for fname in fnames]
-      beamAs = [fits.open(fname)[0].data[0] for fname in fnames]
-      beamBs = [fits.open(fname)[0].data[2] for fname in fnames]
-      
-      
-      # pixel size is 0.04 ~ 58.6/nside
-      lmax = 1700
-      mmax = 100
-      
-      
-      X = np.arange(-11.98, 12, 0.04)*np.pi/180
-      Y = np.arange(-11.98, 12, 0.04)*np.pi/180
-      X2 = np.linspace(X[0], X[-1], len(X)*5)
-      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
-      xx, yy = np.meshgrid(X,Y)
-      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
-      phi = np.arctan2(yy, xx)
 
 
 
-      xx, yy = np.meshgrid(X2,Y2)
-      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
-      phi = np.arctan2(yy, xx)
-      
-      #data = fits.open(fnames[-1])
-      #beamA = data[0].data[0]
-      #fig = plt.figure()
-      #ax = fig.add_subplot(111)
-      #ax.pcolormesh(X,Y,beamA)
-
-      #fig = plt.figure()
-      #ax = fig.add_subplot(111)
-      #ax.pcolormesh(X2,Y2,beamA_2)
-
-      #plt.show()
-
-     
-      #fig, axes = plt.subplots(nrows=5, ncols=2, sharey=True)
-      #axs = axes.flatten()
-      #lmaxes = [600, 800, 1000, 1000, 1200, 1200, 1500, 1500, 1500, 1500]
-      for beam_ind, fname in enumerate(fnames):
-          data = fits.open(fname)
-          beamA = data[0].data[0]
-          beamB = data[0].data[2]
-          f = interpolate.interp2d(X, Y, beamA)
-          beamA_2 = f(X2, Y2)
-          f = interpolate.interp2d(X, Y, beamB)
-          beamB_2 = f(X2, Y2)
-
-          nside = 4096//4
-          mA = np.zeros(12*nside**2)
-          mB = np.zeros(12*nside**2)
-          N = np.zeros(12*nside**2)
-          #for i in range(len(theta)):
-          #    for j in range(len(theta)):
-          #        pix = hp.ang2pix(nside, theta[i,j], phi[i,j])
-          #        mA[pix] += beamA[i,j]
-          #        mB[pix] += beamB[i,j]
-          #        N[pix] += 1
-          #for i in tqdm(range(len(X2))):
-          #    for j in range(len(Y2)):
-          pix = hp.ang2pix(nside, theta, phi)
-          mA[pix] += beamA_2
-          mB[pix] += beamB_2
-          N[pix] += 1
-          #hp.gnomview(m/N, rot=(-130,86.38,0), reso=1)
-          mA = mA/N
-          mB = mB/N
-          mA[~np.isfinite(mA)] = 0
-          mB[~np.isfinite(mB)] = 0
-
-          hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
-          hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
-
-
-          ind = np.argmax(mA)
-          #fig = plt.figure()
-          #ax = fig.add_subplot(121)
-          #ax.pcolormesh(X,Y,beamA)
-          #ax.set_aspect('equal')
-          #ax = fig.add_subplot(122)
-          #ax.pcolormesh(X,Y,beamB)
-          #ax.set_aspect('equal')
-
-
-          th, ph = hp.pix2ang(nside, ind)
-          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
-              deg=False, eulertype='ZYX')
-          mA = r.rotate_map_pixel(mA)
-
-          #ind = np.argmax(mA)
-          #lon, lat = hp.pix2ang(nside, ind, lonlat=True)
-          #print(lon, lat)
-          #hp.gnomview(mA, rot=(lon,lat,0), reso=0.5, title='A')
-
-          ind = np.argmax(mB)
-          th, ph = hp.pix2ang(nside, ind)
-          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
-              deg=False, eulertype='ZYX')
-          mB = r.rotate_map_pixel(mB)
-
-          #lon, lat = hp.pix2ang(nside, ind, lonlat=True)
-          #hp.gnomview(mB, rot=(lon,lat,0), reso=0.5, title='B')
-          #plt.show()
-          #print('\n')
-          
-          alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
-          b_lm_A = complex2realAlms(alm_A, lmax, mmax)
-          alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
-          b_lm_B = complex2realAlms(alm_B, lmax, mmax)
-
-          b_lA = hp.alm2cl(alm_A, lmax=lmax, mmax=mmax)**0.5
-          b_lB = hp.alm2cl(alm_B, lmax=lmax, mmax=mmax)**0.5
-          b_lm_A /= max(b_lA)
-          b_lm_B /= max(b_lB)
-          #axs[beam_ind].plot(b_lA/max(b_lA), label='A')
-          #axs[beam_ind].plot(b_lB/max(b_lB), ':', label='B')
-          #axs[beam_ind].set_ylim([0,1])
-          #axs[beam_ind].set_xlim([0, lmaxes[beam_ind]])
-          #axs[1].legend()
-      
-          DA = fname.split('_')[4]
-           
-          with h5py.File(fname_out, 'a') as f:
-              f.create_dataset(DA + '13/beam/T', data=b_lm_A)
-              f.create_dataset(DA + '14/beam/T', data=b_lm_A)
-              f.create_dataset(DA + '23/beam/T', data=b_lm_B)
-              f.create_dataset(DA + '24/beam/T', data=b_lm_B)
-              f.create_dataset(DA + '13/beam/E', data=b_lm_A*0)
-              f.create_dataset(DA + '14/beam/E', data=b_lm_A*0)
-              f.create_dataset(DA + '23/beam/E', data=b_lm_B*0)
-              f.create_dataset(DA + '24/beam/E', data=b_lm_B*0)
-              f.create_dataset(DA + '13/beam/B', data=b_lm_A*0)
-              f.create_dataset(DA + '14/beam/B', data=b_lm_A*0)
-              f.create_dataset(DA + '23/beam/B', data=b_lm_B*0)
-              f.create_dataset(DA + '24/beam/B', data=b_lm_B*0)
-              f.create_dataset(DA + '13/beamlmax', data=[lmax])
-              f.create_dataset(DA + '14/beamlmax', data=[lmax])
-              f.create_dataset(DA + '23/beamlmax', data=[lmax])
-              f.create_dataset(DA + '24/beamlmax', data=[lmax])
-              f.create_dataset(DA + '13/beammmax', data=[mmax])
-              f.create_dataset(DA + '14/beammmax', data=[mmax])
-              f.create_dataset(DA + '23/beammmax', data=[mmax])
-              f.create_dataset(DA + '24/beammmax', data=[mmax])
-              
-              f.create_dataset(DA + '13/mbeam_eff', data=[1])
-              f.create_dataset(DA + '14/mbeam_eff', data=[1])
-              f.create_dataset(DA + '23/mbeam_eff', data=[1])
-              f.create_dataset(DA + '24/mbeam_eff', data=[1])
-              f.create_dataset(DA + '13/psi_ell', data=[0])
-              f.create_dataset(DA + '14/psi_ell', data=[0])
-              f.create_dataset(DA + '23/psi_ell', data=[0])
-              f.create_dataset(DA + '24/psi_ell', data=[0])
-      
-     
-      plt.show()
-      nside = 2**7
-      sllmax = 512
+      # Sidelobes  
+      slmAs = []
+      slmBs = []
+      nside  = 2**7     # 128
+      sllmax = 2*nside  # 256
       slmmax = 100
       labels = ['K1', 'Ka1', 'Q1', 'Q2', 'V1', 'V2', 'W1', 'W2', 'W3', 'W4']
       fnames = glob('data/wmap_sidelobe*.fits')
@@ -353,12 +242,13 @@ for rot in rots:
         lab = labels[i]
         for fname in fnames:
           if lab in fname:
-            data = hp.read_map(fname, nest=True)
+            data = hp.read_map(fname)
             break
         
         print(lab, fname)
-        # Beam is normalized such that \int B(\Omega)\,d\Omega = 4\pi, Commander
-        # expects \int B\,d\Omega = 1.
+        # Beam is normalized such that sum(slAB) = Npix, or
+        #                              \int B(\Omega)\,d\Omega = 4\pi
+        # Commander expects \int B\,d\Omega = 1.
         # Not sure if this factor is needed...
         beamtot = hp.reorder(data, n2r=True)
         
@@ -407,6 +297,9 @@ for rot in rots:
   
         alm_B = hp.map2alm(beam_B, lmax=sllmax, mmax=slmmax)
         s_lm_B = complex2realAlms(alm_B, sllmax, slmmax)
+
+        slmAs.append(s_lm_A)
+        slmBs.append(s_lm_B)
   
         DA = labels[i]
       
@@ -431,3 +324,145 @@ for rot in rots:
             f.create_dataset(DA + '14/slmmax', data=[slmmax])
             f.create_dataset(DA + '23/slmmax', data=[slmmax])
             f.create_dataset(DA + '24/slmmax', data=[slmmax])
+  
+  
+  
+      fnames = glob('data/wmap_hybrid_beam_maps_*_9yr_v5.fits')
+      fnames.sort()
+      
+      
+      hdus = [fits.open(fname)[0] for fname in fnames]
+      beamAs = [fits.open(fname)[0].data[0] for fname in fnames]
+      beamBs = [fits.open(fname)[0].data[2] for fname in fnames]
+      
+      
+      # pixel size is 0.04 ~ 58.6/nside
+      lmax = 1700
+      mmax = 100
+      
+      
+      X = np.arange(-11.98, 11.98+0.04, 0.04)*np.pi/180
+      Y = np.arange(11.98, -11.98-0.04, -0.04)*np.pi/180
+      X2 = np.linspace(X[0], X[-1], len(X)*5)
+      Y2 = np.linspace(Y[0], Y[-1], len(Y)*5)
+      xx, yy = np.meshgrid(X,Y)
+      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
+      phi = np.arctan2(yy, xx)
+
+
+
+      xx, yy = np.meshgrid(X2,Y2)
+      theta = 2*np.arcsin(np.sqrt(xx**2+yy**2)/2)
+      phi = np.arctan2(yy, xx)
+      
+      #data = fits.open(fnames[-1])
+      #beamA = data[0].data[0]
+      #fig = plt.figure()
+      #ax = fig.add_subplot(111)
+      #ax.pcolormesh(X,Y,beamA)
+
+      #fig = plt.figure()
+      #ax = fig.add_subplot(111)
+      #ax.pcolormesh(X2,Y2,beamA_2)
+
+      #plt.show()
+
+     
+      #fig, axes = plt.subplots(nrows=5, ncols=2, sharey=True)
+      #axs = axes.flatten()
+      #lmaxes = [600, 800, 1000, 1000, 1200, 1200, 1500, 1500, 1500, 1500]
+      for beam_ind, fname in enumerate(fnames):
+          data = fits.open(fname)
+          beamA = data[0].data[0]
+          beamB = data[0].data[2]
+          f = interpolate.interp2d(X, Y, beamA)
+          beamA_2 = f(X2, Y2)
+          f = interpolate.interp2d(X, Y, beamB)
+          beamB_2 = f(X2, Y2)
+
+          nside = 4096
+          mA = np.zeros(12*nside**2)
+          mB = np.zeros(12*nside**2)
+          N = np.zeros(12*nside**2)
+          pix = hp.ang2pix(nside, theta, phi)
+          mA[pix] += beamA_2
+          mB[pix] += beamB_2
+          N[pix] += 1
+          #hp.gnomview(m/N, rot=(-130,86.38,0), reso=1)
+          mA = mA/N
+          mB = mB/N
+          mA[~np.isfinite(mA)] = 0
+          mB[~np.isfinite(mB)] = 0
+
+          #hp.write_map(f'freq{beam_ind}_hornA.fits', mA)
+          #hp.write_map(f'freq{beam_ind}_hornB.fits', mB)
+
+
+          ind = np.argmax(mA)
+
+
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mA = r.rotate_map_pixel(mA)
+
+          ind = np.argmax(mB)
+          th, ph = hp.pix2ang(nside, ind)
+          r = hp.rotator.Rotator(rot=(ph, -th, 0), \
+              deg=False, eulertype='ZYX')
+          mB = r.rotate_map_pixel(mB)
+
+          alm_A = hp.map2alm(mA, lmax=lmax, mmax=mmax)
+          b_lm_A = complex2realAlms(alm_A, lmax, mmax)
+
+          alm_B = hp.map2alm(mB, lmax=lmax, mmax=mmax)
+          b_lm_B = complex2realAlms(alm_B, lmax, mmax)
+
+          b_lA = hp.alm2cl(alm_A, lmax=lmax, mmax=mmax)**0.5
+          b_lB = hp.alm2cl(alm_B, lmax=lmax, mmax=mmax)**0.5
+          b_lm_A /= max(b_lA)
+          b_lm_B /= max(b_lB)
+
+
+          # Normalizing, assuming that s_lms are correct
+          s_lm_A = slmAs[beam_ind]
+          s_lm_B = slmBs[beam_ind]
+
+          b_lm_A = b_lm_A*(1/(4*np.pi)**0.5 - s_lm_A[0])/b_lm_A[0]
+          b_lm_B = b_lm_B*(1/(4*np.pi)**0.5 - s_lm_B[0])/b_lm_B[0]
+
+          DA = fname.split('_')[4]
+           
+          with h5py.File(fname_out, 'a') as f:
+              f.create_dataset(DA + '13/beam/T', data=b_lm_A)
+              f.create_dataset(DA + '14/beam/T', data=b_lm_A)
+              f.create_dataset(DA + '23/beam/T', data=b_lm_A)
+              f.create_dataset(DA + '24/beam/T', data=b_lm_A)
+              f.create_dataset(DA + '13/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '14/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '23/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '24/beam/E', data=b_lm_A*0)
+              f.create_dataset(DA + '13/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '14/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '23/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '24/beam/B', data=b_lm_A*0)
+              f.create_dataset(DA + '13/beamlmax', data=[lmax])
+              f.create_dataset(DA + '14/beamlmax', data=[lmax])
+              f.create_dataset(DA + '23/beamlmax', data=[lmax])
+              f.create_dataset(DA + '24/beamlmax', data=[lmax])
+              f.create_dataset(DA + '13/beammmax', data=[mmax])
+              f.create_dataset(DA + '14/beammmax', data=[mmax])
+              f.create_dataset(DA + '23/beammmax', data=[mmax])
+              f.create_dataset(DA + '24/beammmax', data=[mmax])
+              
+              f.create_dataset(DA + '13/mbeam_eff', data=[1])
+              f.create_dataset(DA + '14/mbeam_eff', data=[1])
+              f.create_dataset(DA + '23/mbeam_eff', data=[1])
+              f.create_dataset(DA + '24/mbeam_eff', data=[1])
+              f.create_dataset(DA + '13/psi_ell', data=[0])
+              f.create_dataset(DA + '14/psi_ell', data=[0])
+              f.create_dataset(DA + '23/psi_ell', data=[0])
+              f.create_dataset(DA + '24/psi_ell', data=[0])
+      
+     
+      plt.show()

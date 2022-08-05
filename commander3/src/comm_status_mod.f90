@@ -30,6 +30,7 @@ module comm_status_mod
   use comm_utils
   use comm_system_mod
   use comm_shared_output_mod
+  use comm_timing_mod
   implicit none
   type status_file
      type(shared_ofile) :: file
@@ -37,11 +38,15 @@ module comm_status_mod
      logical(lgt)       :: active
      real(dp)           :: start_time
   end type
+
+  class(comm_timing), pointer :: timer
+
 contains
-  subroutine init_status(status, fname, communicator)
+  subroutine init_status(status, fname, numband, comm_chain, communicator)
     implicit none
     type(status_file)      :: status
     character(len=*)       :: fname
+    integer(i4b)           :: numband, comm_chain
     integer(i4b), optional :: communicator
     integer(i4b)           :: comm, ierr
     status%active = .false.
@@ -51,6 +56,7 @@ contains
     call mpi_comm_rank(comm, status%id, ierr)
     call wall_time(status%start_time)
     status%active = .true.
+    timer => comm_timing(numband, comm_chain)
   end subroutine
 
   subroutine update_status(status, tag)

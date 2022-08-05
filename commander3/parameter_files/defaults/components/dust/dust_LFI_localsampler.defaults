@@ -18,7 +18,7 @@ COMP_BETA_POL_NPROP_INIT&&    = 500        # {> 0, < 0 to disable}. overwrites n
 COMP_BETA_UNI_NPROP_LOW&&     = 10         # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_UNI_NPROP_HIGH&&    = 2000       # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat
-COMP_BETA_MASK&&              = mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_MASK&&              = mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_BETA_NPROP&&             = fullsky    # nprop map, local sampling (fullsky = 1)
 COMP_BETA_PROPLEN&&           = fullsky    # proposal length map, local sampling (fullsky = 1.d0)
 COMP_BETA_INT_PROPLEN_INIT&&  = 0.0003     # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
@@ -29,6 +29,12 @@ COMP_BETA_POL_NUM_PIXREG&&    = 1          # number of pixel regions to sample (
 COMP_BETA_POL_FIX_PIXREG&&    = none
 COMP_BETA_PIXREG_MAP&&        = fullsky    # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_BETA_PIXREG_INITVALUE_MAP&& = none
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .true.
+COMP_BETA_COMBINED_MONOPOLE_TYPE&& = monopole-dipole
+COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sample monopoles from during combined sampling. separate with comma ','
+COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
+COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
+COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
 
 COMP_T_INT_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_T_POL_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
@@ -58,4 +64,5 @@ COMP_T_INT_FIX_PIXREG&&    = none
 COMP_T_POL_FIX_PIXREG&&    = none
 COMP_T_PIXREG_MAP&&        = fullsky    # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_T_PIXREG_INITVALUE_MAP&& = none
-
+COMP_T_COMBINED_MONOPOLE_SAMPLING&& = .false.
+COMP_T_CORRELATION_CONVERGENCE_SAMPLING&& = .false.

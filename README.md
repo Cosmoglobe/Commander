@@ -151,7 +151,7 @@ Commander framework is part of the following projects:
 
 ## Funding
 
-This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 819478 (ERC; Cosmoglobe), 772253 (ERC; bits2cosmology) and 776282 (COMPET-4; BeyondPlanck).
+This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
 
 <p align="center">
     <img src="./logo/LOGO_ERC-FLAG_EU_.jpg" height="200">
@@ -168,11 +168,10 @@ This work has received funding from the European Union's Horizon 2020 research a
 
 ## Citation
 
-If used for published results, please cite these papers using the associated bibliography file:
+If used for published results, please [cite these papers](https://github.com/Cosmoglobe/Commander/blob/master/docs/commander.bib):
 
-- [Jewell et al. 2004, ApJ, 609, 1](https://doi.org/10.1086/383515)                            
-- [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://doi.org/10.1103/PhysRevD.70.083511)
-- [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://doi.org/10.1086/425219)
-- [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://doi.org/10.1086/525277)
+- [Jewell et al. 2004, ApJ, 609, 1](https://ui.adsabs.harvard.edu/abs/2004ApJ...609....1J)
+- [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://ui.adsabs.harvard.edu/abs/2004PhRvD..70h3511W)
+- [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://ui.adsabs.harvard.edu/abs/2004ApJS..155..227E)
+- [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://ui.adsabs.harvard.edu/abs/2008ApJ...676...10E)
 
-[commander.bib](docs/commander.bib)

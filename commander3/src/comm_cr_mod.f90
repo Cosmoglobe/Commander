@@ -78,7 +78,7 @@ contains
     !call update_status(status, "cr3")
     call wall_time(t2)
     if (cpar%myid_chain == root .and. cpar%verbosity > 2) then
-       write(*,fmt='(a,f8.2)') '    CG initialize preconditioner, time = ', real(t2-t1,sp)
+       write(*,fmt='(a,f8.2)') ' |  CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
 !!$    call print_precond_mat
@@ -330,14 +330,14 @@ contains
 !!$                  & val_convergence, ', tol = ', lim_convergence, &
 !!$                  & ', time = ', real(t2-t1,sp)
              buff = min(val_convergence,1d30)
-             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '  CG iter. ', i, ' -- res = ', &
+             write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  CG iter. ', i, ' -- res = ', &
                   & buff, ', tol = ', real(lim_convergence,sp), &
                   & ', time = ', real(t2-t1,sp)
           else if (trim(cpar%cg_conv_crit) == 'chisq') then
 !             write(*,fmt='(a,i5,a,e13.5,a,f7.4,a,f8.2)') '  CG iter. ', i, ' -- chisq = ', &
 !                  & real(chisq,sp), ', delta = ', real(val_convergence,sp), &
 !                  & ', time = ', real(t2-t1,sp)
-             write(*,*) '  CG iter. ', i, ' -- chisq = ', &
+             write(*,*) '|  CG iter. ', i, ' -- chisq = ', &
                   & chisq, ', delta = ', val_convergence, &
                   & ', time = ', real(t2-t1,sp)
           end if
@@ -395,7 +395,7 @@ contains
        stat = stat + 1
     else
        if (cpar%myid_chain == root .and. cpar%verbosity > 1) then
-          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') '    Final CG iter ', i, ' -- res = ', &
+          write(*,fmt='(a,i5,a,e13.5,a,e13.5,a,f8.2)') ' |  Final CG iter ', i, ' -- res = ', &
                & real(val_convergence,sp), ', tol = ', real(lim_convergence,sp)
        end if
     end if
