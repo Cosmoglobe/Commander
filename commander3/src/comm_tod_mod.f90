@@ -110,7 +110,7 @@ module comm_tod_mod
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
-     integer(i4b) :: n_cray_temps                                 ! number of classes of cosmic rays we have
+     integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
     
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
