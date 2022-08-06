@@ -791,7 +791,8 @@ end subroutine bin_differential_TOD
         i_min = 0
 
 
-        r = b_map(:, :, l)
+        call compute_Ax(tod, tod%x_im, procmask, comp_S, M_diag, x_temp, y_temp, bicg_sol, r)
+        r = b_map(:, :, l) - r
         monopole = sum(b_map(:,1,l)*M_diag(:,1)*procmask) &
                & / sum(M_diag(:,1)*procmask)
         !if (l == 1) then
@@ -799,11 +800,10 @@ end subroutine bin_differential_TOD
         !else
         !  bicg_sol = 0d0
         !end if
-        bicg_sol = 0d0
         r0 = b_map(:, :, l) - monopole
         call tod%apply_map_precond(r0, rhat)
         
-        delta_r = sum(r*rhat)
+        delta_r = sum(r0*rhat)
         delta_0 = delta_r
         delta_s = delta_s
 

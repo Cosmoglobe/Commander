@@ -601,8 +601,8 @@ contains
          if (self%enable_tod_simulations) then
             call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
          else
-            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
-            sd%n_corr = 0.
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,1,:), dospike=.false.)
+            !sd%n_corr = 0.
          end if
 
 
@@ -626,6 +626,18 @@ contains
             !       self%scans(i)%d(j)%accept = .false.
             !    end do
             !end if
+            n = len(trim(self%freq)) - 1
+            if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
+                if (sd%ntod < 2**22) then
+                    write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
+                    self%scans(i)%d%accept = .false.
+                end if
+            else
+                if (sd%ntod < 2**21) then
+                    write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
+                    self%scans(i)%d%accept = .false.
+                end if
+            end if
          end if
 
          ! Compute chisquare for bandpass fit
@@ -731,13 +743,15 @@ contains
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = self%output_n_maps, 1, -1
           !if (l .ne. 6) b_map(:,:,l) = 0d0
-          bicg_sol = 0d0
-
           if (l == 1) then
+            bicg_sol = transpose(map_full)
+            !bicg_sol = 0d0
             epsil = 1d-10
           else
+            bicg_sol = 0d0
             epsil = 1d-6
           end if
+
           num_cg_iters = 0
 
           ! Solve for maps
