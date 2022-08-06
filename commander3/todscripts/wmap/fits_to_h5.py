@@ -653,7 +653,7 @@ def write_file_serial(comm_tod, i, obsid, obs_ind, daflags, TODs_, gain_guesses,
         label = labels[j]
         todi = TODs[j]
         gain = gain_guesses[label == all_band_labels][0]
-        if (gain < 0) and precal:
+        if (gain < 0) and (not precal):
           todi = -todi
           gain = -gain
 
@@ -1295,6 +1295,8 @@ def split_pow2(comm_tod, band='K1', band_ind=0, outdir='/mn/stornext/d16/cmbco/b
                              -0.3587,  0.3701,  0.3655, -0.3666, 
                              -0.3255,  0.3517, -0.3291,  0.3225, 
                               0.2841, -0.2918,  0.3796, -0.3591 ])
+    if precal:
+        gain_guesses0 = np.ones_like(gain_guesses0)
 
     i = band_ind
     labels = ['13', '14', '23', '24']
