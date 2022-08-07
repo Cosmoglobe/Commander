@@ -1531,6 +1531,10 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+       call read_hdf(chainfile, trim(adjustl(path))//'x_im', self%x_im(1:2))
+       self%x_im(3) = self%x_im(2)
+       self%x_im(4) = self%x_im(3)
+       self%x_im(2) = self%x_im(1)
 !!$       if (trim(self%freq) .ne. '030') then
 !!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
 !!$       end if

@@ -879,14 +879,20 @@ contains
     nmaps = map_in(1,1)%p%info%nmaps
     allocate(m_buf(0:npix-1,nmaps))
     if (present(map_full)) map_full = 0
-    do j = 1, size(map_in,2)
-       do i = 1, size(map_in,1)
+    do j = 1, size(map_in,2)       ! ndelta
+       do i = 1, size(map_in,1)    ! ndet
           map_in(i,j)%p%map = scale * map_in(i,j)%p%map ! unit conversion
           call map_in(i,j)%p%bcast_fullsky_map(m_buf)
           do k = 1, tod%nobs
              map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
           end do
-          if (present(map_full)) map_full(j,:) = map_full(j,:) + m_buf(:,j)
+          if (present(map_full) .and. j .eq. 1) then
+            do k = 1, nmaps
+              do l = 0, npix-1
+                map_full(k, l) = map_full(k, l) + m_buf(l, k)
+              end do
+            end do
+          end if
        end do
        do k = 1, tod%nobs
           do l = 1, tod%nmaps

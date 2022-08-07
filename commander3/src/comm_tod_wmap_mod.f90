@@ -283,11 +283,11 @@ contains
       !load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-      ! Precompute low-resolution preconditioner
-      call constructor%precompute_M_lowres
-
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
+
+      ! Precomputing low-resolution preconditioner
+      call constructor%precompute_M_lowres
 
 
       ! Need precompute the main beam precomputation for both the A-horn and
@@ -429,9 +429,7 @@ contains
          if (iter .eq. 1)                           self%output_n_maps = 1
       end if
 
-      ! Perhaps a better x_im, gain, sigma solution will improve the
-      ! preconditioner.
-      ! if (mod(iter-1, 10) == 0) call precompute_M_lowres
+      if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -555,7 +553,7 @@ contains
               self%gain0(1:) = 0
               self%x_im = 0
            end if
-           !call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+           call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
       end if
 
 
@@ -745,7 +743,6 @@ contains
           !if (l .ne. 6) b_map(:,:,l) = 0d0
           if (l == 1) then
             bicg_sol = transpose(map_full)
-            !bicg_sol = 0d0
             epsil = 1d-10
           else
             bicg_sol = 0d0
@@ -983,7 +980,7 @@ contains
       if (self%myid == 0) write(*,*) '|    Inverting preconditioner'
       ! Collect contributions from all cores 
       if (self%myid == 0) then
-         allocate(self%M_lowres(ntot,ntot))
+         if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
 !!$         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
