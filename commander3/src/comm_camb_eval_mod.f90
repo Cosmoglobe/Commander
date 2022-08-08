@@ -20,6 +20,7 @@
 !================================================================================
 module comm_camb_eval_mod
   use CAMB
+  use NonLinear
   implicit none
 
   private
@@ -49,13 +50,15 @@ contains
     !type(comm_camb_sample) :: new_sample 
 
     integer(4) :: l, k, lmax
-    
+    logical :: param_file_read
     type(CAMBparams) P
     type(CAMBdata) camb_data
     real(8) :: CMB_outputscale, pi
 
     !cosmo_param = new_sample%theta
     call CAMB_SetDefParams(P)
+    param_file_read = CAMB_ReadParamFile(P, 'params.ini', 3000)
+    write(*,*) 'reading param file:', param_file_read
 
     pi      = 3.141592653589793238462643383279502884197_8
     lmax    = size(Cl,2)-1
@@ -63,11 +66,11 @@ contains
     P%ombh2 = cosmo_param(1)
     P%omch2 = cosmo_param(2)
     P%omk = 0.d0
-    P%H0= cosmo_param(3)
-    !call P%set_H0_for_theta(0.0104d0)!cosmo_param(4)
+    P%H0 = cosmo_param(3)
+
     select type(InitPower=>P%InitPower)
     class is (TInitialPowerLaw)
-       InitPower%As = exp(cosmo_param(5))*1e-10
+       InitPower%As = cosmo_param(5)*1e-9
        InitPower%ns = cosmo_param(6)
        InitPower%r = 0.0
     end select
@@ -77,22 +80,31 @@ contains
        Reion%use_optical_depth = .true.
        Reion%optical_depth = cosmo_param(4)
     end select
-    
-    P%WantScalars           = .true.
-    P%WantTensors           = .true.
-    P%WantCls               = .true.
-    P%DoLensing             = .true.
 
-    P%Max_l=lmax+2 + 100 + 50
-    P%Max_eta_k=6000
-    P%Max_l_tensor=lmax+2 + 100 + 50
-    P%Max_eta_k_tensor=6000
+    !P%WantScalars           = .true.
+    !P%WantTensors           = .true.
+    !P%WantCls               = .true.
+    !P%WantTransfer          = .true.
+    !P%DoLensing             = .true.
+    !P%Want_CMB_lensing      = .true.
+    !P%NonLinear = NonLinear_both
+    !P%NonLinear             = 3
+    !P%halofit_version       = 3
+
+    !P%Max_l = 1000
+    !P%Max_eta_k = 18000
+    !P%Max_l_tensor = 1000
+    !P%Max_eta_k_tensor = 6000
+
 
     !P%Accuracy%AccuracyBoost = 2
     !P%Accuracy%lAccuracyBoost = 2
+    !P%Accuracy%LensingBoost = 2
     !P%Accuracy%lSampleBoost = 2
-    P%Accuracy%AccurateReionization = .true.
-    P%Accuracy%AccurateBB   = .true.
+    !P%Accuracy%AccurateReionization = .true.
+    !P%Accuracy%AccurateBB   = .true.
+    !P%Accuracy%AccuratePolarization = .true.
+
 
     ! From the CAMB documentation you need this to get micro K^2.
     ! This is (2.726 K * 10^6)^2
@@ -100,28 +112,25 @@ contains
     
     call CAMB_GetResults(camb_data, P)
     
-    ! Set TT, EE, and TE
-    !c_l = 0.d0
-    !write(*,*) 'camb', shape(camb_data%CLData%Cl_scalar)
-    !write(*,*) 'camb k=1', camb_data%CLData%Cl_scalar(2:4, 1)*CMB_outputscale
-    !write(*,*) 'camb k=2', camb_data%CLData%Cl_scalar(2:4, 2)*CMB_outputscale
-    !write(*,*) 'camb k=3', camb_data%CLData%Cl_scalar(2:4, 3)*CMB_outputscale
-    !write(*, *) 'my cl', shape(c_l)
+    ! Set TT, EE, TE and BB
     DO k = 1, 4
        Cl(k, 0) = 0.d0
        Cl(k, 1) = 0.d0
        DO l = 2, lmax
-          Cl(k, l) = 2.d0 * pi / (l * (l + 1)) * (camb_data%CLData%Cl_lensed(l, k)+camb_data%CLData%Cl_tensor(l, k)) * CMB_outputscale
-       END DO
+          !if (k == 3) then ! We are doing scalar, so no BB
+          !  Cl(k, l) = 1.0e-10
+          !else if (k < 3) then!Cl_Lensing
+          Cl(k, l) = 2.d0 * pi / (l * (l + 1)) * camb_data%CLData%Cl_Lensed(l, k) * CMB_outputscale!+camb_data%CLData%Cl_tensor(l, k)) * CMB_outputscale
+          !else
+          !  Cl(k, l) = 2.d0 * pi / (l * (l + 1)) * camb_data%CLData%Cl_Scalar(l, k-1) * CMB_outputscale
+          !end if    
+        END DO
     END DO
     !write(*,*) 'C^TT ell=100', Cl(1, 100), Cl(1, 100)*100*101/(2.d0*pi)
     open(unit=1, file='cosmo_cl_out.dat', position="append", action='write')
-      write(1, '( 6(2X, ES14.6) )') Cl(1, :)
+      write(1, '( 6(2X, ES14.6) )') Cl(3, :)
     close(1)
-    !write(*,*) 'cl wirtten out!!!'
-          
-
-    !new_sample%c_l = c_l
+    write(*,*) 'cl written out!!!'
     
   end subroutine get_c_l_from_camb
 

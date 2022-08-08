@@ -83,7 +83,7 @@ module comm_param_mod
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec, sample_camb
+     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec, sample_camb, sample_only_tau
 
      ! CAMB parameters
      real(dp),           allocatable, dimension(:)    :: cmb_theta
@@ -436,11 +436,18 @@ contains
     ! CAMB STUFF
     call get_parameter_hashtable(htbl, 'SAMPLE_CAMB_PARAMETERS',   par_lgt=cpar%sample_camb)
     if (cpar%sample_camb) then
-      allocate(cpar%cmb_theta(6))
-      do i = 1, 6
-        call int2string(i, itext)
-        call get_parameter_hashtable(htbl, 'CAMB_COSMOLOGICAL_PARAMETERS'//itext, len_itext=len(trim(itext)), par_dp=cpar%cmb_theta(i))
-      end do
+      call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_TAU',        par_lgt=cpar%sample_only_tau)
+
+      if (cpar%sample_only_tau) then
+        allocate(cpar%cmb_theta(1))
+      else
+        allocate(cpar%cmb_theta(6))
+        do i = 1, 6
+          call int2string(i, itext)
+          call get_parameter_hashtable(htbl, 'CAMB_COSMOLOGICAL_PARAMETERS'//itext, len_itext=len(trim(itext)), par_dp=cpar%cmb_theta(i))
+        end do
+      end if
+      
     end if
 
     call get_parameter_hashtable(htbl, 'NUM_SMOOTHING_SCALES',     par_int=cpar%num_smooth_scales)
