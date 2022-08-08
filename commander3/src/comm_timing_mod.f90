@@ -40,7 +40,7 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_WAIT      = 21
   integer(i4b), parameter, public :: TOD_MPI       = 22
   integer(i4b), parameter, public :: TOD_BASELINE  = 23
-  integer(i4b), parameter, public :: TOD_SCANDATA  = 24
+  integer(i4b), parameter, public :: TOD_ALLOC  = 24
   integer(i4b), parameter, public :: TOD_INSTCORR  = 25
 
   private
@@ -235,7 +235,7 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD map solution             = ', t(b+TOD_MAPSOLVE) / self%numsamp, 100*t(b+TOD_MAPSOLVE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD load-balancing           = ', t(b+TOD_WAIT)  /  self%numsamp,   100*t(b+TOD_WAIT)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD MPI operations           = ', t(b+TOD_MPI)  /  self%numsamp,   100*t(b+TOD_MPI)/t(b+TOD_TOT)
-          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD scan (de)allocation      = ', t(b+TOD_SCANDATA)  /  self%numsamp,   100*t(b+TOD_SCANDATA)/t(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD scan (de)allocation      = ', t(b+TOD_ALLOC)  /  self%numsamp,   100*t(b+TOD_ALLOC)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD instrument correction    = ', t(b+TOD_INSTCORR)  /  self%numsamp,   100*t(b+TOD_INSTCORR)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp, 100*t(b+TOD_ZODI)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      4D map output                = ', t(b+TOD_4D)     / self%numsamp, 100*t(b+TOD_4D)/T(b+TOD_TOT)

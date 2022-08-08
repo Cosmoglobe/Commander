@@ -644,6 +644,8 @@ contains
     call update_status(status, "tod_start"//ctext)
     call timer%start(TOD_TOT, self%band)
 
+    call timer%start(TOD_ALLOC, self%band)
+
     ! Toggle optional operations
     sample_rel_bandpass   = .not. self%sample_abs_bp .or.  (size(delta,3) > 1 .and. mod(iter,2) == 0)     ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   =       self%sample_abs_bp .and. (size(delta,3) > 1 .and. mod(iter,2) == 1)     ! sample absolute bandpasses
@@ -682,6 +684,8 @@ contains
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
+
+    call timer%stop(TOD_ALLOC, self%band)
 
     ! Precompute far sidelobe Conviqt structures
     if (self%correct_sl) then
@@ -749,7 +753,9 @@ contains
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
     if (sample_abs_bandpass .or. sample_rel_bandpass) then
+       call timer%start(TOD_ALLOC, self%band)
        allocate(chisq_S(self%ndet,size(delta,3)))
+       call timer%stop(TOD_ALLOC, self%band)
        chisq_S = 0.d0
     end if
     if (output_scanlist) then
@@ -802,7 +808,10 @@ contains
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
        ! Compute binned map
+       call timer%start(TOD_ALLOC, self%band)
        allocate(d_calib(binmap%nout,sd%ntod, sd%ndet))
+       call timer%stop(TOD_ALLOC, self%band)
+
        call compute_calibrated_data(self, i, sd, d_calib)
        
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
@@ -838,7 +847,9 @@ contains
 
        ! Clean up
        call sd%dealloc
+       call timer%start(TOD_ALLOC, self%band)
        deallocate(d_calib)
+       call timer%stop(TOD_ALLOC, self%band)
 
     end do
 
@@ -880,9 +891,11 @@ contains
     if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
 
     ! Clean up
+    call timer%start(TOD_ALLOC, self%band)
     call binmap%dealloc()
     call update_status(status, "dealloc_binned_map")
     if (allocated(slist)) deallocate(slist)
+    if (allocated(chisq_S)) deallocate(chisq_S)
     deallocate(map_sky, m_gain, procmask, procmask2)
     call update_status(status, "dealloc_sky_maps")
 
@@ -891,6 +904,7 @@ contains
           call self%slconv(i)%p%dealloc(); deallocate(self%slconv(i)%p)
        end do
     end if
+    call timer%stop(TOD_ALLOC, self%band)
 
     ! Parameter to check if this is first time routine has been
     self%first_call = .false.
@@ -1786,6 +1800,8 @@ contains
     !unit = getlun()
     !open(unit, file=trim(self%L2file), form='unformatted')
 
+    call timer%start(TOD_ALLOC, self%band)
+
     if (self%L2_exist) then
        if (self%myid == 0) write(*,*) "|  Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
@@ -1885,6 +1901,8 @@ contains
        end if
        call mpi_barrier(self%comm, ierr)
     end if
+
+    call timer%stop(TOD_ALLOC, self%band)
 
      !deallocate(procmask)
 

@@ -402,7 +402,7 @@ contains
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
 
-      call timer%start(TOD_SCANDATA, self%band)
+      call timer%start(TOD_ALLOC, self%band)
 
       ! Toggle optional operations
       sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -480,7 +480,7 @@ contains
         allocate (bicg_sol(0:npix-1, nmaps  ))
       end if
 
-      call timer%stop(TOD_SCANDATA, self%band)
+      call timer%stop(TOD_ALLOC, self%band)
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -591,9 +591,9 @@ contains
               & init_s_bp=bp_corr, polang=polang)
          end if
 
-         call timer%start(TOD_SCANDATA, self%band)
+         call timer%start(TOD_ALLOC, self%band)
          allocate(s_buf(sd%ntod,sd%ndet))
-         call timer%stop(TOD_SCANDATA, self%band)
+         call timer%stop(TOD_ALLOC, self%band)
 
          ! Make simulations or Sample correlated noise
          if (self%enable_tod_simulations) then
@@ -642,9 +642,9 @@ contains
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
          ! Compute binned map
-         call timer%start(TOD_SCANDATA, self%band)
+         call timer%start(TOD_ALLOC, self%band)
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
-         call timer%stop(TOD_SCANDATA, self%band)
+         call timer%stop(TOD_ALLOC, self%band)
 
          call compute_calibrated_data(self, i, sd, d_calib)
 
@@ -697,9 +697,9 @@ contains
 
          ! Clean up
          call sd%dealloc
-         call timer%start(TOD_SCANDATA, self%band)
+         call timer%start(TOD_ALLOC, self%band)
          deallocate(s_buf, d_calib)
-         call timer%stop(TOD_SCANDATA, self%band)
+         call timer%stop(TOD_ALLOC, self%band)
 
       end do
 
@@ -811,7 +811,7 @@ contains
 
       ! Clean up temporary arrays
 
-      call timer%start(TOD_SCANDATA, self%band)
+      call timer%start(TOD_ALLOC, self%band)
       deallocate(procmask, procmask2)
       deallocate(b_map, M_diag)
       deallocate(map_full)
@@ -834,7 +834,7 @@ contains
             call self%slconvB(i)%p%dealloc(); deallocate(self%slconvB(i)%p)
          end do
       end if
-      call timer%stop(TOD_SCANDATA, self%band)
+      call timer%stop(TOD_ALLOC, self%band)
 
       call int2string(iter, ctext)
       call update_status(status, "tod_end"//ctext)

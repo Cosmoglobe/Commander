@@ -828,7 +828,7 @@ end subroutine bin_differential_TOD
            rho_new = sum(r0*r)
            call update_status(status, 'done dot product')
            if (rho_new == 0d0) then
-             if (tod%verbosity > 1) write(*,*) '| Residual norm is zero'
+             if (tod%verbosity > 1) write(*,*) '|      Residual norm is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -870,7 +870,7 @@ end subroutine bin_differential_TOD
            end if
 
            if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
-              if (tod%verbosity > 1) write(*,*) '|  Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) '|      Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
@@ -885,7 +885,7 @@ end subroutine bin_differential_TOD
 
 
            if (omega == 0d0) then
-             if (tod%verbosity > 1) write(*,*) '| omega is zero'
+             if (tod%verbosity > 1) write(*,*) '|      omega is zero'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
@@ -921,18 +921,18 @@ end subroutine bin_differential_TOD
 102           format (' |', 6X, I4, ':   delta_r/delta_0:',  2X, ES11.4)
            end if
            if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
-              if (tod%verbosity > 1) write(*,*) '| Reached bicg-stab tolerance'
+              if (tod%verbosity > 1) write(*,*) '|      Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            else if (delta_r > delta_0*1000) then
-              write(*,*) '| Solution is diverging, killing search'
+              write(*,*) '|      Solution is diverging, killing search'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
               exit bicg
            end if
            if (i==i_max) then
-             if (tod%verbosity > 1) write(*,*) '| Reached maximum number of iterations'
+             if (tod%verbosity > 1) write(*,*) '|      Reached maximum number of iterations'
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg

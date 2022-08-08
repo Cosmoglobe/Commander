@@ -69,7 +69,7 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
 
-    call timer%start(TOD_SCANDATA, tod%band)
+    call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 1) then
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
@@ -111,7 +111,7 @@ contains
     if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
-    call timer%stop(TOD_SCANDATA, tod%band)
+    call timer%stop(TOD_ALLOC, tod%band)
 
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -282,7 +282,7 @@ contains
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
 
-    call timer%start(TOD_SCANDATA, tod%band)
+    call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 2) then
        write(*,*) 'Error: init_scan_data_differential only applicable for 2-horn experiments'
        stop
@@ -336,7 +336,7 @@ contains
     allocate(s_bufB(self%ntod, self%ndet))
     allocate(s_buf2A(self%ntod, self%ndet))
     allocate(s_buf2B(self%ntod, self%ndet))
-    call timer%stop(TOD_SCANDATA, tod%band)
+    call timer%stop(TOD_ALLOC, tod%band)
 
     ! Decompress pointing, psi and flags for current scan
     ! Only called for one detector, det=1, since the pointing and polarization
@@ -491,9 +491,9 @@ contains
     end if
 
     ! Clean-up
-    call timer%start(TOD_SCANDATA, tod%band)
+    call timer%start(TOD_ALLOC, tod%band)
     deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B)
-    call timer%stop(TOD_SCANDATA, tod%band)
+    call timer%stop(TOD_ALLOC, tod%band)
 
   end subroutine init_scan_data_differential
 
@@ -502,7 +502,7 @@ contains
     implicit none
     class(comm_scandata), intent(inout) :: self    
 
-    call timer%start(TOD_SCANDATA, self%band)
+    call timer%start(TOD_ALLOC, self%band)
 
     self%ntod = -1; self%ndet = -1; self%nhorn = -1
 
@@ -521,7 +521,7 @@ contains
     if (allocated(self%s_inst))      deallocate(self%s_inst)
     if (allocated(self%s_orbA))      deallocate(self%s_orbA)
     if (allocated(self%s_orbB))      deallocate(self%s_orbB)
-    call timer%stop(TOD_SCANDATA, self%band)
+    call timer%stop(TOD_ALLOC, self%band)
 
   end subroutine dealloc_scan_data
 
