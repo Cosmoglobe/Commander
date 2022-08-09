@@ -1,5 +1,7 @@
 #================================================================================
 #
+# Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
+#
 # This file is part of Commander3.
 #
 # Commander3 is free software: you can redistribute it and/or modify
