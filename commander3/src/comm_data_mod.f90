@@ -28,8 +28,10 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
+  use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
+  use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   implicit none
@@ -155,6 +157,9 @@ contains
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'DIRBE') then
+             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
@@ -165,6 +170,9 @@ contains
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
             data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
+          else if (trim(data(n)%tod_type) == 'HFI') then
+             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
@@ -313,7 +321,7 @@ contains
              class is (comm_N_rms)
                 data(n)%N_smooth(j)%p => tmp
              end select
-          else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
+          else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
              ! Point to the regular old RMS map
              tmp => data(n)%N
              select type (tmp)
@@ -332,6 +340,8 @@ contains
 
                 data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
              end select
+          else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
+             data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
              nullify(data(n)%N_smooth(j)%p)
           end if
