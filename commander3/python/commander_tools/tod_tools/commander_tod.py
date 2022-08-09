@@ -58,8 +58,8 @@ class commander_tod:
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
-            #if self.exists and self.overwrite:
-            #    os.remove(self.outName)
+            if self.exists and self.overwrite:
+                os.remove(self.outName)
             try:
                 self.outFile = h5py.File(self.outName, 'a')
 
