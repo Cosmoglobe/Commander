@@ -103,10 +103,25 @@ contains
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        end if
     else
-       constructor%nside        = info%nside
-       constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
-       constructor%np           = info%np
-       call constructor%update_N(info, handle, mask, regnoise, map=map)
+       if (present(map)) then
+          constructor%nside        = info%nside
+          constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
+          constructor%np           = info%np
+          call constructor%update_N(info, handle, mask, regnoise, map=map)
+       else
+          tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
+          info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
+               & constructor%nmaps, constructor%pol)
+          constructor%nside   = info_smooth%nside
+          constructor%np      = info_smooth%np
+          constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+          
+          where (constructor%siN%map > 0.d0) 
+             constructor%siN%map = 1.d0 / constructor%siN%map
+          elsewhere
+             constructor%siN%map = 0.d0
+          end where
+       end if
     end if
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)

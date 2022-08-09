@@ -321,7 +321,7 @@ contains
              class is (comm_N_rms)
                 data(n)%N_smooth(j)%p => tmp
              end select
-          else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
+          else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
              ! Point to the regular old RMS map
              tmp => data(n)%N
              select type (tmp)
@@ -340,6 +340,8 @@ contains
 
                 data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
              end select
+          else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
+             data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
              nullify(data(n)%N_smooth(j)%p)
           end if
@@ -616,7 +618,7 @@ contains
     ! Take square-root of smoothed variance map to get new rms map
     do i = 0, map_in_buffer%info%np-1
        do j = 1, map_in_buffer%info%nmaps 
-          map_in_buffer%map(i,j)=dsqrt(map_in_buffer%map(i,j))
+          map_in_buffer%map(i,j)=dsqrt(abs(map_in_buffer%map(i,j)))
        end do
     end do
 
