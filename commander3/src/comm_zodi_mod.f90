@@ -18,53 +18,51 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
+
 module comm_zodi_mod
     !   """
-    !   Module which returns the zodiacal light emission computed for a given
-    !   chunk of time-ordered data.
+    !   The zodi module handles simulating and fitting zodiacal emission at tod level.
     !
-    !   Main Methods
-    !   ------------
-    !   initialize_zodi_mod(cpar)
-    !       Initializes the zodi_mod. Pre-computes galactic to ecliptic
-    !       pixel coordinates, and initializes the different ZodiComponents.
-    !   get_zodi_emission(nside, pix, nu, s_zodi)
-    !       Routine which calculates and returns the zodiacal emission over
-    !       a line-of-sight for a chunck of time-ordered data at a given
-    !       frequency nu.
-    !
+    !   Methods
+    !   -------
+    !   initialize_zodi_mod
+    !       Initializes the zodi_mod.
+
+    !   get_zodi_emission
+    !       Method that simulates the zodiacal emission observed by the instrument for
+    !       a given pixel.
     !   """
+
     use comm_utils
     use comm_param_mod
     implicit none
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
+    integer(i4b) :: GAUSS_QUAD_ORDER
+    real(dp) :: T_0, delta, LOS_CUT, EPS
+    real(dp), dimension(:), allocatable :: unique_nsides
+    real(dp), dimension(:), allocatable :: x_helio, y_helio, z_helio, R_los
+    real(dp), dimension(:), allocatable :: tabulated_zodi, gauss_grid, gauss_weights
+    real(dp), dimension(:, :), allocatable :: zodi_emission
 
-    integer(i4b) :: n_LOS
-    real(dp)     :: T0, const1, const2, delta
-    real(dp)     :: R_max, R_sat
-    real(dp), dimension(:), allocatable :: x, y, z
-    real(dp), dimension(:), allocatable :: blackbody, emission, density, tabulated_zodi
-
-    ! =========================================================================
-    !                      ZodiComponent Class Definition
-    ! =========================================================================
     type, abstract :: ZodiComponent
+        ! Abstract base Zodical component class.
+
         ! Pointers to the next/prev links in the linked list
-        class(ZodiComponent), pointer :: nextLink => null()
-        class(ZodiComponent), pointer :: prevLink => null()
+        class(ZodiComponent), pointer :: next_link => null()
+        class(ZodiComponent), pointer :: prev_link => null()
 
         ! Shared component variables
-        real(dp)                :: emissivity
-        real(dp)                :: x0, y0, z0
-        real(dp)                :: Incl, Omega
-        real(dp), allocatable   :: sinOmega, cosOmega, sinIncl, cosIncl
+        real(dp) :: emissivity
+        real(dp) :: x0, y0, z0
+        real(dp) :: Incl, Omega
+        real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
 
         contains
             ! Shared component procedures
-            procedure(init),     deferred :: initialize
-            procedure(get_density), deferred :: getDensity
+            procedure(initialize_interface), deferred :: initialize
+            procedure(density_interface), deferred :: get_density
 
             ! Linked list procedures
             procedure :: next
@@ -72,24 +70,22 @@ module comm_zodi_mod
     end type ZodiComponent
 
     abstract interface
-        subroutine init(self)
-            ! Routine which initializes and precomputes frequently used values
-            ! for the a ZodiComponent.
+        subroutine initialize_interface(self)
             import dp, ZodiComponent
             class(ZodiComponent)  :: self
-        end subroutine init
+        end subroutine initialize_interface
 
-        subroutine get_density(self, x, y, z, density, lon)
-            ! Routine which computes the density of a ZodiComponent at a
-            ! given x, y, z coordinate.
+        subroutine density_interface(self, x, y, z, theta, n)
+            ! Returns the dust density (n) of the component at heliocentric 
+            ! coordinates (x, y, z) and the earths longitude (theta).
+
             import i4b, dp, ZodiComponent
-            class(ZodiComponent)                :: self
-            real(dp), intent(in),  dimension(:) :: x, y, z
-            real(dp), intent(out), dimension(:) :: density
-            real(dp), intent(in),  optional     :: lon
-            real(dp)                            :: xprime, yprime, zprime
-            real(dp)                            :: R, Z_c
-        end subroutine get_density
+            class(ZodiComponent) :: self
+            real(dp), intent(in), dimension(:) :: x, y, z
+            real(dp), intent(in) :: theta
+            real(dp), intent(out), dimension(:) :: n
+            real(dp) :: x_prime, y_prime, z_prime, R, Z_c
+        end subroutine density_interface
     end interface
 
     ! Individual class components
@@ -98,8 +94,8 @@ module comm_zodi_mod
         real(dp)  :: n0, alpha, beta, gamma, mu
 
         contains
-            procedure :: initialize => init_cloud
-            procedure :: getDensity => get_density_cloud
+            procedure :: initialize => initialize_cloud
+            procedure :: get_density => get_density_cloud
     end type Cloud
 
     type, extends(ZodiComponent) :: Band
@@ -107,8 +103,8 @@ module comm_zodi_mod
         real(dp), allocatable   :: ViInv, DrInv, DzRinv
 
         contains
-            procedure :: initialize => init_band
-            procedure :: getDensity => get_density_band
+            procedure :: initialize => initialize_band
+            procedure :: get_density => get_density_band
     end type Band
 
     type, extends(ZodiComponent) :: Ring
@@ -116,86 +112,69 @@ module comm_zodi_mod
         real(dp), allocatable   :: sigmaRsr2Inv, sigmaZsrInv
 
         contains
-            procedure :: initialize => init_ring
-            procedure :: getDensity => get_density_ring
+            procedure :: initialize => initialize_ring
+            procedure :: get_density => get_density_ring
     end type Ring
 
     type, extends(ZodiComponent) :: Feature
-        real(dp)                :: ntf, Rtf, sigmaRtf, sigmaZtf, thetatf, &
-                                   sigmaThetatf
-        real(dp), allocatable   :: thetatfR,  sigmaRtfInv, sigmaZtfInv, &
-                                   sigmaThetatfRinv
+        real(dp)                :: ntf, Rtf, sigmaRtf, sigmaZtf, thetatf, sigmaThetatf
+        real(dp), allocatable   :: thetatfR,  sigmaRtfInv, sigmaZtfInv, sigmaThetatfRinv
         contains
-            procedure :: initialize => init_feature
-            procedure :: getDensity => get_density_feature
+            procedure :: initialize => initialize_feature
+            procedure :: get_density => get_density_feature
     end type Feature
 
-    ! Initializing global ZodiComponent list and objects
+    ! Initializing global ZodiComponent list and instances
     class(ZodiComponent), pointer :: comp_list => null()
     type(Cloud),          target  :: cloud_comp
     type(Band),           target  :: band1_comp, band2_comp, band3_comp
     type(Ring),           target  :: ring_comp
     type(Feature),        target  :: feature_comp
 
-    ! Derived type which stores dynamically sized pixel coordinate maps
-    ! -------------------------------------------------------------------------
-    type Vector3D
+    ! Initializing container for precomputed pixel to unitvectors for each unique 
+    ! nside in the Commander run.
+    type UnitVector
         real(dp), dimension(:,:), allocatable :: elements
-    end type Vector3D
+    end type UnitVector
 
-    type RaggedArray
-        type(Vector3D), dimension(:), allocatable :: vectors
-    end type RaggedArray
-    type(RaggedArray) :: coord_maps
+    type UnitVectorList
+        type(UnitVector), dimension(:), allocatable :: vectors
+    end type UnitVectorList
+    type(UnitVectorList) :: unit_vectors
+
 
 contains
-    ! =========================================================================
-    !                          Main zodi_mod Routines
-    ! =========================================================================
     subroutine initialize_zodi_mod(cpar)
         !   """
-        !   Routine which initializes the zodi_mod. Galactic to ecliptic
-        !   x,y,z coordinates are precomputed to reduce computation at later
-        !   stages.
+        !   Initialize the zodi module by allocating global variables, instanciating
+        !   zodi components, and precomputing the pixel to unitvector maps.
         !
-        !   Arguments:
+        !   Parameters
         !   ----------
-        !   cpar: derived type
-        !       Object containing parameters from the parameterfile.
+        !   cpar:
+        !      Parameter file variables.
         !
         !   """
         implicit none
 
-        type(comm_params), intent(in)  :: cpar
-        class(ZodiComponent), pointer  :: comp
+        type(comm_params), intent(in) :: cpar
+        class(ZodiComponent), pointer :: comp
 
-        integer(i4b) :: i, j, npix, nside
-        real(dp)     :: emissivity
+        integer(i4b) :: i, j, npix, nside, n_comps
+        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, use_unit_emissivity
+        real(dp) :: emissivity
+        real(dp), dimension(3) :: vec
+        real(dp), dimension(3,3) :: gal2ecl_matrix
+        integer(i4b), dimension(:), allocatable :: sorted_unique_nsides
+        real(dp), dimension(:,:), allocatable :: ecliptic_vec
+        real(dp), dimension(6) :: em30, em44, em70, em100, em143, em217, em353, em545, em857
 
-        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, &
-                        use_ring, use_feature, use_unit_emissivity
+        T_0 = 286.d0 ! temperature at 1 AU
+        delta = 0.46686260 ! rate at which temperature falls with radius
+        LOS_CUT = 5.2
+        GAUSS_QUAD_ORDER = 100
+        EPS = 3.d-14
 
-        real(dp),     dimension(3)                :: vec
-        real(dp),     dimension(3,3)              :: gal2ecl_matrix
-        integer(i4b), dimension(:),   allocatable :: ds_nside_unique, &
-                                                     nside_unique
-        real(dp),     dimension(:,:), allocatable :: ecliptic_vec
-        real(dp), dimension(6) :: emissivity30, emissivity44, emissivity70, &
-                emissivity100, emissivity143, emissivity217, emissivity353, &
-                emissivity545, emissivity857
-
-        ! Model parameters
-        ! ---------------------------------------------------------------------
-        ! Parameters for the temperature at a radial distance from the Sun
-        T0 = 286.d0         ! temperature at 1 AU
-        delta = 0.46686260  ! rate at which temperature falls with radius
-
-        ! Line-of-sight integration parameters
-        R_max = 5.2            ! max radial integration distance from the Sun [AU]
-        R_sat = 1.01          ! satellite radial distance from the Sun [AU]
-        n_LOS = 50           ! n integration steps
-
-        ! Zodi component selection
         use_cloud = .true.
         use_band1 = .true.
         use_band2 = .true.
@@ -205,29 +184,23 @@ contains
 
         use_unit_emissivity = .true.
 
-        ! Emissivities  (cloud, band1, band2, band3, ring, feature)
-        emissivity857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
-        emissivity545 = (/0.223, 2.235, 0.718 , 3.193, 0.591, -0.182/)
-        emissivity353 = (/0.168, 2.035, 0.436, 2.400, -0.211, 0.676/)
-        emissivity217 = (/0.031, 2.024, 0.338, 2.507, -0.185, 0.243/)
-        emissivity143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
-        emissivity100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
+        !       (cloud, band1, band2, band3, ring, feature)
+        em857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
+        em545 = (/0.223, 2.235, 0.718 , 3.193, 0.591, -0.182/)
+        em353 = (/0.168, 2.035, 0.436, 2.400, -0.211, 0.676/)
+        em217 = (/0.031, 2.024, 0.338, 2.507, -0.185, 0.243/)
+        em143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
+        em100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
 
-        ! Emissivities  (cloud, band1, band2, band3, ring, feature)
-        ! dirbe_emissivity1_25 = (/1.0, 1.777, 0.716, 2.870, 0.578, 0.423/)
 
-        !if (use_unit_emissivity == .true.) then
+        ! Initialize Zodi components
         if (use_unit_emissivity) then
             emissivity = 1.d0
         end if
 
-        ! Initializing zodi components
-        ! ---------------------------------------------------------------------
-        !if (use_cloud == .true.) then
         if (use_cloud) then
-            !if (use_unit_emissivity == .false.) then
             if (.not. use_unit_emissivity) then
-                emissivity = emissivity857(1)
+                emissivity = em857(1)
             end if
             cloud_comp = Cloud(emissivity=emissivity, x0=0.011887801, y0=0.0054765065, &
                                z0=-0.0021530908, Incl=2.0335188, Omega=77.657956, &
@@ -237,11 +210,9 @@ contains
             call add_component_to_list(comp)
         end if
 
-        !if (use_band1 == .true.) then
         if (use_band1) then
-            !if (use_unit_emissivity == .false.) then
             if (.not. use_unit_emissivity) then
-                emissivity = emissivity857(2)
+                emissivity = em857(2)
             end if
             band1_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=0.56438265, Omega=80d0, n0=5.5890290d-10, &
@@ -251,11 +222,9 @@ contains
             call add_component_to_list(comp)
         end if
 
-        !if (use_band2 == .true.) then
         if (use_band2) then
-            !if (use_unit_emissivity == .false.) then
             if (.not. use_unit_emissivity) then
-                emissivity = emissivity857(3)
+                emissivity = em857(3)
             end if
             band2_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=1.2, Omega=30.347476, n0=1.9877609d-09, &
@@ -265,11 +234,9 @@ contains
             call add_component_to_list(comp)
         end if
 
-        !if (use_band3 == .true.) then
         if (use_band3) then
-            !if (use_unit_emissivity == .false.) then
             if (.not. use_unit_emissivity) then
-                emissivity = emissivity857(4)
+                emissivity = em857(4)
             end if
             band3_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=0.8, Omega=80.0, n0=1.4369827d-10,     &
@@ -279,11 +246,9 @@ contains
             call add_component_to_list(comp)
         end if
 
-        !if (use_ring == .true.) then
         if (use_ring) then
-            !if (use_unit_emissivity == .false.) then
             if (.not. use_unit_emissivity) then
-                emissivity = emissivity857(5)
+                emissivity = em857(5)
             end if
             ring_comp = Ring(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                              Incl=0.48707166d0, Omega=22.27898d0, &
@@ -293,11 +258,9 @@ contains
             call add_component_to_list(comp)
         end if
 
-        !if (use_feature == .true.) then
         if (use_feature) then
-            !if (use_unit_emissivity == .false.) then
             if (.not. use_unit_emissivity) then
-                emissivity = emissivity857(6)
+                emissivity = em857(6)
             end if
             feature_comp = Feature(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                                    Incl=0.48707166d0, Omega=22.27898d0, &
@@ -309,64 +272,47 @@ contains
         end if
 
         ! Executes initialization routines for all activated components
+        n_comps = 0
         comp => comp_list
         do while (associated(comp))
             call comp%initialize()
             comp => comp%next()
+            n_comps = n_comps + 1
         end do
 
         ! Allocating line-of-sight related arrays
-        ! ---------------------------------------------------------------------
-        allocate(x(n_LOS))
-        allocate(y(n_LOS))
-        allocate(z(n_LOS))
-        allocate(density(n_LOS))
-        allocate(blackbody(n_LOS))
-        allocate(emission(n_LOS))
+        allocate(x_helio(GAUSS_QUAD_ORDER))
+        allocate(y_helio(GAUSS_QUAD_ORDER))
+        allocate(z_helio(GAUSS_QUAD_ORDER))
+        allocate(R_los(GAUSS_QUAD_ORDER))
+        allocate(zodi_emission(n_comps + 1, GAUSS_QUAD_ORDER))
+        allocate(gauss_grid(GAUSS_QUAD_ORDER))
+        allocate(gauss_weights(GAUSS_QUAD_ORDER))
 
         ! Precomputing ecliptic to galactic coordinates per pixels for all
         ! relevant nsides
-        ! ---------------------------------------------------------------------
 
-        ! Get all unique LFI nsides from cpar (This part should be updated when
-        ! BeyondPlanck moves on to using HFI data)
-        ! allocate(ds_nside_unique(cpar%numband))
-        ! j = 0
-        ! do i = 1, cpar%numband
-        !     if (trim(cpar%ds_tod_type(i)) /= 'none') then
-        !         if (any(ds_nside_unique /= cpar%ds_nside(i))) then
-        !             j = j + 1
-        !             ds_nside_unique(j) = cpar%ds_nside(i)
-        !         end if
-        !     end if
-        ! end do
-        j = 1
-        allocate(coord_maps%vectors(j))
-        allocate(nside_unique(j))
-        do i = 1, j
-            nside_unique(i) = 128 !ds_nside_unique(i)
-        end do
-        ! deallocate(ds_nside_unique)
+        sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
 
-        ! Getting pixel coordinates through HEALPix pix2vec_ring for each
-        ! relevant nside
-        call getEcl2GalMatrix(gal2ecl_matrix)
-        do i = 1, size(nside_unique)
-            nside = nside_unique(i)
+        allocate(unit_vectors%vectors(size(sorted_unique_nsides)))
+
+        do i = 1, size(sorted_unique_nsides)
+            nside = sorted_unique_nsides(i)
             npix = nside2npix(nside)
             allocate(tabulated_zodi(npix))
-            allocate(coord_maps%vectors(i)%elements(npix,3))
-            allocate(ecliptic_vec(npix,3))
-
-            do j = 0, npix-1
+            allocate(unit_vectors%vectors(i)%elements(npix, 3))
+            allocate(ecliptic_vec(npix, 3))
+        
+            do j = 0, npix - 1
                 call pix2vec_ring(nside, j, vec)
-                ecliptic_vec(j+1,1) = vec(1)
-                ecliptic_vec(j+1,2) = vec(2)
-                ecliptic_vec(j+1,3) = vec(3)
+                ecliptic_vec(j + 1, 1) = vec(1)
+                ecliptic_vec(j + 1, 2) = vec(2)
+                ecliptic_vec(j + 1, 3) = vec(3)
             end do
-
+        
             ! Transforming to ecliptic coordinates
-            coord_maps%vectors(i)%elements = matmul(ecliptic_vec, gal2ecl_matrix)
+            ! coord_maps%vectors(i)%elements = matmul(ecliptic_vec, gal2ecl_matrix)
+            unit_vectors%vectors(i)%elements = ecliptic_vec
             deallocate(ecliptic_vec)
         end do
 
@@ -407,199 +353,192 @@ contains
         real(dp),     dimension(1:),    intent(in)  :: nu
         real(sp),     dimension(1:,1:), intent(out) :: s_zodi
 
-        integer(i4b) :: i, j, k, n_det, n_tod, pixnum
-        real(dp)     :: x0, y0, z0
+        integer(i4b) :: i, j, k, n_det, n_tod, pixel_index
         real(dp)     :: u_x, u_y, u_z
         real(dp)     :: x1, y1, z1
         real(dp)     :: dx, dy, dz
-        real(dp)     :: s, ds
-        real(dp)     :: R_squared, R_cos_theta, R_LOS
-        real(dp)     :: integral
-        real(dp)     :: longitude_sat, latitude_sat
-        real(dp), dimension(:,:), allocatable :: coord_map
+        real(dp)     :: x_obs, y_obs, z_obs, lon_earth, R_obs, R_max
+        real(dp), dimension(:,:), allocatable :: unit_vector_map
 
-        ! Resetting quantities for each new TOD chunck
-        s_zodi = 0.d0
-        density = 0.d0
-        blackbody = 0.d0
-        emission = 0.d0
 
         ! Extracting n time-orderd data and n detectors for current chunk
         n_tod = size(pix,1)
         n_det = size(pix,2)
 
-        ! Selecting coordinate map containing heliocentric pixel coordinates
-        coord_map = getCoordMap(nside)
+        unit_vector_map = get_unit_vector_map(nside) ! TODO: This should give me ecliptic unit vectors from galactic pixel index
 
-        ! Converting satellite longitude and latitude to radians and computing
-        ! heliocentric satellite coordinates (x0, y0, z0)
-        ! longitude_sat = sat_pos(1)*deg2rad
-        ! latitude_sat = sat_pos(2)*deg2rad
-        ! x0 = R_sat*cos(latitude_sat)*cos(longitude_sat)
-        ! y0 = R_sat*cos(latitude_sat)*sin(longitude_sat)
-        ! z0 = R_sat*sin(latitude_sat)                       !TODO: get more accurate sat pos
-        x0 = sat_pos(1)
-        y0 = sat_pos(2)
-        z0 = sat_pos(3)
+        x_obs = sat_pos(1)
+        y_obs = sat_pos(2)
+        z_obs = sat_pos(3)
+        R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
+        lon_earth = atan(y_obs, x_obs) ! TODO: this currently returns sat lon and not earth lon (unless this is basicaly always the same)
 
-        ! Computing the zodiacal emission for current time-ordered data chunk
         do j = 1, n_det
-            ! Computing terms in Planck's law for blackbody emission
-            const1 = (2.d0*h*nu(j)**3)/(c*c)
-            const2 = (h*nu(j))/k_B
-
-            ! Initializing tabulated zodi values
             tabulated_zodi = 0.d0
             do i = 1, n_tod
-                pixnum = pix(i,j) + 1
-                ! write(*, *) pixnum, size(tabulated_zodi)
-                if (tabulated_zodi(pixnum) == 0.d0) then
-                    ! The first time a pixel is hit in the TOD chunk we calculate
-                    ! the ZLE and tabulate for future hits in the same chunk
-                    ! Looking up pre-computed HEALPix unit vector pointing to
-                    ! pixel at infinity
-                    u_x = coord_map(pixnum,1)
-                    u_y = coord_map(pixnum,2)
-                    u_z = coord_map(pixnum,3)
+                pixel_index = pix(i, j) + 1 ! TODO: make sure the +1 is correct. Does healpix indices in fortran also start at 0?
 
-                    ! Finding the coordinates at the end of the line-of-sight
-                    ! (x1, y1, z1) used to construct the line-of-sight array.
-                    ! The proof for these calculations are provided in my thesis
-                    R_squared = x0**2 + y0**2 + z0**2
-                    R_cos_theta = x0*u_x + y0*u_y + z0*u_z
-                    R_LOS = - R_cos_theta + sqrt(R_cos_theta**2 - R_squared + R_max**2)
+                if (tabulated_zodi(pixel_index) == 0.d0) then
+                    u_x = unit_vector_map(pixel_index, 1)
+                    u_y = unit_vector_map(pixel_index, 2)
+                    u_z = unit_vector_map(pixel_index, 3)
 
-                    x1 = x0 + R_LOS*u_x
-                    y1 = y0 + R_LOS*u_y
-                    z1 = z0 + R_LOS*u_z
+                    call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+                    call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=R_los, w=gauss_weights)
 
-                    ! Constructing line-of-sight array
-                    dx = (x1-x0)/(n_LOS-1)
-                    dy = (y1-y0)/(n_LOS-1)
-                    dz = (z1-z0)/(n_LOS-1)
-                    ds = sqrt(dx**2 + dy**2 + dz**2)
+                    x_helio = R_los * u_x + x_obs
+                    y_helio = R_los * u_x + y_obs
+                    z_helio = R_los * u_x + z_obs
 
-                    do k = 1, n_LOS
-                        x(k) = x0 + (k-1)*dx
-                        y(k) = y0 + (k-1)*dy
-                        z(k) = z0 + (k-1)*dz
+                    call get_zodi_emission_los(x=x_helio, y=y_helio, z=z_helio, nu=nu(j), theta=lon_earth, s_zodi=zodi_emission)
 
-                        ! Radial distance from the Sun
-                        s = sqrt(x(k)**2 + y(k)**2 + z(k)**2)
-
-                        ! Computing blackbody emission B(T) at radial distance s
-                        ! from the Sun with the Planck function along the LOS
-                        blackbody(k) = const1/(exp(const2/(T0*s**(-delta))) - 1.d0)
-                    end do
-
-                    comp => comp_list
-                    do while (associated(comp))
-                        ! For each component calculate density and multiply
-                        ! with the blackbody function. Then integrate this up
-                        ! along the line-of-sight and scale by emissivity
-                        call comp%getDensity(x, y, z, density, longitude_sat)
-                        emission = density*blackbody
-                        call trapezoidal(emission, ds, n_LOS, integral)
-                        s_zodi(i,j) = s_zodi(i,j) + integral*comp%emissivity
-
-                        comp => comp%next()
-                    end do
+                    s_zodi(i,j) = sum(sum(zodi_emission, dim=1) * gauss_weights)
 
                     ! Saving emission and storing for future reference
-                    tabulated_zodi(pixnum) = s_zodi(i,j)
+                    tabulated_zodi(pixel_index) = s_zodi(i,j)
 
                 else
                     ! Looking up tabulated emission
-                    s_zodi(i,j) = s_zodi(i,j) + tabulated_zodi(pixnum)
+                    s_zodi(i,j) = s_zodi(i,j) + tabulated_zodi(pixel_index)
                 end if
 
             end do
         end do
+
+        ! Converting to MJy/sr
+        s_zodi = s_zodi * 1d20
+
     end subroutine get_zodi_emission
 
-    ! =========================================================================
-    !                         Functions and subroutines
-    ! =========================================================================
-    subroutine getEcl2GalMatrix(matrix)
-        ! Ecliptic to galactic rotation matrix
-        implicit none
-        real(dp), dimension(3,3) :: matrix
 
-        matrix(1,1) =  -0.054882486d0
-        matrix(1,2) =  -0.993821033d0
-        matrix(1,3) =  -0.096476249d0
-        matrix(2,1) =   0.494116468d0
-        matrix(2,2) =  -0.110993846d0
-        matrix(2,3) =   0.862281440d0
-        matrix(3,1) =  -0.867661702d0
-        matrix(3,2) =  -0.000346354d0
-        matrix(3,3) =   0.497154957d0
-    end subroutine getEcl2GalMatrix
+    ! subroutine getEcl2GalMatrix(matrix)
+    !     ! Ecliptic to galactic rotation matrix
+    !     implicit none
+    !     real(dp), dimension(3,3) :: matrix
 
-    function getCoordMap(nside) result(coord_map)
+    !     matrix(1,1) =  -0.054882486d0
+    !     matrix(1,2) =  -0.993821033d0
+    !     matrix(1,3) =  -0.096476249d0
+    !     matrix(2,1) =   0.494116468d0
+    !     matrix(2,2) =  -0.110993846d0
+    !     matrix(2,3) =   0.862281440d0
+    !     matrix(3,1) =  -0.867661702d0
+    !     matrix(3,2) =  -0.000346354d0
+    !     matrix(3,3) =   0.497154957d0
+    ! end subroutine getEcl2GalMatrix
+
+    function get_unit_vector_map(nside) result(unit_vector_map)
         ! Routine which selects coordinate transformation map based on resolution
         implicit none
 
         integer(i4b), intent(in) :: nside
-
-        integer(i4b)                           :: i, npix
-        real(dp), dimension(:,:), allocatable  :: coord_map
+        integer(i4b) :: i, npix, nside_idx
+        real(dp), dimension(:,:), allocatable :: unit_vector_map
 
         npix = nside2npix(nside)
-        do i = 1, size(coord_maps%vectors)
-            if (size(coord_maps%vectors(i)%elements(:,1)) == npix) then
-                coord_map = coord_maps%vectors(i)%elements
+        do i = 1, size(unit_vectors%vectors)
+            if (size(unit_vectors%vectors(i)%elements(:,1)) == npix) then
+                unit_vector_map = unit_vectors%vectors(i)%elements
             end if
         end do
-    end function getCoordMap
+    end function get_unit_vector_map
 
-    subroutine trapezoidal(f, ds, n, result)
-        ! Trapezoidal integration method
+    subroutine get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+        ! Computes the length of the line of sight such that it stops exactly at LOS_CUT.
         implicit none
+        real(dp), intent(in) :: u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs
+        real(dp), intent(out) :: R_max
+        real(dp) :: lon, lat, cos_lat, b, d, q
 
-        real(dp), dimension(:), intent(in) :: f
-        integer(i4b), intent(in)           :: n
-        real(dp), intent(in)               :: ds
-        real(dp), intent(out)              :: result
+        lon = atan(u_y, u_x)
+        lat = asin(u_z)
+        cos_lat = cos(lat)
 
-        result = 0.5*f(1) + 0.5*f(n)
-        result = result + sum(f(2:n-1))
-        result = result*ds
-    end subroutine trapezoidal
+        b = 2.d0 * (x_obs * cos_lat * cos(lon) + y_obs * cos_lat * sin(lon))
+        d = R_obs**2 - LOS_CUT**2
+        q = -0.5d0 * b * (1.d0 + sqrt(b**2 - (4.d0 * d)) / abs(b))
+        R_max = max(q, d / q)
 
-    ! =========================================================================
-    !                         Zodi Components Routines
-    ! =========================================================================
-    subroutine init_cloud(self)
+    end subroutine get_R_max
+
+
+    subroutine get_dust_grain_temperature(R, T)
         implicit none
-        class(Cloud) :: self
+        real(dp), dimension(:), intent(in) :: R
+        real(dp), dimension(:), intent(out) :: T
 
-        self%sinOmega = sin(self%Omega * deg2rad)
-        self%cosOmega = cos(self%Omega * deg2rad)
-        self%sinIncl = sin(self%Incl * deg2rad)
-        self%cosIncl = cos(self%Incl * deg2rad)
-    end subroutine init_cloud
+        T = T_0 * R ** (-delta)
+    end subroutine get_dust_grain_temperature
 
-    subroutine get_density_cloud(self, x, y, z, density, lon)
+
+    subroutine get_blackbody_emission(nu, T, b_nu)
         implicit none
+        real(dp), intent(in) :: nu
+        real(dp), dimension(:), intent(in) :: T
+        real(dp), dimension(:), intent(out) :: b_nu
+        real(dp) :: term1, term2
 
-        class(Cloud) :: self
-        real(dp), dimension(:), intent(in)  :: x, y, z
-        real(dp), dimension(:), intent(out) :: density
-        real(dp), intent(in), optional      :: lon
+        term1 = (2.d0 * h * nu**3) / (c*c)
+        term2 = (h * nu) / k_B
+        b_nu = term1/(exp(term2/T) - 1.d0)
+    end subroutine get_blackbody_emission
+
+    subroutine get_zodi_emission_los(x, y, z, nu, theta, s_zodi)
+        implicit none
+        real(dp), dimension(:), intent(in) :: x, y, z
+        real(dp), intent(in) :: nu, theta
+        real(dp), dimension(:, :), intent(out) :: s_zodi
 
         integer(i4b) :: i
-        real(dp)     :: R, Z_c, zeta, g
-        real(dp)     :: xprime, yprime, zprime
+        real(dp), dimension(GAUSS_QUAD_ORDER) :: R_helio, dust_grain_temperature, blackbody_emission, los_density
 
-        do i = 1, n_LOS
-            xprime = x(i) - self%x0
-            yprime = y(i) - self%y0
-            Zprime = Z(i) - self%z0
+        class(ZodiComponent), pointer :: comp
 
-            R = sqrt(xprime*xprime + yprime*yprime + zprime*zprime)
-            Z_c = (xprime*self%sinOmega - yprime*self%cosOmega)*self%sinIncl &
-                + zprime*self%cosIncl
+        R_helio = sqrt(x**2 + y**2 + z**2)
+
+        call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
+        call get_blackbody_emission(nu=nu, T=dust_grain_temperature, b_nu=blackbody_emission)
+
+        comp => comp_list
+        i = 1
+        do while (associated(comp))
+            call comp%get_density(x=x, y=y, z=z, theta=theta, n=los_density)
+            s_zodi(i, :) = los_density * blackbody_emission
+            comp => comp%next()
+            i = i + 1
+        end do
+    end subroutine get_zodi_emission_los
+
+
+    ! Deferred ZodiComponent procedures
+    subroutine initialize_cloud(self)
+        implicit none
+        class(Cloud) :: self
+
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%Incl * deg2rad)
+        self%cos_incl = cos(self%Incl * deg2rad)
+    end subroutine initialize_cloud
+
+    subroutine get_density_cloud(self, x, y, z, theta, n)
+        implicit none
+
+        class(Cloud) :: self
+        real(dp), dimension(:), intent(in) :: x, y, z
+        real(dp), intent(in) :: theta
+        real(dp), dimension(:), intent(out) :: n
+
+        integer(i4b) :: i
+        real(dp) :: R, Z_c, zeta, g, x_prime, y_prime, z_prime
+
+        do i = 1, GAUSS_QUAD_ORDER
+            x_prime = x(i) - self%x0
+            y_prime = y(i) - self%y0
+            z_prime = z(i) - self%z0
+
+            R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
             zeta = abs(Z_c)/R
 
             if (zeta < self%mu) then
@@ -608,45 +547,41 @@ contains
                 g = zeta - 0.5 * self%mu
             end if
 
-            density(i) = self%n0 * R**(-self%alpha) * exp(-self%beta &
-                    * g**self%gamma)
+            n(i) = self%n0 * R**(-self%alpha) * exp(-self%beta * g**self%gamma)
         end do
     end subroutine get_density_cloud
 
-    subroutine init_band(self)
+    subroutine initialize_band(self)
         implicit none
         class(Band) :: self
 
         self%ViInv = 1.d0/self%Vi
         self%DrInv = 1.d0/self%Dr
         self%DzRInv = 1.d0/(self%Dz * deg2rad)
-        self%sinOmega = sin(self%Omega * deg2rad)
-        self%cosOmega = cos(self%Omega * deg2rad)
-        self%sinIncl = sin(self%Incl * deg2rad)
-        self%cosIncl = cos(self%Incl * deg2rad)
-    end subroutine init_band
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%Incl * deg2rad)
+        self%cos_incl = cos(self%Incl * deg2rad)
+    end subroutine initialize_band
 
-    subroutine get_density_band(self, x, y, z, density, lon)
+    subroutine get_density_band(self, x, y, z, theta, n)
         implicit none
 
         class(Band) :: self
         real(dp), dimension(:), intent(in)  :: x, y, z
-        real(dp), dimension(:), intent(out) :: density
-        real(dp), intent(in), optional      :: lon
+        real(dp), intent(in) :: theta
+        real(dp), dimension(:), intent(out) :: n
 
         integer(i4b) :: i
-        real(dp) :: xprime, yprime, zprime
-        real(dp) :: R, Z_c
-        real(dp) :: zeta, ZDz, ZDz2, ZDz4, ZDz6, ViTerm, WtTerm
+        real(dp) :: x_prime, y_prime, z_prime, R, Z_c, zeta, ZDz, ZDz2, ZDz4, ZDz6, ViTerm, WtTerm
 
-        do i = 1, n_LOS
-            xprime = x(i) - self%x0
-            yprime = y(i) - self%y0
-            zprime = z(i) - self%z0
+        do i = 1, GAUSS_QUAD_ORDER
+            x_prime = x(i) - self%x0
+            y_prime = y(i) - self%y0
+            z_prime = z(i) - self%z0
 
-            R = sqrt(xprime*xprime + yprime*yprime + zprime*zprime)
-            Z_c = (xprime*self%sinOmega - yprime*self%cosOmega)*self%sinIncl &
-                + zprime*self%cosIncl
+            R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
             zeta = abs(Z_c)/R
             ZDz = zeta * self%DzRInv
             ZDz2 = ZDz * ZDz
@@ -655,49 +590,46 @@ contains
             ViTerm = 1.d0 + ZDz4 * self%ViInv
             WtTerm = 1.d0 - exp(-(R*self%DrInv)**20)
 
-            density(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R
+            n(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R
         end do
     end subroutine get_density_band
 
-    subroutine init_ring(self)
+    subroutine initialize_ring(self)
         implicit none
         class(Ring) :: self
 
         self%sigmaRsr2Inv = 1.d0 / (self%sigmaRsr * self%sigmaRsr)
         self%sigmaZsrInv = 1.d0 / self%sigmaZsr
-        self%sinOmega = sin(self%Omega * deg2rad)
-        self%cosOmega = cos(self%Omega * deg2rad)
-        self%sinIncl = sin(self%Incl * deg2rad)
-        self%cosIncl = cos(self%Incl * deg2rad)
-    end subroutine init_ring
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%Incl * deg2rad)
+        self%cos_incl = cos(self%Incl * deg2rad)
+    end subroutine initialize_ring
 
-    subroutine get_density_ring(self, x, y, z, density, lon)
+    subroutine get_density_ring(self, x, y, z, theta, n)
         implicit none
 
         class(Ring) :: self
         real(dp), dimension(:), intent(in)  :: x, y, z
-        real(dp), dimension(:), intent(out) :: density
-        real(dp), intent(in), optional      :: lon
+        real(dp), intent(in) :: theta
+        real(dp), dimension(:), intent(out) :: n
 
         integer(i4b) :: i
-        real(dp) :: xprime, yprime, zprime
-        real(dp) :: R, Z_c
+        real(dp) :: x_prime, y_prime, z_prime, R, Z_c
 
-        do i = 1, n_LOS
-            xprime = x(i) - self%x0
-            yprime = y(i) - self%y0
-            zprime = z(i) - self%z0
+        do i = 1, GAUSS_QUAD_ORDER
+            x_prime = x(i) - self%x0
+            y_prime = y(i) - self%y0
+            z_prime = z(i) - self%z0
 
-            R = sqrt(xprime*xprime + yprime*yprime + zprime*zprime)
-            Z_c = (xprime*self%sinOmega - yprime*self%cosOmega)*self%sinIncl &
-                + zprime*self%cosIncl
+            R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
 
-            density(i) = self%nsr * exp(-((R-self%Rsr)/self%sigmaRsr)**2 &
-                       - abs(Z_c)*self%sigmaZsrInv)
+            n(i) = self%nsr * exp(-((R - self%Rsr)/self%sigmaRsr)**2 - abs(Z_c)*self%sigmaZsrInv)
         end do
     end subroutine get_density_ring
 
-    subroutine init_feature(self)
+    subroutine initialize_feature(self)
         implicit none
         class(Feature) :: self
 
@@ -705,57 +637,70 @@ contains
         self%sigmaRtfInv = 1.d0 / self%sigmaRtf
         self%sigmaZtfInv = 1.d0 / self%sigmaZtf
         self%sigmaThetatfRinv = 1.d0  /(self%sigmaThetatf * deg2rad)
-        self%sinOmega = sin(self%Omega * deg2rad)
-        self%cosOmega = cos(self%Omega * deg2rad)
-        self%sinIncl = sin(self%Incl * deg2rad)
-        self%cosIncl = cos(self%Incl * deg2rad)
-    end subroutine init_feature
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%Incl * deg2rad)
+        self%cos_incl = cos(self%Incl * deg2rad)
+    end subroutine initialize_feature
 
-    subroutine get_density_feature(self, x, y, z, density, lon)
+    subroutine get_density_feature(self, x, y, z, theta, n)
         implicit none
 
         class(Feature) :: self
-        real(dp), dimension(:), intent(in)  :: x, y, z
-        real(dp), dimension(:), intent(out) :: density
-        real(dp), intent(in), optional      :: lon
+        real(dp), dimension(:), intent(in) :: x, y, z
+        real(dp), intent(in) :: theta
+        real(dp), dimension(:), intent(out) :: n
 
         integer(i4b) :: i
-        real(dp) :: xprime, yprime, zprime
-        real(dp) :: R, Z_c
-        real(dp) :: theta
+        real(dp) :: x_prime, y_prime, z_prime, R, Z_c, theta_prime
 
-        do i = 1, n_LOS
-            xprime = x(i) - self%x0
-            yprime = y(i) - self%y0
-            zprime = z(i) - self%z0
-            theta = atan2(y(i), x(i)) - (lon + self%thetatfR)
+        do i = 1, GAUSS_QUAD_ORDER
+            x_prime = x(i) - self%x0
+            y_prime = y(i) - self%y0
+            z_prime = z(i) - self%z0
+            theta_prime = atan2(y(i), x(i)) - (theta + self%thetatfR)
 
             ! Constraining the angle to the limit [-pi, pi]
-            do while (theta < -pi)
-                theta = theta + 2*pi
+            do while (theta_prime < -pi)
+                theta_prime = theta_prime + 2*pi
             end do
-            do while (theta > pi)
-                theta = theta - 2*pi
+            do while (theta_prime > pi)
+                theta_prime = theta_prime - 2*pi
             end do
 
-            R = sqrt(xprime*xprime + yprime*yprime + zprime*zprime)
-            Z_c = (xprime*self%sinOmega - yprime*self%cosOmega)*self%sinIncl &
-                + zprime*self%cosIncl
+            R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
 
-            density(i) = self%ntf * exp(-((R-self%Rtf)*self%sigmaRtfInv)**2 &
-                    - abs(Z_c)*self%sigmaZtfInv &
-                    - (theta*self%sigmaThetatfRinv)**2)
+            n(i) = self%ntf * exp(-((R-self%Rtf)*self%sigmaRtfInv)**2 - abs(Z_c)*self%sigmaZtfInv - (theta*self%sigmaThetatfRinv)**2)
         end do
     end subroutine get_density_feature
 
-    ! =========================================================================
-    !                   Linked list routines (ZodiComponent)
-    ! =========================================================================
+    function unique_sort(array) result(unique_sorted_array)
+        implicit none
+        integer :: idx, min_x, max_x
+        integer, intent(in), dimension(:) :: array
+        integer, dimension(size(array)) :: unique
+        integer, dimension(:), allocatable :: unique_sorted_array
+
+        idx = 0
+        min_x = minval(array) - 1
+        max_x = maxval(array)
+        do while (min_x<max_x)
+            idx = idx + 1
+            min_x = minval(array, mask=array > min_x)
+            unique(idx) = min_x
+        enddo
+
+        allocate(unique_sorted_array(idx), source=unique(1:idx))
+    end function unique_sort
+
+
+    ! ZodiComponent linked list methods
     function next(self)
         ! Routine which selects the next link in the linked list
         class(ZodiComponent) :: self
         class(ZodiComponent), pointer :: next
-        next => self%nextLink
+        next => self%next_link
     end function next
 
     subroutine add(self,link)
@@ -765,11 +710,11 @@ contains
         class(ZodiComponent), pointer :: comp
 
         comp => self
-        do while (associated(comp%nextLink))
-            comp => comp%nextLink
+        do while (associated(comp%next_link))
+            comp => comp%next_link
         end do
-        link%prevLink => comp
-        comp%nextLink    => link
+        link%prev_link => comp
+        comp%next_link    => link
     end subroutine add
 
     subroutine add_component_to_list(comp)
@@ -782,4 +727,5 @@ contains
             call comp_list%add(comp)
         end if
     end subroutine add_component_to_list
+
 end module comm_zodi_mod
