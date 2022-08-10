@@ -247,7 +247,6 @@ contains
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
    type(hdf_file) :: tod_file
 
-
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
    !  print *, "got here 1"
@@ -269,6 +268,12 @@ contains
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
+
+
+   ! nu_c in tod mod is read in from the instrument file and not from the parameter file
+   ! Here we convert from micron to Hz
+   self%nu_c = (2.99792458d14/self%nu_c) * 1e9
+
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)
@@ -360,10 +365,11 @@ contains
 
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
+       d_calib = 0.d0
        d_calib(1, :, :) = sd%tod
-       d_calib(7, :, :) = sd%s_zodi
+       if (self%subtract_zodi) d_calib(7, :, :) = sd%s_zodi
       !  call compute_calibrated_data(self, i, sd, d_calib)    
-
+      ! write(*,*)sd%tod
       if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -440,6 +446,8 @@ contains
        call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
        self%bp_delta = delta(:,:,1)
     end if
+
+      
 
     ! Output maps to disk
     call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))

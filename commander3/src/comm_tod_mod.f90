@@ -249,7 +249,7 @@ contains
     if (initialized) return
 
     call initialize_fft_mod(cpar)
-    write(*, *) "zodi:", cpar%include_tod_zodi
+
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
@@ -309,7 +309,6 @@ contains
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
-    self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)
@@ -321,6 +320,13 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
+    if (cpar%include_tod_zodi) then
+       self%subtract_zodi = cpar%ds_tod_subtract_zodi(id_abs)
+    else if (cpar%ds_tod_subtract_zodi(id_abs) .and. self%myid == 0) then
+         write(*, *) "WARNING:"
+         write(*, *) "Ignoring zodi subtractions for band: ", trim(cpar%ds_label(id_abs)), "since general parameter SUBTRACT_ZODI is false"
+    endif
+   
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
     else

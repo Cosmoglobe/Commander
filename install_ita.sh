@@ -8,6 +8,7 @@
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi"
 buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
+#  buildtype="Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"

@@ -104,8 +104,8 @@ contains
     if (init_s_bp_prop_)     allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
     if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
-    allocate(self%s_zodi(self%ntod, self%ndet)) ! fix this
-   !  if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
+   !  allocate(self%s_zodi(self%ntod, self%ndet)) ! fix this
+    if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
 
@@ -410,6 +410,7 @@ contains
     end do
 
 
+      print*, "driver mod:",tod%nu_c
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        do j = 1, self%ndet
