@@ -159,6 +159,17 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
+    else if (trim(constructor%type) == 'DIRBE') then
+       if (index(subdets, '.txt') /=0) then
+          ndet = count_detectors(subdets, cpar%datadir)
+          call get_detectors(subdets, cpar%datadir, dets, ndet)
+       else
+          call get_tokens(subdets, ",", dets, ndet)
+       end if
+       call read_bandpass_dirbe(trim(dir)//trim(cpar%ds_bpfile(id_abs)), dets(1), &
+               & constructor%threshold, &
+               & constructor%n, constructor%nu0, constructor%tau0)
+       allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
          if (trim(constructor%type) == 'DIRBE') then
@@ -215,15 +226,7 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
-
-   ! if (trim(constructor%type) == 'DIRBE') then
-   !    print *, "nu", constructor%nu
-   !    print *, "nu_0", constructor%nu0
-   !    print *, "nu_c", constructor%nu_c
-   !    print *, "nu_eff", constructor%nu_eff
-   ! end if 
-
-
+    
 
   end function constructor
   

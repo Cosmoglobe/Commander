@@ -57,7 +57,7 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask)
+  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask, map)
     implicit none
     class(comm_N_rms),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
@@ -67,6 +67,7 @@ contains
     type(planck_rng),                   intent(inout) :: handle
     real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
     class(comm_map),                    pointer, intent(in), optional :: procmask
+    class(comm_map),                    pointer, intent(in), optional :: map
 
     integer(i4b)       :: i, ierr, tmp, nside_smooth
     real(dp)           :: sum_noise, npix
@@ -102,30 +103,25 @@ contains
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        end if
     else
-       tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
-       info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-            & constructor%nmaps, constructor%pol)
-       constructor%nside   = info_smooth%nside
-       constructor%np      = info_smooth%np
-       constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
-
-       where (constructor%siN%map > 0.d0) 
-          constructor%siN%map = 1.d0 / constructor%siN%map
-       elsewhere
-          constructor%siN%map = 0.d0
-       end where
-
-       ! Set siN to its mean; useful for debugging purposes
-       if (cpar%set_noise_to_mean) then
-          do i = 1, constructor%nmaps
-             sum_noise = sum(constructor%siN%map(:,i))
-             npix      = size(constructor%siN%map(:,i))
-             call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             constructor%siN%map(:,i) = sum_noise/npix
-          end do
+       if (present(map)) then
+          constructor%nside        = info%nside
+          constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
+          constructor%np           = info%np
+          call constructor%update_N(info, handle, mask, regnoise, map=map)
+       else
+          tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
+          info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
+               & constructor%nmaps, constructor%pol)
+          constructor%nside   = info_smooth%nside
+          constructor%np      = info_smooth%np
+          constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+          
+          where (constructor%siN%map > 0.d0) 
+             constructor%siN%map = 1.d0 / constructor%siN%map
+          elsewhere
+             constructor%siN%map = 0.d0
+          end where
        end if
-
     end if
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
@@ -145,7 +141,6 @@ contains
 
   end function constructor
 
-
   subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
     class(comm_N_rms),                   intent(inout)          :: self
@@ -164,8 +159,11 @@ contains
 
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
-    else
+    else if (present(map)) then
+       self%rms0     => comm_map(info)
        self%rms0%map = map%map
+    else
+       call report_error('Error in update_N_rms - no noisefile or map declared')
     end if
     if (associated(self%siN)) then
        self%siN%map = self%rms0%map

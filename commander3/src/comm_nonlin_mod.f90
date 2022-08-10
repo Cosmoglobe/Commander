@@ -1109,8 +1109,8 @@ contains
              status_fit(i)   = 1    ! Native
           else
              if (.not. associated(data(i)%N_smooth(smooth_scale)%p) .or. &
-                  & data(i)%bp(0)%p%nu_c < c%nu_min_ind(par_id) .or. &
-                  & data(i)%bp(0)%p%nu_c > c%nu_max_ind(par_id)) then
+                  & maxval(data(i)%bp(0)%p%nu) < c%nu_min_ind(par_id) .or. &
+                  & minval(data(i)%bp(0)%p%nu) > c%nu_max_ind(par_id)) then
                 status_fit(i) = 0
              else
                 if (.not. associated(data(i)%B_smooth(smooth_scale)%p)) then
@@ -1122,6 +1122,7 @@ contains
           end if
                 
           if (status_fit(i) == 0) then
+
              ! Channel is not included in fit
              nullify(res_smooth(i)%p)
              nullify(rms_smooth(i)%p)
@@ -1736,12 +1737,11 @@ contains
     n_ok                = 50
     burn_in             = 50
     burned_in           = .false.
-    first_call          = .false.
+    first_call          = .false.    
+    n_prop_limit        = 100
+    n_corr_limit        = n_prop_limit
+    out_every           = 100
 
-    
-    n_prop_limit = 100
-    n_corr_limit = n_prop_limit
-    out_every    = 100
     if (c_lnL%spec_corr_convergence(id)) then
        correlation_limit = c_lnL%spec_corr_limit(id)
     else
@@ -1749,6 +1749,7 @@ contains
     end if
     !     buffer_lnL (theta, limited by min/max)
 
+    ! Check to see which polarization types we care about
     if (c_lnL%poltype(id) == 1) then
        p_min = 1; p_max = c_lnL%nmaps
        if (cpar%only_pol) p_min = 2
@@ -1782,7 +1783,7 @@ contains
     !set up which bands and polarizations to include
     allocate(band_i(3*numband),pol_j(3*numband))
 
-    !set up the monopoles if appliccable
+    !set up the monopoles if applicable
     if (c_lnL%spec_mono_combined(par_id)) then
        allocate(monopole_val(numband))
        allocate(monopole_mu(numband))
@@ -1916,6 +1917,7 @@ contains
        allocate(new_thetas(0:npixreg))
        new_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
        do pr = 1,npixreg
+          ! Don't even think about sampling regions which are held fixed
           if (c_lnL%pol_pixreg_type(p,id) == 3) then
              if (c_lnL%fix_pixreg(pr,p,id)) cycle
           end if
@@ -2148,6 +2150,8 @@ contains
 
        return
     end if
+    ! Now the prior sampling section is done
+    !###################################################################################################
 
     if (band_count==0) then
        buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
@@ -2200,7 +2204,6 @@ contains
 
     !init lowres residual map
     res_map => comm_map(info_lr)
-
 
     ! This is used for marginal/ridge sampling
     allocate(all_thetas(npar))
@@ -2540,62 +2543,6 @@ contains
                       reduced_data(:,k) = res_smooth(band_i(k))%p%map(:,pol_j(k)) + &
                            & monopole_mixing(band_i(k))*(monopole_val(band_i(k))-new_mono(band_i(k)))
                       
-
-                      if (first_sample .and. .false.) then !debugging
-                         !we want to compare the power of the smoothing scale nside to pull monopole away from prior compared to the full resolution of the data band
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, 1, .false.)
-                         temp_map => comm_map(info_fr_single)
-                         temp_map%map(:,1) = c_lnL%spec_mono_mask(par_id)%p%map(:,1)
-                         temp_res => comm_map(info_data) !reusing temp_res as a ud_graded monopole mask
-                         if (info_data%nside /= c_lnL%nside) then
-                            call temp_map%udgrade(temp_res)
-                            where (temp_res%map > 0.5d0)
-                               temp_res%map=1.d0
-                            elsewhere 
-                               temp_res%map = 0.d0
-                            end where
-                         else
-                            temp_res%map = temp_map%map
-                         end if
-                         
-                         call temp_map%dealloc(); deallocate(temp_map)
-                         nullify(temp_map)
-                         a = 0.d0
-
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, data(band_i(k))%info%nmaps, data(band_i(k))%info%nmaps==3)
-                         temp_map => comm_map(info_data)
-                         temp_map%map = 1.d0
-                         call data(band_i(k))%N%invN(temp_map) !get inverse Noise matrix of data band
-                         
-                         do pix = 0,info_data%np-1
-                            if (temp_res%map(pix,1) > 0.5d0) a = a + monopole_mixing(band_i(k))**2 * &
-                                 & temp_map%map(pix,1)
-                         end do
-
-                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                              & MPI_SUM, info_lr%comm, ierr)
-                         sigma_p=sqrt(a)
-
-                         call temp_map%dealloc(); deallocate(temp_map)
-                         nullify(temp_map)
-                         call temp_res%dealloc(); deallocate(temp_res)
-                         nullify(temp_res)
-
-                         if (myid_pix == 0) then
-                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') trim(data(band_i(k))%label), &
-                                 & monopole_val(band_i(k))*monopole_mixing(band_i(k)), &
-                                 & new_mono(band_i(k))*monopole_mixing(band_i(k)), &
-                                 & monopole_mu(band_i(k))*monopole_mixing(band_i(k))
-
-                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') ' ', &
-                                 & sigma*monopole_mixing(band_i(k)), & !the low resolution(smoothscale) sigma
-                                 & sigma_p*monopole_mixing(band_i(k)), & ! the full data sigma
-                                 & monopole_rms(band_i(k))*monopole_mixing(band_i(k)) ! the prior sigma
-                         end if
-                      end if
-
                    end if !monopole_active(band_i(k) .and. pol_j(k)==1
                 end do !band_count
 
@@ -2949,7 +2896,7 @@ contains
                 end if
              end if
 
-          end if !myid_pix == 0
+          end if !end if (first_sample) !myid_pix == 0
 
           ! if j has been reset/changed by master proc (myid_pix==0), then the others need to know. Same with first_sample logical flag
           call mpi_bcast(j, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
