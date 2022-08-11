@@ -1967,6 +1967,9 @@ contains
     integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan, n_buff
     character(len=4) :: pid
 
+
+    call timer%start(TOD_WRITE)
+
     n_buff = 0
     do i = 1, self%nscan
        if (trim(slist(i)) == '') cycle
@@ -1999,6 +2002,7 @@ contains
        call mpi_send(slist, 512*self%nscan, MPI_CHARACTER, 0, 98, self%comm, ierr)
        deallocate(slist)
     end if
+    call timer%stop(TOD_WRITE)
   end subroutine output_scan_list
 
 

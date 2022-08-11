@@ -40,8 +40,9 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_WAIT      = 21
   integer(i4b), parameter, public :: TOD_MPI       = 22
   integer(i4b), parameter, public :: TOD_BASELINE  = 23
-  integer(i4b), parameter, public :: TOD_ALLOC  = 24
+  integer(i4b), parameter, public :: TOD_ALLOC     = 24
   integer(i4b), parameter, public :: TOD_INSTCORR  = 25
+  integer(i4b), parameter, public :: TOD_WRITE     = 26
 
   private
   public comm_timing
@@ -239,6 +240,7 @@ contains
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      TOD instrument correction    = ', t(b+TOD_INSTCORR)  /  self%numsamp,   100*t(b+TOD_INSTCORR)/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Zodiacal Light model         = ', t(b+TOD_ZODI)     / self%numsamp, 100*t(b+TOD_ZODI)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      4D map output                = ', t(b+TOD_4D)     / self%numsamp, 100*t(b+TOD_4D)/T(b+TOD_TOT)
+          write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Miscellaneous file writing   = ', t(b+TOD_WRITE)     / self%numsamp, 100*t(b+TOD_WRITE)/T(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '      Other                        = ', (t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD))) / self%numsamp, 100*(t(b+TOD_TOT)-sum(t(b+3:b+NUM_TOD)))/t(b+TOD_TOT)
           write(unit,fmt='(a,f12.3,"h")') '      Total TOD                    = ', t(b+TOD_TOT)     / self%numsamp
        end do

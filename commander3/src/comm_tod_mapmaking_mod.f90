@@ -56,6 +56,7 @@ contains
 
     integer(i4b) :: i, ierr
 
+    call timer%start(TOD_ALLOC, self%band)
     self%nobs            = tod%nobs
     self%shared          = shared
     self%solve_S         = solve_S
@@ -98,6 +99,7 @@ contains
     else
 
     end if
+    call timer%stop(TOD_ALLOC, self%band)
 
   end subroutine init_binmap
 
@@ -108,6 +110,7 @@ contains
 
     integer(i4b) ::  i
 
+    call timer%start(TOD_ALLOC, self%band)
     if (allocated(self%A_map)) deallocate(self%A_map, self%b_map)
     if (self%sA_map%init)  call dealloc_shared_2d_dp(self%sA_map)
     if (self%sb_map%init)  call dealloc_shared_3d_dp(self%sb_map)
@@ -117,6 +120,7 @@ contains
        end do
        deallocate(self%outmaps)
     end if
+    call timer%stop(TOD_ALLOC, self%band)
 
   end subroutine dealloc_binmap
 

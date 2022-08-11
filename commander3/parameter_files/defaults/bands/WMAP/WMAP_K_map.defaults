@@ -1,4 +1,4 @@
-# WMAP 033 Ka
+# WMAP 023 K
 BAND_LABEL&&&                  = 023-WMAP_K
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
@@ -7,11 +7,11 @@ BAND_LMAX&&&                   = 1500
 BAND_UNIT&&&                   = mK_cmb
 BAND_NOISE_FORMAT&&&           = rms
 BAND_MAPFILE&&&                = WMAP9_K1_pol_n512_mK_dipole.fits
-BAND_NOISEFILE&&&              = wmap_deconv_imap_r9_9yr_K1_v5_rms.fits
+BAND_NOISEFILE&&&              = WMAP9_K_pol_rms_n512_mK.fits
 BAND_REG_NOISEFILE&&&          = BP_K1_rmsreg_v1.fits
-BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_K1_rms_n0032_5deg_mK_true.fits
-BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_K1_rms_n0016_10deg_mK_true.fits
-BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_K1_rms_n0016_60arcmin_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = WMAP_K_rms_n0032_5deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = WMAP_K_rms_n0016_10deg_mK_true.fits
+BAND_NOISE_RMS&&&_SMOOTH03     = WMAP_K_rms_n0016_60arcmin_mK_true.fits
 BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.00
 BAND_MASKFILE&&&               = fullsky
 BAND_MASKFILE_CALIB&&&         = dx12_v3_common_mask_int_005a_0512.fits
