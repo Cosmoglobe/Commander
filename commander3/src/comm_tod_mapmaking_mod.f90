@@ -56,6 +56,7 @@ contains
 
     integer(i4b) :: i, ierr
 
+    call timer%start(TOD_ALLOC, tod%band)
     self%nobs            = tod%nobs
     self%shared          = shared
     self%solve_S         = solve_S
@@ -98,6 +99,7 @@ contains
     else
 
     end if
+    call timer%stop(TOD_ALLOC, tod%band)
 
   end subroutine init_binmap
 
