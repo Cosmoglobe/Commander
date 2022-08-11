@@ -703,10 +703,6 @@ contains
        end do
        call timer%stop(TOD_SL_PRE, self%band)
     end if
-!    write(*,*) 'qqq', self%myid
-!    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     call update_status(status, "tod_init")
 
@@ -794,12 +790,10 @@ contains
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
-       call timer%start(TOD_CHISQ, self%band)
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
           call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
-       call timer%stop(TOD_CHISQ, self%band)
 
        ! Select data
        if (select_data) call remove_bad_data(self, i, sd%flag)
@@ -840,9 +834,11 @@ contains
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
        self%scans(i)%n_proctime = self%scans(i)%n_proctime + 1
        if (output_scanlist) then
+          call timer%start(TOD_WRITE)
           write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
                & '"', real(self%scans(i)%proctime/self%scans(i)%n_proctime,sp),&
                & real(self%spinaxis(i,:),sp)
+          call timer%stop(TOD_WRITE)
        end if
 
        ! Clean up
@@ -878,7 +874,8 @@ contains
        call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
        self%bp_delta = delta(:,:,1)
     end if
-   
+  
+    call timer%start(TOD_WRITE) 
     ! Output maps to disk
     call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
     call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
@@ -889,6 +886,7 @@ contains
     if (self%output_n_maps > 5) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
     if (self%output_n_maps > 6) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
     if (self%output_n_maps > 7) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'1hz'//trim(postfix))
+    call timer%stop(TOD_WRITE) 
 
     ! Clean up
     call timer%start(TOD_ALLOC, self%band)
