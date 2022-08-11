@@ -281,5 +281,133 @@ contains
 
   end subroutine read_bandpass
 
+  ! Routine for reading bandpass files
+  subroutine read_bandpass_dirbe(filename, label, threshold, n, nu, tau)
+    implicit none
+
+    character(len=*),                            intent(in)  :: filename
+    character(len=*),                            intent(in)  :: label
+    real(dp),                                    intent(in)  :: threshold
+    integer(i4b),                                intent(out) :: n
+    real(dp),         allocatable, dimension(:), intent(out) :: nu, tau
+    real(dp),         allocatable, dimension(:)              :: um, tau_Um
+
+    integer(i4b)        :: unit, first, last, m, ierr, l, ext(1), i
+    logical(lgt)        :: exist
+    character(len=128)  :: string
+    type(hdf_file)     :: file
+    real(dp), allocatable, dimension(:) :: x, y
+
+    unit = getlun()
+    
+    inquire(file=trim(filename), exist=exist)
+    if (.not. exist) call report_error('Bandpass file does not exist = ' // trim(filename))
+
+    l = len(trim(filename))
+
+    if (filename(l-2:l) == '.h5' .or. filename(l-3:l) == '.hd5') then
+
+       call open_hdf_file(filename, file, "r")
+       call get_size_hdf(file, trim(label) // "/bandpass", ext)
+       m = ext(1)
+
+       allocate(x(m), y(m))
+       !write(*,*) "About to read bandpass"
+       call read_hdf(file, trim(label) // "/bandpassx",x)
+       call read_hdf(file, trim(label) // "/bandpass", y)
+       call close_hdf_file(file)
+
+       ! Drop double entries
+       l = 1
+       do while (l < m)
+          if (x(l) == x(l+1)) then
+             x(l:m-1) = x(l+1:m)
+             y(l:m-1) = y(l+1:m)
+             m        = m-1
+          else
+             l = l+1
+          end if
+       end do
+       
+    else 
+       ! Assume ASCII
+
+       ! Find the number of entries
+       m = 0
+       open(unit, file=trim(filename))
+       do while (.true.)
+          read(unit,*,end=1) string
+          if (string(1:1)=='#') cycle
+          m = m + 1
+       end do
+1      close(unit)
+       
+       if (m == 0) call report_error('No valid data entries in bandpass file ' // trim(filename))
+
+       allocate(x(m), y(m))
+       m = 0
+       open(unit, file=trim(filename))
+       do while (.true.)
+          read(unit,fmt='(a)',end=2) string
+          if (string(1:1)=='#') cycle
+          m = m+1
+          read(string,*) x(m), y(m)
+
+          ! Drop double entries
+          if (m > 1) then
+             if (x(m) == x(m-1)) m = m-1
+          end if
+       end do
+2      close(unit)
+    end if
+
+    ! x(1:m) = x(1:m) * 1.d9 ! Convert from GHz to Hz
+
+    first = 1
+    last  = m
+    if (threshold > 0.d0) then
+       do while (y(first) < threshold*maxval(y(1:m)))
+          first = first+1
+       end do
+       do while (y(last) < threshold*maxval(y(1:m)))
+          last = last-1
+       end do
+    end if
+    
+    n = last-first+1
+    allocate(nu(n), tau(n))
+    allocate(um(n), tau_um(n))
+    um     = x(first:last)
+    tau_um = y(first:last)
+
+    deallocate(x, y)
+
+    ! Seems that according to the DIRBE team, the quoted spectral response
+    ! does not get converted when doing color corrections, so we will keep
+    ! tau = tau_um
+    !
+    ! Ref: https://lambda.gsfc.nasa.gov/data/cobe/dirbe/color_correction/dirbe_colorcorr.pro
+
+    do i = 1, n
+       nu(i)  = 2.99792458d14/um(n-i+1) ! Convert from micron to Hz
+       tau(i) = tau_um(n-i+1)
+    end do
+
+  end subroutine read_bandpass_dirbe
+
+
+  function micron_to_GHz(um)
+    implicit none
+
+    real(dp), intent(in) :: um
+    real(dp) :: c_um_GHz
+    real(dp) :: micron_to_GHz
+
+    c_um_GHz = 2.99792458d5
+
+    micron_to_GHz = um**2/c_um_GHz
+
+  end function micron_to_GHz
+
 
 end module comm_bp_utils
