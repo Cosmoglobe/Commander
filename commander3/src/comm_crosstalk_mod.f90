@@ -28,14 +28,13 @@ use comm_status_mod
 
 
 
-call update_status(status, "add_crosstalk_start"//ctext)
-
 subroutine add_crosstalk(sd, W, N)
 
 !Adds crosstalk to the TODs for a given scan
 !sd: data for given scan
 !W: crosstalk matrix
-!N: number of detectors 
+!N: number of detectors we consider a crosstalk contribution from,
+!   i.e. for a detector i we will consider crosstalk from detectors i - N to i + N
 
     type(comm_scandata), intent(inout) :: sd
     !type(comm_scandata) :: sd_wxt
@@ -46,6 +45,8 @@ subroutine add_crosstalk(sd, W, N)
     integer(i4b)        :: i, j, k
 
     allocate(tod_wxt(sd%ndet, sd%ntod))
+
+    call update_status(status, "add_crosstalk_start"//ctext)
 
     tod_wxt = 0.
 
@@ -79,9 +80,10 @@ subroutine add_crosstalk(sd, W, N)
 
     sd%tod = tod_wxt
 
+    call update_status(status, "add_crosstalk_end"//ctext)
+
 end subroutine
 
-call update_status(status, "add_crosstalk_end"//ctext)
 
 
 end module comm_crosstalk_mod
