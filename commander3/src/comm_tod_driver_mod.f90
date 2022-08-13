@@ -365,10 +365,13 @@ contains
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
-       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-            & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
+            &  self%psi(:,1,:), self%flag(:,1), &
+            &  procmask, scan, s_bufA, s_bufB, self%mask, &
+            &  s_bpA=s_buf2A, s_bpB=s_buf2B)
     else
-       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
+       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
+            & self%psi(:,1,:), self%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, self%mask)
     end if
     do j = 1, self%ndet
@@ -383,12 +386,16 @@ contains
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do k = 2, self%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+          call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), &
+               & self%psi(:,1,:), self%flag(:,1), &
+               & procmask, scan, s_bufA, s_bufB, self%mask, &
+               &  s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              self%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
-             if (init_s_bp_) self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
+             if (init_s_bp_) then
+               self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
+             end if
           end do
        end do
     else if (init_s_sky_prop_) then
