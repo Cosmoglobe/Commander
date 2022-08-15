@@ -790,6 +790,7 @@ contains
              outmaps(1)%p%map(:, j) = bicg_sol(self%info%pix, j)
           end do
 
+          call timer%start(TOD_WRITE) 
           if (l == 1) then
              map_out%map = outmaps(1)%p%map
              rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
@@ -798,6 +799,7 @@ contains
           else
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
+          call timer%stop(TOD_WRITE) 
         end do
 
 
