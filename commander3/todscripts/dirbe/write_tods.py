@@ -404,7 +404,7 @@ def get_sat_pos(day: int, dirbe_times: NDArray[np.floating]) -> NDArray[np.float
 
 
 def main() -> None:
-    version = 1
+    version = 2
     smooth_pixels = True
     nside_out = 128
     print(f"Writing tods: {smooth_pixels=}, {nside_out=}")

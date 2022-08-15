@@ -39,11 +39,9 @@ module comm_zodi_mod
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
-    integer(i4b) :: GAUSS_QUAD_ORDER
+    integer(i4b) :: GAUSS_QUAD_ORDER, n_comps
     real(dp) :: T_0, delta, LOS_CUT, EPS
-    real(dp), dimension(:), allocatable :: unique_nsides
-    real(dp), dimension(:), allocatable :: x_helio, y_helio, z_helio, R_los
-    real(dp), dimension(:), allocatable :: tabulated_zodi, gauss_grid, gauss_weights
+    real(dp), dimension(:), allocatable :: unique_nsides, x_helio, y_helio, z_helio, R_los, gauss_weights
     real(dp), dimension(:, :), allocatable :: zodi_emission
 
     type, abstract :: ZodiComponent
@@ -160,13 +158,13 @@ contains
         type(comm_params), intent(in) :: cpar
         class(ZodiComponent), pointer :: comp
 
-        integer(i4b) :: i, j, npix, nside, n_comps
+        integer(i4b) :: i, j, npix, nside
         logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, use_unit_emissivity
         real(dp) :: emissivity
         real(dp), dimension(3) :: vec
-        real(dp), dimension(3,3) :: gal2ecl_matrix
+        real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
         integer(i4b), dimension(:), allocatable :: sorted_unique_nsides
-        real(dp), dimension(:,:), allocatable :: ecliptic_vec
+        real(dp), dimension(:,:), allocatable :: galactic_vec
         real(dp), dimension(6) :: em30, em44, em70, em100, em143, em217, em353, em545, em857
 
         T_0 = 286.d0 ! temperature at 1 AU
@@ -176,11 +174,11 @@ contains
         EPS = 3.d-14
 
         use_cloud = .true.
-        use_band1 = .true.
-        use_band2 = .true.
-        use_band3 = .true.
-        use_ring = .true.
-        use_feature = .true.
+        use_band1 = .false.
+        use_band2 = .false.
+        use_band3 = .false.
+        use_ring = .false.
+        use_feature = .false.
 
         use_unit_emissivity = .true.
 
@@ -285,35 +283,32 @@ contains
         allocate(y_helio(GAUSS_QUAD_ORDER))
         allocate(z_helio(GAUSS_QUAD_ORDER))
         allocate(R_los(GAUSS_QUAD_ORDER))
-        allocate(zodi_emission(n_comps + 1, GAUSS_QUAD_ORDER))
-        allocate(gauss_grid(GAUSS_QUAD_ORDER))
+        allocate(zodi_emission(n_comps, GAUSS_QUAD_ORDER))
         allocate(gauss_weights(GAUSS_QUAD_ORDER))
 
-        ! Precomputing ecliptic to galactic coordinates per pixels for all
-        ! relevant nsides
+        ! Precompute unit vectors in ecliptic for all galactic pixel indices
+        ! per unique data nside.
+        call get_gal_to_ecl_conversion_matrix(ecliptic_to_galactic_matrix)
 
         sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
-
         allocate(unit_vectors%vectors(size(sorted_unique_nsides)))
 
         do i = 1, size(sorted_unique_nsides)
             nside = sorted_unique_nsides(i)
             npix = nside2npix(nside)
-            allocate(tabulated_zodi(npix))
             allocate(unit_vectors%vectors(i)%elements(npix, 3))
-            allocate(ecliptic_vec(npix, 3))
+            allocate(galactic_vec(npix, 3))
         
             do j = 0, npix - 1
                 call pix2vec_ring(nside, j, vec)
-                ecliptic_vec(j + 1, 1) = vec(1)
-                ecliptic_vec(j + 1, 2) = vec(2)
-                ecliptic_vec(j + 1, 3) = vec(3)
+                galactic_vec(j + 1, 1) = vec(1)
+                galactic_vec(j + 1, 2) = vec(2)
+                galactic_vec(j + 1, 3) = vec(3)
             end do
         
-            ! Transforming to ecliptic coordinates
-            ! coord_maps%vectors(i)%elements = matmul(ecliptic_vec, gal2ecl_matrix)
-            unit_vectors%vectors(i)%elements = ecliptic_vec
-            deallocate(ecliptic_vec)
+            unit_vectors%vectors(i)%elements = matmul(galactic_vec, ecliptic_to_galactic_matrix)
+            ! unit_vectors%vectors(i)%elements = galactic_vec
+            deallocate(galactic_vec)
         end do
 
     end subroutine initialize_zodi_mod
@@ -347,20 +342,26 @@ contains
 
         class(ZodiComponent), pointer :: comp
 
-        integer(i4b),                   intent(in)  :: nside
-        integer(i4b), dimension(1:,1:), intent(in)  :: pix
-        real(dp),     dimension(3),     intent(in)  :: sat_pos
-        real(dp),     dimension(1:),    intent(in)  :: nu
-        real(sp),     dimension(1:,1:), intent(out) :: s_zodi
+        integer(i4b), intent(in) :: nside
+        integer(i4b), dimension(1:,1:), intent(in) :: pix
+        real(dp), dimension(3), intent(in) :: sat_pos
+        real(dp), dimension(1:), intent(in) :: nu
+        real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
         integer(i4b) :: i, j, k, n_det, n_tod, pixel_index
-        real(dp)     :: u_x, u_y, u_z
-        real(dp)     :: x1, y1, z1
-        real(dp)     :: dx, dy, dz
-        real(dp)     :: x_obs, y_obs, z_obs, lon_earth, R_obs, R_max
+        real(dp) :: u_x, u_y, u_z
+        real(dp) :: x1, y1, z1
+        real(dp) :: dx, dy, dz
+        real(dp) :: x_obs, y_obs, z_obs, lon_earth, R_obs, R_max
+        real(dp), dimension(:), allocatable :: tabulated_zodi
         real(dp), dimension(:,:), allocatable :: unit_vector_map
 
-
+        allocate(tabulated_zodi(nside2npix(nside)))
+        tabulated_zodi = 0.d0
+        zodi_emission = 0.d0
+        R_los = 0.d0
+        gauss_weights = 0.d0
+        s_zodi = 0.d0
         ! Extracting n time-orderd data and n detectors for current chunk
         n_tod = size(pix,1)
         n_det = size(pix,2)
@@ -374,10 +375,8 @@ contains
         lon_earth = atan(y_obs, x_obs) ! TODO: this currently returns sat lon and not earth lon (unless this is basicaly always the same)
 
         do j = 1, n_det
-            tabulated_zodi = 0.d0
             do i = 1, n_tod
-                pixel_index = pix(i, j) + 1 ! TODO: make sure the +1 is correct. Does healpix indices in fortran also start at 0?
-
+                pixel_index = pix(i, j) + 1! TODO: make sure the +1 is correct. Does healpix indices in fortran also start at 0?
                 if (tabulated_zodi(pixel_index) == 0.d0) then
                     u_x = unit_vector_map(pixel_index, 1)
                     u_y = unit_vector_map(pixel_index, 2)
@@ -387,19 +386,19 @@ contains
                     call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=R_los, w=gauss_weights)
 
                     x_helio = R_los * u_x + x_obs
-                    y_helio = R_los * u_x + y_obs
-                    z_helio = R_los * u_x + z_obs
+                    y_helio = R_los * u_y + y_obs
+                    z_helio = R_los * u_z + z_obs
 
                     call get_zodi_emission_los(x=x_helio, y=y_helio, z=z_helio, nu=nu(j), theta=lon_earth, s_zodi=zodi_emission)
+                    do k = 1, n_comps
+                        s_zodi(i, j) = s_zodi(i, j) + sum(zodi_emission(k, :) * gauss_weights)
+                    end do
 
-                    s_zodi(i,j) = sum(sum(zodi_emission, dim=1) * gauss_weights)
-
-                    ! Saving emission and storing for future reference
-                    tabulated_zodi(pixel_index) = s_zodi(i,j)
+                    tabulated_zodi(pixel_index) = s_zodi(i, j)
 
                 else
                     ! Looking up tabulated emission
-                    s_zodi(i,j) = s_zodi(i,j) + tabulated_zodi(pixel_index)
+                    s_zodi(i, j) = tabulated_zodi(pixel_index)
                 end if
 
             end do
@@ -411,21 +410,23 @@ contains
     end subroutine get_zodi_emission
 
 
-    ! subroutine getEcl2GalMatrix(matrix)
-    !     ! Ecliptic to galactic rotation matrix
-    !     implicit none
-    !     real(dp), dimension(3,3) :: matrix
+    subroutine get_gal_to_ecl_conversion_matrix(matrix)
+        ! Ecliptic to galactic rotation matrix
+        implicit none
+        real(dp), dimension(3,3) :: matrix
 
-    !     matrix(1,1) =  -0.054882486d0
-    !     matrix(1,2) =  -0.993821033d0
-    !     matrix(1,3) =  -0.096476249d0
-    !     matrix(2,1) =   0.494116468d0
-    !     matrix(2,2) =  -0.110993846d0
-    !     matrix(2,3) =   0.862281440d0
-    !     matrix(3,1) =  -0.867661702d0
-    !     matrix(3,2) =  -0.000346354d0
-    !     matrix(3,3) =   0.497154957d0
-    ! end subroutine getEcl2GalMatrix
+        matrix(1,1) =  -0.054882486d0
+        matrix(1,2) =  -0.993821033d0
+        matrix(1,3) =  -0.096476249d0
+        matrix(2,1) =   0.494116468d0
+        matrix(2,2) =  -0.110993846d0
+        matrix(2,3) =   0.862281440d0
+        matrix(3,1) =  -0.867661702d0
+        matrix(3,2) =  -0.000346354d0
+        matrix(3,3) =   0.497154957d0
+
+        ! call invert_matrix_dp(matrix)
+    end subroutine get_gal_to_ecl_conversion_matrix
 
     function get_unit_vector_map(nside) result(unit_vector_map)
         ! Routine which selects coordinate transformation map based on resolution
@@ -499,14 +500,16 @@ contains
         call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
         call get_blackbody_emission(nu=nu, T=dust_grain_temperature, b_nu=blackbody_emission)
 
+
         comp => comp_list
         i = 1
         do while (associated(comp))
             call comp%get_density(x=x, y=y, z=z, theta=theta, n=los_density)
-            s_zodi(i, :) = los_density * blackbody_emission
+            s_zodi(i, :) = comp%emissivity * los_density * blackbody_emission
             comp => comp%next()
             i = i + 1
         end do
+
     end subroutine get_zodi_emission_los
 
 
