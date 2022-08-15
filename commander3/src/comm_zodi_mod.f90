@@ -39,10 +39,9 @@ module comm_zodi_mod
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
-    integer(i4b) :: GAUSS_QUAD_ORDER, n_comps
-    real(dp) :: T_0, delta, LOS_CUT, EPS
-    real(dp), dimension(:), allocatable :: unique_nsides, x_helio, y_helio, z_helio, R_los, gauss_weights
-    real(dp), dimension(:, :), allocatable :: zodi_emission
+    integer(i4b) :: GAUSS_QUAD_ORDER
+    real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1, PLANCK_TERM2
+    real(dp), dimension(:), allocatable :: UNIQUE_NSIDES
 
     type, abstract :: ZodiComponent
         ! Abstract base Zodical component class.
@@ -159,37 +158,62 @@ contains
         class(ZodiComponent), pointer :: comp
 
         integer(i4b) :: i, j, npix, nside
-        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, use_unit_emissivity
+        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature
+        logical(lgt) :: use_unit_emissivity
         real(dp) :: emissivity
         real(dp), dimension(3) :: vec
         real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
         integer(i4b), dimension(:), allocatable :: sorted_unique_nsides
         real(dp), dimension(:,:), allocatable :: galactic_vec
-        real(dp), dimension(6) :: em30, em44, em70, em100, em143, em217, em353, em545, em857
+        real(dp), dimension(6) :: EMISSIVITY_PLANCK_30, EMISSIVITY_PLANCK_44, EMISSIVITY_PLANCK_70, &
+                                  EMISSIVITY_PLANCK_100, EMISSIVITY_PLANCK_143, EMISSIVITY_PLANCK_217, &
+                                  EMISSIVITY_PLANCK_353, EMISSIVITY_PLANCK_545, EMISSIVITY_PLANCK_857
+        real(dp), dimension(6) :: EMISSIVITY_DIRBE_01, EMISSIVITY_DIRBE_02, EMISSIVITY_DIRBE_03, &
+                                  EMISSIVITY_DIRBE_04, EMISSIVITY_DIRBE_05, EMISSIVITY_DIRBE_06,  &
+                                  EMISSIVITY_DIRBE_07, EMISSIVITY_DIRBE_08, EMISSIVITY_DIRBE_09, &
+                                  EMISSIVITY_DIRBE_10
 
         T_0 = 286.d0 ! temperature at 1 AU
-        delta = 0.46686260 ! rate at which temperature falls with radius
+        DELTA = 0.46686260 ! rate at which temperature falls with radius
         LOS_CUT = 5.2
         GAUSS_QUAD_ORDER = 100
         EPS = 3.d-14
 
         use_cloud = .true.
-        use_band1 = .false.
-        use_band2 = .false.
-        use_band3 = .false.
-        use_ring = .false.
-        use_feature = .false.
+        use_band1 = .true.
+        use_band2 = .true.
+        use_band3 = .true.
+        use_ring = .true.
+        use_feature = .true.
 
         use_unit_emissivity = .true.
 
-        !       (cloud, band1, band2, band3, ring, feature)
-        em857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
-        em545 = (/0.223, 2.235, 0.718 , 3.193, 0.591, -0.182/)
-        em353 = (/0.168, 2.035, 0.436, 2.400, -0.211, 0.676/)
-        em217 = (/0.031, 2.024, 0.338, 2.507, -0.185, 0.243/)
-        em143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
-        em100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
+        ! Planck emissivities (cloud, band1, band2, band3, ring, feature)
+        EMISSIVITY_PLANCK_857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
+        EMISSIVITY_PLANCK_545 = (/0.223, 2.235, 0.718 , 3.193, 0.591, -0.182/)
+        EMISSIVITY_PLANCK_353 = (/0.168, 2.035, 0.436, 2.400, -0.211, 0.676/)
+        EMISSIVITY_PLANCK_217 = (/0.031, 2.024, 0.338, 2.507, -0.185, 0.243/)
+        EMISSIVITY_PLANCK_143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
+        EMISSIVITY_PLANCK_100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
 
+        ! DIRBE emissivities (cloud, band1, band2, band3, ring, feature)
+        EMISSIVITY_DIRBE_01 = (/1.0, 1.0, 1.0, 1.0, 1.0, 1.0/)
+        EMISSIVITY_DIRBE_02 = (/1.0, 1.0, 1.0, 1.0, 1.0, 1.0/)
+        EMISSIVITY_DIRBE_03 = (/1.6598924040649741, 1.6598924040649741, 1.6598924040649741, &
+                                1.6598924040649741, 1.6598924040649741, 1.6598924040649741/)
+        EMISSIVITY_DIRBE_04 = (/0.99740908486652979, 0.35926451958350442, 0.35926451958350442, &
+                                0.35926451958350442, 1.0675116768340536, 1.0675116768340536/)
+        EMISSIVITY_DIRBE_05 = (/0.95766914805948866, 1.0127926948497732, 1.0127926948497732, &
+                                0.35926451958350442, 1.0608768682182081, 1.0608768682182081/)
+        EMISSIVITY_DIRBE_06 = (/1.0, 1.0, 1.0, 1.0, 1.0, 1.0/)
+        EMISSIVITY_DIRBE_07 = (/0.73338832616768868, 1.2539242027824944, 1.2539242027824944, &
+                                1.2539242027824944, 0.87266361378785184, 0.87266361378785184/)
+        EMISSIVITY_DIRBE_08 = (/0.64789881802224070, 1.5167023376593836, 1.5167023376593836, &
+                                1.5167023376593836, 1.0985346556794289, 1.0985346556794289/)
+        EMISSIVITY_DIRBE_09 = (/0.67694205881047387, 1.1317240279481993, 1.1317240279481993, &
+                                1.1317240279481993, 1.1515825707787077, 1.1515825707787077/)
+        EMISSIVITY_DIRBE_10 = (/0.51912085401950736, 1.3996145963796358, 1.3996145963796358, &
+                                1.3996145963796358, 0.85763800994217443, 0.85763800994217443/)
 
         ! Initialize Zodi components
         if (use_unit_emissivity) then
@@ -198,7 +222,7 @@ contains
 
         if (use_cloud) then
             if (.not. use_unit_emissivity) then
-                emissivity = em857(1)
+                emissivity = EMISSIVITY_DIRBE_06(1)
             end if
             cloud_comp = Cloud(emissivity=emissivity, x0=0.011887801, y0=0.0054765065, &
                                z0=-0.0021530908, Incl=2.0335188, Omega=77.657956, &
@@ -210,7 +234,7 @@ contains
 
         if (use_band1) then
             if (.not. use_unit_emissivity) then
-                emissivity = em857(2)
+                emissivity = EMISSIVITY_DIRBE_06(2)
             end if
             band1_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=0.56438265, Omega=80d0, n0=5.5890290d-10, &
@@ -222,7 +246,7 @@ contains
 
         if (use_band2) then
             if (.not. use_unit_emissivity) then
-                emissivity = em857(3)
+                emissivity = EMISSIVITY_DIRBE_06(3)
             end if
             band2_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=1.2, Omega=30.347476, n0=1.9877609d-09, &
@@ -234,7 +258,7 @@ contains
 
         if (use_band3) then
             if (.not. use_unit_emissivity) then
-                emissivity = em857(4)
+                emissivity = EMISSIVITY_DIRBE_06(4)
             end if
             band3_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                               Incl=0.8, Omega=80.0, n0=1.4369827d-10,     &
@@ -246,7 +270,7 @@ contains
 
         if (use_ring) then
             if (.not. use_unit_emissivity) then
-                emissivity = em857(5)
+                emissivity = EMISSIVITY_DIRBE_06(5)
             end if
             ring_comp = Ring(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                              Incl=0.48707166d0, Omega=22.27898d0, &
@@ -258,7 +282,7 @@ contains
 
         if (use_feature) then
             if (.not. use_unit_emissivity) then
-                emissivity = em857(6)
+                emissivity = EMISSIVITY_DIRBE_06(6)
             end if
             feature_comp = Feature(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
                                    Incl=0.48707166d0, Omega=22.27898d0, &
@@ -270,21 +294,11 @@ contains
         end if
 
         ! Executes initialization routines for all activated components
-        n_comps = 0
         comp => comp_list
         do while (associated(comp))
             call comp%initialize()
             comp => comp%next()
-            n_comps = n_comps + 1
         end do
-
-        ! Allocating line-of-sight related arrays
-        allocate(x_helio(GAUSS_QUAD_ORDER))
-        allocate(y_helio(GAUSS_QUAD_ORDER))
-        allocate(z_helio(GAUSS_QUAD_ORDER))
-        allocate(R_los(GAUSS_QUAD_ORDER))
-        allocate(zodi_emission(n_comps, GAUSS_QUAD_ORDER))
-        allocate(gauss_weights(GAUSS_QUAD_ORDER))
 
         ! Precompute unit vectors in ecliptic for all galactic pixel indices
         ! per unique data nside.
@@ -307,7 +321,6 @@ contains
             end do
         
             unit_vectors%vectors(i)%elements = matmul(galactic_vec, ecliptic_to_galactic_matrix)
-            ! unit_vectors%vectors(i)%elements = galactic_vec
             deallocate(galactic_vec)
         end do
 
@@ -348,23 +361,23 @@ contains
         real(dp), dimension(1:), intent(in) :: nu
         real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
-        integer(i4b) :: i, j, k, n_det, n_tod, pixel_index
-        real(dp) :: u_x, u_y, u_z
-        real(dp) :: x1, y1, z1
-        real(dp) :: dx, dy, dz
-        real(dp) :: x_obs, y_obs, z_obs, lon_earth, R_obs, R_max
+        integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index
+        real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
+        real(dp) :: lon_earth, R_obs, R_max, nu_det
         real(dp), dimension(:), allocatable :: tabulated_zodi
         real(dp), dimension(:,:), allocatable :: unit_vector_map
+        real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, R_helio, dust_grain_temperature, blackbody_emission, los_density, comp_emission
 
         allocate(tabulated_zodi(nside2npix(nside)))
         tabulated_zodi = 0.d0
-        zodi_emission = 0.d0
+        comp_emission = 0.d0
         R_los = 0.d0
         gauss_weights = 0.d0
         s_zodi = 0.d0
+
         ! Extracting n time-orderd data and n detectors for current chunk
-        n_tod = size(pix,1)
-        n_det = size(pix,2)
+        n_tods = size(pix,1)
+        n_detectors = size(pix,2)
 
         unit_vector_map = get_unit_vector_map(nside) ! TODO: This should give me ecliptic unit vectors from galactic pixel index
 
@@ -374,8 +387,11 @@ contains
         R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
         lon_earth = atan(y_obs, x_obs) ! TODO: this currently returns sat lon and not earth lon (unless this is basicaly always the same)
 
-        do j = 1, n_det
-            do i = 1, n_tod
+        do j = 1, n_detectors
+            nu_det = nu(j)
+            PLANCK_TERM1 = (2.d0 * h * nu_det**3) / (c*c)
+            PLANCK_TERM2 = (h * nu_det)/ k_B
+            do i = 1, n_tods
                 pixel_index = pix(i, j) + 1! TODO: make sure the +1 is correct. Does healpix indices in fortran also start at 0?
                 if (tabulated_zodi(pixel_index) == 0.d0) then
                     u_x = unit_vector_map(pixel_index, 1)
@@ -388,12 +404,20 @@ contains
                     x_helio = R_los * u_x + x_obs
                     y_helio = R_los * u_y + y_obs
                     z_helio = R_los * u_z + z_obs
+                    R_helio = sqrt(x_helio**2 + y_helio**2 + z_helio**2)
 
-                    call get_zodi_emission_los(x=x_helio, y=y_helio, z=z_helio, nu=nu(j), theta=lon_earth, s_zodi=zodi_emission)
-                    do k = 1, n_comps
-                        s_zodi(i, j) = s_zodi(i, j) + sum(zodi_emission(k, :) * gauss_weights)
+                    call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
+                    call get_blackbody_emission(T=dust_grain_temperature, b_nu=blackbody_emission)
+
+                    comp => comp_list
+                    k = 1
+                    do while (associated(comp))
+                        call comp%get_density(x=x_helio, y=y_helio, z=z_helio, theta=lon_earth, n=los_density)
+                        comp_emission = comp%emissivity * los_density * blackbody_emission
+                        s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission * gauss_weights)
+                        comp => comp%next()
+                        k = k + 1
                     end do
-
                     tabulated_zodi(pixel_index) = s_zodi(i, j)
 
                 else
@@ -428,6 +452,7 @@ contains
         ! call invert_matrix_dp(matrix)
     end subroutine get_gal_to_ecl_conversion_matrix
 
+
     function get_unit_vector_map(nside) result(unit_vector_map)
         ! Routine which selects coordinate transformation map based on resolution
         implicit none
@@ -443,6 +468,7 @@ contains
             end if
         end do
     end function get_unit_vector_map
+
 
     subroutine get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
         ! Computes the length of the line of sight such that it stops exactly at LOS_CUT.
@@ -468,49 +494,17 @@ contains
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T
 
-        T = T_0 * R ** (-delta)
+        T = T_0 * R ** (-DELTA)
     end subroutine get_dust_grain_temperature
 
 
-    subroutine get_blackbody_emission(nu, T, b_nu)
+    subroutine get_blackbody_emission(T, b_nu)
         implicit none
-        real(dp), intent(in) :: nu
         real(dp), dimension(:), intent(in) :: T
         real(dp), dimension(:), intent(out) :: b_nu
-        real(dp) :: term1, term2
 
-        term1 = (2.d0 * h * nu**3) / (c*c)
-        term2 = (h * nu) / k_B
-        b_nu = term1/(exp(term2/T) - 1.d0)
+        b_nu = PLANCK_TERM1/(exp(PLANCK_TERM2/T) - 1.d0)
     end subroutine get_blackbody_emission
-
-    subroutine get_zodi_emission_los(x, y, z, nu, theta, s_zodi)
-        implicit none
-        real(dp), dimension(:), intent(in) :: x, y, z
-        real(dp), intent(in) :: nu, theta
-        real(dp), dimension(:, :), intent(out) :: s_zodi
-
-        integer(i4b) :: i
-        real(dp), dimension(GAUSS_QUAD_ORDER) :: R_helio, dust_grain_temperature, blackbody_emission, los_density
-
-        class(ZodiComponent), pointer :: comp
-
-        R_helio = sqrt(x**2 + y**2 + z**2)
-
-        call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
-        call get_blackbody_emission(nu=nu, T=dust_grain_temperature, b_nu=blackbody_emission)
-
-
-        comp => comp_list
-        i = 1
-        do while (associated(comp))
-            call comp%get_density(x=x, y=y, z=z, theta=theta, n=los_density)
-            s_zodi(i, :) = comp%emissivity * los_density * blackbody_emission
-            comp => comp%next()
-            i = i + 1
-        end do
-
-    end subroutine get_zodi_emission_los
 
 
     ! Deferred ZodiComponent procedures
@@ -680,18 +674,18 @@ contains
 
     function unique_sort(array) result(unique_sorted_array)
         implicit none
-        integer :: idx, min_x, max_x
+        integer :: idx, min_val, max_val
         integer, intent(in), dimension(:) :: array
         integer, dimension(size(array)) :: unique
         integer, dimension(:), allocatable :: unique_sorted_array
 
         idx = 0
-        min_x = minval(array) - 1
-        max_x = maxval(array)
-        do while (min_x<max_x)
+        min_val = minval(array) - 1
+        max_val = maxval(array)
+        do while (min_val < max_val)
             idx = idx + 1
-            min_x = minval(array, mask=array > min_x)
-            unique(idx) = min_x
+            min_val = minval(array, mask=array > min_val)
+            unique(idx) = min_val
         enddo
 
         allocate(unique_sorted_array(idx), source=unique(1:idx))
