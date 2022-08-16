@@ -336,6 +336,10 @@ contains
     allocate(s_bufB(self%ntod, self%ndet))
     allocate(s_buf2A(self%ntod, self%ndet))
     allocate(s_buf2B(self%ntod, self%ndet))
+    s_bufA = 0.
+    s_bufB = 0.
+    s_buf2A = 0.
+    s_buf2A = 0.
     call timer%stop(TOD_ALLOC, tod%band)
 
     ! Decompress pointing, psi and flags for current scan
@@ -365,30 +369,36 @@ contains
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
-       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-            & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
+            &  self%psi(:,1,:), self%flag(:,1), &
+            &  procmask, scan, self%s_totA, self%s_totB, self%mask, &
+            &  s_bpA=s_buf2A, s_bpB=s_buf2B)
     else
-       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-            & procmask, scan, s_bufA, s_bufB, self%mask)
+       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
+            & self%psi(:,1,:), self%flag(:,1), &
+            & procmask, scan, self%s_totA, self%s_totB, self%mask)
     end if
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       self%s_sky(:,j)  = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
-       self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
-       self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
-       self%s_tot(:,j)  = self%s_tot(:,j)  + self%s_sky(:,j)
+       self%s_sky(:,j)  = (1.+tod%x_im(j))*self%s_totA(:,j)  - (1.-tod%x_im(j))*self%s_totB(:,j)
+       self%s_tot(:,j)  = self%s_sky(:,j)
        if (init_s_bp_) self%s_bp(:,j)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
     end do
+
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do k = 2, self%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+          call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), &
+               & self%psi(:,1,:), self%flag(:,1), &
+               & procmask, scan, s_bufA, s_bufB, self%mask, &
+               &  s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              self%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
-             if (init_s_bp_) self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
+             if (init_s_bp_) then
+               self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
+             end if
           end do
        end do
     else if (init_s_sky_prop_) then

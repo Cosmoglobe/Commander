@@ -213,7 +213,7 @@ contains
 
        do band = 1, self%numband
           b = NUM_GLOBAL + (band-1)*NUM_TOD
-          if (all(t(b+1:b+NUM_TOD) == 0.d0)) cycle
+          if (t(b+TOD_TOT) == 0.d0) cycle
           write(unit,*) 
           write(unit,*) '     Channel                      = ', trim(labels(band))
           write(unit,fmt='(a,f12.3,"h")') '      TOD initialization           = ', t(b+TOD_INIT)
