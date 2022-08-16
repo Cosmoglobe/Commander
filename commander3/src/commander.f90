@@ -387,10 +387,10 @@ contains
              cmbmap        => comm_map(c%x)
 !!$             call cmbmap%Y()
 !!$             call cmbmap%writeFITS('cmb_before.fits')
-             call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
+             ! call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
 !!$             call cmbmap%Y()
 !!$             call cmbmap%writeFITS('cmb_middle.fits')
-             call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
+             ! call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
 !!$             call cmbmap%Y()
 !!$             call cmbmap%writeFITS('cmb_after.fits')
           end if
