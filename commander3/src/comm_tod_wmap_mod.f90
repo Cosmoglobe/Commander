@@ -649,7 +649,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
 
 
-         !if (mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
+         !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
          if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -661,7 +661,7 @@ contains
             call write_hdf(tod_file, '/s_tot', sd%s_tot)
             !call write_hdf(tod_file, '/s_sky', sd%s_sky)
             call write_hdf(tod_file, '/tod',   sd%tod)
-            call write_hdf(tod_file, '/flag', sd%flag)
+            !call write_hdf(tod_file, '/flag', sd%flag)
             call write_hdf(tod_file, '/mask', sd%mask)
             !call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
             !call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
