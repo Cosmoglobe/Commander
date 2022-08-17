@@ -158,7 +158,7 @@ contains
         class(ZodiComponent), pointer :: comp
 
         integer(i4b) :: i, j, npix, nside
-        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature
+        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, apply_color_correction
         logical(lgt) :: use_unit_emissivity
         real(dp) :: emissivity
         real(dp), dimension(3) :: vec
@@ -187,6 +187,8 @@ contains
         use_feature = .true.
 
         use_unit_emissivity = .true.
+
+        apply_color_correction = .true.
 
         ! Planck emissivities (cloud, band1, band2, band3, ring, feature)
         EMISSIVITY_PLANCK_857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
@@ -366,7 +368,9 @@ contains
         real(dp) :: lon_earth, R_obs, R_max, nu_det
         real(dp), dimension(:), allocatable :: tabulated_zodi
         real(dp), dimension(:,:), allocatable :: unit_vector_map
-        real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, R_helio, dust_grain_temperature, blackbody_emission, los_density, comp_emission
+        real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, &
+                                                 R_helio, dust_grain_temperature, blackbody_emission, &
+                                                 los_density, comp_emission
 
         allocate(tabulated_zodi(nside2npix(nside)))
         tabulated_zodi = 0.d0
@@ -379,20 +383,20 @@ contains
         n_tods = size(pix,1)
         n_detectors = size(pix,2)
 
-        unit_vector_map = get_unit_vector_map(nside) ! TODO: This should give me ecliptic unit vectors from galactic pixel index
+        unit_vector_map = get_unit_vector_map(nside)
 
         x_obs = sat_pos(1)
         y_obs = sat_pos(2)
         z_obs = sat_pos(3)
         R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
-        lon_earth = atan(y_obs, x_obs) ! TODO: this currently returns sat lon and not earth lon (unless this is basicaly always the same)
+        lon_earth = atan(y_obs, x_obs)
 
         do j = 1, n_detectors
             nu_det = nu(j)
             PLANCK_TERM1 = (2.d0 * h * nu_det**3) / (c*c)
             PLANCK_TERM2 = (h * nu_det)/ k_B
             do i = 1, n_tods
-                pixel_index = pix(i, j) + 1! TODO: make sure the +1 is correct. Does healpix indices in fortran also start at 0?
+                pixel_index = pix(i, j) + 1
                 if (tabulated_zodi(pixel_index) == 0.d0) then
                     u_x = unit_vector_map(pixel_index, 1)
                     u_y = unit_vector_map(pixel_index, 2)

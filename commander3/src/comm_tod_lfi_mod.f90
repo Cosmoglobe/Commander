@@ -46,6 +46,8 @@ module comm_tod_lfi_mod
   use comm_tod_driver_mod
   use comm_utils
   use comm_tod_adc_mod
+  use comm_bp_mod
+
   implicit none
 
   private
@@ -94,7 +96,7 @@ interface
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor(handle, cpar, id_abs, info, tod_type, bandpass) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -112,6 +114,8 @@ interface
     ! tod_type: string
     !           Instrument specific tod type
     !
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     ! Returns
     ! ----------
     ! constructor: pointer
@@ -123,6 +127,7 @@ interface
     integer(i4b),              intent(in)    :: id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
+    class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
     class(comm_lfi_tod),       pointer       :: res
   end function constructor
 

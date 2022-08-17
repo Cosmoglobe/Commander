@@ -29,6 +29,8 @@ module comm_tod_mod
   use comm_zodi_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
+  use comm_bp_mod
+
   USE ISO_C_BINDING
   implicit none
 
@@ -167,6 +169,7 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
+     class(comm_bp_ptr), allocatable, dimension(:)     :: bandpass ! Bandpass object
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
@@ -253,7 +256,7 @@ contains
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
-  subroutine tod_constructor(self, cpar, id_abs, info, tod_type)
+  subroutine tod_constructor(self, cpar, id_abs, info, tod_type, bandpass)
     ! 
     ! Common constructor function for all TOD objects; allocatates and initializes general
     ! data structures. This routine is typically called from within an instrument-specific 
@@ -271,6 +274,8 @@ contains
     !           Information about the maps for this band, like how the maps are distributed in memory
     ! tod_type: string
     !           Instrument specific tod type
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     !
     ! Returns
     ! ----------
@@ -282,6 +287,7 @@ contains
     type(comm_params),              intent(in)     :: cpar
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
+    class(comm_bp_ptr), dimension(:), intent(in)   :: bandpass
 
     integer(i4b) :: i, ndelta, ierr, unit
     character(len=512) :: datadir
@@ -319,6 +325,10 @@ contains
     self%accept_threshold = 0.9d0 ! default
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
+
+    do i = 0, size(bandpass)
+      self%bandpass(i)%p => bandpass(i)%p
+    end do
 
     if (cpar%include_tod_zodi) then
        self%subtract_zodi = cpar%ds_tod_subtract_zodi(id_abs)

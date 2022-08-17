@@ -63,6 +63,7 @@ def write_dirbe_commmander_tods(
             name += "_smoothed"
         if nside_out != nside_in:
             name += f"_nside{nside_out}"
+        name += f"_V{version:02}"
         multiprocessor_manager_dicts[name] = manager.dict()
 
     filenames = list(multiprocessor_manager_dicts.keys())
@@ -152,8 +153,12 @@ def write_detector(
             ntod -= int(2 * N_SMOOTHING_BOUNDARY)
         comm_tod.add_field(chunk_common_group + "/ntod", [ntod])
 
-        sat_pos = get_sat_pos(day, mjd_times)
+        sat_pos, earth_pos = get_sat_and_earth_pos(day, mjd_times)
         comm_tod.add_field(chunk_common_group + "/satpos", sat_pos[0])
+
+        # Add earth position. Required for zodiacal light calculation.
+        comm_tod.add_field(chunk_common_group + "/earthpos", earth_pos[0])
+
         # add metadata
         comm_tod.add_attribute(chunk_common_group + "/satpos", "index", "X, Y, Z")
         comm_tod.add_attribute(
@@ -338,7 +343,7 @@ def get_scalars(tods: NDArray[np.floating]) -> NDArray[np.floating]:
     return np.array([TEMP_GAIN, sigma0, fknee, TEMP_ALPHA]).flatten()
 
 
-def get_sat_pos(day: int, dirbe_times: NDArray[np.floating]) -> NDArray[np.floating]:
+def get_sat_and_earth_pos(day: int, dirbe_times: NDArray[np.floating]) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
     """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
 
     N_EARTH_INTERP_STEPS = 100
@@ -400,11 +405,11 @@ def get_sat_pos(day: int, dirbe_times: NDArray[np.floating]) -> NDArray[np.float
 
     ecl_sat_pos = earth_helio_pos + geocentric_ecl_sat_pos
 
-    return ecl_sat_pos.value
+    return ecl_sat_pos.value, earth_helio_pos.value
 
 
 def main() -> None:
-    version = 2
+    version = 3
     smooth_pixels = True
     nside_out = 128
     print(f"Writing tods: {smooth_pixels=}, {nside_out=}")

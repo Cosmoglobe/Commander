@@ -24,7 +24,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor(handle, cpar, id_abs, info, tod_type, bandpass) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -42,6 +42,8 @@ contains
     ! tod_type: string
     !           Instrument specific tod type
     !
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     ! Returns
     ! ----------
     ! res: pointer
@@ -53,6 +55,7 @@ contains
     integer(i4b),              intent(in)    :: id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
+    class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
     class(comm_lfi_tod),       pointer       :: res
 
     real(sp), dimension(:,:),    allocatable :: diode_data, corrected_data
@@ -150,7 +153,7 @@ contains
     boundary            = (0.d0, 1d30)
 
     ! Initialize common parameters
-    call res%tod_constructor(cpar, id_abs, info, tod_type)
+    call res%tod_constructor(cpar, id_abs, info, tod_type, bandpass)
     if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Choose absolute bandpass sampling
