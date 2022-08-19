@@ -103,6 +103,8 @@ contains
 
     call timer%start(TOD_INIT, id_abs)
 
+   ! print *, bandpass(1)%p%nu_eff
+   ! stop 
 
     ! Allocate object
     allocate(constructor)
@@ -272,12 +274,6 @@ contains
     if (self%output_aux_maps > 0) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
     end if
-
-   ! self%bp_delta
-   ! nu_c in tod mod is read in from the instrument file and not from the parameter file
-   ! Here we convert from micron to Hz
-   self%nu_c = (2.99792458d14/self%nu_c) * 1e9
-
 
     call int2string(chain, ctext)
     call int2string(iter, samptext)

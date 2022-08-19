@@ -196,6 +196,8 @@ contains
        if (tod%myid == 0) then
          write(*, *) "Simulating Zodi for chunk: ", scan
        end if
+
+       ! Need to pass bandpass object in here to bandpass integrate or color correct the Zodiacal emission
        call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%nu_c, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
     end if
@@ -410,7 +412,7 @@ contains
     end do
 
 
-      print*, "driver mod:",tod%nu_c
+      ! print*, "driver mod:",tod%nu_c
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        do j = 1, self%ndet

@@ -287,7 +287,7 @@ contains
     type(comm_params),              intent(in)     :: cpar
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
-    class(comm_bp_ptr), dimension(:), intent(in)   :: bandpass
+    class(comm_bp_ptr), dimension(0:), intent(in)   :: bandpass
 
     integer(i4b) :: i, ndelta, ierr, unit
     character(len=512) :: datadir
@@ -326,7 +326,8 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
-    do i = 0, size(bandpass)
+    allocate(self%bandpass(0:size(bandpass)-1))
+    do i = 0, size(bandpass) - 1
       self%bandpass(i)%p => bandpass(i)%p
     end do
 

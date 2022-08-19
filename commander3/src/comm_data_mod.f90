@@ -98,6 +98,7 @@ contains
 
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
+    logical(lgt)                        :: is_wavelength_dummy = .false.
 
 
     character(len=1) :: j_str
@@ -151,8 +152,8 @@ contains
        end if
 
        ! Initialize bandpass structures; 0 is full freq, j is detector       
+       call get_tokens(cpar%ds_tod_dets(i), ",", dets, num=data(n)%ndet)
        allocate(data(n)%bp(0:data(n)%ndet))
-       call get_tokens(cpar%ds_tod_dets(i), ",", dets)
        do j = 1, data(n)%ndet
           if (j==1) then
             data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
@@ -160,7 +161,7 @@ contains
             ! Check if bandpass already exists in detector list
             call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
                               & dets(j), &
-                              & 0.d0, &
+                              & 0.d0, is_wavelength_dummy, &
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)
@@ -179,7 +180,7 @@ contains
        if (trim(cpar%ds_tod_type(i)) == 'none') then
           data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=cpar%ds_tod_dets(i))
        end if
 
 
@@ -287,6 +288,9 @@ contains
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
 
+
+      ! This code was moved above the TOD initialization so that we could feed it into the TOD objects
+      ! -------
       !  ! Initialize bandpass structures; 0 is full freq, j is detector       
       !  allocate(data(n)%bp(0:data(n)%ndet))
       !  call get_tokens(cpar%ds_tod_dets(i), ",", dets)
