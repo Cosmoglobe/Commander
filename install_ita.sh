@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi"
+toolchain="gnu" #"oneapi"
 buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -164,8 +164,11 @@ then
 		#source /opt/rh/devtoolset-9/enable
 		#export PATH="/usr/local/opt/openmpi-4.0.5/bin:$PATH"
 		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
-		module load gcc/10.2.1
-		module load myopenmpi/4.0.3
+		#module load gcc/10.2.1
+		#module load myopenmpi/4.0.3
+    module load gcc/11.2.1
+    export PATH="/usr/local/opt/gcc11/openmpi-4.1.3/bin:$PATH"
+    export LD_LIBRARY_PATH="/usr/local/opt/gcc11/openmpi-4.1.3/lib:$LD_LIBRARY_PATH"
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		printf "\n"
 		$mpifc --version
