@@ -104,6 +104,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_wmap_mod.f90 \
            comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
+           comm_crosstalk_mod.f90 \
            comm_camb_mod.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
 	   comm_timing_mod.f90 \
@@ -154,6 +155,7 @@ comm_conviqt_mod.o          : sharp.o comm_map_mod.o comm_utils.o comm_shared_ar
 comm_cr_mod.o               : comm_comp_mod.o comm_data_mod.o comm_param_mod.o comm_diffuse_comp_mod.o comm_ptsrc_comp_mod.o comm_template_comp_mod.o comm_cr_utils.o comm_cr_precond_mod.o math_tools.o comm_output_mod.o
 comm_cr_precond_mod.o       : comm_utils.o
 comm_cr_utils.o             : comm_utils.o
+comm_crosstalk_mod.o        : comm_status_mod.o
 comm_data_mod.o             : comm_param_mod.o comm_bp_mod.o comm_noise_mod.o comm_beam_mod.o comm_map_mod.o comm_tod_mod.o comm_tod_lfi_mod.o comm_tod_spider_mod.o comm_tod_wmap_mod.o comm_tod_lb_mod.o comm_tod_quiet_mod.o locate_mod.o comm_bp_utils.o
 comm_diffuse_comp_mod.o     : comm_param_mod.o comm_comp_mod.o comm_map_mod.o comm_data_mod.o comm_f_int_mod.o comm_cl_mod.o math_tools.o comm_cr_utils.o comm_cr_precond_mod.o comm_hdf_mod.o invsamp_mod.o powell_mod.o comm_beam_mod.o
 comm_diffuse_comp_smod.o    : comm_diffuse_comp_mod.o

@@ -183,11 +183,12 @@ contains
     !call update_status(status, "todinit_sanity")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
-    ! Construct orbital dipole template
-    call timer%start(TOD_ORBITAL, tod%band)
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
-    call timer%stop(TOD_ORBITAL, tod%band)
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+   !  ! Construct orbital dipole template
+   !  call timer%start(TOD_ORBITAL, tod%band)
+   !  call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
+   !  call timer%stop(TOD_ORBITAL, tod%band)
+   !  !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+   self%s_orb = 0.
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then

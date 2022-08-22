@@ -44,15 +44,20 @@ module comm_tod_LB_mod
   use spline_1D_mod
   use comm_4D_map_mod
   use comm_tod_driver_mod
+  use comm_crosstalk_mod
   use comm_utils
+
   implicit none
 
   private
   public comm_LB_tod
 
   type, extends(comm_tod) :: comm_LB_tod
+   integer(i4b) :: det_xt_num
+   real(dp), dimension(:,:), allocatable :: xt_mat
    contains
      procedure     :: process_tod          => process_LB_tod
+     procedure     :: load_instrument_inst    => load_instrument_LB
   end type comm_LB_tod
 
   interface comm_LB_tod
@@ -95,7 +100,7 @@ contains
 
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
-
+    
     ! Allocate object
     allocate(constructor)
 
@@ -165,9 +170,9 @@ contains
       call init_noise_model(constructor, i)
     end do
 
-    ! Allocate sidelobe convolution data structures
-    allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+   !  ! Allocate sidelobe convolution data structures
+   !  allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
+   !  constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
@@ -176,6 +181,51 @@ contains
 
   end function constructor
 
+   subroutine load_instrument_LB(self, instfile, band)
+    !
+    ! Reads the LiteBIRD specific fields from the instrument file
+    ! Implements comm_tod_mod::load_instrument_inst
+    !
+    ! Arguments:
+    !
+    ! self : comm_LB_tod
+    !    the LB tod object (this class)
+    ! file : hdf_file
+    !    the open file handle for the instrument file
+    ! band : int
+    !    the index of the current detector
+    ! 
+    ! Returns : None
+    implicit none
+    class(comm_LB_tod),                 intent(inout) :: self
+    type(hdf_file),                      intent(in)    :: instfile
+    integer(i4b),                        intent(in)    :: band
+
+   ! det_xt_num: number of detectors we consider a crosstalk contribution from,
+   !   i.e. for a detector i we will consider crosstalk from detectors i - N to i + N
+   ! cross_talk_mat : crosstalk matrix of shape (ndet, ndet)
+    integer(i4b), dimension(1)    :: dim_xt_mat
+    real(dp), dimension(:, :), pointer  :: xt_mat_s
+
+
+   ! Initialize crosstalk variables
+
+   ! allocate(self%det_xt_num(1))
+   !self%det_xt_num = 5
+   self%det_xt_num = self%ndet - 1
+
+   !allocate(xt_mat_s(1:self%ndet, 1:self%ndet))
+
+   call get_size_hdf(instfile, trim(adjustl(self%freq))//'/'//'xt_mat', dim_xt_mat)
+
+   allocate(xt_mat_s(dim_xt_mat(1), dim_xt_mat(1)))
+
+   call read_hdf(instfile, trim(adjustl(self%freq))//'/'//'xt_mat', xt_mat_s) 
+
+   self%xt_mat = xt_mat_s
+
+  end subroutine load_instrument_LB
+  
   !**************************************************
   !             Driver routine
   !**************************************************
@@ -217,7 +267,7 @@ contains
     !          Final output rms map after TOD processing combined for all detectors
 
     implicit none
-    class(comm_LB_tod),                      intent(inout) :: self
+    class(comm_LB_tod),                       intent(inout) :: self
     character(len=*),                         intent(in)    :: chaindir
     integer(i4b),                             intent(in)    :: chain, iter
     type(planck_rng),                         intent(inout) :: handle
@@ -240,14 +290,16 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+    type(hdf_file)      :: todfile
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band)
 
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
-    select_data           = self%first_call        ! only perform data selection the first time
+    select_data           = .false. !self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
     sample_gain           = .false.                ! Gain sampling, LB TOD sims have perfect gain
 
@@ -348,8 +400,49 @@ contains
           call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
        end if
 
-       ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+      !  ! Compute noise spectrum parameters
+      !  call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+      ! do j = 1, sd%ndet
+      !  write(*,*) 'before crosstalk', shape(sd%tod), sd%tod(:, j)
+      !  end do
+      ! if (self%myid == 0 .and. i == 1) then
+      !    do j = 1, sd%ndet
+      !       open(j + 10, file = trim(prefix)//'TOD_woxt'//trim(adjustl(self%label(j)))//'.txt', status='new')
+      !       do k = 1, size(sd%tod(:, 1))
+      !          write(j + 10, *) sd%tod(k, j)
+      !       end do
+      !       close(j + 10)
+      !    end do
+      ! end if
+
+      ! Add crosstalk into TODs
+      call update_status(status, "add_crosstalk_start"//ctext)
+      !write(*,*) 'start adding crosstalk'
+
+      call add_crosstalk(sd, self%xt_mat, self%det_xt_num)
+      !  if (i == 1) then
+      !    write(*,*) 'xt tod shape', shape(sd), 'tod vals', sd%tod(:,3)
+      !  end if
+
+      !write(*,*) 'finished adding crosstalk'
+
+      call update_status(status, "add_crosstalk_end"//ctext) 
+
+       ! Write TODs with crosstalk to disk
+       !call open_hdf_file(trim(prefix)//'TOD_wxt.h5', todfile, 'w')
+
+       !call create_hdf_group(todfile, trim(prefix))
+      ! if (self%myid == 0 .and. i == 1) then
+      !    do j = 1, sd%ndet
+      !       open(j, file = trim(prefix)//'TOD_wxt'//trim(adjustl(self%label(j)))//'.txt', status='new')
+      !       do k = 1, size(sd%tod(:, 1))
+      !          write(j, *) sd%tod(k, j)
+      !       end do
+      !       close(j)
+      !    end do
+      ! end if
+
+       !call close_hdf_file(todfile)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -378,7 +471,7 @@ contains
 !!$                  & self%scans(i)%d(:)%accept)
 !!$          end if
 !!$       end if
-
+      
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
 
@@ -443,6 +536,7 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
+    call timer%stop(TOD_TOT, self%band)
 
   end subroutine process_LB_tod   
 
