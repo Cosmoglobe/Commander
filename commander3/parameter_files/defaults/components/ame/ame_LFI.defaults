@@ -1,4 +1,5 @@
 # Low-frequency AME component ------------------------------------------------------------------
+# General Parameters for diffuse component
 COMP_LABEL&&                  = ame
 COMP_TYPE&&                   = spindust2
 COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
@@ -35,8 +36,11 @@ COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 1000
 COMP_AMP_INPUT_MAP&&          = init_ame_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = npipe6v20_857_map_n1024_60arcmin_QUADCOR_ZODICOR_uK_min0.657K_scale0.00003.fits ame_prior_mean_857_scaled2.40.fits  ame_prior_mean_857_scaled2.40_noMD.fits  ame_prior_mean_857_scaled.fits none
-COMP_AMP_PRIOR_LMAX&&         = 1000
+COMP_AMP_PRIOR_LMAX&&         = -1
 
+COMP_IND_LMAX&&               = 0
+
+# Specific AME Information
 COMP_NU_P_POLTYPE&&           = 1        # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_NU_P_INPUT_MAP&&         = init_ame_nu_p_BP8.1_v1.fits
 COMP_NU_P_SMOOTHING_SCALE&&   = 3
@@ -47,7 +51,7 @@ COMP_NU_P_PRIOR_GAUSS_MEAN&&  = 21.
 COMP_NU_P_PRIOR_GAUSS_RMS&&   = 3. # This RMS should maybe be changed, but it looks like nu_p is constrained
 COMP_NU_P_NU_MIN&&            = 15.        # Lowest frequency for index estimation in GHz
 COMP_NU_P_NU_MAX&&            = 100.        # Highest frequency for index estimation in GHz
-COMP_NU_P_ALMSAMP_INIT&& = none
+COMP_NU_P_ALMSAMP_INIT&&      = none
 COMP_NU_P_INT_PIXREG_PRIORS&& = none
 COMP_NU_P_POL_PIXREG_PRIORS&& = none
 
@@ -61,7 +65,7 @@ COMP_ALPHA_PRIOR_GAUSS_MEAN&&  = 0.
 COMP_ALPHA_PRIOR_GAUSS_RMS&&   = 0  1
 COMP_ALPHA_NU_MIN&&            = 15.        # Lowest frequency for index estimation in GHz
 COMP_ALPHA_NU_MAX&&            = 100.        # Highest frequency for index estimation in GHz
-COMP_ALPHA_ALMSAMP_INIT&& = none
+COMP_ALPHA_ALMSAMP_INIT&&      = none
 COMP_ALPHA_INT_PIXREG_PRIORS&& = none
 COMP_ALPHA_POL_PIXREG_PRIORS&& = none
 

@@ -25,6 +25,8 @@ COMP_AMP_LMAX&&               = 1500
 COMP_AMP_INPUT_MAP&&          = init_synch_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
+COMP_IND_LMAX&&               = 100
+
 COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
 COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
 COMP_CL_BETA_PRIOR_MEAN&&     = -0.5

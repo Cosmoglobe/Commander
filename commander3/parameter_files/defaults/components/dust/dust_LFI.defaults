@@ -35,6 +35,8 @@ COMP_AMP_LMAX&&               = 3000
 COMP_AMP_INPUT_MAP&&          = init_dust_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
+COMP_IND_LMAX&&               = -1
+
 COMP_BETA_NU_MIN&&            = 20          # Lowest frequency for index estimation in GHz
 COMP_BETA_NU_MAX&&            = 1000        # Highest frequency for index estimation in GHz
 COMP_BETA_INPUT_MAP&&         = init_dust_beta_BP8.1_v1.fits
