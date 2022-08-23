@@ -30,6 +30,8 @@ module comm_map_mod
   use extension
   use comm_param_mod
   use comm_hdf_mod
+  use comm_status_mod
+  use comm_timing_mod
   implicit none
 
 !  include "mpif.h"
@@ -129,6 +131,26 @@ module comm_map_mod
   class(comm_mapinfo), pointer, private :: mapinfos => null()
 
 contains
+
+subroutine tod2file_dp3(filename,d)
+   implicit none
+   character(len=*),                 intent(in)            :: filename
+   real(dp),           dimension(:), intent(in)            :: d
+
+   integer(i4b)                                            :: unit, io_error, length, i
+
+   write(*,*) "Writing TOD to file - ", trim(filename)
+   unit = 22
+
+   length = size(d)
+
+   open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
+   do i = 1, length
+     write(unit,*) d(i)
+   end do
+
+   close(unit)
+ end subroutine tod2file_dp3
 
   !**************************************************
   !             Constructors
@@ -440,6 +462,7 @@ contains
 
     class(comm_map), intent(inout)          :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -452,6 +475,7 @@ contains
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y
 
@@ -460,6 +484,7 @@ contains
 
     class(comm_map), intent(inout)          :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -472,6 +497,7 @@ contains
        call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_WY
 
@@ -481,11 +507,13 @@ contains
     class(comm_map), intent(inout)          :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y_scalar
   
@@ -497,6 +525,7 @@ contains
     integer(i4b) :: i
     type(comm_mapinfo), pointer :: info => null()
     
+    call timer%start(TOT_SHT)
     info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
 
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
@@ -504,9 +533,9 @@ contains
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
             & self%map(:,i:i), info%geom_info_T, comm=info%comm)
     end do
-
     deallocate(info)
-    
+    call timer%stop(TOT_SHT)
+
   end subroutine exec_sharp_Y_EB
 
   subroutine exec_sharp_Yt(self)
@@ -514,6 +543,7 @@ contains
 
     class(comm_map), intent(inout) :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -527,6 +557,7 @@ contains
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt
 
@@ -536,11 +567,13 @@ contains
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt_scalar
 
@@ -549,6 +582,7 @@ contains
 
     class(comm_map), intent(inout) :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -561,6 +595,7 @@ contains
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW
 
@@ -571,11 +606,13 @@ contains
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW_scalar
   
@@ -628,23 +665,28 @@ contains
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr
+    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2)
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+       if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
+          write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
+          stop
+       end if
        npix  = self%info%npix
-       nmaps = self%info%nmaps
-       allocate(p(npix), map(0:npix-1,nmaps))
+       allocate(p(npix), map(0:npix-1,ext(2)))
        call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
-       self%map = map(self%info%pix,:)
+       nmaps = min(self%info%nmaps,ext(2))
+       self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           allocate(buffer(np,nmaps))
-          buffer = map(p(1:np),:) 
+          buffer(:,1:nmaps) = map(p(1:np),1:nmaps) 
           call mpi_send(buffer,      size(buffer), MPI_DOUBLE_PRECISION, i, 98, &
             & self%info%comm, ierr)
           deallocate(buffer)
@@ -678,12 +720,14 @@ contains
     integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
+
     output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
     output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
 
     ! Only the root actually writes to disk; data are distributed via MPI
     npix  = self%info%npix
     nmaps = self%info%nmaps
+
     if (self%info%myid == 0) then
 
        ! Distribute to other nodes
@@ -866,7 +910,7 @@ contains
     character(len=*),       intent(in)    :: hdfpath
     logical(lgt),           intent(in)    :: read_map
 
-    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix, ext(2)
     real(dp),     allocatable, dimension(:,:) :: alms, map
     !integer(i4b), allocatable, dimension(:)   :: p
     !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
@@ -879,18 +923,20 @@ contains
     if (.not. read_map) then
        if (lmax < 0) return
       ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(alms(0:nalm-1,nmaps))
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+      allocate(alms(0:nalm-1,ext(2)))
       if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), alms)
       call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
         j = l**2 + l + m
-        self%alm(i,:) = alms(j,:)
+        self%alm(i,1:nmaps) = alms(j,1:nmaps)
       end do
       deallocate(alms)
     else
       ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(map(0:npix-1,nmaps))
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+      allocate(map(0:npix-1,ext(2)))
       if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
       call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 !!$      if (self%info%myid == 0) then

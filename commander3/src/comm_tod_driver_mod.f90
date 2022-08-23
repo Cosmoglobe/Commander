@@ -9,6 +9,7 @@ module comm_tod_driver_mod
   use comm_tod_mapmaking_mod
   use comm_zodi_mod
   use comm_shared_arr_mod
+  use comm_huffman_mod
   use omp_lib
   implicit none
 
@@ -38,6 +39,7 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_totB     ! Total signal, horn B (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
+     integer(i4b) :: band                                        ! Band ID
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
      procedure  :: init_differential => init_scan_data_differential
@@ -67,6 +69,7 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
 
+    call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 1) then
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
@@ -87,6 +90,7 @@ contains
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
     self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
+    self%band   = tod%band
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -107,15 +111,18 @@ contains
     if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
+    call timer%stop(TOD_ALLOC, tod%band)
 
     !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Decompress pointing, psi and flags for current scan
+    call timer%start(TOD_DECOMP, tod%band)
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
     end do
+    call timer%stop(TOD_DECOMP, tod%band)
     !call update_status(status, "todinit_decomp")
     !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
@@ -124,6 +131,7 @@ contains
     
     ! Prepare TOD
     if (tod%ndiode == 1) then
+       call timer%start(TOD_DECOMP, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -132,6 +140,7 @@ contains
              self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
        end do
+       call timer%stop(TOD_DECOMP, tod%band)
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
     end if
@@ -139,6 +148,7 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
+    call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask, s_bp=self%s_bp)
@@ -163,6 +173,7 @@ contains
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
+    call timer%stop(TOD_PROJECT, tod%band)
     !call update_status(status, "todinit_bp")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
     !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
@@ -178,19 +189,23 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), .true., self%s_orb)
-    !call update_status(status, "todinit_dipole")
+    call timer%start(TOD_ORBITAL, tod%band)
+    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
+    call timer%stop(TOD_ORBITAL, tod%band)
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
+       call timer%start(TOD_ZODI, tod%band)
        call compute_zodi_template(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%nu_c, self%s_zodi)
+       call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sidelobe template
     !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%correct_sl) then
+       call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
@@ -198,19 +213,20 @@ contains
                & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
        end do
+       call timer%stop(TOD_SL_INT, tod%band)
     else
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           self%s_sl(:,j) = 0.
        end do
     end if
-    if (tod%scanid(scan) == 3) then
-       open(58,file='sidelobe_BP10.dat')
-       do k = 1, size(self%s_sl,1)
-          write(58,*) k, self%s_sl(k,1)
-       end do
-       close(58)
-    end if
+!!$    if (tod%scanid(scan) == 3) then
+!!$       open(58,file='sidelobe_BP10.dat')
+!!$       do k = 1, size(self%s_sl,1)
+!!$          write(58,*) k, self%s_sl(k,1)
+!!$       end do
+!!$       close(58)
+!!$    end if
 
 
     !call update_status(status, "todinit_sl")
@@ -226,11 +242,13 @@ contains
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then
+       call timer%start(TOD_INSTCORR, tod%band)
        call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
-       end do
+!!$       do j = 1, self%ndet
+!!$          if (.not. tod%scans(scan)%d(j)%accept) cycle
+!!$          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
+!!$       end do
+       call timer%stop(TOD_INSTCORR, tod%band)
     end if
     !call update_status(status, "todinit_instcorr")
 
@@ -239,6 +257,7 @@ contains
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
+       if (tod%apply_inst_corr) self%s_tot(:,j) = self%s_tot(:,j) + self%s_inst(:,j)
     end do
     !call update_status(status, "todinit_stot")
 
@@ -263,6 +282,7 @@ contains
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
 
+    call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 2) then
        write(*,*) 'Error: init_scan_data_differential only applicable for 2-horn experiments'
        stop
@@ -280,6 +300,7 @@ contains
     self%ndet   = tod%ndet
     self%nhorn  = tod%nhorn
     self%ndelta = 0; if (init_s_sky_prop_ .or. init_s_bp_prop_) self%ndelta = size(map_sky,4)
+    self%band   = tod%band
 
     ! Allocate data structures
     allocate(self%tod(self%ntod, self%ndet))
@@ -293,6 +314,7 @@ contains
     allocate(self%s_totB(self%ntod, self%ndet))
     allocate(self%s_orbA(self%ntod, self%ndet))
     allocate(self%s_orbB(self%ntod, self%ndet))
+    allocate(self%s_inst(self%ntod, self%ndet))
     allocate(self%mask(self%ntod, self%ndet))
     allocate(self%pix(self%ntod, 1, self%nhorn))
     allocate(self%psi(self%ntod, 1, self%nhorn))
@@ -308,20 +330,25 @@ contains
     self%s_orb  = 0.
     self%s_orbA = 0.
     self%s_orbB = 0.
+    self%s_bp   = 0.
 
     allocate(s_bufA(self%ntod, self%ndet))
     allocate(s_bufB(self%ntod, self%ndet))
     allocate(s_buf2A(self%ntod, self%ndet))
     allocate(s_buf2B(self%ntod, self%ndet))
+    call timer%stop(TOD_ALLOC, tod%band)
 
     ! Decompress pointing, psi and flags for current scan
     ! Only called for one detector, det=1, since the pointing and polarization
     ! angles are the same for all detectors
+    call timer%start(TOD_DECOMP, tod%band)
     call tod%decompress_pointing_and_flags(scan, 1, self%pix(:,1,:), &
             & self%psi(:,1,:), self%flag(:,1))
+    call timer%stop(TOD_DECOMP, tod%band)
     
     ! Prepare TOD
     if (tod%ndiode == 1 .or. trim(tod%level) == 'L2') then
+       call timer%start(TOD_DECOMP, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
           if (tod%compressed_tod) then
@@ -330,16 +357,21 @@ contains
              self%tod(:,j) = tod%scans(scan)%d(j)%tod
           end if
        end do
+       call timer%stop(TOD_DECOMP, tod%band)
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
     end if
 
     ! Construct sky signal template
+    call timer%start(TOD_PROJECT, tod%band)
     if (init_s_bp_) then
-       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-            & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
+            &  self%psi(:,1,:), self%flag(:,1), &
+            &  procmask, scan, s_bufA, s_bufB, self%mask, &
+            &  s_bpA=s_buf2A, s_bpB=s_buf2B)
     else
-       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
+       call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
+            & self%psi(:,1,:), self%flag(:,1), &
             & procmask, scan, s_bufA, s_bufB, self%mask)
     end if
     do j = 1, self%ndet
@@ -354,12 +386,16 @@ contains
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do k = 2, self%ndelta
-          call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+          call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), &
+               & self%psi(:,1,:), self%flag(:,1), &
+               & procmask, scan, s_bufA, s_bufB, self%mask, &
+               &  s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              self%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
-             if (init_s_bp_) self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
+             if (init_s_bp_) then
+               self%s_bp_prop(:,j,k)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
+             end if
           end do
        end do
     else if (init_s_sky_prop_) then
@@ -372,19 +408,26 @@ contains
           end do
        end do
     end if
+    call timer%stop(TOD_PROJECT, tod%band)
 
     ! Perform sanity tests
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
-       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
+       if (all(self%mask(:,j) == 0)) tod%scans(scan)%d%accept = .false.
+       if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d%accept = .false.
     end do
     
     ! Construct orbital dipole template
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), .true., s_bufA, 1d3)
-    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), .true., s_bufB, 1d3)
-    self%s_orbA = s_bufA
-    self%s_orbB = s_bufB
+    ! This call calculates the dipole template assuming that all the detectors
+    ! are pointing at pixel A. The next line assumes they're all pointing at
+    ! pixel B.
+    ! The .true. refers to whether the orbital dipole (true) or solar dipole
+    ! (false) is used.
+    call timer%start(TOD_ORBITAL, tod%band)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,1), self%psi(:,:,1), &
+        & .true., 1, self%s_orbA, 1d3)
+    call tod%construct_dipole_template_diff(scan, self%pix(:,:,2), self%psi(:,:,2), &
+        & .true., 2, self%s_orbB, 1d3)
     self%s_totA = self%s_totA + self%s_orbA
     self%s_totB = self%s_totB + self%s_orbB
     do j = 1, self%ndet
@@ -392,36 +435,22 @@ contains
        self%s_orb(:,j)  = (1.+tod%x_im(j))*self%s_orbA(:,j)  - (1.-tod%x_im(j))*self%s_orbB(:,j)
        self%s_tot(:,j)  = self%s_tot(:,j)  + self%s_orb(:,j)
     end do
+    call timer%stop(TOD_ORBITAL, tod%band)
 
-
-    ! Construct zodical light template
-    if (tod%subtract_zodi) then
-       do j = 1, self%ndet
-          if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call compute_zodi_template(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
-          call compute_zodi_template(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufB)
-          self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
-          self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
-          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
-          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
-       end do
-    else
-       self%s_zodi = 0.
-    end if
 
     ! Construct sidelobe template
     if (tod%correct_sl) then
+       call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          !call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j), 1.5707963267948966192d0)
-          !call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -1.5707963267948966192d0)
-          call tod%construct_sl_template(tod%slconv(1)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
-          call tod%construct_sl_template(tod%slconv(3)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
+          call tod%construct_sl_template(tod%slconvA(j)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
+          call tod%construct_sl_template(tod%slconvB(j)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
           self%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
           self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
+       call timer%stop(TOD_SL_INT, tod%band)
     else
        self%s_sl = 0.
     end if
@@ -440,8 +469,38 @@ contains
        self%s_mono = 0.d0 
     end if
 
+    ! Generate and apply instrument-specific correction template
+    if (tod%apply_inst_corr) then
+       call timer%start(TOD_INSTCORR, tod%band)
+       call tod%construct_corrtemp_inst(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_inst)
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          self%tod(:,j) = self%tod(:,j) - self%s_inst(:,j)
+       end do
+       call timer%stop(TOD_INSTCORR, tod%band)
+    end if
+
+    ! Construct zodical light template
+    if (tod%subtract_zodi) then
+       call timer%start(TOD_ZODI, tod%band)
+       do j = 1, self%ndet
+          if (.not. tod%scans(scan)%d(j)%accept) cycle
+          call compute_zodi_template(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
+          call compute_zodi_template(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufB)
+          self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
+          self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
+          self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
+          self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
+       end do
+       call timer%stop(TOD_ZODI, tod%band)
+    else
+       self%s_zodi = 0.
+    end if
+
     ! Clean-up
+    call timer%start(TOD_ALLOC, tod%band)
     deallocate(s_bufA, s_bufB, s_buf2A, s_buf2B)
+    call timer%stop(TOD_ALLOC, tod%band)
 
   end subroutine init_scan_data_differential
 
@@ -449,6 +508,8 @@ contains
   subroutine dealloc_scan_data(self)
     implicit none
     class(comm_scandata), intent(inout) :: self    
+
+    call timer%start(TOD_ALLOC, self%band)
 
     self%ntod = -1; self%ndet = -1; self%nhorn = -1
 
@@ -467,6 +528,7 @@ contains
     if (allocated(self%s_inst))      deallocate(self%s_inst)
     if (allocated(self%s_orbA))      deallocate(self%s_orbA)
     if (allocated(self%s_orbB))      deallocate(self%s_orbB)
+    call timer%stop(TOD_ALLOC, self%band)
 
   end subroutine dealloc_scan_data
 
@@ -505,7 +567,7 @@ contains
     real(dp),                                  intent(in),   optional :: polang
     logical(lgt),                              intent(in),   optional :: smooth
 
-    integer(i4b) :: i, j, ext(2), ierr
+    integer(i4b) :: i, j, ext(2), ierr, timer_id
     real(dp)     :: t1, t2
     real(dp), allocatable, dimension(:)   :: A, b
     real(sp), allocatable, dimension(:,:) :: s_invsqrtN, mask_lowres, s_buf
@@ -519,6 +581,18 @@ contains
 
     if (tod%myid == 0) write(*,*) '|    --> Sampling calibration, mode = ', trim(mode)
 
+    if (trim(mode) == 'abscal') then
+       timer_id = TOD_ABSCAL
+    else if (trim(mode) == 'relcal') then
+       timer_id = TOD_RELCAL
+    else if (trim(mode) == 'imbal') then
+       timer_id = TOD_IMBAL
+    else if (trim(mode) == 'deltaG') then
+       timer_id = TOD_DELTAG
+    end if
+
+    call timer%start(timer_id, tod%band)
+
     if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
        allocate(A(tod%ndet), b(tod%ndet))
        A = 0.d0; b = 0.d0
@@ -530,6 +604,9 @@ contains
        stop
     end if
 
+    call timer%stop(timer_id, tod%band)
+
+
     do i = 1, tod%nscan
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
@@ -539,11 +616,12 @@ contains
        if (tod%nhorn == 1) then
           call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
        else
-          call sd%init_differential(tod, i, map_sky, procmask, procmask2)
+          call sd%init_differential(tod, i, map_sky, procmask, procmask2, polang=polang)
        end if
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
+       call timer%start(timer_id, tod%band)
        call tod%downsample_tod(sd%s_orb(:,1), ext)
        allocate(s_invsqrtN(ext(1):ext(2), tod%ndet))      ! s * invN
        allocate(s_buf(sd%ntod, sd%ndet))
@@ -554,14 +632,14 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
+          else if (trim(mode) == 'imbal' .and. tod%orb_abscal .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              ! Jarosik uses the orbital dipole for this.
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
                & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
+          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
@@ -609,6 +687,7 @@ contains
              dipole_mod(tod%scanid(i),j) = masked_variance(sd%s_sky(:,j), sd%mask(:,j))
           end do
        end if
+       call timer%stop(timer_id, tod%band)
 
        ![Debug] if (tod%myid == 0) write(*,*) '|    --> Passed another loop'!(mode)
        ! Clean up
@@ -619,6 +698,12 @@ contains
        deallocate(s_invsqrtN, s_buf, mask_lowres)
     end do
 
+
+    call timer%start(TOD_WAIT, tod%band)
+    call mpi_barrier(tod%info%comm, ierr)
+    call timer%stop(TOD_WAIT, tod%band)
+
+    call timer%start(timer_id, tod%band)
     ! Perform sampling operations
     if (trim(mode) == 'abscal') then
        call sample_abscal_from_orbital(tod, handle, A, b)
@@ -636,55 +721,9 @@ contains
     if (allocated(b))          deallocate(b)
     if (allocated(dipole_mod)) deallocate(dipole_mod)
 
+    call timer%stop(timer_id, tod%band)
+
   end subroutine sample_calibration
-
-
-  ! Sample baseline
-  subroutine sample_baseline(tod, handle, map_sky, procmask, procmask2)
-    implicit none
-    class(comm_tod),                              intent(inout) :: tod
-    type(planck_rng),                             intent(inout) :: handle
-    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
-    real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
-
-    integer(i4b) :: i, j
-    real(dp)     :: t1, t2
-    type(comm_scandata) :: sd
-
-    if (tod%myid == 0) write(*,*) '   --> Sampling baseline'
-
-    do i = 1, tod%nscan
-       if (.not. any(tod%scans(i)%d%accept)) cycle
-       call wall_time(t1)
-
-       ! Prepare data
-       if (tod%nhorn == 1) then
-          call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
-       else
-          call sd%init_differential(tod, i, map_sky, procmask, procmask2)
-       end if
-
-       do j = 1, tod%ndet
-          ! Return the data to its raw state
-          sd%tod(:,j) = sd%tod(:,j) + tod%scans(i)%d(j)%baseline
-
-          ! Estimate the baseline and sample it if requested
-          tod%scans(i)%d(j)%baseline =sum((sd%tod(:,j) - tod%scans(i)%d(j)%gain*sd%s_tot(:,j)) &
-            & *sd%mask(:,j))/sum(sd%mask(:,j))
-          if (trim(tod%operation) == 'sample') then
-            tod%scans(i)%d(j)%baseline = tod%scans(i)%d(j)%baseline &
-             &  + rand_gauss(handle)/sqrt(sum(sd%mask(:,j)*tod%scans(i)%d(j)%N_psd%sigma0**2))
-          end if
-       end do
-
-       ! Clean up
-       call wall_time(t2)
-       tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
-       tod%scans(i)%n_proctime = tod%scans(i)%n_proctime + 1
-       call sd%dealloc
-    end do
-
-  end subroutine sample_baseline
 
   subroutine remove_bad_data(tod, scan, flag)
     !
@@ -711,16 +750,19 @@ contains
     ndet = size(flag,2)
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > 0.1*ntod) then    ! Discard scans with less than 10% good data
+       if (count(iand(flag(:,j),tod%flag0) .ne. 0) > tod%accept_threshold*ntod) then    ! Discard scans with less than 20% good data
           tod%scans(scan)%d(j)%accept = .false.
+          write(*, fmt='(a, i4, a, i8, a, i8)') ' | Reject scan = ', &
+            & tod%scanid(scan), ': ', count(iand(flag(:,j),tod%flag0) .ne. 0), &
+            &  ' flagged data out of', ntod
        else if (abs(tod%scans(scan)%d(j)%chisq) > tod%chisq_threshold .or. &  ! Discard scans with high chisq or NaNs
             & isNaN(tod%scans(scan)%d(j)%chisq)) then
-          write(*,fmt='(a,i8,i5,a,f12.1)') 'Reject scan, det = ', &
+          write(*,fmt='(a,i8,i5,a,f12.1)') ' | Reject scan, det = ', &
                & tod%scanid(scan), j, ', chisq = ', tod%scans(scan)%d(j)%chisq
           tod%scans(scan)%d(j)%accept = .false.
        end if
     end do
-    !if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
+   !  if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
        if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
@@ -737,6 +779,7 @@ contains
     integer(i4b) :: j, k
     real(sp), allocatable, dimension(:,:) :: s_buf
 
+    call timer%start(TOD_BP, tod%band)
     allocate(s_buf(sd%ntod,sd%ndet))
     do j = 1, tod%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -751,10 +794,11 @@ contains
        end do
     end do
     deallocate(s_buf)
+    call timer%stop(TOD_BP, tod%band)
 
   end subroutine compute_chisq_abs_bp
 
-  subroutine compute_calibrated_data(tod, scan, sd, d_calib)
+  subroutine compute_calibrated_data(tod, scan, sd, d_calib, jump_template)
     !
     !  gets calibrated timestreams
     !
@@ -765,6 +809,7 @@ contains
     !  scan: integer
     !     integer label for scan
     !  sd:  comm_scandata object
+    !  jump_template:  baseline that traces jumping tod level
     !
     !  Returns:
     !  --------
@@ -781,16 +826,19 @@ contains
     !  d_calib(5,:,:) - orbital dipole
     !  d_calib(6,:,:) - sidelobe
     !  d_calib(7,:,:) - zodiacal light emission
+    !  d_calib(8,:,:) - instrument correction
     !
     implicit none
     class(comm_tod),                       intent(in)   :: tod
     integer(i4b),                          intent(in)   :: scan
     type(comm_scandata),                   intent(in)   :: sd
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
+    real(sp), dimension(:,:), intent(in), optional      :: jump_template
 
     integer(i4b) :: i, j, nout
     real(dp)     :: inv_gain
 
+    call timer%start(TOD_MAPBIN, tod%band)
     nout = size(d_calib,1)
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -801,9 +849,10 @@ contains
        else
         d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
+        if (present(jump_template)) d_calib(1,:,j) = d_calib(1,:,j) - jump_template(:,j) * inv_gain
        end if
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
-       if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
+       if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
        if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
@@ -814,6 +863,7 @@ contains
              d_calib(7,:,j) = 0.
           end if
        end if
+       if (tod%output_n_maps > 7) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps
@@ -821,6 +871,7 @@ contains
        end do
 
     end do
+    call timer%stop(TOD_MAPBIN, tod%band)
 
   end subroutine compute_calibrated_data
 
@@ -830,7 +881,7 @@ contains
     type(map_ptr), dimension(1:,1:),       intent(inout)  :: map_in       ! (ndet,ndelta)    
     real(sp),                              intent(in)     :: scale
     real(sp),      dimension(1:,1:,0:,1:), intent(out)    :: map_out
-    real(dp),      dimension(0:), intent(out), optional   :: map_full
+    real(dp),      dimension(1:, 0:), intent(out), optional   :: map_full
 
     integer(i4b) :: i, j, k, l, npix, nmaps
     real(dp),     allocatable, dimension(:,:) :: m_buf
@@ -838,14 +889,21 @@ contains
     npix  = map_in(1,1)%p%info%npix
     nmaps = map_in(1,1)%p%info%nmaps
     allocate(m_buf(0:npix-1,nmaps))
-    do j = 1, size(map_in,2)
-       do i = 1, size(map_in,1)
+    if (present(map_full)) map_full = 0
+    do j = 1, size(map_in,2)       ! ndelta
+       do i = 1, size(map_in,1)    ! ndet
           map_in(i,j)%p%map = scale * map_in(i,j)%p%map ! unit conversion
           call map_in(i,j)%p%bcast_fullsky_map(m_buf)
           do k = 1, tod%nobs
              map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
           end do
-          if (j == 1 .and. present(map_full)) map_full = map_full + m_buf(:,1)
+          if (present(map_full) .and. j .eq. 1) then
+            do k = 1, nmaps
+              do l = 0, npix-1
+                map_full(k, l) = map_full(k, l) + m_buf(l, k)
+              end do
+            end do
+          end if
        end do
        do k = 1, tod%nobs
           do l = 1, tod%nmaps
@@ -853,6 +911,9 @@ contains
           end do
        end do
     end do
+
+    if (present(map_full)) map_full = map_full/tod%ndet
+
     deallocate(m_buf)
 
   end subroutine distribute_sky_maps
@@ -896,20 +957,25 @@ contains
     real(dp) :: chisq
     integer(i4b)                          :: ntod !< total amount of ODs
     integer(i4b)                          :: ndet !< total amount of detectors
+    byte,    allocatable, dimension(:)    :: ztod 
+
     ! HDF5 variables
+    character(len=6)   :: samptext, scantext
     character(len=512) :: mystring, mysubstring !< dummy values for string manipulation
     integer(i4b)       :: myindex     !< dummy value for string manipulation
     character(len=512) :: currentHDFFile !< hdf5 file which stores simulation output
     character(len=6)   :: pidLabel
-    character(len=3)   :: detectorLabel
+    character(len=512) :: detectorLabel
     type(hdf_file)     :: hdf5_file   !< hdf5 file to work with
+    type(hdf_file)     :: tod_file
     integer(i4b)       :: hdf5_error  !< hdf5 error status
     integer(HID_T)     :: hdf5_file_id !< File identifier
     integer(HID_T)     :: dset_id     !< Dataset identifier
+    integer(hid_t)     :: dtype  ! hdf5 datatype
     integer(HSIZE_T), dimension(1) :: dims
     ! Other variables
     integer(i4b)                          :: i, j, k !< loop variables
-    integer(i4b)       :: mpi_err !< MPI error status
+    integer(i4b)       :: mpi_err, errorcode !< MPI error status
     integer(i4b)       :: nomp !< Number of threads available
     integer(i4b)       :: omp_err !< OpenMP error status
     integer(i4b) :: omp_get_max_threads
@@ -965,7 +1031,9 @@ contains
         dv(k) = cmplx(rand_gauss(handle), rand_gauss(handle)) * sqrt(N_c) /sqrt(2.0)
       end do
       ! Executing Backward FFT
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
       dt = dt / sqrt(1.d0*nfft)
       n_corr(:,j) = dt(1:ntod)
       !write(*,*) "n_corr ", n_corr(:, j)
@@ -985,82 +1053,73 @@ contains
       do j = 1, ndet
         ! skipping iteration if scan was not accepted
         if (.not. self%scans(scan_id)%d(j)%accept) cycle
-        ! getting gain for each detector (units, V / K)
-        ! (gain is assumed to be CONSTANT for EACH SCAN)
         gain   = self%scans(scan_id)%d(j)%gain
-        !write(*,*) "gain ", gain
         sigma0 = self%scans(scan_id)%d(j)%N_psd%sigma0
-        !write(*,*) "sigma0 ", sigma0
-        ! Simulating tods
-        !tod_per_detector(i,j) = n_corr(i, j) + sigma0 * rand_gauss(handle)
         tod_per_detector(i,j) = gain * s_tot(i,j) + n_corr(i, j) + sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = gain * s_tot(i,j) + sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = sigma0 * rand_gauss(handle)
-        !tod_per_detector(i,j) = 0
       end do
     end do
-
-    !write(*,*) 'a', self%scanid(scan_id), self%scans(scan_id)%d(1)%N_psd%sigma0, (sum((tod_per_detector(:,1)/self%scans(scan_id)%d(1)%N_psd%sigma0)**2)/ntod-1)/sqrt(2./ntod)
+    ! Digitizes the data to the nearest integer; probably should mimic the
+    ! actual ADC conversion process
+    if (self%compressed_tod) tod_per_detector = real(nint(tod_per_detector), kind=sp)
 
     !----------------------------------------------------------------------------------
     ! Saving stuff to hdf file
     ! Getting the full path and name of the current hdf file to overwrite
     !----------------------------------------------------------------------------------
     mystring = trim(self%hdfname(scan_id))
-    mysubstring = 'LFI_0'
-    myindex = index(trim(mystring), trim(mysubstring))
+    mysubstring = '/'
+
+    myindex = index(trim(mystring), trim(mysubstring), back=.true.) + 1
+
+
     call get_tokens(trim(mystring), "/", toks=toks, num=ntoks)
     currentHDFFile = trim(self%sims_output_dir)//'/'//trim(toks(ntoks))
-    !write(*,*) "hdf5name "//trim(self%hdfname(scan_id))
-    !write(*,*) "currentHDFFile "//trim(currentHDFFile)
-    ! Converting PID number into string value
     call int2string(self%scanid(scan_id), pidLabel)
     call int2string(self%myid, processor_label)
-    !write(*,*) "!  Process: "//trim(processor_label)//" started writing PID: "//trim(pidLabel)//", into:"
     write(*,*) "!  Process:", self%myid, "started writing PID: "//trim(pidLabel)//", into:"
-    write(*,*) "!  "//trim(currentHDFFile)
-    ! For debugging
-    !call MPI_Finalize(mpi_err)
-    !stop
+    write(*,*) "!  "//trim(toks(ntoks))
 
     dims(1) = ntod
-    ! Initialize FORTRAN interface.
     call h5open_f(hdf5_error)
-    ! Open an existing file - returns hdf5_file_id
     call  h5fopen_f(currentHDFFile, H5F_ACC_RDWR_F, hdf5_file_id, hdf5_error)
     if (hdf5_error /= 0) call h5eprint_f(hdf5_error)
-    do j = 1, ndet
-      detectorLabel = self%label(j)
-      ! Open an existing dataset.
-      call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
-      ! Write tod data to a dataset
-      call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
-      ! Close the dataset.
-      call h5dclose_f(dset_id, hdf5_error)
-    end do
-    ! Close the file.
+
+    ! Remake huffman, symbols for tod_per_detector
+    ! decompress the zipped tods to remake the tod
+    !do j = 1, 4
+    !   if (.not. self%scans(scan_id)%d(j)%accept) cycle
+    !   call self%decompress_tod(scan_id, j, tod_per_detector(:,j))
+    !end do
+    ! call hufmak(tod_per_detector, self%scans(scan_id)%todkey)
+    ! Need to overwrite the keys in the simulated data
+
+    if (self%compressed_tod) then
+      call open_hdf_file(trim(self%sims_output_dir)//'/tod_'//pidLabel//'.h5', tod_file, 'w')
+      do k = 1, self%ndet
+        detectorLabel = self%label(k)
+
+        call write_hdf(tod_file, '/'//trim(detectorLabel), tod_per_detector(:,k))
+        call write_hdf(tod_file, '/xi_n_'//trim(detectorLabel), self%scans(scan_id)%d(k)%N_psd%xi_n)
+        call write_hdf(tod_file, '/gain_'//trim(detectorLabel), self%scans(scan_id)%d(k)%gain)
+
+      end do
+      call write_hdf(tod_file, '/x_im', self%x_im)
+      call close_hdf_file(tod_file)
+    else
+      do j = 1, ndet
+        detectorLabel = self%label(j)
+        call h5dopen_f(hdf5_file_id, trim(pidLabel)//'/'//trim(detectorLabel)//'/'//'tod', dset_id, hdf5_error)
+        call h5dwrite_f(dset_id, H5T_IEEE_F32LE, tod_per_detector(:,j), dims, hdf5_error)
+      end do
+    end if
+    call h5dclose_f(dset_id, hdf5_error)
     call h5fclose_f(hdf5_file_id, hdf5_error)
-    ! Close FORTRAN interface.
     call h5close_f(hdf5_error)
 
 
-    !write(*,*) "hdf5_error",  hdf5_error
-    ! freeing memory up
     deallocate(tod_per_detector)
     write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
-    ! lastly, we need to copy an existing filelist.txt into simulation folder
-    ! and change the pointers to new files
-    !if (self%myid == 0) then
-    !  call system("cp "//trim(filelist)//" "//trim(simsdir))
-    !  !mystring = filelist
-    !  !mysubstring = ".txt"
-    !  !myindex = index(trim(mystring), trim(mysubstring))
-    !end if
-
-    ! For debugging
-    !call MPI_Finalize(mpi_err)
-    !stop
   end subroutine simulate_tod
 
 end module comm_tod_driver_mod

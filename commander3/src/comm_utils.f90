@@ -170,6 +170,10 @@ contains
 
 
   ! Small utility for converting an integer to a string
+  ! WARNING TO FUTURE USERS: The length of the input string is very important
+  ! Only provide the length of string you think you will need, no extra space
+  ! at the end. It will crash if the string is too long
+
   subroutine int2string(integer, string)
     implicit none
 

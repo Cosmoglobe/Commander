@@ -218,8 +218,21 @@ contains
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
 !       write(*,*) i, 'ndet = ', data(i)%ndet, shape(self%F), info%nside
        do j = 0, data(i)%ndet
-          self%F(i,j)%p    => comm_map(info)
-          self%F_null(i,j) =  .false.
+          if (j<=1) then
+            self%F(i,j)%p    => comm_map(info)
+            self%F_null(i,j) =  .false.
+          else
+            do k=1, j
+               if (all(data(i)%bp(k)%p%tau0==data(i)%bp(j)%p%tau0)) then
+                  self%F(i,j)%p => self%F(i,k)%p
+                  self%F_null(i,j) =  .false.
+                  exit
+               else if (k==j-1) then
+                  self%F(i,j)%p    => comm_map(info)
+                  self%F_null(i,j) =  .false.
+               end if
+            end do
+          end if
        end do
     end do
     call update_status(status, "init_postmix")
@@ -282,7 +295,10 @@ contains
           !init smoothing beam for the component amplitude, to be used for monopole prior correction
           self%B_mono_prior => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=self%mono_prior_fwhm, nside=self%nside,&
                & init_realspace=.false.)
-          
+
+       else if (trim(self%mono_prior_type) == 'bandmono') then
+          filename = get_token(temp_filename, ",", 1)
+          self%mono_prior_band=trim(filename)
        else          
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
@@ -1188,7 +1204,7 @@ contains
           end if
        else
           self%L_read(j) = .true.
-          if ( self%myid == 0 ) write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
+          if ( self%myid == 0 ) write(*,*) "|    Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
           open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) corrlen_arr
@@ -2010,7 +2026,6 @@ contains
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%map(:,1:nmaps)
     end if
-       
 
     ! Clean up
     call m%dealloc(); deallocate(m)
@@ -2719,7 +2734,7 @@ contains
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
           npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-          if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+          if (any(self%pol_pixreg_type(:npol,i) > 0) .and. cpar%sample_specind) then
              npr=0
              do j = 1,npol
                 if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
@@ -3618,12 +3633,14 @@ contains
     class(comm_diffuse_comp), intent(inout)          :: self
     type(planck_rng),         intent(inout)          :: handle
 
-    integer(i4b) :: i, j, k, l, m, ierr
+    integer(i4b) :: i, j, k, l, m, ierr, pix
     real(dp)     :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
     class(comm_map), pointer :: map, lr_map 
     class(comm_mapinfo), pointer :: info => null()
-    real(dp), dimension(:), allocatable :: mask_list, corr_list, amp_list, intersect
-    real(dp)     :: mean_intersect, std_intersect
+    real(dp), dimension(:), allocatable :: mask_list, corr_list, amp_list, intersect, all_thetas
+    real(dp)     :: mean_intersect, std_intersect 
+    real(dp)     :: diff_mono, diff_comp, mono_mix, comp_mix, prior_vals(2)
+    class(comm_comp), pointer :: c => null()
 
     if (trim(self%mono_prior_type) == 'none') then ! No active monopole prior
        return
@@ -3654,7 +3671,11 @@ contains
        ! Subtract mean in real space
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
 
-       if (self%x%info%myid == 0) write(*,fmt='(a,f10.3)') ' |  Monopole prior correction for '//trim(self%label)//': ', mu(0)
+       if (self%x%info%myid == 0) then
+             write(*,fmt='(a)') ' |  Monopole prior correction for component: '//trim(self%label)
+             write(*,fmt='(a,f11.3)') ' |   Monopole: ',mu(0)*self%cg_scale(1)
+             write(*,fmt='(a)') ' | '
+       end if
 
     else if (trim(self%mono_prior_type) == 'monopole-dipole' .or. trim(self%mono_prior_type) == 'monopole+dipole') then        ! Set monopole or monopole+dipole to zero outside user-specified mask. In both cases the dipole is computed, but only in the monopole+dipole case it is removed
        ! Generate real-space component map
@@ -3680,7 +3701,13 @@ contains
        if (trim(self%mono_prior_type) == 'monopole-dipole') then
           ! Subtract mean in real space 
           self%x%map(:,1) = self%x%map(:,1) - mu(0)
-          if (self%x%info%myid == 0) write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |  Monopole prior correction (with dipole estimate) for '//trim(self%label)//': ', mu(0),'  ( ',mu(1:3), ' )'
+          if (self%x%info%myid == 0) then
+             write(*,fmt='(a)') ' |  Monopole prior correction (with dipole estimate) for component: '//trim(self%label)
+             write(*,fmt='(a,f10.3,a,3f10.3,a)') ' |    Monopole (dipole):', &
+                  & mu(0)*self%cg_scale(1),'  ( ',mu(1:3)*self%cg_scale(1), ' )'
+             write(*,fmt='(a)') ' | '
+
+          end if
           mu(1:3)=0.d0 !in order to not subtract the dipole in alm space!
        else
           ! Subtract mean and dipole in real space
@@ -3689,7 +3716,12 @@ contains
              call pix2vec_ring(self%x%info%nside, self%x%info%pix(i+1), v(1:3))
              self%x%map(i,1) = self%x%map(i,1) - sum(v*mu)
           end do
-          if (self%x%info%myid == 0) write(*,fmt='(a,4f10.3)') '   Monopole+dipole prior correction for '//trim(self%label)//': ', mu
+          if (self%x%info%myid == 0) then
+             write(*,fmt='(a)') ' Monopole+dipole prior correction for component: '//trim(self%label)
+             write(*,fmt='(a)') '      Monopole   Dipole_x   Dipole_y   Dipole_z'
+             write(*,fmt='(a,4f11.3)') '   ',mu*self%cg_scale(1)
+             write(*,fmt='(a)') ' | '
+          end if
        end if
 
 
@@ -3733,16 +3765,18 @@ contains
           !restructure so that we only have unmasked pixels, only 1 proc needs to do this
           if (lr_map%info%myid == 0) then
              k=-1
-             open(58, file='corr.dat')
+
+             !open(58, file='corr.dat') !debug
+             ! set up lists with only the pixels with cross-correlation data under the threshold
              do j = 0,lr_map%info%npix-1
                 if (mask_list(j) > 0.5d0) then
                    k = k + 1
-                   corr_list(k) = corr_list(j)
-                   amp_list(k) = amp_list(j)
-                   write(58,*) corr_list(j), amp_list(j)
+                   corr_list(k) = corr_list(j) !external data
+                   amp_list(k) = amp_list(j)   !component amplitude
+                   !write(58,*) corr_list(j), amp_list(j)  !debug
                 end if
              end do
-             close(58)
+             !close(58) !debug
 
              !calculate intersection 
              corr_res = calc_linear_regression(corr_list(0:k), amp_list(0:k))
@@ -3786,8 +3820,23 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) write(*,fmt='(a,f14.3,a,2f14.3)') '   cross-correlation prior correction for '//trim(self%label)//': ', mu(0), ' from normal distribution with following mean and RMS', mean_intersect, std_intersect
-  
+       if (self%x%info%myid == 0) then
+          write(*,fmt='(a)') ' |  Cross-correlation prior correction for component: '//trim(self%label)
+          write(*,fmt='(a,i2)') ' |    Number of linear fits (thresholds): ',&
+               & self%mono_prior_Nthresh
+          write(*,fmt='(a,f14.3,f14.3)') ' |    Drawing intersect to subtract from prior (mu,RMS)  ', &
+               & mean_intersect*self%cg_scale(1), &
+               & std_intersect*self%cg_scale(1) 
+          write(*,fmt='(a,f14.3,f14.3)') ' |    New value             ', &
+               & (mean_intersect-mu(0))*self%cg_scale(1)
+          write(*,fmt='(a,f14.3,f14.3)') ' |    Old value             ', &
+               & mean_intersect*self%cg_scale(1)
+          write(*,fmt='(a,f14.3,f14.3)') ' |    Difference            ', &
+               & -mu(0)*self%cg_scale(1)
+          write(*,fmt='(a)') ' |  '
+
+       end if
+
        deallocate(intersect)
        deallocate(mask_list)
        deallocate(amp_list)
@@ -3854,10 +3903,125 @@ contains
 
        ! Subtract mean in real space 
        self%x%map(:,1) = self%x%map(:,1) - mu(0)
-       if (self%x%info%myid == 0) write(*,fmt='(a,f14.3,a,f14.3)') '   lowest value prior correction for '//trim(self%label)//': ', mu(0)*self%cg_scale(1), ' to give the smoothed amplitude a lower value of ', mean_intersect*self%cg_scale(1)
-  
+       if (self%x%info%myid == 0) then
+          write(*,fmt='(a)') ' Lowest value prior correction for component: '//trim(self%label)
+          write(*,fmt='(a,f14.3,f14.3)') '   Prior value (mu,RMS)  ', &
+               & self%mono_prior_gaussian_mean*self%cg_scale(1), &
+               & self%mono_prior_gaussian_rms*self%cg_scale(1) 
+          write(*,fmt='(a,f14.3,f14.3)') '   New value             ', &
+               & mean_intersect*self%cg_scale(1)
+          write(*,fmt='(a,f14.3,f14.3)') '   Old value             ', amp_list(k)*self%cg_scale(1)
+          write(*,fmt='(a,f14.3,f14.3)') '   Difference            ', -mu(0)*self%cg_scale(1)
+          write(*,fmt='(a)') ' | '
+       end if
+
        deallocate(mask_list)
        deallocate(amp_list)
+
+    else if (trim(self%mono_prior_type) == 'bandmono') then
+       !get monopole value of frequency-band monopole and draw a new value
+       ! real(dp) :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
+       c => compList
+       a=0.d0
+       prior_vals=0.d0
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             if (trim(c%label)==trim(self%mono_prior_band)) then
+                mono_mix=c%RJ2unit_(1)
+                do i = 0, c%x%info%nalm-1
+                   call c%x%info%i2lm(i,l,m)
+                   if (l == 0) then ! monopole
+                      a = c%x%alm(i,1)
+                      ! draw new monopole value 
+                      !mono [alm_uKRJ] = mu_in_alm_uK_RJ + rms_in_alm_uKRJ * rand_gauss
+                      b = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+                      c%x%alm(i,1) = b ! set new monopole value
+                      prior_vals(1)=c%mu%alm(i,1)/sqrt(4.d0*pi)
+                      prior_vals(2)=sqrt(c%Cl%Dl(0,1))/sqrt(4.d0*pi)
+                   end if
+                end do
+             end if
+          end select
+          c => c%next()
+       end do
+
+       ! MPI reduce existing and new monopole
+       call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, prior_vals, 2, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+
+       diff_mono = (b - a)/sqrt(4.d0*pi) !to get it in pixel space units
+
+       !need to get mixing matrix for data band for the given component
+       allocate(all_thetas(self%npar))
+       comp_mix=0.d0
+       do j = 1,numband
+          if (trim(self%mono_prior_band)==trim(data(j)%label)) then
+             do i = 1, self%npar
+                mean_intersect = 0.d0
+                do pix = 0,self%x%info%np-1
+                   mean_intersect = mean_intersect + self%theta(i)%p%map(pix,1) 
+                end do
+                call mpi_allreduce(MPI_IN_PLACE, mean_intersect, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+                all_thetas(i) = mean_intersect/self%x%info%npix
+             end do
+
+             ! get conversion factor from amplitude to data 
+             ! (i.e. mixing matrix element for prior band)         
+             comp_mix = self%F_int(1,j,0)%p%eval(all_thetas) * &
+                        & data(j)%gain * self%cg_scale(1)
+             exit
+          end if
+       end do
+       
+       if (comp_mix > 0.d0) then
+          diff_comp = diff_mono * mono_mix/comp_mix 
+          !diff[monoRJ]*[monoRJ2data]/[compRJ2data] = diff[compRJ]
+       else
+          diff_comp = 0.d0
+          if (self%x%info%myid == 0) write(*,fmt='(a)') &
+               &'   Could not compute mixing matrix to prior frequency band "'&
+               &//trim(self%mono_prior_band)//'" for component "'//trim(self%label)//&
+               & '". Reversing the sampled monopole.'
+
+          c => compList
+          do while (associated(c))
+             select type (c)
+             class is (comm_diffuse_comp)
+                if (trim(c%label)==trim(self%mono_prior_band)) then
+                   mono_mix=c%RJ2unit_(1)
+                   do i = 0, c%x%info%nalm-1
+                      call c%x%info%i2lm(i,l,m)
+                      if (l == 0) then ! monopole
+                         c%x%alm(i,1) = a ! go back to original value
+                      end if
+                   end do
+                end if
+             end select
+             c => c%next()
+          end do
+       end if
+
+       mu = 0.d0
+       mu(0) = diff_comp
+       ! a positive shift in band monopole -> negative shift in amplitude 
+       ! -> subtract the monopole
+
+       ! Subtract mean in real space 
+       self%x%map(:,1) = self%x%map(:,1) - mu(0)
+       if (self%x%info%myid == 0) then 
+          write(*,fmt='(a)') ' |  Band monopole prior correction for -- comp: '//trim(self%label)//' -- prior band: '//trim(self%mono_prior_band)
+          write(*,fmt='(a,f14.3,f14.3)') ' |  Band monopole prior (mu,RMS) ', prior_vals(1),prior_vals(2)
+          write(*,fmt='(a,f14.3)') ' |  New band monopole            ',b*mono_mix/sqrt(4.d0*pi)
+          write(*,fmt='(a,f14.3)') ' |  Old band monopole            ',a*mono_mix/sqrt(4.d0*pi)
+          write(*,fmt='(a,f14.3)') ' |  Change to band monopole      ',diff_mono*mono_mix
+          write(*,fmt='(a,f14.3)') ' |  Change to component monopole ',-diff_comp*self%cg_scale(1)
+          write(*,fmt='(a)') ' | '
+       end if
+
+       deallocate(all_thetas)
+
     end if
     
     ! Subtract mean in harmonic space

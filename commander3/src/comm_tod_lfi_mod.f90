@@ -64,13 +64,15 @@ module comm_tod_lfi_mod
      real(dp),          allocatable, dimension(:,:)     :: spike_amplitude ! nscan, ndet
      real(dp),          allocatable, dimension(:,:,:)   :: R               ! nscan, ndet, ndiode/2
      type(double_pointer), allocatable, dimension(:)    :: gmf_splits      ! ndet
-     character(len=10)                                  :: adc_mode        ! gauss, dpc, none
+     logical(lgt),      allocatable, dimension(:,:)     :: apply_adc       ! ndet, n_diode
+     character(len=10), allocatable, dimension(:,:)     :: adc_mode
    contains
      procedure     :: process_tod             => process_lfi_tod
      procedure     :: diode2tod_inst          => diode2tod_lfi
      procedure     :: load_instrument_inst    => load_instrument_lfi
      procedure     :: dumpToHDF_inst          => dumpToHDF_lfi
      procedure     :: construct_corrtemp_inst => construct_corrtemp_lfi
+     procedure     :: initHDF_inst            => initHDF_lfi
      procedure     :: remove_fixed_scans      => remove_fixed_scans_lfi
      procedure     :: filter_reference_load
      procedure     :: compute_ref_load_filter
@@ -197,7 +199,31 @@ interface
     type(hdf_file),                      intent(in)    :: instfile
     integer(i4b),                        intent(in)    :: band
   end subroutine load_instrument_lfi
-  
+ 
+  module subroutine initHDF_lfi(self, chainfile, path)
+    ! 
+    ! Initializes instrument-specific TOD parameters from existing chain file
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_tod)
+    !           TOD object
+    ! chainfile: derived type (hdf_file)
+    !           Already open HDF file handle to existing chainfile
+    ! path:   string
+    !           HDF path to current dataset, e.g., "000001/tod/030"
+    !
+    ! Returns
+    ! ----------
+    ! None
+    !
+    implicit none
+    class(comm_lfi_tod),                 intent(inout)  :: self
+    type(hdf_file),                      intent(in)     :: chainfile
+    character(len=*),                    intent(in)     :: path
+  end subroutine initHDF_lfi
+
+ 
   module subroutine diode2tod_lfi(self, scan, map_sky, procmask, tod)
     ! 
     ! Generates detector-coadded TOD from low-level diode data

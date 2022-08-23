@@ -50,7 +50,9 @@ contains
 
     integer(i4b) :: i, n
     class(comm_comp), pointer :: c => null()
-    
+    class(comm_comp), pointer :: c_two => null()
+    logical(lgt) :: prior_exists
+
     ncomp = 0
     do i = 1, cpar%cs_ncomp_tot
        if (.not. cpar%cs_include(i)) cycle
@@ -75,6 +77,8 @@ contains
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("spindust2")
              c => comm_spindust2_comp(cpar, ncomp, i)
+          case ("lognormal")
+             c => comm_ame_lognormal_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("freefree")
@@ -128,6 +132,43 @@ contains
 !    call mpi_finalize(i)
 !    stop
        
+    ! go through compList and check if any diffuse component is using a band monopole
+    ! as the zero-level prior
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%mono_prior_type) == 'bandmono') then
+             prior_exists=.false.
+             c_two => compList
+             do while (associated(c_two))
+                select type (c_two)
+                class is (comm_md_comp)
+                   if (trim(c%mono_prior_band)==trim(c_two%label)) then
+                      if (c_two%mono_from_prior) then
+                         !Error, band already prior for another component
+                         call report_error("Component '"//trim(c%label)//"'. Band monopole '"//trim(c_two%label)//"' already in use as a zero-level prior of another component")
+                      end if
+                      c_two%mono_from_prior = .true.
+                      prior_exists = .true.
+                   end if
+                end select
+                c_two => c_two%next()
+             end do
+
+             if (.not. prior_exists) then
+                !Error, could not find band monopole used as prior
+                call report_error("Could not find band monopole '"//trim(c%mono_prior_band)//"' for zero-level prior of component "//trim(c%label))
+
+             end if
+
+          end if
+       end select
+       c => c%next()
+    end do
+
+
+
   end subroutine initialize_signal_mod
 
   subroutine dump_components(filename)
@@ -172,6 +213,26 @@ contains
        call c%CG_mask(samp_group, mask)
        c => c%next()
     end do
+
+    ! If mono-/dipole are sampled, check if they are priors for a component zero-level
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_md_comp)
+          if (c%active_samp_group(samp_group)) then
+             if (c%mono_from_prior) then
+                do i = 0, c%x%info%nalm-1
+                   call c%x%info%i2lm(i,l,m)
+                   if (l == 0) then ! save the monopole value
+                      c%mono_alm = c%x%alm(i,1)
+                   end if
+                end do
+             end if
+          end if
+       end select
+       c => c%next()
+    end do
+
     
     ! Solve the linear system
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
@@ -194,7 +255,7 @@ contains
        c => c%next()
     end do
 
-    ! If mono-/dipole components have been sampled, check if any are to be marginalized/sampled from prior
+    ! If mono-/dipole components is a zero-level prior, revert back to pre-sampling value if it has been sampled in the current CG group
     c => compList
     do while (associated(c))
        select type (c)
@@ -203,9 +264,19 @@ contains
              if (c%mono_from_prior) then
                 do i = 0, c%x%info%nalm-1
                    call c%x%info%i2lm(i,l,m)
-                   if (l == 0) then ! Monopole
+                   if (l == 0) then ! monopole
+
+                      write(*,fmt='(a)') " |  Band monopole of '"//&
+                           & trim(c%label)//"' used as zero-level prior"
+                      write(*,fmt='(a,f14.3)') " |     Revert back to pre-CG value: ",&
+                           & c%mono_alm/sqrt(4.d0*pi)
+                      write(*,fmt='(a,f14.3,a)') " |     (Sampled value in CG: ",&
+                           & c%x%alm(i,1)/sqrt(4.d0*pi)," )"
+
+                      c%x%alm(i,1) = c%mono_alm  ! revert to pre-CG search value 
                       !monopole in alm_uKRJ = mu_in_alm_uK_RJ + rms_in_alm_uKRJ * rand_gauss
-                      c%x%alm(i,1)  = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+                      !c%x%alm(i,1) = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+
                    end if
                 end do
              end if
@@ -272,7 +343,7 @@ contains
        ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
        do while (associated(c))
-          if (trim(c%type) /= 'cmb') then
+          if (.not. c%output) then
              c => c%next()
              cycle
           end if
