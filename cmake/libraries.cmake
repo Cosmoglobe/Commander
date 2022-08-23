@@ -138,60 +138,83 @@ if(USE_SYSTEM_LIBS)
         # to refresh terminal. In addition, defining two variables, since it may also
         # affect finding MKL on some systems (sometimes it just ignores BLA_VENDOR & 
         # sometimes it needs $ENV{BLA_VENDOR} for MKL)
-        set(BLA_VENDOR
-            Intel10_32
-            Intel10_64lp 
-            Intel10_64lp_seq
-            Intel10_64ilp
-            Intel10_64ilp_seq
-            Intel10_64_dyn
+        #find_package(MKL)
+        find_package(MKL)
+        add_library(BLAS::BLAS INTERFACE IMPORTED)
+        set_target_properties(BLAS::BLAS PROPERTIES
+          INTERFACE_LINK_LIBRARIES "${MKL_LIBRARIES}"
           )
-        set($ENV{BLA_VENDOR}
-            Intel10_32
-            Intel10_64lp 
-            Intel10_64lp_seq
-            Intel10_64ilp
-            Intel10_64ilp_seq
-            Intel10_64_dyn
+        add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+        set_target_properties(LAPACK::LAPACK PROPERTIES
+          INTERFACE_LINK_LIBRARIES ""
           )
-        find_package(BLAS)
-        find_package(LAPACK)
-        if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-          # MKL is shipped with MKLConfig.cmake variable which can be consumed by CMake
-          # project. Thus, we need to check for it as well, most probably it will find 
-          # MKL in this way. If it doesn't, then OpenBLAS will be compiled.
-          message(STATUS "Checking for $MKLROOT")
-          if(DEFINED ENV{MKLROOT})
-            message(STATUS "$MKLROOT exists")
-            set(MKL_ROOT $ENV{MKLROOT})
-            find_package(MKL  
-              HINTS ${MKL_ROOT}
+          if(NOT MKL_FOUND)
+            message("Couldn't find MKL => Looking for OpenBLAS instead")
+            set(BLA_VENDOR
+                OpenBLAS
               )
-            if(MKL_FOUND)
-              add_library(BLAS::BLAS INTERFACE IMPORTED)
-              set_target_properties(BLAS::BLAS PROPERTIES
-                INTERFACE_LINK_LIBRARIES MKL::MKL 
-                )
-              add_library(LAPACK::LAPACK INTERFACE IMPORTED)
-              set_target_properties(LAPACK::LAPACK PROPERTIES
-                INTERFACE_LINK_LIBRARIES MKL::MKL 
-                )
-              include_directories(${MKL_INCLUDE})
-            else()
-              message(STATUS "$MKLROOT does not exist => Looking for OpenBLAS instead")
-              set(BLA_VENDOR
-                  OpenBLAS
-                )
-              find_package(BLAS)
-              find_package(LAPACK)
-              if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-                message(STATUS "OpenBLAS is not found => will compile it from source")
-                set(COMPILE_OPENBLAS TRUE)
-              endif()
+            find_package(BLAS)
+            find_package(LAPACK)
+            if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+              message(STATUS "OpenBLAS is not found => will compile it from source")
+              set(COMPILE_OPENBLAS TRUE)
             endif()
-
           endif()
-        endif()
+
+          #set(BLA_VENDOR
+          #    Intel10_32
+          #    Intel10_64lp 
+          #    Intel10_64lp_seq
+          #    Intel10_64ilp
+          #    Intel10_64ilp_seq
+          #    Intel10_64_dyn
+          #  )
+          #set($ENV{BLA_VENDOR}
+          #    Intel10_32
+          #    Intel10_64lp 
+          #    Intel10_64lp_seq
+          #    Intel10_64ilp
+          #    Intel10_64ilp_seq
+          #    Intel10_64_dyn
+          #  )
+          #find_package(BLAS)
+          #find_package(LAPACK)
+          #if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          #  # MKL is shipped with MKLConfig.cmake variable which can be consumed by CMake
+          #  # project. Thus, we need to check for it as well, most probably it will find 
+          #  # MKL in this way. If it doesn't, then OpenBLAS will be compiled.
+          #  message(STATUS "Checking for $MKLROOT")
+          #  if(DEFINED ENV{MKLROOT})
+          #    message(STATUS "$MKLROOT exists")
+          #    set(MKL_ROOT $ENV{MKLROOT})
+          #    find_package(MKL  
+          #      HINTS ${MKL_ROOT}
+          #      )
+          #    if(MKL_FOUND)
+          #      add_library(BLAS::BLAS INTERFACE IMPORTED)
+          #      set_target_properties(BLAS::BLAS PROPERTIES
+          #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+          #        )
+          #      add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+          #      set_target_properties(LAPACK::LAPACK PROPERTIES
+          #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+          #        )
+          #      include_directories(${MKL_INCLUDE})
+          #    else()
+          #      message(STATUS "$MKLROOT does not exist => Looking for OpenBLAS instead")
+          #      set(BLA_VENDOR
+          #          OpenBLAS
+          #        )
+          #      find_package(BLAS)
+          #      find_package(LAPACK)
+          #      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          #        message(STATUS "OpenBLAS is not found => will compile it from source")
+          #        set(COMPILE_OPENBLAS TRUE)
+          #      endif()
+          #    endif()
+
+          #  endif()
+          #endif()
 
       elseif(CPU_VENDOR MATCHES "AMD")
         message(STATUS "Looking for AOCL...")
@@ -237,56 +260,77 @@ if(USE_SYSTEM_LIBS)
 
     elseif(COMM3_BACKEND MATCHES "mkl")
       message(STATUS "Looking for MKL...")
-      set(BLA_VENDOR
-          Intel10_32
-          Intel10_64lp 
-          Intel10_64lp_seq
-          Intel10_64ilp
-          Intel10_64ilp_seq
-          Intel10_64_dyn
+      find_package(MKL)
+      add_library(BLAS::BLAS INTERFACE IMPORTED)
+      set_target_properties(BLAS::BLAS PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${MKL_LIBRARIES}"
         )
-      set($ENV{BLA_VENDOR}
-          Intel10_32
-          Intel10_64lp 
-          Intel10_64lp_seq
-          Intel10_64ilp
-          Intel10_64ilp_seq
-          Intel10_64_dyn
+      add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+      set_target_properties(LAPACK::LAPACK PROPERTIES
+        INTERFACE_LINK_LIBRARIES ""
         )
-      find_package(BLAS)
-      find_package(LAPACK)
-      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-        message(STATUS "Checking for $MKLROOT")
-        if(DEFINED ENV{MKLROOT})
-          message(STATUS "$MKLROOT exists")
-          set(MKL_ROOT $ENV{MKLROOT})
-          find_package(MKL  
-            HINTS ${MKL_ROOT}
+        if(NOT MKL_FOUND)
+          message("Couldn't find MKL => Looking for OpenBLAS instead")
+          set(BLA_VENDOR
+              OpenBLAS
             )
-          if(MKL_FOUND)
-            add_library(BLAS::BLAS INTERFACE IMPORTED)
-            set_target_properties(BLAS::BLAS PROPERTIES
-              INTERFACE_LINK_LIBRARIES MKL::MKL 
-              )
-            add_library(LAPACK::LAPACK INTERFACE IMPORTED)
-            set_target_properties(LAPACK::LAPACK PROPERTIES
-              INTERFACE_LINK_LIBRARIES MKL::MKL 
-              )
-            include_directories(${MKL_INCLUDE})
-          else()
-            message(STATUS "$MKLROOT does not exist => Looking for OpenBLAS instead")
-            set(BLA_VENDOR
-                OpenBLAS
-              )
-            find_package(BLAS)
-            find_package(LAPACK)
-            if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-              message(STATUS "OpenBLAS is not found => will compile it from source")
-              set(COMPILE_OPENBLAS TRUE)
-            endif()
+          find_package(BLAS)
+          find_package(LAPACK)
+          if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+            message(STATUS "OpenBLAS is not found => will compile it from source")
+            set(COMPILE_OPENBLAS TRUE)
           endif()
         endif()
-      endif()
+      #set(BLA_VENDOR
+      #    Intel10_32
+      #    Intel10_64lp 
+      #    Intel10_64lp_seq
+      #    Intel10_64ilp
+      #    Intel10_64ilp_seq
+      #    Intel10_64_dyn
+      #  )
+      #set($ENV{BLA_VENDOR}
+      #    Intel10_32
+      #    Intel10_64lp 
+      #    Intel10_64lp_seq
+      #    Intel10_64ilp
+      #    Intel10_64ilp_seq
+      #    Intel10_64_dyn
+      #  )
+      #find_package(BLAS)
+      #find_package(LAPACK)
+      #if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+      #  message(STATUS "Checking for $MKLROOT")
+      #  if(DEFINED ENV{MKLROOT})
+      #    message(STATUS "$MKLROOT exists")
+      #    set(MKL_ROOT $ENV{MKLROOT})
+      #    find_package(MKL  
+      #      HINTS ${MKL_ROOT}
+      #      )
+      #    if(MKL_FOUND)
+      #      add_library(BLAS::BLAS INTERFACE IMPORTED)
+      #      set_target_properties(BLAS::BLAS PROPERTIES
+      #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+      #        )
+      #      add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+      #      set_target_properties(LAPACK::LAPACK PROPERTIES
+      #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+      #        )
+      #      include_directories(${MKL_INCLUDE})
+      #    else()
+      #      message(STATUS "$MKLROOT does not exist => Looking for OpenBLAS instead")
+      #      set(BLA_VENDOR
+      #          OpenBLAS
+      #        )
+      #      find_package(BLAS)
+      #      find_package(LAPACK)
+      #      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+      #        message(STATUS "OpenBLAS is not found => will compile it from source")
+      #        set(COMPILE_OPENBLAS TRUE)
+      #      endif()
+      #    endif()
+      #  endif()
+      #endif()
     
     elseif(COMM3_BACKEND MATCHES "opensrc")
       message(STATUS "Looking for OpenBLAS...")
@@ -356,7 +400,7 @@ if(USE_SYSTEM_LIBS)
       # Compile based on the CPU
       # TODO: write this part to perform the search
       if(CPU_VENDOR MATCHES "Intel")
-        if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+        if(NOT MKL_FOUND)
           message("MKL FFTW was not found => Looking for FFTW3 instead")
           find_package(FFTW
             COMPONENTS
@@ -393,7 +437,7 @@ if(USE_SYSTEM_LIBS)
           )
       endif()
     elseif(COMM3_BACKEND MATCHES "mkl")
-      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+      if(NOT MKL_FOUND)
         message("MKL FFTW was not found => Looking for FFTW3 instead")
         find_package(FFTW
           COMPONENTS
@@ -626,3 +670,9 @@ list(APPEND projects
 foreach(project ${projects})
 	include("${project}")
 endforeach()
+
+#message("${MKL_LIBRARIES}")
+#message("${MKL_INTERFACE_LIBRARY}")
+
+
+message("Libs are ${MKL_LIBRARIES}")

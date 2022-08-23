@@ -6,7 +6,7 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: oneapi, nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
-toolchain="gnu"
+toolchain="oneapi" #"gnu"
 buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
@@ -213,11 +213,11 @@ then
 	-DMPI_CXX_COMPILER=$mpicxx \
 	-DMPI_Fortran_COMPILER=$mpifc \
 	-DCFITSIO_USE_CURL:BOOL=OFF \
-	-DUSE_SYSTEM_FFTW:BOOL=OFF \
+	-DUSE_SYSTEM_FFTW:BOOL=ON  \
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-  -DCOMM3_BACKEND=aocl    \
+  -DCOMM3_BACKEND=any     \
 	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------

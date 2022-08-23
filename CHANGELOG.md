@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### CMake:
 - Added `COMM3_BACKEND` variable to identify what BLAS/LAPACK & FFT
-inmplementation to use. Possible values are `aocl`, `mkl`, `opensrc` and
+implementation to use. Possible values are `aocl`, `mkl`, `opensrc` and
 `any`. If "any" was chosen, the choice would be made automatically based 
 on the processor Vendor (Intel, AMD, Unknown).
 - Added detection of SSE3, SSE4_1, AVX, AVX2 etc. CPU feature 
@@ -19,7 +19,8 @@ on the processor Vendor (Intel, AMD, Unknown).
 - Added search for, compilation and linking of AMD FLAME 3.1
 - Added compilation and linking of AMD FFTW 3.1 with both CMake and `configure` 
   (the former code is commented out since it is very slow, but can be used if needed)
-- Added search for MKL based on the $MKLROOT and MKLConfig.cmake
+- Added search for MKL based on the 3d party FindMKL.cmake package (there is also 
+option to use $MKLROOT and MKLConfig.cmake shipped with Intel OneAPI MKL installation)
 
 ### Changed
 
