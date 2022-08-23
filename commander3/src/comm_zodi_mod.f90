@@ -35,13 +35,16 @@ module comm_zodi_mod
 
     use comm_utils
     use comm_param_mod
+    use comm_bp_mod
     implicit none
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
     integer(i4b) :: GAUSS_QUAD_ORDER
-    real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1, PLANCK_TERM2
-    real(dp), dimension(:), allocatable :: UNIQUE_NSIDES
+    real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1_DELTA, PLANCK_TERM2_DELTA
+    real(dp), dimension(:), allocatable :: UNIQUE_NSIDES, PLANCK_TERM1_BP, PLANCK_TERM2_BP
+    character(len=32) :: freq_correction_type
+
 
     type, abstract :: ZodiComponent
         ! Abstract base Zodical component class.
@@ -173,12 +176,6 @@ contains
                                   EMISSIVITY_DIRBE_07, EMISSIVITY_DIRBE_08, EMISSIVITY_DIRBE_09, &
                                   EMISSIVITY_DIRBE_10
 
-        T_0 = 286.d0 ! temperature at 1 AU
-        DELTA = 0.46686260 ! rate at which temperature falls with radius
-        LOS_CUT = 5.2
-        GAUSS_QUAD_ORDER = 100
-        EPS = 3.d-14
-
         use_cloud = .true.
         use_band1 = .true.
         use_band2 = .true.
@@ -188,7 +185,15 @@ contains
 
         use_unit_emissivity = .true.
 
-        apply_color_correction = .true.
+        ! freq_correction_type = "delta"
+        freq_correction_type = "bandpass"
+        ! freq_correction_type = "color"
+
+        T_0 = 286.d0 ! temperature at 1 AU
+        DELTA = 0.46686260 ! rate at which temperature falls with radius
+        LOS_CUT = 5.2
+        GAUSS_QUAD_ORDER = 100
+        EPS = 3.d-14
 
         ! Planck emissivities (cloud, band1, band2, band3, ring, feature)
         EMISSIVITY_PLANCK_857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
@@ -328,7 +333,7 @@ contains
 
     end subroutine initialize_zodi_mod
 
-    subroutine get_zodi_emission(nside, pix, sat_pos, nu, s_zodi)
+    subroutine get_zodi_emission(nside, pix, sat_pos, bandpass, s_zodi)
         !   """
         !   Routine which computes the zodiacal light emission at a given nside
         !   resolution for a chunk of time-ordered data.
@@ -342,9 +347,8 @@ contains
         !       zodi signal with dimensions (n_tod, n_det)
         !   sat_pos: real
         !       Satellite longitude for given time-order data chunk
-        !   nu: array
-        !       Array containing the all detector frequencies with
-        !       dimensions (n_det)
+        !   bandpass: bandpass object
+        !       bandpass object containing the updates bandpass for each detector.
         !
         !   Returns:
         !   --------
@@ -360,17 +364,17 @@ contains
         integer(i4b), intent(in) :: nside
         integer(i4b), dimension(1:,1:), intent(in) :: pix
         real(dp), dimension(3), intent(in) :: sat_pos
-        real(dp), dimension(1:), intent(in) :: nu
+        class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
         real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
-        integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index
+        integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index, los_step
         real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
         real(dp) :: lon_earth, R_obs, R_max, nu_det
-        real(dp), dimension(:), allocatable :: tabulated_zodi
-        real(dp), dimension(:,:), allocatable :: unit_vector_map
+        real(dp), dimension(:), allocatable :: tabulated_zodi, blackbody_emission_delta
+        real(dp), dimension(:,:), allocatable :: unit_vector_map, blackbody_emission_bp
         real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, &
-                                                 R_helio, dust_grain_temperature, blackbody_emission, &
-                                                 los_density, comp_emission
+                                                 R_helio, dust_grain_temperature, &
+                                                 los_density, comp_emission, bp_integrated_blackbody_emission
 
         allocate(tabulated_zodi(nside2npix(nside)))
         tabulated_zodi = 0.d0
@@ -391,50 +395,152 @@ contains
         R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
         lon_earth = atan(y_obs, x_obs)
 
-        do j = 1, n_detectors
-            nu_det = nu(j)
-            PLANCK_TERM1 = (2.d0 * h * nu_det**3) / (c*c)
-            PLANCK_TERM2 = (h * nu_det)/ k_B
-            do i = 1, n_tods
-                pixel_index = pix(i, j) + 1
-                if (tabulated_zodi(pixel_index) == 0.d0) then
-                    u_x = unit_vector_map(pixel_index, 1)
-                    u_y = unit_vector_map(pixel_index, 2)
-                    u_z = unit_vector_map(pixel_index, 3)
+        select case (trim(freq_correction_type))
+        case ("delta")
+            print *, "got delta"
+            allocate(blackbody_emission_delta(GAUSS_QUAD_ORDER))
+            do j = 1, n_detectors
+                PLANCK_TERM1_DELTA = (2.d0 * h * bandpass(j)%p%nu_c**3) / (c*c)
+                PLANCK_TERM2_DELTA = (h * bandpass(j)%p%nu_c)/ k_B
+                do i = 1, n_tods
+                    pixel_index = pix(i, j) + 1
+                    if (tabulated_zodi(pixel_index) == 0.d0) then
+                        u_x = unit_vector_map(pixel_index, 1)
+                        u_y = unit_vector_map(pixel_index, 2)
+                        u_z = unit_vector_map(pixel_index, 3)
 
-                    call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
-                    call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=R_los, w=gauss_weights)
+                        call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+                        call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=R_los, w=gauss_weights)
 
-                    x_helio = R_los * u_x + x_obs
-                    y_helio = R_los * u_y + y_obs
-                    z_helio = R_los * u_z + z_obs
-                    R_helio = sqrt(x_helio**2 + y_helio**2 + z_helio**2)
+                        x_helio = R_los * u_x + x_obs
+                        y_helio = R_los * u_y + y_obs
+                        z_helio = R_los * u_z + z_obs
+                        R_helio = sqrt(x_helio**2 + y_helio**2 + z_helio**2)
 
-                    call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
-                    call get_blackbody_emission(T=dust_grain_temperature, b_nu=blackbody_emission)
+                        call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
+                        call get_blackbody_emission_delta(T=dust_grain_temperature, b_nu=blackbody_emission_delta)
 
-                    comp => comp_list
-                    k = 1
-                    do while (associated(comp))
-                        call comp%get_density(x=x_helio, y=y_helio, z=z_helio, theta=lon_earth, n=los_density)
-                        comp_emission = comp%emissivity * los_density * blackbody_emission
-                        s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission * gauss_weights)
-                        comp => comp%next()
-                        k = k + 1
-                    end do
-                    tabulated_zodi(pixel_index) = s_zodi(i, j)
+                        comp => comp_list
+                        k = 1
+                        do while (associated(comp))
+                            call comp%get_density(x=x_helio, y=y_helio, z=z_helio, theta=lon_earth, n=los_density)
+                            comp_emission = comp%emissivity * los_density * blackbody_emission_delta
+                            s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission * gauss_weights)
+                            comp => comp%next()
+                            k = k + 1
+                        end do
+                        tabulated_zodi(pixel_index) = s_zodi(i, j)
 
-                else
-                    ! Looking up tabulated emission
-                    s_zodi(i, j) = tabulated_zodi(pixel_index)
-                end if
+                    else
+                        ! Looking up tabulated emission
+                        s_zodi(i, j) = tabulated_zodi(pixel_index)
+                    end if
 
+                end do
             end do
-        end do
+            deallocate(blackbody_emission_delta)
 
-        ! Converting to MJy/sr
-        s_zodi = s_zodi * 1d20
+        case ("bandpass")
+            print *, "got bandpass"
+            do j = 1, n_detectors
+                allocate(PLANCK_TERM1_BP(bandpass(j)%p%n))
+                allocate(PLANCK_TERM2_BP(bandpass(j)%p%n))
+                allocate(blackbody_emission_bp(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
+                PLANCK_TERM1_BP = (2.d0 * h * bandpass(j)%p%nu**3) / (c*c)
+                PLANCK_TERM2_BP = (h * bandpass(j)%p%nu)/ k_B
+                do i = 1, n_tods
+                    pixel_index = pix(i, j) + 1
+                    if (tabulated_zodi(pixel_index) == 0.d0) then
+                        u_x = unit_vector_map(pixel_index, 1)
+                        u_y = unit_vector_map(pixel_index, 2)
+                        u_z = unit_vector_map(pixel_index, 3)
 
+                        call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+                        call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=R_los, w=gauss_weights)
+
+                        x_helio = R_los * u_x + x_obs
+                        y_helio = R_los * u_y + y_obs
+                        z_helio = R_los * u_z + z_obs
+                        R_helio = sqrt(x_helio**2 + y_helio**2 + z_helio**2)
+
+                        call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
+                        call get_blackbody_emission_bp(T=dust_grain_temperature, b_nu=blackbody_emission_bp)
+                        ! Bandpass integrate blackbody emission at each step along the line-of-sight
+                        do los_step = 1, GAUSS_QUAD_ORDER
+                            bp_integrated_blackbody_emission(los_step) = bandpass(j)%p%SED2F(blackbody_emission_bp(los_step, :))
+                        end do
+
+                        comp => comp_list
+                        k = 1
+                        do while (associated(comp))
+                            call comp%get_density(x=x_helio, y=y_helio, z=z_helio, theta=lon_earth, n=los_density)
+                            comp_emission = comp%emissivity * los_density * bp_integrated_blackbody_emission
+                            s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission * gauss_weights)
+                            comp => comp%next()
+                            k = k + 1
+                        end do
+                        tabulated_zodi(pixel_index) = s_zodi(i, j)
+
+                    else
+                        ! Looking up tabulated emission
+                        s_zodi(i, j) = tabulated_zodi(pixel_index)
+                    end if
+
+                end do
+                deallocate(PLANCK_TERM1_BP, PLANCK_TERM2_BP, blackbody_emission_bp)
+            end do
+
+        case ("color")
+            print *, "got color"
+            do j = 1, n_detectors
+            
+                allocate(PLANCK_TERM1_BP(bandpass(j)%p%n))
+                allocate(PLANCK_TERM2_BP(bandpass(j)%p%n))
+                allocate(blackbody_emission_bp(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
+                PLANCK_TERM1_BP = (2.d0 * h * bandpass(j)%p%nu**3) / (c*c)
+                PLANCK_TERM2_BP = (h * bandpass(j)%p%nu)/ k_B
+                do i = 1, n_tods
+                    pixel_index = pix(i, j) + 1
+                    if (tabulated_zodi(pixel_index) == 0.d0) then
+                        u_x = unit_vector_map(pixel_index, 1)
+                        u_y = unit_vector_map(pixel_index, 2)
+                        u_z = unit_vector_map(pixel_index, 3)
+
+                        call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+                        call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=R_los, w=gauss_weights)
+
+                        x_helio = R_los * u_x + x_obs
+                        y_helio = R_los * u_y + y_obs
+                        z_helio = R_los * u_z + z_obs
+                        R_helio = sqrt(x_helio**2 + y_helio**2 + z_helio**2)
+
+                        call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
+                        call get_blackbody_emission_bp(T=dust_grain_temperature, b_nu=blackbody_emission_bp)
+                        ! Bandpass integrate blackbody emission at each step along the line-of-sight
+                        do los_step = 1, GAUSS_QUAD_ORDER
+                            bp_integrated_blackbody_emission(los_step) = bandpass(j)%p%SED2F(blackbody_emission_bp(los_step, :))
+                        end do
+
+                        comp => comp_list
+                        k = 1
+                        do while (associated(comp))
+                            call comp%get_density(x=x_helio, y=y_helio, z=z_helio, theta=lon_earth, n=los_density)
+                            comp_emission = comp%emissivity * los_density * bp_integrated_blackbody_emission
+                            s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission * gauss_weights)
+                            comp => comp%next()
+                            k = k + 1
+                        end do
+                        tabulated_zodi(pixel_index) = s_zodi(i, j)
+
+                    else
+                        ! Looking up tabulated emission
+                        s_zodi(i, j) = tabulated_zodi(pixel_index)
+                    end if
+
+                end do
+                deallocate(PLANCK_TERM1_BP, PLANCK_TERM2_BP, blackbody_emission_bp)
+            end do
+        end select
     end subroutine get_zodi_emission
 
 
@@ -502,14 +608,24 @@ contains
     end subroutine get_dust_grain_temperature
 
 
-    subroutine get_blackbody_emission(T, b_nu)
+    subroutine get_blackbody_emission_bp(T, b_nu)
+        implicit none
+        real(dp), dimension(:), intent(in) :: T
+        real(dp), dimension(:, :), intent(out) :: b_nu
+        integer(i4b) :: i
+        do i = 1, GAUSS_QUAD_ORDER
+            b_nu(i, :) = PLANCK_TERM1_BP/(exp(PLANCK_TERM2_BP/T(i)) - 1.d0)
+        end do
+        ! b_nu = b_nu * 1d20 ! Convert from W/s/m^2/sr to MJy/sr
+
+    end subroutine get_blackbody_emission_bp
+
+    subroutine get_blackbody_emission_delta(T, b_nu)
         implicit none
         real(dp), dimension(:), intent(in) :: T
         real(dp), dimension(:), intent(out) :: b_nu
-
-        b_nu = PLANCK_TERM1/(exp(PLANCK_TERM2/T) - 1.d0)
-    end subroutine get_blackbody_emission
-
+        b_nu = PLANCK_TERM1_DELTA/(exp(PLANCK_TERM2_DELTA/T) - 1.d0)
+    end subroutine get_blackbody_emission_delta
 
     ! Deferred ZodiComponent procedures
     subroutine initialize_cloud(self)

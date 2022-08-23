@@ -198,7 +198,7 @@ contains
        end if
 
        ! Need to pass bandpass object in here to bandpass integrate or color correct the Zodiacal emission
-       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%nu_c, self%s_zodi)
+       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%bandpass, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -417,8 +417,8 @@ contains
     if (tod%subtract_zodi) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufB)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%bandpass, s_bufA)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%bandpass, s_bufB)
           self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)

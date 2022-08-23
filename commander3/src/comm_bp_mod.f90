@@ -269,9 +269,9 @@ contains
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
        if (trim(self%type) == 'DIRBE') then
-          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
-          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          sz(i)           = comp_sz_thermo(self%nu(i))
+          bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) = 1.d0 !comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
@@ -337,7 +337,8 @@ contains
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
-       self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+      !  self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+       self%tau     = self%tau
 
     ! NEW !
     case ('dame')
@@ -394,7 +395,10 @@ contains
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
-       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
+      !  print *, "tsum", tsum(self%nu0, self%tau0), "sum", sum(self%tau0)
+      !  stop
+      !  SED2F = tsum(self%nu, self%tau * f)
+       SED2F = sum(self%tau * f)
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW
