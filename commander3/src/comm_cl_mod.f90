@@ -1111,7 +1111,6 @@ contains
          ok = .false.
          return
       end if
-
 !      write(*,*) 'lnL = ', lnL 
 
       ! Compute probabilities for each model spectrum
@@ -1121,7 +1120,6 @@ contains
          lnL = 0.d0
       end where
       lnL = lnL / sum(lnL)
-
       !write(*,*) 'P = ', lnL 
 
       ! Draw random model given respective probability
@@ -1153,34 +1151,44 @@ contains
     
       integer(i4b) :: i, j, k, l, status
       real(dp)     :: Dl_prop, Dl_in(3)
-      real(dp)     :: prior(2)
+      real(dp)     :: prior(2), eps
       
       !write(*,*) bin%lmin, bin%lmax, bin%spec
+
+      eps = 1.d-9
 
       if (.not. ok) return
       if (bin%stat == 'S') then
          ! Set up prior = positive definite Dl; thus is not exact for TEB
          if (self%nspec == 1) then
-            prior    = [1.d0, 1.d5]
+            prior    = [1.d-12, 1.d5]
          else
             prior    = [-1.d5, 1.d5]
             do l = bin%lmin, bin%lmax
                select case (bin%spec)
                case (1)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+                  if (self%Dl(l,4) > 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+                  else
+                     prior(1) = max(prior(1), eps)
+                  end if
                case (2)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4))-eps)
                case (3)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6))-eps)
                case (4)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  if (self%Dl(l,1) > 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  else
+                     prior(1) = max(prior(1), eps)
+                  end if
                case (5)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6))-eps)
                case (6)
-                  prior(1) = max(prior(1), 0.d0)
+                  prior(1) = max(prior(1), eps)
                end select
             end do
          end if
@@ -1191,7 +1199,6 @@ contains
          ! Draw sample
          lmin=bin%lmin; lmax=bin%lmax; spec=bin%spec; p1=bin%p1; p2=bin%p2
          Dl_prop = sample_InvSamp(handle, Dl_in, lnL_invWishart, prior, status)
-
          ! Update
          !stop
          if (status == 0) then

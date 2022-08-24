@@ -21,7 +21,7 @@
 !===============================================================================
 
 ! This module handles corrections to time ordered data due to adc issues
-submodule (comm_tod_adc_mod) comm_tod_adc_mod
+submodule (comm_tod_adc_mod) comm_tod_adc_smod
 contains
 
   !=========================================================================
@@ -1515,4 +1515,4 @@ contains
 
   end subroutine dump_adc_in_out
 
-end submodule comm_tod_adc_mod
+end submodule comm_tod_adc_smod

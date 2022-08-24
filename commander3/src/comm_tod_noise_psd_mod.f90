@@ -43,13 +43,16 @@ module comm_tod_noise_psd_mod
   integer(i4b), parameter :: G_AMP  = 4
   integer(i4b), parameter :: G_LOC  = 5
   integer(i4b), parameter :: G_SIG  = 6
+  integer(i4b), parameter :: SLOPE  = 4
+  integer(i4b), parameter :: INTERCEPT = 5
 
   type :: comm_noise_psd
      ! 
      ! Class definition for basic 1/f noise PSD model
      !
      integer(i4b) :: npar                                            ! Number of free parameters
-     real(sp)     :: nu_fit(2)                                       ! Frequency range used to fit non-linear parameters
+     real(sp),     allocatable, dimension(:,:)  :: nu_fit            ! Frequency range used to fit non-linear parameters
+
      real(sp),     pointer :: sigma0                                 ! Pointer to xi_n(1)
      real(sp),     allocatable, dimension(:)    :: xi_n              ! Active sampling parameters, xi_n(1) = sigma0
      real(sp),     allocatable, dimension(:,:)  :: P_uni             ! Uniform prior on xi_n (n_xi,lower/upper)
@@ -88,7 +91,7 @@ module comm_tod_noise_psd_mod
 
   type, extends(comm_noise_psd) :: comm_noise_psd_oof_f
      ! 
-     ! Class definition for 2-component 1/f + Gauss noise PSD model
+     ! Class definition for 2-component 1/f + linear noise PSD model
      !
    contains
      procedure :: eval_full   => eval_noise_psd_oof_f_full
@@ -167,11 +170,10 @@ contains
     real(sp),              dimension(:),   intent(in)      :: P_active_mean
     real(sp),              dimension(:),   intent(in)      :: P_active_rms
     real(sp),              dimension(:,:), intent(in)      :: P_uni
-    real(sp),              dimension(:,:), intent(in)      :: nu_fit
+    real(sp),              dimension(:,:),  intent(in)      :: nu_fit
     real(dp),     optional, dimension(:,:), intent(in)   :: filter
 
     allocate(self%xi_n(self%npar))
-    allocate(self%nu_fit(self%npar, 2))
     allocate(self%P_uni(self%npar,2))
     allocate(self%P_active(self%npar,2))
     allocate(self%P_lognorm(self%npar))
@@ -276,7 +278,7 @@ contains
     real(sp),                   dimension(:),   intent(in)      :: P_active_mean
     real(sp),                   dimension(:),   intent(in)      :: P_active_rms
     real(sp),                   dimension(:,:), intent(in)      :: P_uni
-    real(sp),                   dimension(:,:), intent(in)      :: nu_fit
+    real(sp),                   dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,     dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd_2oof), pointer                         :: constructor_2oof
 
@@ -380,7 +382,7 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_mean
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
-    real(sp),                        dimension(:,:), intent(in)      :: nu_fit
+    real(sp),                        dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,          dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd_oof_gauss), pointer                         :: constructor_oof_gauss
 
@@ -493,7 +495,7 @@ contains
     real(sp),                        dimension(:),   intent(in)      :: P_active_mean
     real(sp),                        dimension(:),   intent(in)      :: P_active_rms
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
-    real(sp),                        dimension(:,:), intent(in)      :: nu_fit
+    real(sp),                        dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,          dimension(:,:), intent(in)      :: filter
     class(comm_noise_psd_oof_f),     pointer                         :: constructor_oof_f
 
@@ -504,13 +506,14 @@ contains
     if (P_uni(FKNEE,1) > P_uni(FKNEE,2))   write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
     if (P_uni(ALPHA,1) > P_uni(ALPHA,2))   write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
 
-    constructor_oof_f%npar = 4
+    constructor_oof_f%npar = 5
 
     call constructor_oof_f%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
 
     !write(*,*) size(constructor_oof_f%P_uni, 1), size(constructor_oof_f%P_uni, 2), size(P_uni, 1), size(P_uni,2)
     !write(*,*) P_uni
-    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false.] !  [sigma0, fknee, alpha, gamma]
+    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false., .false.] !  [sigma0, fknee, alpha, slope, interecept]
+
 
   end function constructor_oof_f
   
@@ -552,16 +555,17 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd_oof_f),          intent(in)      :: self
+    class(comm_noise_psd_oof_f),         intent(in)      :: self
     real(sp),                            intent(in)      :: nu
     real(sp)                                             :: eval_noise_psd_oof_f_corr
 
     real(sp) :: S1, S2
 
-    S1 = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
-    S2 = self%xi_n(SIGMA0)**2 * self%xi_n(G_AMP) * (nu/self%xi_n(FKNEE))
 
+    S1 = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
+    S2 = self%xi_n(SIGMA0)**2 * (self%xi_n(SLOPE) * nu + self%xi_n(INTERCEPT))
     eval_noise_psd_oof_f_corr = S1 + S2
+
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then

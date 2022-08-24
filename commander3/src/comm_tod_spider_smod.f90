@@ -60,6 +60,7 @@ contains
      integer(i4b)         :: det_index(1)
 
 
+     call timer%start(TOD_INIT, id_abs)
 
  
      ! Allocate object
@@ -75,13 +76,11 @@ contains
      
      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
      if (trim(constructor%freq) == 'SPIDER_150') then
-        constructor%xi_n_nu_fit(1,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
         constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
         constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
         constructor%xi_n_P_uni(2,:)  = [0.0010d0, 0.45d0] ! fknee
         constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else if (trim(constructor%freq) == 'SPIDER_90') then
-        constructor%xi_n_nu_fit(1,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
         constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
         constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
         constructor%xi_n_P_uni(2,:)  = [0.002d0, 0.40d0]  ! fknee
@@ -200,17 +199,16 @@ contains
      allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
      if (constructor%orb_4pi_beam) constructor%orb_dp => comm_orbdipole(constructor%mbeam)
  
-     ! Initialize all baseline corrections to zero
-     do i = 1, constructor%nscan
-        constructor%scans(i)%d%baseline = 0.d0
-     end do
+
+     call timer%stop(TOD_INIT, id_abs)
+
  
    end function constructor
  
    !**************************************************
    !             Driver routine
    !**************************************************
-   module subroutine process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
+   module subroutine process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
      !
      ! Routine that processes the SPIDER time ordered data.
      ! Samples absolute and relative bandpass, gain and correlated noise in time domain,
@@ -256,7 +254,9 @@ contains
      real(dp),            dimension(0:,1:,1:), intent(inout) :: delta        ! (0:ndet,npar,ndelta) BP corrections
      class(comm_map),                          intent(inout) :: map_out      ! Combined output map
      class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
+     type(map_ptr),     dimension(:,:),   intent(inout), optional :: map_gain
  
+
      real(dp)            :: t1, t2
      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, output_scanlist
@@ -287,6 +287,8 @@ contains
      call int2string(iter, ctext)
      call int2string(iter, it_label)
      call update_status(status, "tod_start"//ctext)
+     call timer%start(TOD_TOT, self%band)
+
 
      ! Toggle optional operations
      sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -323,6 +325,8 @@ contains
 
      ! Precompute far sidelobe Conviqt structures
      if (self%correct_sl) then
+        call timer%start(TOD_SL_PRE, self%band)
+
         if (self%myid == 0) write(*,*) 'Precomputing sidelobe convolved sky'
         do i = 1, self%ndet
            !TODO: figure out why this is rotated
@@ -331,6 +335,7 @@ contains
                 & self%myid_inter, self%comm_inter, self%slbeam(i)%p%info%nside, &
                 & 100, 3, 100, self%slbeam(i)%p, map_in(i,1)%p, 2)
         end do
+        call timer%stop(TOD_SL_PRE, self%band)
      end if
  !    write(*,*) 'qqq', self%myid
  !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
@@ -592,11 +597,14 @@ contains
 
 
         ! Compute chisquare
+        call timer%start(TOD_CHISQ, self%band)
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
          !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
            call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
         end do
+        call timer%stop(TOD_CHISQ, self%band)
+
 
 
         ! Select data
@@ -616,6 +624,7 @@ contains
         ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
         if (self%output_4D_map > 0) then
            if (mod(iter-1,self%output_4D_map) == 0) then
+              call timer%start(TOD_4D, self%band)
               allocate(sigma0(sd%ndet))
               do j = 1, sd%ndet
                  sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
@@ -626,6 +635,7 @@ contains
                    & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
                    & self%scans(i)%d(:)%accept)
               deallocate(sigma0)
+              call timer%stop(TOD_4D, self%band)
            end if
         end if
 
@@ -703,6 +713,7 @@ contains
      self%first_call = .false.
  
      call update_status(status, "tod_end"//ctext)
+     call timer%stop(TOD_TOT, self%band)
  
    end subroutine process_SPIDER_tod
  

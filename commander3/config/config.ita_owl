@@ -59,7 +59,7 @@ export F90FLAGS := -fpp -g -C -traceback -qopenmp -check all,noarg_temp_created 
 
 # Fortran 77 compiler flags
 export FFLAGS := -O2
-
+ 
 # C compiler flags.
 export CFLAGS := -O3 
 

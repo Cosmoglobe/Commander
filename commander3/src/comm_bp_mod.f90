@@ -107,7 +107,7 @@ contains
     character(len=512) :: dir, label
     character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-
+    
     label = cpar%ds_label(id_abs)
     
     ! General parameters
@@ -151,6 +151,7 @@ contains
     else
        constructor%unit_scale = 1.d0
     end if
+
 
     ! Initialize raw bandpass
     if (trim(constructor%type) == 'delta') then
@@ -208,6 +209,7 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
+    
 
   end function constructor
   
@@ -227,7 +229,7 @@ contains
     n = self%n
     select case (trim(self%model))
     case ('powlaw_tilt')
-       
+
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n
@@ -241,7 +243,7 @@ contains
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
-         !  if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
+          !if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
        end do
        
     end select
@@ -264,8 +266,11 @@ contains
        self%f2t  = 1.d0 / bnu_prime(1) * 1.d-14
        
     case ('WMAP')
+
+       !write(*,*) self%nu
           
        ! See Appendix E of Bennett et al. (2013) for details
+       self%tau     = self%tau / sum(self%tau)
        self%a2t     = sum(self%tau) / sum(self%tau/a)
        self%a2sz    = sum(self%tau) / sum(self%tau/a * sz) * 1.d-6
        self%f2t     = sum(self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * &
@@ -300,7 +305,7 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
+ 
     case ('DIRBE') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
@@ -458,5 +463,6 @@ contains
     lineAmp_RJ = lineAmp_RJ * 1.d9 ! Convert to uK_ant / (K_ant km/s)
 
   end function lineAmp_RJ
+
 
 end module comm_bp_mod

@@ -135,28 +135,16 @@ contains
 
        unit = getlun()
        if (exist) then
-          write(*,*) '   Reading precomputed matrices from ', trim(filename)
+          write(*,*) '|  Reading precomputed matrices from ', trim(filename)
           open(unit,file=trim(filename),form='unformatted')
           read(unit) Ninv
           read(unit) sNinv
           read(unit) Ncov
           close(unit)
        else
-          write(*,*) '   Eigen-decomposing ', trim(noisefile)
+          write(*,*) '|  Eigen-decomposing ', trim(noisefile)
           allocate(Ninv_sp(2*self%npix,2*self%npix))
           call WMAP_Read_NInv(noisefile, status, Ninv_sp)
-
-          ! Scale with sigma0**2
-          if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_Ka_v5.fits') then
-             Ninv_sp = Ninv_sp !* 1.472**2 
-          else if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_Q_v5.fits') then
-             Ninv_sp = Ninv_sp !* 2.197**2 
-          else if (trim(noisefile) == 'data/wmap_band_quninv_r4_9yr_V_v5.fits') then
-             Ninv_sp = Ninv_sp !* 3.141**2 
-          else
-             write(*,*) 'Unsupported file = ', trim(noisefile)
-             stop
-          end if
 
           ! Convert from nest to ring format
           do i = 1, 2*self%npix ! Rows
@@ -186,7 +174,7 @@ contains
              if (Ncov(j,j) > 0.d0) nval = nval+1
           end do
 
-          write(*,*) 'nval =' , nval, nval/2
+          write(*,*) '|   nval =' , nval, nval/2
           allocate(ind(nval))
           i = 1
           do j = 1, size(Ncov,2)
@@ -205,7 +193,7 @@ contains
        end do
        write(unit) .false. ! Not inverse
        close(unit)
-       write(*,*) 'done'
+       write(*,*) '| done'
        deallocate(ind)
 
 !!$       allocate(rms(self%npix,self%nmaps))
