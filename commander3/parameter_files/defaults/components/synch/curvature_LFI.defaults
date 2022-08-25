@@ -1,8 +1,8 @@
-# Low-frequency AME component ------------------------------------------------------------------
+# Synchrotorn curvature component ------------------------------------------------------------------
 COMP_LABEL&&                  = synch_curvature
 COMP_TYPE&&                   = curvature
 COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
-COMP_POLARIZATION&&           = .false.
+COMP_POLARIZATION&&           = .true.
 COMP_CG_SCALE_T&&             = 5.d5
 COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        = 1
@@ -19,9 +19,11 @@ COMP_MASK&&                   = fullsky
 COMP_INDMASK&&                = mask_synch_beta_sampling_BP10_n1024_TQU.fits
 
 COMP_AMP_LMIN&&               = 0
-COMP_AMP_LMAX&&               = 1000
-COMP_AMP_INPUT_MAP&&          = init_ame_amp_BP8.1_v1.fits
-COMP_AMP_PRIOR_MAP&&          = none 
+COMP_AMP_LMAX&&               = 1500
+COMP_AMP_INPUT_MAP&&          = init_synch_amp_BP8.1_v1.fits
+COMP_AMP_PRIOR_MAP&&          = none
+
+COMP_IND_LMAX&&               = 100
 
 COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
 COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
