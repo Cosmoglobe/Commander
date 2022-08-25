@@ -19,27 +19,28 @@
 !
 !================================================================================
 module comm_signal_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
+  use comm_ame_lognormal_mod
+  use comm_chisq_mod
   use comm_cmb_comp_mod
   use comm_cmb_relquad_comp_mod
+  use comm_comp_mod
+  use comm_cr_mod
+  use comm_cr_utils
+  use comm_curvature_comp_mod
+  use comm_data_mod
+  use comm_diffuse_comp_mod
+  use comm_freefree_comp_mod
+  use comm_hdf_mod
+  use comm_line_comp_mod
+  use comm_MBB_comp_mod
+  use comm_md_comp_mod
+  use comm_param_mod
   use comm_powlaw_comp_mod
+  use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
-  use comm_ame_lognormal_mod
-  use comm_MBB_comp_mod
-  use comm_freefree_comp_mod
-  use comm_line_comp_mod
-  use comm_md_comp_mod
   use comm_template_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_cr_mod
-  use comm_cr_utils
-  use comm_hdf_mod
-  use comm_data_mod
-  use comm_chisq_mod
   implicit none
 
 contains
@@ -71,6 +72,8 @@ contains
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
              call update_status(status, "init_done")
+          case ("curvature") 
+             c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")
              c => comm_physdust_comp(cpar, ncomp, i)
           case ("spindust")

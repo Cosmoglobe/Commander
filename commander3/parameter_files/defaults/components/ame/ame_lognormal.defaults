@@ -12,9 +12,6 @@ COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0016_600arcmin_rescaled_TQU
 #COMP_MONOPOLE_PRIOR&&         = crosscorr:HI4PI_NHI_n0064_120arcmin_rescaled_TQU.fits,64,120.d0,2.0,2.5,3.0,3.5,4.0,10  #<corr-map name>,<nside>,<FWHM>,<threshold(s)>
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1000
-COMP_LMIN_AMP&&               = 0
-COMP_LMAX_AMP&&               = 1000
-COMP_LMAX_IND&&               = 0          # Use input map as is
 COMP_OUTPUT_FWHM&&            = 60         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_REF_T&&                 = 22.
@@ -33,41 +30,43 @@ COMP_CL_DEFAULT_BETA_T&&      = 0.0
 COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
 COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
 
-# Define pixel region stuff if applicable
+COMP_AMP_LMIN&&               = 0
+COMP_AMP_LMAX&&               = 100
+COMP_AMP_INPUT_MAP&&          = init_ame_amp_BP8.1_v1.fits
+COMP_AMP_PRIOR_MAP&&          = none 
+COMP_AMP_PRIOR_LMAX&&         = -1
+
+COMP_IND_LMAX&&               = 0
+
+COMP_NU_P_POLTYPE&&           = 1        # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_NU_P_INPUT_MAP&&         = init_ame_nu_p_BP8.1_v1.fits
+COMP_NU_P_SMOOTHING_SCALE&&   = 3
+COMP_NU_P_DEFAULT&&           = 21  18   22.2
+COMP_NU_P_PRIOR_UNI_LOW&&     = 10.
+COMP_NU_P_PRIOR_UNI_HIGH&&    = 70.
+COMP_NU_P_PRIOR_GAUSS_MEAN&&  = 21.
+COMP_NU_P_PRIOR_GAUSS_RMS&&   = 3. # This RMS should maybe be changed, but it looks like nu_p is constrained
+COMP_NU_P_NU_MIN&&            = 5.        # Lowest frequency for index estimation in GHz
+COMP_NU_P_NU_MAX&&            = 100.        # Highest frequency for index estimation in GHz
+COMP_NU_P_ALMSAMP_INIT&& = none
 COMP_NU_P_INT_PIXREG_PRIORS&& = none
 COMP_NU_P_POL_PIXREG_PRIORS&& = none
+
+COMP_W_AME_POLTYPE&&           = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_W_AME_INPUT_MAP&&         = default
+COMP_W_AME_SMOOTHING_SCALE&&   = 3
+COMP_W_AME_DEFAULT&&           = 0.5
+COMP_W_AME_PRIOR_UNI_LOW&&     = 0.001
+COMP_W_AME_PRIOR_UNI_HIGH&&    = 1.
+COMP_W_AME_PRIOR_GAUSS_MEAN&&  = 0.50
+COMP_W_AME_PRIOR_GAUSS_RMS&&   = 1.0
+COMP_W_AME_NU_MIN&&            = 5.        # Lowest frequency for index estimation in GHz
+COMP_W_AME_NU_MAX&&            = 100.        # Highest frequency for index estimation in GHz
+COMP_W_AME_ALMSAMP_INIT&& = none
 COMP_W_AME_INT_PIXREG_PRIORS&& = none
 COMP_W_AME_POL_PIXREG_PRIORS&& = none
 
-COMP_NU_P_POLTYPE&&           = 1        # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_INPUT_NU_P_MAP&&         = init_ame_nu_p_BP8.1_v1.fits
-COMP_NU_P_SMOOTHING_SCALE&&   = 3
-COMP_DEFAULT_NU_P&&           = 21  18   22.2
-COMP_PRIOR_UNI_NU_P_LOW&&     = 10.
-COMP_PRIOR_UNI_NU_P_HIGH&&    = 70.
-COMP_PRIOR_GAUSS_NU_P_MEAN&&  = 21.
-COMP_PRIOR_GAUSS_NU_P_RMS&&   = 3. # This RMS should maybe be changed, but it looks like nu_p is constrained
-COMP_NU_P_NU_MIN&&            = 5.        # Lowest frequency for index estimation in GHz
-COMP_NU_P_NU_MAX&&            = 100.        # Highest frequency for index estimation in GHz
-
-COMP_W_AME_POLTYPE&&           = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_INPUT_W_AME_MAP&&         = default
-COMP_W_AME_SMOOTHING_SCALE&&   = 3
-COMP_DEFAULT_W_AME&&           = 0.5
-COMP_PRIOR_UNI_W_AME_LOW&&     = 0.001
-COMP_PRIOR_UNI_W_AME_HIGH&&    = 1.
-COMP_PRIOR_GAUSS_W_AME_MEAN&&  = 0.50
-COMP_PRIOR_GAUSS_W_AME_RMS&&   = 1.0
-COMP_W_AME_NU_MIN&&            = 5.        # Lowest frequency for index estimation in GHz
-COMP_W_AME_NU_MAX&&            = 100.        # Highest frequency for index estimation in GHz
-
-COMP_NU_P_ALMSAMP_INIT&& = none
-COMP_W_AME_ALMSAMP_INIT&& = none
-
 COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
-COMP_INPUT_AMP_MAP&&          = init_ame_amp_BP8.1_v1.fits
-COMP_PRIOR_AMP_MAP&&          = npipe6v20_857_map_n1024_60arcmin_QUADCOR_ZODICOR_uK_min0.657K_scale0.00003.fits ame_prior_mean_857_scaled2.40.fits  ame_prior_mean_857_scaled2.40_noMD.fits  ame_prior_mean_857_scaled.fits none
-COMP_PRIOR_AMP_LMAX&&         = -1
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 
