@@ -169,9 +169,9 @@ contains
        write(outline,fmt='(a10)') itext
     end if
 
-    if (cpar%myid_chain == 0) then
-       call create_hdf_group(file, trim(adjustl(itext))//'/statistics')
-    end if
+    !if (cpar%myid_chain == 0) then
+    !   call create_hdf_group(file, trim(adjustl(itext))//'/statistics')
+    !end if
 
     ! Output component results
     c => compList
@@ -299,8 +299,8 @@ contains
                    else if (j == 3) then
                      label = label3
                    end if
-                   call write_hdf(file, trim(adjustl(itext))//'/statistics/'//trim(adjustl(label)), &
-                       & theta_sum/c%theta(i)%p%info%npix)
+                   !call write_hdf(file, trim(adjustl(itext))//'/statistics/'//trim(adjustl(label)), &
+                   !    & theta_sum/c%theta(i)%p%info%npix)
                 end if
              end do
           end do
@@ -403,14 +403,14 @@ contains
        !need to find a nice way of only gathering high latitude chisq
 
 
-       call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq', &
-              & chisq)
-       call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq', &
-              & chisq/(12*cpar%nside_chisq**2))
-       call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq_eff', &
-              & chisq_eff)
-       call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq_eff', &
-              & chisq_eff/(12*cpar%nside_chisq**2))
+       !call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq', &
+       !       & chisq)
+       !call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq', &
+       !       & chisq/(12*cpar%nside_chisq**2))
+       !call write_hdf(file, trim(adjustl(itext))//'/statistics/full_chisq_eff', &
+       !       & chisq_eff)
+       !call write_hdf(file, trim(adjustl(itext))//'/statistics/avg_chisq_eff', &
+       !       & chisq_eff/(12*cpar%nside_chisq**2))
              
 
        !write fg_mean info to file and close file
