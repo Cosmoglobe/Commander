@@ -25,7 +25,8 @@ Please ensure that these requirements are met before proceeding. You can find so
 
 #### Installing GNU Gfortran on Linux
 
-In this example, we will show how to install GNU Gfortran from source. For this, you need to have a set of working compiler.
+In this example, we will show how to install GNU Gfortran from source. For this, you need 
+to have a set of working compiler.
 
 First you head over the GNU GCC webpage to get source code:
 https://gcc.gnu.org/
@@ -33,7 +34,10 @@ https://gcc.gnu.org/
 Commander3 was sucessfully compiled with GNU Fortran `v.9.3`, so we are going to use this version in our example. You can choose whether to use one of the mirror sites or Git, we will be using first:
 https://gcc.gnu.org/mirrors.html
 
-Choose one of the mirrors, which is closer to your own location and navigate into `releases` folder inside which you are interested in `gcc-9.3.0`. Head over there and choose one of the archives to download. Assuming you want to download your code inside `$HOME/local/src`, it can be done from terminal like this (using `wget`, but you can use `curl`):
+Choose one of the mirrors, which is closer to your own location and navigate into `releases` 
+folder inside which you are interested in `gcc-9.3.0`. Head over there and choose one of the 
+archives to download. Assuming you want to download your code inside `$HOME/local/src`, it can 
+be done from terminal like this (using `wget`, but you can use `curl`):
 ```
 $ cd $HOME/local/src
 $ wget ttps://mirror.koddos.net/gcc/releases/gcc-9.3.0/gcc-9.3.0.tar.gz

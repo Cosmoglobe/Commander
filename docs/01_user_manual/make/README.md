@@ -1,5 +1,7 @@
-
 # Manual compilation
+
+[TODO]: Describe here how to compile HDF5 and otehr libraries to use with Make/CMake 
+from source (Compiler and MPi are in the prerequisites)
 
 If you have enough time and desire, you can of course compile Commander3 from scratch. For this you will need to do the following:
 

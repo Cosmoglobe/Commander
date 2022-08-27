@@ -56,14 +56,10 @@ The latest version - `Commander3` - brings together critical features such as:
 - CMB Component Separation;
 - In-memory compression of time-ordered data; 
 - FFT optimization; 
-- OpenMPI parallelization and load-balancing; 
+- MPI parallelization and load-balancing; 
 - I/O efficiency;
 - Fast mixing matrix computation through look-up tables.
 
 `Commander3` is written using modern `Fortran` standards such as modules, sub modules, and object oriented derived types. The code is optimized to run on High Performance Computing (HPC) facilities, but it can also be run on your local machine.
 
 The previous incarnation of **Commander**, - `Commander2` - is now an internal part of `Commander3`, while the first version of the code, - `Commander1` - is used mainly for debugging and/or legacy purposes.
-
-# Installation
-
-For installation instructions please refer to the next section.
