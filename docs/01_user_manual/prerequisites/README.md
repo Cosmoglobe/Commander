@@ -1,8 +1,14 @@
-# Install Prerequisites
+# Installing Prerequisites
+
+> **Note**: Before proceeding, we highly recommend **removing**/**commenting** out 
+  everything related to **Anaconda**/**Miniconda** in your `.bashrc` (or other shell).
+  The presence of Anaconda in the `PATH` often leads to conflicts for many libraries, 
+  and results in compilation failure(s). Therefore, disable it during installation.
+  Once Commander binary is produced you can safely put it back.
 
 As any other code, Commander relies on a bunch of different libraries and tools in order to 
 compile and run. We are trying to keep the list of requirements to a minimum. So far it 
-it includes: 
+includes: 
 
 - System Libraries, such as Linux Math Library 
 - Compilers for C, C++ and Fortran with OpenMP support 
@@ -11,10 +17,113 @@ it includes:
 - GNU Autotools: Make, Automake, Autoconf, Autoreconf, Libtool, m4
 - Python2
 
-In addition, you man need to install CMake if you wish to automate the build.
+In addition, you may need to install [CMake](https://cmake.org/) if you wish to automate 
+the build. [**Recommended**]
 
 Below we are giving detailed description for each of the libraries, the list of vendors and how 
 to install them on some Linux systems via package managers or from source. 
+
+## Autotools 
+
+We need GNU Autotools of the following versions:
+
+<table style="width:100%">
+  <tr>
+    <th>Name</th>
+    <th>Minimal Version</th>
+    <th>Description</th>
+    <th>Official Website</th>
+  </tr>
+  <tr>
+    <td>Make</td>
+    <td align="center"><code>3.0</code></td>
+    <td></td>
+    <td>
+    <a href="https://www.gnu.org/software/make/">
+    https://www.gnu.org/software/make/
+    </a></td>
+  </tr>
+  <tr>
+    <td>Autoconf</td>
+    <td align="center"><code>2.69</code></td>
+    <td></td>
+    <td>
+    <a href="https://www.gnu.org/software/autoconf/">
+    https://www.gnu.org/software/autoconf/
+    </a></td>
+  </tr>
+  <tr>
+    <td>Automake</td>
+    <td align="center"><code>1.14</code></td>
+    <td></td>
+    <td>
+    <a href="https://www.gnu.org/software/automake/">
+    https://www.gnu.org/software/automake/
+    </a></td>
+  </tr>
+  <tr>
+    <td>Libtool</td>
+    <td align="center"><code>2.4.6</code></td>
+    <td></td>
+    <td>
+    <a href="https://www.gnu.org/software/libtool/">
+    https://www.gnu.org/software/libtool/
+    <a></td>
+  </tr>
+</table>
+
+##### Installing Autotools
+
+<details>
+<summary>
+<b>From Source</b> 
+</summary>
+<p align="justify">
+We are going to install one of the recent versions of GNU Autools.
+
+1. Get GNU Make version `4.3` archive, unpack, configure and install it via:
+   ```
+   $ wget https://ftp.gnu.org/gnu/make/make-4.3.tar.gz
+   $ tar -xzvf make-4.3.tar.gz && cd make-4.3
+   $ ./configure --prefix=$HOME/.local/gcc/11.2.0
+   $ sh build.sh
+   $ ./make install
+   ```
+2. Doing the same for GNU Libtool of version `2.4.6`:
+   ```
+   $ wget -O libtool-2.4.6.tar.gz https://ftpmirror.gnu.org/libtool/libtool-2.4.6.tar.gz
+   $ tar -xzvf libtool-2.4.6.tar.gz && cd libtool-2.4.6
+   $ ./configure --prefix=$HOME/.local/gcc/11.2.0
+   $ make && make install
+   ```
+3. And for Autoconf of version `2.71`:
+   ```
+   $ wget https://ftp.gnu.org/gnu/autoconf/autoconf-2.71.tar.gz
+   $ tar -xzvf autoconf-2.71.tar.gz && cd autoconf-2.71
+   $ ./configure --prefix=$HOME/.local/gcc/11.2.0
+   $ make && make install 
+   ```
+4. Lastly, for Automake of version `1.16.4`:
+   ```
+   $ wget -O automake-1.16.4.tar.gz https://ftp.gnu.org/gnu/automake/automake-1.16.4.tar.gz
+   $ tar -xzvf automake-1.16.4.tar.gz && cd automake-1.16.4
+   $ ./configure --prefix=$HOME/.local/gcc/11.2.0
+   $ make && make install
+   ```
+5. Update your shell environment via, e.g. adding the correct paths into your `.bashrc`:
+   ```
+   export PATH=$HOME/.local/gcc/11.2.0/bin:$PATH
+   export MANPATH=$HOME/.local/gcc/11.2.0/share/man:$MANPATH
+   export INFOPATH=$HOME/.local/gcc/11.2.0/share/info:$INFOPATH
+   export LD_LIBRARY_PATH=$HOME/.local/gcc/11.2.0/lib64:$LD_LIBRARY_PATH 
+   ```
+   **Note**: do not forget to source it for the changes to take an effect in the current shell:
+   ```
+   $ source $HOME/.bashrc
+   ```
+</p>
+</details>
+</br>
 
 ## Compilers 
 
@@ -23,41 +132,54 @@ We provide support for the following compiler toolchains:
 <table style="width:100%">
   <tr>
     <th>Name</th>
-    <th>Version</th>
+    <th>Minimal Version</th>
     <th>Description</th>
     <th>Official Website</th>
   </tr>
   <tr>
     <td>Intel Parallel Studio</td>
-    <td></td>
+    <td align="center"></td>
     <td>Intel Compilers and Intel MPI from Intel Parallel Studio for C, C++ and Fortran languages</td>
-    <td>https://www.intel.com/</td>
+    <td>
+    <a href="https://www.intel.com/">
+    https://www.intel.com/
+    </a></td>
   </tr>
   <tr>
     <td>Intel OneAPI</td>
-    <td></td>
+    <td align="center"></td>
     <td>Intel OneAPI compilers and MPI for Fortran, C and C++ languages</td>
-    <td>https://www.intel.com/</td>
+    <td>
+    <a href="https://www.intel.com/">
+    https://www.intel.com/
+    </a></td>
   </tr>
   <tr>
     <td>GNU Compiler Toolchain</td>
-    <td>10.x.x and above</td>
+    <td align="center"><code>10.x.x</code></td>
     <td>Free and OpenSource compiler toolchain for C, C++, Fortran and other langueages</td>
-    <td>https://gcc.gnu.org/</td>
+    <td>
+    <a href="https://gcc.gnu.org/">
+    https://gcc.gnu.org
+    </a></td>
   </tr>
 </table>
 
-<b>Note</b>: Even though it is possible to install Commander with the help of GNU Compiler 
-toolchain, we recommend using Intel ones since the majority of our group uses it for debugging
+<blockquote>
+<p align="justify">
+<strong>Note</strong>: Even though it is possible to install Commander with the help of GNU Compiler 
+toolchain, <strong>we recommend</strong> using <strong>Intel</strong> ones since the majority of our group uses it for debugging
 and production purposes; hence, they are better tested. If you are on a big cluster, Intel 
 compilers are usually installed by your system administrator and can be loaded via Environment
-modules. 
+modules.
+</p>
+</blockquote>
 
 ##### Installing GNU Compiler Toolchain
 
 <details>
 <summary>
-From Source 
+<b>From Source</b> 
 </summary>
 <p align="justify">
 Assuming you have working system C/C++ compilers, you can install GNU GCC from source.
@@ -111,10 +233,10 @@ For this, do the following:
    The resulting binaries will be located inside `$HOME/.local/gcc/11.2.0/bin`.
 6. Update your shell environment via, e.g. adding the correct paths into your `.bashrc`:
    ```
-   export PATH=$HOME/local/gcc/11.2.0/bin:$PATH
-   export MANPATH=$HOME/local/gcc/11.2.0/share/man:$MANPATH
-   export INFOPATH=$HOME/local/gcc/11.2.0/share/info:$INFOPATH
-   export LD_LIBRARY_PATH=$HOME/local/gcc/11.2.0/lib64:$LD_LIBRARY_PATH 
+   export PATH=$HOME/.local/gcc/11.2.0/bin:$PATH
+   export MANPATH=$HOME/.local/gcc/11.2.0/share/man:$MANPATH
+   export INFOPATH=$HOME/.local/gcc/11.2.0/share/info:$INFOPATH
+   export LD_LIBRARY_PATH=$HOME/.local/gcc/11.2.0/lib64:$LD_LIBRARY_PATH 
    ```
    **Note**: do not forget to source it for the changes to take an effect in the current shell:
    ```
@@ -127,10 +249,12 @@ For this, do the following:
 
 ## MPI 
 
+The following MPI implementations proved to be working:
+
 <table style="width:100%">
   <tr>
     <th>Name</th>
-    <th>Version</th>
+    <th>Minimal Version</th>
     <th>Description</th>
     <th>Official Website</th>
   </tr>
@@ -138,19 +262,28 @@ For this, do the following:
     <td>Intel Parallel Studio</td>
     <td></td>
     <td>Intel Compilers  and Intel MPI from Intel Parallel Studio for C, C++ and Fortran languages</td>
-    <td>https://www.intel.com/</td>
+    <td>
+    <a href="https://www.intel.com/">
+    https://www.intel.com/
+    </a></td>
   </tr>
   <tr>
     <td>Intel OneAPI</td>
     <td></td>
     <td>Intel OneAPI compilers and MPI for Fortran, C and C++ languages</td>
-    <td>https://www.intel.com/</td>
+    <td>
+    <a href="https://www.intel.com/">
+    https://www.intel.com/
+    </a></td>
   </tr>
   <tr>
     <td>OpenMPI</td>
-    <td>4.0.x and above</td>
+    <td align="center"><code>4.0.x</code></td>
     <td>Free and OpenSource MPI implementation for C, C++ and Fortran Compilers</td>
-    <td>https://www.open-mpi.org/</td>
+    <td>
+    <a href="https://www.open-mpi.org/">
+    https://www.open-mpi.org
+    </a></td>
   </tr>
 </table>
 
@@ -158,35 +291,45 @@ For this, do the following:
 
 <details>
 <summary>
-From Source 
+<b>From Source</b> 
 </summary>
 <p align="justify">
 Assuming you have working version of GCC <code>10.x.x</code> or above, you can install 
-OpenMPI to use it for Commander installation and run. 
+OpenMPI to use it for Commander installation and run.
 
 We will install OpenMPI version of `4.1.4` with the same GNU GCC compilers `11.2.0` we installed
-when were describing installation of GNU GCC compilers from source. 
+when were describing installation of GNU GCC compilers from source. We will also include 
+support for the [OpenUCX](https://github.com/openucx/ucx) library for OpenMPI.
 
-1. Identify directory where you want to store your source files and download the OpenMPI from 
-   the [official website](https://www.open-mpi.org/software/ompi/v4.1/). E.g.:
+1. Identify directory where you want to store your source files and download the 
+   OpenUCX source from:
+   ```
+   $ wget https://github.com/openucx/ucx/releases/download/v1.12.1/ucx-1.12.1.tar.gz 
+   $ tar -xzvf ucx-1.12.1.tar.gz && cd ucx-1.12.1 
+   ```
+2. Configure it with 
+   ```
+   $ ./configure CC=gcc CXX=g++ --prefix=$HOME/.local/gcc/11.2.0 --enable-mt
+   ```
+3. And compile/install it using `make`:
+   ```
+   $ make -j N && make install
+   ```
+   where `N` is the number of processors to use.
+4. Download OpenMPI sources from the 
+   [official website](https://www.open-mpi.org/software/ompi/v4.1/), unpack and move 
+   to the root of the source code:
    ```
    $ wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.4.tar.gz
-   ```
-2. Unpack the archive and move to the root of the source code:
-   ```
    $ tar -xzvf openmpi-4.1.4.tar.gz && cd openmpi-4.1.4
    ```
-3. Configure the installation:
+5. Configure the installation:
    ```
-   $ ./configure -prefix=$HOME/.local/gcc/11.2.0 --enable-orterun-prefix-by-default CC=gcc CXX=g++ F77=g77 FC=gfortran
+   $ ./configure --prefix=$HOME/.local/gcc/11.2.0 --enable-orterun-prefix-by-default CC=gcc CXX=g++ F77=g77 FC=gfortran --with-ucx=$HOME/.local/gcc/11.2.0
    ```
-4. Compile the code: 
+6. Compile/install the code: 
    ```
-   $ make -j N 
-   ```
-5. Install the code:
-   ```
-   $ make install
+   $ make -j N && make install 
    ```
 </p>
 </details>
@@ -194,9 +337,51 @@ when were describing installation of GNU GCC compilers from source.
 
 ## CMake
 
+The minimal CMake version we require as of now is `3.21.0`. It is, however, encouraged 
+to install the most recent one. 
+
+##### Installing CMake
+
 <details>
 <summary>
-From Source with Make 
+<b>From Source with Make</b> 
+</summary>
+<p align="justify">
+We will install CMake version <code>3.21.3</code> with the same GNU GCC compilers 
+<code>11.2.0</code> we installed when were describing installation of GNU GCC compilers 
+from source. 
+
+Overall, the procedure is follows:
+1. Choose directory where to store source files:
+   ```
+   $ cd $HOME/.local/src 
+   ```
+2. Download minimum required CMake version and unpack it:
+   ```
+   $ wget https://github.com/Kitware/CMake/releases/download/v3.21.3/cmake-3.21.3.tar.gz 
+   $ tar -xzvf cmake-3.21.3.tar.gz && cd cmake-3.21.3
+   ```
+3. Configure the CMake to be compiled with Release version: 
+   ```
+   $ ./bootstrap --prefix=$HOME/.local/gcc/11.2.0 -- -DCMAKE_BUILD_TYPE:STRING=Release 
+   ```
+4. Compile it using <code>make</code>: 
+   ```
+   $ make -j 8
+   ```
+5. And install it:
+   ```
+   $ make install
+   ```
+   **Note**: You may need to update your `.bashrc` (or other profile) variables to point to 
+   the recent CMake installation.
+</p>
+</details>
+</br>
+
+<details>
+<summary>
+[TODO]: From Source with CMake 
 </summary>
 <p align="justify">
 [TODO]
@@ -206,20 +391,11 @@ From Source with Make
 
 <details>
 <summary>
-From Source with CMake 
+<b>With Python and <code>pip</code></b>
 </summary>
 <p align="justify">
-[TODO]
-</p>
-</details>
-</br>
-
-<details>
-<summary>
-With Python and <code>pip</code>
-</summary>
-<p align="justify">
-[TODO]
+In your <code>python3</code> virtual environment type:
+<pre><code>$ pip install cmake</code></pre>
 </p>
 </details>
 </br>
