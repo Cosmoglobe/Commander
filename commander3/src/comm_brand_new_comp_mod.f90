@@ -24,7 +24,7 @@
 ! This is a module which doesn't actually do anything, but is just lined
 ! out as a template for adding a new diffuse sky component to Commander
 !================================================================================
-module comm_brand_new_com_mod
+module comm_brand_new_comp_mod
   use comm_param_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
@@ -34,7 +34,7 @@ module comm_brand_new_com_mod
   implicit none
 
   private
-  public comm_brand_new_com
+  public comm_brand_new_comp
 
   !**************************************************
   !           Power-law component
@@ -162,10 +162,6 @@ contains
 
   end function constructor
 
-  ! Definition:
-  !    SED  = (nu/nu_ref)**(beta+0.5*C_s*ln(nu/nu_ref))
-  ! where 
-  !    beta = theta(1), C_s = theta(2)
   function evalSED(self, nu, band, pol, theta)
     implicit none
     class(comm_brand_new_com), intent(in)           :: self

@@ -3078,259 +3078,259 @@ contains
 2   write(*,*) "Error: Cannot open include file '" // trim(filenames(depth)) // "'"
     write(*,*) " in file " // trim(filenames(depth-1))
     do i = depth-2, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
-       do i = depth-1, 1, -1; close(units(i)); end do
-          stop
+    do i = depth-1, 1, -1; close(units(i)); end do
+    stop
+          
+    ! Case 2: Directive error
+3   write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
+    write(*,*) " in file " // trim(filenames(depth))
+    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth, 1, -1; close(units(i)); end do
+    stop
+    ! Case 3: Top level parameter file unreadable
+4   write(*,*) "Error: Cannot open parameter file '" // trim(paramfile) // "'"
+    stop
 
-          ! Case 2: Directive error
-3         write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
-          write(*,*) " in file " // trim(filenames(depth))
-          do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
-             do i = depth, 1, -1; close(units(i)); end do
-                stop
-                ! Case 3: Top level parameter file unreadable
-4               write(*,*) "Error: Cannot open parameter file '" // trim(paramfile) // "'"
-                stop
+  end subroutine read_paramfile_to_ascii
 
-              end subroutine read_paramfile_to_ascii
-
-              ! outputs the parameter file to the path provided
-              subroutine save_ascii_parameter_file(outfile, ascii_table)
-                implicit none
-                character(len=512), intent(in) :: outfile
-                character(len=512), dimension(:), intent(in) :: ascii_table
-
-                integer(i4b)      :: unit, i
-
-                write(*,*) "Saving parameter file to ", trim(outfile)
-
-                unit = getlun()
-                open(unit, file=trim(outfile),err=1)
-
-                do i=1, size(ascii_table) 
-                   write(unit, '(a)') trim(ascii_table(i))
-                end do
-                close(unit)
-                return
-                !If the opening of the output parameter file fails
-1               write(*,*) "Error: Cannot open output file '" // trim(outfile) // "'"
-                stop
-              end subroutine save_ascii_parameter_file
-
-              ! filling the hash table with elements from the parameter file (ascii array) 
-              subroutine put_ascii_into_hashtable(asciitbl,htbl)
-                implicit none
-                character(len=512), allocatable, dimension(:), intent(in) :: asciitbl
-                type(hash_tbl_sll), intent(inout) :: htbl
-                character(len=512) :: key, val
-                character(len=256) :: toks(2)
-                integer            :: i, n
-                do i = 1,size(asciitbl)
-                   call get_tokens(trim(asciitbl(i)), "=", group="''" // '""', maxnum=2, toks=toks, num=n)
-                   if(n < 2) then ! only need the lines where one has 'key'='value'
-                      cycle
-                   end if
-                   key = get_token(toks(1), " ", 1, group="''" // '""')
-                   val = get_token(toks(2), " ", 1, group="''" // '""')
-                   call tolower(key)  ! we don't differentiate btw. upper and lower case
-                   if (key=="") cycle !we don't need blank lines
-                   call put_hash_tbl_sll(htbl,trim(key),trim(val)) 
-                end do
-                return
-
-                write(*,*) "Error: Cannot read ascii line:", i, "line = '" // trim(asciitbl(i)) // "'"
-                stop
-
-              end subroutine put_ascii_into_hashtable
-
-              ! read parameter from input argument or hash table
-              subroutine get_parameter_hashtable(htbl, parname, len_itext, par_int, par_char, &
-                   & par_string, par_sp, par_dp, par_lgt, par_present, desc)
-                implicit none
-                type(hash_tbl_sll), intent(in) :: htbl 
-                character(len=*),   intent(in) :: parname
-                integer(i4b),     optional :: len_itext
-                integer(i4b),     optional :: par_int
-                character(len=*), optional :: par_char
-                character(len=*), optional :: par_string
-                real(sp),         optional :: par_sp
-                real(dp),         optional :: par_dp
-                logical(lgt),     optional :: par_lgt
-                logical(lgt),     optional :: par_present
-                character(len=*), optional :: desc
-
-                logical(lgt)               :: found
-
-                found = .false.
-                call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
-                if(found) then
-                   if(present(par_present)) par_present = .true.
-                else
-                   call get_parameter_from_hash(htbl, parname, len_itext, par_int, &
-                        & par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
-                end if
-              end subroutine get_parameter_hashtable
-
-              ! getting parameter value from hash table
-              subroutine get_parameter_from_hash(htbl, parname, len_itext, par_int, par_char, &
-                   & par_string, par_sp, par_dp, par_lgt, par_present, desc)
-                implicit none
-                type(hash_tbl_sll), intent(in) :: htbl
-                character(len=*),   intent(in) :: parname
-                integer(i4b),     optional :: len_itext
-                integer(i4b),     optional :: par_int
-                character(len=*), optional :: par_char
-                character(len=*), optional :: par_string
-                real(sp),         optional :: par_sp
-                real(dp),         optional :: par_dp
-                logical(lgt),     optional :: par_lgt
-                logical(lgt),     optional :: par_present
-                character(len=*), optional :: desc
-                character(len=256)         :: key
-                character(len=:), ALLOCATABLE   :: itext,jtext
-                CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3
-                integer(i4b)                    :: i,j
-
-                key=trim(parname)
-                call tolower(key)
-                call get_hash_tbl_sll(htbl,trim(key),val)
-                if (.not. allocated(val)) then
-                   goto 1
-                   if (.not. present(len_itext)) goto 1
-                   allocate(character(len=len_itext) :: itext,jtext)
-                   itext=key(len(trim(key))-(len_itext-1):len(trim(key)))
-                   call get_hash_tbl_sll(htbl,'band_default_params'//trim(itext),val2)
-                   if (allocated(val2)) then
-                      read(val2,*) j
-                      if (j /= 0) then
-                         call int2string(j, jtext)
-                         call get_hash_tbl_sll(htbl,'band_default_params'//trim(jtext),val3)
-                         if (allocated(val3)) then
-                            read(val3,*) i
-                            if (i /= 0) goto 2
-                         end if
-                         call get_hash_tbl_sll(htbl,key(1:len(trim(key))-len_itext)//trim(jtext),val)
-                         if (.not. allocated(val)) goto 3
-                      else
-                         goto 1
-                      end if
-                   else
-                      goto 1
-                   end if
-                   deallocate(itext,jtext)
-                end if
-
-                if (present(par_int)) then
-                   read(val,*) par_int
-                elseif (present(par_char)) then
-                   read(val,*) par_char
-                elseif (present(par_string)) then
-                   !read(val,*) par_string
-                   par_string = val
-                elseif (present(par_sp)) then
-                   read(val,*) par_sp
-                elseif (present(par_dp)) then
-                   read(val,*) par_dp
-                elseif (present(par_lgt)) then
-                   read(val,*) par_lgt
-                else
-                   write(*,*) "get_parameter: Reached unreachable point!"
-                end if
-
-                deallocate(val)
-                return
-
-                !if (cpar%myid == cpar%root) then
-
-1               write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
-                write(*,*) ""
-                stop
-
-
-2               write(*,*) "Error: Recursive default parameters, bands " // &
-                     & trim(jtext) // " and " //trim(itext)
-                write(*,*) ""
-                stop
-
-3               write(*,*) "Error: Could not find parameter '" // trim(parname) // &
-                     & "' from default '"//key(1:len(trim(key))-len_itext)//trim(jtext)//"'"
-                write(*,*) ""
-                stop
-
-              end subroutine get_parameter_from_hash
-
-              subroutine get_chainfile_and_samp(string, chainfile, initsamp)
-                implicit none
-                character(len=*),   intent(in)  :: string
-                character(len=512), intent(out) :: chainfile
-                integer(i4b),       intent(out) :: initsamp
-
-                integer(i4b) :: i, num
-                character(len=512), dimension(2) :: toks
-
-                call get_tokens(string, ":", toks, num)    
-                chainfile = toks(1)
-                read(toks(2),*) initsamp
-
-              end subroutine get_chainfile_and_samp
-
-              subroutine define_cg_samp_groups(cpar)
-                implicit none
-                type(comm_params), intent(inout) :: cpar
-
-                integer(i4b) :: i, j, k, n
-                character(len=16), dimension(1000) :: comp_label
-
-                ! Add user specified sample groups
-                cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
-
-                ! Add one sample group per component
-                do i = 1, cpar%cs_ncomp_tot
-                   if (cpar%cs_include(i)) then
-                      cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
-                      cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
-                      cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
-                      if (trim(cpar%cs_class(i)) == 'diffuse') then
-                         if (trim(cpar%cs_type(i)) == 'cmb') then
-                            cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-                         else
-                            cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
-                         end if
-                      else
-                         cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
-                      end if
-                   end if
-                end do
-
-                ! Expand md type if present
-                cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
-                do i = 1, cpar%cg_num_samp_groups
-                   call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-                   do j = 1, n
-                      if (trim(comp_label(j)) == 'md') then
-                         if (n==1 .and. cpar%cg_samp_group_md < 0) then
-                            cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
-                         else
-                         end if
-                         do k = 1, cpar%numband
-                            if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
-                         end do
-                      end if
-                   end do
-                end do
-
-                ! More groups may be defined here
-
-
-                if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
-                   write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
-                   stop
-                end if
-
-              end subroutine define_cg_samp_groups
-
-              subroutine parameter_error()
-                implicit none
-
-              end subroutine parameter_error
-
-            end module comm_param_mod
+  ! outputs the parameter file to the path provided
+  subroutine save_ascii_parameter_file(outfile, ascii_table)
+    implicit none
+    character(len=512), intent(in) :: outfile
+    character(len=512), dimension(:), intent(in) :: ascii_table
+    
+    integer(i4b)      :: unit, i
+    
+    write(*,*) "Saving parameter file to ", trim(outfile)
+    
+    unit = getlun()
+    open(unit, file=trim(outfile),err=1)
+    
+    do i=1, size(ascii_table) 
+       write(unit, '(a)') trim(ascii_table(i))
+    end do
+    close(unit)
+    return
+    !If the opening of the output parameter file fails
+1   write(*,*) "Error: Cannot open output file '" // trim(outfile) // "'"
+    stop
+  end subroutine save_ascii_parameter_file
+  
+  ! filling the hash table with elements from the parameter file (ascii array) 
+  subroutine put_ascii_into_hashtable(asciitbl,htbl)
+    implicit none
+    character(len=512), allocatable, dimension(:), intent(in) :: asciitbl
+    type(hash_tbl_sll), intent(inout) :: htbl
+    character(len=512) :: key, val
+    character(len=256) :: toks(2)
+    integer            :: i, n
+    do i = 1,size(asciitbl)
+       call get_tokens(trim(asciitbl(i)), "=", group="''" // '""', maxnum=2, toks=toks, num=n)
+       if(n < 2) then ! only need the lines where one has 'key'='value'
+          cycle
+       end if
+       key = get_token(toks(1), " ", 1, group="''" // '""')
+       val = get_token(toks(2), " ", 1, group="''" // '""')
+       call tolower(key)  ! we don't differentiate btw. upper and lower case
+       if (key=="") cycle !we don't need blank lines
+       call put_hash_tbl_sll(htbl,trim(key),trim(val)) 
+    end do
+    return
+    
+    write(*,*) "Error: Cannot read ascii line:", i, "line = '" // trim(asciitbl(i)) // "'"
+    stop
+    
+  end subroutine put_ascii_into_hashtable
+  
+  ! read parameter from input argument or hash table
+  subroutine get_parameter_hashtable(htbl, parname, len_itext, par_int, par_char, &
+       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    implicit none
+    type(hash_tbl_sll), intent(in) :: htbl 
+    character(len=*),   intent(in) :: parname
+    integer(i4b),     optional :: len_itext
+    integer(i4b),     optional :: par_int
+    character(len=*), optional :: par_char
+    character(len=*), optional :: par_string
+    real(sp),         optional :: par_sp
+    real(dp),         optional :: par_dp
+    logical(lgt),     optional :: par_lgt
+    logical(lgt),     optional :: par_present
+    character(len=*), optional :: desc
+    
+    logical(lgt)               :: found
+    
+    found = .false.
+    call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
+    if(found) then
+       if(present(par_present)) par_present = .true.
+    else
+       call get_parameter_from_hash(htbl, parname, len_itext, par_int, &
+            & par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    end if
+  end subroutine get_parameter_hashtable
+  
+  ! getting parameter value from hash table
+  subroutine get_parameter_from_hash(htbl, parname, len_itext, par_int, par_char, &
+       & par_string, par_sp, par_dp, par_lgt, par_present, desc)
+    implicit none
+    type(hash_tbl_sll), intent(in) :: htbl
+    character(len=*),   intent(in) :: parname
+    integer(i4b),     optional :: len_itext
+    integer(i4b),     optional :: par_int
+    character(len=*), optional :: par_char
+    character(len=*), optional :: par_string
+    real(sp),         optional :: par_sp
+    real(dp),         optional :: par_dp
+    logical(lgt),     optional :: par_lgt
+    logical(lgt),     optional :: par_present
+    character(len=*), optional :: desc
+    character(len=256)         :: key
+    character(len=:), ALLOCATABLE   :: itext,jtext
+    CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3
+    integer(i4b)                    :: i,j
+    
+    key=trim(parname)
+    call tolower(key)
+    call get_hash_tbl_sll(htbl,trim(key),val)
+    if (.not. allocated(val)) then
+       goto 1
+       if (.not. present(len_itext)) goto 1
+       allocate(character(len=len_itext) :: itext,jtext)
+       itext=key(len(trim(key))-(len_itext-1):len(trim(key)))
+       call get_hash_tbl_sll(htbl,'band_default_params'//trim(itext),val2)
+       if (allocated(val2)) then
+          read(val2,*) j
+          if (j /= 0) then
+             call int2string(j, jtext)
+             call get_hash_tbl_sll(htbl,'band_default_params'//trim(jtext),val3)
+             if (allocated(val3)) then
+                read(val3,*) i
+                if (i /= 0) goto 2
+             end if
+             call get_hash_tbl_sll(htbl,key(1:len(trim(key))-len_itext)//trim(jtext),val)
+             if (.not. allocated(val)) goto 3
+          else
+             goto 1
+          end if
+       else
+          goto 1
+       end if
+       deallocate(itext,jtext)
+    end if
+    
+    if (present(par_int)) then
+       read(val,*) par_int
+    elseif (present(par_char)) then
+       read(val,*) par_char
+    elseif (present(par_string)) then
+       !read(val,*) par_string
+       par_string = val
+    elseif (present(par_sp)) then
+       read(val,*) par_sp
+    elseif (present(par_dp)) then
+       read(val,*) par_dp
+    elseif (present(par_lgt)) then
+       read(val,*) par_lgt
+    else
+       write(*,*) "get_parameter: Reached unreachable point!"
+    end if
+    
+    deallocate(val)
+    return
+    
+    !if (cpar%myid == cpar%root) then
+    
+1   write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
+    write(*,*) ""
+    stop
+    
+    
+2   write(*,*) "Error: Recursive default parameters, bands " // &
+         & trim(jtext) // " and " //trim(itext)
+    write(*,*) ""
+    stop
+    
+3   write(*,*) "Error: Could not find parameter '" // trim(parname) // &
+         & "' from default '"//key(1:len(trim(key))-len_itext)//trim(jtext)//"'"
+    write(*,*) ""
+    stop
+    
+  end subroutine get_parameter_from_hash
+  
+  subroutine get_chainfile_and_samp(string, chainfile, initsamp)
+    implicit none
+    character(len=*),   intent(in)  :: string
+    character(len=512), intent(out) :: chainfile
+    integer(i4b),       intent(out) :: initsamp
+    
+    integer(i4b) :: i, num
+    character(len=512), dimension(2) :: toks
+    
+    call get_tokens(string, ":", toks, num)    
+    chainfile = toks(1)
+    read(toks(2),*) initsamp
+    
+  end subroutine get_chainfile_and_samp
+  
+  subroutine define_cg_samp_groups(cpar)
+    implicit none
+    type(comm_params), intent(inout) :: cpar
+    
+    integer(i4b) :: i, j, k, n
+    character(len=16), dimension(1000) :: comp_label
+    
+    ! Add user specified sample groups
+    cpar%cg_num_samp_groups = cpar%cg_num_user_samp_groups 
+    
+    ! Add one sample group per component
+    do i = 1, cpar%cs_ncomp_tot
+       if (cpar%cs_include(i)) then
+          cpar%cg_num_samp_groups                             = cpar%cg_num_samp_groups + 1
+          cpar%cg_samp_group(cpar%cg_num_samp_groups)         = trim(cpar%cs_label(i))
+          cpar%cg_samp_group_mask(cpar%cg_num_samp_groups)    = 'fullsky'
+          if (trim(cpar%cs_class(i)) == 'diffuse') then
+             if (trim(cpar%cs_type(i)) == 'cmb') then
+                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+             else
+                cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = cpar%cs_cg_samp_group_maxiter(i)
+             end if
+          else
+             cpar%cg_samp_group_maxiter(cpar%cg_num_samp_groups) = 150
+          end if
+       end if
+    end do
+    
+    ! Expand md type if present
+    cpar%cg_samp_group_md = -1 !no pure mono-/dipole CG sample group exists 
+    do i = 1, cpar%cg_num_samp_groups
+       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+       do j = 1, n
+          if (trim(comp_label(j)) == 'md') then
+             if (n==1 .and. cpar%cg_samp_group_md < 0) then
+                cpar%cg_samp_group_md = i !a pure mono-/dipole CG sample group exists, used in specific cases 
+             else
+             end if
+             do k = 1, cpar%numband
+                if (cpar%ds_active(k)) cpar%cg_samp_group(i) = trim(cpar%cg_samp_group(i))//','//trim(cpar%ds_label(k))
+             end do
+          end if
+       end do
+    end do
+    
+    ! More groups may be defined here
+    
+    
+    if (cpar%cg_num_samp_groups > MAXSAMPGROUP) then
+       write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
+       stop
+    end if
+    
+  end subroutine define_cg_samp_groups
+  
+  subroutine parameter_error()
+    implicit none
+    
+  end subroutine parameter_error
+  
+end module comm_param_mod
