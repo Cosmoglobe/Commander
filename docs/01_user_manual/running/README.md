@@ -1,3 +1,5 @@
+# Running Commander
+
 To run [Commander3](https://github.com/Cosmoglobe/Commander) you need to create the `chains_directory`, which is specified in `parameter_file.txt` via
 ```
 $ mkdir chains_directory

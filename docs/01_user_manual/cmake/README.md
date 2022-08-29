@@ -45,8 +45,18 @@ The second command creates the `build` directory and moves you there.
 
 Third command configures the installation with [CMake](https://cmake.org/).
 
-And the last one is building it inside current directory (`build`) and then installing it to 
+And the last one is building it inside current directory (`build`) and then installs it to 
 the one you have defined by `CMAKE_INSTALL_PREFIX` variable.
+
+The installation process will take some time, depending on the network bandwidth, number 
+of missing dependencies, and available computing power. Once Commander is installed, there 
+are several things need to be added into the `.bashrc` (or other shell script):
+```
+export HEALPIX=$HOME/.local/commander/healpix
+export COMMANDER_PARAMS_DEFAULT="<path to commander root directory>/commander3/parameter_files/defaults/"
+```
+where `<path to commander root directory>` is essentially the path where you have cloned
+Commander repository.
 
 <blockquote>
 <p align="justify">
@@ -68,20 +78,8 @@ its dependencies) didn't compile/run properly.
 
 ## Detailed explanation
 
-<p align="justify">
-The default Commander3 installation process is automated through 
-<a href="https://cmake.org/">CMake</a>:
-
-<cite>an Open Source, cross-platform family of tools designed to build, 
-test and package software</cite>. 
-
-The script is configured to scan host system and to identify both present and missing 
-libraries. Once that step is done, missing libraries will be downloaded, compiled and 
-linked with Commander3, together with those libraries that may already be installed on 
-the system.
-</p>
-
-The full list of required libraries is the following:
+In addition to the [prerequisites](01_user_manual/prerequisites/README.md), Commander3 depends 
+on the following libraries:
 
 - [HDF5](https://www.hdfgroup.org/), `version 1.10.5`, `minimum required 1.10.0`;
 - [FFTW](http://www.fftw.org/), `version 3.3.8`, `minimum required 3.3.8`;
@@ -89,15 +87,38 @@ The full list of required libraries is the following:
 - [HEALPix](https://healpix.sourceforge.io/), `version 3.60`, `minimum required 3.50`;
 - [CFitsio](https://heasarc.gsfc.nasa.gov/fitsio/), `version 3.47`, `minimum required 3.47`;
 
+<p align="justify">
+which are installed automatically using 
+<a href="https://cmake.org/">CMake</a>:
+
+<cite>an Open Source, cross-platform family of tools designed to build, 
+test and package software</cite>. 
+
+Essentially, CMake reads in the set of `CMakeLists.txt` files, which store configuration 
+for the project you want to compile. 
+
+In our case, these files configured to scan host system and to identify both present and missing 
+libraries. Once that step is done, missing libraries will be downloaded, compiled and 
+linked with `commander3` binary, together with those libraries that are already installed 
+on the system.
+</p>
+
 ##### How does it work?
 
-From a user's perspective, CMake works similarly to `configure` scripts, in the sense that the installation process is divided into two stages, namely configuration and compilation. Typically, when compiling a library from sources, one performs the following steps:
+From a user's perspective, CMake works similarly to `configure` scripts, in the sense 
+that the installation process is divided into two stages, namely configuration and 
+compilation. Typically, when compiling a library from sources, one performs the following 
+steps:
 ```
 $ [variable 1] [variable 2] [...] [variable n] ./configure [command 1] [command 2] [...] [command n]
 $ make [make command 1] [make command 2] [...] [make command n]
 $ make install
 ```
-where `[variable n]` might be `FC=ifort`, `[command n]` might be `--prefix=/path/where/to/install/software`, `[make command 1]` can be `-j 8` (in which case 8 processors will be used to speed up the compilation process). The first line will configure the project, while the second and third lines will compile and install.
+where `[variable n]` might be `FC=ifort`, `[command n]` might be 
+`--prefix=/path/where/to/install/software`, `[make command 1]` can be `-j 8` 
+(in which case 8 processors will be used to speed up the compilation process). 
+The first line will configure the project, while the second and third lines will 
+compile and install.
 
 The similar process in CMake is the following:
 ```
@@ -105,20 +126,35 @@ $ mkdir [build directory] && cd [build directory]
 $ cmake [CMake variable 1] [CMake variable 2] [...] [CMake variable n] [Path to the main CMakeLists.txt]
 $ cmake --build . --target install [CMake command 1] [...] [CMake command n]
 ```
-Because compiling sources within the source tree is generally considered to be bad practice, you are strongly recommended to create a dedicated `build` directory (the name can be anything, but it is conventional to include "build" in the full name), and then run CMake configuration from that directory.
+The first line creates the so-called <code>build</code> directory which will store CMake-produced 
+configuration files. 
+
+<blockquote>
+<p align="justify">
+<strong>Note</strong>: Because compiling within the source tree is generally considered to be bad practice, 
+we forbid the compillation inside the source directory. Instead, create a separate one, called
+<code>build</code> (the name can be anything, but it is conventional to include "build" in 
+the full name), and run CMake configuration from that directory.
+</p>
+</blockquote>
 
 The second line is the main configuration step, where
-- `[CMake variable 1]` can be `-DCMAKE_Fortran_COMPILER=ifort` (if you want to use Intel Fortran compiler)
+- `[CMake variable 1]` can be `-DCMAKE_Fortran_COMPILER=ifort` 
+  (if you want to use Intel Fortran compiler)
 - `[CMake variable 2]` can be `-DCMAKE_INSTALL_PREFIX=/path/where/to/install/software`,
-- `[CMake variable n]` can be `-LH` (which will print to the terminal the list of all defined variables of the current project at the bottom of your configuration),
+- `[CMake variable n]` can be `-LH` (which will print to the 
+  terminal the list of all defined variables of the current project at the bottom of 
+  your configuration),
 - `[CMake command 1]` can be `-j 8`,
-- `[CMake command n]` can be `-v` (similar to `VERBOSE=1` from `make` which is very useful for debugging as it shows you all linking/compiling flags).
+- `[CMake command n]` can be `-v` (similar to `VERBOSE=1` from `make` which is very 
+  useful for debugging as it shows you all linking/compiling flags).
 
-If you, as recommended, created a `build` directory inside the root folder of your project, you will specify the main path as `..`, while if you created your `build` directory somewhere else, you need to specify the complete path to the main `CMakeLists.txt` (located in the `root` of the project).
+If you created a `build` directory inside the root folder of your project, 
+you will specify the main path as `..`, while if you created your `build` directory somewhere 
+else, you need to specify the complete path to the main `CMakeLists.txt` (located in the `root` 
+  of the project).
 
 The third line is the combination of `make -j 8` and `make install`.
-
-A list of all currently defined variables is provided below. 
 
 ## CMake variables
 
@@ -131,6 +167,8 @@ due to the constant development this list can be removed/modified/updated. There
 variables.
 </p>
 </blockquote>
+
+A list of all currently defined variables is provided below. 
 
 With CMake, the user can have a fine grained control over the installation path, i.e. the 
 general prefix or even binary and library folders:
@@ -367,14 +405,21 @@ The following variables enforce CMake to use a specific set of compilers:
 </table>
 </details>
 
-##### [TODO]: Installation process variables
+[**TODO**]: Update the ones below and also add **deprecated variables** subsubsection
 
-In CMake, there are four main regimes that can be used to compile your code, each one with different compiler flags that depend on your compiler. This is controlled by the CMake standard variable `CMAKE_BUILD_TYPE`, which can take the following values:
+In CMake, there are four main regimes that can be used to compile your code, each one 
+with different compiler flags that depend on your compiler. This is controlled by the 
+CMake standard variable `CMAKE_BUILD_TYPE`, which can take the following values:
 
 - `Debug` for building your library or executable without optimization and with debug symbols;
 - `Release` for building your library or executable with aggressive optimization and without debug symbols;
 - `RelWithDebInfo` for building your library or executable with less aggressive optimizations and with debug symbols;
 - `MinSizeRel` for building your library or executable with optimizations that do not increase object code size.
+
+<details>
+<summary>
+<strong>Installation process variables</strong>
+</summary>
 
 For the `Intel` Fortran compiler, we have specified the following regime-dependent flags:
 
@@ -411,36 +456,16 @@ Finally, it is also possible to completely overwrite linker flags via:
 - `COMMANDER3_Fortran_LINKER_FLAGS_DEBUG` for `Debug` configuration. Usage: `-DCOMMANDER3_Fortran_LINKER_FLAGS_DEBUG="flag1;flag2;flag3"`;
 - `COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO` for `RelWithDebInfo` configuration. Usage: `-DCOMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO="flag1;flag2;flag3"`;
 - `COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL` for `MinSizeRel` configuration. Usage: `-DCOMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL="flag1;flag2;flag3"`;
-
-#### Commander3 installation with CMake
-
-Keeping everything above in mind we can, finally, proceed to the `Commander3` installation. A typical insstallation procedure looks like this:
-```
-$ git clone https://github.com/Cosmoglobe/Commander.git
-$ cd Commander
-$ mkdir build && cd build
-$ cmake -DCMAKE_INSTALL_PREFIX=$HOME/local \
-		-DCMAKE_C_COMPILER=icc \
-		-DCMAKE_CXX_COMPILER=icpc \
-		-DCMAKE_Fortran_COMPILER=ifort \
-		-DMPI_C_COMPILER=mpiicc \
-		-DMPI_CXX_COMPILER=mpiicpc \
-		-DMPI_Fortran_COMPILER=mpiifort \
-		..
-$ cmake --build . --target install -j 8
-```
-In this example, we are using Intel Parallel Studio and we want to install the `commander3` binary into `~/local/bin`, while compiling with 8 cores. You can, of course, modify this command by adding more variables to have better control over your installation, as described above.
-
-The installation process will take some time, depending on the network bandwidth, number of missing dependencies, and available computing power. Once the process has successfully completed, you need to add a HEALPIX evironment variable to your `.bashrc` file (or similar):
-```
-export HEALPIX=$HOME/local/healpix
-```
+</details>
+</br>
 
 # Installation procedures for specific HPC environments
 
 Some specific systems are used by many Commander users, and we provide detailed instructions for some of these here. Note that all these systems have restricted access.
 
 ## owl.uio.no -- CMB&CO cluster at the University of Oslo
+
+[**TODO**]: Update this subsection
 
 System information:
 - 4 x 72-core nodes with 1.5 TB RAM
@@ -476,6 +501,8 @@ export HEALPIX=$HOME/local/healpix
 ```
 
 ## fram.uio.no and saga.uio.no -- National Norwegian HPC centers
+
+[**TODO**]: Update this subsection
 
 Fram system information:
 - 2 x 64-core nodes with 6 TB RAM
@@ -533,11 +560,12 @@ export HEALPIX=$HOME/local/healpix
 
 ## Cori, NERSC -- National US HPC center
 
+[**TODO**]: Update this subsection
+
 Cori system information:
 - 2 x 64-core nodes with 6 TB RAM
 - 8 x 32-core nodes with 512 GB RAM
 - 998 x 32-core nodes with 64 GB RAM
-
 
 BEFORE PROCEEDING PLEASE ENSURE ABSENCE OF `ANACONDA/MINICONDA` IN YOUR PATH!
 
