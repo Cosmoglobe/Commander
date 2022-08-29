@@ -7,7 +7,7 @@
 
 ---
 
-| [Main features](#main-features) | [Installation](#installation) | [Projects](#projects) | [License](#license) | [Funding](#funding) | [Citation](#citation) |
+| [Main features](#main-features) | [Installation](#installation) | [Projects](#projects) | [Funding](#funding) | [License](#license) | [Citation](#citation) |
 
 ---
 
