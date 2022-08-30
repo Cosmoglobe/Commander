@@ -3,13 +3,11 @@
     <img src="https://github.com/hke/Commander/blob/master/logo/Commander-logo-large-1024x335.png" height="150">
 </p>
 
-**Commander** is an **O**ptimal **M**onte-carlo **M**arkov ch**A**i**N** **D**riven 
-**E**stimato**R** which implements fast and efficient end-to-end CMB posterior 
-exploration through Gibbs sampling.
+**Commander** is an **O**ptimal **M**onte-carlo **M**arkov ch**A**i**N** **D**riven **E**stimato**R** which implements fast and efficient end-to-end CMB posterior exploration through Gibbs sampling.
 
 ---
 
-| [Main features](#main-features) | [Installation](#installation) | [Projects](#projects) | [Funding](#funding) | [License](#license) | [Citation](#citation) |
+| [Main features](#main-features) | [Quickstart](#quickstart) | [Projects](#projects) | [License](#license) | [Funding](#funding) | [Citation](#citation) |
 
 ---
 
@@ -23,23 +21,57 @@ The latest version - `Commander3` - brings together critical features such as:
 - Sky and instrumental modelling
 - CMB Component Separation
 
-`Commander3` is written using modern `Fortran` standards such as modules, sub 
-modules, and object oriented derived types. The code is highly tuned and optimized 
-to run on High Performance Computing (HPC) facilities, but it can also be run on 
-your local machine.
+`Commander3` is written using modern `Fortran` standards such as modules, sub modules, and object oriented derived types. The code is highly tuned and optimized to run on High Performance Computing (HPC) facilities, but it can also be run on your local machine.
 
-The previous incarnation of **Commander**, - `Commander2` - is now an internal 
-part of `Commander3`, while the first version of the code, - `Commander1` - is 
-used mainly for debugging and/or legacy purposes. 
+The previous incarnation of **Commander**, - `Commander2` - is now an internal part of `Commander3`, while the first version of the code, - `Commander1` - is used mainly for debugging and/or legacy purposes. However, `Commander1` has not been officially released; thus, it doesn't support [CMake](https://cmake.org/) installation, as described in [official documentation](https://docs.beyondplanck.science/#/parameters/intro).
 
 ---
 
-## Installation
+## Quickstart
 
-For the complete installation guide please refer to the 
-[official documentation](https://cosmoglobe.github.io/Commander/#/), 
-where you can find how to compile and run `Commander` on different 
+Assuming you have installed all 
+[prerequisites](https://cosmoglobe.github.io/Commander/#/01_user_manual/prerequisites/README),
+you can run one of the following set of commands to install Commander:
+<details>
+<summary>
+<b>Using Intel Compilers</b>
+</summary>
+<pre><code>
+&#36; git clone https://github.com/Cosmoglobe/Commander.git && cd Commander 
+&#36; mkdir build && cd build 
+&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+&#36; cmake --build . --target install -j N  
+</code></pre>
+where <code>N</code> is the number of processors to use.
+</details>
+</br>
+
+<details>
+<summary>
+<b>Using GNU Compilers</b>
+</summary>
+<pre><code>
+&#36; git clone https://github.com/Cosmoglobe/Commander.git && cd Commander 
+&#36; mkdir build && cd build 
+&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_Fortran_COMPILER=gfortran -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort ..
+&#36; cmake --build . --target install -j N  
+</code></pre>
+where <code>N</code> is the number of processors to use.
+</details>
+
+This step will configure Commander installation inside `build` directory using 
+[CMake](https://cmake.org/). Once the configuration is done, the compilation will 
+start and it may take some time to finish depending on your system. The resulting 
+binary, `commander3`, will be stored inside `$HOME/.local/commander/bin` and it can 
+be run like any other MPI application using `mpirun` command.  
+
+In case something went wrong or for the complete installation guide 
+please refer to the [official documentation](https://cosmoglobe.github.io/Commander/#/), 
+where we discuss in detail "what is going on?" and "how does it work?", as 
+well as providing information on how to compile and run `Commander` on different 
 platforms, including HPCs such as NERSC, UNINETT Sigma2, OWLs etc. 
+
+We have also put up the [FAQ]() section for Troubleshooting.
 
 ---
 
@@ -58,9 +90,7 @@ Commander framework is part of the following projects:
 
 ## Funding
 
-This work has received funding from the European Union's Horizon 2020 research 
-and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 
-772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
+This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
 
 <p align="center">
     <img src="./logo/LOGO_ERC-FLAG_EU_.jpg" height="200">
