@@ -62,7 +62,8 @@ if(COMPILE_HDF5)
 												zlib 
 												libaec
 			URL								"${hdf5_url}"
-			URL_MD5						"${hdf5_md5}"
+      URL_MD5						"${hdf5_md5}"
+      #URL_HASH SHA256="${hdf5_sha256}"
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${HDF5_SOURCE_DIR}"

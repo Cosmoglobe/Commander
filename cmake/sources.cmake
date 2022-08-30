@@ -102,8 +102,10 @@ set(amdfftw_git_tag  "2b0bbb5924c9e31cb58f34e10832d236bbc51af6")
 # HDF5
 #------------------------------------------------------------------------------
 # TODO: Think about inclusion of SZip and whether you need to download CMake version?
-set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
-set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
+#set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
+set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz")
+#set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
+set(hdf5_md5 "30172c75e436d7f2180e274071a4ca97")
 # This version is CMake prepared by HDf Group
 #set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/CMake-hdf5-1.12.0.tar.gz")
 #set(hdf5_md5 "33ab3d5b9019ca468364d226e0ccdea6")
