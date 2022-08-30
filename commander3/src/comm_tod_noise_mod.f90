@@ -24,6 +24,7 @@ module comm_tod_noise_mod
   use comm_fft_mod
   use InvSamp_mod
   use comm_tod_noise_psd_mod
+  use comm_status_mod
   implicit none
 
 
@@ -82,6 +83,8 @@ contains
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime, ncorr2
 
+    call timer%start(TOD_NCORR, self%band)
+
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
     nomp     = 1 !omp_get_max_threads()
@@ -91,12 +94,17 @@ contains
     fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
     n        = nfft / 2 + 1
 
+
+    call timer%start(TOT_FFT)
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
+    call timer%stop(TOT_FFT)
 
+    call timer%start(TOT_FFT)
     allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT)
 
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -105,7 +113,7 @@ contains
        N_wn     = sigma_0**2  ! white noise power spectrum
 
        ! Prepare TOD residual
-       d_prime = tod(:,i) - gain * S_sub(:,i)
+       d_prime = tod(:,i) - gain * s_sub(:,i)
 
        ! Fill gaps in data 
        init_masked_region = .true.
@@ -158,7 +166,9 @@ contains
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call timer%start(TOT_FFT)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call timer%stop(TOT_FFT)
 
           if (trim(self%operation) == "sample") then
              dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
@@ -184,7 +194,9 @@ contains
                 dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
              end if
           end do
+          call timer%start(TOT_FFT)
           call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          call timer%stop(TOT_FFT)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
@@ -210,6 +222,8 @@ contains
 
     call dfftw_destroy_plan(plan_fwd)                                           
     call dfftw_destroy_plan(plan_back)                                          
+
+    call timer%stop(TOD_NCORR, self%band)
   
   end subroutine sample_n_corr
 
@@ -238,6 +252,7 @@ contains
     n         = nfft / 2 + 1
     ntod      = size(d_prime, 1)
     eps       = 1.d-5
+
     converged = .false.
     nmask     = ntod - sum(mask)
     if (nmask == 0) then
@@ -338,9 +353,13 @@ contains
       allocate(dt(nfft), dv(0:n-1))
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call timer%stop(TOT_FFT)
       dv = dv * mat
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
       dt = dt / nfft
       res(:) = dt(1:ntod)
       deallocate(dt, dv)
@@ -430,6 +449,8 @@ contains
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+
+    call timer%start(TOD_XI_N, self%band)
     
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
@@ -456,9 +477,11 @@ contains
 
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
+    call timer%start(TOT_FFT)
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
     call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT)
 
     ! Sample non-linear spectral parameters
     do i = 1, ndet
@@ -471,11 +494,13 @@ contains
        do k = 1, n_gibbs
           do j = 2, self%scans(scan)%d(i)%N_psd%npar
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
-             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2)) 
+             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              dt     = n_corr(:,i)
+             call timer%start(TOT_FFT)
              call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+             call timer%stop(TOT_FFT)
              do l = n_low, n_high
-                ps(l) = abs(dv(l)) ** 2 / ntod          
+                ps(l) = abs(dv(l)) ** 2 / ntod
              end do
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
@@ -487,7 +512,7 @@ contains
              x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
              x_in(2) = 0.5 * (x_in(1) + x_in(3))
 
-             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni)
+             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
           end do
@@ -495,8 +520,10 @@ contains
     end do
     deallocate(dt, dv)
     deallocate(ps)
-    
+
     call sfftw_destroy_plan(plan_fwd)
+
+    call timer%stop(TOD_XI_N, self%band)
     
   contains
 
@@ -526,6 +553,9 @@ contains
          end if
          f         = l*(samprate/2)/(n-1)
          N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
+         if (N_corr .le. 0) then
+           write(*,*) 'bad things', currpar, tmp, N_corr, f, self%scans(scan)%d(i)%N_psd%xi_n
+         end if
          lnL_xi_n  = lnL_xi_n - (ps(l) / N_corr + log(N_corr))
       end do
 
@@ -552,16 +582,18 @@ contains
   ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
   ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
   ! Here inp and res are assumed to be already allocated. 
-  subroutine multiply_inv_N(tod, scan, buffer, sampfreq, pow)
+  subroutine multiply_inv_N(tod, scan, buffer, sampfreq, pow, off)
     implicit none
     class(comm_tod),                     intent(in)     :: tod
     integer(i4b),                        intent(in)     :: scan
     real(sp),          dimension(:,:),   intent(inout)  :: buffer !input/output
     real(dp),                            intent(in), optional :: sampfreq, pow
+    logical(lgt),                        intent(in), optional :: off
     integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(sp)     :: nu, pow_
+    logical(lgt) :: off_
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     
@@ -571,13 +603,16 @@ contains
     m        = count(tod%scans(scan)%d%accept)
     n        = ntod + 1
     pow_     = 1.d0; if (present(pow)) pow_ = pow
+    off_     = .false.; if (present(off)) off_ = off
     samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
     
     allocate(dt(2*ntod,m), dv(0:n-1,m))
+    call timer%start(TOT_FFT)
     call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
          & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
     call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
          & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
+    call timer%stop(TOT_FFT)
     
     j = 0
     do i = 1, ndet
@@ -587,7 +622,9 @@ contains
        dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
     end do
 
+    call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
 
     j = 0
     do i = 1, ndet
@@ -595,15 +632,17 @@ contains
        j = j+1
        noise    = tod%scans(scan)%d(i)%N_psd%sigma0**2 * samprate / tod%samprate
        
-       if (pow_ >= 0.d0) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
+       if (pow_ >= 0.d0 .and. .not. off_) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
        do l = 1, n-1                                                      
           nu      = l*(samprate/2)/(n-1)
           signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu) * samprate / tod%samprate
           dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
        end do
     end do
-       
+      
+    call timer%start(TOT_FFT) 
     call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call timer%stop(TOT_FFT) 
     dt = dt / (2*ntod)
 
     j = 0
@@ -620,5 +659,6 @@ contains
     deallocate(dt, dv)
 
   end subroutine multiply_inv_N
+
 
 end module comm_tod_noise_mod

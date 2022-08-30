@@ -160,8 +160,8 @@ contains
 
     ! Output residual signal and residual for debugging purposes
     if (.true.) then
-       call sig%writeFITS('gain_sig_'//trim(data(band)%label)//'.fits')
-       call res%writeFITS('gain_res_'//trim(data(band)%label)//'.fits')
+       call sig%writeFITS(trim(outdir)//'gain_sig_'//trim(data(band)%label)//'.fits')
+       call res%writeFITS(trim(outdir)//'gain_res_'//trim(data(band)%label)//'.fits')
     end if
 
     call sig%dealloc(); deallocate(sig)

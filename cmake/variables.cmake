@@ -227,7 +227,7 @@ option(USE_SYSTEM_HDF5    "Enables search for HDF5 on the system."        ON) #O
 option(USE_SYSTEM_MBEDTLS "Enables search for MbedTLS on the system."     ON)
 option(USE_SYSTEM_LIBSSH2 "Enables search for LibSSH2 on the system."     ON)
 option(USE_SYSTEM_CURL    "Enables search for cURL on the system."        ON)
-option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     ON) #OFF)
+option(USE_SYSTEM_CFITSIO "Enables search for CFITSIO on the system."     OFF)
 # Can choose whether to compile CFITSIO with or without cURL support
 option(CFITSIO_USE_CURL   "Installs CFITSIO with cURL support."           OFF)
 # HEALPix

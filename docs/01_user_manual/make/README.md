@@ -1,5 +1,34 @@
-
 # Manual compilation
+
+> **Note**: Before proceeding, we highly recommend **removing**/**commenting** out 
+  everything related to **Anaconda**/**Miniconda** in your `.bashrc` (or other shell).
+  The presence of Anaconda in the `PATH` often leads to conflicts for many libraries, 
+  and results in compilation failure(s). Therefore, disable it during installation.
+  Once Commander binary is produced you can safely put it back.
+
+[**TODO**]: Zlib, SZIP, OpenBLAS+FFTW3 or MKL, HDF5, CFITSIO, HEALPix, CAMB, Commander 
+
+#### Installing OpenBLAS on Linux
+
+Head over to the official GitHub repository and grap latest release, e.g.:
+```
+$ wget https://github.com/xianyi/OpenBLAS/archive/v0.3.12.tar.gz
+$ tar -xzvf v0.3.12.tar.gz
+$ cd OpenBLAS-0.3.12
+```
+And run Compile and install commands as follows:
+```
+$ make USE_OPENMP=1 -j 48
+$ make PREFIX=$HOME/local/openblas install
+```
+Lastly, update your `.bashrc` with:
+```
+export LD_LIBRARY_PATH="$HOME/local/openblas/lib:$LD_LIBRARY_PATH"
+```
+and restart your terminal session.
+
+[TODO]: Describe here how to compile HDF5 and otehr libraries to use with Make/CMake 
+from source (Compiler and MPi are in the prerequisites)
 
 If you have enough time and desire, you can of course compile Commander3 from scratch. For this you will need to do the following:
 

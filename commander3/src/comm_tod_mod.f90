@@ -44,7 +44,6 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
-     real(sp)          :: baseline
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
@@ -57,6 +56,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
+     real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -95,6 +95,7 @@ module comm_tod_mod
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
+     integer(i4b) :: band                                        ! Band ID
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
@@ -105,6 +106,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
+     integer(i4b) :: baseline_order                               ! Polynomial order for baseline
 
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
@@ -115,9 +117,10 @@ module comm_tod_mod
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
      class(comm_orbdipole), pointer :: orb_dp
-     real(dp), allocatable, dimension(:)     :: gain0                                       ! Mean gain
+     real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
-     real(dp), allocatable, dimension(:,:)   :: polang_prior                                ! Detector polarization angle prior [ndet,mean/rms]
+     real(dp), allocatable, dimension(:,:)   :: polang_prior
+        ! Detector polarization angle prior [ndet,mean/rms]
      real(dp), allocatable, dimension(:)     :: mbang                                       ! Main beams angle
      real(dp), allocatable, dimension(:)     :: mono                                        ! Monopole
      real(dp), allocatable, dimension(:)     :: fwhm, elip, psi_ell                         ! Beam parameter
@@ -147,6 +150,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
+     real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -160,7 +164,8 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
-     class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
+     class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
+     class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
@@ -169,7 +174,10 @@ module comm_tod_mod
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
      integer(i4b),       allocatable, dimension(:,:)   :: jumplist  ! List of stationary periods (ndet,njump+2)
+     real(dp)                                          :: accept_threshold ! Required fraction of unflagged data in a detscan in order to be accepted 
+     logical(lgt)                                      :: orbital ! flag for whether the orbital or solar dipole is used as the template in construct_dipole_template()
      ! Gain parameters
+     logical(lgt)                            :: gain_tune_sigma0
      real(dp)                                :: gain_samprate
      real(dp), allocatable, dimension(:)     :: gain_sigma_0  ! size(ndet), the estimated white noise level of that scan. Not truly a white noise since our model is sigma_0**2 * (f/fknee)**alpha instead of sigma_0 ** 2 (1 + f/fknee ** alpha)
      real(dp), allocatable, dimension(:)    :: gain_fknee ! size(ndet)
@@ -208,6 +216,8 @@ module comm_tod_mod
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
      procedure                           :: remove_fixed_scans
+     procedure                           :: apply_map_precond
+     procedure                           :: collect_v_sun
   end type comm_tod
 
   abstract interface
@@ -278,6 +288,7 @@ contains
     character(len=512) :: datadir
     character(len=4)   :: id
 
+    self%band          = id_abs
     self%tod_type      = tod_type
     self%myid          = cpar%myid_chain
     self%comm          = cpar%comm_chain
@@ -307,8 +318,16 @@ contains
     self%sims_output_dir = cpar%sims_output_dir
     self%apply_inst_corr = .false.
     self%enable_tod_simulations = cpar%enable_tod_simulations
+    self%accept_threshold = 0.9d0 ! default
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
+    self%baseline_order  = -1
+
+    if (trim(self%tod_type)=='SPIDER') then
+      self%orbital = .false.
+    else
+      self%orbital = .true.
+    end if
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
@@ -316,6 +335,8 @@ contains
        self%n_xi = 5  ! {sigma0, fknee, alpha, fknee2, alpha2}
     else if (trim(self%noise_psd_model) == 'oof_gauss') then
        self%n_xi = 6  ! {sigma0, fknee, alpha, amp, loc, sigma}
+    else if (trim(self%noise_psd_model) == 'oof_f') then
+       self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
        stop
@@ -340,7 +361,7 @@ contains
         if (.not. self%sample_L1_par) then
           call int2string(self%myid, id)
           unit        = getlun()
-          self%L2file = trim(self%datadir) // '/precomp_L2_'//trim(self%freq)//'.h5'
+          self%L2file = trim(self%datadir) // 'precomp_L2_'//trim(self%freq)//'.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
        else
           self%L2_exist = .false.
@@ -368,7 +389,12 @@ contains
 
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
-    self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir)
+    else
+      self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    end if
+
 
     ! Initialize jumplist
     call self%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
@@ -394,18 +420,18 @@ contains
     allocate(self%bp_delta(0:self%ndet,ndelta))
     self%bp_delta = 0.d0
 
-    !Allocate and initialize gain structures
+    !Allocate and initialize gain PSD Wiener filter structures; set to LFI defaults for now
     allocate(self%gain_sigma_0(self%ndet))
-    ! To be initialized at first call
     allocate(self%gain_fknee(self%ndet))
     allocate(self%gain_alpha(self%ndet))
-    self%gain_samprate = 1.d0 / 3600.d0
-    self%gain_sigma_0 = 3d-4
-    self%gain_fknee =  self%gain_samprate ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
-    self%gain_alpha =  -2.5d0 ! This value is not necessarily set in stone and will be updated over the course of the run.
-    self%gain_sigma0_std = abs(self%gain_sigma_0(1) * 0.01)
-    self%gain_fknee_std = abs(self%gain_fknee(1) * 0.01)
-    self%gain_alpha_std = abs(self%gain_alpha(1) * 0.01)
+    self%gain_tune_sigma0 = .true.
+    self%gain_samprate    = 1.d0 / 3600.d0
+    self%gain_sigma_0     = 3d-4
+    self%gain_fknee       = self%gain_samprate ! In seconds - this value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_alpha       = -1.d0              ! This value is not necessarily set in stone and will be updated over the course of the run.
+    self%gain_sigma0_std  = abs(self%gain_sigma_0(1) * 0.01)
+    self%gain_fknee_std   = abs(self%gain_fknee(1) * 0.01)
+    self%gain_alpha_std   = abs(self%gain_alpha(1) * 0.01)
 
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
@@ -447,8 +473,7 @@ contains
        allocate(pix(self%scans(i)%ntod))
        if (self%nhorn == 2) then
          do l = 1, self%nhorn
-            !call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-          call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
+          call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
           self%pix2ind(pix(1)) = 1
           do k = 2, self%scans(i)%ntod
              self%pix2ind(pix(k)) = 1
@@ -529,10 +554,14 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       call self%slbeam(i)%p%Y()
-       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
-       call self%mbeam(i)%p%Y()
+       if (self%correct_sl) then
+         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+         call self%slbeam(i)%p%Y()
+       end if
+       if (self%orb_4pi_beam) then
+         self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
+         call self%mbeam(i)%p%Y()
+       end if
        call self%load_instrument_inst(h5_file, i)
     end do
 
@@ -542,7 +571,7 @@ contains
   end subroutine load_instrument_file
 
 
-  subroutine read_tod(self, detlabels)
+  subroutine read_tod(self, detlabels, datadir)
     ! 
     ! Reads common TOD fields into existing TOD object
     ! 
@@ -556,21 +585,23 @@ contains
     ! ----------
     ! None, but updates self
     !
-    implicit none
-    class(comm_tod),                intent(inout)  :: self
-    character(len=*), dimension(:), intent(in)     :: detlabels
-
-    integer(i4b) :: i, j, k, n, det, ierr, ndet_tot
-    real(dp)     :: t1, t2
-    real(sp)     :: psi
-    type(hdf_file)     :: file
-    character(len=128) :: buff_s
-
-    integer(i4b), dimension(:), allocatable       :: ns
-    real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
-    character(len=100000)                         :: det_buf
-    character(len=128), dimension(:), allocatable :: dets
-
+   implicit none
+   class(comm_tod),                intent(inout)  :: self
+   character(len=*), dimension(:), intent(in)     :: detlabels
+   character(len=512), optional                   :: datadir
+   
+   
+   integer(i4b) :: i, j, k, n, det, ierr, ndet_tot
+   real(dp)     :: t1, t2
+   real(sp)     :: psi
+   type(hdf_file)     :: file
+   character(len=128) :: buff_s
+   
+   integer(i4b), dimension(:), allocatable       :: ns
+   real(dp), dimension(:), allocatable           :: mbang_buf, polang_buf
+   character(len=100000)                         :: det_buf
+   character(len=128), dimension(:), allocatable :: dets
+   
     ! Read common fields
     allocate(self%polang(self%ndet))
     allocate(self%mbang(self%ndet))
@@ -584,13 +615,26 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       ndet_tot = num_tokens(det_buf(1:n), ",")
-       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot),dets(ndet_tot))
+       
+       if (index(det_buf(1:n), '.txt') /= 0) then
+         ndet_tot = count_detectors(det_buf(1:n), datadir)
+       else
+         ndet_tot = num_tokens(det_buf(1:n), ",")
+       end if
+
+
+       allocate(polang_buf(ndet_tot), mbang_buf(ndet_tot), dets(ndet_tot))
        polang_buf = 0
        mbang_buf = 0
        self%polang = 0
        self%mbang = 0
-       call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
+       if (index(det_buf(1:n), '.txt') /= 0) then
+         call get_detectors(det_buf(1:n), datadir, dets)
+       else
+         call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
+       end if
+
+
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
 !!$       end do
@@ -598,16 +642,19 @@ contains
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"
-         !stop
+         stop
        end if
-       call read_hdf(file, "common/npsi",   self%npsi)
+       if (self%nhorn == 2) then
+         call read_hdf(file, "common/npsiA",   self%npsi)
+       else
+         call read_hdf(file, "common/npsi",   self%npsi)
+       end if
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
 !!$          do j = 1, ndet_tot
 !!$             write(*,*) j, trim(dets(j))
 !!$          end do
-
        do i = 1, self%ndet
           do j = 1, ndet_tot
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
@@ -654,7 +701,6 @@ contains
 !!$          end do
 !!$       end do
 !!$    end if
-
     call update_status(status, "aaa")
     if (trim(self%level) == 'L2' .or. .not. self%L2_exist) then
        do i = 1, self%nscan
@@ -690,6 +736,7 @@ contains
 
     call update_status(status, "bbb")
 
+
     ! Initialize mean gain
     allocate(ns(0:self%ndet))
     self%gain0 = 0.d0
@@ -713,9 +760,9 @@ contains
     do i = 1, self%nscan
        do j = 1, self%ndet
           self%scans(i)%d(j)%dgain = self%scans(i)%d(j)%gain - self%gain0(0) - self%gain0(j)
-          self%scans(i)%d(j)%baseline = 0d0
        end do
     end do
+
 
     ! Precompute trigonometric functions
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
@@ -727,12 +774,13 @@ contains
        self%cos2psi(i) = cos(2.0*psi)
     end do
 
+
+
     call mpi_barrier(self%comm, ierr)
     call wall_time(t2)
     if (self%myid == 0) write(*,fmt='(a,i4,a,i6,a,f8.1,a)') &
          & ' |  Myid = ', self%myid, ' -- nscan = ', self%nscan, &
          & ', TOD IO time = ', t2-t1, ' sec'
-
 
 
   end subroutine read_tod
@@ -828,8 +876,8 @@ contains
        if ((i == 1 .and. nhorn == 2) .or. (nhorn .ne. 2)) then
          allocate(self%d(i)%psi(nhorn), self%d(i)%pix(nhorn))
        end if
-
        allocate(xi_n(tod%n_xi))
+
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
@@ -840,8 +888,13 @@ contains
        self%d(i)%gain       = self%d(i)%gain_def
        self%d(i)%accept     = .true.
 
+       if (tod%baseline_order >= 0) then
+          allocate(self%d(i)%baseline(0:tod%baseline_order))
+          self%d(i)%baseline = 0.
+       end if
+
        if (trim(tod%noise_psd_model) == 'oof') then
-          self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+         self%d(i)%N_psd => comm_noise_psd(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
        else if (trim(tod%noise_psd_model) == '2oof') then
           xi_n(4) =  1e-4  ! fknee2 (Hz); arbitrary value
           xi_n(5) = -1.000 ! alpha2; arbitrary value
@@ -852,6 +905,11 @@ contains
           xi_n(5) =  1.35d0
           xi_n(6) =  0.40d0
           self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+
+       else if (trim(tod%noise_psd_model) == 'oof_f') then
+          xi_n(4) =  0d0
+          xi_n(5) =  0d0
+          self%d(i)%N_psd => comm_noise_psd_oof_f(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 
@@ -948,8 +1006,6 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
-!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
        call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
        call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
@@ -1037,7 +1093,7 @@ contains
        field = detlabels(i)
        if(ndiode == 1) then
          if (tod%compressed_tod) then
-            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/tod", self%d(i)%ztod)
+            call read_hdf_opaque(file, slabel // "/" // trim(field) // "/ztod", self%d(i)%ztod)
          else
             allocate(self%d(i)%tod(m))
             call read_hdf(file, slabel // "/" // trim(field) // "/tod",    buffer_sp)
@@ -1118,7 +1174,7 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filelist
 
-    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q, flen
+    integer(i4b)       :: unit, j, k, np, ind(1), i, n, m, n_tot, ierr, p, q, flen, c
     real(dp)           :: w_tot, w_curr, w, v0(3), v(3), spin(2)
     character(len=6)   :: fileid
     character(len=512) :: infile
@@ -1245,26 +1301,35 @@ contains
                call QuickSort(id, sid)
                w_curr = 0.d0
                j     = 1
-               do i = np-1, 1, -1
-                  w = 0.d0
-                  do k = 1, n_tot
-                     if (proc(k) == i) w = w + weight(k) 
+               if (n_tot < 10*np) then
+                  do while (j <= n_tot)
+                      do i = np-1, 0, -1
+                          if (j <= n_tot) proc(id(j)) = i
+                          j = j + 1
+                      end do
                   end do
-                  do while (w < w_tot/np .and. j <= n_tot)
-                     proc(id(j)) = i
-                     w           = w + weight(id(j))
-                     if (w > 1.2d0*w_tot/np) then
-                        ! Assign large scans to next core
-                        proc(id(j)) = i-1
-                        w           = w - weight(id(j))
-                     end if
-                     j           = j+1
-                  end do
-               end do
-               do while (j <= n_tot)
-                  proc(id(j)) = 0
-                  j = j+1
-               end do
+               else
+                  do i = np-1, 0, -1
+                     w = 0.d0
+                     do k = 1, n_tot
+                        if (proc(k) == i) w = w + weight(k) 
+                     end do
+                     do while (w < w_tot/np .and. j <= n_tot)
+                        proc(id(j)) = i
+                        w           = w + weight(id(j))
+                        if (w > 1.2d0*w_tot/np) then
+                           ! Assign large scans to next core
+                           proc(id(j)) = i-1
+                           w           = w - weight(id(j))
+                        end if
+                        j           = j+1
+                     end do
+                   end do
+                   do while (j <= n_tot)
+                      proc(id(j)) = 0
+                      j = j+1
+                   end do
+               end if
             end if
             
             pweight = 0.d0
@@ -1330,28 +1395,41 @@ contains
     character(len=6)   :: itext
     character(len=512) :: path
     real(dp), allocatable, dimension(:,:,:) :: output
+    real(dp), allocatable, dimension(:)     :: mjds
 
-    npar = 4+self%n_xi
+    npar = 3+self%n_xi
+    if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
     allocate(output(self%nscan_tot,self%ndet,npar))
+    allocate(  mjds(self%nscan_tot))
 
     ! Collect all parameters
     output = 0.d0
+    mjds   = 0.d0
     do j = 1, self%ndet
        do i = 1, self%nscan
-          k                  = self%scanid(i)
-          output(k,j,1)      = self%scans(i)%d(j)%gain
-          output(k,j,2)      = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
-          output(k,j,3)      = self%scans(i)%d(j)%chisq
-          output(k,j,4)      = self%scans(i)%d(j)%baseline
-          output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
+          k                         = self%scanid(i)
+          output(k,j,1)             = self%scans(i)%d(j)%gain
+          output(k,j,2)             = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
+          output(k,j,3)             = self%scans(i)%d(j)%chisq
+          output(k,j,4:3+self%n_xi) = self%scans(i)%d(j)%N_psd%xi_n
+          if (self%baseline_order >= 0) then
+             output(k,j,4+self%n_xi:npar) = self%scans(i)%d(j)%baseline
+          end if
+          if (j == 1) then
+             mjds(k)                = self%scans(i)%t0(1)
+          end if
        end do
     end do
 
     if (self%myid == 0) then
        call mpi_reduce(mpi_in_place, output, size(output), &
             & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call mpi_reduce(mpi_in_place, mjds, size(mjds), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
     else
        call mpi_reduce(output,       output, size(output), &
+            & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
+       call mpi_reduce(mjds,         mjds,   size(mjds), &
             & MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
     end if
 
@@ -1399,8 +1477,9 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'gain',   output(:,:,1))
        call write_hdf(chainfile, trim(adjustl(path))//'accept', output(:,:,2))
        call write_hdf(chainfile, trim(adjustl(path))//'chisq',  output(:,:,3))
-       call write_hdf(chainfile, trim(adjustl(path))//'baseline',output(:,:,4))
-       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,5:npar))
+       call write_hdf(chainfile, trim(adjustl(path))//'xi_n',   output(:,:,4:3+self%n_xi))
+       call write_hdf(chainfile, trim(adjustl(path))//'MJD',    mjds)
+       if (self%baseline_order >= 0) call write_hdf(chainfile, trim(adjustl(path))//'baseline',   output(:,:,4+self%n_xi:npar))
        call write_hdf(chainfile, trim(adjustl(path))//'polang', self%polang)
        call write_hdf(chainfile, trim(adjustl(path))//'gain0',  self%gain0)
        call write_hdf(chainfile, trim(adjustl(path))//'x_im',   [self%x_im(1), self%x_im(3)])
@@ -1409,6 +1488,7 @@ contains
        call write_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0', self%gain_sigma_0)
        call write_hdf(chainfile, trim(adjustl(path))//'gain_fknee', self%gain_fknee)
        call write_hdf(chainfile, trim(adjustl(path))//'gain_alpha', self%gain_alpha)
+       
     end if
 
     call map%writeMapToHDF(chainfile, path, 'map')
@@ -1417,7 +1497,7 @@ contains
     ! Write instrument-specific parameters
     call self%dumpToHDF_inst(chainfile, path)
 
-    deallocate(output)
+    deallocate(output, mjds)
 
   end subroutine dumpToHDF
 
@@ -1446,17 +1526,21 @@ contains
 !       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
 !       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,2))
-       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:npar))
+       call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:2+self%n_xi))
 !       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
+       call read_hdf(chainfile, trim(adjustl(path))//'x_im', self%x_im(1:2))
+       self%x_im(3) = self%x_im(2)
+       self%x_im(4) = self%x_im(3)
+       self%x_im(2) = self%x_im(1)
 !!$       if (trim(self%freq) .ne. '030') then
 !!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
 !!$       end if
-!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
-!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
-!!$       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
+       call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
        !write(*,*) 'bp =', self%bp_delta
        ! Redefine gains; should be removed when proper initfiles are available
 !!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
@@ -1483,7 +1567,7 @@ contains
 !!$    call mpi_bcast(self%gain_alpha, size(self%gain_alpha), MPI_DOUBLE_PRECISION, 0, &
 !!$         & self%comm, ierr)
 
-       self%gain_alpha = -2.5d0
+!!$       self%gain_alpha = -2.5d0
 
 !!$    do j = 1, self%ndet
 !!$       where (output(:,j,1)>0.)
@@ -1492,17 +1576,17 @@ contains
 !!$       end where
 !!$    end do
 
-    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
-    do j = 1, self%ndet
-       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.) - self%gain0(0)
-    end do
+!!$    self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.)
+!!$    do j = 1, self%ndet
+!!$       self%gain0(j) = sum(output(:,j,1))/count(output(:,j,1)>0.) - self%gain0(0)
+!!$    end do
 
     do j = 1, self%ndet
        do i = 1, self%nscan
           k             = self%scanid(i)
           self%scans(i)%d(j)%gain                 = output(k,j,1)
           self%scans(i)%d(j)%dgain                = output(k,j,1)-self%gain0(0)-self%gain0(j)
-          self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:npar)
+          self%scans(i)%d(j)%N_psd%xi_n(1:ext(3)) = output(k,j,3:2+self%n_xi)
           !self%scans(i)%d(j)%N_psd%xi_n(1)        = self%scans(i)%d(j)%N_psd%xi_n(1) * 1d-2
           if (output(k,j,2) == 0) then
              self%scans(i)%d(j)%accept               = .false.  !output(k,j,5) == 1.d0
@@ -1548,7 +1632,7 @@ contains
     class(comm_tod),   intent(inout) :: self
     character(len=*),  intent(in)    :: filename
 
-    integer(i4b) :: j, k, ndet, npar, unit, par
+    integer(i4b) :: j, k, ndet, npar, unit, par, ios
     real(dp)     :: val
     character(len=16)   :: label, det1, det2
     character(len=1024) :: line
@@ -1562,7 +1646,12 @@ contains
     self%prop_bp      = 0.d0
     self%prop_bp_mean = 0.d0
 
-    open(unit,file=trim(filename))
+
+    open(unit,file=trim(filename), iostat=ios)
+    if (ios .ne. 0) then
+      write(*,*) 'Could not open ', trim(filename)
+      stop
+    end if
     do while (.true.)
        read(unit,'(a)',end=34) line
        line = trim(adjustl(line))
@@ -1589,6 +1678,7 @@ contains
                 k = self%get_det_id(det2)
              end if
              if (k < 0) cycle
+             
              self%prop_bp(j,k,par) = val
              self%prop_bp(k,j,par) = val
           end if
@@ -1600,9 +1690,16 @@ contains
     end do
 34  close(unit)
 
+    if (maxval(abs(self%prop_bp)) == 0) then
+        write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
+        stop
+    end if
+
+
+
     ! Compute square root; mean will be projected out after proposal generation
     do par = 1, npar
-       call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
+      call compute_hermitian_root(self%prop_bp(:,:,par), 0.5d0)
     end do
 
   end subroutine initialize_bp_covar
@@ -1617,22 +1714,71 @@ contains
     real(dp),                            intent(in)    :: polangle
     real(sp),            dimension(:),   intent(out)   :: s_sl
 
-    integer(i4b) :: j, pix_, pix_prev, psi_prev
-    real(dp)     :: psi_
+    integer(i4b) :: j,k, pix_, bpsi, psii, psiu, subsamp
+    real(dp)     :: psi_, unwrap, x0, x1
 
-    pix_prev = -1; psi_prev = -1
-    do j = 1, size(pix)
-       pix_    = self%ind2sl(self%pix2ind(pix(j)))
-       if (pix_prev == pix_ .and. psi(j) == psi_prev) then
-          s_sl(j) = s_sl(j-1)
-       else
-          psi_    = self%psi(psi(j))-polangle
-          s_sl(j) = slconv%interp(pix_, psi_)
-          pix_prev = pix_; psi_prev = psi(j)
-       end if
+    real(dp), dimension(:), allocatable :: sub_sl, x_sl
+    type(spline_type) :: spline
+
+    subsamp = 5
+    !subsamp = 1
+    ! If I want to test, set subsamp = 1 and compare the sidelobe output
+
+    allocate(sub_sl(size(pix)/subsamp), x_sl(size(pix)/subsamp))
+
+    do j = 1, size(pix)/subsamp !TODO: determine a good subsampling factor. 10? 50?
+       k = subsamp*(j-1) + 1
+       pix_    = self%ind2sl(self%pix2ind(pix(k)))
+       psi_    = self%psi(psi(k))-polangle
+
+       sub_sl(j) = slconv%interp(pix_, psi_)
+       x_sl(j) = k
     end do
 
+    call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+
+    do j = 1, size(sub_sl)*subsamp  
+      s_sl(j) = splint_simple(spline, real(j, dp))
+    end do
+
+    !do last few samples
+    do j = size(sub_sl)*subsamp+1, size(s_sl)
+      pix_    = self%ind2sl(self%pix2ind(pix(j)))
+      psi_    = self%psi(psi(j))-polangle
+      s_sl(j) = slconv%interp(pix_, psi_)
+    end do
+
+    deallocate(sub_sl, x_sl)
+    call free_spline(spline)
+
   end subroutine construct_sl_template
+
+
+!!$  !construct a sidelobe template in the time domain
+!!$  subroutine construct_sl_template2(self, slconv, pix, psi, s_sl, polangle)
+!!$    implicit none
+!!$    class(comm_tod),                     intent(in)    :: self
+!!$    class(comm_conviqt),                 intent(in)    :: slconv
+!!$    integer(i4b),        dimension(:),   intent(in)    :: pix, psi
+!!$    real(dp),                            intent(in)    :: polangle
+!!$    real(sp),            dimension(:),   intent(out)   :: s_sl
+!!$
+!!$    integer(i4b) :: j, pix_, pix_prev, psi_prev
+!!$    real(dp)     :: psi_
+!!$
+!!$    pix_prev = -1; psi_prev = -1
+!!$    do j = 1, size(pix)
+!!$       pix_    = self%ind2sl(self%pix2ind(pix(j)))
+!!$       if (pix_prev == pix_ .and. psi(j) == psi_prev) then
+!!$          s_sl(j) = s_sl(j-1)
+!!$       else
+!!$          psi_    = self%psi(psi(j))-polangle
+!!$          s_sl(j) = slconv%interp(pix_, psi_)
+!!$          pix_prev = pix_; psi_prev = psi(j)
+!!$       end if
+!!$    end do
+!!$
+!!$  end subroutine construct_sl_template2
 
 
   subroutine construct_corrtemp_inst(self, scan, pix, psi, s)
@@ -1663,7 +1809,7 @@ contains
 
   end subroutine construct_corrtemp_inst
 
-  subroutine construct_dipole_template(self, scan, pix, psi, orbital, s_dip)
+  subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
     !
     !  Arguments:
@@ -1676,8 +1822,6 @@ contains
     !       index for pixel
     !  psi: int
     !       integer label for polarization angle
-    !  orbital: logical
-    !       flag for whether the orbital or solar dipole is used as the template
     !
     !  Returns:
     !  --------
@@ -1687,19 +1831,21 @@ contains
     class(comm_tod),                   intent(inout) :: self
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
-    logical(lgt),                      intent(in)    :: orbital
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
 
     integer(i4b) :: i, j, ntod
     real(dp)     :: v_ref(3)
     real(dp), allocatable, dimension(:,:) :: P
+    logical(lgt)  :: relativistic
+
+    relativistic = .true.
 
     ntod = self%scans(scan)%ntod
 
     allocate(P(3,ntod))
     do j = 1, self%ndet
        if (.not. self%scans(scan)%d(j)%accept) cycle
-       if (orbital) then
+       if (self%orbital) then
           v_ref = self%scans(scan)%v_sun
        else
           v_ref = v_solar
@@ -1714,19 +1860,21 @@ contains
           end do
        else
           v_ref = v_solar
+         !  v_ref = self%scans(scan)%v_sun !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do i = 1, ntod
              P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
           end do
        end if
 
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & orbital, self%orb_4pi_beam, P, s_dip(:,j))
+            & self%orbital, self%orb_4pi_beam, P, s_dip(:,j))
     end do
     deallocate(P)
 
   end subroutine construct_dipole_template
 
-  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, s_dip, factor)
+  subroutine construct_dipole_template_diff(self, scan, pix, psi, orbital, horn_ind, s_dip, &
+                                         &  factor)
     !construct a CMB dipole template in the time domain for differential data
     !
     !
@@ -1742,7 +1890,8 @@ contains
     !       integer label for polarization angle
     !  orbital: logical
     !       flag for whether the orbital or solar dipole is used as the template
-    !
+    !  horn: integer
+    !       corresponds to either horn = 1 (A) or horn = 2 (B)
     !  Returns:
     !  --------
     !  s_dip: real (sp)
@@ -1752,28 +1901,38 @@ contains
     integer(i4b),                      intent(in)    :: scan
     integer(i4b),    dimension(:,:),   intent(in)    :: pix, psi
     logical(lgt),                      intent(in)    :: orbital
+    integer(i4b),                      intent(in)    :: horn_ind
     real(sp),        dimension(:,:),   intent(out)   :: s_dip
     real(dp),               intent(in), optional     :: factor
 
     integer(i4b) :: i, j, ntod
-    real(dp)     :: v_ref(3), f
+    real(dp)     :: v_ref(3), v_ref_next(3), f
     real(dp), allocatable, dimension(:,:) :: P
+    logical(lgt)  :: relativistic
+
+    relativistic = .true.
 
     f = 1.d0; if (present(factor)) f = factor
     ntod = self%scans(scan)%ntod
 
     allocate(P(3,ntod))
     j = 1
-    if (orbital) then
+    if (self%orbital) then
        v_ref = self%scans(scan)%v_sun
+       if (self%scanid(scan) == self%nscan_tot) then
+          v_ref_next = v_ref
+       else
+          v_ref_next = self%v_sun(:,self%scanid(scan)+1)
+       end if
     else
-       v_ref = v_solar
+       v_ref      = v_solar
+       v_ref_next = v_solar
     end if
     if (self%orb_4pi_beam) then
        do i = 1, ntod
           P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
                   & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                  & self%psi(psi(i,j))] ! [phi, theta, psi7]
+                  & self%psi(psi(i,j))] ! [phi, theta, psi]
        end do
     else
        do i = 1, ntod
@@ -1782,8 +1941,19 @@ contains
     end if
 
     do j = 1, self%ndet
-       call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
-            & orbital, self%orb_4pi_beam, P, s_dip(:,j), f)
+       ! Since the "det" index actually references which beam you're looking at,
+       ! we need to reference horns A and B, which are ordered AABB in WMAP
+       ! data.
+       if (horn_ind == 1) then
+          call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
+               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, v_ref_next=v_ref_next)
+       else if (horn_ind == 2) then
+          call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
+               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, v_ref_next=v_ref_next)
+       else
+          write(*,*) "Should only be 1 or 2"
+          stop
+       end if
     end do
     deallocate(P)
 
@@ -1796,6 +1966,9 @@ contains
 
     integer(i4b)     :: i, j, mpistat(MPI_STATUS_SIZE), unit, ns, ierr, num_scan, n_buff
     character(len=4) :: pid
+
+
+    call timer%start(TOD_WRITE)
 
     n_buff = 0
     do i = 1, self%nscan
@@ -1829,6 +2002,7 @@ contains
        call mpi_send(slist, 512*self%nscan, MPI_CHARACTER, 0, 98, self%comm, ierr)
        deallocate(slist)
     end if
+    call timer%stop(TOD_WRITE)
   end subroutine output_scan_list
 
 
@@ -2008,18 +2182,21 @@ contains
     logical(lgt),                    intent(in), optional :: absbp, verbose
 
     
-    real(dp)     :: chisq, d0, g, b
+    real(dp)     :: chisq, d0, g
     integer(i4b) :: i, n
+
+    call timer%start(TOD_CHISQ, self%band)
 
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
-    b           = self%scans(scan)%d(det)%baseline
+    ! As of this commit, the baseline is included in the correlated noise
+    !b           = self%scans(scan)%d(det)%baseline
 !    if (det == 1) open(58,file='chisq.dat', recl=1024)
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
-       d0    = tod(i) - (g * s_spur(i) + n_corr(i) + b)
+       d0    = tod(i) - (g * s_spur(i) + n_corr(i))
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2
 !       if (det == 1) write(58,*) i, mask(i), tod(i), s_spur(i), n_corr(i), b, g*s_sky(i), d0 - g*s_sky(i), (d0 - g*s_sky(i))/self%scans(scan)%d(det)%N_psd%sigma0, chisq
@@ -2051,6 +2228,8 @@ contains
 !!$        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
 !!$             & ', chisq = ', self%scans(scan)%d(det)%chisq
 !!$    end if
+
+    call timer%stop(TOD_CHISQ, self%band)
 
   end subroutine compute_chisq
 
@@ -2239,16 +2418,9 @@ contains
     integer(i4b),                       intent(in)  :: scan, det
     real(sp),            dimension(:),  intent(out) :: tod
 
-    integer(i4b), allocatable, dimension(:) :: tod_int
-    integer(i4b) :: i
+    byte,  allocatable, dimension(:)  :: test
 
-    allocate(tod_int(size(tod)))
-
-    call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
-
-    tod = real(tod_int, sp)
-
-    deallocate(tod_int)
+    call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
 
   end subroutine decompress_tod
   
@@ -2406,7 +2578,7 @@ contains
     ! None
     !
     implicit none
-    class(comm_tod),                     intent(inout)  :: self
+    class(comm_tod),                 intent(inout)  :: self
     type(hdf_file),                      intent(in)     :: chainfile
     character(len=*),                    intent(in)     :: path
   end subroutine initHDF_inst
@@ -2473,4 +2645,31 @@ contains
     class(comm_tod),                     intent(inout)  :: self
   end subroutine remove_fixed_scans
 
+  subroutine apply_map_precond(self, map, map_out)
+    implicit none
+    class(comm_tod),                   intent(in)    :: self
+    real(dp),        dimension(0:,1:), intent(in)    :: map
+    real(dp),        dimension(0:,1:), intent(out)   :: map_out
+
+    map_out = map
+
+  end subroutine apply_map_precond
+
+  subroutine collect_v_sun(self)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+
+    integer(i4b) :: i, j, ierr
+
+    allocate(self%v_sun(3,self%nscan_tot))
+    self%v_sun = 0.d0
+    do i = 1, self%nscan
+       self%v_sun(:,self%scanid(i)) = self%scans(i)%v_sun
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, self%v_sun, size(self%v_sun), &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+
+  end subroutine collect_v_sun
+  
 end module comm_tod_mod

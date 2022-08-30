@@ -1,3 +1,5 @@
+# Running Commander
+
 To run [Commander3](https://github.com/Cosmoglobe/Commander) you need to create the `chains_directory`, which is specified in `parameter_file.txt` via
 ```
 $ mkdir chains_directory
@@ -6,7 +8,7 @@ You will also need to export `HEALPix` as:
 ```
 $ export HEALPIX=/path/to/healpix/root/directory
 ```
-Lastly, as any OpenMPI application, [Commander3](https://github.com/Cosmoglobe/Commander) can be run by the set of simple commands:
+Lastly, as any MPI application, [Commander3](https://github.com/Cosmoglobe/Commander) can be run by the set of simple commands:
 ```
 $ export OMP_NUM_THREADS=1
 $ mpirun -np num_proc /path/to/commander/binary/folder/commander3 param_file.txt 2>&1 | tee chains_dir/slurm.txt

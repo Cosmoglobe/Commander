@@ -105,9 +105,9 @@ contains
 
     integer(i4b)       :: i, j, ndet
     character(len=512) :: dir, label
-    character(len=16)  :: dets(1000)
+    character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-
+    
     label = cpar%ds_label(id_abs)
     
     ! General parameters
@@ -126,7 +126,7 @@ contains
     case ('WMAP') 
        constructor%threshold = 0.d0
     case ('DIRBE') 
-       constructor%threshold = 0.d0
+       constructor%threshold = 1.d-5
     case ('HFI_cmb') 
        constructor%threshold = 1.d-7
     case ('PSM_LFI') 
@@ -136,6 +136,8 @@ contains
     case ('dame') 
        constructor%threshold = 0.d0
     case ('LB')
+       constructor%threshold = 0.d0
+    case ('SPIDER')
        constructor%threshold = 0.d0
     case default
        call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
@@ -150,29 +152,49 @@ contains
        constructor%unit_scale = 1.d0
     end if
 
+
     ! Initialize raw bandpass
     if (trim(constructor%type) == 'delta') then
        allocate(constructor%nu0(1),constructor%tau0(1), constructor%nu(1), constructor%tau(1))
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
+    else if (trim(constructor%type) == 'DIRBE') then
+       if (index(subdets, '.txt') /=0) then
+          ndet = count_detectors(subdets, cpar%datadir)
+          call get_detectors(subdets, cpar%datadir, dets, ndet)
+       else
+          call get_tokens(subdets, ",", dets, ndet)
+       end if
+       call read_bandpass_dirbe(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
+               & constructor%threshold, &
+               & constructor%n, constructor%nu0, constructor%tau0)
+       allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
           call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
-          call get_tokens(subdets, ",", dets, ndet)
+          if (index(subdets, '.txt') /=0) then
+             ndet = count_detectors(subdets, cpar%datadir)
+             call get_detectors(subdets, cpar%datadir, dets, ndet)
+          else
+             call get_tokens(subdets, ",", dets, ndet)
+          end if
+
           call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
-          do i = 2, ndet
-             call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
-                  & constructor%threshold, constructor%n, nu0, tau0)
-             constructor%tau0 = constructor%tau0 + tau0
-             deallocate(nu0, tau0)
-          end do
-          constructor%tau0 = constructor%tau0 / ndet
+          if (ndet > 1) then
+             do i = 2, ndet
+                call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
+                     & constructor%threshold, constructor%n, nu0, tau0)
+                constructor%tau0 = constructor%tau0 + tau0
+                deallocate(nu0, tau0)
+             end do
+             constructor%tau0 = constructor%tau0 / ndet
+          end if
        end if
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
@@ -200,6 +222,7 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
+    
 
   end function constructor
   
@@ -217,9 +240,10 @@ contains
     self%delta = delta
     
     n = self%n
+
     select case (trim(self%model))
     case ('powlaw_tilt')
-       
+
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n
@@ -233,6 +257,7 @@ contains
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
+          !if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
        end do
        
     end select
@@ -240,10 +265,20 @@ contains
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
-       a(i)            = comp_a2t(self%nu(i))          
-       bnu_prime(i)    = comp_bnu_prime(self%nu(i))
-       bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-       sz(i)           = comp_sz_thermo(self%nu(i))
+       if (trim(self%type) == 'DIRBE') then
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           = comp_sz_thermo(self%nu(i))
+       else if (trim(self%type) == 'HFI_submm') then
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           = comp_sz_thermo(self%nu(i))
+       else
+          a(i)            = comp_a2t(self%nu(i))          
+          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           = comp_sz_thermo(self%nu(i))
+       end if
     end do
 
     select case (trim(self%type))
@@ -255,8 +290,11 @@ contains
        self%f2t  = 1.d0 / bnu_prime(1) * 1.d-14
        
     case ('WMAP')
+
+       !write(*,*) self%nu
           
        ! See Appendix E of Bennett et al. (2013) for details
+       self%tau     = self%tau / sum(self%tau)
        self%a2t     = sum(self%tau) / sum(self%tau/a)
        self%a2sz    = sum(self%tau) / sum(self%tau/a * sz) * 1.d-6
        self%f2t     = sum(self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * &
@@ -274,7 +312,7 @@ contains
                        & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
-    case ('HFI_cmb', 'PSM_LFI') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
@@ -291,7 +329,7 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
+ 
     case ('DIRBE') 
 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
@@ -320,11 +358,20 @@ contains
                    & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
+   !  case ('SPIDER') 
+
+   !     self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+   !                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+   !     self%a2sz    = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
+   !                       & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
+   !     self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
+   !                       & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+   !     self%tau     = self%tau / tsum(self%nu, self%tau/a)
+
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)
 
   end subroutine update_tau
-
 
   function SED2F(self, f)
     implicit none
@@ -352,6 +399,8 @@ contains
        SED2F = f(1) * self%a2t
     case ('LB')
        SED2F = tsum(self%nu, self%tau * f)
+    case ('SPIDER')
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case default
        write(*,*) 'Unsupported bandpass type'
        stop
@@ -407,7 +456,7 @@ contains
             & tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_cmb', 'PSM_LFI') 
+    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
           
        allocate(bnu_prime_RJ(self%n))
        bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)
@@ -437,5 +486,6 @@ contains
     lineAmp_RJ = lineAmp_RJ * 1.d9 ! Convert to uK_ant / (K_ant km/s)
 
   end function lineAmp_RJ
+
 
 end module comm_bp_mod

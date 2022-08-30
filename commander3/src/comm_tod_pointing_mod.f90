@@ -125,11 +125,11 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
-            s_skyA(j, i) = map(1, lpoint, i) + &
+            s_skyA(j, i) = s_skyA(j,i) + map(1, lpoint, i) + &
                        &  sgn(i)*( &
                        &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
                        &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1))) 
-            s_skyB(j, i) = map(1, rpoint, i) + &
+            s_skyB(j, i) = s_skyB(j,i) + map(1, rpoint, i) + &
                        &  sgn(i) *( &
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
