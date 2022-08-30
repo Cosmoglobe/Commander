@@ -42,7 +42,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Checking whether we have source directory and this directory is not empty.
 		if(NOT EXISTS "${LIBSSH2_SOURCE_DIR}/CMakeLists.txt")
-			message(STATUS "No LIBSSH2 sources were found; thus, will download it from source:\n${libssh2_git_url}")
+      #message(STATUS "No LIBSSH2 sources were found; thus, will download it from source:\n${libssh2_git_url}")
 			ExternalProject_Add(
 				libssh2_src
 				GIT_REPOSITORY		"${libssh2_git_url}"
@@ -57,7 +57,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 				INSTALL_COMMAND		""
 				)
 		else()
-			message(STATUS "Found an existing LIBSSH2 sources inside:\n${LIBSSH2_SOURCE_DIR}")
+      #message(STATUS "Found an existing LIBSSH2 sources inside:\n${LIBSSH2_SOURCE_DIR}")
 			add_custom_target(libssh2_src
 				ALL ""
 				)

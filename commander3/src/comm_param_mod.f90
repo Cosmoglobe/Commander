@@ -3098,14 +3098,13 @@ contains
     implicit none
     character(len=512), intent(in) :: outfile
     character(len=512), dimension(:), intent(in) :: ascii_table
-    
     integer(i4b)      :: unit, i
     
     write(*,*) "Saving parameter file to ", trim(outfile)
     
     unit = getlun()
     open(unit, file=trim(outfile),err=1)
-    
+
     do i=1, size(ascii_table) 
        write(unit, '(a)') trim(ascii_table(i))
     end do
