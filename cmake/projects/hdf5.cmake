@@ -55,7 +55,7 @@ if(COMPILE_HDF5)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${HDF5_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
+    #message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
 		ExternalProject_Add(
 			hdf5_src
 			DEPENDS						required_libraries 
@@ -74,7 +74,7 @@ if(COMPILE_HDF5)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
+    #message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
 		add_custom_target(hdf5_src
 			ALL ""
 			)
