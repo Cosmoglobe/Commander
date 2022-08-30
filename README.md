@@ -23,7 +23,9 @@ The latest version - `Commander3` - brings together critical features such as:
 
 `Commander3` is written using modern `Fortran` standards such as modules, sub modules, and object oriented derived types. The code is highly tuned and optimized to run on High Performance Computing (HPC) facilities, but it can also be run on your local machine.
 
-The previous incarnation of **Commander**, - `Commander2` - is now an internal part of `Commander3`, while the first version of the code, - `Commander1` - is used mainly for debugging and/or legacy purposes. However, `Commander1` has not been officially released; thus, it doesn't support [CMake](https://cmake.org/) installation, as described in [official documentation](https://docs.beyondplanck.science/#/parameters/intro).
+The previous incarnation of **Commander**, - `Commander2` - is now an internal part of 
+`Commander3`, while the first version of the code, - `Commander1` - is used mainly for 
+debugging and/or legacy purposes.
 
 ---
 
