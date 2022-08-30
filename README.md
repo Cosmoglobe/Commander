@@ -59,19 +59,25 @@ where <code>N</code> is the number of processors to use.
 where <code>N</code> is the number of processors to use.
 </details>
 
-This step will configure Commander installation inside `build` directory using 
-[CMake](https://cmake.org/). Once the configuration is done, the compilation will 
+<p align="justify">
+This step will configure Commander installation inside <code>build</code> directory using 
+<a href="https://cmake.org/">CMake</a>. Once the configuration is done, the compilation will 
 start and it may take some time to finish depending on your system. The resulting 
-binary, `commander3`, will be stored inside `$HOME/.local/commander/bin` and it can 
-be run like any other MPI application using `mpirun` command.  
+binary, <code>commander3</code>, will be stored inside 
+<code>&#36;HOME/.local/commander/bin</code> and it can be run like any other MPI 
+application using <code>mpirun</code> command.  
 
 In case something went wrong or for the complete installation guide 
-please refer to the [official documentation](https://cosmoglobe.github.io/Commander/#/), 
+please refer to the 
+<a href="https://cosmoglobe.github.io/Commander/#/">official documentation</a>, 
 where we discuss in detail "what is going on?" and "how does it work?", as 
-well as providing information on how to compile and run `Commander` on different 
-platforms, including HPCs such as NERSC, UNINETT Sigma2, OWLs etc. 
+well as providing information on how to compile and run <code>Commander</code> 
+on different platforms, including HPCs such as NERSC, UNINETT Sigma2, OWLs etc. 
 
-We have also put up the [FAQ]() section for Troubleshooting.
+We have also put up the 
+<a href="https://cosmoglobe.github.io/Commander/#/04_faq/README">FAQ</a> 
+section for Troubleshooting.
+</p>
 
 ---
 
