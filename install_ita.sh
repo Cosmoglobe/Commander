@@ -132,6 +132,8 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    # Backend 
+    backend="mkl"
 		module load Intel_parallel_studio/2020/4.912
 		#module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "oneapi" ]]
@@ -145,9 +147,10 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    # Backend 
+    backend="mkl"
     #module load intel/oneapi
-    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
-    module load mkl/latest
+    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
     #export BLAS_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/blis"
@@ -161,6 +164,8 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    # Backend 
+    backend="any"
 	  #module load foss/10.3.0 # custom GNU GCC + OpenMPI 
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		#source /opt/rh/devtoolset-9/enable
@@ -175,30 +180,30 @@ then
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		printf "\n"
 		$mpifc --version
-	elif [[ "$toolchain" =~ "flang" ]]
-	then
-		# Compilers
-		fc="flang"
-		cc="clang"
-		cxx="clang++"
-		# MPI compilers
-		mpifc="mpifort" 
-		mpicc="mpicc"
-		mpicxx="mpicxx"
-		printf "Using AOCC:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load openmpi/aocc/4.1.0 AMD/aocc/3.0.0
-	elif [[ "$toolchain" =~ "nvidia" ]]
-	then
-		# Compilers
-		fc="nvfortran"
-		cc="nvc"
-		cxx="nvc++"
-		# MPI compilers
-		mpifc="mpifort" 
-		mpicc="mpicc"
-		mpicxx="mpicxx"
-		printf "Using NVIDIA:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load nvhpc/21.7 
+	#elif [[ "$toolchain" =~ "flang" ]]
+	#then
+	#	# Compilers
+	#	fc="flang"
+	#	cc="clang"
+	#	cxx="clang++"
+	#	# MPI compilers
+	#	mpifc="mpifort" 
+	#	mpicc="mpicc"
+	#	mpicxx="mpicxx"
+	#	printf "Using AOCC:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+	#	module load openmpi/aocc/4.1.0 AMD/aocc/3.0.0
+	#elif [[ "$toolchain" =~ "nvidia" ]]
+	#then
+	#	# Compilers
+	#	fc="nvfortran"
+	#	cc="nvc"
+	#	cxx="nvc++"
+	#	# MPI compilers
+	#	mpifc="mpifort" 
+	#	mpicc="mpicc"
+	#	mpicxx="mpicxx"
+	#	printf "Using NVIDIA:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+	#	module load nvhpc/21.7 
 	fi
 	# Printing Loaded modules
 	printf "\n"
@@ -234,7 +239,7 @@ then
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-  -DCOMM3_BACKEND=any     \
+  -DCOMM3_BACKEND=$backend \
 	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
