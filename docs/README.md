@@ -1,65 +1,116 @@
 <a name="top"></a>
 <p align="center">
-    <img src="_media/commander3-logo.png" height="200">
+    <img src="https://github.com/hke/Commander/blob/master/logo/Commander-logo-large-1024x335.png" height="150">
 </p>
 
-# 
+**Commander** is an **O**ptimal **M**onte-carlo **M**arkov ch**A**i**N** **D**riven **E**stimato**R** which implements fast and efficient end-to-end CMB posterior exploration through Gibbs sampling.
 
-# Theoretical Background
+---
 
-[Commander3](https://github.com/Cosmoglobe/Commander) is a Bayesian Markov Chain Monte Carlo sampler for CMB, microwave and sub-mm observations. It fits a user-specified parametric model, $s(\theta)$, to some set of observations, $d_\nu$, by mapping the posterior distribution $P(\theta|d)$ with standard sampling techniques, in particular Gibbs and Metropolis sampling. A concrete example of this is the [BeyondPlanck](https://beyondplanck.science) data model, which reads
-$$
-d_{j,t} = g_{j,t}\mathsf P_{tp,j}\left[ \mathsf B^{\mathrm{symm}}_{pp',j}\sum_{c} \mathsf M_{cj}(\beta_{p'}, \Delta_\mathrm{bp}^{j})a^c_{p'} + \mathsf B^{\mathrm{asymm}}_{pp',j}\left(s^{\mathrm{orb}}_{j,t} + s^{\mathrm{fsl}}_{j,t}\right)\right] + n^{\mathrm{corr}}_{j,t} + n^{\mathrm{w}}_{j,t}
-$$
-where $j$ represents a radiometer label, $t$ indicates a single time sample, $p$ denotes a single pixel on the sky, and $c$ represents one single astrophysical signal component, while
+| [Main features](#main-features) | [Quickstart](#quickstart) | [Projects](#projects) | [License](#license) | [Funding](#funding) | [Citation](#citation) |
 
-- $d_{j,t}$ denotes the measured data value in units of V, this is the calibrated timestream as output from the instrument;
-- $g_{j,t}$ denotes the instrumental gain in units of V K$_{\mathrm{cmb}}^{-1}$;
-- $\mathsf P_{tp,j}$ is the $N_{\mathrm{TOD}}\times 3N_{\mathrm{pix}}$ pointing matrix stored as compressed pointing and polarization angle timestream per detector;
-- $\mathsf B_{pp',j}$ denotes the beam convolution term, where the asymmetric part is only calculated for the orbital dipole and sidelobe terms;
-- $\mathsf M_{cj}(\beta_{p}, \Delta_\mathrm{bp})$ denotes element $(c,j)$ of an $N_{\mathrm{comp}}\times N_{\mathrm{comp}}$ mixing matrix, describing the amplitude of component $c$ as seen by radiometer $j$ relative to some reference frequency $j_0$ when assuming some set of bandpass correction parameters $\Delta_\mathrm{bp}$;
-- $a^c_{p}$ is the amplitude of component $c$ in pixel $p$, measured at the same reference frequency as the mixing matrix $\mathsf M$;
-- $s^{\mathrm{orb}}_{j,t}$ is the orbital CMB dipole signal, including relativistic quadrupole corrections;
-- $s^{\mathrm{fsl}}_{j,t}$ denotes the contribution from far sidelobes;
-- $n^{\mathrm{corr}}_{j,t}$ denotes correlated instrumental noise;
-- $n^{\mathrm{w}}_{j,t}$ is uncorrelated (white) instrumental noise, which is not sampled and is simply left to average down in the maps.
+---
 
-However, the formalism and code are designed to be flexible and extendible, and a wide range of other models may be considered after suitable code modifications.
-
-Following Bayes Theorem, we can write the posterior distribution as
-$$
-P(\omega\mid \boldsymbol d) = \frac{P(\boldsymbol d\mid \omega)P(\omega)}{P(\boldsymbol d)} \propto \mathcal{L}(\omega)P(\omega),
-$$
-where $P(\boldsymbol d\mid \omega)\equiv\mathcal{L}(\omega)$ is called the likelihood; $P(\omega)$ is called the prior; and $P(\boldsymbol d)$ is a normalization factor.
-
-Instead of directly explore $P(\boldsymbol d\mid \omega)\equiv\mathcal{L}(\omega)$, [Commander3](https://github.com/Cosmoglobe/Commander) heavily relies on Gibbs sampling theory which states that samples from a joint distribution may be produced by iteratively draw samples from all corresponding conditional distributions. In case of the above data model, this translates into the following Gibbs chain: 
-$$
-\begin{aligned}
-\boldsymbol g &\leftarrow P(\boldsymbol g,\mid \boldsymbol d,\xi_n ,\Delta_\mathrm{bp} ,\boldsymbol a,\beta,C_{\ell})\\
-\boldsymbol n_{\mathrm{corr}} &\leftarrow P(\boldsymbol n_{\mathrm{corr}}\mid\boldsymbol d ,\boldsymbol g ,\xi_n, \Delta_\mathrm{bp},\boldsymbol a,\beta ,C_{\ell})\\
-\xi_n &\leftarrow P(\xi_n,\mid \boldsymbol d ,\boldsymbol g ,\boldsymbol n_{\mathrm{corr}} ,\Delta_\mathrm{bp} ,\boldsymbol a ,\beta ,C_{\ell})\\
-\Delta_\mathrm{bp} &\leftarrow P(\Delta_\mathrm{bp},\mid \boldsymbol d ,\boldsymbol g ,\boldsymbol n_{\mathrm{corr}}, \xi_n, \boldsymbol a ,\beta ,C_{\ell})\\
-\beta &\leftarrow P(\beta,\mid \boldsymbol d ,\boldsymbol g ,\boldsymbol n_{\mathrm{corr}} ,\xi_n, \Delta_\mathrm{bp} ,C_{\ell})\\
-\boldsymbol a &\leftarrow P(\boldsymbol a,\mid \boldsymbol d ,\boldsymbol g ,\boldsymbol n_{\mathrm{corr}},\xi_n, \Delta_\mathrm{bp}, \beta ,C_{\ell})\\
-C_{\ell} &\leftarrow P(C_{\ell},\mid \boldsymbol d ,\boldsymbol g ,\boldsymbol n_{\mathrm{corr}},\xi_n,
-\Delta_\mathrm{bp}, \boldsymbol a ,\beta).
-\end{aligned}
-$$
-
-# Capabilities
+## Main Features
 
 The latest version - `Commander3` - brings together critical features such as:
 
-- Modern Linear Solver;
-- Map Making;
-- Sky and instrumental modelling;
-- CMB Component Separation;
-- In-memory compression of time-ordered data; 
-- FFT optimization; 
-- MPI parallelization and load-balancing; 
-- I/O efficiency;
-- Fast mixing matrix computation through look-up tables.
+- Modern Linear Solver
+- Map Making
+- Parallelism
+- Sky and instrumental modelling
+- CMB Component Separation
 
-`Commander3` is written using modern `Fortran` standards such as modules, sub modules, and object oriented derived types. The code is optimized to run on High Performance Computing (HPC) facilities, but it can also be run on your local machine.
+`Commander3` is written using modern `Fortran` standards such as modules, sub modules, and object oriented derived types. The code is highly tuned and optimized to run on High Performance Computing (HPC) facilities, but it can also be run on your local machine.
 
-The previous incarnation of **Commander**, - `Commander2` - is now an internal part of `Commander3`, while the first version of the code, - `Commander1` - is used mainly for debugging and/or legacy purposes.
+The previous incarnation of **Commander**, - `Commander2` - is now an internal part of `Commander3`, while the first version of the code, - `Commander1` - is used mainly for debugging and/or legacy purposes. However, `Commander1` has not been officially released; thus, it doesn't support [CMake](https://cmake.org/) installation, as described in [official documentation](https://docs.beyondplanck.science/#/parameters/intro).
+
+---
+
+## Quickstart
+
+Assuming you have installed all 
+[prerequisites](https://cosmoglobe.github.io/Commander/#/01_user_manual/prerequisites/README),
+you can run one of the following set of commands to install Commander:
+<details>
+<summary>
+<b>Using Intel Compilers</b>
+</summary>
+<pre><code>
+&#36; git clone https://github.com/Cosmoglobe/Commander.git && cd Commander 
+&#36; mkdir build && cd build 
+&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+&#36; cmake --build . --target install -j N  
+</code></pre>
+where <code>N</code> is the number of processors to use.
+</details>
+</br>
+
+<details>
+<summary>
+<b>Using GNU Compilers</b>
+</summary>
+<pre><code>
+&#36; git clone https://github.com/Cosmoglobe/Commander.git && cd Commander 
+&#36; mkdir build && cd build 
+&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_Fortran_COMPILER=gfortran -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort ..
+&#36; cmake --build . --target install -j N  
+</code></pre>
+where <code>N</code> is the number of processors to use.
+</details>
+
+This step will configure Commander installation inside `build` directory using 
+[CMake](https://cmake.org/). Once the configuration is done, the compilation will 
+start and it may take some time to finish depending on your system. The resulting 
+binary, `commander3`, will be stored inside `$HOME/.local/commander/bin` and it can 
+be run like any other MPI application using `mpirun` command.  
+
+In case something went wrong or for the complete installation guide 
+please refer to the [official documentation](https://cosmoglobe.github.io/Commander/#/), 
+where we discuss in detail "what is going on?" and "how does it work?", as 
+well as providing information on how to compile and run `Commander` on different 
+platforms, including HPCs such as NERSC, UNINETT Sigma2, OWLs etc. 
+
+We have also put up the [FAQ]() section for Troubleshooting.
+
+---
+
+## Projects
+
+Commander framework is part of the following projects:
+
+<p align="center">
+    <img src="./logo/Planck_logo.png" height="100"> 
+    <img src="./logo/beyondplanck_logo.png" height="100"> 
+    <img src="./logo/LiteBIRD-logo-posi-RGB.png" height="100"> 
+    <img src="./logo/Cosmoglobe-logo-vertical-large.png" height="100"> 
+</p>
+
+---
+
+## Funding
+
+This work has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreements No 776282 (COMPET-4; BeyondPlanck), 772253 (ERC; bits2cosmology) and 819478 (ERC; Cosmoglobe).
+
+<p align="center">
+    <img src="./logo/LOGO_ERC-FLAG_EU_.jpg" height="200">
+    <img src="./logo/horizon2020_logo.jpg" height="200">
+</p>
+
+---
+
+## License
+
+[GNU GPLv3](https://github.com/Cosmoglobe/Commander/blob/master/COPYING)
+
+---
+
+## Citation
+
+If used for published results, please [cite these papers](https://github.com/Cosmoglobe/Commander/blob/master/docs/commander.bib):
+
+- [Jewell et al. 2004, ApJ, 609, 1](https://ui.adsabs.harvard.edu/abs/2004ApJ...609....1J)
+- [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://ui.adsabs.harvard.edu/abs/2004PhRvD..70h3511W)
+- [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://ui.adsabs.harvard.edu/abs/2004ApJS..155..227E)
+- [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://ui.adsabs.harvard.edu/abs/2008ApJ...676...10E)
+
