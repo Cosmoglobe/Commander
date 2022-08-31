@@ -49,14 +49,8 @@ And the last one is building it inside current directory (`build`) and then inst
 the one you have defined by `CMAKE_INSTALL_PREFIX` variable.
 
 The installation process will take some time, depending on the network bandwidth, number 
-of missing dependencies, and available computing power. Once Commander is installed, there 
-are several things need to be added into the `.bashrc` (or other shell script):
-```
-export HEALPIX=$HOME/.local/commander/healpix
-export COMMANDER_PARAMS_DEFAULT="<path to commander root directory>/commander3/parameter_files/defaults/"
-```
-where `<path to commander root directory>` is essentially the path where you have cloned
-Commander repository.
+of missing dependencies, and available computing power. 
+
 
 <blockquote>
 <p align="justify">
@@ -473,6 +467,37 @@ System information:
 - 8 x 24-core nodes with 768 GB RAM
 - 5 x 64-core nodes with 256 GB RAM
 - For current load, see [owl.uio.no](http://owl.uio.no)
+
+We have put up handy `install_ita.sh` script which will load all necessary modules, create 
+build directories and install commander inside of it. So, simply running:
+```
+$ ./install_ita.sh
+```
+from within Commander root directory should suffice. 
+
+In case you don't want to use it, you can: 
+
+1. Clean your `PATH` (and other variables) by doing:
+```
+$ module purge
+```
+> **Note**: If you have a separate **Anaconda** installation, then **remove** or 
+> **comment** it out.
+2. Load necessary modules:
+```
+$ module load gnu git/2.30.1 cmake/3.21.1
+$ module load intel/oneapi mpi/latest icc/latest compiler-rt/latest mkl/latest
+```
+3. Clone Commander and checkout the branch you want to work with:
+```
+$ git clone https://github.com/Cosmoglobe/Commander.git
+$ cd Commander && git checkout <branch_name>
+```
+4. Create `build` directory and run CMake from it:
+```
+$ mkdir build && cd build 
+$ cmake -DCMAKE_INSTALL_PREFIX=/path/to/Commander/root/build/install -DCOMM3_BACKEND=mkl -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+```
 
 Procedure:
 - BEFORE PROCEEDING PLEASE DISABLE `ANACONDA/MINICONDA`!

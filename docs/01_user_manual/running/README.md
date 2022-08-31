@@ -1,5 +1,16 @@
 # Running Commander
 
+[**TODO**]: Rewrite/Update this
+
+Once Commander is installed, there 
+are several things need to be added into the `.bashrc` (or other shell script):
+```
+export HEALPIX=$HOME/.local/commander/healpix
+export COMMANDER_PARAMS_DEFAULT="<path to commander root directory>/commander3/parameter_files/defaults/"
+```
+where `<path to commander root directory>` is essentially the path where you have cloned
+Commander repository.
+
 To run [Commander3](https://github.com/Cosmoglobe/Commander) you need to create the `chains_directory`, which is specified in `parameter_file.txt` via
 ```
 $ mkdir chains_directory

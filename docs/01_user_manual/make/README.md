@@ -8,7 +8,40 @@
 
 [**TODO**]: Zlib, SZIP, OpenBLAS+FFTW3 or MKL, HDF5, CFITSIO, HEALPix, CAMB, Commander 
 
-#### Installing OpenBLAS on Linux
+- [LAPACK](http://www.netlib.org/lapack/) - required regardless of installation type;
+- [HDF5](https://www.hdfgroup.org/) - required only if compiled via `Makefile`;
+- [FFTW](http://www.fftw.org/) - required only if compiled via `Makefile`;
+- [Sharp2](https://gitlab.mpcdf.mpg.de/mtr/libsharp/-/tree/master) - required only if compiled via `Makefile`;
+- [Healpix](https://healpix.sourceforge.io/) - required only if compiled via `Makefile`;
+- [CFitsio](https://heasarc.gsfc.nasa.gov/fitsio/) - required only if compiled via `Makefile`;
+
+
+##### Zlib 
+
+[**TODO**]: Write this
+
+##### SZip
+
+[**TODO**]: Write this
+
+##### HDF5 
+
+[**TODO**]: Write this
+
+##### CFitsIO 
+
+[**TODO**]: Write this
+
+##### HEALPix
+
+[**TODO**]: Write this
+
+##### LAPACK and FFT
+
+<details>
+<summary>
+<b>OpenBLAS + FFTW</b>
+</summary>
 
 Head over to the official GitHub repository and grap latest release, e.g.:
 ```
@@ -26,10 +59,25 @@ Lastly, update your `.bashrc` with:
 export LD_LIBRARY_PATH="$HOME/local/openblas/lib:$LD_LIBRARY_PATH"
 ```
 and restart your terminal session.
+</details>
 
 [TODO]: Describe here how to compile HDF5 and otehr libraries to use with Make/CMake 
 from source (Compiler and MPi are in the prerequisites)
 
+##### Commander
+
+[**TODO**]: Rewrite/update this
+
+<details>
+<summary>
+<b>Commander with Intel</b>
+</summary>
+</details>
+
+<details>
+<summary>
+<b>Commander with GNU</b>
+</summary>
 If you have enough time and desire, you can of course compile Commander3 from scratch. For this you will need to do the following:
 
 1. Determine the locations of your MPI compilers (mpif90, mpif77, mpicc, etc), and ensure that they function correctly;
@@ -54,3 +102,4 @@ $ make help
 $ make
 $ make install
 ```
+</details>

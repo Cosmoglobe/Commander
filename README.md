@@ -41,7 +41,7 @@ you can run one of the following set of commands to install Commander:
 <pre><code>
 &#36; git clone https://github.com/Cosmoglobe/Commander.git && cd Commander 
 &#36; mkdir build && cd build 
-&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCOMM3_BACKEND=mkl -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
 &#36; cmake --build . --target install -j N  
 </code></pre>
 where <code>N</code> is the number of processors to use.
@@ -55,7 +55,7 @@ where <code>N</code> is the number of processors to use.
 <pre><code>
 &#36; git clone https://github.com/Cosmoglobe/Commander.git && cd Commander 
 &#36; mkdir build && cd build 
-&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_Fortran_COMPILER=gfortran -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort ..
+&#36; cmake -DCMAKE_INSTALL_PREFIX=&#36;HOME/.local/commander -DCOMM3_BACKEND=opensrc -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_Fortran_COMPILER=gfortran -DMPI_C_COMPILER=mpicc -DMPI_CXX_COMPILER=mpic++ -DMPI_Fortran_COMPILER=mpifort ..
 &#36; cmake --build . --target install -j N  
 </code></pre>
 where <code>N</code> is the number of processors to use.

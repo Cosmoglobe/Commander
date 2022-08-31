@@ -291,7 +291,7 @@ Remove the <code>/tmp/Healpix_autolist.txt</code> and compile again.
 
 <b>Reason</b>: 
 
-Permission issues. HEALPix creates severeal different files during its installation. One of 
+Permission issues. HEALPix creates several different files during its installation. One of 
 them is the above <code>Healpix_autolist.txt</code>. Is say, some user installs HEALPix from 
 scratch, then this file will belong to that user, meaning that cmake won't be able to 
 rewrite it during automatic installation process.
