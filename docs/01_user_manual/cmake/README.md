@@ -459,8 +459,6 @@ Some specific systems are used by many Commander users, and we provide detailed 
 
 ## owl.uio.no -- CMB&CO cluster at the University of Oslo
 
-[**TODO**]: Update this subsection
-
 System information:
 - 4 x 72-core nodes with 1.5 TB RAM
 - 2 x 64-core nodes with 1.5 TB RAM
@@ -497,33 +495,14 @@ $ cd Commander && git checkout <branch_name>
 ```
 $ mkdir build && cd build 
 $ cmake -DCMAKE_INSTALL_PREFIX=/path/to/Commander/root/build/install -DCOMM3_BACKEND=mkl -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+$ cmake --build . --target install -j N
 ```
+where `N` is the amount of processors you want to use.
 
-Procedure:
-- BEFORE PROCEEDING PLEASE DISABLE `ANACONDA/MINICONDA`!
-- Note that there are two `cmake` versions installed on the Owl cluster, namely versions 2.8 and 3.17. To compile commander you need the latter, which has an alias of `cmake3`. Please check that the command `which cmake3` returns `/usr/bin/cmake3`, and that `cmake3 --version` returns `cmake3 version 3.17.2`.
-- Load the following modules:
-```
-$ module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
-$ module load mkl/latest
-$ module load gnu git/2.30.1 cmake/3.21.1
-```
-- Run the CMake configuration process:
-```
-$ git clone https://github.com/Cosmoglobe/Commander.git
-$ cd Commander
-$ mkdir build && cd build
-$ cmake -DCMAKE_INSTALL_PREFIX=$HOME/local -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
-```
-- Wait for the configuration step to finish and then start the compilation process
-```
-$ cmake --build . --target install -j n
-```
-where `n` is the number of processors to use.
-- Update your `.bashrc` file by adding the following variable:
-```
-export HEALPIX=$HOME/local/healpix
-```
+In the command above, we are using Intel OneAPI compilers and Intel MKL to istall it 
+inside `build/install` located inside Commander root directory. The `commander3` binary 
+will be located inside `build/install/bin`. 
+
 
 ## fram.uio.no and saga.uio.no -- National Norwegian HPC centers
 
