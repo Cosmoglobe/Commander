@@ -55,8 +55,8 @@ module comm_zodi_mod
 
         ! Shared component variables
         real(dp) :: emissivity
-        real(dp) :: x0, y0, z0
-        real(dp) :: Incl, Omega
+        real(dp) :: x_0, y_0, z_0
+        real(dp) :: incl, Omega
         real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
 
         contains
@@ -84,41 +84,35 @@ module comm_zodi_mod
             real(dp), intent(in), dimension(:) :: x, y, z
             real(dp), intent(in) :: theta
             real(dp), intent(out), dimension(:) :: n
-            real(dp) :: x_prime, y_prime, z_prime, R, Z_c
+            real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane
         end subroutine density_interface
     end interface
 
     ! Individual class components
     ! -------------------------------------------------------------------------
     type, extends(ZodiComponent) :: Cloud
-        real(dp)  :: n0, alpha, beta, gamma, mu
-
+        real(dp)  :: n_0, alpha, beta, gamma, mu
         contains
             procedure :: initialize => initialize_cloud
             procedure :: get_density => get_density_cloud
     end type Cloud
 
     type, extends(ZodiComponent) :: Band
-        real(dp)                :: n0, Dz, Dr, R0, Vi, Vr, P_i, P_r
-        real(dp), allocatable   :: ViInv, DrInv, DzRinv
-
+        real(dp)                :: n_0, delta_zeta, delta_r, R_0, v, p
         contains
             procedure :: initialize => initialize_band
             procedure :: get_density => get_density_band
     end type Band
 
     type, extends(ZodiComponent) :: Ring
-        real(dp)                :: nsr, Rsr, sigmaRsr, sigmaZsr
-        real(dp), allocatable   :: sigmaRsr2Inv, sigmaZsrInv
-
+        real(dp)                :: n_0, R_0, sigma_r, sigma_z
         contains
             procedure :: initialize => initialize_ring
             procedure :: get_density => get_density_ring
     end type Ring
 
     type, extends(ZodiComponent) :: Feature
-        real(dp)                :: ntf, Rtf, sigmaRtf, sigmaZtf, thetatf, sigmaThetatf
-        real(dp), allocatable   :: thetatfR,  sigmaRtfInv, sigmaZtfInv, sigmaThetatfRinv
+        real(dp)                :: n_0, R_0, sigma_r, sigma_z, theta_0, sigma_theta
         contains
             procedure :: initialize => initialize_feature
             procedure :: get_density => get_density_feature
@@ -186,116 +180,100 @@ contains
         use_unit_emissivity = .true.
 
         ! freq_correction_type = "delta"
-        freq_correction_type = "bandpass"
-        ! freq_correction_type = "color"
+        ! freq_correction_type = "bandpass"
+        freq_correction_type = "color"
 
         T_0 = 286.d0 ! temperature at 1 AU
-        DELTA = 0.46686260 ! rate at which temperature falls with radius
-        LOS_CUT = 5.2
+        DELTA = 0.46686260d0 ! rate at which temperature falls with radius
+        LOS_CUT = 5.2d0
         GAUSS_QUAD_ORDER = 100
         EPS = 3.d-14
 
         ! Planck emissivities (cloud, band1, band2, band3, ring, feature)
-        EMISSIVITY_PLANCK_857 = (/0.301, 1.777, 0.716, 2.870, 0.578, 0.423/)
-        EMISSIVITY_PLANCK_545 = (/0.223, 2.235, 0.718 , 3.193, 0.591, -0.182/)
-        EMISSIVITY_PLANCK_353 = (/0.168, 2.035, 0.436, 2.400, -0.211, 0.676/)
-        EMISSIVITY_PLANCK_217 = (/0.031, 2.024, 0.338, 2.507, -0.185, 0.243/)
-        EMISSIVITY_PLANCK_143 = (/-0.014, 1.463, 0.530, 1.794, -0.252, -0.002/)
-        EMISSIVITY_PLANCK_100 = (/0.003, 1.129, 0.674, 1.106, 0.163, 0.252/)
+        EMISSIVITY_PLANCK_857 = (/0.301d0, 1.777d0, 0.716d0, 2.870d0, 0.578d0, 0.423d0/)
+        EMISSIVITY_PLANCK_545 = (/0.223d0, 2.235d0, 0.718d0 , 3.193d0, 0.591d0, -0.182d0/)
+        EMISSIVITY_PLANCK_353 = (/0.168d0, 2.035d0, 0.436d0, 2.400d0, -0.211d0, 0.676d0/)
+        EMISSIVITY_PLANCK_217 = (/0.031d0, 2.024d0, 0.338d0, 2.507d0, -0.185d0, 0.243d0/)
+        EMISSIVITY_PLANCK_143 = (/-0.014d0, 1.463d0, 0.530d0, 1.794d0, -0.252d0, -0.002d0/)
+        EMISSIVITY_PLANCK_100 = (/0.003d0, 1.129d0, 0.674d0, 1.106d0, 0.163d0, 0.252d0/)
 
         ! DIRBE emissivities (cloud, band1, band2, band3, ring, feature)
-        EMISSIVITY_DIRBE_01 = (/1.0, 1.0, 1.0, 1.0, 1.0, 1.0/)
-        EMISSIVITY_DIRBE_02 = (/1.0, 1.0, 1.0, 1.0, 1.0, 1.0/)
-        EMISSIVITY_DIRBE_03 = (/1.6598924040649741, 1.6598924040649741, 1.6598924040649741, &
-                                1.6598924040649741, 1.6598924040649741, 1.6598924040649741/)
-        EMISSIVITY_DIRBE_04 = (/0.99740908486652979, 0.35926451958350442, 0.35926451958350442, &
-                                0.35926451958350442, 1.0675116768340536, 1.0675116768340536/)
-        EMISSIVITY_DIRBE_05 = (/0.95766914805948866, 1.0127926948497732, 1.0127926948497732, &
-                                0.35926451958350442, 1.0608768682182081, 1.0608768682182081/)
-        EMISSIVITY_DIRBE_06 = (/1.0, 1.0, 1.0, 1.0, 1.0, 1.0/)
-        EMISSIVITY_DIRBE_07 = (/0.73338832616768868, 1.2539242027824944, 1.2539242027824944, &
-                                1.2539242027824944, 0.87266361378785184, 0.87266361378785184/)
-        EMISSIVITY_DIRBE_08 = (/0.64789881802224070, 1.5167023376593836, 1.5167023376593836, &
-                                1.5167023376593836, 1.0985346556794289, 1.0985346556794289/)
-        EMISSIVITY_DIRBE_09 = (/0.67694205881047387, 1.1317240279481993, 1.1317240279481993, &
-                                1.1317240279481993, 1.1515825707787077, 1.1515825707787077/)
-        EMISSIVITY_DIRBE_10 = (/0.51912085401950736, 1.3996145963796358, 1.3996145963796358, &
-                                1.3996145963796358, 0.85763800994217443, 0.85763800994217443/)
+        EMISSIVITY_DIRBE_01 = (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
+        EMISSIVITY_DIRBE_02 = (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
+        EMISSIVITY_DIRBE_03 = (/1.6598924040649741d0, 1.6598924040649741d0, 1.6598924040649741d0, &
+                                1.6598924040649741d0, 1.6598924040649741d0, 1.6598924040649741d0/)
+        EMISSIVITY_DIRBE_04 = (/0.99740908486652979d0, 0.35926451958350442d0, 0.35926451958350442d0, &
+                                0.35926451958350442d0, 1.0675116768340536d0, 1.0675116768340536d0/)
+        EMISSIVITY_DIRBE_05 = (/0.95766914805948866d0, 1.0127926948497732d0, 1.0127926948497732d0, &
+                                0.35926451958350442d0, 1.0608768682182081d0, 1.0608768682182081d0/)
+        EMISSIVITY_DIRBE_06 = (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
+        EMISSIVITY_DIRBE_07 = (/0.73338832616768868d0, 1.2539242027824944d0, 1.2539242027824944d0, &
+                                1.2539242027824944d0, 0.87266361378785184d0, 0.87266361378785184d0/)
+        EMISSIVITY_DIRBE_08 = (/0.64789881802224070d0, 1.5167023376593836d0, 1.5167023376593836d0, &
+                                1.5167023376593836d0, 1.0985346556794289d0, 1.0985346556794289d0/)
+        EMISSIVITY_DIRBE_09 = (/0.67694205881047387d0, 1.1317240279481993d0, 1.1317240279481993d0, &
+                                1.1317240279481993d0, 1.1515825707787077d0, 1.1515825707787077d0/)
+        EMISSIVITY_DIRBE_10 = (/0.51912085401950736d0, 1.3996145963796358d0, 1.3996145963796358d0, &
+                                1.3996145963796358d0, 0.85763800994217443d0, 0.85763800994217443d0/)
 
         ! Initialize Zodi components
-        if (use_unit_emissivity) then
-            emissivity = 1.d0
-        end if
+        if (use_unit_emissivity) emissivity = 1.d0
 
         if (use_cloud) then
-            if (.not. use_unit_emissivity) then
-                emissivity = EMISSIVITY_DIRBE_06(1)
-            end if
-            cloud_comp = Cloud(emissivity=emissivity, x0=0.011887801, y0=0.0054765065, &
-                               z0=-0.0021530908, Incl=2.0335188, Omega=77.657956, &
-                               n0=1.1344374e-7, alpha=1.3370697, beta=4.1415004, &
-                               gamma=0.94206179, mu=0.18873176)
+            if (.not. use_unit_emissivity) emissivity = EMISSIVITY_DIRBE_06(1)
+            cloud_comp = Cloud(emissivity=emissivity, x_0=0.011887800744346281d0, y_0=0.0054765064662263777d0, &
+                               z_0=-0.0021530908020710744d0, incl=2.0335188072390769d0, Omega=77.657955554097114d0, &
+                               n_0=1.1344373881427960d-7, alpha=1.3370696705930281d0, beta=4.1415004157586637d0, &
+                               gamma=0.94206179393358036d0, mu=0.18873176489090190d0)
             comp => cloud_comp
             call add_component_to_list(comp)
         end if
 
         if (use_band1) then
-            if (.not. use_unit_emissivity) then
-                emissivity = EMISSIVITY_DIRBE_06(2)
-            end if
-            band1_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
-                              Incl=0.56438265, Omega=80d0, n0=5.5890290d-10, &
-                              Dz=8.7850534, Dr=1.5, R0=3.d0, Vi=0.1, Vr=0.05, &
-                              P_i=4.d0, P_r=1.d0)
+            if (.not. use_unit_emissivity) emissivity = EMISSIVITY_DIRBE_06(2)
+            band1_comp = Band(emissivity=emissivity, x_0=0.0, y_0=0.0, z_0=0.0, &
+                              incl=0.56438265154389733d0, Omega=80.d0, n_0=5.5890290403228370d-10, &
+                              delta_zeta=8.7850534408713035d0, delta_r=1.5d0, R_0=3.d0, v=0.10000000149011612d0, p=4.d0)
             comp => band1_comp
             call add_component_to_list(comp)
         end if
 
         if (use_band2) then
-            if (.not. use_unit_emissivity) then
-                emissivity = EMISSIVITY_DIRBE_06(3)
-            end if
-            band2_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
-                              Incl=1.2, Omega=30.347476, n0=1.9877609d-09, &
-                              Dz=1.9917032, Dr=0.94121881, R0=3.d0, &
-                              Vi=0.89999998, Vr=0.15, P_i=4.d0, P_r=1.d0)
+            if (.not. use_unit_emissivity) emissivity = EMISSIVITY_DIRBE_06(3)
+            band2_comp = Band(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
+                              incl=1.2000000476837158d0, Omega=30.347475578624532d0, n_0=1.9877609422590801d-09, &
+                              delta_zeta=1.9917032425777641d0, delta_r=0.94121881201651147d0, R_0=3.d0, &
+                              v=0.89999997615814209d0, p=4.d0)
             comp => band2_comp
             call add_component_to_list(comp)
         end if
 
         if (use_band3) then
-            if (.not. use_unit_emissivity) then
-                emissivity = EMISSIVITY_DIRBE_06(4)
-            end if
-            band3_comp = Band(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
-                              Incl=0.8, Omega=80.0, n0=1.4369827d-10,     &
-                              Dz=15.0, Dr=1.5, R0=3.d0, Vi=0.05, Vr=-1.0, &
-                              P_i=4.d0, P_r=1.d0)
+            if (.not. use_unit_emissivity) emissivity = EMISSIVITY_DIRBE_06(4)
+            band3_comp = Band(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
+                              incl=0.80000001192092896d0, Omega=80.d0, n_0=1.4369827283512384d-10, &
+                              delta_zeta=15.d0, delta_r=1.5d0, R_0=3.d0, v=0.050000000745058060d0, p=4.d0)
             comp => band3_comp
             call add_component_to_list(comp)
         end if
 
         if (use_ring) then
-            if (.not. use_unit_emissivity) then
-                emissivity = EMISSIVITY_DIRBE_06(5)
-            end if
-            ring_comp = Ring(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
-                             Incl=0.48707166d0, Omega=22.27898d0, &
-                             nsr=1.8260528d-8, Rsr=1.0281924d0, &
-                             sigmaRsr=0.025d0, sigmaZsr=0.054068037d0)
+            if (.not. use_unit_emissivity) emissivity = EMISSIVITY_DIRBE_06(5)
+            ring_comp = Ring(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
+                             incl=0.48707166006819241d0, Omega=22.278979678854448d0, &
+                             n_0=1.8260527826501675d-8, R_0=1.0281924326308751d0, &
+                             sigma_r=0.025000000372529030d0, sigma_z=0.054068037356978099d0)
             comp => ring_comp
             call add_component_to_list(comp)
         end if
 
         if (use_feature) then
-            if (.not. use_unit_emissivity) then
-                emissivity = EMISSIVITY_DIRBE_06(6)
-            end if
-            feature_comp = Feature(emissivity=emissivity, x0=0.d0, y0=0.d0, z0=0.d0, &
-                                   Incl=0.48707166d0, Omega=22.27898d0, &
-                                   ntf=2.0094267d-8, Rtf=1.0579183d0, &
-                                   sigmaRtf=0.10287315d0, sigmaZtf=0.091442964d0, &
-                                   thetatf=-10.d0, sigmaThetatf=12.115211d0)
+            if (.not. use_unit_emissivity) emissivity = EMISSIVITY_DIRBE_06(6)
+            feature_comp = Feature(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
+                                   incl=0.48707166006819241d0, Omega=22.278979678854448d0, &
+                                   n_0=2.0094267183590947d-8, R_0=1.0579182694524214d0, &
+                                   sigma_r=0.10287314662396611d0, sigma_z=0.091442963768716023d0, &
+                                   theta_0=-10.d0, sigma_theta=12.115210933938741d0)
             comp => feature_comp
             call add_component_to_list(comp)
         end if
@@ -358,7 +336,6 @@ contains
         !
         !   """
         implicit none
-
         class(ZodiComponent), pointer :: comp
 
         integer(i4b), intent(in) :: nside
@@ -370,11 +347,11 @@ contains
         integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index, los_step
         real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
         real(dp) :: lon_earth, R_obs, R_max, nu_det
-        real(dp), dimension(:), allocatable :: tabulated_zodi, blackbody_emission_delta
-        real(dp), dimension(:,:), allocatable :: unit_vector_map, blackbody_emission_bp
+        real(dp), dimension(:), allocatable :: tabulated_zodi, blackbody_emission_delta, blackbody_emission_c, nu_ratio
+        real(dp), dimension(:,:), allocatable :: unit_vector_map, blackbody_emission_bp, b_nu_ratio
         real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, &
                                                  R_helio, dust_grain_temperature, &
-                                                 los_density, comp_emission, bp_integrated_blackbody_emission
+                                                 los_density, comp_emission, bp_integrated_blackbody_emission, b_nu_colorcorr
 
         allocate(tabulated_zodi(nside2npix(nside)))
         tabulated_zodi = 0.d0
@@ -397,10 +374,9 @@ contains
 
         select case (trim(freq_correction_type))
         case ("delta")
-            print *, "got delta"
             allocate(blackbody_emission_delta(GAUSS_QUAD_ORDER))
             do j = 1, n_detectors
-                PLANCK_TERM1_DELTA = (2.d0 * h * bandpass(j)%p%nu_c**3) / (c*c)
+                PLANCK_TERM1_DELTA = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
                 PLANCK_TERM2_DELTA = (h * bandpass(j)%p%nu_c)/ k_B
                 do i = 1, n_tods
                     pixel_index = pix(i, j) + 1
@@ -441,12 +417,11 @@ contains
             deallocate(blackbody_emission_delta)
 
         case ("bandpass")
-            print *, "got bandpass"
             do j = 1, n_detectors
                 allocate(PLANCK_TERM1_BP(bandpass(j)%p%n))
                 allocate(PLANCK_TERM2_BP(bandpass(j)%p%n))
                 allocate(blackbody_emission_bp(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
-                PLANCK_TERM1_BP = (2.d0 * h * bandpass(j)%p%nu**3) / (c*c)
+                PLANCK_TERM1_BP = (2 * h * bandpass(j)%p%nu**3) / (c*c)
                 PLANCK_TERM2_BP = (h * bandpass(j)%p%nu)/ k_B
                 do i = 1, n_tods
                     pixel_index = pix(i, j) + 1
@@ -491,14 +466,17 @@ contains
             end do
 
         case ("color")
-            print *, "got color"
             do j = 1, n_detectors
-            
                 allocate(PLANCK_TERM1_BP(bandpass(j)%p%n))
                 allocate(PLANCK_TERM2_BP(bandpass(j)%p%n))
+                allocate(b_nu_ratio(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
+                allocate(nu_ratio(bandpass(j)%p%n))
+                allocate(blackbody_emission_c(GAUSS_QUAD_ORDER))
                 allocate(blackbody_emission_bp(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
-                PLANCK_TERM1_BP = (2.d0 * h * bandpass(j)%p%nu**3) / (c*c)
+                PLANCK_TERM1_BP = (2 * h * bandpass(j)%p%nu**3) / (c*c)
                 PLANCK_TERM2_BP = (h * bandpass(j)%p%nu)/ k_B
+                PLANCK_TERM1_DELTA = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
+                PLANCK_TERM2_DELTA = (h * bandpass(j)%p%nu_c)/ k_B
                 do i = 1, n_tods
                     pixel_index = pix(i, j) + 1
                     if (tabulated_zodi(pixel_index) == 0.d0) then
@@ -515,17 +493,21 @@ contains
                         R_helio = sqrt(x_helio**2 + y_helio**2 + z_helio**2)
 
                         call get_dust_grain_temperature(R=R_helio, T=dust_grain_temperature)
+                        call get_blackbody_emission_delta(T=dust_grain_temperature, b_nu=blackbody_emission_c)
                         call get_blackbody_emission_bp(T=dust_grain_temperature, b_nu=blackbody_emission_bp)
-                        ! Bandpass integrate blackbody emission at each step along the line-of-sight
+
                         do los_step = 1, GAUSS_QUAD_ORDER
-                            bp_integrated_blackbody_emission(los_step) = bandpass(j)%p%SED2F(blackbody_emission_bp(los_step, :))
+                            b_nu_ratio(los_step, :) = blackbody_emission_bp(los_step, :) / blackbody_emission_c(los_step)
+                            b_nu_colorcorr(los_step) = tsum(bandpass(j)%p%nu, b_nu_ratio(los_step, :) * bandpass(j)%p%tau)
                         end do
+                        nu_ratio = bandpass(j)%p%nu_c / bandpass(j)%p%nu
+                        b_nu_colorcorr = b_nu_colorcorr / tsum(bandpass(j)%p%nu, nu_ratio * bandpass(j)%p%tau)
 
                         comp => comp_list
                         k = 1
                         do while (associated(comp))
                             call comp%get_density(x=x_helio, y=y_helio, z=z_helio, theta=lon_earth, n=los_density)
-                            comp_emission = comp%emissivity * los_density * bp_integrated_blackbody_emission
+                            comp_emission = comp%emissivity * los_density * blackbody_emission_c * b_nu_colorcorr
                             s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission * gauss_weights)
                             comp => comp%next()
                             k = k + 1
@@ -538,9 +520,11 @@ contains
                     end if
 
                 end do
-                deallocate(PLANCK_TERM1_BP, PLANCK_TERM2_BP, blackbody_emission_bp)
+                deallocate(PLANCK_TERM1_BP, PLANCK_TERM2_BP, blackbody_emission_bp, blackbody_emission_c, b_nu_ratio, nu_ratio)
             end do
         end select
+
+        s_zodi = s_zodi * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_zodi_emission
 
 
@@ -566,7 +550,6 @@ contains
     function get_unit_vector_map(nside) result(unit_vector_map)
         ! Routine which selects coordinate transformation map based on resolution
         implicit none
-
         integer(i4b), intent(in) :: nside
         integer(i4b) :: i, npix, nside_idx
         real(dp), dimension(:,:), allocatable :: unit_vector_map
@@ -603,7 +586,6 @@ contains
         implicit none
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T
-
         T = T_0 * R ** (-DELTA)
     end subroutine get_dust_grain_temperature
 
@@ -616,8 +598,6 @@ contains
         do i = 1, GAUSS_QUAD_ORDER
             b_nu(i, :) = PLANCK_TERM1_BP/(exp(PLANCK_TERM2_BP/T(i)) - 1.d0)
         end do
-        ! b_nu = b_nu * 1d20 ! Convert from W/s/m^2/sr to MJy/sr
-
     end subroutine get_blackbody_emission_bp
 
     subroutine get_blackbody_emission_delta(T, b_nu)
@@ -631,164 +611,151 @@ contains
     subroutine initialize_cloud(self)
         implicit none
         class(Cloud) :: self
-
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%Incl * deg2rad)
-        self%cos_incl = cos(self%Incl * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_cloud
 
     subroutine get_density_cloud(self, x, y, z, theta, n)
         implicit none
-
         class(Cloud) :: self
         real(dp), dimension(:), intent(in) :: x, y, z
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n
-
         integer(i4b) :: i
-        real(dp) :: R, Z_c, zeta, g, x_prime, y_prime, z_prime
+        real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
         do i = 1, GAUSS_QUAD_ORDER
-            x_prime = x(i) - self%x0
-            y_prime = y(i) - self%y0
-            z_prime = z(i) - self%z0
+            x_prime = x(i) - self%x_0
+            y_prime = y(i) - self%y_0
+            z_prime = z(i) - self%z_0
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
-            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
-            zeta = abs(Z_c)/R
+            Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+            zeta = abs(Z_midplane/R)
 
             if (zeta < self%mu) then
-                g = 0.5 * zeta * zeta / self%mu
+                g = (0.5d0 * zeta * zeta) / self%mu
             else
-                g = zeta - 0.5 * self%mu
+                g = zeta - (0.5d0 * self%mu)
             end if
 
-            n(i) = self%n0 * R**(-self%alpha) * exp(-self%beta * g**self%gamma)
+            n(i) = self%n_0 * R**(-self%alpha) * exp(-self%beta * g**self%gamma)
         end do
     end subroutine get_density_cloud
 
     subroutine initialize_band(self)
         implicit none
         class(Band) :: self
-
-        self%ViInv = 1.d0/self%Vi
-        self%DrInv = 1.d0/self%Dr
-        self%DzRInv = 1.d0/(self%Dz * deg2rad)
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%Incl * deg2rad)
-        self%cos_incl = cos(self%Incl * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_band
 
     subroutine get_density_band(self, x, y, z, theta, n)
         implicit none
-
         class(Band) :: self
         real(dp), dimension(:), intent(in)  :: x, y, z
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n
-
         integer(i4b) :: i
-        real(dp) :: x_prime, y_prime, z_prime, R, Z_c, zeta, ZDz, ZDz2, ZDz4, ZDz6, ViTerm, WtTerm
+        real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, zeta, zeta_over_delta_zeta, term1, term2, term3, term4
 
         do i = 1, GAUSS_QUAD_ORDER
-            x_prime = x(i) - self%x0
-            y_prime = y(i) - self%y0
-            z_prime = z(i) - self%z0
+            x_prime = x(i) - self%x_0
+            y_prime = y(i) - self%y_0
+            z_prime = z(i) - self%z_0
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
-            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
-            zeta = abs(Z_c)/R
-            ZDz = zeta * self%DzRInv
-            ZDz2 = ZDz * ZDz
-            ZDz4 = ZDz2 * ZDz2
-            ZDz6 = ZDz4 * ZDz2
-            ViTerm = 1.d0 + ZDz4 * self%ViInv
-            WtTerm = 1.d0 - exp(-(R*self%DrInv)**20)
+            Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+            zeta = abs(Z_midplane/R)
 
-            n(i) = self%n0 * exp(-ZDz6) * ViTerm * WtTerm * self%R0/R
+            zeta_over_delta_zeta = zeta / self%delta_zeta
+            term1 = self%R_0 * self%n_0 / R
+            term2 = exp(-(zeta_over_delta_zeta**6))
+
+            ! Differs from eq 8 in K98 by a factor of 1/self.v. See Planck XIV
+            ! section 4.1.2.
+            term3 = 1.d0 + (zeta_over_delta_zeta**self%p) / self%v
+            term4 = 1.d0 - exp(-((R / self%delta_r) ** 20))
+
+            n(i) = term1 * term2 * term3 * term4
         end do
     end subroutine get_density_band
 
     subroutine initialize_ring(self)
         implicit none
         class(Ring) :: self
-
-        self%sigmaRsr2Inv = 1.d0 / (self%sigmaRsr * self%sigmaRsr)
-        self%sigmaZsrInv = 1.d0 / self%sigmaZsr
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%Incl * deg2rad)
-        self%cos_incl = cos(self%Incl * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_ring
 
     subroutine get_density_ring(self, x, y, z, theta, n)
         implicit none
-
         class(Ring) :: self
         real(dp), dimension(:), intent(in)  :: x, y, z
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n
-
         integer(i4b) :: i
-        real(dp) :: x_prime, y_prime, z_prime, R, Z_c
+        real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2
 
         do i = 1, GAUSS_QUAD_ORDER
-            x_prime = x(i) - self%x0
-            y_prime = y(i) - self%y0
-            z_prime = z(i) - self%z0
+            x_prime = x(i) - self%x_0
+            y_prime = y(i) - self%y_0
+            z_prime = z(i) - self%z_0
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
-            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+            Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
 
-            n(i) = self%nsr * exp(-((R - self%Rsr)/self%sigmaRsr)**2 - abs(Z_c)*self%sigmaZsrInv)
+            term1 = -((R - self%R_0) ** 2) / self.sigma_r**2
+            term2 = abs(Z_midplane/self.sigma_z)
+
+            n(i) = self%n_0 * exp(term1 - term2)
         end do
     end subroutine get_density_ring
 
     subroutine initialize_feature(self)
         implicit none
         class(Feature) :: self
-
-        self%thetatfR = self%thetatf * deg2rad
-        self%sigmaRtfInv = 1.d0 / self%sigmaRtf
-        self%sigmaZtfInv = 1.d0 / self%sigmaZtf
-        self%sigmaThetatfRinv = 1.d0  /(self%sigmaThetatf * deg2rad)
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%Incl * deg2rad)
-        self%cos_incl = cos(self%Incl * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_feature
 
     subroutine get_density_feature(self, x, y, z, theta, n)
         implicit none
-
         class(Feature) :: self
         real(dp), dimension(:), intent(in) :: x, y, z
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n
-
         integer(i4b) :: i
-        real(dp) :: x_prime, y_prime, z_prime, R, Z_c, theta_prime
+        real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, theta_prime, exp_term
 
         do i = 1, GAUSS_QUAD_ORDER
-            x_prime = x(i) - self%x0
-            y_prime = y(i) - self%y0
-            z_prime = z(i) - self%z0
-            theta_prime = atan2(y(i), x(i)) - (theta + self%thetatfR)
+            x_prime = x(i) - self%x_0
+            y_prime = y(i) - self%y_0
+            z_prime = z(i) - self%z_0
+            theta_prime = atan2(y(i), x(i)) - (theta + self%theta_0)
 
             ! Constraining the angle to the limit [-pi, pi]
             do while (theta_prime < -pi)
-                theta_prime = theta_prime + 2*pi
+                theta_prime = theta_prime + 2.d0*pi
             end do
             do while (theta_prime > pi)
-                theta_prime = theta_prime - 2*pi
+                theta_prime = theta_prime - 2.d0*pi
             end do
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
-            Z_c = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+            Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
 
-            n(i) = self%ntf * exp(-((R-self%Rtf)*self%sigmaRtfInv)**2 - abs(Z_c)*self%sigmaZtfInv - (theta*self%sigmaThetatfRinv)**2)
+            exp_term = ((R - self%R_0) ** 2 / self%sigma_r**2) + (abs(Z_midplane) / self%sigma_z) + (theta_prime**2 / self%sigma_theta**2)
+
+            n(i) = self%n_0 * exp(-exp_term)
         end do
     end subroutine get_density_feature
 

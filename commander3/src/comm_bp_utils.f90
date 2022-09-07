@@ -282,10 +282,15 @@ contains
       allocate(um(n), tau_um(n))
       do i = 1, n ! reverse tau and nu arrays
          um(i)  = 2.99792458d14/nu(n-i+1) ! Convert from micron to Hz
-         tau_um(i) = tau(n-i+1)
+         tau_um(i) = tau(n-i+1)! * ((um(i)**2)/c) ! scale weights by factor (nu**2/c) if weights are in lambda units
       end do
+
+      ! renormalize weights to sum to 1 under trapezoidal integration
+      tau_um = tau_um / tsum(um, tau_um)
+
       nu = um
       tau = tau_um
+
    else
       nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
    end if
@@ -294,6 +299,7 @@ contains
   end subroutine read_bandpass
 
   ! Routine for reading bandpass files
+  ! THIS SHOULD BE DELETED
   subroutine read_bandpass_dirbe(filename, label, threshold, n, nu, tau)
     implicit none
 
