@@ -177,7 +177,7 @@ contains
         use_ring = .true.
         use_feature = .true.
 
-        use_unit_emissivity = .true.
+        use_unit_emissivity = .false.
 
         ! freq_correction_type = "delta"
         ! freq_correction_type = "bandpass"
@@ -636,7 +636,7 @@ contains
             zeta = abs(Z_midplane/R)
 
             if (zeta < self%mu) then
-                g = (0.5d0 * zeta * zeta) / self%mu
+                g = (zeta * zeta) / (2.d0 * self%mu)
             else
                 g = zeta - (0.5d0 * self%mu)
             end if
@@ -648,6 +648,7 @@ contains
     subroutine initialize_band(self)
         implicit none
         class(Band) :: self
+        self%delta_zeta = self%delta_zeta * deg2rad
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
         self%sin_incl = sin(self%incl * deg2rad)
@@ -721,6 +722,8 @@ contains
     subroutine initialize_feature(self)
         implicit none
         class(Feature) :: self
+        self%theta_0 = self%theta_0 * deg2rad
+        self%sigma_theta = self%sigma_theta * deg2rad
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
         self%sin_incl = sin(self%incl * deg2rad)
