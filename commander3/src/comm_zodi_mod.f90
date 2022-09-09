@@ -283,7 +283,6 @@ contains
             call add_component_to_list(comp)
         end if
 
-        ! Executes initialization routines for all activated components
         comp => comp_list
         do while (associated(comp))
             call comp%initialize()
@@ -314,9 +313,8 @@ contains
             deallocate(galactic_vec)
         end do
 
-    ! Reading in tabulated earth positions
+    ! Reading in tabulated earth position
     unit = getlun()
-
     tabulated_earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
     open(unit, file=trim(tabulated_earth_pos_filename))
     read(unit, *) n_earthpos
@@ -328,14 +326,14 @@ contains
     end do
     close(unit)
 
-    ! Create spline objects fro getting earths position given the observeration time
+    ! Create spline objects for the Earths position given an observatino time
     call spline_simple(spline_x, tabulated_earth_time, tabulated_earth_pos(1, :), regular=.true.)
     call spline_simple(spline_y, tabulated_earth_time, tabulated_earth_pos(2, :), regular=.true.)
     call spline_simple(spline_z, tabulated_earth_time, tabulated_earth_pos(3, :), regular=.true.)
 
     end subroutine initialize_zodi_mod
 
-    subroutine get_zodi_emission(nside, pix, sat_pos, obs_time, bandpass, s_zodi)
+    subroutine get_zodi_emission(nside, pix, sat_pos, obs_time, bandpass, tabulated_zodi, s_zodi)
         !   """
         !   Routine which computes the zodiacal light emission at a given nside
         !   resolution for a chunk of obs_time-ordered data.
@@ -353,6 +351,8 @@ contains
         !       Time of observation in MJD.
         !   bandpass: bandpass object
         !       bandpass object containing the updates bandpass for each detector.
+        !   tabulated_zodi: array
+        !       Array of shape npix with tabulated zodi values for reuse.
         !
         !   Returns:
         !   --------
@@ -368,26 +368,26 @@ contains
         integer(i4b), dimension(1:,1:), intent(in) :: pix
         real(dp), dimension(3), intent(in) :: sat_pos
         real(dp), intent(in) :: obs_time
-
         class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
+        real(sp), dimension(:), intent(inout) :: tabulated_zodi
         real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
         integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index, los_step
         real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
         real(dp) :: lon_earth, R_obs, R_max, nu_det
         real(dp), dimension(3) :: earth_pos
-        real(dp), dimension(:), allocatable :: tabulated_zodi, blackbody_emission_delta, blackbody_emission_c, nu_ratio
+        real(dp), dimension(:), allocatable :: blackbody_emission_delta, blackbody_emission_c, nu_ratio
         real(dp), dimension(:,:), allocatable :: unit_vector_map, blackbody_emission_bp, b_nu_ratio
         real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, &
                                                  R_helio, dust_grain_temperature, &
                                                  los_density, comp_emission, bp_integrated_blackbody_emission, b_nu_colorcorr
 
-        allocate(tabulated_zodi(nside2npix(nside)))
-        tabulated_zodi = 0.d0
+        ! Reset quantites from previous chunk
         comp_emission = 0.d0
         R_los = 0.d0
         gauss_weights = 0.d0
         s_zodi = 0.d0
+        tabulated_zodi = 0.d0
 
         ! Interpolate earths position given the obs_time and tabulated earth position
         earth_pos(1) = splint_simple(spline_x, obs_time)

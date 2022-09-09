@@ -66,6 +66,7 @@ contains
 
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
+    real(sp), allocatable, dimension(:) :: tabulated_zodi
 
     if (tod%nhorn /= 1) then
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
@@ -105,7 +106,10 @@ contains
     if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
    !  allocate(self%s_zodi(self%ntod, self%ndet)) ! fix this
-    if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, self%ndet))
+    if (tod%subtract_zodi) then
+      allocate(self%s_zodi(self%ntod, self%ndet))
+      allocate(tabulated_zodi(nside2npix(tod%nside)))
+    endif
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
 
@@ -198,7 +202,7 @@ contains
        end if
 
        ! Need to pass bandpass object in here to bandpass integrate or color correct the Zodiacal emission
-       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, self%s_zodi)
+       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, tabulated_zodi, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -280,6 +284,7 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
+    real(sp),     allocatable, dimension(:)       :: tabulated_zodi
 
     if (tod%nhorn /= 2) then
        write(*,*) 'Error: init_scan_data_differential only applicable for 2-horn experiments'
@@ -319,7 +324,10 @@ contains
     if (init_s_bp_prop_)    allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
     if (init_s_sky_prop_)   allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
-    if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
+    if (tod%subtract_zodi) then
+      allocate(self%s_zodi(self%ntod, self%ndet))
+      allocate(tabulated_zodi(nside2npix(tod%nside)))
+    endif
     self%s_tot  = 0.
     self%s_totA = 0.
     self%s_totB = 0.
@@ -417,8 +425,8 @@ contains
     if (tod%subtract_zodi) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, s_bufA)
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, s_bufB)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, tabulated_zodi, s_bufA)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, tabulated_zodi, s_bufB)
           self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
