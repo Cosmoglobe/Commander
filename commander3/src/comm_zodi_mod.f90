@@ -42,7 +42,7 @@ module comm_zodi_mod
     private
     public :: initialize_zodi_mod, get_zodi_emission
     integer(i4b) :: GAUSS_QUAD_ORDER
-    real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1_DELTA, PLANCK_TERM2_DELTA
+    real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1_DELTA, PLANCK_TERM2_DELTA, DELTA_T_ZODI, previous_chunk_obs_time
     real(dp), dimension(:), allocatable :: UNIQUE_NSIDES, PLANCK_TERM1_BP, PLANCK_TERM2_BP
     real(dp), allocatable, dimension(:,:) :: tabulated_earth_pos
     real(dp), allocatable, dimension(:) :: tabulated_earth_time
@@ -193,6 +193,7 @@ contains
         LOS_CUT = 5.2d0
         GAUSS_QUAD_ORDER = 100
         EPS = 3.d-14
+        DELTA_T_ZODI = 1 ! clear zodi cache after 1 day
 
         ! Planck emissivities (cloud, band1, band2, band3, ring, feature)
         EMISSIVITY_PLANCK_857 = (/0.301d0, 1.777d0, 0.716d0, 2.870d0, 0.578d0, 0.423d0/)
@@ -331,6 +332,8 @@ contains
     call spline_simple(spline_y, tabulated_earth_time, tabulated_earth_pos(2, :), regular=.true.)
     call spline_simple(spline_z, tabulated_earth_time, tabulated_earth_pos(3, :), regular=.true.)
 
+    previous_chunk_obs_time = 0 ! initialize previous chunk observation time
+
     end subroutine initialize_zodi_mod
 
     subroutine get_zodi_emission(nside, pix, sat_pos, obs_time, bandpass, tabulated_zodi, s_zodi)
@@ -374,7 +377,7 @@ contains
 
         integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index, los_step
         real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
-        real(dp) :: lon_earth, R_obs, R_max, nu_det
+        real(dp) :: lon_earth, R_obs, R_max, nu_det, delta_time
         real(dp), dimension(3) :: earth_pos
         real(dp), dimension(:), allocatable :: blackbody_emission_delta, blackbody_emission_c, nu_ratio
         real(dp), dimension(:,:), allocatable :: unit_vector_map, blackbody_emission_bp, b_nu_ratio
@@ -387,7 +390,10 @@ contains
         R_los = 0.d0
         gauss_weights = 0.d0
         s_zodi = 0.d0
-        tabulated_zodi = 0.d0
+
+        delta_time = obs_time - previous_chunk_obs_time
+        print *, delta_time
+        if (delta_time > DELTA_T_ZODI) tabulated_zodi = 0.d0
 
         ! Interpolate earths position given the obs_time and tabulated earth position
         earth_pos(1) = splint_simple(spline_x, obs_time)
@@ -558,7 +564,8 @@ contains
             end do
         end select
 
-        s_zodi = s_zodi * 1d20 !Convert from W/s/m^2/sr to MJy/sr
+        previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
+
     end subroutine get_zodi_emission
 
 
@@ -632,13 +639,14 @@ contains
         do i = 1, GAUSS_QUAD_ORDER
             b_nu(i, :) = PLANCK_TERM1_BP/(exp(PLANCK_TERM2_BP/T(i)) - 1.d0)
         end do
+        b_nu = b_nu * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_blackbody_emission_bp
 
     subroutine get_blackbody_emission_delta(T, b_nu)
         implicit none
         real(dp), dimension(:), intent(in) :: T
         real(dp), dimension(:), intent(out) :: b_nu
-        b_nu = PLANCK_TERM1_DELTA/(exp(PLANCK_TERM2_DELTA/T) - 1.d0)
+        b_nu = (PLANCK_TERM1_DELTA/(exp(PLANCK_TERM2_DELTA/T) - 1.d0)) * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_blackbody_emission_delta
 
     ! Deferred ZodiComponent procedures
