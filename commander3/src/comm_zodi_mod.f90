@@ -43,6 +43,7 @@ module comm_zodi_mod
     integer(i4b) :: GAUSS_QUAD_ORDER
     real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1_DELTA, PLANCK_TERM2_DELTA
     real(dp), dimension(:), allocatable :: UNIQUE_NSIDES, PLANCK_TERM1_BP, PLANCK_TERM2_BP
+    real(sp), allocatable, dimension(:,:) :: earth_pos
     character(len=32) :: freq_correction_type
 
 
@@ -154,9 +155,10 @@ contains
         type(comm_params), intent(in) :: cpar
         class(ZodiComponent), pointer :: comp
 
-        integer(i4b) :: i, j, npix, nside
+        integer(i4b) :: i, j, npix, nside, unit, n_earthpos
         logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, apply_color_correction
         logical(lgt) :: use_unit_emissivity
+        character(len=1024) :: earth_pos_filename
         real(dp) :: emissivity
         real(dp), dimension(3) :: vec
         real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
@@ -309,12 +311,26 @@ contains
             deallocate(galactic_vec)
         end do
 
+    ! Reading in tabulated earth positions
+    unit = getlun()
+
+    earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
+    open(unit, file=trim(earth_pos_filename))
+    read(unit, *) n_earthpos
+    read(unit, *) ! skip header
+    allocate(earth_pos(4, n_earthpos))
+    do i = 1, n_earthpos
+      read(unit,*) earth_pos(1, i), earth_pos(2, i), earth_pos(3, i), earth_pos(4, i)
+    end do
+    close(unit)
+
+
     end subroutine initialize_zodi_mod
 
-    subroutine get_zodi_emission(nside, pix, sat_pos, bandpass, s_zodi)
+    subroutine get_zodi_emission(nside, pix, sat_pos, obs_time, bandpass, s_zodi)
         !   """
         !   Routine which computes the zodiacal light emission at a given nside
-        !   resolution for a chunk of time-ordered data.
+        !   resolution for a chunk of obs_time-ordered data.
         !
         !   Arguments:
         !   ----------
@@ -325,6 +341,8 @@ contains
         !       zodi signal with dimensions (n_tod, n_det)
         !   sat_pos: real
         !       Satellite longitude for given time-order data chunk
+        !   obs_time: real
+        !       Time of observation in MJD.
         !   bandpass: bandpass object
         !       bandpass object containing the updates bandpass for each detector.
         !
@@ -341,6 +359,7 @@ contains
         integer(i4b), intent(in) :: nside
         integer(i4b), dimension(1:,1:), intent(in) :: pix
         real(dp), dimension(3), intent(in) :: sat_pos
+        real(dp), intent(in) :: obs_time
         class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
         real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
@@ -359,6 +378,11 @@ contains
         R_los = 0.d0
         gauss_weights = 0.d0
         s_zodi = 0.d0
+
+
+        print *, obs_time
+        stop
+
 
         ! Extracting n time-orderd data and n detectors for current chunk
         n_tods = size(pix,1)

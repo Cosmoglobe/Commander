@@ -244,7 +244,7 @@ contains
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
-    character(len=512)  :: prefix, postfix, prefix4D, filename
+    character(len=512)  :: prefix, postfix, prefix4D
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2
     real(sp), allocatable, dimension(:,:)     :: s_buf
