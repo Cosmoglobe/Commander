@@ -36,6 +36,7 @@ module comm_zodi_mod
     use comm_utils
     use comm_param_mod
     use comm_bp_mod
+    use spline_1D_mod
     implicit none
 
     private
@@ -43,8 +44,10 @@ module comm_zodi_mod
     integer(i4b) :: GAUSS_QUAD_ORDER
     real(dp) :: T_0, DELTA, LOS_CUT, EPS, PLANCK_TERM1_DELTA, PLANCK_TERM2_DELTA
     real(dp), dimension(:), allocatable :: UNIQUE_NSIDES, PLANCK_TERM1_BP, PLANCK_TERM2_BP
-    real(sp), allocatable, dimension(:,:) :: earth_pos
+    real(dp), allocatable, dimension(:,:) :: tabulated_earth_pos
+    real(dp), allocatable, dimension(:) :: tabulated_earth_time
     character(len=32) :: freq_correction_type
+    type(spline_type) :: spline_x, spline_y, spline_z
 
 
     type, abstract :: ZodiComponent
@@ -158,7 +161,7 @@ contains
         integer(i4b) :: i, j, npix, nside, unit, n_earthpos
         logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, apply_color_correction
         logical(lgt) :: use_unit_emissivity
-        character(len=1024) :: earth_pos_filename
+        character(len=1024) :: tabulated_earth_pos_filename
         real(dp) :: emissivity
         real(dp), dimension(3) :: vec
         real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
@@ -314,16 +317,21 @@ contains
     ! Reading in tabulated earth positions
     unit = getlun()
 
-    earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
-    open(unit, file=trim(earth_pos_filename))
+    tabulated_earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
+    open(unit, file=trim(tabulated_earth_pos_filename))
     read(unit, *) n_earthpos
     read(unit, *) ! skip header
-    allocate(earth_pos(4, n_earthpos))
+    allocate(tabulated_earth_pos(3, n_earthpos))
+    allocate(tabulated_earth_time(n_earthpos))
     do i = 1, n_earthpos
-      read(unit,*) earth_pos(1, i), earth_pos(2, i), earth_pos(3, i), earth_pos(4, i)
+      read(unit,*) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
     end do
     close(unit)
 
+    ! Create spline objects fro getting earths position given the observeration time
+    call spline_simple(spline_x, tabulated_earth_time, tabulated_earth_pos(1, :), regular=.true.)
+    call spline_simple(spline_y, tabulated_earth_time, tabulated_earth_pos(2, :), regular=.true.)
+    call spline_simple(spline_z, tabulated_earth_time, tabulated_earth_pos(3, :), regular=.true.)
 
     end subroutine initialize_zodi_mod
 
@@ -360,12 +368,14 @@ contains
         integer(i4b), dimension(1:,1:), intent(in) :: pix
         real(dp), dimension(3), intent(in) :: sat_pos
         real(dp), intent(in) :: obs_time
+
         class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
         real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
         integer(i4b) :: i, j, k, n_detectors, n_tods, pixel_index, los_step
         real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
         real(dp) :: lon_earth, R_obs, R_max, nu_det
+        real(dp), dimension(3) :: earth_pos
         real(dp), dimension(:), allocatable :: tabulated_zodi, blackbody_emission_delta, blackbody_emission_c, nu_ratio
         real(dp), dimension(:,:), allocatable :: unit_vector_map, blackbody_emission_bp, b_nu_ratio
         real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio, y_helio, z_helio, R_los, gauss_weights, &
@@ -379,10 +389,10 @@ contains
         gauss_weights = 0.d0
         s_zodi = 0.d0
 
-
-        print *, obs_time
-        stop
-
+        ! Interpolate earths position given the obs_time and tabulated earth position
+        earth_pos(1) = splint_simple(spline_x, obs_time)
+        earth_pos(2) = splint_simple(spline_y, obs_time)
+        earth_pos(3) = splint_simple(spline_z, obs_time)
 
         ! Extracting n time-orderd data and n detectors for current chunk
         n_tods = size(pix,1)
@@ -394,7 +404,7 @@ contains
         y_obs = sat_pos(2)
         z_obs = sat_pos(3)
         R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
-        lon_earth = atan(y_obs, x_obs)
+        lon_earth = atan(earth_pos(2), earth_pos(1))
 
         select case (trim(freq_correction_type))
         case ("delta")
