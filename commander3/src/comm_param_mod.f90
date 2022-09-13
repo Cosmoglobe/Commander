@@ -236,6 +236,28 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
+
+     ! Zodi parameters (IPD model)
+     ! Hyper parameters
+     integer(14b)       :: zs_gauss_quad_order
+     real(dp)           :: zs_los_cut, zs_delta_t
+     logical(lgt)       :: zs_use_cloud, zs_use_band1, zs_use_band2, zs_use_band3, zs_use_ring, &
+                           zs_use_feature, zs_use_unit_emissivity
+     character(len=512) :: zs_freq_correction_type
+
+     ! Component parameters
+     real(dp), allocatable, dimension(:, :) :: zs_common ! shape: (n_comps, 6)
+     real(dp)                               :: zs_cloud_alpha, zs_cloud_beta, zs_cloud_gamma, zs_cloud_mu
+     real(dp)                               :: zs_band1_delta_zeta, zs_band1_v, zs_band1_p, zs_band1_delta_r
+     real(dp)                               :: zs_band2_delta_zeta, zs_band2_v, zs_band2_p, zs_band2_delta_r
+     real(dp)                               :: zs_band3_delta_zeta, zs_band3_v, zs_band3_p, zs_band3_delta_r
+     real(dp)                               :: zs_ring_r, zs_ring_sigma_r, zs_ring_sigma_z
+     real(dp)                               :: zs_feature_r, zs_feature_sigma_r, zs_feature_sigma_z, &
+                                               zs_feature_theta, zs_feature_sigma_theta
+     ! Source parameters
+     real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo, zs_phase_function ! (n_band, n_comp)
+     real(dp), allocatable, dimension(:)    :: zs_solar_irradiance ! (n_band)
+
   end type comm_params
 
 contains
@@ -277,7 +299,7 @@ contains
     call read_global_params_hash(htable,cpar)
     call read_data_params_hash(htable,cpar)
     call read_component_params_hash(htable,cpar)
-   
+    call read_zodi_params_hash(htable, cpar) 
     !output parameter file to output directory
     if (cpar%myid == cpar%root) then
       idx = index(paramfile, '/', back=.true.) 
@@ -2023,6 +2045,32 @@ contains
   end subroutine read_component_params_hash
 
 
+    subroutine read_zodi_params_hash(htbl, cpar)
+        implicit none
+
+        type(hash_tbl_sll), intent(in) :: htbl
+        type(comm_params),  intent(inout) :: cpar
+
+        ! Read in model hyper parameters
+        call get_parameter_hashtable(htbl, 'ZODI_GAUSS_QUAD_ORDER', par_int=cpar%zs_gauss_quad_order)
+        call get_parameter_hashtable(htbl, 'ZODI_LOS_CUT', par_dp=cpar%zs_los_cut)
+        call get_parameter_hashtable(htbl, 'ZODI_DELTA_T', par_dp=cpar%zs_delta_t)
+        call get_parameter_hashtable(htbl, 'ZODI_USE_CLOUD', par_lgt=cpar%zs_use_cloud
+        call get_parameter_hashtable(htbl, 'ZODI_USE_BAND1', par_lgt=cpar%zs_use_band1)
+        call get_parameter_hashtable(htbl, 'ZODI_USE_BAND2', par_lgt=cpar%zs_use_band2)
+        call get_parameter_hashtable(htbl, 'ZODI_USE_BAND3', par_lgt=cpar%zs_use_band3)
+        call get_parameter_hashtable(htbl, 'ZODI_USE_RING', par_lgt=cpar%zs_use_ring)
+        call get_parameter_hashtable(htbl, 'ZODI_USE_FEATURE', par_lgt=cpar%zs_use_feature)
+        call get_parameter_hashtable(htbl, 'ZODI_USE_UNIT_EMISSIVITY', par_lgt=cpar%zs_use_unit_emissivity)
+        call get_parameter_hashtable(htbl, 'ZODI_FREQ_CORRECTION_TYPE', par_string=cpar%zs_freq_correction_type)
+
+        print *, cpar%zs_freq_correction_type
+        stop
+
+        call get_parameter_hashtable(htbl, 'ZODI_CLOUD_MU', par_dp=cpar%zs_cloud_mu)
+        stop
+
+    end subroutine read_zodi_params_hash
 
 
   ! ********************************************************
