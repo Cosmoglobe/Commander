@@ -23,7 +23,7 @@ module comm_curvature_comp_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
   use comm_map_mod
-  use comm_F_int_1D_mod
+  use comm_F_int_2D_mod
   use comm_data_mod
   implicit none
 
@@ -121,7 +121,7 @@ contains
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+             constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
           end do
        end do
     end do
@@ -148,7 +148,7 @@ contains
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
 
-    evalSED = (nu/self%nu_ref(pol))**(theta(1)+0.5*theta(2)*log(nu/self%nu_ref(pol)))
+    evalSED = (nu/self%nu_ref(pol))**(theta(1)+theta(2)*log(nu/self%nu_ref(pol)))
 
   end function evalSED
   
