@@ -48,9 +48,9 @@ BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_MAPFILE&&&                = init_tod_map_030_n512_BP8.1_v1.fits
 BAND_NOISEFILE&&&              = init_tod_rms_030_n512_BP8.1_v1.fits
 BAND_REG_NOISEFILE&&&          = none   BP_030_rms_v11_median_regnoise.fits
-BAND_NOISE_RMS&&&_SMOOTH01     = BP9_030_rms_n0032_5deg_uK_true_june2021.fits
-BAND_NOISE_RMS&&&_SMOOTH02     = BP9_030_rms_n0016_10deg_uK_true_june2021.fits
-BAND_NOISE_RMS&&&_SMOOTH03     = BP9_030_rms_n0016_60arcmin_uK_true_clean_degrade_june2021.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_BANDPASSFILE&&&           = LFI_instrument_v4.h5
 
 BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_030_res_v5.fits

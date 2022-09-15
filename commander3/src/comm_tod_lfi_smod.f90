@@ -226,6 +226,8 @@ contains
     call res%read_tod(res%label)
     call res%remove_fixed_scans
 
+    call update_status(status, "read in all the tods")
+
     ! Setting polarization angles to DPC post-analysis values
     allocate(res%polang_prior(res%ndet,2))
     if (trim(res%freq) == '030') then
@@ -261,6 +263,8 @@ contains
 
     ! Declare adc_mode 
     res%nbin_adc = 500
+
+    call update_status(status, "load_instrument_file")
 
     ! Load the instrument file
     call res%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -511,38 +515,52 @@ contains
        deallocate(freq_bins)
        else
 
+         call update_status(status, "init_noise_filter_from_chain")
+
          ! init the noise filter from chain if we are not computing it
          if(trim(res%init_from_HDF) == 'default') then
            call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+         else if(trim(res%init_from_HDF) == 'none') then
+           chainfile = ""
          else
            call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
          end if
-         call open_hdf_file(chainfile, init_file, 'r')
+         if(chainfile /= "") then
+           call open_hdf_file(chainfile, init_file, 'r')
 
-         call int2string(initsamp, itext)
-         path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
+           call int2string(initsamp, itext)
+           path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
 
-         call res%initHDF_inst(init_file, path)
-         call close_hdf_file(init_file)
+           call res%initHDF_inst(init_file, path)
+           call close_hdf_file(init_file)
+         end if
        end if
 
     else
 
+      call update_status(status, "noise_filter")
+
       ! init the noise filter from chain if we are not computing it
       if(trim(res%init_from_HDF) == 'default') then
         call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+      else if(trim(res%init_from_HDF) == 'none') then
+        chainfile = ""
       else
         call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
       end if      
-      call open_hdf_file(chainfile, init_file, 'r')
+      if(chainfile /= "") then
+        call open_hdf_file(chainfile, init_file, 'r')
       
-      call int2string(initsamp, itext)
-      path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
+        call int2string(initsamp, itext)
+        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
 
-      call res%initHDF_inst(init_file, path)
-      call close_hdf_file(init_file)
-    
+        call res%initHDF_inst(init_file, path)
+        call close_hdf_file(init_file)
+      end if    
+
     end if
+
+    call update_status(status, "init_noise_psds")
 
     ! construct the noise filter function for the noise psd estimates
     do i=1, res%ndet

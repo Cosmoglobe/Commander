@@ -220,25 +220,25 @@ contains
           tod%gain_alpha(j) = -1.d0             ! Physically motivated value
           tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-          if (j == 1) then
-             open(58,file='gain_in.dat')
-             do k = 1, size(g,1)
-                if (g(k,j,2) > 0) then
-                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
-                end if
-             end do
-             close(58)
+          !if (j == 1) then
+          !   open(58,file='gain_in.dat')
+          !   do k = 1, size(g,1)
+          !      if (g(k,j,2) > 0) then
+          !         write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+          !      end if
+          !   end do
+          !   close(58)
              !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
 
-             open(68,file='g.unf', form='unformatted')
-             write(68) size(g,1)
-             write(68) g(:,j,1)
-             write(68) g(:,j,2)
-             write(68) tod%gain_sigma_0(j)
-             write(68) tod%gain_alpha(j)
-             write(68) tod%gain_fknee(j)
-             close(68)
-          end if
+          !   open(68,file='g.unf', form='unformatted')
+          !   write(68) size(g,1)
+          !   write(68) g(:,j,1)
+          !   write(68) g(:,j,2)
+          !   write(68) tod%gain_sigma_0(j)
+          !   write(68) tod%gain_alpha(j)
+          !   write(68) tod%gain_fknee(j)
+          !   close(68)
+          !end if
 
           sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
           if (sample_per_jump) then
@@ -272,15 +272,15 @@ contains
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-          if (j == 1) then
-             open(58,file='gain_out.dat')
-             do k = 1, size(g,1)
-                if (g(k,j,2) > 0) then
-                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
-                end if
-             end do
-             close(58)
-          end if
+          !if (j == 1) then
+          !   open(58,file='gain_out.dat')
+          !   do k = 1, size(g,1)
+          !      if (g(k,j,2) > 0) then
+          !         write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+          !      end if
+          !   end do
+          !   close(58)
+          !end if
        end do
 
        ! Distribute and update results

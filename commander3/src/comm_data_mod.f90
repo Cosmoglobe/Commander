@@ -53,7 +53,6 @@ module comm_data_mod
      class(comm_map),     pointer :: c_prop    => null()
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
-     class(comm_map),     pointer :: procmask2 => null()
      class(comm_map),     pointer :: gainmask  => null()
      class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
@@ -608,7 +607,7 @@ contains
     ! Take square-root of smoothed variance map to get new rms map
     do i = 0, map_in_buffer%info%np-1
        do j = 1, map_in_buffer%info%nmaps 
-          map_in_buffer%map(i,j)=dsqrt(map_in_buffer%map(i,j))
+          map_in_buffer%map(i,j)=dsqrt(abs(map_in_buffer%map(i,j)))
        end do
     end do
 
