@@ -43,14 +43,31 @@ module comm_zodi_mod
     private
     public :: initialize_zodi_mod, get_zodi_emission
     integer(i4b) :: GAUSS_QUAD_ORDER
-    real(dp) :: T_0, DELTA, LOS_CUT, EPS, DELTA_T_ZODI
+    real(dp) :: LOS_CUT, EPS, DELTA_T_ZODI
     real(dp) :: b_nu_delta_term1, b_nu_delta_term2, previous_chunk_obs_time
     real(dp), allocatable, dimension(:) :: unique_nsides, b_nu_bandpass_term1, b_nu_bandpass_term2
     real(dp), allocatable, dimension(:) :: tabulated_earth_time
     real(sp), allocatable, dimension(:) :: cached_zodi
     real(dp), allocatable, dimension(:,:) :: tabulated_earth_pos
-    character(len=32) :: freq_correction_type
-    type(spline_type) :: spline_x, spline_y, spline_z
+    character(len=512) :: freq_correction_type
+    type(spline_type) :: spline_x, spline_y, spline_z, spline_emissivity
+
+    ! model parameters
+    real(dp) :: T_0, DELTA, solar_irradiance
+    real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
+                cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
+    real(dp) :: band1_x_0, band1_y_0, band1_z_0, band1_incl, band1_Omega, band1_n_0, &
+                band1_delta_zeta, band1_delta_R, band1_v, band1_p
+    real(dp) :: band2_x_0, band2_y_0, band2_z_0, band2_incl, band2_Omega, band2_n_0, &
+                band2_delta_zeta, band2_delta_R, band2_v, band2_p
+    real(dp) :: band3_x_0, band3_y_0, band3_z_0, band3_incl, band3_Omega, band3_n_0, &
+                band3_delta_zeta, band3_delta_R, band3_v, band3_p
+    real(dp) :: ring_x_0, ring_y_0, ring_z_0, ring_incl, ring_Omega, ring_n_0, &
+                ring_R, ring_sigma_R, ring_sigma_z
+    real(dp) :: feature_x_0, feature_y_0, feature_z_0, feature_incl, feature_Omega, feature_n_0, &
+                feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
+    real(dp) allocatable, dimension(:) :: emissivity, albedo, phase_function
+
 
     type, abstract :: ZodiComponent
         ! Abstract base Zodical component class.
@@ -103,7 +120,7 @@ module comm_zodi_mod
     end type Cloud
 
     type, extends(ZodiComponent) :: Band
-        real(dp) :: delta_zeta, delta_r, R_0, v, p
+        real(dp) :: delta_zeta, delta_r, v, p
         contains
             procedure :: initialize => initialize_band
             procedure :: get_density => get_density_band
@@ -164,156 +181,31 @@ contains
         real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
         integer(i4b), dimension(:), allocatable :: sorted_unique_nsides
         real(dp), dimension(:,:), allocatable :: galactic_vec
-        real(dp), dimension(6) :: E_PLANCK_30, E_PLANCK_44, E_PLANCK_70, E_PLANCK_100, E_PLANCK_143, &
-                                  E_PLANCK_217, E_PLANCK_353, E_PLANCK_545, E_PLANCK_857
-        real(dp), dimension(6) :: E_DIRBE_01, E_DIRBE_02, E_DIRBE_03, E_DIRBE_04, E_DIRBE_05, E_DIRBE_06,  &
-                                  E_DIRBE_07, E_DIRBE_08, E_DIRBE_09, E_DIRBE_10
-        real(dp), dimension(6) :: A_DIRBE_01, A_DIRBE_02, A_DIRBE_03, A_DIRBE_04, A_DIRBE_05, A_DIRBE_06,  &
-                                  A_DIRBE_07, A_DIRBE_08, A_DIRBE_09, A_DIRBE_10
-        real(dp), dimension(10) :: SOLAR_IRRADIANCE_DIRBE, PHASE_FUNCTION_DIRBE_0, PHASE_FUNCTION_DIRBE_1, PHASE_FUNCTION_DIRBE_2
 
+        use_cloud = cpar%zs_use_cloud
+        use_band1 = cpar%zs_use_band1
+        use_band2 = cpar%zs_use_band2
+        use_band3 = cpar%zs_use_band3
+        use_ring = cpar%zs_use_ring
+        use_feature = cpar%zs_use_feature
 
-        use_cloud = .true.
-        use_band1 = .true.
-        use_band2 = .true.
-        use_band3 = .true.
-        use_ring = .true.
-        use_feature = .true.
+        use_unit_emissivity = cpar%zs_use_unit_emissivity
 
-        use_unit_emissivity = .false.
+        freq_correction_type = cpar%zs_freq_correction_type
 
-        ! freq_correction_type = "delta"
-        ! freq_correction_type = "bandpass"
-        freq_correction_type = "color"
-
-        T_0 = 286.d0 ! temperature at 1 AU
-        DELTA = 0.46686260d0 ! rate at which temperature falls with radius
-        LOS_CUT = 5.2d0
-        GAUSS_QUAD_ORDER = 100
         EPS = 3.d-14
-        DELTA_T_ZODI = 0.5 ! clear zodi cache after half a
+        T_0 = cpar%zs_t_0 ! temperature at 1 AU
+        DELTA = cpar%zs_delta ! rate at which temperature falls with radius
+        LOS_CUT = cpar%zs_los_cut
+        GAUSS_QUAD_ORDER = cpar%zs_gauss_quad_order
+        DELTA_T_ZODI = cpar%zs_delta_t ! clear zodi cache after delta_t time
 
-        ! Planck emissivities (cloud, band1, band2, band3, ring, feature)
-        E_PLANCK_857 = (/0.301d0, 1.777d0, 0.716d0, 2.870d0, 0.578d0, 0.423d0/)
-        E_PLANCK_545 = (/0.223d0, 2.235d0, 0.718d0 , 3.193d0, 0.591d0, -0.182d0/)
-        E_PLANCK_353 = (/0.168d0, 2.035d0, 0.436d0, 2.400d0, -0.211d0, 0.676d0/)
-        E_PLANCK_217 = (/0.031d0, 2.024d0, 0.338d0, 2.507d0, -0.185d0, 0.243d0/)
-        E_PLANCK_143 = (/-0.014d0, 1.463d0, 0.530d0, 1.794d0, -0.252d0, -0.002d0/)
-        E_PLANCK_100 = (/0.003d0, 1.129d0, 0.674d0, 1.106d0, 0.163d0, 0.252d0/)
-
-        ! DIRBE emissivities (cloud, band1, band2, band3, ring, feature)
-        E_DIRBE_01 = (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
-        E_DIRBE_02 = (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
-        E_DIRBE_03 = (/1.6598924040649741d0, 1.6598924040649741d0, 1.6598924040649741d0, &
-                        1.6598924040649741d0, 1.6598924040649741d0, 1.6598924040649741d0/)
-        E_DIRBE_04 = (/0.99740908486652979d0, 0.35926451958350442d0, 0.35926451958350442d0, &
-                        0.35926451958350442d0, 1.0675116768340536d0, 1.0675116768340536d0/)
-        E_DIRBE_05 = (/0.95766914805948866d0, 1.0127926948497732d0, 1.0127926948497732d0, &
-                        0.35926451958350442d0, 1.0608768682182081d0, 1.0608768682182081d0/)
-        E_DIRBE_06 = (/1.d0, 1.d0, 1.d0, 1.d0, 1.d0, 1.d0/)
-        E_DIRBE_07 = (/0.73338832616768868d0, 1.2539242027824944d0, 1.2539242027824944d0, &
-                        1.2539242027824944d0, 0.87266361378785184d0, 0.87266361378785184d0/)
-        E_DIRBE_08 = (/0.64789881802224070d0, 1.5167023376593836d0, 1.5167023376593836d0, &
-                        1.5167023376593836d0, 1.0985346556794289d0, 1.0985346556794289d0/)
-        E_DIRBE_09 = (/0.67694205881047387d0, 1.1317240279481993d0, 1.1317240279481993d0, &
-                        1.1317240279481993d0, 1.1515825707787077d0, 1.1515825707787077d0/)
-        E_DIRBE_10 = (/0.51912085401950736d0, 1.3996145963796358d0, 1.3996145963796358d0, &
-                        1.3996145963796358d0, 0.85763800994217443d0, 0.85763800994217443d0/)
-
-        ! DIRBE albedos (cloud, band1, band2, band3, ring, feature)
-        A_DIRBE_01 = (/0.20411939612669797d0, 0.20411939612669797d0, 0.20411939612669797d0, &
-                      0.20411939612669797d0, 0.20411939612669797d0, 0.20411939612669797d0/)
-        A_DIRBE_02 = (/0.25521132892052301d0, 0.25521132892052301d0, 0.25521132892052301d0, &
-                      0.25521132892052301d0, 0.25521132892052301d0, 0.25521132892052301d0/)
-        A_DIRBE_03 = (/0.21043660481632315d0, 0.21043660481632315d0, 0.21043660481632315d0, &
-                      0.21043660481632315d0, 0.21043660481632315d0, 0.21043660481632315d0/)
-        A_DIRBE_04 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        A_DIRBE_05 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        A_DIRBE_06 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        A_DIRBE_07 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        A_DIRBE_08 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        A_DIRBE_09 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        A_DIRBE_10 = (/0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-
-        ! DIRBE solar irradiance per band
-        SOLAR_IRRADIANCE_DIRBE = (/2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, &
-                                  1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0/)
-
-        ! DIRBE phase function theta0, theta1, theta2 per band
-        PHASE_FUNCTION_DIRBE_0 = (/-0.94209999d0, -0.52670002d0, -0.4312d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        PHASE_FUNCTION_DIRBE_1 = (/0.1214d0, 0.18719999d0, 0.1715d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
-        PHASE_FUNCTION_DIRBE_2 = (/-0.1648d0, -0.59829998d0, -0.63330001d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0, 0.d0/)
+        call init_model_variables(cpar)
 
         ! Initialize Zodi components
-        if (use_unit_emissivity) emissivity = 1.d0
+        if (use_unit_emissivity) emissivity = 1.d0 ! TODO: ADD EMISSIVITY EXTRAPOLATION GIVEN NU
 
-        if (use_cloud) then
-            if (.not. use_unit_emissivity) emissivity = E_DIRBE_06(1)
-            cloud_comp = Cloud(emissivity=emissivity, x_0=0.011887800744346281d0, &
-                               y_0=0.0054765064662263777d0, z_0=-0.0021530908020710744d0, & 
-                               incl=2.0335188072390769d0, Omega=77.657955554097114d0, &
-                               n_0=1.1344373881427960d-7, alpha=1.3370696705930281d0, & 
-                               beta=4.1415004157586637d0, gamma=0.94206179393358036d0, &
-                               mu=0.18873176489090190d0)
-            comp => cloud_comp
-            call add_component_to_list(comp)
-        end if
-
-        if (use_band1) then
-            if (.not. use_unit_emissivity) emissivity = E_DIRBE_06(2)
-            band1_comp = Band(emissivity=emissivity, x_0=0.0, y_0=0.0, z_0=0.0, &
-                              incl=0.56438265154389733d0, Omega=80.d0, n_0=5.5890290403228370d-10, &
-                              delta_zeta=8.7850534408713035d0, delta_r=1.5d0, R_0=3.d0, &
-                              v=0.10000000149011612d0, p=4.d0)
-            comp => band1_comp
-            call add_component_to_list(comp)
-        end if
-
-        if (use_band2) then
-            if (.not. use_unit_emissivity) emissivity = E_DIRBE_06(3)
-            band2_comp = Band(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
-                              incl=1.2000000476837158d0, Omega=30.347475578624532d0, &
-                              n_0=1.9877609422590801d-09, delta_zeta=1.9917032425777641d0, &
-                              delta_r=0.94121881201651147d0, R_0=3.d0, v=0.89999997615814209d0, p=4.d0)
-            comp => band2_comp
-            call add_component_to_list(comp)
-        end if
-
-        if (use_band3) then
-            if (.not. use_unit_emissivity) emissivity = E_DIRBE_06(4)
-            band3_comp = Band(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
-                              incl=0.80000001192092896d0, Omega=80.d0, n_0=1.4369827283512384d-10, &
-                              delta_zeta=15.d0, delta_r=1.5d0, R_0=3.d0, v=0.050000000745058060d0, p=4.d0)
-            comp => band3_comp
-            call add_component_to_list(comp)
-        end if
-
-        if (use_ring) then
-            if (.not. use_unit_emissivity) emissivity = E_DIRBE_06(5)
-            ring_comp = Ring(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
-                             incl=0.48707166006819241d0, Omega=22.278979678854448d0, &
-                             n_0=1.8260527826501675d-8, R_0=1.0281924326308751d0, &
-                             sigma_r=0.025000000372529030d0, sigma_z=0.054068037356978099d0)
-            comp => ring_comp
-            call add_component_to_list(comp)
-        end if
-
-        if (use_feature) then
-            if (.not. use_unit_emissivity) emissivity = E_DIRBE_06(6)
-            feature_comp = Feature(emissivity=emissivity, x_0=0.d0, y_0=0.d0, z_0=0.d0, &
-                                   incl=0.48707166006819241d0, Omega=22.278979678854448d0, &
-                                   n_0=2.0094267183590947d-8, R_0=1.0579182694524214d0, &
-                                   sigma_r=0.10287314662396611d0, sigma_z=0.091442963768716023d0, &
-                                   theta_0=-10.d0, sigma_theta=12.115210933938741d0)
-            comp => feature_comp
-            call add_component_to_list(comp)
-        end if
-
-        comp => comp_list
-        do while (associated(comp))
-            call comp%initialize()
-            comp => comp%next()
-        end do
+        call construct_zodi_components()
 
         ! Precompute unit vectors in ecliptic for all galactic pixel indices
         ! per unique data nside.
@@ -594,6 +486,141 @@ contains
     end subroutine get_zodi_emission
 
 
+    subroutine init_model_variables(cpar)
+        ! Initialize model variables from cpar
+        implicit none 
+        type(comm_params), intent(in) :: cpar
+
+        cloud_x_0 = cpar%zs_common(1, 1)
+        cloud_y_0 = cpar%zs_common(1, 2)
+        cloud_z_0 = cpar%zs_common(1, 3)
+        cloud_incl = cpar%zs_common(1, 4)
+        cloud_Omega = cpar%zs_common(1, 5)
+        cloud_n_0 = cpar%zs_common(1, 6)
+        cloud_alpha = cpar%zs_cloud_alpha
+        cloud_beta = cpar%zs_cloud_beta
+        cloud_gamma = cpar%zs_cloud_gamma
+        cloud_mu = cpar%zs_cloud_mu
+
+        band1_x_0 = cpar%zs_common(1, 1)
+        band1_y_0 = cpar%zs_common(1, 2)
+        band1_z_0 = cpar%zs_common(1, 3)
+        band1_incl = cpar%zs_common(1, 4)
+        band1_Omega = cpar%zs_common(1, 5)
+        band1_n_0 = cpar%zs_common(1, 6)
+        band1_delta_zeta = cpar%zs_bands_delta_zeta(1)
+        band1_delta_R = cpar%zs_bands_delta_r(1)
+        band1_v = cpar%zs_bands_v(1)
+        band1_p = cpar%zs_bands_p(1)
+
+        band2_x_0 = cpar%zs_common(1, 1)
+        band2_y_0 = cpar%zs_common(1, 2)
+        band2_z_0 = cpar%zs_common(1, 3)
+        band2_incl = cpar%zs_common(1, 4)
+        band2_Omega = cpar%zs_common(1, 5)
+        band2_n_0 = cpar%zs_common(1, 6)
+        band2_delta_zeta = cpar%zs_bands_delta_zeta(2)
+        band2_delta_R = cpar%zs_bands_delta_r(2)
+        band2_v = cpar%zs_bands_v(2)
+        band2_p = cpar%zs_bands_p(2)
+
+        band3_x_0 = cpar%zs_common(1, 1)
+        band3_y_0 = cpar%zs_common(1, 2)
+        band3_z_0 = cpar%zs_common(1, 3)
+        band3_incl = cpar%zs_common(1, 4)
+        band3_Omega = cpar%zs_common(1, 5)
+        band3_n_0 = cpar%zs_common(1, 6)
+        band3_delta_zeta = cpar%zs_bands_delta_zeta(3)
+        band3_delta_R = cpar%zs_bands_delta_r(3)
+        band3_v = cpar%zs_bands_v(3)
+        band3_p = cpar%zs_bands_p(3)
+
+        ring_x_0 = cpar%zs_common(1, 1)
+        ring_y_0 = cpar%zs_common(1, 2)
+        ring_z_0 = cpar%zs_common(1, 3)
+        ring_incl = cpar%zs_common(1, 4)
+        ring_Omega = cpar%zs_common(1, 5)
+        ring_n_0 = cpar%zs_common(1, 6)
+        ring_R = cpar%zs_ring_r
+        ring_sigma_R = cpar%zs_ring_sigma_r
+        ring_sigma_z = cpar%zs_ring_sigma_z
+
+        feature_x_0 = cpar%zs_common(1, 1)
+        feature_y_0 = cpar%zs_common(1, 2)
+        feature_z_0 = cpar%zs_common(1, 3)
+        feature_incl = cpar%zs_common(1, 4)
+        feature_Omega = cpar%zs_common(1, 5)
+        feature_n_0 = cpar%zs_common(1, 6)
+        feature_R = cpar%zs_feature_r
+        feature_sigma_R = cpar%zs_feature_sigma_r
+        feature_sigma_z = cpar%zs_feature_sigma_z
+        feature_theta = cpar%zs_feature_theta
+        feature_sigma_theta = cpar%zs_feature_sigma_theta
+    end subroutine init_model_variables
+
+    subroutine construct_zodi_components()
+        ! Instanciate a new set of zodiacal components given the current values
+        ! in the global model parameters
+        implicit none
+
+        comp_list => null() ! hopefully this just clears the linked list..???
+        if (use_cloud) then
+            cloud_comp = Cloud(emissivity=emissivity, x_0=cloud_x_0, y_0=cloud_y_0, z_0=cloud_z_0, & 
+                               incl=cloud_incl, Omega=cloud_Omega, n_0=cloud_n_0, alpha=cloud_alpha, & 
+                               beta=cloud_beta, gamma=cloud_gamma, mu=cloud_mu)
+            comp => cloud_comp
+            call add_component_to_list(comp)
+        end if
+
+        if (use_band1) then
+            band1_comp = Band(emissivity=emissivity, x_0=band1_x_0, y_0=band1_y_0, z_0=band1_z_0, &
+                              incl=band1_incl, Omega=band1_Omega, n_0=band1_n_0, &
+                              delta_zeta=band1_delta_zeta, delta_r=band1_delta_R, v=band1_v, p=band1_p)
+            comp => band1_comp
+            call add_component_to_list(comp)
+        end if
+
+        if (use_band2) then
+            band2_comp = Band(emissivity=emissivity, x_0=band2_x_0, y_0=band2_y_0, z_0=band2_z_0, &
+                              incl=band2_incl, Omega=band2_Omega, n_0=band2_n_0, &
+                              delta_zeta=band2_delta_zeta, delta_r=band2_delta_R, v=band2_v, p=band2_p)
+            comp => band2_comp
+            call add_component_to_list(comp)
+        end if
+
+        if (use_band3) then
+            band3_comp = Band(emissivity=emissivity, x_0=band3_x_0, y_0=band3_y_0, z_0=band3_z_0, &
+                              incl=band3_incl, Omega=band3_Omega, n_0=band3_n_0, &
+                              delta_zeta=band3_delta_zeta, delta_r=band3_delta_R, v=band3_v, p=band3_p)
+            comp => band3_comp
+            call add_component_to_list(comp)
+        end if
+
+        if (use_ring) then
+            ring_comp = Ring(emissivity=emissivity, x_0=ring_x_0, y_0=ring_y_0, z_0=ring_z_0, &
+                             incl=ring_incl, Omega=ring_Omega, n_0=ring_n_0, R_0=ring_R, &
+                             sigma_r=ring_sigma_R, sigma_z=ring_sigma_z)
+            comp => ring_comp
+            call add_component_to_list(comp)
+        end if
+
+        if (use_feature) then
+            feature_comp = Feature(emissivity=emissivity, x_0=feature_x_0, y_0=feature_y_0, z_0=feature_z_0, &
+                                   incl=feature_incl, Omega=feature_Omega, n_0=feature_n_0, R_0=feature_R, &
+                                   sigma_r=feature_sigma_R, sigma_z=feature_sigma_z, &
+                                   theta_0=feature_theta, sigma_theta=feature_sigma_theta)
+            comp => feature_comp
+            call add_component_to_list(comp)
+        end if
+
+        comp => comp_list
+        do while (associated(comp))
+            call comp%initialize()
+            comp => comp%next()
+        end do
+
+    end subroutine construct_zodi_components
+
     subroutine gal_to_ecl_conversion_matrix(matrix)
         ! Ecliptic to galactic rotation matrix
         implicit none
@@ -737,7 +764,7 @@ contains
             zeta = abs(Z_midplane/R)
 
             zeta_over_delta_zeta = zeta / self%delta_zeta
-            term1 = self%R_0 * self%n_0 / R
+            term1 = 3.d0 * self%n_0 / R
             term2 = exp(-(zeta_over_delta_zeta**6))
 
             ! Differs from eq 8 in K98 by a factor of 1/self.v. See Planck XIV
@@ -864,7 +891,7 @@ contains
             comp => comp%next_link
         end do
         link%prev_link => comp
-        comp%next_link    => link
+        comp%next_link => link
     end subroutine add
 
     subroutine add_component_to_list(comp)
