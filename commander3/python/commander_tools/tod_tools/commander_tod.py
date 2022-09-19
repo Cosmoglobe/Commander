@@ -152,10 +152,25 @@ class commander_tod:
                     dictNum = compArr[1]['dictNum']
                     if dictNum not in self.huffDict.keys():
                         self.huffDict[dictNum] = {}
+
+                    #check for uint issue before differencing
+                    #np.diff maintains data types so this was a mess for uints
+                    if(np.issubdtype(data.dtype, np.unsignedinteger)):
+                        dtypestr = str(data.dtype)
+
+                        dsize = int(dtypestr[4:])
+                        dsize *= 2
+                        dtypestr = 'int' + str(dsize)
+                        #print("Converting unsigned Huffman field " + fieldName + " from " + str(data.dtype) + " to " + dtypestr)
+                        data = data.astype(dtypestr)
+
                     delta = np.diff(data)
                     delta = np.insert(delta, 0, data[0])
                     self.huffDict[dictNum][fieldName] = delta
-                    #print("adding " + fieldName + " to dict, contents ", delta[delta != 0], data[data != 0])
+                    #if('flag' in fieldName):
+                    #    for i in range(len(data)):
+                    #        print(data[i], delta[i], ",", end='')
+                    #print("adding " + fieldName + " to dict, contents ", delta[delta!=0])
                     self.add_attribute(fieldName, 'huffmanDictNumber', dictNum)
                     writeField = False 
 

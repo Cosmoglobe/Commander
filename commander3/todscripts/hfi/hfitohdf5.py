@@ -195,6 +195,7 @@ def make_od(comm_tod, freq, od, args):
         #per pid
         for dbentry in c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime)):
             pid = dbentry[0]
+
             start_time = dbentry[2]
             end_time = dbentry[3]        
 
@@ -269,7 +270,10 @@ def make_od(comm_tod, freq, od, args):
                 if(det == '353-1'):
                     ex_flags = extraFlagsFile[str(pid).zfill(6) + '/flags_extra_353-1']
                 flagArray += ex_flags
-                    
+
+                #with np.printoptions(threshold=np.inf):
+                #    print(flagArray)
+    
                 if (len(flagArray) > 0):
                     comm_tod.add_field(prefix + '/flag', flagArray, compArr)
 
