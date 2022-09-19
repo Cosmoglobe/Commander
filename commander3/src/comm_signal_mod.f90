@@ -36,6 +36,7 @@ module comm_signal_mod
   use comm_md_comp_mod
   use comm_param_mod
   use comm_powlaw_comp_mod
+  use comm_powlaw_break_comp_mod
   use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
@@ -72,6 +73,8 @@ contains
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
              call update_status(status, "init_done")
+          case ("power_law_break")
+             c => comm_powlaw_break_comp(cpar, ncomp, i)
           case ("curvature") 
              c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")

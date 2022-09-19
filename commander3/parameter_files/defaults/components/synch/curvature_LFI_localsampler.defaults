@@ -1,27 +1,29 @@
 # New Local sampling parameters, 'curvature'
 COMP_BETA_INT_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
-COMP_BETA_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
-COMP_BETA_INT_LNLTYPE&&       = marginal    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
-COMP_BETA_POL_LNLTYPE&&       = chisq       # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
+COMP_BETA_INT_LNLTYPE&&       = chisq    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_INT_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
-COMP_BETA_POL_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_BETA_INT_SAMPLE_NPROP&&  = .true.     # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
-COMP_BETA_POL_SAMPLE_NPROP&&  = .false.     # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
 COMP_BETA_INT_SAMPLE_PROPLEN&& = .true.     # sample proposal length, local sampling (p=1 of poltype). Sample proposal length (std. dev.) of proposals
-COMP_BETA_POL_SAMPLE_PROPLEN&& = .true.     # sample proposal length, local sampling (p=2 of poltype). Sample proposal length (std. dev.) of proposals
 COMP_BETA_INT_NPROP_INIT&&    = 1000         # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_BETA_INT_PROPLEN_INIT&&  = 5.d-2       # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
+COMP_BETA_INT_NUM_PIXREG&&    = 1           # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
+COMP_BETA_INT_FIX_PIXREG&&    = none
+
+COMP_BETA_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_POL_LNLTYPE&&       = chisq       # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
+COMP_BETA_POL_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_BETA_POL_SAMPLE_NPROP&&  = .false.     # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
+COMP_BETA_POL_SAMPLE_PROPLEN&& = .true.     # sample proposal length, local sampling (p=2 of poltype). Sample proposal length (std. dev.) of proposals
 COMP_BETA_POL_NPROP_INIT&&    = 1000         # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_BETA_POL_PROPLEN_INIT&&  = 5.d-2       # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
+COMP_BETA_POL_NUM_PIXREG&&    = 1           # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
+COMP_BETA_POL_FIX_PIXREG&&    = none
+
 COMP_BETA_UNI_NPROP_LOW&&     = 500          # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_UNI_NPROP_HIGH&&    = 5000        # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_MASK&&              = mask_synch_beta_sampling_temp_bp10_n1024_udgraded_tr75ptc_TQU.fits mask_clean_synch_tr40_others_tr40_radio_tr30_chisq_tr5_n1024_udgraded_tr75ptc_TQU.fits 
 COMP_BETA_NPROP&&             = fullsky     # nprop map, local sampling (fullsky = 1)
 COMP_BETA_PROPLEN&&           = fullsky     # proposal length map, local sampling (fullsky = 1.d0)
-COMP_BETA_INT_PROPLEN_INIT&&  = 5.d-2       # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
-COMP_BETA_POL_PROPLEN_INIT&&  = 5.d-2       # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
-COMP_BETA_INT_NUM_PIXREG&&    = 1           # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
-COMP_BETA_POL_NUM_PIXREG&&    = 1           # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
-COMP_BETA_INT_FIX_PIXREG&&    = none
-COMP_BETA_POL_FIX_PIXREG&&    = none
 COMP_BETA_PIXREG_MAP&&        = fullsky     # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_BETA_PIXREG_INITVALUE_MAP&& = none
 COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .true.
@@ -33,28 +35,30 @@ COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
 
 # New Local sampling parameters, 'curvature'
 COMP_C_S_INT_LMAX&&          = -1           # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
-COMP_C_S_POL_LMAX&&          = -1           # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_C_S_INT_LNLTYPE&&       = chisq     # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
-COMP_C_S_POL_LNLTYPE&&       = chisq        # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_C_S_INT_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
-COMP_C_S_POL_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_C_S_INT_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
-COMP_C_S_POL_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
 COMP_C_S_INT_SAMPLE_PROPLEN&& = .true.      # sample proposal length, local sampling (p=1 of poltype). Sample proposal length (std. dev.) of proposals
-COMP_C_S_POL_SAMPLE_PROPLEN&& = .true.      # sample proposal length, local sampling (p=2 of poltype). Sample proposal length (std. dev.) of proposals
 COMP_C_S_INT_NPROP_INIT&&    = 500          # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_C_S_INT_PROPLEN_INIT&&  = 0.003        # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
+COMP_C_S_INT_NUM_PIXREG&&    = 1            # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
+COMP_C_S_INT_FIX_PIXREG&&    = none
+
+COMP_C_S_POL_LMAX&&          = -1           # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_C_S_POL_LNLTYPE&&       = chisq        # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
+COMP_C_S_POL_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_C_S_POL_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
+COMP_C_S_POL_SAMPLE_PROPLEN&& = .true.      # sample proposal length, local sampling (p=2 of poltype). Sample proposal length (std. dev.) of proposals
 COMP_C_S_POL_NPROP_INIT&&    = 500          # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_C_S_POL_PROPLEN_INIT&&  = 0.003        # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
+COMP_C_S_POL_NUM_PIXREG&&    = 1            # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
+COMP_C_S_POL_FIX_PIXREG&&    = none
+
 COMP_C_S_UNI_NPROP_LOW&&     = 10           # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_C_S_UNI_NPROP_HIGH&&    = 2000         # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_C_S_MASK&&              = mask_synch_beta_sampling_temp_bp10_n1024_udgraded_tr75ptc_TQU.fits mask_clean_synch_tr40_others_tr40_radio_tr30_chisq_tr5_n1024_udgraded_tr75ptc_TQU.fits 
 COMP_C_S_NPROP&&             = fullsky      # nprop map, local sampling (fullsky = 1)
 COMP_C_S_PROPLEN&&           = fullsky      # proposal length map, local sampling (fullsky = 1.d0)
-COMP_C_S_INT_PROPLEN_INIT&&  = 0.003        # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
-COMP_C_S_POL_PROPLEN_INIT&&  = 0.003        # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
-COMP_C_S_INT_NUM_PIXREG&&    = 1            # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
-COMP_C_S_POL_NUM_PIXREG&&    = 1            # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
-COMP_C_S_INT_FIX_PIXREG&&    = none
-COMP_C_S_POL_FIX_PIXREG&&    = none
 COMP_C_S_PIXREG_MAP&&        = fullsky      # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_C_S_PIXREG_INITVALUE_MAP&& = none
 COMP_C_S_COMBINED_MONOPOLE_SAMPLING&& = .false.
