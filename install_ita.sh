@@ -5,9 +5,9 @@
 # Global configuration:
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
-# Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi"
-buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
+# Possible values: oneapi, nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
+toolchain="oneapi" #"gnu"
+buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -132,6 +132,8 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    # Backend 
+    backend="mkl"
 		module load Intel_parallel_studio/2020/4.912
 		#module load Intel_parallel_studio/2018/3.051
 	elif [[ "$toolchain" =~ "oneapi" ]]
@@ -145,11 +147,14 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load intel/oneapi
-    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
-    module load mkl/latest
+    # Backend 
+    backend="mkl"
+    #module load intel/oneapi
+    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
+    #export BLAS_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/blis"
+    #export LAPACK_ROOT="$HOME/commander/AST9240/build_owl3135_gnu/install/libflame"
 		# Compilers
 		fc="gfortran"
 		cc="gcc"
@@ -159,43 +164,46 @@ then
 		mpicc="mpicc"
 		mpicxx="mpicxx"
 		printf "Using GNU:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    # Backend 
+    backend="any"
 	  #module load foss/10.3.0 # custom GNU GCC + OpenMPI 
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		#source /opt/rh/devtoolset-9/enable
 		#export PATH="/usr/local/opt/openmpi-4.0.5/bin:$PATH"
 		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
-		#module load gcc/10.2.1
-		#module load myopenmpi/4.0.3
-    module load gcc/11.2.1
+    # Adding custom module files
+    #module use --append /mn/stornext/u3/maksymb/modulefiles
+		module load gcc/11.2.1
     export PATH="/usr/local/opt/gcc11/openmpi-4.1.3/bin:$PATH"
     export LD_LIBRARY_PATH="/usr/local/opt/gcc11/openmpi-4.1.3/lib:$LD_LIBRARY_PATH"
+		#module load myopenmpi/4.1.4
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		printf "\n"
 		$mpifc --version
-	elif [[ "$toolchain" =~ "flang" ]]
-	then
-		# Compilers
-		fc="flang"
-		cc="clang"
-		cxx="clang++"
-		# MPI compilers
-		mpifc="mpifort" 
-		mpicc="mpicc"
-		mpicxx="mpicxx"
-		printf "Using AOCC:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load openmpi/aocc/4.1.0 AMD/aocc/3.0.0
-	elif [[ "$toolchain" =~ "nvidia" ]]
-	then
-		# Compilers
-		fc="nvfortran"
-		cc="nvc"
-		cxx="nvc++"
-		# MPI compilers
-		mpifc="mpifort" 
-		mpicc="mpicc"
-		mpicxx="mpicxx"
-		printf "Using NVIDIA:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-		module load nvhpc/21.7 
+	#elif [[ "$toolchain" =~ "flang" ]]
+	#then
+	#	# Compilers
+	#	fc="flang"
+	#	cc="clang"
+	#	cxx="clang++"
+	#	# MPI compilers
+	#	mpifc="mpifort" 
+	#	mpicc="mpicc"
+	#	mpicxx="mpicxx"
+	#	printf "Using AOCC:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+	#	module load openmpi/aocc/4.1.0 AMD/aocc/3.0.0
+	#elif [[ "$toolchain" =~ "nvidia" ]]
+	#then
+	#	# Compilers
+	#	fc="nvfortran"
+	#	cc="nvc"
+	#	cxx="nvc++"
+	#	# MPI compilers
+	#	mpifc="mpifort" 
+	#	mpicc="mpicc"
+	#	mpicxx="mpicxx"
+	#	printf "Using NVIDIA:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+	#	module load nvhpc/21.7 
 	fi
 	# Printing Loaded modules
 	printf "\n"
@@ -227,10 +235,11 @@ then
 	-DMPI_CXX_COMPILER=$mpicxx \
 	-DMPI_Fortran_COMPILER=$mpifc \
 	-DCFITSIO_USE_CURL:BOOL=OFF \
-	-DUSE_SYSTEM_FFTW:BOOL=OFF \
+	-DUSE_SYSTEM_FFTW:BOOL=ON  \
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
+  -DCOMM3_BACKEND=$backend \
 	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
@@ -240,3 +249,4 @@ then
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi
+  #-DFFTW_ENABLE_AVX2:BOOL=OFF\

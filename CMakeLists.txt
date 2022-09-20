@@ -42,14 +42,18 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 			)
 endif()
 # Just a short message to signify start of configuration script
-message(STATUS "===============================================================")
-message(STATUS "Welcome to automatic Commander3 installer!")
-message(STATUS "Issued under: GNU GPLv3 license")
-message(STATUS "Official repo: https://github.com/Cosmoglobe/Commander")
-message(STATUS "Documentation: https://cosmoglobe.github.io/Commander/#/")
-message(STATUS "Forum: https://forums.beyondplanck.science/")
-message(STATUS "===============================================================")
-message(STATUS "Scanning your system. Please, wait a moment...")
+message("   ===============================================================")
+message(STATUS "|                          COMMANDER3                         |"
+				"\n   ==============================================================="
+        "\n   | Official repo: https://github.com/Cosmoglobe/Commander"
+        "\n   | Documentation: https://cosmoglobe.github.io/Commander/#/"
+        "\n   | Forum:         https://forums.beyondplanck.science/" 
+        "\n   | License:       GNU GPL3"
+				"\n   ==============================================================="
+        )
+#message(STATUS "|                    CONFIGURATION SUMMARY                    |"
+#				"\n   ==============================================================="
+#        )
 # The necessary minimum to set-up cmake-based project
 cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 project(Commander3
@@ -61,6 +65,7 @@ project(Commander3
 # Looking for python
 find_package(Python REQUIRED COMPONENTS Interpreter)
 
+#exit()
 # Including native cmake commands 
 include(CMakePrintHelpers)
 include(CMakeDependentOption)
@@ -87,6 +92,8 @@ list(APPEND CMAKE_MODULE_PATH
 	"${CMAKE_SOURCE_DIR}/cmake/projects"
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/cfitsio/cmake"
 	"${CMAKE_SOURCE_DIR}/cmake/third_party/curl/CMake"
+  #"${CMAKE_SOURCE_DIR}/cmake/third_party/cmake-optimize-architecture-flag"
+  "${CMAKE_SOURCE_DIR}/cmake/third_party/sse/cmake"
 	)
 # Including custom cmake modules
 include(main)

@@ -45,7 +45,8 @@ if(COMPILE_HEALPIX)
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES GNU)
 		#set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -march=native -std=c99 -DUSE_MPI -fopenmp")
 		#set(healpix_sharp2_C_FLAGS "-DUSE_MPI -DMULTIARCH -std=c99 -O3 -ffast-math")
-		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -fopenmp")
+    #set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -mavx2 -std=c99 -DUSE_MPI -fopenmp")
+		set(healpix_sharp2_C_FLAGS "-O3 -ffast-math -std=c99 -DUSE_MPI -fopenmp")
 	elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 		set(healpix_sharp2_C_FLAGS "-O4 -fast -Mipa=fast,inline -Msmartalloc -std=c99 -DUSE_MPI -mp")
 	#elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVIDIA)
@@ -119,7 +120,7 @@ if(COMPILE_HEALPIX)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${HEALPIX_SOURCE_DIR}/configure")
-		message(STATUS "No HEALPIX sources were found; thus, will download it from source:\n${healpix_url}")
+    #message(STATUS "No HEALPIX sources were found; thus, will download it from source:\n${healpix_url}")
 		ExternalProject_Add(
 			healpix_src
 			URL								"${healpix_url}"
@@ -136,7 +137,7 @@ if(COMPILE_HEALPIX)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing HEALPIX sources inside:\n${HEALPIX_SOURCE_DIR}")
+    #message(STATUS "Found an existing HEALPIX sources inside:\n${HEALPIX_SOURCE_DIR}")
 		add_custom_target(healpix_src
 			ALL ""
 			)

@@ -614,6 +614,7 @@ contains
        if (.not. any(tod%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
+       ![Debug] if (tod%myid == 0) write(*,*) '|    --> Preparing data ' !on, mode = ', trim(mode)
        ! Prepare data
        if (tod%nhorn == 1) then
           call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
@@ -621,6 +622,7 @@ contains
           call sd%init_differential(tod, i, map_sky, procmask, procmask2, polang=polang)
        end if
 
+       ![Debug] if (tod%myid == 0) write(*,*) '|    --> Setup filtered calibration signal'! m(mode)
        ! Set up filtered calibration signal, conditional contribution and mask
        call timer%start(timer_id, tod%band)
        call tod%downsample_tod(sd%s_orb(:,1), ext)
@@ -653,6 +655,7 @@ contains
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
+       ! [Debug] if (tod%myid == 0) write(*,*) '|    --> Passed the loop with downsampel tod'!(mode)
        call multiply_inv_N(tod, i, s_invsqrtN, sampfreq=tod%samprate_lowres, pow=0.5d0)
 
        if (trim(mode) == 'abscal' .or. trim(mode) == 'relcal' .or. trim(mode) == 'imbal') then
@@ -689,6 +692,7 @@ contains
        end if
        call timer%stop(timer_id, tod%band)
 
+       ![Debug] if (tod%myid == 0) write(*,*) '|    --> Passed another loop'!(mode)
        ! Clean up
        call wall_time(t2)
        tod%scans(i)%proctime   = tod%scans(i)%proctime   + t2-t1
