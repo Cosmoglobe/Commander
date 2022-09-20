@@ -90,6 +90,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_b_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_line_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_powlaw_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_powlaw_break_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
@@ -144,6 +145,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_noise_mod.f90
 	${COMMANDER3_SOURCE_DIR}/spline_1d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/spline_2d_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_curvature_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
