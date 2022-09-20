@@ -4,7 +4,7 @@ COMP_BETA_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling
 COMP_BETA_INT_LNLTYPE&&       = marginal    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_POL_LNLTYPE&&       = chisq       # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_INT_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
-COMP_BETA_POL_PIXREG&&        = pixreg     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_BETA_POL_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_BETA_INT_SAMPLE_NPROP&&  = .true.     # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
 COMP_BETA_POL_SAMPLE_NPROP&&  = .false.     # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
 COMP_BETA_INT_SAMPLE_PROPLEN&& = .true.     # sample proposal length, local sampling (p=1 of poltype). Sample proposal length (std. dev.) of proposals
@@ -37,7 +37,7 @@ COMP_DBETA_POL_LMAX&&          = -1           # alm sampling (>=0), local sampli
 COMP_DBETA_INT_LNLTYPE&&       = chisq     # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_DBETA_POL_LNLTYPE&&       = chisq        # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_DBETA_INT_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
-COMP_DBETA_POL_PIXREG&&        = pixreg      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_DBETA_POL_PIXREG&&        = fullsky      # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_DBETA_INT_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
 COMP_DBETA_POL_SAMPLE_NPROP&&  = .false.      # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
 COMP_DBETA_INT_SAMPLE_PROPLEN&& = .true.      # sample proposal length, local sampling (p=1 of poltype). Sample proposal length (std. dev.) of proposals
