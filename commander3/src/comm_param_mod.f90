@@ -220,6 +220,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
+     real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_gauss
      real(dp),           allocatable, dimension(:,:,:) :: cs_p_uni
@@ -703,6 +704,10 @@ contains
     allocate(cpar%cs_spec_mono_combined(n,MAXPAR),cpar%cs_spec_mono_mask(n,MAXPAR),cpar%cs_spec_mono_type(n,MAXPAR))
     allocate(cpar%cs_spec_corr_convergence(MAXPAR,n),cpar%cs_spec_corr_limit(MAXPAR,n))
     allocate(cpar%cs_spec_mono_freeze(n,MAXPAR))
+
+    ! This is only for the power law break model
+    allocate(cpar%cs_nu_break(n,3))
+    
     cpar%cs_spec_mono_combined=.false. !by default
     cpar%cs_spec_corr_convergence=.false. !by default
 
@@ -1320,9 +1325,13 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_DBETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
 
-    ! Read nu_break
-    call get_parameter_hashtable(htbl, 'COMP_NU_BREAK_DEFAULT'//itext, len_itext=len_itext,          &
-         & par_dp=cpar%cs_theta_def(2,i))
+    ! Read nu_break in intensity
+    call get_parameter_hashtable(htbl, 'COMP_NU_BREAK_T'//itext, len_itext=len_itext,          &
+         & par_dp=cpar%cs_nu_break(i,1))
+    ! Read nu_break in polarization
+    call get_parameter_hashtable(htbl, 'COMP_NU_BREAK_P'//itext, len_itext=len_itext,          &
+         & par_dp=cpar%cs_nu_break(i,2))
+    cpar%cs_nu_break(i,3) = cpar%cs_nu_break(i,2)
 
     do j=1,2
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
