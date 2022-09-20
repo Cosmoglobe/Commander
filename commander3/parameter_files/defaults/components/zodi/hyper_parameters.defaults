@@ -1,8 +1,9 @@
 # Hyper parameters for zodiacal emission modeling
-ZODI_MODEL                       = dirbe    # {dirbe, planck18}
 ZODI_GAUSS_QUAD_ORDER            = 100
 ZODI_LOS_CUT                     = 5.2d0
 ZODI_DELTA_T                     = 0.5d0
+ZODI_FREQ_CORRECTION_TYPE        = color   # {delta, bandpass, color}
+ZODI_USE_UNIT_EMISSIVITY         = .false.
 
 # Enable components
 ZODI_USE_CLOUD                   = .true.
@@ -11,6 +12,3 @@ ZODI_USE_BAND2                   = .true.
 ZODI_USE_BAND3                   = .true.
 ZODI_USE_RING                    = .true.
 ZODI_USE_FEATURE                 = .true.
-
-ZODI_USE_UNIT_EMISSIVITY         = .false.
-ZODI_FREQ_CORRECTION_TYPE        = color   # {delta, bandpass, color}

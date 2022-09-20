@@ -1,8 +1,21 @@
 # Source parameters for the zodiacal emission from DIRBE
 ZODI_NBANDS                = 10
+ZODI_NCOMPS                = 6
+
+# Reference frequencies (in GHz) for observing bands
+ZODI_NU_REF_01             = 239833.9664d0
+ZODI_NU_REF_02             = 136269.29909091d0
+ZODI_NU_REF_03             = 85654.988d0
+ZODI_NU_REF_04             = 61182.13428571d0
+ZODI_NU_REF_05             = 24982.70483333d0
+ZODI_NU_REF_06             = 11991.69832d0
+ZODI_NU_REF_07             = 4996.54096667d0
+ZODI_NU_REF_08             = 2997.92458d0
+ZODI_NU_REF_09             = 2141.3747d0
+ZODI_NU_REF_10             = 1249.13524167d0
 
 # (cloud, band1, band2, band3, ring, feature)
-# NOTE: arrays below must be comma separated with 6 elements, one per component and no whitespace.
+# NOTE: arrays below must be comma separated with N_COMPS elements
 ZODI_EMISSIVITY_01         = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
 ZODI_EMISSIVITY_02         = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
 ZODI_EMISSIVITY_03         = 1.6598924040649741d0,1.6598924040649741d0,1.6598924040649741d0,1.6598924040649741d0,1.6598924040649741d0,1.6598924040649741d0
