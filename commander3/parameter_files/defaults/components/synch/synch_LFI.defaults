@@ -8,8 +8,6 @@ COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        = 1
 COMP_CG_SAMP_GROUP_MAXITER&&  = 100  #50, increased to 100 due to prior sampling convergence
 COMP_NSIDE&&                  = 1024
-#COMP_MONOPOLE_PRIOR&&         = none
-#COMP_MONOPOLE_PRIOR&&         = lower_value_prior:mask_synch_mono_n1024.fits,5.0d6,1.3d6,600.d0  #<mask name>,<mean>,<RMS>,<FWHM>
 COMP_MONOPOLE_PRIOR&&         = bandmono:0.4-Haslam  #<band label>
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1500
@@ -25,6 +23,8 @@ COMP_AMP_LMAX&&               = 1500
 COMP_AMP_INPUT_MAP&&          = init_synch_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
+COMP_IND_LMAX&&               = 100
+
 COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
 COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
 COMP_CL_BETA_PRIOR_MEAN&&     = -0.5
@@ -36,6 +36,7 @@ COMP_CL_DEFAULT_AMP_B&&       =  100
 COMP_CL_DEFAULT_BETA_T&&      =  60d0
 COMP_CL_DEFAULT_BETA_E&&      =  30d0
 COMP_CL_DEFAULT_BETA_B&&      =  30d0
+
 COMP_BETA_PRIOR_UNI_LOW&&     =  -4.5
 COMP_BETA_PRIOR_UNI_HIGH&&    =  -1.5
 COMP_BETA_PRIOR_GAUSS_MEAN&&  =  -3.1
