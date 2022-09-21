@@ -299,8 +299,8 @@ contains
                    else if (j == 3) then
                      label = label3
                    end if
-                   call write_hdf(file, trim(adjustl(itext))//'/statistics/'//trim(adjustl(label)), &
-                       & theta_sum/c%theta(i)%p%info%npix)
+                   !call write_hdf(file, trim(adjustl(itext))//'/statistics/'//trim(adjustl(label)), &
+                   !    & theta_sum/c%theta(i)%p%info%npix)
                 end if
              end do
           end do
