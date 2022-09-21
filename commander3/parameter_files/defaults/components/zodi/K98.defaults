@@ -1,9 +1,5 @@
 # DIRBE (K98) parameters of the interplanetary dust model
 
-# Interplanetary dust grain parameters
-ZODI_T_0                  = 286.d0
-ZODI_DELTA                = 0.46686260d0
-
 # Component parameters                  
 ZODI_CLOUD_X_0            = 0.011887800744346281d0
 ZODI_CLOUD_Y_0            = 0.0054765064662263777d0

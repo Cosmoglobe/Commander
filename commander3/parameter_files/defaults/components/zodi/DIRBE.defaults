@@ -62,3 +62,7 @@ ZODI_C_07                  = 0.d0,0.d0,0.d0
 ZODI_C_08                  = 0.d0,0.d0,0.d0
 ZODI_C_09                  = 0.d0,0.d0,0.d0
 ZODI_C_10                  = 0.d0,0.d0,0.d0
+
+# Interplanetary dust grain parameters
+ZODI_T_0                  = 286.d0
+ZODI_DELTA                = 0.46686260d0

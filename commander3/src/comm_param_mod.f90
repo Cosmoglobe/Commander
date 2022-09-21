@@ -250,7 +250,8 @@ module comm_param_mod
      real(dp)                               :: zs_feature_r, zs_feature_sigma_r, zs_feature_sigma_z, &
                                                zs_feature_theta, zs_feature_sigma_theta
      real(dp)                               :: zs_t_0, zs_delta
-     real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo, zs_phase_function ! (n_band, n_comp)
+     real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo! (n_band, n_comp)
+     real(dp), allocatable, dimension(:, :) :: zs_phase_function ! (n_band, 3)
      real(dp), allocatable, dimension(:)    :: zs_nu_ref, zs_solar_irradiance ! (n_band)
 
   end type comm_params

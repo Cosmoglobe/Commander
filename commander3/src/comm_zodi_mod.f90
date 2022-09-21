@@ -42,20 +42,22 @@ module comm_zodi_mod
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
-    integer(i4b) :: GAUSS_QUAD_ORDER
-    real(dp) :: LOS_CUT, EPS, DELTA_T_ZODI
+    integer(i4b) :: gauss_quad_order
+    real(dp) :: los_cutoff_radius, EPS, delta_t_reset_cash
     real(dp) :: b_nu_delta_term1, b_nu_delta_term2, previous_chunk_obs_time
     real(dp), allocatable, dimension(:) :: unique_nsides, b_nu_bandpass_term1, b_nu_bandpass_term2
     real(dp), allocatable, dimension(:) :: tabulated_earth_time
     real(sp), allocatable, dimension(:) :: cached_zodi
     real(dp), allocatable, dimension(:,:) :: tabulated_earth_pos
     character(len=512) :: freq_correction_type
-    type(spline_type), allocatable, dimension(:) :: spline_emissivity
-    type(spline_type), dimension(3) :: spline_earth_pos
-    logical(lgt) :: use_unit_emissivity
+    type(spline_type) :: solar_irradiance_spline_obj
+    type(spline_type), dimension(3) :: spline_earth_pos_obj
+    type(spline_type), allocatable, dimension(:) :: emissivity_spline_obj, albedo_spline_obj, phase_function_spline_obj
+    logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
+                    apply_color_correction, use_unit_emissivity, use_unit_albedo
 
     ! model parameters
-    real(dp) :: T_0, DELTA, solar_irradiance
+    real(dp) :: T_0, delta, solar_irradiance
     real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
                 cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
     real(dp) :: band1_x_0, band1_y_0, band1_z_0, band1_incl, band1_Omega, band1_n_0, &
@@ -68,7 +70,9 @@ module comm_zodi_mod
                 ring_R, ring_sigma_R, ring_sigma_z
     real(dp) :: feature_x_0, feature_y_0, feature_z_0, feature_incl, feature_Omega, feature_n_0, &
                 feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
-    real(dp), allocatable, dimension(:) :: comp_emissivity, comp_albedo, comp_phase_function
+    real(dp), allocatable, dimension(:) :: solar_irradiances
+    real(dp), allocatable, dimension(:, :) :: emissivities, albedos, phase_functions
+    real(dp), allocatable, dimension(:) :: splined_emissivities, splined_albedos, splined_phase_functions
 
 
     type, abstract :: ZodiComponent
@@ -174,7 +178,6 @@ contains
         class(ZodiComponent), pointer :: comp
 
         integer(i4b) :: i, j, npix, nside, unit, n_earthpos
-        logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, apply_color_correction
         character(len=1024) :: tabulated_earth_pos_filename
         real(dp), dimension(3) :: vec
         real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
@@ -183,35 +186,10 @@ contains
 
         EPS = 3.d-14
 
-        use_cloud = cpar%zs_use_cloud
-        use_band1 = cpar%zs_use_band1
-        use_band2 = cpar%zs_use_band2
-        use_band3 = cpar%zs_use_band3
-        use_ring = cpar%zs_use_ring
-        use_feature = cpar%zs_use_feature
-        use_unit_emissivity = cpar%zs_use_unit_emissivity
-        freq_correction_type = cpar%zs_freq_correction_type
-
-        T_0 = cpar%zs_t_0 ! temperature at 1 AU
-        DELTA = cpar%zs_delta ! rate at which temperature falls with radius
-        LOS_CUT = cpar%zs_los_cut
-        GAUSS_QUAD_ORDER = cpar%zs_gauss_quad_order
-        DELTA_T_ZODI = cpar%zs_delta_t ! clear zodi cache after delta_t time
-
-        ! Read model parameters from cpar and put them into global variables which may be 
-        ! updated by the gibbs sampler
-        call init_model_variables(cpar)
-    
-        ! Set up spline object for emissivities
-        allocate(spline_emissivity(cpar%zs_ncomps))
-        allocate(comp_emissivity(cpar%zs_ncomps))
-        if (.not. use_unit_emissivity) then
-            do i = 1, cpar%zs_ncomps
-                call spline_simple(spline_emissivity(i), cpar%zs_nu_ref, cpar%zs_emissivity(:, i), regular=.false.)
-            end do
-        else 
-            comp_emissivity = 1.d0
-        end if 
+        ! Initialize hyper, shape, and source parameters for ipd model from cpar
+        call init_hyper_parameters(cpar)
+        call init_source_parameters(cpar)
+        call init_shape_parameters(cpar)
 
         ! Initialize Zodi components
         if (use_cloud) then
@@ -221,7 +199,6 @@ contains
             comp => cloud_comp
             call add_component_to_list(comp)
         end if
-
         if (use_band1) then
             band1_comp = Band(x_0=band1_x_0, y_0=band1_y_0, z_0=band1_z_0, incl=band1_incl, &
                               Omega=band1_Omega, n_0=band1_n_0, delta_zeta=band1_delta_zeta, &
@@ -229,7 +206,6 @@ contains
             comp => band1_comp
             call add_component_to_list(comp)
         end if
-
         if (use_band2) then
             band2_comp = Band(x_0=band2_x_0, y_0=band2_y_0, z_0=band2_z_0, incl=band2_incl, &
                               Omega=band2_Omega, n_0=band2_n_0, delta_zeta=band2_delta_zeta, &
@@ -237,7 +213,6 @@ contains
             comp => band2_comp
             call add_component_to_list(comp)
         end if
-
         if (use_band3) then
             band3_comp = Band(x_0=band3_x_0, y_0=band3_y_0, z_0=band3_z_0, incl=band3_incl, &
                               Omega=band3_Omega, n_0=band3_n_0, delta_zeta=band3_delta_zeta, &
@@ -245,7 +220,6 @@ contains
             comp => band3_comp
             call add_component_to_list(comp)
         end if
-
         if (use_ring) then
             ring_comp = Ring(x_0=ring_x_0, y_0=ring_y_0, z_0=ring_z_0, incl=ring_incl, &
                              Omega=ring_Omega, n_0=ring_n_0, R_0=ring_R, sigma_r=ring_sigma_R, &
@@ -253,7 +227,6 @@ contains
             comp => ring_comp
             call add_component_to_list(comp)
         end if
-
         if (use_feature) then
             feature_comp = Feature(x_0=feature_x_0, y_0=feature_y_0, z_0=feature_z_0, &
                                    incl=feature_incl, Omega=feature_Omega, n_0=feature_n_0, & 
@@ -268,8 +241,8 @@ contains
             call comp%initialize()
             comp => comp%next()
         end do
-        ! Precompute unit vectors in ecliptic for all galactic pixel indices
-        ! per unique data nside.
+
+        ! Precompute unit vector coordinates for galactic to ecliptic coordinates
         call gal_to_ecl_conversion_matrix(ecliptic_to_galactic_matrix)
 
         sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
@@ -292,26 +265,52 @@ contains
             deallocate(galactic_vec)
         end do
 
-    ! Reading in tabulated earth position
-    unit = getlun()
-    tabulated_earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
-    open(unit, file=trim(tabulated_earth_pos_filename))
-    read(unit, *) n_earthpos
-    read(unit, *) ! skip header
-    allocate(tabulated_earth_pos(3, n_earthpos))
-    allocate(tabulated_earth_time(n_earthpos))
-    do i = 1, n_earthpos
-      read(unit,*) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
-    end do
-    close(unit)
+        ! Read in tabulated earth position
+        unit = getlun()
+        tabulated_earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
+        open(unit, file=trim(tabulated_earth_pos_filename))
+        read(unit, *) n_earthpos
+        read(unit, *) ! skip header
+        allocate(tabulated_earth_pos(3, n_earthpos))
+        allocate(tabulated_earth_time(n_earthpos))
+        do i = 1, n_earthpos
+        read(unit,*) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
+        end do
+        close(unit)
 
-    ! Create spline objects for interpolating earths position given a time of observation
-    do i = 1, 3
-        call spline_simple(spline_earth_pos(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
-    end do
+        ! Set up spline objects
+        allocate(emissivity_spline_obj(cpar%zs_ncomps))
+        allocate(albedo_spline_obj(cpar%zs_ncomps))
+        allocate(phase_function_spline_obj(3))
+        allocate(splined_emissivities(cpar%zs_ncomps))
+        allocate(splined_albedos(cpar%zs_ncomps))
 
-    previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
-    end subroutine initialize_zodi_mod
+        ! Earths position
+        do i = 1, 3
+            call spline_simple(spline_earth_pos_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
+        end do
+
+        ! Source parameters
+        do i = 1, cpar%zs_ncomps
+            if (.not. use_unit_emissivity) then
+                call spline_simple(emissivity_spline_obj(i), cpar%zs_nu_ref, cpar%zs_emissivity(:, i), regular=.false.)
+            else 
+                splined_emissivities = 1.d0
+            end if 
+            if (.not. use_unit_albedo) then
+                call spline_simple(albedo_spline_obj(i), cpar%zs_nu_ref, cpar%zs_albedo(:, i), regular=.false.)
+            else
+                splined_albedos = 1.d0
+            end if
+        end do
+        do i = 1, 3
+            call spline_simple(phase_function_spline_obj(i), cpar%zs_nu_ref, cpar%zs_phase_function(:, i), regular=.false.)
+        end do
+        call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, cpar%zs_solar_irradiance, regular=.false.)
+
+
+        previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
+        end subroutine initialize_zodi_mod
 
     subroutine get_zodi_emission(nside, pix, sat_pos, obs_time, bandpass, s_zodi)
         !   Simulates the zodiacal emission over a chunk of time-ordered data.
@@ -357,25 +356,24 @@ contains
         real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
         real(dp) :: earth_longitude, R_obs, R_max, nu_det
         real(dp), dimension(3) :: earth_pos
-        real(dp), dimension(:), allocatable :: b_nu_delta_LOS, b_nu_center_LOS, nu_ratio
+        real(dp), dimension(:), allocatable :: b_nu_center_LOS, nu_ratio
         real(dp), dimension(:,:), allocatable :: unit_vector_map, b_nu_bandpass_LOS, b_nu_ratio_LOS
-        real(dp), dimension(GAUSS_QUAD_ORDER) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS
-        real(dp), dimension(GAUSS_QUAD_ORDER) :: gauss_grid, gauss_weights
-        real(dp), dimension(GAUSS_QUAD_ORDER) :: T_LOS, density_LOS                                    
-        real(dp), dimension(GAUSS_QUAD_ORDER) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS
+        real(dp), dimension(gauss_quad_order) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS
+        real(dp), dimension(gauss_quad_order) :: gauss_grid, gauss_weights
+        real(dp), dimension(gauss_quad_order) :: T_LOS, density_LOS                                    
+        real(dp), dimension(gauss_quad_order) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, b_nu_freq_corrected_LOS
 
         n_tods = size(pix,1)
         n_detectors = size(pix,2)
         npix = nside2npix(nside)
-        
-        ! If first chunk:
-        ! Get unit vectors corresponding to the observed pixels
+
+        ! Get unit vectors corresponding to the observed pixels (only on first chunk)
         if (.not. allocated(unit_vector_map)) then 
             allocate(unit_vector_map(0:npix-1, 3))
             call get_unit_vector_map(nside, unit_vector_map)
         end if
 
-        ! Allocate cached zodi array
+        ! Allocate cached zodi array (only on first chunk)
         if (.not. allocated(cached_zodi)) then
             allocate(cached_zodi(0:npix-1))
             cached_zodi = 0.d0
@@ -388,11 +386,11 @@ contains
         s_zodi = 0.d0
 
         ! Reset cached zodi if time since last chunk > DELTA_T_ZODI ~ 1day. 
-        if ((obs_time - previous_chunk_obs_time) > DELTA_T_ZODI) cached_zodi = 0.d0
+        if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_zodi = 0.d0
 
         ! Get Earths position given `obs_time`
         do i = 1, 3 
-            earth_pos(i) = splint_simple(spline_earth_pos(i), obs_time)
+            earth_pos(i) = splint_simple(spline_earth_pos_obj(i), obs_time)
         end do
 
         x_obs = sat_pos(1)
@@ -401,175 +399,92 @@ contains
         R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
         earth_longitude = atan(earth_pos(2), earth_pos(1))
 
-        ! Select frequency correction (delta, bandpass, colorcorrection)
-        select case (trim(freq_correction_type))
-            ! Assume delta frequency
-            case ("delta")
-                allocate(b_nu_delta_LOS(GAUSS_QUAD_ORDER))
-                do j = 1, n_detectors
-                    ! Get interpolated source parameters
-                    if (.not. use_unit_emissivity) then
-                        do k = 1, size(comp_emissivity)
-                            comp_emissivity(k) = splint_simple(spline_emissivity(k), bandpass(j)%p%nu_c)
-                        end do
-                    end if
-                    ! Precompute constant terms over detector in Planck's law
-                    b_nu_delta_term1 = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
-                    b_nu_delta_term2 = (h * bandpass(j)%p%nu_c)/ k_B
-                    do i = 1, n_tods
-                        pixel_idx = pix(i, j)
-                        if (cached_zodi(pixel_idx) /= 0.d0) then
-                            s_zodi(i, j) = cached_zodi(pixel_idx)
-                        else
-                            u_x = unit_vector_map(pixel_idx, 1)
-                            u_y = unit_vector_map(pixel_idx, 2)
-                            u_z = unit_vector_map(pixel_idx, 3)
+        do j = 1, n_detectors
+            ! Allocate detector specific blackbody quantities
+            allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
+            allocate(b_nu_bandpass_term2(bandpass(j)%p%n))
+            allocate(b_nu_bandpass_LOS(gauss_quad_order, bandpass(j)%p%n))
+            allocate(b_nu_ratio_LOS(gauss_quad_order, bandpass(j)%p%n))
+            allocate(nu_ratio(bandpass(j)%p%n))
+            allocate(b_nu_center_LOS(gauss_quad_order))
+            b_nu_delta_term1 = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
+            b_nu_delta_term2 = (h * bandpass(j)%p%nu_c)/ k_B
+            b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
+            b_nu_bandpass_term2 = (h * bandpass(j)%p%nu)/ k_B
 
-                            call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
-                            call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=gauss_grid, w=gauss_weights)
-
-                            x_helio_LOS = gauss_grid * u_x + x_obs
-                            y_helio_LOS = gauss_grid * u_y + y_obs
-                            z_helio_LOS = gauss_grid * u_z + z_obs
-                            R_helio_LOS = sqrt(x_helio_LOS**2 + y_helio_LOS**2 + z_helio_LOS**2)
-
-                            call get_dust_grain_temperature(R=R_helio_LOS, T_out=T_LOS)
-                            call get_blackbody_emission_delta(T=T_LOS, b_nu_out=b_nu_delta_LOS)
-
-                            comp => comp_list
-                            k = 1
-                            do while (associated(comp))
-                                call comp%get_density(x=x_helio_LOS, y=y_helio_LOS, z=z_helio_LOS, theta=earth_longitude, n_out=density_LOS)
-                                comp_emission_LOS = comp_emissivity(k) * density_LOS * b_nu_delta_LOS
-                                s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
-                                comp => comp%next()
-                                k = k + 1
-                            end do
-                            cached_zodi(pixel_idx) = s_zodi(i, j)
-                        end if
-                    end do
+            ! Get interpolated source parameters
+            if (.not. use_unit_emissivity) then
+                do k = 1, size(splined_emissivities)
+                    splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
+                    splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
                 end do
-                deallocate(b_nu_delta_LOS)
+                do k = 1, size(splined_phase_functions)
+                    splined_phase_functions(k) = splint_simple(phase_function_spline_obj(k), bandpass(j)%p%nu_c)
+                end do
+            end if
 
-            ! Apply bandpass corrections
-            case ("bandpass")
-                do j = 1, n_detectors
-                    ! Get interpolated source parameters
-                    if (.not. use_unit_emissivity) then
-                        do k = 1, size(comp_emissivity)
-                            comp_emissivity(k) = splint_simple(spline_emissivity(k), bandpass(j)%p%nu_c)
-                        end do
-                    end if
+            do i = 1, n_tods
+                pixel_idx = pix(i, j)
+                if (cached_zodi(pixel_idx) /= 0.d0) then
+                    s_zodi(i, j) = cached_zodi(pixel_idx) ! Look up previously computed LOS emission
+                else                        
+                    u_x = unit_vector_map(pixel_idx, 1)
+                    u_y = unit_vector_map(pixel_idx, 2)
+                    u_z = unit_vector_map(pixel_idx, 3)
 
-                    ! Precompute constant terms in Planck's law
-                    allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
-                    allocate(b_nu_bandpass_term2(bandpass(j)%p%n))
-                    allocate(b_nu_bandpass_LOS(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
-                    b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
-                    b_nu_bandpass_term2 = (h * bandpass(j)%p%nu)/ k_B
-                    do i = 1, n_tods
-                        pixel_idx = pix(i, j)
-                        if (cached_zodi(pixel_idx) /= 0.d0) then
-                            s_zodi(i, j) = cached_zodi(pixel_idx)
-                        else                        
-                            u_x = unit_vector_map(pixel_idx, 1)
-                            u_y = unit_vector_map(pixel_idx, 2)
-                            u_z = unit_vector_map(pixel_idx, 3)
+                    call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+                    call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_quad_order, x=gauss_grid, w=gauss_weights)
 
-                            call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
-                            call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=gauss_grid, w=gauss_weights)
+                    x_helio_LOS = gauss_grid * u_x + x_obs
+                    y_helio_LOS = gauss_grid * u_y + y_obs
+                    z_helio_LOS = gauss_grid * u_z + z_obs
+                    R_helio_LOS = sqrt(x_helio_LOS**2 + y_helio_LOS**2 + z_helio_LOS**2)
 
-                            x_helio_LOS = gauss_grid * u_x + x_obs
-                            y_helio_LOS = gauss_grid * u_y + y_obs
-                            z_helio_LOS = gauss_grid * u_z + z_obs
-                            R_helio_LOS = sqrt(x_helio_LOS**2 + y_helio_LOS**2 + z_helio_LOS**2)
+                    call get_dust_grain_temperature(R=R_helio_LOS, T_out=T_LOS)
 
-                            call get_dust_grain_temperature(R=R_helio_LOS, T_out=T_LOS)
+                    ! Compute blackbody LOS terms which dpeend on the frequency correction specified
+                    select case (trim(freq_correction_type))
+                        case ("delta")        
+                            call get_blackbody_emission_delta(T=T_LOS, b_nu_out=b_nu_center_LOS)
+                            b_nu_freq_corrected_LOS = b_nu_center_LOS
+                        case ("bandpass")
                             call get_blackbody_emission_bp(T=T_LOS, b_nu_out=b_nu_bandpass_LOS)
-                            ! Bandpass integrate blackbody emission at each step along the line-of-sight
-                            do los_step = 1, GAUSS_QUAD_ORDER
+                            do los_step = 1, gauss_quad_order
                                 b_nu_bandpass_integrated_LOS(los_step) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(los_step, :))
                             end do
-
-                            comp => comp_list
-                            k = 1
-                            do while (associated(comp))
-                                call comp%get_density(x=x_helio_LOS, y=y_helio_LOS, z=z_helio_LOS, theta=earth_longitude, n_out=density_LOS)
-                                comp_emission_LOS = comp_emissivity(k) * density_LOS * b_nu_bandpass_integrated_LOS
-                                s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
-                                comp => comp%next()
-                                k = k + 1
-                            end do
-                            cached_zodi(pixel_idx) = s_zodi(i, j)
-                        end if
-                    end do
-                    deallocate(b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                end do
-
-            ! Apply b_nu color corrections given bandpass
-            case ("color")
-                do j = 1, n_detectors
-                    ! Get interpolated source parameters
-                    if (.not. use_unit_emissivity) then
-                        do k = 1, size(comp_emissivity)
-                            comp_emissivity(k) = splint_simple(spline_emissivity(k), bandpass(j)%p%nu_c)
-                        end do
-                    end if
-
-                    allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
-                    allocate(b_nu_bandpass_term2(bandpass(j)%p%n))
-                    allocate(b_nu_ratio_LOS(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
-                    allocate(nu_ratio(bandpass(j)%p%n))
-                    allocate(b_nu_center_LOS(GAUSS_QUAD_ORDER))
-                    allocate(b_nu_bandpass_LOS(GAUSS_QUAD_ORDER, bandpass(j)%p%n))
-                    b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
-                    b_nu_bandpass_term2 = (h * bandpass(j)%p%nu)/ k_B
-                    b_nu_delta_term1 = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
-                    b_nu_delta_term2 = (h * bandpass(j)%p%nu_c)/ k_B
-
-                    do i = 1, n_tods
-                        pixel_idx = pix(i, j)
-                        if (cached_zodi(pixel_idx) /= 0.d0) then
-                            s_zodi(i, j) = cached_zodi(pixel_idx) ! Look up previously computed LOS emission
-                        else                        
-                            u_x = unit_vector_map(pixel_idx, 1)
-                            u_y = unit_vector_map(pixel_idx, 2)
-                            u_z = unit_vector_map(pixel_idx, 3)
-
-                            call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
-                            call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=GAUSS_QUAD_ORDER, x=gauss_grid, w=gauss_weights)
-
-                            x_helio_LOS = gauss_grid * u_x + x_obs
-                            y_helio_LOS = gauss_grid * u_y + y_obs
-                            z_helio_LOS = gauss_grid * u_z + z_obs
-                            R_helio_LOS = sqrt(x_helio_LOS**2 + y_helio_LOS**2 + z_helio_LOS**2)
-
-                            call get_dust_grain_temperature(R=R_helio_LOS, T_out=T_LOS)
+                            b_nu_freq_corrected_LOS = b_nu_bandpass_integrated_LOS
+                        case("color")
                             call get_blackbody_emission_delta(T=T_LOS, b_nu_out=b_nu_center_LOS)
                             call get_blackbody_emission_bp(T=T_LOS, b_nu_out=b_nu_bandpass_LOS)
-
-                            do los_step = 1, GAUSS_QUAD_ORDER
+                            do los_step = 1, gauss_quad_order
                                 b_nu_ratio_LOS(los_step, :) = b_nu_bandpass_LOS(los_step, :) / b_nu_center_LOS(los_step)
                                 b_nu_colorcorr_LOS(los_step) = tsum(bandpass(j)%p%nu, b_nu_ratio_LOS(los_step, :) * bandpass(j)%p%tau)
                             end do
                             nu_ratio = bandpass(j)%p%nu_c / bandpass(j)%p%nu
                             b_nu_colorcorr_LOS = b_nu_colorcorr_LOS / tsum(bandpass(j)%p%nu, nu_ratio * bandpass(j)%p%tau)
+                            b_nu_freq_corrected_LOS = b_nu_center_LOS * b_nu_colorcorr_LOS
+                    end select
 
-                            comp => comp_list
-                            k = 1
-                            do while (associated(comp))
-                                call comp%get_density(x=x_helio_LOS, y=y_helio_LOS, z=z_helio_LOS, theta=earth_longitude, n_out=density_LOS)
-                                comp_emission_LOS = comp_emissivity(k) * density_LOS * b_nu_center_LOS * b_nu_colorcorr_LOS
-                                s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
-                                comp => comp%next()
-                                k = k + 1
-                            end do
-                            cached_zodi(pixel_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
-                        end if
+                    comp => comp_list
+                    k = 1
+                    do while (associated(comp))
+                        call comp%get_density(x=x_helio_LOS, y=y_helio_LOS, z=z_helio_LOS, theta=earth_longitude, n_out=density_LOS)
+                        comp_emission_LOS = splined_emissivities(k) * density_LOS * b_nu_freq_corrected_LOS
+                        s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
+                        comp => comp%next()
+                        k = k + 1
                     end do
-                    deallocate(b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS, b_nu_center_LOS, b_nu_ratio_LOS, nu_ratio)
-                end do
-        end select
+                    cached_zodi(pixel_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
+                end if
+            end do
+            deallocate(b_nu_bandpass_term1)
+            deallocate(b_nu_bandpass_term2)
+            deallocate(b_nu_bandpass_LOS)
+            deallocate(b_nu_ratio_LOS)
+            deallocate(nu_ratio)
+            deallocate(b_nu_center_LOS)
+        end do
+        
         previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
     end subroutine get_zodi_emission
 
@@ -607,7 +522,7 @@ contains
     end subroutine get_unit_vector_map
 
     subroutine get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
-        ! Computes the length of the LOS such that it stops exactly at LOS_CUT.
+        ! Computes the length of the LOS such that it stops exactly at los_cutoff_radius.
         implicit none
         real(dp), intent(in) :: u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs
         real(dp), intent(out) :: R_max
@@ -618,7 +533,7 @@ contains
         cos_lat = cos(lat)
 
         b = 2.d0 * (x_obs * cos_lat * cos(lon) + y_obs * cos_lat * sin(lon))
-        d = R_obs**2 - LOS_CUT**2
+        d = R_obs**2 - los_cutoff_radius**2
         q = -0.5d0 * b * (1.d0 + sqrt(b**2 - (4.d0 * d)) / abs(b))
         R_max = max(q, d / q)
     end subroutine get_R_max
@@ -627,7 +542,7 @@ contains
         implicit none
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T_out
-        T_out = T_0 * R ** (-DELTA)
+        T_out = T_0 * R ** (-delta)
     end subroutine get_dust_grain_temperature
 
     subroutine get_blackbody_emission_bp(T, b_nu_out)
@@ -635,7 +550,7 @@ contains
         real(dp), dimension(:), intent(in) :: T
         real(dp), dimension(:, :), intent(out) :: b_nu_out
         integer(i4b) :: i
-        do i = 1, GAUSS_QUAD_ORDER
+        do i = 1, gauss_quad_order
             b_nu_out(i, :) = b_nu_bandpass_term1/(exp(b_nu_bandpass_term2/T(i)) - 1.d0)
         end do
         b_nu_out = b_nu_out * 1d20 !Convert from W/s/m^2/sr to MJy/sr
@@ -668,7 +583,7 @@ contains
         integer(i4b) :: i
         real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
-        do i = 1, GAUSS_QUAD_ORDER
+        do i = 1, gauss_quad_order
             x_prime = x(i) - self%x_0
             y_prime = y(i) - self%y_0
             z_prime = z(i) - self%z_0
@@ -706,7 +621,7 @@ contains
         integer(i4b) :: i
         real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, zeta, zeta_over_delta_zeta, term1, term2, term3, term4
 
-        do i = 1, GAUSS_QUAD_ORDER
+        do i = 1, gauss_quad_order
             x_prime = x(i) - self%x_0
             y_prime = y(i) - self%y_0
             z_prime = z(i) - self%z_0
@@ -746,7 +661,7 @@ contains
         integer(i4b) :: i
         real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2
 
-        do i = 1, GAUSS_QUAD_ORDER
+        do i = 1, gauss_quad_order
             x_prime = x(i) - self%x_0
             y_prime = y(i) - self%y_0
             z_prime = z(i) - self%z_0
@@ -781,7 +696,7 @@ contains
         integer(i4b) :: i
         real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, theta_prime, exp_term
 
-        do i = 1, GAUSS_QUAD_ORDER
+        do i = 1, gauss_quad_order
             x_prime = x(i) - self%x_0
             y_prime = y(i) - self%y_0
             z_prime = z(i) - self%z_0
@@ -804,8 +719,43 @@ contains
         end do
     end subroutine get_density_feature
 
-    subroutine init_model_variables(cpar)
-        ! Initialize model variables from cpar
+    subroutine init_hyper_parameters(cpar)
+        ! Initialize hyper parameters for commander run
+        implicit none 
+        type(comm_params), intent(in) :: cpar
+        
+        use_cloud = cpar%zs_use_cloud
+        use_band1 = cpar%zs_use_band1
+        use_band2 = cpar%zs_use_band2
+        use_band3 = cpar%zs_use_band3
+        use_ring = cpar%zs_use_ring
+        use_feature = cpar%zs_use_feature
+        use_unit_emissivity = cpar%zs_use_unit_emissivity
+        freq_correction_type = cpar%zs_freq_correction_type
+        los_cutoff_radius = cpar%zs_los_cut
+        gauss_quad_order = cpar%zs_gauss_quad_order
+        delta_t_reset_cash = cpar%zs_delta_t
+    end subroutine init_hyper_parameters
+
+    subroutine init_source_parameters(cpar)
+        ! Initialize source parameters given interplanetary dust model
+        implicit none 
+        type(comm_params), intent(in) :: cpar
+
+        T_0 = cpar%zs_t_0
+        delta = cpar%zs_delta
+        allocate(emissivities(cpar%zs_nbands, cpar%zs_ncomps))
+        allocate(albedos(cpar%zs_nbands, cpar%zs_ncomps))
+        allocate(phase_functions(cpar%zs_nbands, 3))
+        allocate(solar_irradiances(cpar%zs_nbands))
+        emissivities = cpar%zs_emissivity
+        albedos = cpar%zs_emissivity
+        phase_functions = cpar%zs_emissivity
+        solar_irradiances = cpar%zs_solar_irradiance
+    end subroutine init_source_parameters
+
+    subroutine init_shape_parameters(cpar)
+        ! Initialize interplanetary dust shape parameters
         implicit none 
         type(comm_params), intent(in) :: cpar
 
@@ -874,7 +824,8 @@ contains
         feature_sigma_z = cpar%zs_feature_sigma_z
         feature_theta = cpar%zs_feature_theta
         feature_sigma_theta = cpar%zs_feature_sigma_theta
-    end subroutine init_model_variables
+    end subroutine init_shape_parameters
+
 
     function unique_sort(array) result(unique_sorted_array)
         implicit none
