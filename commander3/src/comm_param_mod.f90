@@ -251,7 +251,7 @@ module comm_param_mod
                                                zs_feature_theta, zs_feature_sigma_theta
      real(dp)                               :: zs_t_0, zs_delta
      real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo! (n_band, n_comp)
-     real(dp), allocatable, dimension(:, :) :: zs_phase_function ! (n_band, 3)
+     real(dp), allocatable, dimension(:, :) :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)    :: zs_nu_ref, zs_solar_irradiance ! (n_band)
 
   end type comm_params
@@ -2089,7 +2089,7 @@ contains
         call get_parameter_hashtable(htbl, 'ZODI_NBANDS', par_int=cpar%zs_nbands)
         allocate(cpar%zs_emissivity(cpar%zs_nbands, cpar%zs_ncomps))
         allocate(cpar%zs_albedo(cpar%zs_nbands, cpar%zs_ncomps))
-        allocate(cpar%zs_phase_function(cpar%zs_nbands, 3))
+        allocate(cpar%zs_phase_coeff(cpar%zs_nbands, 3))
         allocate(cpar%zs_solar_irradiance(cpar%zs_nbands))
         allocate(cpar%zs_nu_ref(cpar%zs_nbands))
         allocate(emissivity_string(cpar%zs_ncomps))
@@ -2150,7 +2150,7 @@ contains
             do j = 1, cpar%zs_ncomps
                 read(emissivity_string(j), *) cpar%zs_emissivity(i, j)
                 read(albedo_string(j), *) cpar%zs_albedo(i, j)
-                if (j <= 3) read(phase_function_string(j), *) cpar%zs_phase_function(i, j)
+                if (j <= 3) read(phase_function_string(j), *) cpar%zs_phase_coeff(i, j)
             end do
         end do
 
