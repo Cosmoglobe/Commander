@@ -134,7 +134,7 @@ contains
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.5, 0.5, 1e-2, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      constructor%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
       constructor%xi_n_P_uni(4,:) = [-0.5, 0.5]            ! slope
       constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
       constructor%xi_n_P_uni(5,:) = [-0.5, 0.5]             ! intercept
