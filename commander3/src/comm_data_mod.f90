@@ -323,7 +323,9 @@ contains
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
-             if (cpar%myid == 0) write(*,*) '|  Warning: smoothed rms map not being loaded'
+             if (cpar%myid == 0 .and. j == 1) then
+               write(*,*) '|    Warning: smoothed rms map not being loaded'
+             end if
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do
