@@ -344,12 +344,13 @@ contains
         real(dp) :: earth_longitude, R_obs, R_max, nu_det
         real(dp) :: b_nu_delta_term1, b_nu_delta_term2
         real(dp), dimension(3) :: earth_pos
-        real(dp), dimension(:), allocatable :: b_nu_center_LOS, nu_ratio, b_nu_bandpass_term1, b_nu_bandpass_term2
+        real(dp), dimension(:), allocatable :: nu_ratio, b_nu_bandpass_term1, b_nu_bandpass_term2
         real(dp), dimension(:,:), allocatable :: unit_vector_map, b_nu_bandpass_LOS, b_nu_ratio_LOS
         real(dp), dimension(gauss_quad_order) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
         real(dp), dimension(gauss_quad_order) :: gauss_grid, gauss_weights
         real(dp), dimension(gauss_quad_order) :: T_LOS, density_LOS                                    
-        real(dp), dimension(gauss_quad_order) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, b_nu_freq_corrected_LOS
+        real(dp), dimension(gauss_quad_order) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
+                                                 b_nu_freq_corrected_LOS, b_nu_center_LOS
         real(dp), dimension(gauss_quad_order) :: solar_flux_LOS, scattering_angle, phase_function
         logical(lgt) :: scattering
         real(dp) :: phase_function_normalization = 0.d0
@@ -393,6 +394,9 @@ contains
         R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
         earth_longitude = atan(earth_pos(2), earth_pos(1))
 
+        ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
+        ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
+        ! San et al. 2022 (https://www.aanda.org/articles/aa/pdf/forth/aa44133-22.pdf).
         do j = 1, n_detectors
             ! Allocate detector specific blackbody quantities
             allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
@@ -400,7 +404,6 @@ contains
             allocate(b_nu_bandpass_LOS(gauss_quad_order, bandpass(j)%p%n))
             allocate(b_nu_ratio_LOS(gauss_quad_order, bandpass(j)%p%n))
             allocate(nu_ratio(bandpass(j)%p%n))
-            allocate(b_nu_center_LOS(gauss_quad_order))
             b_nu_delta_term1 = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
             b_nu_delta_term2 = (h * bandpass(j)%p%nu_c)/ k_B
             b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
@@ -426,9 +429,6 @@ contains
             else
                 scattering = .false.
             end if
-
-            if (use_unit_emissivity) splined_emissivities = 1.d0
-            if (use_unit_albedo) splined_albedos = 1.d0
 
             do i = 1, n_tods
                 pixel_idx = pix(i, j)
@@ -492,8 +492,8 @@ contains
                         comp_emission_LOS = (1.d0 - splined_albedos(k)) * (splined_emissivities(k) * b_nu_freq_corrected_LOS)
                         if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(k) * solar_flux_LOS * phase_function)
                         comp_emission_LOS = comp_emission_LOS * density_LOS
-                        s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
 
+                        s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
                         comp => comp%next()
                         k = k + 1
                     end do
@@ -505,7 +505,6 @@ contains
             deallocate(b_nu_bandpass_LOS)
             deallocate(b_nu_ratio_LOS)
             deallocate(nu_ratio)
-            deallocate(b_nu_center_LOS)
         end do
         
         previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
@@ -878,7 +877,7 @@ contains
         allocate(solar_irradiances(cpar%zs_nbands))
         emissivities = cpar%zs_emissivity
         albedos = cpar%zs_albedo
-        phase_coeffs = cpar%zs_phase_function
+        phase_coeffs = cpar%zs_phase_coeff
         solar_irradiances = cpar%zs_solar_irradiance
     end subroutine init_source_parameters
 
