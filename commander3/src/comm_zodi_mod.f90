@@ -39,20 +39,21 @@ module comm_zodi_mod
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
-    integer(i4b) :: gauss_quad_order
-    real(dp) :: los_cutoff_radius, EPS, delta_t_reset_cash, previous_chunk_obs_time
+    integer(i4b) :: gauss_degree
+    character(len=512) :: freq_correction_type
+    real(dp) :: EPS = 3.d-14
+    real(dp) :: R_cutoff, delta_t_reset_cash, previous_chunk_obs_time
     real(dp), allocatable, dimension(:) :: unique_nsides
     real(dp), allocatable, dimension(:) :: tabulated_earth_time
-    real(sp), allocatable, dimension(:) :: cached_zodi
+    real(sp), allocatable, dimension(:) :: cached_s_zodi
     real(dp), allocatable, dimension(:,:) :: tabulated_earth_pos
-    character(len=512) :: freq_correction_type
     type(spline_type) :: solar_irradiance_spline_obj
     type(spline_type), dimension(3) :: spline_earth_pos_obj
     type(spline_type), allocatable, dimension(:) :: emissivity_spline_obj, albedo_spline_obj, phase_coeff_spline_obj
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
                     apply_color_correction, use_unit_emissivity, use_unit_albedo
 
-    ! model parameters
+    ! Model parameters
     real(dp) :: T_0, delta, splined_solar_irradiance
     real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
                 cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
@@ -72,7 +73,8 @@ module comm_zodi_mod
 
 
     type, abstract :: ZodiComponent
-        ! Abstract base Zodical component class.
+        ! Abstract base class for a zodiacal component.
+
 
         ! Pointers to the next/prev links in the linked list
         class(ZodiComponent), pointer :: next_link => null()
@@ -98,13 +100,13 @@ module comm_zodi_mod
             class(ZodiComponent)  :: self
         end subroutine initialize_interface
 
-        subroutine density_interface(self, x, y, z, theta, n_out)
+        subroutine density_interface(self, X_vec, theta, n_out)
             ! Returns the dust density (n) of the component at heliocentric 
             ! coordinates (x, y, z) and the earths longitude (theta).
 
             import i4b, dp, ZodiComponent
             class(ZodiComponent) :: self
-            real(dp), intent(in), dimension(:) :: x, y, z
+            real(dp), intent(in), dimension(:, :) :: X_vec
             real(dp), intent(in) :: theta
             real(dp), intent(out), dimension(:) :: n_out
             real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane
@@ -155,7 +157,7 @@ module comm_zodi_mod
     type UnitVectorList
         type(UnitVector), dimension(:), allocatable :: vectors
     end type UnitVectorList
-    type(UnitVectorList) :: unit_vectors
+    type(UnitVectorList) :: unit_vector_list
 
 
 contains
@@ -240,12 +242,12 @@ contains
         call gal_to_ecl_conversion_matrix(ecliptic_to_galactic_matrix)
 
         sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
-        allocate(unit_vectors%vectors(size(sorted_unique_nsides)))
+        allocate(unit_vector_list%vectors(size(sorted_unique_nsides)))
 
         do i = 1, size(sorted_unique_nsides)
             nside = sorted_unique_nsides(i)
             npix = nside2npix(nside)
-            allocate(unit_vectors%vectors(i)%elements(0:npix-1, 3))
+            allocate(unit_vector_list%vectors(i)%elements(0:npix-1, 3))
             allocate(galactic_vec(0:npix-1, 3))
         
             do j = 0, npix - 1
@@ -255,7 +257,7 @@ contains
                 galactic_vec(j, 3) = vec(3)
             end do
         
-            unit_vectors%vectors(i)%elements = matmul(galactic_vec, ecliptic_to_galactic_matrix)
+            unit_vector_list%vectors(i)%elements = matmul(galactic_vec, ecliptic_to_galactic_matrix)
             deallocate(galactic_vec)
         end do
 
@@ -299,7 +301,7 @@ contains
         previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
     end subroutine initialize_zodi_mod
 
-    subroutine get_zodi_emission(nside, pix, sat_pos, obs_time, bandpass, s_zodi)
+    subroutine get_zodi_emission(nside, pix, obs_pos, obs_time, bandpass, s_zodi)
         !   Simulates the zodiacal emission over a chunk of time-ordered data.
         !
         !   Given a set of observations, the observer position and time of 
@@ -314,7 +316,7 @@ contains
         !   pix: array
         !       Pixel indices representing observations in a chunk of the 
         !       time-ordered data. Dimensions are (`n_tod`, `n_det`)
-        !   sat_pos: real
+        !   obs_pos: real
         !       Heliocentric ecliptic cartesian position of the observer in AU.
         !   obs_time: real
         !       Time of observation in MJD. Assumes a fixed time of observeration
@@ -334,24 +336,24 @@ contains
 
         integer(i4b), intent(in) :: nside
         integer(i4b), dimension(1:,1:), intent(in) :: pix
-        real(dp), dimension(3), intent(in) :: sat_pos
+        real(dp), dimension(3), intent(in) :: obs_pos
         real(dp), intent(in) :: obs_time
         class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
         real(sp), dimension(1:,1:), intent(out) :: s_zodi
 
         integer(i4b) :: i, j, k, pixel_idx, los_step, n_detectors, n_tods, npix
-        real(dp) :: u_x, u_y, u_z, x1, y1, z1, dx, dy, dz, x_obs, y_obs, z_obs
-        real(dp) :: earth_longitude, R_obs, R_max, nu_det
+        real(dp) :: earth_lon, R_obs, R_max, nu_det
         real(dp) :: b_nu_delta_term1, b_nu_delta_term2
-        real(dp), dimension(3) :: earth_pos
+        real(dp), dimension(3) :: earth_pos, unit_vector
         real(dp), dimension(:), allocatable :: nu_ratio, b_nu_bandpass_term1, b_nu_bandpass_term2
-        real(dp), dimension(:,:), allocatable :: unit_vector_map, b_nu_bandpass_LOS, b_nu_ratio_LOS
-        real(dp), dimension(gauss_quad_order) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
-        real(dp), dimension(gauss_quad_order) :: gauss_grid, gauss_weights
-        real(dp), dimension(gauss_quad_order) :: T_LOS, density_LOS                                    
-        real(dp), dimension(gauss_quad_order) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
+        real(dp), dimension(:,:), allocatable :: tabulated_unit_vectors, b_nu_bandpass_LOS, b_nu_ratio_LOS
+        real(dp), dimension(3, gauss_degree) :: X_vec_LOS, X_helio_vec_LOS
+        real(dp), dimension(gauss_degree) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
+        real(dp), dimension(gauss_degree) :: gauss_nodes, gauss_weights
+        real(dp), dimension(gauss_degree) :: T_LOS, density_LOS                                    
+        real(dp), dimension(gauss_degree) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
                                                  b_nu_freq_corrected_LOS, b_nu_center_LOS
-        real(dp), dimension(gauss_quad_order) :: solar_flux_LOS, scattering_angle, phase_function
+        real(dp), dimension(gauss_degree) :: solar_flux_LOS, scattering_angle, phase_function
         logical(lgt) :: scattering
         real(dp) :: phase_function_normalization = 0.d0
 
@@ -361,38 +363,34 @@ contains
         npix = nside2npix(nside)
 
         ! Get unit vectors corresponding to the observed pixels (only on first chunk)
-        if (.not. allocated(unit_vector_map)) then 
-            allocate(unit_vector_map(0:npix-1, 3))
-            call get_unit_vector_map(nside, unit_vector_map)
+        if (.not. allocated(tabulated_unit_vectors)) then 
+            allocate(tabulated_unit_vectors(0:npix-1, 3))
+            call get_tabulated_unit_vectors(nside, tabulated_unit_vectors)
         end if
 
         ! Allocate cached zodi array (only on first chunk)
-        if (.not. allocated(cached_zodi)) then
-            allocate(cached_zodi(0:npix-1))
-            cached_zodi = 0.d0
+        if (.not. allocated(cached_s_zodi)) then
+            allocate(cached_s_zodi(0:npix-1))
+            cached_s_zodi = 0.d0
         end if
 
         ! Reset quantites from previous chunk
         comp_emission_LOS = 0.d0
-        gauss_grid = 0.d0
+        gauss_nodes = 0.d0
         gauss_weights = 0.d0
         s_zodi = 0.d0
         splined_emissivities = 1.d0
         splined_albedos = 0.d0
 
         ! Reset cached zodi if time since last chunk > DELTA_T_ZODI ~ 1day. 
-        if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_zodi = 0.d0
+        if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_s_zodi = 0.d0
 
-        ! Get Earths position given `obs_time`
+        ! Interpolate the position of Earth
         do i = 1, 3 
             earth_pos(i) = splint_simple(spline_earth_pos_obj(i), obs_time)
         end do
-
-        x_obs = sat_pos(1)
-        y_obs = sat_pos(2)
-        z_obs = sat_pos(3)
-        R_obs = sqrt(x_obs**2 + y_obs**2 + z_obs**2)
-        earth_longitude = atan(earth_pos(2), earth_pos(1))
+        R_obs = norm2(obs_pos)
+        earth_lon = atan(earth_pos(2), earth_pos(1)) ! Longitude of Earth
 
         ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
         ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
@@ -401,8 +399,8 @@ contains
             ! Allocate detector specific blackbody quantities
             allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
             allocate(b_nu_bandpass_term2(bandpass(j)%p%n))
-            allocate(b_nu_bandpass_LOS(gauss_quad_order, bandpass(j)%p%n))
-            allocate(b_nu_ratio_LOS(gauss_quad_order, bandpass(j)%p%n))
+            allocate(b_nu_bandpass_LOS(gauss_degree, bandpass(j)%p%n))
+            allocate(b_nu_ratio_LOS(gauss_degree, bandpass(j)%p%n))
             allocate(nu_ratio(bandpass(j)%p%n))
             b_nu_delta_term1 = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
             b_nu_delta_term2 = (h * bandpass(j)%p%nu_c)/ k_B
@@ -432,35 +430,31 @@ contains
 
             do i = 1, n_tods
                 pixel_idx = pix(i, j)
-                if (cached_zodi(pixel_idx) /= 0.d0) then
-                    s_zodi(i, j) = cached_zodi(pixel_idx) ! Look up previously computed LOS emission
+                if (cached_s_zodi(pixel_idx) /= 0.d0) then
+                    s_zodi(i, j) = cached_s_zodi(pixel_idx) ! Look up previously computed LOS emission
                 else                        
-                    u_x = unit_vector_map(pixel_idx, 1)
-                    u_y = unit_vector_map(pixel_idx, 2)
-                    u_z = unit_vector_map(pixel_idx, 3)
+                    unit_vector = tabulated_unit_vectors(pixel_idx, :)
 
-                    call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
-                    call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_quad_order, x=gauss_grid, w=gauss_weights)
+                    call get_R_max(unit_vector, obs_pos, R_obs, R_max)
+                    call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
 
-                    ! Line of sight grid points from solar system origin
-                    x_LOS = gauss_grid * u_x
-                    y_LOS = gauss_grid * u_y
-                    z_LOS = gauss_grid * u_z
-
-                    ! Line of sight grid points from observer in heliocentric coordinates
-                    x_helio_LOS = x_LOS + x_obs
-                    y_helio_LOS = y_LOS + y_obs
-                    z_helio_LOS = z_LOS + z_obs
-                    R_helio_LOS = sqrt(x_helio_LOS**2 + y_helio_LOS**2 + z_helio_LOS**2)
+                    ! Compute points along a line of sight from the solar system origin 
+                    ! and from the observer towards a the pixel given by the unit vectors 
+                    ! with length R_max.
+                    do k = 1, 3
+                        X_vec_LOS(k, :) = gauss_nodes * unit_vector(k)
+                        X_helio_vec_LOS(k, :) = X_vec_LOS(k, :) + obs_pos(k)
+                    end do
+                    R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)                
 
                     if (scattering) then
                         solar_flux_LOS = splined_solar_irradiance / R_helio_LOS**2
-                        R_LOS = sqrt(x_LOS**2 + y_LOS**2 + z_LOS**2)
-                        call get_scattering_angle(x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS, scattering_angle)
+                        R_LOS = norm2(X_vec_LOS, dim=1)
+                        call get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
                         call get_phase_function(scattering_angle, splined_phase_coeffs, phase_function_normalization, phase_function)
                     end if
 
-                    call get_dust_grain_temperature(R=R_helio_LOS, T_out=T_LOS)
+                    call get_dust_grain_temperature(R_helio_LOS, T_LOS)
 
                     ! Compute blackbody LOS terms which depend on the frequency correction specified in the hyper parameters
                     select case (trim(freq_correction_type))
@@ -469,14 +463,14 @@ contains
                             b_nu_freq_corrected_LOS = b_nu_center_LOS
                         case ("bandpass")
                             call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                            do los_step = 1, gauss_quad_order
+                            do los_step = 1, gauss_degree
                                 b_nu_bandpass_integrated_LOS(los_step) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(los_step, :))
                             end do
                             b_nu_freq_corrected_LOS = b_nu_bandpass_integrated_LOS
                         case("color")
                             call get_blackbody_emission_delta(T_LOS, b_nu_delta_term1, b_nu_delta_term2, b_nu_center_LOS)
                             call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                            do los_step = 1, gauss_quad_order
+                            do los_step = 1, gauss_degree
                                 b_nu_ratio_LOS(los_step, :) = b_nu_bandpass_LOS(los_step, :) / b_nu_center_LOS(los_step)
                                 b_nu_colorcorr_LOS(los_step) = tsum(bandpass(j)%p%nu, b_nu_ratio_LOS(los_step, :) * bandpass(j)%p%tau)
                             end do
@@ -488,7 +482,7 @@ contains
                     comp => comp_list
                     k = 1
                     do while (associated(comp))
-                        call comp%get_density(x=x_helio_LOS, y=y_helio_LOS, z=z_helio_LOS, theta=earth_longitude, n_out=density_LOS)
+                        call comp%get_density(X_helio_vec_LOS, earth_lon, density_LOS)
                         comp_emission_LOS = (1.d0 - splined_albedos(k)) * (splined_emissivities(k) * b_nu_freq_corrected_LOS)
                         if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(k) * solar_flux_LOS * phase_function)
                         comp_emission_LOS = comp_emission_LOS * density_LOS
@@ -497,7 +491,7 @@ contains
                         comp => comp%next()
                         k = k + 1
                     end do
-                    cached_zodi(pixel_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
+                    cached_s_zodi(pixel_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
                 end if
             end do
             deallocate(b_nu_bandpass_term1)
@@ -513,19 +507,20 @@ contains
 
     ! Functions used in `get_zodi_emission`
     ! -------------------------------------
-    subroutine get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
+    subroutine get_R_max(unit_vector, obs_pos, R_obs, R_max)
         ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
         implicit none
-        real(dp), intent(in) :: u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs
+        real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
+        real(dp), intent(in) :: R_obs
         real(dp), intent(out) :: R_max
         real(dp) :: lon, lat, cos_lat, b, d, q
 
-        lon = atan(u_y, u_x)
-        lat = asin(u_z)
+        lon = atan(unit_vector(2), unit_vector(1))
+        lat = asin(unit_vector(3))
         cos_lat = cos(lat)
 
-        b = 2.d0 * (x_obs * cos_lat * cos(lon) + y_obs * cos_lat * sin(lon))
-        d = R_obs**2 - los_cutoff_radius**2
+        b = 2.d0 * (obs_pos(1) * cos_lat * cos(lon) + obs_pos(2) * cos_lat * sin(lon))
+        d = R_obs**2 - R_cutoff**2
         q = -0.5d0 * b * (1.d0 + sqrt(b**2 - (4.d0 * d)) / abs(b))
         R_max = max(q, d / q)
     end subroutine get_R_max
@@ -542,7 +537,7 @@ contains
         real(dp), dimension(:), intent(in) :: T, b_nu_bandpass_term1, b_nu_bandpass_term2
         real(dp), dimension(:, :), intent(out) :: b_nu_out
         integer(i4b) :: i
-        do i = 1, gauss_quad_order
+        do i = 1, gauss_degree
             b_nu_out(i, :) = b_nu_bandpass_term1/(exp(b_nu_bandpass_term2/T(i)) - 1.d0)
         end do
         b_nu_out = b_nu_out * 1d20 !Convert from W/s/m^2/sr to MJy/sr
@@ -556,13 +551,14 @@ contains
         b_nu_out = (b_nu_delta_term1/(exp(b_nu_delta_term2/T) - 1.d0)) * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_blackbody_emission_delta
 
-    subroutine get_scattering_angle(x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS, scattering_angle)
+    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
         implicit none
-        real(dp), dimension(:), intent(in) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
+        real(dp), dimension(:, :), intent(in) :: X_helio_vec_LOS, X_vec_LOS
+        real(dp), dimension(:), intent(in) :: R_helio_LOS, R_LOS
         real(dp), dimension(:), intent(out) :: scattering_angle
-        real(dp), dimension(gauss_quad_order) :: cos_theta
+        real(dp), dimension(gauss_degree) :: cos_theta
 
-        cos_theta = (x_helio_LOS * x_LOS + y_helio_LOS * y_LOS + z_helio_LOS * z_LOS)  / (R_LOS * R_helio_LOS)
+        cos_theta = sum(X_helio_vec_LOS * X_vec_LOS, dim=1) / (R_LOS * R_helio_LOS)
 
         ! clip cos(theta) to [-1, 1]
         where (cos_theta > 1)
@@ -609,19 +605,19 @@ contains
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_cloud
 
-    subroutine get_density_cloud(self, x, y, z, theta, n_out)
+    subroutine get_density_cloud(self, X_vec, theta, n_out)
         implicit none
         class(Cloud) :: self
-        real(dp), dimension(:), intent(in) :: x, y, z
+        real(dp), dimension(:, :), intent(in) :: X_vec
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n_out
         integer(i4b) :: i
         real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
-        do i = 1, gauss_quad_order
-            x_prime = x(i) - self%x_0
-            y_prime = y(i) - self%y_0
-            z_prime = z(i) - self%z_0
+        do i = 1, gauss_degree
+            x_prime = X_vec(1, i) - self%x_0
+            y_prime = X_vec(2, i) - self%y_0
+            z_prime = X_vec(3, i) - self%z_0
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
             Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
@@ -647,19 +643,19 @@ contains
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_band
 
-    subroutine get_density_band(self, x, y, z, theta, n_out)
+    subroutine get_density_band(self, X_vec, theta, n_out)
         implicit none
         class(Band) :: self
-        real(dp), dimension(:), intent(in)  :: x, y, z
+        real(dp), dimension(:, :), intent(in)  :: X_vec
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n_out
         integer(i4b) :: i
         real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, zeta, zeta_over_delta_zeta, term1, term2, term3, term4
 
-        do i = 1, gauss_quad_order
-            x_prime = x(i) - self%x_0
-            y_prime = y(i) - self%y_0
-            z_prime = z(i) - self%z_0
+        do i = 1, gauss_degree
+            x_prime = X_vec(1, i) - self%x_0
+            y_prime = X_vec(2, i) - self%y_0
+            z_prime = X_vec(3, i) - self%z_0
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
             Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
@@ -687,19 +683,19 @@ contains
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_ring
 
-    subroutine get_density_ring(self, x, y, z, theta, n_out)
+    subroutine get_density_ring(self, X_vec, theta, n_out)
         implicit none
         class(Ring) :: self
-        real(dp), dimension(:), intent(in)  :: x, y, z
+        real(dp), dimension(:, :), intent(in)  :: X_vec
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n_out
         integer(i4b) :: i
         real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2
 
-        do i = 1, gauss_quad_order
-            x_prime = x(i) - self%x_0
-            y_prime = y(i) - self%y_0
-            z_prime = z(i) - self%z_0
+        do i = 1, gauss_degree
+            x_prime = X_vec(1, i) - self%x_0
+            y_prime = X_vec(2, i) - self%y_0
+            z_prime = X_vec(3, i) - self%z_0
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
             Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
@@ -722,20 +718,20 @@ contains
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_feature
 
-    subroutine get_density_feature(self, x, y, z, theta, n_out)
+    subroutine get_density_feature(self, X_vec, theta, n_out)
         implicit none
         class(Feature) :: self
-        real(dp), dimension(:), intent(in) :: x, y, z
+        real(dp), dimension(:, :), intent(in) :: X_vec
         real(dp), intent(in) :: theta
         real(dp), dimension(:), intent(out) :: n_out
         integer(i4b) :: i
         real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, theta_prime, exp_term
 
-        do i = 1, gauss_quad_order
-            x_prime = x(i) - self%x_0
-            y_prime = y(i) - self%y_0
-            z_prime = z(i) - self%z_0
-            theta_prime = atan2(y(i), x(i)) - (theta + self%theta_0)
+        do i = 1, gauss_degree
+            x_prime = X_vec(1, i) - self%x_0
+            y_prime = X_vec(2, i) - self%y_0
+            z_prime = X_vec(3, i) - self%z_0
+            theta_prime = atan2(y_prime, x_prime) - (theta + self%theta_0)
 
             ! Constraining the angle to the limit [-pi, pi]
             do while (theta_prime < -pi)
@@ -827,20 +823,20 @@ contains
         ! call invert_matrix_dp(matrix)
     end subroutine gal_to_ecl_conversion_matrix
 
-    subroutine get_unit_vector_map(band_nside, unit_vector_map)
+    subroutine get_tabulated_unit_vectors(band_nside, tabulated_unit_vectors)
         ! Routine which selects coordinate transformation map based on resolution
         implicit none
         integer(i4b), intent(in) :: band_nside
-        real(dp), dimension(:,:), intent(inout) :: unit_vector_map
+        real(dp), dimension(:,:), intent(inout) :: tabulated_unit_vectors
         integer(i4b) :: i, npix, nside_idx
 
         npix = nside2npix(band_nside)
-        do i = 1, size(unit_vectors%vectors)
-            if (size(unit_vectors%vectors(i)%elements(:, 1)) == npix) then
-                unit_vector_map = unit_vectors%vectors(i)%elements
+        do i = 1, size(unit_vector_list%vectors)
+            if (size(unit_vector_list%vectors(i)%elements(:, 1)) == npix) then
+                tabulated_unit_vectors = unit_vector_list%vectors(i)%elements
             end if
         end do
-    end subroutine get_unit_vector_map
+    end subroutine get_tabulated_unit_vectors
 
 
 
@@ -859,8 +855,8 @@ contains
         use_feature = cpar%zs_use_feature
         use_unit_emissivity = cpar%zs_use_unit_emissivity
         freq_correction_type = cpar%zs_freq_correction_type
-        los_cutoff_radius = cpar%zs_los_cut
-        gauss_quad_order = cpar%zs_gauss_quad_order
+        R_cutoff = cpar%zs_los_cut
+        gauss_degree = cpar%zs_gauss_quad_order
         delta_t_reset_cash = cpar%zs_delta_t
     end subroutine init_hyper_parameters
 
