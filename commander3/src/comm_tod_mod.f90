@@ -754,6 +754,7 @@ contains
        end do
     end do
 
+    call update_status(status, "ccc")
 
     ! Precompute trigonometric functions
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
