@@ -269,9 +269,9 @@ contains
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
        if (trim(self%type) == 'DIRBE') then
-          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
-          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          sz(i)           = comp_sz_thermo(self%nu(i))
+          bnu_prime(i)    =  1.d0 !comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) =  1.d0 !comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           =  1.d0 !comp_sz_thermo(self%nu(i))
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))

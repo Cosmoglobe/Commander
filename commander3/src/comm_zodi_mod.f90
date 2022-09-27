@@ -48,12 +48,12 @@ module comm_zodi_mod
     character(len=512) :: freq_correction_type
     type(spline_type) :: solar_irradiance_spline_obj
     type(spline_type), dimension(3) :: spline_earth_pos_obj
-    type(spline_type), allocatable, dimension(:) :: emissivity_spline_obj, albedo_spline_obj, phase_function_spline_obj
+    type(spline_type), allocatable, dimension(:) :: emissivity_spline_obj, albedo_spline_obj, phase_coeff_spline_obj
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
                     apply_color_correction, use_unit_emissivity, use_unit_albedo
 
     ! model parameters
-    real(dp) :: T_0, delta, solar_irradiance
+    real(dp) :: T_0, delta, splined_solar_irradiance
     real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
                 cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
     real(dp) :: band1_x_0, band1_y_0, band1_z_0, band1_incl, band1_Omega, band1_n_0, &
@@ -67,8 +67,8 @@ module comm_zodi_mod
     real(dp) :: feature_x_0, feature_y_0, feature_z_0, feature_incl, feature_Omega, feature_n_0, &
                 feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
     real(dp), allocatable, dimension(:) :: solar_irradiances
-    real(dp), allocatable, dimension(:, :) :: emissivities, albedos, phase_functions
-    real(dp), allocatable, dimension(:) :: splined_emissivities, splined_albedos, splined_phase_functions
+    real(dp), allocatable, dimension(:, :) :: emissivities, albedos, phase_coeffs
+    real(dp), allocatable, dimension(:) :: splined_emissivities, splined_albedos, splined_phase_coeffs
 
 
     type, abstract :: ZodiComponent
@@ -275,32 +275,25 @@ contains
         ! Set up spline objects
         allocate(emissivity_spline_obj(cpar%zs_ncomps))
         allocate(albedo_spline_obj(cpar%zs_ncomps))
-        allocate(phase_function_spline_obj(3))
+        allocate(phase_coeff_spline_obj(3))
         allocate(splined_emissivities(cpar%zs_ncomps))
         allocate(splined_albedos(cpar%zs_ncomps))
+        allocate(splined_phase_coeffs(3))
 
         ! Earths position
         do i = 1, 3
             call spline_simple(spline_earth_pos_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
         end do
 
-        ! Source parameters
+
         do i = 1, cpar%zs_ncomps
-            if (.not. use_unit_emissivity) then
-                call spline_simple(emissivity_spline_obj(i), cpar%zs_nu_ref, cpar%zs_emissivity(:, i), regular=.false.)
-            else 
-                splined_emissivities = 1.d0
-            end if 
-            if (.not. use_unit_albedo) then
-                call spline_simple(albedo_spline_obj(i), cpar%zs_nu_ref, cpar%zs_albedo(:, i), regular=.false.)
-            else
-                splined_albedos = 1.d0
-            end if
+            call spline_simple(emissivity_spline_obj(i), cpar%zs_nu_ref, emissivities(:, i), regular=.false.)
+            call spline_simple(albedo_spline_obj(i), cpar%zs_nu_ref, albedos(:, i), regular=.false.)
         end do
         do i = 1, 3
-            call spline_simple(phase_function_spline_obj(i), cpar%zs_nu_ref, cpar%zs_phase_function(:, i), regular=.false.)
+            call spline_simple(phase_coeff_spline_obj(i), cpar%zs_nu_ref, phase_coeffs(:, i), regular=.false.)
         end do
-        call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, cpar%zs_solar_irradiance, regular=.false.)
+        call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, solar_irradiances, regular=.false.)
 
 
         previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
@@ -353,10 +346,14 @@ contains
         real(dp), dimension(3) :: earth_pos
         real(dp), dimension(:), allocatable :: b_nu_center_LOS, nu_ratio, b_nu_bandpass_term1, b_nu_bandpass_term2
         real(dp), dimension(:,:), allocatable :: unit_vector_map, b_nu_bandpass_LOS, b_nu_ratio_LOS
-        real(dp), dimension(gauss_quad_order) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS
+        real(dp), dimension(gauss_quad_order) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
         real(dp), dimension(gauss_quad_order) :: gauss_grid, gauss_weights
         real(dp), dimension(gauss_quad_order) :: T_LOS, density_LOS                                    
         real(dp), dimension(gauss_quad_order) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, b_nu_freq_corrected_LOS
+        real(dp), dimension(gauss_quad_order) :: solar_flux_LOS, scattering_angle, phase_function
+        logical(lgt) :: scattering
+        real(dp) :: phase_function_normalization = 0.d0
+
 
         n_tods = size(pix,1)
         n_detectors = size(pix,2)
@@ -379,6 +376,8 @@ contains
         gauss_grid = 0.d0
         gauss_weights = 0.d0
         s_zodi = 0.d0
+        splined_emissivities = 1.d0
+        splined_albedos = 0.d0
 
         ! Reset cached zodi if time since last chunk > DELTA_T_ZODI ~ 1day. 
         if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_zodi = 0.d0
@@ -407,16 +406,29 @@ contains
             b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
             b_nu_bandpass_term2 = (h * bandpass(j)%p%nu)/ k_B
 
-            ! Get interpolated source parameters
-            if (.not. use_unit_emissivity) then
-                do k = 1, size(splined_emissivities)
-                    splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
-                    splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
+            ! Interpolate in source parameters to the detector frequency
+            do k = 1, size(splined_emissivities)
+                splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
+            end do
+            do k = 1, size(splined_albedos)
+                splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
+            end do
+
+            ! If any of the interpolated albedos are non zero, we must take contributions from 
+            ! scattered sunlight into account when computing the zodiacal emission
+            if (count(splined_albedos /= 0.d0) > 0) then
+                scattering = .true.
+                do k = 1, size(splined_phase_coeffs)
+                    splined_phase_coeffs(k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
                 end do
-                do k = 1, size(splined_phase_functions)
-                    splined_phase_functions(k) = splint_simple(phase_function_spline_obj(k), bandpass(j)%p%nu_c)
-                end do
+                splined_solar_irradiance = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
+                call get_phase_normalization(splined_phase_coeffs, phase_function_normalization)
+            else
+                scattering = .false.
             end if
+
+            if (use_unit_emissivity) splined_emissivities = 1.d0
+            if (use_unit_albedo) splined_albedos = 1.d0
 
             do i = 1, n_tods
                 pixel_idx = pix(i, j)
@@ -430,10 +442,23 @@ contains
                     call get_R_max(u_x, u_y, u_z, x_obs, y_obs, z_obs, R_obs, R_max)
                     call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_quad_order, x=gauss_grid, w=gauss_weights)
 
-                    x_helio_LOS = gauss_grid * u_x + x_obs
-                    y_helio_LOS = gauss_grid * u_y + y_obs
-                    z_helio_LOS = gauss_grid * u_z + z_obs
+                    ! Line of sight grid points from solar system origin
+                    x_LOS = gauss_grid * u_x
+                    y_LOS = gauss_grid * u_y
+                    z_LOS = gauss_grid * u_z
+
+                    ! Line of sight grid points from observer in heliocentric coordinates
+                    x_helio_LOS = x_LOS + x_obs
+                    y_helio_LOS = y_LOS + y_obs
+                    z_helio_LOS = z_LOS + z_obs
                     R_helio_LOS = sqrt(x_helio_LOS**2 + y_helio_LOS**2 + z_helio_LOS**2)
+
+                    if (scattering) then
+                        solar_flux_LOS = splined_solar_irradiance / R_helio_LOS**2
+                        R_LOS = sqrt(x_LOS**2 + y_LOS**2 + z_LOS**2)
+                        call get_scattering_angle(x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS, scattering_angle)
+                        call get_phase_function(scattering_angle, splined_phase_coeffs, phase_function_normalization, phase_function)
+                    end if
 
                     call get_dust_grain_temperature(R=R_helio_LOS, T_out=T_LOS)
 
@@ -464,8 +489,11 @@ contains
                     k = 1
                     do while (associated(comp))
                         call comp%get_density(x=x_helio_LOS, y=y_helio_LOS, z=z_helio_LOS, theta=earth_longitude, n_out=density_LOS)
-                        comp_emission_LOS = splined_emissivities(k) * density_LOS * b_nu_freq_corrected_LOS
+                        comp_emission_LOS = (1.d0 - splined_albedos(k)) * (splined_emissivities(k) * b_nu_freq_corrected_LOS)
+                        if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(k) * solar_flux_LOS * phase_function)
+                        comp_emission_LOS = comp_emission_LOS * density_LOS
                         s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
+
                         comp => comp%next()
                         k = k + 1
                     end do
@@ -529,115 +557,46 @@ contains
         b_nu_out = (b_nu_delta_term1/(exp(b_nu_delta_term2/T) - 1.d0)) * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_blackbody_emission_delta
 
+    subroutine get_scattering_angle(x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS, scattering_angle)
+        implicit none
+        real(dp), dimension(:), intent(in) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
+        real(dp), dimension(:), intent(out) :: scattering_angle
+        real(dp), dimension(gauss_quad_order) :: cos_theta
 
-    ! Functions for initializing zodi parameters from cpar
-    ! ----------------------------------------------------
-    subroutine init_hyper_parameters(cpar)
-        ! Initialize hyper parameters for commander run
-        implicit none 
-        type(comm_params), intent(in) :: cpar
-        
-        use_cloud = cpar%zs_use_cloud
-        use_band1 = cpar%zs_use_band1
-        use_band2 = cpar%zs_use_band2
-        use_band3 = cpar%zs_use_band3
-        use_ring = cpar%zs_use_ring
-        use_feature = cpar%zs_use_feature
-        use_unit_emissivity = cpar%zs_use_unit_emissivity
-        freq_correction_type = cpar%zs_freq_correction_type
-        los_cutoff_radius = cpar%zs_los_cut
-        gauss_quad_order = cpar%zs_gauss_quad_order
-        delta_t_reset_cash = cpar%zs_delta_t
-    end subroutine init_hyper_parameters
+        cos_theta = (x_helio_LOS * x_LOS + y_helio_LOS * y_LOS + z_helio_LOS * z_LOS)  / (R_LOS * R_helio_LOS)
 
-    subroutine init_source_parameters(cpar)
-        ! Initialize source parameters given interplanetary dust model
-        implicit none 
-        type(comm_params), intent(in) :: cpar
+        ! clip cos(theta) to [-1, 1]
+        where (cos_theta > 1)
+            cos_theta = 1
+        elsewhere (cos_theta < -1)
+            cos_theta = -1
+        endwhere         
 
-        T_0 = cpar%zs_t_0
-        delta = cpar%zs_delta
-        allocate(emissivities(cpar%zs_nbands, cpar%zs_ncomps))
-        allocate(albedos(cpar%zs_nbands, cpar%zs_ncomps))
-        allocate(phase_functions(cpar%zs_nbands, 3))
-        allocate(solar_irradiances(cpar%zs_nbands))
-        emissivities = cpar%zs_emissivity
-        albedos = cpar%zs_emissivity
-        phase_functions = cpar%zs_emissivity
-        solar_irradiances = cpar%zs_solar_irradiance
-    end subroutine init_source_parameters
+        scattering_angle = acos(-cos_theta)
+    end subroutine get_scattering_angle
 
-    subroutine init_shape_parameters(cpar)
-        ! Initialize interplanetary dust shape parameters
-        implicit none 
-        type(comm_params), intent(in) :: cpar
+    subroutine get_phase_function(scattering_angle, phase_coefficients, normalization_factor, phase_function)
+        implicit none
+        real(dp), intent(in) :: scattering_angle(:), phase_coefficients(:)
+        real(dp), intent(in) :: normalization_factor
+        real(dp), intent(out) :: phase_function(:)
 
-        cloud_x_0 = cpar%zs_common(1, 1)
-        cloud_y_0 = cpar%zs_common(1, 2)
-        cloud_z_0 = cpar%zs_common(1, 3)
-        cloud_incl = cpar%zs_common(1, 4)
-        cloud_Omega = cpar%zs_common(1, 5)
-        cloud_n_0 = cpar%zs_common(1, 6)
-        cloud_alpha = cpar%zs_cloud_alpha
-        cloud_beta = cpar%zs_cloud_beta
-        cloud_gamma = cpar%zs_cloud_gamma
-        cloud_mu = cpar%zs_cloud_mu
+        phase_function = normalization_factor * (phase_coefficients(1) + phase_coefficients(2) &
+                         * scattering_angle + exp(phase_coefficients(3) * scattering_angle))
+    end subroutine
 
-        band1_x_0 = cpar%zs_common(2, 1)
-        band1_y_0 = cpar%zs_common(2, 2)
-        band1_z_0 = cpar%zs_common(2, 3)
-        band1_incl = cpar%zs_common(2, 4)
-        band1_Omega = cpar%zs_common(2, 5)
-        band1_n_0 = cpar%zs_common(2, 6)
-        band1_delta_zeta = cpar%zs_bands_delta_zeta(1)
-        band1_delta_R = cpar%zs_bands_delta_r(1)
-        band1_v = cpar%zs_bands_v(1)
-        band1_p = cpar%zs_bands_p(1)
+    subroutine get_phase_normalization(phase_coefficients, normalization_factor)
+        implicit none
+        real(dp), intent(in) :: phase_coefficients(:)
+        real(dp), intent(out) :: normalization_factor
+        real(dp) :: term1, term2, term3, term4
 
-        band2_x_0 = cpar%zs_common(3, 1)
-        band2_y_0 = cpar%zs_common(3, 2)
-        band2_z_0 = cpar%zs_common(3, 3)
-        band2_incl = cpar%zs_common(3, 4)
-        band2_Omega = cpar%zs_common(3, 5)
-        band2_n_0 = cpar%zs_common(3, 6)
-        band2_delta_zeta = cpar%zs_bands_delta_zeta(2)
-        band2_delta_R = cpar%zs_bands_delta_r(2)
-        band2_v = cpar%zs_bands_v(2)
-        band2_p = cpar%zs_bands_p(2)
-
-        band3_x_0 = cpar%zs_common(4, 1)
-        band3_y_0 = cpar%zs_common(4, 2)
-        band3_z_0 = cpar%zs_common(4, 3)
-        band3_incl = cpar%zs_common(4, 4)
-        band3_Omega = cpar%zs_common(4, 5)
-        band3_n_0 = cpar%zs_common(4, 6)
-        band3_delta_zeta = cpar%zs_bands_delta_zeta(3)
-        band3_delta_R = cpar%zs_bands_delta_r(3)
-        band3_v = cpar%zs_bands_v(3)
-        band3_p = cpar%zs_bands_p(3)
-
-        ring_x_0 = cpar%zs_common(4, 1)
-        ring_y_0 = cpar%zs_common(4, 2)
-        ring_z_0 = cpar%zs_common(4, 3)
-        ring_incl = cpar%zs_common(4, 4)
-        ring_Omega = cpar%zs_common(4, 5)
-        ring_n_0 = cpar%zs_common(4, 6)
-        ring_R = cpar%zs_ring_r
-        ring_sigma_R = cpar%zs_ring_sigma_r
-        ring_sigma_z = cpar%zs_ring_sigma_z
-
-        feature_x_0 = cpar%zs_common(5, 1)
-        feature_y_0 = cpar%zs_common(5, 2)
-        feature_z_0 = cpar%zs_common(5, 3)
-        feature_incl = cpar%zs_common(5, 4)
-        feature_Omega = cpar%zs_common(5, 5)
-        feature_n_0 = cpar%zs_common(5, 6)
-        feature_R = cpar%zs_feature_r
-        feature_sigma_R = cpar%zs_feature_sigma_r
-        feature_sigma_z = cpar%zs_feature_sigma_z
-        feature_theta = cpar%zs_feature_theta
-        feature_sigma_theta = cpar%zs_feature_sigma_theta
-    end subroutine init_shape_parameters
+        term1 = 2.d0 * pi
+        term2 = 2.d0 * phase_coefficients(1)
+        term3 = pi * phase_coefficients(2)
+        term4 = (exp(phase_coefficients(3) * pi) + 1.d0) / (phase_coefficients(3)**2 + 1.d0)
+        normalization_factor = 1.d0 / (term1 * (term2 + term3 + term4))
+    end subroutine
 
 
     ! Methods for the zodiacal components
@@ -883,4 +842,117 @@ contains
             end if
         end do
     end subroutine get_unit_vector_map
+
+
+
+    ! Functions for initializing zodi parameters from cpar
+    ! ----------------------------------------------------
+    subroutine init_hyper_parameters(cpar)
+        ! Initialize hyper parameters for commander run
+        implicit none 
+        type(comm_params), intent(in) :: cpar
+        
+        use_cloud = cpar%zs_use_cloud
+        use_band1 = cpar%zs_use_band1
+        use_band2 = cpar%zs_use_band2
+        use_band3 = cpar%zs_use_band3
+        use_ring = cpar%zs_use_ring
+        use_feature = cpar%zs_use_feature
+        use_unit_emissivity = cpar%zs_use_unit_emissivity
+        freq_correction_type = cpar%zs_freq_correction_type
+        los_cutoff_radius = cpar%zs_los_cut
+        gauss_quad_order = cpar%zs_gauss_quad_order
+        delta_t_reset_cash = cpar%zs_delta_t
+    end subroutine init_hyper_parameters
+
+    subroutine init_source_parameters(cpar)
+        ! Initialize source parameters given interplanetary dust model
+        implicit none 
+        type(comm_params), intent(in) :: cpar
+
+        T_0 = cpar%zs_t_0
+        delta = cpar%zs_delta
+        allocate(emissivities(cpar%zs_nbands, cpar%zs_ncomps))
+        allocate(albedos(cpar%zs_nbands, cpar%zs_ncomps))
+        allocate(phase_coeffs(cpar%zs_nbands, 3))
+        allocate(solar_irradiances(cpar%zs_nbands))
+        emissivities = cpar%zs_emissivity
+        albedos = cpar%zs_albedo
+        phase_coeffs = cpar%zs_phase_function
+        solar_irradiances = cpar%zs_solar_irradiance
+    end subroutine init_source_parameters
+
+    subroutine init_shape_parameters(cpar)
+        ! Initialize interplanetary dust shape parameters
+        implicit none 
+        type(comm_params), intent(in) :: cpar
+
+        cloud_x_0 = cpar%zs_common(1, 1)
+        cloud_y_0 = cpar%zs_common(1, 2)
+        cloud_z_0 = cpar%zs_common(1, 3)
+        cloud_incl = cpar%zs_common(1, 4)
+        cloud_Omega = cpar%zs_common(1, 5)
+        cloud_n_0 = cpar%zs_common(1, 6)
+        cloud_alpha = cpar%zs_cloud_alpha
+        cloud_beta = cpar%zs_cloud_beta
+        cloud_gamma = cpar%zs_cloud_gamma
+        cloud_mu = cpar%zs_cloud_mu
+
+        band1_x_0 = cpar%zs_common(2, 1)
+        band1_y_0 = cpar%zs_common(2, 2)
+        band1_z_0 = cpar%zs_common(2, 3)
+        band1_incl = cpar%zs_common(2, 4)
+        band1_Omega = cpar%zs_common(2, 5)
+        band1_n_0 = cpar%zs_common(2, 6)
+        band1_delta_zeta = cpar%zs_bands_delta_zeta(1)
+        band1_delta_R = cpar%zs_bands_delta_r(1)
+        band1_v = cpar%zs_bands_v(1)
+        band1_p = cpar%zs_bands_p(1)
+
+        band2_x_0 = cpar%zs_common(3, 1)
+        band2_y_0 = cpar%zs_common(3, 2)
+        band2_z_0 = cpar%zs_common(3, 3)
+        band2_incl = cpar%zs_common(3, 4)
+        band2_Omega = cpar%zs_common(3, 5)
+        band2_n_0 = cpar%zs_common(3, 6)
+        band2_delta_zeta = cpar%zs_bands_delta_zeta(2)
+        band2_delta_R = cpar%zs_bands_delta_r(2)
+        band2_v = cpar%zs_bands_v(2)
+        band2_p = cpar%zs_bands_p(2)
+
+        band3_x_0 = cpar%zs_common(4, 1)
+        band3_y_0 = cpar%zs_common(4, 2)
+        band3_z_0 = cpar%zs_common(4, 3)
+        band3_incl = cpar%zs_common(4, 4)
+        band3_Omega = cpar%zs_common(4, 5)
+        band3_n_0 = cpar%zs_common(4, 6)
+        band3_delta_zeta = cpar%zs_bands_delta_zeta(3)
+        band3_delta_R = cpar%zs_bands_delta_r(3)
+        band3_v = cpar%zs_bands_v(3)
+        band3_p = cpar%zs_bands_p(3)
+
+        ring_x_0 = cpar%zs_common(5, 1)
+        ring_y_0 = cpar%zs_common(5, 2)
+        ring_z_0 = cpar%zs_common(5, 3)
+        ring_incl = cpar%zs_common(5, 4)
+        ring_Omega = cpar%zs_common(5, 5)
+        ring_n_0 = cpar%zs_common(5, 6)
+        ring_R = cpar%zs_ring_r
+        ring_sigma_R = cpar%zs_ring_sigma_r
+        ring_sigma_z = cpar%zs_ring_sigma_z
+
+        feature_x_0 = cpar%zs_common(6, 1)
+        feature_y_0 = cpar%zs_common(6, 2)
+        feature_z_0 = cpar%zs_common(6, 3)
+        feature_incl = cpar%zs_common(6, 4)
+        feature_Omega = cpar%zs_common(6, 5)
+        feature_n_0 = cpar%zs_common(6, 6)
+        feature_R = cpar%zs_feature_r
+        feature_sigma_R = cpar%zs_feature_sigma_r
+        feature_sigma_z = cpar%zs_feature_sigma_z
+        feature_theta = cpar%zs_feature_theta
+        feature_sigma_theta = cpar%zs_feature_sigma_theta
+    end subroutine init_shape_parameters
+
+
 end module comm_zodi_mod
