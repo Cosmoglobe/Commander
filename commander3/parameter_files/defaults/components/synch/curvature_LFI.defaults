@@ -1,0 +1,70 @@
+# Synchrotorn curvature component ------------------------------------------------------------------
+COMP_LABEL&&                  = synch_curvature
+COMP_TYPE&&                   = curvature
+COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
+COMP_POLARIZATION&&           = .true.
+COMP_CG_SCALE_T&&             = 5.d5
+COMP_CG_SCALE_P&&             = 1.d0
+COMP_CG_SAMPLE_GROUP&&        = 1
+COMP_CG_SAMP_GROUP_MAXITER&&  = 100
+COMP_NSIDE&&                  = 1024
+COMP_MONOPOLE_PRIOR&&         = bandmono:0.4-Haslam
+COMP_DEFLATION_MASK&&         = fullsky
+COMP_L_APOD&&                 = 1500
+COMP_OUTPUT_FWHM&&            = 60         # arcmin
+COMP_UNIT&&                   = uK_RJ
+COMP_NU_REF_T&&               = 0.408
+COMP_NU_REF_P&&               = 30.
+COMP_MASK&&                   = fullsky
+COMP_INDMASK&&                = mask_synch_beta_sampling_BP10_n1024_TQU.fits
+
+COMP_AMP_LMIN&&               = 0
+COMP_AMP_LMAX&&               = 1500
+COMP_AMP_INPUT_MAP&&          = init_synch_amp_BP8.1_v1.fits
+COMP_AMP_PRIOR_MAP&&          = none
+
+COMP_IND_LMAX&&               = 100
+
+COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
+COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+COMP_CL_BETA_PRIOR_MEAN&&     = -0.5
+COMP_CL_BETA_PRIOR_RMS&&      =  0.1
+COMP_CL_L_PIVOT&&             =   100        # Pivot multipole
+COMP_CL_DEFAULT_AMP_T&&       =  3e14        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       =  200
+COMP_CL_DEFAULT_AMP_B&&       =  100
+COMP_CL_DEFAULT_BETA_T&&      =  60d0
+COMP_CL_DEFAULT_BETA_E&&      =  30d0
+COMP_CL_DEFAULT_BETA_B&&      =  30d0
+
+COMP_BETA_POLTYPE&&           = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_BETA_SMOOTHING_SCALE&&   = 3
+COMP_BETA_PRIOR_UNI_LOW&&     = -4.5
+COMP_BETA_PRIOR_UNI_HIGH&&    = -1.5
+COMP_BETA_PRIOR_GAUSS_MEAN&&  = -3.1
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.1 
+COMP_BETA_NU_MIN&&            = 0.    # Lowest frequency for index estimation in GHz
+COMP_BETA_NU_MAX&&            = 80.   # Highest frequency for index estimation in GHz
+COMP_BETA_INPUT_MAP&&         = init_synch_beta_BP8.1_v1.fits
+COMP_BETA_DEFAULT&&           = -3.1
+COMP_BETA_INT_PIXREG_PRIORS&& = none
+COMP_BETA_POL_PIXREG_PRIORS&& = none
+
+COMP_C_S_POLTYPE&&           = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_C_S_INPUT_MAP&&         = init_synch_c_s_0.000.fits
+COMP_C_S_SMOOTHING_SCALE&&   = 3
+COMP_C_S_DEFAULT&&           = 0.0
+COMP_C_S_PRIOR_UNI_LOW&&     = -0.1
+COMP_C_S_PRIOR_UNI_HIGH&&    = 0.1
+COMP_C_S_PRIOR_GAUSS_MEAN&&  = 0.0
+COMP_C_S_PRIOR_GAUSS_RMS&&   = 0.01
+COMP_C_S_NU_MIN&&            = 0.        # Lowest frequency for index estimation in GHz
+COMP_C_S_NU_MAX&&            = 80.        # Highest frequency for index estimation in GHz
+COMP_C_S_ALMSAMP_INIT&&      = none
+COMP_C_S_INT_PIXREG_PRIORS&& = none
+COMP_C_S_POL_PIXREG_PRIORS&& = none
+
+COMP_APPLY_JEFFREYS_PRIOR&&   = .false.
+COMP_PRIOR_AMP_LMAX&&         = -1
+COMP_OUTPUT_EB_MAP&&          = .false.
+COMP_INIT_FROM_HDF&&          = none 
