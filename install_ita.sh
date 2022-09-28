@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: oneapi, nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
 toolchain="oneapi" #"gnu"
-buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -240,7 +240,7 @@ then
 	-DUSE_SYSTEM_HDF5:BOOL=ON \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
   -DCOMM3_BACKEND=$backend \
-	-DUSE_SYSTEM_BLAS:BOOL=ON \
+	-DUSE_SYSTEM_BLAS:BOOL=OFF \
 	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
