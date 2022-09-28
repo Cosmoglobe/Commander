@@ -39,17 +39,18 @@ module comm_zodi_mod
 
     private
     public :: initialize_zodi_mod, get_zodi_emission
+
+    ! Global parameters
     integer(i4b) :: gauss_degree
     character(len=512) :: freq_correction_type
+
     real(dp) :: EPS = 3.d-14
     real(dp) :: R_cutoff, delta_t_reset_cash, previous_chunk_obs_time
-    real(dp), allocatable, dimension(:) :: unique_nsides
-    real(dp), allocatable, dimension(:) :: tabulated_earth_time
-    real(sp), allocatable, dimension(:) :: cached_s_zodi
-    real(dp), allocatable, dimension(:,:) :: tabulated_earth_pos
+    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), cached_s_zodi(:)
+    real(dp), allocatable :: tabulated_earth_pos(:, :)
     type(spline_type) :: solar_irradiance_spline_obj
-    type(spline_type), dimension(3) :: spline_earth_pos_obj
-    type(spline_type), allocatable, dimension(:) :: emissivity_spline_obj, albedo_spline_obj, phase_coeff_spline_obj
+    type(spline_type) :: spline_earth_pos_obj(3)
+    type(spline_type), allocatable :: emissivity_spline_obj(:), albedo_spline_obj(:), phase_coeff_spline_obj(:)
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
                     apply_color_correction, use_unit_emissivity, use_unit_albedo
 
@@ -67,9 +68,8 @@ module comm_zodi_mod
                 ring_R, ring_sigma_R, ring_sigma_z
     real(dp) :: feature_x_0, feature_y_0, feature_z_0, feature_incl, feature_Omega, feature_n_0, &
                 feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
-    real(dp), allocatable, dimension(:) :: solar_irradiances
-    real(dp), allocatable, dimension(:, :) :: emissivities, albedos, phase_coeffs
-    real(dp), allocatable, dimension(:) :: splined_emissivities, splined_albedos, splined_phase_coeffs
+    real(dp), allocatable :: emissivities(:, :), albedos(:, :), phase_coeffs(:, :)
+    real(dp), allocatable :: splined_emissivities(:), splined_albedos(:), splined_phase_coeffs(:), solar_irradiances(:)
 
 
     type, abstract :: ZodiComponent
@@ -106,9 +106,9 @@ module comm_zodi_mod
 
             import i4b, dp, ZodiComponent
             class(ZodiComponent) :: self
-            real(dp), intent(in), dimension(:, :) :: X_vec
+            real(dp), intent(in) :: X_vec(:, :)
             real(dp), intent(in) :: theta
-            real(dp), intent(out), dimension(:) :: n_out
+            real(dp), intent(out):: n_out(:)
             real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane
         end subroutine density_interface
     end interface
@@ -143,19 +143,19 @@ module comm_zodi_mod
 
     ! Initializing global ZodiComponent list and component instances
     class(ZodiComponent), pointer :: comp_list => null()
-    type(Cloud),          target  :: cloud_comp
-    type(Band),           target  :: band1_comp, band2_comp, band3_comp
-    type(Ring),           target  :: ring_comp
-    type(Feature),        target  :: feature_comp
+    type(Cloud), target :: cloud_comp
+    type(Band), target :: band1_comp, band2_comp, band3_comp
+    type(Ring), target :: ring_comp
+    type(Feature), target  :: feature_comp
 
     ! Initializing container for precomputed pixel to unit vectors for each unique 
     ! nside in the Commander run.
     type UnitVector
-        real(dp), dimension(:,:), allocatable :: elements
+        real(dp), allocatable :: elements(:, :)
     end type UnitVector
 
     type UnitVectorList
-        type(UnitVector), dimension(:), allocatable :: vectors
+        type(UnitVector), allocatable :: vectors(:)
     end type UnitVectorList
     type(UnitVectorList) :: unit_vector_list
 
@@ -175,10 +175,9 @@ contains
 
         integer(i4b) :: i, j, npix, nside, unit, n_earthpos
         character(len=1024) :: tabulated_earth_pos_filename
-        real(dp), dimension(3) :: vec
-        real(dp), dimension(3,3) :: ecliptic_to_galactic_matrix
-        integer(i4b), dimension(:), allocatable :: sorted_unique_nsides
-        real(dp), dimension(:,:), allocatable :: galactic_vec
+        real(dp) :: vec(3), ecliptic_to_galactic_matrix(3, 3)
+        integer(i4b), allocatable :: sorted_unique_nsides(:)
+        real(dp), allocatable :: galactic_vec(:, :)
 
         EPS = 3.d-14
 
@@ -190,44 +189,44 @@ contains
         ! Initialize Zodi components
         if (use_cloud) then
             cloud_comp = Cloud(x_0=cloud_x_0, y_0=cloud_y_0, z_0=cloud_z_0, incl=cloud_incl, &
-                                Omega=cloud_Omega, n_0=cloud_n_0, alpha=cloud_alpha, &
-                                beta=cloud_beta, gamma=cloud_gamma, mu=cloud_mu)
+                               Omega=cloud_Omega, n_0=cloud_n_0, alpha=cloud_alpha, &
+                               beta=cloud_beta, gamma=cloud_gamma, mu=cloud_mu)
             comp => cloud_comp
             call add_component_to_list(comp)
         end if
         if (use_band1) then
             band1_comp = Band(x_0=band1_x_0, y_0=band1_y_0, z_0=band1_z_0, incl=band1_incl, &
-                                Omega=band1_Omega, n_0=band1_n_0, delta_zeta=band1_delta_zeta, &
-                                delta_r=band1_delta_R, v=band1_v, p=band1_p)
+                              Omega=band1_Omega, n_0=band1_n_0, delta_zeta=band1_delta_zeta, &
+                              delta_r=band1_delta_R, v=band1_v, p=band1_p)
             comp => band1_comp
             call add_component_to_list(comp)
         end if
         if (use_band2) then
             band2_comp = Band(x_0=band2_x_0, y_0=band2_y_0, z_0=band2_z_0, incl=band2_incl, &
-                                Omega=band2_Omega, n_0=band2_n_0, delta_zeta=band2_delta_zeta, &
-                            delta_r=band2_delta_R, v=band2_v, p=band2_p)
+                              Omega=band2_Omega, n_0=band2_n_0, delta_zeta=band2_delta_zeta, &
+                              delta_r=band2_delta_R, v=band2_v, p=band2_p)
             comp => band2_comp
             call add_component_to_list(comp)
         end if
         if (use_band3) then
             band3_comp = Band(x_0=band3_x_0, y_0=band3_y_0, z_0=band3_z_0, incl=band3_incl, &
-                                Omega=band3_Omega, n_0=band3_n_0, delta_zeta=band3_delta_zeta, &
-                            delta_r=band3_delta_R, v=band3_v, p=band3_p)
+                              Omega=band3_Omega, n_0=band3_n_0, delta_zeta=band3_delta_zeta, &
+                              delta_r=band3_delta_R, v=band3_v, p=band3_p)
             comp => band3_comp
             call add_component_to_list(comp)
         end if
         if (use_ring) then
             ring_comp = Ring(x_0=ring_x_0, y_0=ring_y_0, z_0=ring_z_0, incl=ring_incl, &
-                                Omega=ring_Omega, n_0=ring_n_0, R_0=ring_R, sigma_r=ring_sigma_R, &
-                                sigma_z=ring_sigma_z)
+                             Omega=ring_Omega, n_0=ring_n_0, R_0=ring_R, sigma_r=ring_sigma_R, &
+                             sigma_z=ring_sigma_z)
             comp => ring_comp
             call add_component_to_list(comp)
         end if
         if (use_feature) then
             feature_comp = Feature(x_0=feature_x_0, y_0=feature_y_0, z_0=feature_z_0, &
-                                    incl=feature_incl, Omega=feature_Omega, n_0=feature_n_0, & 
-                                    R_0=feature_R, sigma_r=feature_sigma_R, sigma_z=feature_sigma_z, &
-                                    theta_0=feature_theta, sigma_theta=feature_sigma_theta)
+                                   incl=feature_incl, Omega=feature_Omega, n_0=feature_n_0, & 
+                                   R_0=feature_R, sigma_r=feature_sigma_R, sigma_z=feature_sigma_z, &
+                                   theta_0=feature_theta, sigma_theta=feature_sigma_theta)
             comp => feature_comp
             call add_component_to_list(comp)
         end if
@@ -334,32 +333,27 @@ contains
         implicit none
         class(ZodiComponent), pointer :: comp
 
-        integer(i4b), intent(in) :: nside
-        integer(i4b), dimension(1:,1:), intent(in) :: pix
-        real(dp), dimension(3), intent(in) :: obs_pos
-        real(dp), intent(in) :: obs_time
-        class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
-        real(sp), dimension(1:,1:), intent(out) :: s_zodi
-
-        integer(i4b) :: i, j, k, pixel_idx, los_step, n_detectors, n_tods, npix
-        real(dp) :: earth_lon, R_obs, R_max, nu_det
-        real(dp) :: b_nu_delta_term1, b_nu_delta_term2
-        real(dp), dimension(3) :: earth_pos, unit_vector
-        real(dp), dimension(:), allocatable :: nu_ratio, b_nu_bandpass_term1, b_nu_bandpass_term2
-        real(dp), dimension(:,:), allocatable :: tabulated_unit_vectors, b_nu_bandpass_LOS, b_nu_ratio_LOS
-        real(dp), dimension(3, gauss_degree) :: X_vec_LOS, X_helio_vec_LOS
-        real(dp), dimension(gauss_degree) :: x_helio_LOS, y_helio_LOS, z_helio_LOS, R_helio_LOS, x_LOS, y_LOS, z_LOS, R_LOS
-        real(dp), dimension(gauss_degree) :: gauss_nodes, gauss_weights
-        real(dp), dimension(gauss_degree) :: T_LOS, density_LOS                                    
-        real(dp), dimension(gauss_degree) :: comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
-                                                 b_nu_freq_corrected_LOS, b_nu_center_LOS
-        real(dp), dimension(gauss_degree) :: solar_flux_LOS, scattering_angle, phase_function
         logical(lgt) :: scattering
-        real(dp) :: phase_function_normalization = 0.d0
+        integer(i4b), intent(in) :: nside, pix(1:, 1:)
+        real(dp), intent(in) :: obs_pos(3), obs_time
+        class(comm_bp_ptr), intent(in) :: bandpass(:)
+        real(sp), intent(out) :: s_zodi(1:, 1:)
+        
+        integer(i4b) :: i, j, k, pix_idx, n_detectors, n_tods, npix
+        real(dp) :: earth_lon, R_obs, R_max, b_nu_delta_term1, b_nu_delta_term2, phase_function_normalization
+        real(dp) :: earth_pos(3), unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree)
+        real(dp), allocatable :: nu_ratio(:), b_nu_bandpass_term1(:), b_nu_bandpass_term2(:)
+        real(dp), allocatable :: tabulated_unit_vectors(:,:), b_nu_bandpass_LOS(:,:), b_nu_ratio_LOS(:,:)
+
+        ! Line of sight arrays and quantities
+        real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
+                                             comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
+                                             b_nu_freq_corrected_LOS, b_nu_center_LOS, &
+                                             solar_flux_LOS, scattering_angle, phase_function
 
 
-        n_tods = size(pix,1)
-        n_detectors = size(pix,2)
+        n_tods = size(pix, dim=1)
+        n_detectors = size(pix, dim=2)
         npix = nside2npix(nside)
 
         ! Get unit vectors corresponding to the observed pixels (only on first chunk)
@@ -381,6 +375,7 @@ contains
         s_zodi = 0.d0
         splined_emissivities = 1.d0
         splined_albedos = 0.d0
+        phase_function_normalization = 0.d0
 
         ! Reset cached zodi if time since last chunk > DELTA_T_ZODI ~ 1day. 
         if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_s_zodi = 0.d0
@@ -390,7 +385,7 @@ contains
             earth_pos(i) = splint_simple(spline_earth_pos_obj(i), obs_time)
         end do
         R_obs = norm2(obs_pos)
-        earth_lon = atan(earth_pos(2), earth_pos(1)) ! Longitude of Earth
+        earth_lon = atan(earth_pos(2), earth_pos(1))
 
         ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
         ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
@@ -429,11 +424,11 @@ contains
             end if
 
             do i = 1, n_tods
-                pixel_idx = pix(i, j)
-                if (cached_s_zodi(pixel_idx) /= 0.d0) then
-                    s_zodi(i, j) = cached_s_zodi(pixel_idx) ! Look up previously computed LOS emission
+                pix_idx = pix(i, j)
+                if (cached_s_zodi(pix_idx) /= 0.d0) then
+                    s_zodi(i, j) = cached_s_zodi(pix_idx) ! Use cached value from previous chunk ordetector
                 else                        
-                    unit_vector = tabulated_unit_vectors(pixel_idx, :)
+                    unit_vector = tabulated_unit_vectors(pix_idx, :)
 
                     call get_R_max(unit_vector, obs_pos, R_obs, R_max)
                     call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
@@ -441,11 +436,13 @@ contains
                     ! Compute points along a line of sight from the solar system origin 
                     ! and from the observer towards a the pixel given by the unit vectors 
                     ! with length R_max.
+                    ! - X_vec_LOS: line of sight towards pixel from solar system origin with shape (3, gauss_degree)
+                    ! - X_helio_vec_LOS: X_vec_LOS shifted to the position of the observer with shape (3, gauss_degree)
                     do k = 1, 3
                         X_vec_LOS(k, :) = gauss_nodes * unit_vector(k)
                         X_helio_vec_LOS(k, :) = X_vec_LOS(k, :) + obs_pos(k)
                     end do
-                    R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)                
+                    R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)           
 
                     if (scattering) then
                         solar_flux_LOS = splined_solar_irradiance / R_helio_LOS**2
@@ -463,16 +460,16 @@ contains
                             b_nu_freq_corrected_LOS = b_nu_center_LOS
                         case ("bandpass")
                             call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                            do los_step = 1, gauss_degree
-                                b_nu_bandpass_integrated_LOS(los_step) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(los_step, :))
+                            do k = 1, gauss_degree
+                                b_nu_bandpass_integrated_LOS(k) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(k, :))
                             end do
                             b_nu_freq_corrected_LOS = b_nu_bandpass_integrated_LOS
                         case("color")
                             call get_blackbody_emission_delta(T_LOS, b_nu_delta_term1, b_nu_delta_term2, b_nu_center_LOS)
                             call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                            do los_step = 1, gauss_degree
-                                b_nu_ratio_LOS(los_step, :) = b_nu_bandpass_LOS(los_step, :) / b_nu_center_LOS(los_step)
-                                b_nu_colorcorr_LOS(los_step) = tsum(bandpass(j)%p%nu, b_nu_ratio_LOS(los_step, :) * bandpass(j)%p%tau)
+                            do k = 1, gauss_degree
+                                b_nu_ratio_LOS(k, :) = b_nu_bandpass_LOS(k, :) / b_nu_center_LOS(k)
+                                b_nu_colorcorr_LOS(k) = tsum(bandpass(j)%p%nu, b_nu_ratio_LOS(k, :) * bandpass(j)%p%tau)
                             end do
                             nu_ratio = bandpass(j)%p%nu_c / bandpass(j)%p%nu
                             b_nu_colorcorr_LOS = b_nu_colorcorr_LOS / tsum(bandpass(j)%p%nu, nu_ratio * bandpass(j)%p%tau)
@@ -491,7 +488,7 @@ contains
                         comp => comp%next()
                         k = k + 1
                     end do
-                    cached_s_zodi(pixel_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
+                    cached_s_zodi(pix_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
                 end if
             end do
             deallocate(b_nu_bandpass_term1)
@@ -594,8 +591,8 @@ contains
     end subroutine
 
 
-    ! Methods for the zodiacal components
-    ! -----------------------------------
+    ! Methods initizializing the zodiacal components
+    ! ----------------------------------------------
     subroutine initialize_cloud(self)
         implicit none
         class(Cloud) :: self
@@ -605,6 +602,40 @@ contains
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_cloud
 
+    subroutine initialize_band(self)
+        implicit none
+        class(Band) :: self
+        self%delta_zeta = self%delta_zeta * deg2rad
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
+    end subroutine initialize_band
+
+    subroutine initialize_ring(self)
+        implicit none
+        class(Ring) :: self
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
+    end subroutine initialize_ring
+
+    subroutine initialize_feature(self)
+        implicit none
+        class(Feature) :: self
+        self%theta_0 = self%theta_0 * deg2rad
+        self%sigma_theta = self%sigma_theta * deg2rad
+        self%sin_omega = sin(self%Omega * deg2rad)
+        self%cos_omega = cos(self%Omega * deg2rad)
+        self%sin_incl = sin(self%incl * deg2rad)
+        self%cos_incl = cos(self%incl * deg2rad)
+    end subroutine initialize_feature
+
+
+    ! Methods describing the three dimensional parametric density distribution of 
+    ! the zodiacal components.
+    ! ---------------------------------------------------------------------------
     subroutine get_density_cloud(self, X_vec, theta, n_out)
         implicit none
         class(Cloud) :: self
@@ -632,16 +663,6 @@ contains
             n_out(i) = self%n_0 * R**(-self%alpha) * exp(-self%beta * g**self%gamma)
         end do
     end subroutine get_density_cloud
-
-    subroutine initialize_band(self)
-        implicit none
-        class(Band) :: self
-        self%delta_zeta = self%delta_zeta * deg2rad
-        self%sin_omega = sin(self%Omega * deg2rad)
-        self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%incl * deg2rad)
-        self%cos_incl = cos(self%incl * deg2rad)
-    end subroutine initialize_band
 
     subroutine get_density_band(self, X_vec, theta, n_out)
         implicit none
@@ -674,15 +695,6 @@ contains
         end do
     end subroutine get_density_band
 
-    subroutine initialize_ring(self)
-        implicit none
-        class(Ring) :: self
-        self%sin_omega = sin(self%Omega * deg2rad)
-        self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%incl * deg2rad)
-        self%cos_incl = cos(self%incl * deg2rad)
-    end subroutine initialize_ring
-
     subroutine get_density_ring(self, X_vec, theta, n_out)
         implicit none
         class(Ring) :: self
@@ -706,17 +718,6 @@ contains
             n_out(i) = self%n_0 * exp(term1 - term2)
         end do
     end subroutine get_density_ring
-
-    subroutine initialize_feature(self)
-        implicit none
-        class(Feature) :: self
-        self%theta_0 = self%theta_0 * deg2rad
-        self%sigma_theta = self%sigma_theta * deg2rad
-        self%sin_omega = sin(self%Omega * deg2rad)
-        self%cos_omega = cos(self%Omega * deg2rad)
-        self%sin_incl = sin(self%incl * deg2rad)
-        self%cos_incl = cos(self%incl * deg2rad)
-    end subroutine initialize_feature
 
     subroutine get_density_feature(self, X_vec, theta, n_out)
         implicit none
@@ -784,7 +785,7 @@ contains
     end subroutine add_component_to_list
 
 
-    ! Auxilary functions
+    ! Utility functions
     ! ------------------
     function unique_sort(array) result(unique_sorted_array)
         implicit none
@@ -948,6 +949,4 @@ contains
         feature_theta = cpar%zs_feature_theta
         feature_sigma_theta = cpar%zs_feature_sigma_theta
     end subroutine init_shape_parameters
-
-
 end module comm_zodi_mod
