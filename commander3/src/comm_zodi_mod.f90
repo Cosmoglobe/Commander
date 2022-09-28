@@ -296,8 +296,25 @@ contains
         end do
         call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, solar_irradiances, regular=.false.)
 
-
         previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
+
+        ! Print zodi config
+        if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
+            write(*, *) '|  Zodi simulations enabled:'
+            write(*, fmt='(a36, i8)') ' |  - Gaussian quadrature degree: ', gauss_degree
+            write(*, fmt='(a18, f8.2, a2)') ' |  - R_cutoff: ', R_cutoff, "AU"
+            write(*, fmt='(a35, a)') ' |  - Frequency correction type: ', trim(freq_correction_type)
+            write(*, fmt='(a35, f8.2, a5)') ' |  - delta_t (for cache reset): ', delta_t_reset_cash, ' days'
+            write(*, *) '|  - Enabled components:'
+            if (use_cloud) write(*,*) '|      - Diffuse cloud'
+            if (use_band1) write(*,*) '|      - Dust band 1'
+            if (use_band2) write(*,*) '|      - Dust band 2'
+            if (use_band3) write(*,*) '|      - Dust band 3'
+            if (use_ring) write(*,*) '|      - Circum-solar ring'
+            if (use_feature) write(*,*) '|      - Earth-trailing feature'
+            write(*, fmt='(a)') ' ---------------------------------------------------------------------'
+        end if
+
     end subroutine initialize_zodi_mod
 
     subroutine get_zodi_emission(nside, pix, obs_pos, obs_time, bandpass, s_zodi)
@@ -350,7 +367,6 @@ contains
                                              comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
                                              b_nu_freq_corrected_LOS, b_nu_center_LOS, &
                                              solar_flux_LOS, scattering_angle, phase_function
-
 
         n_tods = size(pix, dim=1)
         n_detectors = size(pix, dim=2)
@@ -515,7 +531,6 @@ contains
         lon = atan(unit_vector(2), unit_vector(1))
         lat = asin(unit_vector(3))
         cos_lat = cos(lat)
-
         b = 2.d0 * (obs_pos(1) * cos_lat * cos(lon) + obs_pos(2) * cos_lat * sin(lon))
         d = R_obs**2 - R_cutoff**2
         q = -0.5d0 * b * (1.d0 + sqrt(b**2 - (4.d0 * d)) / abs(b))
@@ -526,6 +541,7 @@ contains
         implicit none
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T_out
+
         T_out = T_0 * R ** (-delta)
     end subroutine get_dust_grain_temperature
 
@@ -534,6 +550,7 @@ contains
         real(dp), dimension(:), intent(in) :: T, b_nu_bandpass_term1, b_nu_bandpass_term2
         real(dp), dimension(:, :), intent(out) :: b_nu_out
         integer(i4b) :: i
+
         do i = 1, gauss_degree
             b_nu_out(i, :) = b_nu_bandpass_term1/(exp(b_nu_bandpass_term2/T(i)) - 1.d0)
         end do
@@ -545,6 +562,7 @@ contains
         real(dp), dimension(:), intent(in) :: T
         real(dp), intent(in) :: b_nu_delta_term1, b_nu_delta_term2
         real(dp), dimension(:), intent(out) :: b_nu_out
+
         b_nu_out = (b_nu_delta_term1/(exp(b_nu_delta_term2/T) - 1.d0)) * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_blackbody_emission_delta
 
@@ -556,7 +574,6 @@ contains
         real(dp), dimension(gauss_degree) :: cos_theta
 
         cos_theta = sum(X_helio_vec_LOS * X_vec_LOS, dim=1) / (R_LOS * R_helio_LOS)
-
         ! clip cos(theta) to [-1, 1]
         where (cos_theta > 1)
             cos_theta = 1

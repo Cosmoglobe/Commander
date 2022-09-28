@@ -193,10 +193,7 @@ contains
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
-       if (tod%myid == 0) then
-         write(*, *) "Simulating Zodi for chunk: ", scan
-       end if
-
+       if (tod%myid == 0) write(*, fmt='(a41, i4, a3, i4)') '    --> Simulating zodi... Current chunk: ', (scan - 1)*tod%numprocs + 1, 'of', tod%nscan*tod%numprocs
        ! Need to pass bandpass object in here to bandpass integrate or color correct the Zodiacal emission
        call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), tod%bandpass, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
