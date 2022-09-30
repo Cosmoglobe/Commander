@@ -1820,6 +1820,7 @@ contains
           end do
        end if
 
+       ! Loop over detectors
        do l = 0, data(i)%ndet
           
           ! Don't update null mixing matrices
@@ -1828,11 +1829,11 @@ contains
              cycle
           end if
           
-          
           ! Loop over all pixels, computing mixing matrix for each
           !allocate(theta_p(self%npar,self%nmaps))
           call wall_time(t1)
           do j = 0, self%F(i,l)%p%info%np-1
+             ! For masking based on latitude
              if (self%latmask >= 0.d0) then
                 call pix2ang_ring(data(i)%info%nside, data(i)%info%pix(j+1), lat, lon)
                 lat = 0.5d0*pi-lat

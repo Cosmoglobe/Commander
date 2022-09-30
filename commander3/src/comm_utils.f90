@@ -113,30 +113,6 @@ contains
 
   end subroutine read_beam
 
-!!$  subroutine convert_RMS_to_invN(mask, rms, invN, sqrt)
-!!$    implicit none
-!!$
-!!$    logical(lgt), dimension(0:,1:), intent(in)  :: mask
-!!$    real(dp),     dimension(0:,1:), intent(in)  :: rmsmap
-!!$    real(dp),     dimension(0:,1:), intent(out) :: inv_N_covar
-!!$
-!!$    integer(i4b) :: i, j, map_size, nmaps
-!!$
-!!$    map_size = size(mask(:,1))
-!!$    nmaps    = size(rmsmap(0,:))
-!!$
-!!$    inv_N_covar = 0.d0
-!!$    do j = 1, nmaps
-!!$       do i = 0, map_size-1
-!!$          if (mask(i,j)) then
-!!$             inv_N_covar(i,j) = 1.d0 / rmsmap(i,j)**2
-!!$          end if
-!!$       end do
-!!$    end do
-!!$
-!!$  end subroutine convert_RMS_to_invN
-
-
   subroutine compute_sigma_l_mat(s_i, cl_i)
     implicit none
 
