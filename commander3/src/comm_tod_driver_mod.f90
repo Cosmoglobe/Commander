@@ -112,11 +112,15 @@ contains
 
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
+    
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
     end do
+
+    ! Reverse polarization angle 
+    if ((trim(tod%tod_type)=='SPIDER') .and. .true.) self%psi(:,:,:) = (4096 + 1) - self%psi(:,:,:)
     call timer%stop(TOD_DECOMP, tod%band)
     !call update_status(status, "todinit_decomp")
     !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires

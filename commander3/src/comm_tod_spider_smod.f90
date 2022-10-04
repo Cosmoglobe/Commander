@@ -429,6 +429,11 @@ contains
 
 
         do j=1, sd%ndet
+
+         ! call tod2file(trim(adjustl(chaindir))//'/psi_'//trim(adjustl(self%label(j)))//'.txt', sd%psi(:,j,1))
+         
+
+
          ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
          if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept) .or. (j==self%partner(j))) then
             self%scans(i)%d(j)%accept = .false.
@@ -455,9 +460,8 @@ contains
             & sd%flag(:,j))
          end if
 
-         
          ! Scanning for jumps
-         if (.true.) then
+         if (.true.) then 
             call jump_scan(                                 &
             & sd%tod(:,j) - sd%s_sky(:,j) - s_jump(:,j), &
             & sd%flag(:,j),                              &
@@ -568,7 +572,6 @@ contains
 
 
 
-
         ! Sample correlated noise
         if (self%first_call) then
            do j=1, sd%ndet
@@ -581,6 +584,7 @@ contains
 
       !   call sample_n_corr(self, tod_gapfill, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
         call sample_n_corr(self, tod_gapfill, handle, i, 1.0-sd%flag, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.) 
+      !   sd%n_corr(:,:) = 0.0
         
 
         if (debug) then
@@ -616,10 +620,24 @@ contains
         ! Compute binned map
         allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
         call compute_calibrated_data(self, i, sd, d_calib, jump_template=s_jump)
+      !   d_calib(1,:,:) = sd%s_sky(:,:) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !   write(*,*) "Replace d_calib with s_sky"
 
 
         allocate(jump_calib(1, sd%ntod, sd%ndet))
         jump_calib(1,:,:) = s_jump 
+
+        ! Output psi
+      !   do j=1, sd%ndet
+      !    write(*,*) 'self%psi(5)', self%psi(5)
+      !    do k=1, sd%ntod
+      !       test_array(k) = self%psi(sd%psi(k,j,1))
+      !    end do
+      !    call tod2file(trim(adjustl(chaindir))//'/psi_'//trim(adjustl(self%label(j)))//'.txt', test_array(:))
+      !   end do
+      !   write(*,*) 'Stop after outputting psi'
+      !   stop
+
 
         ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
         if (self%output_4D_map > 0) then

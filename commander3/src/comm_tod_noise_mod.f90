@@ -25,6 +25,7 @@ module comm_tod_noise_mod
   use InvSamp_mod
   use comm_tod_noise_psd_mod
   use comm_status_mod
+  use comm_tod_jump_mod
   implicit none
 
 
@@ -468,6 +469,7 @@ contains
     call sfftw_plan_with_nthreads(nomp)
     call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
 
+
     ! Sample non-linear spectral parameters
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept .or. ntod == 0) cycle
@@ -481,6 +483,7 @@ contains
        do l = n_low, n_high
           ps(l) = abs(dv(l)) ** 2 / ntod          
        end do
+
 
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs

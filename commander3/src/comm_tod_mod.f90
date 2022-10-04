@@ -1380,8 +1380,8 @@ contains
           output(k,j,2)      = merge(1.d0,0.d0,self%scans(i)%d(j)%accept)
           output(k,j,3)      = self%scans(i)%d(j)%chisq
           output(k,j,4)      = self%scans(i)%d(j)%baseline
-         !  output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
-          output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
+          output(k,j,5:npar) = self%scans(i)%d(j)%N_psd%xi_n
+         !  output(k,j,5:npar) = self%scans(i)%d(j)%xi_n
        end do
     end do
 

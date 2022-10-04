@@ -521,6 +521,7 @@ contains
     end if
     
     threshold = 3
+   !  threshold = 2
     tod_len = size(tod)
     jumps(:) = 0
 
