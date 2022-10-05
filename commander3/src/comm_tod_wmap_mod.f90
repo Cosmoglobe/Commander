@@ -214,6 +214,9 @@ contains
       constructor%nhorn           = 2
       constructor%ndiode          = 1
       constructor%baseline_order  = 1
+      ! Jarosik et al. uses a third-order baseline. How much of a difference
+      ! would this make?
+      constructor%baseline_order  = 3
       constructor%apply_inst_corr = .true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
