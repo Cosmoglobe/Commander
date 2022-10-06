@@ -3021,7 +3021,6 @@ contains
           end if
        end if
 
-       if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
        call theta_single_lr%dealloc(); deallocate(theta_single_lr)
        call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
        theta_single_lr => null()
@@ -3085,6 +3084,7 @@ contains
 
 
     end do !pr = 1,max_pr
+    if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
 
     !bcast proposal length
     call mpi_bcast(c_lnL%proplen_pixreg(1:npixreg,p,id), npixreg, MPI_DOUBLE_PRECISION, 0, &
