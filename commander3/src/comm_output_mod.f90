@@ -364,17 +364,15 @@ contains
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 N => data(i)%N
-                select type (N)
+                ! select type (N)
                 ! Defining chisq_eff = -2*log(L) such that
                 ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
                 ! log(det(Sigma)) -> 2*log(2*pi*sigma)
-
-
-                class is (comm_N_rms)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                class is (comm_N_lcut)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                end select
+                ! class is (comm_N_rms)
+                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                ! class is (comm_N_lcut)
+                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                ! end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
