@@ -51,7 +51,7 @@ COMP_BETA_INT_PIXREG_PRIORS&&  = none
 COMP_BETA_POL_PIXREG_PRIORS&&  = none
 
 COMP_DBETA_POLTYPE&&           = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_DBETA_INPUT_MAP&&         = init_synch_c_s_0.000.fits
+COMP_DBETA_INPUT_MAP&&         = init_synch_dbeta_0.000.fits
 COMP_DBETA_SMOOTHING_SCALE&&   = 3
 COMP_DBETA_DEFAULT&&           = 0.0
 COMP_DBETA_PRIOR_UNI_LOW&&     = -0.1

@@ -911,6 +911,11 @@ contains
              sum_nprop=0.d0
              sum_proplen=0.d0
 
+             if (maxval(self%ind_pixreg_map(i)%p%map(:,j)) > n .or. &
+              & (minval(self%ind_pixreg_map(i)%p%map(:,j)) < 1)) then
+                write(*,*) 'There is a mismatch with your pixreg map and npixreg'.
+             end if
+
              do k = 0,self%theta(i)%p%info%np-1
                 do m = 1,n
                    if ( self%ind_pixreg_map(i)%p%map(k,j) > (m-0.5d0) .and. &
@@ -965,6 +970,13 @@ contains
              end if
 
           end do !poltype
+          
+          ! At this point in the readin, there should be regions assigned to
+          ! each ind_pixreg_arr
+          if (minval(self%ind_pixreg_arr(:,j,i) == 0) then
+               write(*,*) 'Some pixel regions have not been assigned their pixel index'
+          end if
+
           call tp%dealloc(); deallocate(tp)
 
           call update_status(status, "initPixreg_specind_precalc_sampled_theta")

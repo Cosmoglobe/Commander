@@ -123,7 +123,7 @@ contains
       !constructor%noise_psd_model = 'oof'
 
       constructor%n_xi            = 5
-      constructor%noise_psd_model = 'oof_f'
+      constructor%noise_psd_model = 'oof_quad'
       constructor%comp_S          = .false.
 
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
@@ -135,9 +135,9 @@ contains
       ! 46.5 mHz. 
       !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
       constructor%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
-      constructor%xi_n_P_uni(4,:) = [0.0, 0.1]            ! slope
+      constructor%xi_n_P_uni(4,:) = [-0.5, 0.5]            ! slope
       constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
-      constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
+      constructor%xi_n_P_uni(5,:) = [-0.5, 0.5]             ! intercept
       constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
       if (trim(constructor%freq) == '023-WMAP_K') then
          constructor%xi_n_nu_fit(2,:) = [0.0, 0.005]    
@@ -214,6 +214,9 @@ contains
       constructor%nhorn           = 2
       constructor%ndiode          = 1
       constructor%baseline_order  = 1
+      ! Jarosik et al. uses a third-order baseline. How much of a difference
+      ! would this make?
+      constructor%baseline_order  = 3
       constructor%apply_inst_corr = .true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
@@ -425,8 +428,9 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
-         if (iter .eq. 1)                           self%output_n_maps = 1
+         if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 3
+         if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
       !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
@@ -650,7 +654,8 @@ contains
 
 
          !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
-         if (.false.) then
+         if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
+         !if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')

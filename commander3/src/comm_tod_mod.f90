@@ -335,7 +335,7 @@ contains
        self%n_xi = 5  ! {sigma0, fknee, alpha, fknee2, alpha2}
     else if (trim(self%noise_psd_model) == 'oof_gauss') then
        self%n_xi = 6  ! {sigma0, fknee, alpha, amp, loc, sigma}
-    else if (trim(self%noise_psd_model) == 'oof_f') then
+    else if (trim(self%noise_psd_model) == 'oof_quad') then
        self%n_xi = 5  ! {sigma0, fknee, alpha, slope, intercept}
     else
        write(*,*) 'Error: Invalid noise PSD model = ', trim(self%noise_psd_model)
@@ -906,10 +906,10 @@ contains
           xi_n(6) =  0.40d0
           self%d(i)%N_psd => comm_noise_psd_oof_gauss(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
-       else if (trim(tod%noise_psd_model) == 'oof_f') then
+       else if (trim(tod%noise_psd_model) == 'oof_quad') then
           xi_n(4) =  0d0
           xi_n(5) =  0d0
-          self%d(i)%N_psd => comm_noise_psd_oof_f(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
+          self%d(i)%N_psd => comm_noise_psd_oof_quad(xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit)
 
 !!$          open(58,file='noise.dat')
 !!$          nu = 0.001d0 

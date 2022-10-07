@@ -33,7 +33,7 @@ module comm_tod_noise_psd_mod
   implicit none
 
   private
-  public comm_noise_psd, comm_noise_psd_2oof, comm_noise_psd_oof_gauss, comm_noise_psd_oof_f
+  public comm_noise_psd, comm_noise_psd_2oof, comm_noise_psd_oof_gauss, comm_noise_psd_oof_quad
 
   integer(i4b), parameter :: SIGMA0 = 1
   integer(i4b), parameter :: FKNEE  = 2
@@ -44,7 +44,7 @@ module comm_tod_noise_psd_mod
   integer(i4b), parameter :: G_LOC  = 5
   integer(i4b), parameter :: G_SIG  = 6
   integer(i4b), parameter :: SLOPE  = 4
-  integer(i4b), parameter :: INTERCEPT = 5
+  integer(i4b), parameter :: QUADRATIC = 5
 
   type :: comm_noise_psd
      ! 
@@ -89,14 +89,14 @@ module comm_tod_noise_psd_mod
      procedure :: eval_corr   => eval_noise_psd_oof_gauss_corr
   end type comm_noise_psd_oof_gauss
 
-  type, extends(comm_noise_psd) :: comm_noise_psd_oof_f
+  type, extends(comm_noise_psd) :: comm_noise_psd_oof_quad
      ! 
      ! Class definition for 2-component 1/f + linear noise PSD model
      !
    contains
-     procedure :: eval_full   => eval_noise_psd_oof_f_full
-     procedure :: eval_corr   => eval_noise_psd_oof_f_corr
-  end type comm_noise_psd_oof_f
+     procedure :: eval_full   => eval_noise_psd_oof_quad_full
+     procedure :: eval_corr   => eval_noise_psd_oof_quad_corr
+  end type comm_noise_psd_oof_quad
 
   interface comm_noise_psd_2oof
      procedure constructor_2oof
@@ -106,9 +106,9 @@ module comm_tod_noise_psd_mod
      procedure constructor_oof_gauss
   end interface comm_noise_psd_oof_gauss
 
-  interface comm_noise_psd_oof_f
-     procedure constructor_oof_f
-  end interface comm_noise_psd_oof_f
+  interface comm_noise_psd_oof_quad
+     procedure constructor_oof_quad
+  end interface comm_noise_psd_oof_quad
 
 contains
 
@@ -468,7 +468,7 @@ contains
 
   end function eval_noise_psd_oof_gauss_corr
 
-  function constructor_oof_f(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
+  function constructor_oof_quad(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
     ! 
     ! Constructor for two-component 1/f noise PSD object, where
     !     
@@ -497,27 +497,27 @@ contains
     real(sp),                        dimension(:,:), intent(in)      :: P_uni
     real(sp),                        dimension(:,:),   intent(in)      :: nu_fit
     real(dp),     optional,          dimension(:,:), intent(in)      :: filter
-    class(comm_noise_psd_oof_f),     pointer                         :: constructor_oof_f
+    class(comm_noise_psd_oof_quad),  pointer                         :: constructor_oof_quad
 
-    allocate(constructor_oof_f)
+    allocate(constructor_oof_quad)
 
     if (P_active_mean(FKNEE) <= 0.0)       write(*,*) 'comm_noise_psd error: fknee prior mean less than zero'
     if (P_uni(FKNEE,1) <= 0.0)             write(*,*) 'comm_noise_psd error: Lower fknee prior less than zero'
     if (P_uni(FKNEE,1) > P_uni(FKNEE,2))   write(*,*) 'comm_noise_psd error: Lower fknee prior higher than upper prior'
     if (P_uni(ALPHA,1) > P_uni(ALPHA,2))   write(*,*) 'comm_noise_psd error: Lower alpha prior higher than upper prior'
 
-    constructor_oof_f%npar = 5
+    constructor_oof_quad%npar = 5
 
-    call constructor_oof_f%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
+    call constructor_oof_quad%init_common(P_active_mean, P_active_rms, P_uni, nu_fit, filter)
 
     !write(*,*) size(constructor_oof_f%P_uni, 1), size(constructor_oof_f%P_uni, 2), size(P_uni, 1), size(P_uni,2)
     !write(*,*) P_uni
-    constructor_oof_f%P_lognorm     = [.false., .true., .false., .false., .false.] !  [sigma0, fknee, alpha, slope, interecept]
+    constructor_oof_quad%P_lognorm  = [.false., .true., .false., .false., .false.] !  [sigma0, fknee, alpha, slope, interecept]
 
 
-  end function constructor_oof_f
+  end function constructor_oof_quad
   
-  function eval_noise_psd_oof_f_full(self, nu)
+  function eval_noise_psd_oof_quad_full(self, nu)
     ! 
     ! Evaluation routine for 2-component 1/f  + gamma*f noise PSD object
     ! 
@@ -529,21 +529,21 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd_oof_f),         intent(in)      :: self
+    class(comm_noise_psd_oof_quad),         intent(in)      :: self
     real(sp),                            intent(in)      :: nu
-    real(sp)                                             :: eval_noise_psd_oof_f_full
+    real(sp)                                             :: eval_noise_psd_oof_quad_full
  
-    eval_noise_psd_oof_f_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu)
+    eval_noise_psd_oof_quad_full = self%xi_n(SIGMA0)**2 + self%eval_corr(nu)
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_oof_f_full = eval_noise_psd_oof_f_full * splint(self%modulation_filter, dble(nu))
+        eval_noise_psd_oof_quad_full = eval_noise_psd_oof_quad_full * splint(self%modulation_filter, dble(nu))
       end if
     end if
 
-  end function eval_noise_psd_oof_f_full
+  end function eval_noise_psd_oof_quad_full
 
-  function eval_noise_psd_oof_f_corr(self, nu)
+  function eval_noise_psd_oof_quad_corr(self, nu)
     ! 
     ! Evaluation routine for 1/f noise + gamma*f PSD object; correlated noise only
     ! 
@@ -555,25 +555,25 @@ contains
     !          Frequency (in Hz) at which to evaluate PSD
     ! 
     implicit none
-    class(comm_noise_psd_oof_f),         intent(in)      :: self
+    class(comm_noise_psd_oof_quad),         intent(in)      :: self
     real(sp),                            intent(in)      :: nu
-    real(sp)                                             :: eval_noise_psd_oof_f_corr
+    real(sp)                                             :: eval_noise_psd_oof_quad_corr
 
-    real(sp) :: S1, S2
+    real(sp) :: S1, S2, S3
 
 
     S1 = self%xi_n(SIGMA0)**2 * (nu/self%xi_n(FKNEE))**self%xi_n(ALPHA)
-    S2 = self%xi_n(SIGMA0)**2 * (self%xi_n(SLOPE) * nu + self%xi_n(INTERCEPT))
-    eval_noise_psd_oof_f_corr = S1 + S2
+    S2 = self%xi_n(SLOPE) * nu + self%xi_n(QUADRATIC) * nu**2
+    eval_noise_psd_oof_quad_corr = S1 + S2
 
 
     if(self%apply_filter) then
       if(nu >= self%modulation_filter%x(1) .and. nu <= self%modulation_filter%x(size(self%modulation_filter%x))) then
-        eval_noise_psd_oof_f_corr = eval_noise_psd_oof_f_corr * splint(self%modulation_filter, dble(nu))
+        eval_noise_psd_oof_quad_corr = eval_noise_psd_oof_quad_corr * splint(self%modulation_filter, dble(nu))
       end if
     end if
 
 
-  end function eval_noise_psd_oof_f_corr
+  end function eval_noise_psd_oof_quad_corr
   
 end module comm_tod_noise_psd_mod
