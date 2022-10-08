@@ -216,7 +216,9 @@ contains
       constructor%baseline_order  = 1
       ! Jarosik et al. uses a third-order baseline. How much of a difference
       ! would this make?
-      constructor%baseline_order  = 3
+      ! constructor%baseline_order  = 3
+      ! It turns out that the noise parameters get weird very quickly, with some
+      ! bands immediately going to the boundaries.
       constructor%apply_inst_corr = .true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
@@ -654,8 +656,8 @@ contains
 
 
          !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
-         if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
-         !if (.false.) then
+         !if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
+         if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
