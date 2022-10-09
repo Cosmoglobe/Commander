@@ -357,20 +357,20 @@ contains
                end if
             end do
 
-            M_diag(lpix, 1) = M_diag(lpix, 1) + f_A*inv_sigmasq
-            M_diag(rpix, 1) = M_diag(rpix, 1) + f_B*inv_sigmasq
-            M_diag(lpix, 2) = M_diag(lpix, 2) + f_A*inv_sigmasq*tod%cos2psi(lpsi)**2
-            M_diag(rpix, 2) = M_diag(rpix, 2) + f_B*inv_sigmasq*tod%cos2psi(rpsi)**2
-            M_diag(lpix, 3) = M_diag(lpix, 3) + f_A*inv_sigmasq*tod%sin2psi(lpsi)**2
-            M_diag(rpix, 3) = M_diag(rpix, 3) + f_B*inv_sigmasq*tod%sin2psi(rpsi)**2
+            M_diag(lpix, 1) = M_diag(lpix, 1) + 4*f_A*inv_sigmasq
+            M_diag(rpix, 1) = M_diag(rpix, 1) + 4*f_B*inv_sigmasq
+            M_diag(lpix, 2) = M_diag(lpix, 2) + 4*f_A*inv_sigmasq*tod%cos2psi(lpsi)**2
+            M_diag(rpix, 2) = M_diag(rpix, 2) + 4*f_B*inv_sigmasq*tod%cos2psi(rpsi)**2
+            M_diag(lpix, 3) = M_diag(lpix, 3) + 4*f_A*inv_sigmasq*tod%sin2psi(lpsi)**2
+            M_diag(rpix, 3) = M_diag(rpix, 3) + 4*f_B*inv_sigmasq*tod%sin2psi(rpsi)**2
             if (comp_S) then
-              M_diag(lpix, 4) = M_diag(lpix, 4) + f_A*inv_sigmasq
-              M_diag(rpix, 4) = M_diag(rpix, 4) + f_B*inv_sigmasq
+              M_diag(lpix, 4) = M_diag(lpix, 4) + 4*f_A*inv_sigmasq
+              M_diag(rpix, 4) = M_diag(rpix, 4) + 4*f_B*inv_sigmasq
             else
               ! Not a true diagonal term, just the off-diagonal estimate of the
               ! covariance for each pixel.
-              M_diag(lpix, 4) = M_diag(lpix, 4)+f_A*inv_sigmasq*tod%sin2psi(lpsi)*tod%cos2psi(lpsi)
-              M_diag(rpix, 4) = M_diag(rpix, 4)+f_B*inv_sigmasq*tod%sin2psi(rpsi)*tod%cos2psi(rpsi)
+              M_diag(lpix, 4) = M_diag(lpix, 4)+4*f_A*inv_sigmasq*tod%sin2psi(lpsi)*tod%cos2psi(lpsi)
+              M_diag(rpix, 4) = M_diag(rpix, 4)+4*f_B*inv_sigmasq*tod%sin2psi(rpsi)*tod%cos2psi(rpsi)
             end if
 
          end do
