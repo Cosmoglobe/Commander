@@ -242,7 +242,7 @@ contains
     end if
 
     ! Initialize bandpass mean and proposal matrix
-    call res%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call res%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call res%precompute_lookups()

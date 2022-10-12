@@ -175,7 +175,7 @@ contains
     if (trim(constructor%type) == 'binned') then
        !call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
        call constructor%read_binfile2(datadir, cpar%cs_binfile(id_abs))
-       call read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)), &
+       call read_Cl_file(trim(cpar%cs_clfile(id_abs)), &
             & constructor%Dl, 0, constructor%lmax, 'TT_TE_EE_BB')
        call constructor%binCls2
        if (cpar%only_pol) then
@@ -492,7 +492,7 @@ contains
 
     unit    = getlun()
     nspline = 100
-    open(unit,file=trim(datadir)//'/'//trim(binfile))
+    open(unit,file=trim(binfile))
 
     ! Check for parameter lookup table
     read(unit,'(a)') line

@@ -100,7 +100,7 @@ contains
           
        else
           ! Read map from FITS file
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
+          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0

@@ -90,7 +90,6 @@ contains
      type(comm_params), intent(in) :: cpar
      integer(i4b)                  :: id_abs   !< absolute ID of the channel which includes inactive bands
      character(len=512)            :: filelist !< file, which contains correspondance between PIDs and ODs
-     character(len=512)            :: datadir  !< data directory, which contains all h5 files 
      character(len=512)            :: simsdir  !< directory where to output simulations 
 
      !class(comm_LFI_tod), intent(inout) :: self
@@ -117,8 +116,7 @@ contains
        ! if the band is not included then skip it
        if (.not. cpar%ds_active(band)) cycle
        simsdir = trim(cpar%sims_output_dir)//'/'
-       datadir = trim(cpar%datadir)//'/'
-       filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
+       filelist = trim(cpar%ds_tod_filelist(band))
        ! central frequency (label)
        !freq = cpar%ds_label(band)
        !write(*,*) "freq is "//trim(freq)
@@ -207,8 +205,7 @@ contains
        !  ! if the band is not included then skip it
        !  if (.not. cpar%ds_active(band)) cycle
        !  simsdir = trim(cpar%sims_output_dir)//'/'
-       !  datadir = trim(cpar%datadir)//'/'
-       !  filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
+       !  filelist = trim(cpar%ds_tod_filelist(band))
        !  ! central frequency (label)
        !  freq = cpar%ds_nu_c(band)!id_abs)
        !  constructor%freq          = cpar%ds_label(id_abs)
@@ -243,7 +240,6 @@ contains
     type(comm_params), intent(in) :: cpar
     integer(i4b)                  :: id_abs   !< absolute ID of the channel which includes inactive bands
     character(len=512)            :: filelist !< file, which contains correspondance between PIDs and ODs
-    character(len=512)            :: datadir  !< data directory, which contains all h5 files 
     character(len=512)            :: simsdir  !< directory where to output simulations 
 
     integer(i4b) :: unit    !< the current file list value
@@ -272,8 +268,7 @@ contains
       ! if the band is not included then skip it
       if (.not. cpar%ds_active(band)) cycle
       simsdir = trim(cpar%sims_output_dir)//'/'
-      datadir = trim(cpar%datadir)//'/'
-      filelist = trim(datadir)//trim(cpar%ds_tod_filelist(band))
+      filelist = trim(cpar%ds_tod_filelist(band))
       ! processing files only with Master process
       if (cpar%myid == 0) then
         mysubstring = 'LFI_0'

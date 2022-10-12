@@ -118,7 +118,7 @@ contains
 
     ! Read band definition file
     allocate(constructor%band_active(numband))
-    call constructor%read_definition_file(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)))
+    call constructor%read_definition_file(trim(cpar%cs_SED_template(1,id_abs)))
 
     ! Precompute mixmat for each band; temperature only
     allocate(constructor%F_int(numband,0:constructor%ndet))

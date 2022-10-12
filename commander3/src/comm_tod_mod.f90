@@ -345,10 +345,10 @@ contains
 
     datadir = trim(cpar%datadir)//'/'
     self%datadir     = datadir
-    self%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
-    self%procmaskf1  = trim(datadir)//trim(cpar%ds_tod_procmask1(id_abs))
-    self%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
-    self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
+    self%filelist    = trim(cpar%ds_tod_filelist(id_abs))
+    self%procmaskf1  = trim(cpar%ds_tod_procmask1(id_abs))
+    self%procmaskf2  = trim(cpar%ds_tod_procmask2(id_abs))
+    self%instfile    = trim(cpar%ds_tod_instfile(id_abs))
 
     if (trim(self%level) == 'L1') then
         if (.not. self%sample_L1_par) then
@@ -383,14 +383,14 @@ contains
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir)
+      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs))
     else
       self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
     end if
 
 
     ! Initialize jumplist
-    call self%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
+    call self%read_jumplist(cpar%ds_tod_jumplist(id_abs))
 
     allocate(self%stokes(self%nmaps))
     allocate(self%w(self%nmaps, self%nhorn, self%ndet))
@@ -611,7 +611,7 @@ contains
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
        
        if (index(det_buf(1:n), '.txt') /= 0) then
-         ndet_tot = count_detectors(det_buf(1:n), datadir)
+         ndet_tot = count_detectors(det_buf(1:n))
        else
          ndet_tot = num_tokens(det_buf(1:n), ",")
        end if
@@ -623,7 +623,7 @@ contains
        self%polang = 0
        self%mbang = 0
        if (index(det_buf(1:n), '.txt') /= 0) then
-         call get_detectors(det_buf(1:n), datadir, dets)
+         call get_detectors(det_buf(1:n), dets)
        else
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
@@ -1119,10 +1119,10 @@ contains
   end subroutine read_hdf_scan_data
 
 
-  subroutine read_jumplist(self, datadir, jumplist)
+  subroutine read_jumplist(self, jumplist)
     implicit none
     class(comm_tod),   intent(inout) :: self
-    character(len=*),  intent(in)    :: datadir, jumplist
+    character(len=*),  intent(in)    :: jumplist
 
     integer(i4b) :: i, j, n_jumps, unit
 
@@ -1135,7 +1135,7 @@ contains
     else
 
        unit = getlun()
-       open(unit,file=trim(datadir)//'/'//trim(jumplist))
+       open(unit,file=trim(jumplist))
        read(unit,*) n_jumps
        allocate(self%jumplist(self%ndet, n_jumps+2))
        self%jumplist(:,1) = 1
