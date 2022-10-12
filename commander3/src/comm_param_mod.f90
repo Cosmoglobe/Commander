@@ -891,12 +891,12 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_NU_REF_P'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,2))
     cpar%cs_nu_ref(i,3) = cpar%cs_nu_ref(i,2)
     call get_parameter_hashtable(htbl, 'COMP_CL_TYPE'//itext, len_itext=len_itext,         par_string=cpar%cs_cltype(i))
-    call get_parameter_hashtable(htbl, 'COMP_AMP_INPUT_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_input_amp(i), path=.true.)
-    call get_parameter_hashtable(htbl, 'COMP_AMP_PRIOR_MAP'//itext, len_itext=len_itext,   par_string=cpar%cs_prior_amp(i), path=.true.)
-    call get_parameter_hashtable(htbl, 'COMP_AMP_LMIN'//itext, len_itext=len_itext,        par_int=cpar%cs_lmin_amp(i))
-    call get_parameter_hashtable(htbl, 'COMP_AMP_LMAX'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp(i))
+    call get_parameter_hashtable(htbl, 'COMP_AMP_INPUT_MAP'//itext, len_itext=len_itext, par_string=cpar%cs_input_amp(i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_AMP_PRIOR_MAP'//itext, len_itext=len_itext, par_string=cpar%cs_prior_amp(i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_AMP_LMIN'//itext, len_itext=len_itext, par_int=cpar%cs_lmin_amp(i))
+    call get_parameter_hashtable(htbl, 'COMP_AMP_LMAX'//itext, len_itext=len_itext, par_int=cpar%cs_lmax_amp(i))
     if (trim(cpar%cs_prior_amp(i)) /= 'none') then
-       call get_parameter_hashtable(htbl, 'COMP_AMP_PRIOR_LMAX'//itext, len_itext=len_itext,        par_int=cpar%cs_lmax_amp_prior(i))
+       call get_parameter_hashtable(htbl, 'COMP_AMP_PRIOR_LMAX'//itext, len_itext=len_itext, par_int=cpar%cs_lmax_amp_prior(i))
     else
        cpar%cs_lmax_amp_prior(i) = -1
     end if
@@ -941,13 +941,17 @@ contains
     end if
     call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))
     call get_parameter_hashtable(htbl, 'COMP_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_mask(i), path=.true.)
-    maskfile = adjustl(trim(cpar%cs_mask(i)))
-    idx = index(maskfile, '/', back=.true.)
-    if (maskfile(idx:idx+3) == '|b|<') then
-       read(maskfile(idx+4:),*) cpar%cs_latmask(i)
-       cpar%cs_latmask(i) = cpar%cs_latmask(i) * DEG2RAD
-    else
-       cpar%cs_latmask(i) = -1.d0
+    if(cpar%cs_mask(i) /= 'fullsky') then
+      maskfile = adjustl(trim(cpar%cs_mask(i)))
+      idx = index(maskfile, '/', back=.true.)
+      if(idx > 0) then
+        if (maskfile(idx:idx+3) == '|b|<') then
+         read(maskfile(idx+4:),*) cpar%cs_latmask(i)
+         cpar%cs_latmask(i) = cpar%cs_latmask(i) * DEG2RAD
+        else
+         cpar%cs_latmask(i) = -1.d0
+        end if 
+      end if
     end if
     cpar%cs_indmask(i) = 'fullsky'
 
@@ -2212,7 +2216,7 @@ contains
        elseif (present(par_lgt)) then
           read(value,*) par_lgt
        else
-          write(*,*) "get_parameter: Reached unreachable point!"
+          write(*,*) "parse_parameter: Reached unreachable point! ", present(par_string)
        end if
        found = .true.
     else
@@ -2989,9 +2993,16 @@ contains
                 logical(lgt),     optional :: path
                 character(len=256)         :: key
                 character(len=:), ALLOCATABLE   :: itext,jtext
-                CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3,val4
+                CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3
+                character(len=512)              :: val4
                 integer(i4b)                    :: i,j
-
+                logical(lgt)                    :: loc_path
+    
+                if(.not. present(path)) then 
+                  loc_path = .false.
+                else
+                  loc_path = path
+                end if
                 key=trim(parname)
                 call tolower(key)
                 call get_hash_tbl_sll(htbl,trim(key),val)
@@ -3027,9 +3038,13 @@ contains
                    read(val,*) par_char
                 elseif (present(par_string)) then
                    !append data directory if required
-                   if(path .and. val(1:1) /= '/' .and. trim(val) /= 'fullsky' .and. trim(val) /= 'none' .and. trim(val) /= 'native' .and. trim(val) /= 'default') then
-                        call get_parameter_hashtable(htbl, "DATA_DIRECTORY", par_string=val4)
+                   if(len(val) > 0) then
+                     if(loc_path .and. trim(val) /= 'fullsky' .and. trim(val) /= 'none' .and. trim(val) /= 'native' .and. trim(val) /= 'default') then
+                       if(val(1:1) /= '/') then
+                        call get_parameter_hashtable(htbl, "DATA_DIRECTORY", par_string=val4, path=.false.)
                         val = trim(val4) // '/' // trim(val)
+                       end if
+                     end if
                    end if
                    !read(val,*) par_string
                    par_string = val
@@ -3040,7 +3055,7 @@ contains
                 elseif (present(par_lgt)) then
                    read(val,*) par_lgt
                 else
-                   write(*,*) "get_parameter: Reached unreachable point!"
+                   write(*,*) "get_parameter: Reached unreachable point! ", val, present(par_string)
                 end if
 
                 deallocate(val)
