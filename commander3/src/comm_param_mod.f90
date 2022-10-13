@@ -760,7 +760,7 @@ contains
                   & par_string=cpar%cs_SED_template(1,i))
              call get_parameter_hashtable(htbl, 'COMP_BAND_REF'//itext, len_itext=len_itext, &
                   & par_string=cpar%cs_band_ref(i))
-             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+             call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext, par_string=cpar%cs_indmask(i), path=.true.)
              call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
           end select
 
@@ -1238,7 +1238,7 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_CARB_FILE2_'//itext, len_itext=len_itext, &
          & par_string=cpar%cs_SED_template(4,i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext, &
-         & par_string=cpar%cs_indmask(i))
+         & par_string=cpar%cs_indmask(i), path=.true.)
 
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
 
@@ -1352,8 +1352,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_NU_P_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,1))
     call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
-         & par_string=cpar%cs_SED_template(1,i))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+         & par_string=cpar%cs_SED_template(1,i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_NU_P_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
@@ -1569,8 +1569,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_ALPHA_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,2))
     call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
-         & par_string=cpar%cs_SED_template(1,i))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+         & par_string=cpar%cs_SED_template(1,i), path=.true.)
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_NU_P_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_ALPHA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
@@ -1790,7 +1790,7 @@ contains
          & par_dp=cpar%cs_p_gauss(i,1,2))
     call get_parameter_hashtable(htbl, 'COMP_W_AME_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,2))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_NU_P_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_W_AME_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
@@ -2011,7 +2011,7 @@ contains
          & par_dp=cpar%cs_p_gauss(i,1,2))
     call get_parameter_hashtable(htbl, 'COMP_T_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,2))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_T_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
@@ -2150,7 +2150,7 @@ contains
          & par_dp=cpar%cs_p_gauss(i,1,1))
     call get_parameter_hashtable(htbl, 'COMP_T_E_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,1))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
 !!$             call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
 !!$                  & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_T_E_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
