@@ -407,7 +407,7 @@ contains
              if (cpar%myid_chain == 0) then
                allocate(buffer(c%npixreg(pl,j)))
                buffer = c%pixreg_priors(:c%npixreg(pl,j),pl,j)
-               write(*,regfmt) ' | using region priors', buffer
+               ! write(*,regfmt) ' | using region priors', buffer
                deallocate(buffer)
              end if
           else 
@@ -463,17 +463,21 @@ contains
                 else
                    ! Apply a prior per region
                    chisq_prior = 0.d0
+                   write(*,*) c%npixreg(pl,j)
                    do p = 1, c%npixreg(pl,j)
-                      !write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
+                      ! write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
                       !chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
                       chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%pixreg_priors(p,pl,j))/c%p_gauss(2,j))**2)
                    end do
                 end if
 
                 ! Output init sample
-                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
-
+                if (c%npixreg(pl,j) > 20) then
+                   write(*,fmt='(a, i6, a, f12.2, a, f6.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior!,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                else
+                   write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                end if
                 chisq(0) = chisq(0) + chisq_prior 
                 !chisq(0) = chisq_prior ! test2
 
@@ -692,8 +696,10 @@ contains
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
                    regs(i,:,pl) = c%theta_pixreg(:,pl,j)
-                   write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
-                   write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   if (c%npixreg(pl,j) < 20) then
+                      write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
+                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   end if
                 end if
              end if
 
@@ -949,24 +955,28 @@ contains
           end if
 
           ! Write almsamp tuning parameters to file
-          filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
-          write(*,*) "| Writing tuning parameters to file: ", trim(filename)
-          open(58, file=filename, recl=10000)
-
-          if (maxval(c%corrlen(j,:)) > 0) then
-             write(58,*) c%corrlen(j,:)
-          else
-             write(58,*) nsamp, nsamp, nsamp
-          end if
-          ! Formatting proposal array
-          do p = 1, info%nmaps
-             write(58,*) "Proposal matrix L for signal", p
-             do q = 0, size(c%L(:,1,p,j))-1
-                write(58,fmt='(*(f10.5))') c%L(q,:,p,j)
+          if (c%npixreg(pl,j) < 20) then
+             filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
+             write(*,*) "| Writing tuning parameters to file: ", trim(filename)
+             open(58, file=filename, recl=1000000)
+             
+             if (maxval(c%corrlen(j,:)) > 0) then
+                write(58,*) c%corrlen(j,:)
+             else
+                write(58,*) nsamp, nsamp, nsamp
+             end if
+             ! Formatting proposal array
+             do p = 1, info%nmaps
+                write(58,*) "Proposal matrix L for signal", p
+                do q = 0, size(c%L(:,1,p,j))-1
+                   write(58,fmt='(*(f10.5))') c%L(q,:,p,j)
+                end do
              end do
-          end do
-
-          close(58)
+             
+             close(58)
+          else
+             write(*,*) "| Too many pixel regions to comfortably write to file."
+          end if
 
        end if
 
@@ -2241,6 +2251,8 @@ contains
          & sum(init_thetas(1:npixreg))/npixreg
 
     if (myid_pix==0) then
+       write(*,*) n_prop_limit
+       stop
        N_theta_MC = 1000*n_prop_limit
        do pr = 1, npixreg
           if (c_lnL%nprop_pixreg(pr,p,id) > N_theta_MC ) N_theta_MC = c_lnL%nprop_pixreg(pr,p,id)

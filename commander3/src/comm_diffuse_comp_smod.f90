@@ -913,7 +913,7 @@ contains
 
              if (maxval(self%ind_pixreg_map(i)%p%map(:,j)) > n .or. &
               & (minval(self%ind_pixreg_map(i)%p%map(:,j)) < 1)) then
-                write(*,*) 'There is a mismatch with your pixreg map and npixreg'.
+                write(*,*) 'There is a mismatch with your pixreg map and npixreg.'
              end if
 
              do k = 0,self%theta(i)%p%info%np-1
@@ -973,9 +973,10 @@ contains
           
           ! At this point in the readin, there should be regions assigned to
           ! each ind_pixreg_arr
-          if (minval(self%ind_pixreg_arr(:,j,i) == 0) then
-               write(*,*) 'Some pixel regions have not been assigned their pixel index'
-          end if
+          ! if (minval(self%ind_pixreg_arr(:,j,i)) == 0) then
+          !      write(*,*) 'Some pixel regions have not been assigned their pixel index'
+          !      write(*,*) 'For poltype ', j, ' parameter ', i
+          ! end if
 
           call tp%dealloc(); deallocate(tp)
 
@@ -2600,7 +2601,7 @@ contains
           end if
 
           !output theta, proposal length and number of proposals per pixel region to HDF
-          if (output_hdf) then
+          if (.false.) then
              npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
              if (any(self%pol_pixreg_type(:npol,i) > 0)) then
                 npr=0
