@@ -2,7 +2,7 @@
 ZODI_GAUSS_QUAD_ORDER            = 100
 ZODI_LOS_CUT                     = 5.2d0
 ZODI_DELTA_T                     = 0.5d0
-ZODI_FREQ_CORRECTION_TYPE        = color   # {delta, bandpass, color}
+
 ZODI_USE_UNIT_EMISSIVITY         = .false.
 ZODI_USE_UNIT_ALBEDO             = .false.
 

@@ -42,7 +42,6 @@ module comm_zodi_mod
 
     ! Global parameters
     integer(i4b) :: gauss_degree
-    character(len=512) :: freq_correction_type
 
     real(dp) :: EPS = 3.d-14
     real(dp) :: R_cutoff, delta_t_reset_cash, previous_chunk_obs_time
@@ -302,16 +301,6 @@ contains
         if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
             write(*, *) '|  Zodi simulations enabled:'
             write(*, fmt='(a36, i8)') ' |  - Gaussian quadrature degree: ', gauss_degree
-            write(*, fmt='(a18, f8.2, a2)') ' |  - R_cutoff: ', R_cutoff, "AU"
-            write(*, fmt='(a35, a)') ' |  - Frequency correction type: ', trim(freq_correction_type)
-            write(*, fmt='(a35, f8.2, a5)') ' |  - delta_t (for cache reset): ', delta_t_reset_cash, ' days'
-            write(*, *) '|  - Enabled components:'
-            if (use_cloud) write(*,*) '|      - Diffuse cloud'
-            if (use_band1) write(*,*) '|      - Dust band 1'
-            if (use_band2) write(*,*) '|      - Dust band 2'
-            if (use_band3) write(*,*) '|      - Dust band 3'
-            if (use_ring) write(*,*) '|      - Circum-solar ring'
-            if (use_feature) write(*,*) '|      - Earth-trailing feature'
             write(*, fmt='(a)') ' ---------------------------------------------------------------------'
         end if
 
@@ -359,8 +348,8 @@ contains
         integer(i4b) :: i, j, k, pix_idx, n_detectors, n_tods, npix
         real(dp) :: earth_lon, R_obs, R_max, b_nu_delta_term1, b_nu_delta_term2, phase_function_normalization
         real(dp) :: earth_pos(3), unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree)
-        real(dp), allocatable :: nu_ratio(:), b_nu_bandpass_term1(:), b_nu_bandpass_term2(:)
-        real(dp), allocatable :: tabulated_unit_vectors(:,:), b_nu_bandpass_LOS(:,:), b_nu_ratio_LOS(:,:)
+        real(dp), allocatable :: b_nu_bandpass_term1(:), b_nu_bandpass_term2(:)
+        real(dp), allocatable :: tabulated_unit_vectors(:,:), b_nu_bandpass_LOS(:,:)
 
         ! Line of sight arrays and quantities
         real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
@@ -411,10 +400,6 @@ contains
             allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
             allocate(b_nu_bandpass_term2(bandpass(j)%p%n))
             allocate(b_nu_bandpass_LOS(gauss_degree, bandpass(j)%p%n))
-            allocate(b_nu_ratio_LOS(gauss_degree, bandpass(j)%p%n))
-            allocate(nu_ratio(bandpass(j)%p%n))
-            b_nu_delta_term1 = (2 * h * bandpass(j)%p%nu_c**3) / (c*c)
-            b_nu_delta_term2 = (h * bandpass(j)%p%nu_c)/ k_B
             b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
             b_nu_bandpass_term2 = (h * bandpass(j)%p%nu)/ k_B
 
@@ -469,28 +454,11 @@ contains
 
                     call get_dust_grain_temperature(R_helio_LOS, T_LOS)
 
-                    ! Compute blackbody LOS terms which depend on the frequency correction specified in the hyper parameters
-                    select case (trim(freq_correction_type))
-                        case ("delta")        
-                            call get_blackbody_emission_delta(T_LOS, b_nu_delta_term1, b_nu_delta_term2, b_nu_center_LOS)
-                            b_nu_freq_corrected_LOS = b_nu_center_LOS
-                        case ("bandpass")
-                            call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                            do k = 1, gauss_degree
-                                b_nu_bandpass_integrated_LOS(k) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(k, :))
-                            end do
-                            b_nu_freq_corrected_LOS = b_nu_bandpass_integrated_LOS
-                        case("color")
-                            call get_blackbody_emission_delta(T_LOS, b_nu_delta_term1, b_nu_delta_term2, b_nu_center_LOS)
-                            call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
-                            do k = 1, gauss_degree
-                                b_nu_ratio_LOS(k, :) = b_nu_bandpass_LOS(k, :) / b_nu_center_LOS(k)
-                                b_nu_colorcorr_LOS(k) = tsum(bandpass(j)%p%nu, b_nu_ratio_LOS(k, :) * bandpass(j)%p%tau)
-                            end do
-                            nu_ratio = bandpass(j)%p%nu_c / bandpass(j)%p%nu
-                            b_nu_colorcorr_LOS = b_nu_colorcorr_LOS / tsum(bandpass(j)%p%nu, nu_ratio * bandpass(j)%p%tau)
-                            b_nu_freq_corrected_LOS = b_nu_center_LOS * b_nu_colorcorr_LOS
-                    end select
+                    call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
+                    do k = 1, gauss_degree
+                        b_nu_bandpass_integrated_LOS(k) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(k, :))
+                    end do
+                    b_nu_freq_corrected_LOS = b_nu_bandpass_integrated_LOS
 
                     comp => comp_list
                     k = 1
@@ -510,8 +478,6 @@ contains
             deallocate(b_nu_bandpass_term1)
             deallocate(b_nu_bandpass_term2)
             deallocate(b_nu_bandpass_LOS)
-            deallocate(b_nu_ratio_LOS)
-            deallocate(nu_ratio)
         end do
         
         previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
@@ -556,15 +522,6 @@ contains
         end do
         b_nu_out = b_nu_out * 1d20 !Convert from W/s/m^2/sr to MJy/sr
     end subroutine get_blackbody_emission_bp
-
-    subroutine get_blackbody_emission_delta(T, b_nu_delta_term1, b_nu_delta_term2, b_nu_out)
-        implicit none
-        real(dp), dimension(:), intent(in) :: T
-        real(dp), intent(in) :: b_nu_delta_term1, b_nu_delta_term2
-        real(dp), dimension(:), intent(out) :: b_nu_out
-
-        b_nu_out = (b_nu_delta_term1/(exp(b_nu_delta_term2/T) - 1.d0)) * 1d20 !Convert from W/s/m^2/sr to MJy/sr
-    end subroutine get_blackbody_emission_delta
 
     subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
         implicit none
@@ -872,7 +829,6 @@ contains
         use_ring = cpar%zs_use_ring
         use_feature = cpar%zs_use_feature
         use_unit_emissivity = cpar%zs_use_unit_emissivity
-        freq_correction_type = cpar%zs_freq_correction_type
         R_cutoff = cpar%zs_los_cut
         gauss_degree = cpar%zs_gauss_quad_order
         delta_t_reset_cash = cpar%zs_delta_t

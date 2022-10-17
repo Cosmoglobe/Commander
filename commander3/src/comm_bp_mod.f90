@@ -337,7 +337,7 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
       !  self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-       self%tau     = self%tau
+       self%tau     = self%tau / tsum(self%nu, self%tau)
 
     ! NEW !
     case ('dame')
