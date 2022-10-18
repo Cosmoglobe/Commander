@@ -105,9 +105,9 @@ contains
     character(len=2048)          :: outline, fg_header
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
-    class(comm_map),     pointer :: rms_map => null(), chisq_map_eff => null()
+    class(comm_map),     pointer :: rms_map => null()
     class(comm_comp),    pointer :: c => null()
-    class(comm_N),      pointer :: N => null()
+    class(comm_N),       pointer :: N => null()
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
 
@@ -327,7 +327,6 @@ contains
        if (cpar%output_chisq) then
           info      => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
           chisq_map => comm_map(info)
-          chisq_map_eff => comm_map(info)
        end if
        do i = 1, numband
           !call wall_time(t3)
@@ -362,19 +361,6 @@ contains
              uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                N => data(i)%N
-                select type (N)
-                ! Defining chisq_eff = -2*log(L) such that
-                ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
-                ! log(det(Sigma)) -> 2*log(2*pi*sigma)
-
-
-                class is (comm_N_rms)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                class is (comm_N_lcut)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
@@ -384,13 +370,10 @@ contains
        
        if (cpar%output_chisq) then
           call mpi_reduce(sum(chisq_map%map), chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
-          call mpi_reduce(sum(chisq_map_eff%map), chisq_eff, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
-          call chisq_map_eff%writeFITS(trim(cpar%outdir)//'/chisq_eff_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & ' |  Chain = ', cpar%mychain, ' -- chisq = ', chisq
           call chisq_map%dealloc();     deallocate(chisq_map)
-          call chisq_map_eff%dealloc(); deallocate(chisq_map_eff)
        end if
        call update_status(status, "output_chisq")
     end if
