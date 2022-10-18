@@ -174,6 +174,7 @@ contains
              data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
+            if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
@@ -343,6 +344,9 @@ contains
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
+             if (cpar%myid == 0 .and. j == 1) then
+               write(*,*) '|    Warning: smoothed rms map not being loaded'
+             end if
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do
