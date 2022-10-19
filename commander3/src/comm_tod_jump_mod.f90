@@ -657,157 +657,157 @@ contains
   end subroutine jump_scan
 
 
-!   subroutine jump_scan_stage2(tod, flag, jumps, offset_range, offset_level, handle, jumpflag_range, it_text, dir_name)
-!    implicit none
-!    real(sp),     dimension(:),                   intent(in)    :: tod
-!    integer(i4b), dimension(:),                   intent(inout) :: flag
-!    integer(i4b), dimension(:),                   intent(inout) :: jumps
-!    integer(i4b), allocatable,  dimension(:,:),   intent(inout) :: offset_range
-!    real(sp),     allocatable,  dimension(:),     intent(inout) :: offset_level
-!    type(planck_rng),                             intent(inout) :: handle
-!    integer(i4b), allocatable,  dimension(:,:),   intent(inout) :: jumpflag_range
-!    character(len=*),                             intent(in)    :: it_text, dir_name
+  subroutine jump_scan_stage2(tod, flag, jumps, offset_range, offset_level, handle, jumpflag_range, it_text, dir_name)
+   implicit none
+   real(sp),     dimension(:),                   intent(in)    :: tod
+   integer(i4b), dimension(:),                   intent(inout) :: flag
+   integer(i4b), dimension(:),                   intent(inout) :: jumps
+   integer(i4b), allocatable,  dimension(:,:),   intent(inout) :: offset_range
+   real(sp),     allocatable,  dimension(:),     intent(inout) :: offset_level
+   type(planck_rng),                             intent(inout) :: handle
+   integer(i4b), allocatable,  dimension(:,:),   intent(inout) :: jumpflag_range
+   character(len=*),                             intent(in)    :: it_text, dir_name
 
-!    real(sp), allocatable, dimension(:)        :: tod_gapfill
-!    real(dp), allocatable, dimension(:)        :: rolling_std
-!    integer(i4b)                               :: tod_len, N, i, threshold, num_offsets, counter, low, high, N_delta, marker, len_min
-!    real(dp)                                   :: std_old, mean_old, mean_new, x_new, x_old, var, st_dev, std_test, med, delta, delta_l, delta_r
-!    character(len=100)                         :: filename
-!    logical                                    :: switch, first_call, counting
+   real(sp), allocatable, dimension(:)        :: tod_gapfill
+   real(dp), allocatable, dimension(:)        :: rolling_std
+   integer(i4b)                               :: tod_len, N, i, threshold, num_offsets, counter, low, high, N_delta, marker, len_min
+   real(dp)                                   :: std_old, mean_old, mean_new, x_new, x_old, var, st_dev, std_test, med, delta, delta_l, delta_r
+   character(len=100)                         :: filename
+   logical                                    :: switch, first_call, counting
 
-!    !  write(*,*) 'Routine: Jump scan'
+   !  write(*,*) 'Routine: Jump scan'
    
-!    N = 120 !20
-!    len_min = 200
+   N = 120 !20
+   len_min = 200
 
-!    ! call tod2file(trim(dir_name)//'ncorr_test_'//trim(it_text)//'.txt', tod)
-!    ! call tod2file(trim(dir_name)//'flag_test_'//trim(it_text)//'.txt', flag)
+   ! call tod2file(trim(dir_name)//'ncorr_test_'//trim(it_text)//'.txt', tod)
+   ! call tod2file(trim(dir_name)//'flag_test_'//trim(it_text)//'.txt', flag)
 
-!    threshold = 2
-!    tod_len = size(tod)
-!    jumps(:) = 0
+   threshold = 2
+   tod_len = size(tod)
+   jumps(:) = 0
 
-!    ! Compute rolling standard deviation
-!    allocate(rolling_std(tod_len))
-!    rolling_std = 0
+   ! Compute rolling standard deviation
+   allocate(rolling_std(tod_len))
+   rolling_std = 0
 
-!    do i=N+1, tod_len-N
-!       if ((i==N+1) .or. (modulo(i,1000)==0)) then
-!          std_old = std(tod(i-N:i+N))
-!          mean_old = sum(tod(i-N:i+N))/(2*N+1)
-!       else
-!          x_new = tod(i+N)
-!          x_old = tod(i-N-1)
-!          var = welford_var(x_new, x_old, std_old, mean_new, mean_old, 2*N+1)
-!          if (var<0) then
-!            st_dev = std(tod(i-N:i+N))
-!          else
-!            st_dev = sqrt(var)
-!          end if
+   do i=N+1, tod_len-N
+      if ((i==N+1) .or. (modulo(i,1000)==0)) then
+         std_old = std(tod(i-N:i+N))
+         mean_old = sum(tod(i-N:i+N))/(2*N+1)
+      else
+         x_new = tod(i+N)
+         x_old = tod(i-N-1)
+         var = welford_var(x_new, x_old, std_old, mean_new, mean_old, 2*N+1)
+         if (var<0) then
+           st_dev = std(tod(i-N:i+N))
+         else
+           st_dev = sqrt(var)
+         end if
 
-!          mean_old = mean_new
-!          std_old = st_dev
-!       end if
-!       rolling_std(i) = std_old
-!    end do
+         mean_old = mean_new
+         std_old = st_dev
+      end if
+      rolling_std(i) = std_old
+   end do
 
-!    ! call tod2file(trim(dir_name)//'rolling_std_test_'//trim(it_text)//'.txt', rolling_std)
+   ! call tod2file(trim(dir_name)//'rolling_std_test_'//trim(it_text)//'.txt', rolling_std)
 
-!    ! Compute median
-!    med = median_flagged(rolling_std, flag)
-
-
-!    ! Do the flagging
-!    where (rolling_std > (threshold*med)) jumps = 1
-
-!    ! Remove regions that are shorter than the minimum allowed tod length
-!    counter = 0
-!    counting = .false.
-!    do i=1, tod_len
-!      if ((jumps(i)==0) .and. (.not. counting)) then
-!         counter = counter + 1
-!         counting = .true.
-!         marker = i
-!      elseif ((jumps(i)==0) .and. counting) then
-!         counter = counter + 1
-!         if ((i==tod_len) .and. (counter<len_min)) jumps(marker:i) = 1
-!      elseif ((jumps(i)==1) .and. counting) then
-!         counting = .false.
-!         if (counter<len_min) jumps(marker:i-1) = 1
-!         counter = 0
-!      end if
-!    end do
+   ! Compute median
+   med = median_flagged(rolling_std, flag)
 
 
-!    ! Find number of offsets so that offset list can be allocated
-!    num_offsets = 0
-!    switch = .false.
-!    do i=1, tod_len
-!       if (jumps(i)==1 .and. switch) then
-!          num_offsets = num_offsets + 1
-!          switch = .false.
-!       elseif (jumps(i)==0) then
-!          switch = .true.
-!       end if
-!    end do
-!    if (jumps(tod_len)==0) num_offsets = num_offsets + 1
+   ! Do the flagging
+   where (rolling_std > (threshold*med)) jumps = 1
 
-!    allocate(offset_range(num_offsets,2))
-!    allocate(offset_level(num_offsets))
-!    if (num_offsets>1) allocate(jumpflag_range(num_offsets-1,2))
-
-
-
-!    ! Define offset regions
-!    switch = .true.
-!    first_call = .true.
-!    counter = 1
-!    do i=1, tod_len
-!       if (first_call .and. jumps(i)==0) then
-!          offset_range(counter,1) = i
-!          first_call = .false.
-!       elseif (jumps(i)==1 .and. switch .and. first_call==.false.) then
-!          offset_range(counter,2) = i-1
-!          switch = .false.
-!          counter = counter + 1
-!       elseif (jumps(i)==0 .and. switch==.false.) then
-!          offset_range(counter,1) = i
-!          switch = .true.
-!       end if
-!    end do
-!    if (jumps(tod_len)==0) offset_range(counter,2) = tod_len
-
-!    ! Compute average and monopole template
-!    do i=1, num_offsets
-!       low  = offset_range(i,1)
-!       high = offset_range(i,2)
-!       offset_level(i) = sum(tod(low:high))/(high-low+1)
-
-!       ! Compute correction for drift
-!       if (i==1) then
-!          delta = 0
-!       else
-!          delta_l = sum(tod(low:low+len_min-1))/len_min - offset_level(i)
-!          delta = delta_r - delta_l
-!       end if
-
-!       offset_level(i) = offset_level(i) - delta
-
-!       if (i==num_offsets) exit
-!       delta_r = sum(tod(high-len_min+1:high))/len_min - offset_level(i)
-!    end do
-
-!    ! Add jump regions to full flags
-!    where (jumps==1) flag=1
-!    if (num_offsets>1) then
-!      do i=1, num_offsets-1
-!         jumpflag_range(i,1) = offset_range(i,2)   + 1
-!         jumpflag_range(i,2) = offset_range(i+1,1) - 1
-!      end do
-!    end if
+   ! Remove regions that are shorter than the minimum allowed tod length
+   counter = 0
+   counting = .false.
+   do i=1, tod_len
+     if ((jumps(i)==0) .and. (.not. counting)) then
+        counter = counter + 1
+        counting = .true.
+        marker = i
+     elseif ((jumps(i)==0) .and. counting) then
+        counter = counter + 1
+        if ((i==tod_len) .and. (counter<len_min)) jumps(marker:i) = 1
+     elseif ((jumps(i)==1) .and. counting) then
+        counting = .false.
+        if (counter<len_min) jumps(marker:i-1) = 1
+        counter = 0
+     end if
+   end do
 
 
-!  end subroutine jump_scan_stage2
+   ! Find number of offsets so that offset list can be allocated
+   num_offsets = 0
+   switch = .false.
+   do i=1, tod_len
+      if (jumps(i)==1 .and. switch) then
+         num_offsets = num_offsets + 1
+         switch = .false.
+      elseif (jumps(i)==0) then
+         switch = .true.
+      end if
+   end do
+   if (jumps(tod_len)==0) num_offsets = num_offsets + 1
+
+   allocate(offset_range(num_offsets,2))
+   allocate(offset_level(num_offsets))
+   if (num_offsets>1) allocate(jumpflag_range(num_offsets-1,2))
+
+
+
+   ! Define offset regions
+   switch = .true.
+   first_call = .true.
+   counter = 1
+   do i=1, tod_len
+      if (first_call .and. jumps(i)==0) then
+         offset_range(counter,1) = i
+         first_call = .false.
+      elseif (jumps(i)==1 .and. switch .and. first_call==.false.) then
+         offset_range(counter,2) = i-1
+         switch = .false.
+         counter = counter + 1
+      elseif (jumps(i)==0 .and. switch==.false.) then
+         offset_range(counter,1) = i
+         switch = .true.
+      end if
+   end do
+   if (jumps(tod_len)==0) offset_range(counter,2) = tod_len
+
+   ! Compute average and monopole template
+   do i=1, num_offsets
+      low  = offset_range(i,1)
+      high = offset_range(i,2)
+      offset_level(i) = sum(tod(low:high))/(high-low+1)
+
+      ! Compute correction for drift
+      if (i==1) then
+         delta = 0
+      else
+         delta_l = sum(tod(low:low+len_min-1))/len_min - offset_level(i)
+         delta = delta_r - delta_l
+      end if
+
+      offset_level(i) = offset_level(i) - delta
+
+      if (i==num_offsets) exit
+      delta_r = sum(tod(high-len_min+1:high))/len_min - offset_level(i)
+   end do
+
+   ! Add jump regions to full flags
+   where (jumps==1) flag=1
+   if (num_offsets>1) then
+     do i=1, num_offsets-1
+        jumpflag_range(i,1) = offset_range(i,2)   + 1
+        jumpflag_range(i,2) = offset_range(i+1,1) - 1
+     end do
+   end if
+
+
+ end subroutine jump_scan_stage2
 
 
   subroutine expand_offset_list(offset_range,offset_level,s_jump)

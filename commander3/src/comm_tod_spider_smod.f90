@@ -426,22 +426,16 @@ contains
 
         debug = .false.
 
-
-
         do j=1, sd%ndet
 
          ! call tod2file(trim(adjustl(chaindir))//'/psi_'//trim(adjustl(self%label(j)))//'.txt', sd%psi(:,j,1))
          
-
-
          ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
          if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept) .or. (j==self%partner(j))) then
             self%scans(i)%d(j)%accept = .false.
             cycle
          end if
-
-         
-           
+    
            ! Retrieve offset template from previous run, if it exist
            if (allocated(self%scans(i)%d(j)%offset_range)) then
               call expand_offset_list(              &
@@ -593,6 +587,92 @@ contains
               call tod2file(trim(adjustl(chaindir))//'/mask_'//trim(adjustl(it_label))//'.txt', sd%mask(:,j))
            end do
         end if
+
+
+      ! Use n_corr to find jumps
+        if ((iter==1) .and. .true.) then
+         do j = 1, sd%ndet
+            ! call tod2file(trim(dir_name)//'res_test_'//trim(it_text)//'.txt', tod_gapfill(:,j)-s_sky(:,j))
+            if (.not. self%scans(i)%d(j)%accept) cycle
+            call jump_scan_stage2(        &
+               & sd%n_corr(:,j),          &
+               & sd%flag(:,j),            &
+               & jumps(:,j),              &
+               & offset_range,            &
+               & offset_level,            &  
+               & handle,                  & 
+               & jumpflag_range,          &
+               & it_label,                &
+               & chaindir)
+
+            call expand_offset_list( &
+               & offset_range,       &
+               & offset_level,       &
+               & s_jump(:,j))
+
+            ! call tod2file(trim(dir_name)//'s_jump_test_'//trim(it_text)//'.txt', s_jump(:,j))
+            ! call tod2file(trim(dir_name)//'flag_after_test_'//trim(it_text)//'.txt', flag(:,j))
+
+            ! Add offsets to persistent list
+            if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
+               allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
+               allocate(self%scans(i)%d(j)%offset_level(size(offset_level)))
+            
+               self%scans(i)%d(j)%offset_range = offset_range
+               self%scans(i)%d(j)%offset_level = offset_level
+            else
+               call update_offset_list(              &
+                  & offset_range,                    &
+                  & offset_level,                    &
+                  & self%scans(i)%d(j)%offset_range, &
+                  & self%scans(i)%d(j)%offset_level)
+            end if
+
+            call expand_offset_list(              &
+               & self%scans(i)%d(j)%offset_range, &
+               & self%scans(i)%d(j)%offset_level, &
+               & s_jump(:,j))
+
+            ! Add jump flags to persistent list
+            if (allocated(jumpflag_range)) then
+               if (.not. allocated(self%scans(i)%d(j)%jumpflag_range)) then
+                  allocate(self%scans(i)%d(j)%jumpflag_range(size(jumpflag_range)/2,2))
+                  self%scans(i)%d(j)%jumpflag_range = jumpflag_range
+               else
+                  call update_jumpflag( &
+                     & jumpflag_range,  &
+                     & self%scans(i)%d(j)%jumpflag_range)
+               end if
+            end if
+
+            
+            if (allocated(jumpflag_range)) deallocate(jumpflag_range)
+            if (allocated(offset_level))   deallocate(offset_level)
+            if (allocated(offset_range))   deallocate(offset_range)
+            
+         end do
+      end if
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         ! Compute noise spectrum parameters
       !   call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
