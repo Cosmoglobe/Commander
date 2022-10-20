@@ -382,19 +382,16 @@ contains
        !   alms(0,1:,:) = alms(0,1:,:) + 1e-6
        !   c%theta(j)%p%alm = c%theta(j)%p%alm + 1e-6
        !end if
+
        do pl = 1, c%theta(j)%p%info%nmaps
           ! if sample only pol, skip T
           if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
-
-          ! HKE -- disabling T for now
-          if (pl==1) cycle 
 
           ! p already calculated if larger than poltype 
           if (pl > c%poltype(j)) cycle
 
           ! p to be sampled with a local sampler 
           if (c%lmax_ind_pol(pl,j) < 0) cycle
-
 
           if (cpar%almsamp_pixreg) then
              allocate(theta_pixreg_prop(0:c%npixreg(pl,j))) 
@@ -463,9 +460,9 @@ contains
                 else
                    ! Apply a prior per region
                    chisq_prior = 0.d0
-                   write(*,*) c%npixreg(pl,j)
+                   write(*,*) c%npixreg(pl,j), c%p_gauss(1,j), c%p_gauss(2,j)
                    do p = 1, c%npixreg(pl,j)
-                      ! write(*,*) "theta", c%theta_pixreg(p,pl,j), p, c%p_gauss(1,j)
+                      ! write(*,*) "theta", c%theta_pixreg(p,pl,j), c%pixreg_priors(p,pl,j), c%p_gauss(2,j)
                       !chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
                       chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%pixreg_priors(p,pl,j))/c%p_gauss(2,j))**2)
                    end do
@@ -479,7 +476,6 @@ contains
                    if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 chisq(0) = chisq(0) + chisq_prior 
-                !chisq(0) = chisq_prior ! test2
 
              else 
                 write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') " |# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
@@ -753,7 +749,9 @@ contains
                    write(*,fmt='(a, i3, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
 
                    ! Format region info
-                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                   if (c%npixreg(pl,j) < 20) then
+                      if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                   end if
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
