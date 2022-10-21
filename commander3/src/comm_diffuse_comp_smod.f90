@@ -565,7 +565,6 @@ contains
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
-
                    ! Loop over priors on regions
                    if (.not. trim(cpar%cs_spec_pixreg_priors(j,i,id_abs)) == 'none') then
                       if (self%npixreg(j,i) > 20) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)
@@ -576,6 +575,7 @@ contains
                          end do
                       else
                          write(*,*) "Must have same number of priors as there are number of regions for par", i, " and poltype", j
+                         ! write(*,fmt='(a,i1,a,i1,a,i1,a,i1)') 'n = ', n, 'self%npixreg(',j,',',i,') = ', self%npixreg(j,i)
                       end if
                    end if
                    !write(*,*) "pixreg priors", self%pixreg_priors(:,j,i)

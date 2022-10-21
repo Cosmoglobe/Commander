@@ -2249,8 +2249,8 @@ contains
          & sum(init_thetas(1:npixreg))/npixreg
 
     if (myid_pix==0) then
-       write(*,*) n_prop_limit
-       stop
+       ! write(*,*) n_prop_limit
+       ! stop
        N_theta_MC = 1000*n_prop_limit
        do pr = 1, npixreg
           if (c_lnL%nprop_pixreg(pr,p,id) > N_theta_MC ) N_theta_MC = c_lnL%nprop_pixreg(pr,p,id)
