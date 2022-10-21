@@ -31,7 +31,7 @@ module comm_data_mod
   use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
-  use comm_tod_HFI_mod
+  ! use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   implicit none
@@ -170,10 +170,11 @@ contains
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
             data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
-          else if (trim(data(n)%tod_type) == 'HFI') then
-             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
-             data(n)%ndet = data(n)%tod%ndet
+          ! else if (trim(data(n)%tod_type) == 'HFI') then
+          !    data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+          !    data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
+            if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
@@ -343,6 +344,9 @@ contains
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
+             if (cpar%myid == 0 .and. j == 1) then
+               write(*,*) '|    Warning: smoothed rms map not being loaded'
+             end if
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do
@@ -537,16 +541,16 @@ contains
     ! smoothing of rms maps for component separation purposes is all done inside Commander itself.
     ! The following block of text is what Kristian wrote in map_editor
     !
-    ! Do one map at a time; has to be smoothed as spin-zero-maps (i.e. Temp maps)                       
-    ! The smoothing has to be done on the variance map with the square beam,                            
-    ! i.e., a beam that is FWHM/sqrt(2),                                                                
-    ! where FWHM is the effective beam given by                                                         
-    ! FWHM = sqrt(1 - (FWHM_in/FWHM_out)**2) * FWHM_out                                                 
-    ! The effective beam has the same beam weights (per l) as beam(FWHM_out)/beam(FWHM_in)              
-    ! so we do not need to calculate FWHM_effective, and it is not possible if we have beam files       
-    ! Further we use the fact that (in Stokes I, i.e. temperature)                                      
-    ! beam(fwhm') = beam(fwhm)**[(fwhm' /fwhm)**2] for all l > 0                                        
-    ! so that beam(fwhm/sqrt(2)) = beam(fwhm)**1/2 = sqrt(beam(fwhm))                                   
+    ! Do one map at a time; has to be smoothed as spin-zero-maps (i.e. Temp maps)       
+    ! The smoothing has to be done on the variance map with the square beam,                 
+    ! i.e., a beam that is FWHM/sqrt(2),                              
+    ! where FWHM is the effective beam given by                      
+    ! FWHM = sqrt(1 - (FWHM_in/FWHM_out)**2) * FWHM_out              
+    ! The effective beam has the same beam weights (per l) as beam(FWHM_out)/beam(FWHM_in)      
+    ! so we do not need to calculate FWHM_effective, and it is not possible if we have beam files  
+    ! Further we use the fact that (in Stokes I, i.e. temperature)                      
+    ! beam(fwhm') = beam(fwhm)**[(fwhm' /fwhm)**2] for all l > 0                         
+    ! so that beam(fwhm/sqrt(2)) = beam(fwhm)**1/2 = sqrt(beam(fwhm))                 
     !
     !
     implicit none
@@ -560,7 +564,7 @@ contains
     class(comm_map),                                       pointer :: map_out_buffer => null()
     class(comm_map),                          intent(out), pointer :: map_out 
 
-    integer(i4b) :: i, j, l, lmax
+    integer(i4b) :: i, j, l, lmax, nmap_pixwin
 
     real(dp), allocatable, dimension(:,:) :: pixwin_in, pixwin_out
     character(len=4)         :: nside_in_str, nside_out_str
@@ -577,11 +581,20 @@ contains
     call int2string(map_in%info%nside,nside_in_str)
     call int2string(info%nside,nside_out_str)
 
+    if (map_in%info%nmaps == 3) then
+       nmap_pixwin = 2
+    else
+       nmap_pixwin = 1
+    end if
+
     allocate(pixwin_in(0:4*map_in%info%nside,map_in%info%nmaps))
     allocate(pixwin_out(0:4*info%nside,info%nmaps))
 
-    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, map_in%info%nmaps, nullval, anynull)
-    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, info%nmaps, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
+
+    if (map_in%info%nmaps == 3) pixwin_in(:,3) = pixwin_in(:,2)
+    if (info%nmaps == 3)        pixwin_out(:,3) = pixwin_out(:,2)
 
     ! Need to make sure we smooth before we ud_grade
     ! Move variance map to alms
