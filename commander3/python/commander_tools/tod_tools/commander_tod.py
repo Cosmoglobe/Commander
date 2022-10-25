@@ -52,7 +52,10 @@ class commander_tod:
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
-        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+        if od == -1:
+            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+        else:
+            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):
