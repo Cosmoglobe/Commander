@@ -6,6 +6,24 @@ import matplotlib.pyplot as plt
 
 
 w = 5
+f={'rlabel':6,
+   'llabel':6}
+
+f = 12
+
+
+def mylabel(rlabel, fontsize):
+    ax = plt.gca()
+    plt.text(
+        0.025,
+        1.05,
+        rlabel,
+        ha="left",
+        va="center",
+        fontsize=fontsize,
+        transform=ax.transAxes,
+                    )
+
 
 try:
    d_100_s = hp.read_map('npipe_100_2deg.fits', field=(0,1,2))
@@ -32,15 +50,25 @@ d_W_s = 1e3*d_W_s
 d_W_orig = hp.read_map('/mn/stornext/d16/cmbco/ola/wmap/freq_maps/wmap_band_iqusmap_r9_9yr_W_v5.fits', field=(0,1,2))
 d_W_o_s = 1e3*hp.smoothing(d_W_orig, fwhm=2*np.pi/180)
 
+cosmoglobe.standalone_colorbar("planck", ticks=[-10,0,10],
+    unit=r"$\mathrm{\mu K}$", extend='both')
+plt.savefig('cbar.png', bbox_inches='tight', dpi=300)
+
 cosmoglobe.plot(- d_100_s + d_W_o_s, sig=1, min=-10, max=10, cbar=False,
     width=w)
+mylabel('$\mathit{WMAP9}-\mathit{Planck}\ 100\,\mathrm{GHz}$', f)
 plt.savefig('diff_orig.png', bbox_inches='tight', dpi=300)
-cosmoglobe.plot(- d_100_s + d_W_s, sig=1, min=-10, max=10, unit=r'$\mathrm{\mu K}$', 
-    width=w, cbar=True, ticks=[-10, 0, 10])
+cosmoglobe.plot(- d_100_s + d_W_s, sig=1, min=-10, max=10,
+    width=w, cbar=False)
+mylabel(r'$\mathrm{Watts\ et\ al.}-\mathit{Planck}\ 100\,\mathrm{GHz}$', f)
 plt.savefig('diff_cg.png', bbox_inches='tight', dpi=300)
 cosmoglobe.plot(d_W_s, sig=1, min=-10, max=10, unit=r'$\mathrm{\mu K}$',
     cbar=False, width=w)
+mylabel(r'$\mathrm{Watts\ et\ al.}$', f)
 plt.savefig('W_cg.png', bbox_inches='tight', dpi=300)
+cosmoglobe.plot(d_W_o_s, sig=1, min=-10, max=10, unit=r'$\mathrm{\mu K}$',
+    cbar=False, width=w, llabel=r'\mathit{WMAP9}')
+plt.savefig('W_WMAP_cg.png', bbox_inches='tight', dpi=300)
 cosmoglobe.plot(d_100_s, sig=1, min=-10, max=10, unit=r'$\mathrm{\mu K}$',
-    cbar=False, width=w)
+    cbar=True, width=w, llabel=r'\mathit{Planck}\ 100\,\mathrm{GHz}')
 plt.savefig('npipe_100.png', bbox_inches='tight', dpi=300)
