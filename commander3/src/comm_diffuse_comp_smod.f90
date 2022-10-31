@@ -50,7 +50,7 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=512) :: temp_filename
+    character(len=512) :: temp_filename, temp2
     character(len=512), dimension(1000) :: tokens
     integer(i4b) :: i, j, k, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior, param_dp
@@ -250,8 +250,13 @@ contains
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
+       if(temp2(1:1) /= '/') then
+          if(trim(self%mono_prior_type) /= 'bandmono') then
+            temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
+          end if
+       end if
        call get_tokens(temp_filename, ",", tokens, i)
-       
+ 
        if (trim(self%mono_prior_type) == 'lower_value_prior') then
           if (i < 4) then
              call report_error('monopole lower_value_prior needs filename,mean,rms,fwhm as input. Not enough inputs found')

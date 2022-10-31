@@ -1063,7 +1063,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
@@ -1317,7 +1317,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_NU_P_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_NU_P_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_NU_P_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
        call get_parameter_hashtable(htbl, 'COMP_NU_P_PROPLEN'//itext, &
@@ -1441,7 +1441,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_NU_P_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_NU_P_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_NU_P_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
        call get_parameter_hashtable(htbl, 'COMP_NU_P_PROPLEN'//itext, &
@@ -1534,7 +1534,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_ALPHA_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,2,i))
        call get_parameter_hashtable(htbl, 'COMP_ALPHA_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_ALPHA_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
        call get_parameter_hashtable(htbl, 'COMP_ALPHA_PROPLEN'//itext, &
@@ -1663,7 +1663,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_NU_P_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_NU_P_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_NU_P_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
        call get_parameter_hashtable(htbl, 'COMP_NU_P_PROPLEN'//itext, &
@@ -1884,7 +1884,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
