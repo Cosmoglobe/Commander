@@ -403,7 +403,7 @@ contains
 
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '|  Processing TOD channel = ', trim(data(i)%tod_type) 
+          write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
        end if
 
        ! Compute current sky signal for default bandpass and MH proposal
@@ -490,12 +490,15 @@ contains
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
 
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
-         write(*,*) '|  Processing ', trim(data(i)%label)
-         write(*,*) '|'
+         write(*,*) '|  Finished processing ', trim(data(i)%label)
+         write(*,fmt='(a)') '---------------------------------------------------------------------'
+         !write(*,*) ''
        end if
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
 
        N => data(i)%N
        select type (N)
@@ -508,13 +511,6 @@ contains
           call N%P(data(i)%map)
           call data(i)%map%writeFITS(trim(prefix)//'lcut'//trim(postfix))
        end select
-
-       if (cpar%myid_chain == 0) then
-         write(*,*) '|'
-         write(*,*) '|  Finished processing ', trim(data(i)%label)
-         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-         !write(*,*) ''
-       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
