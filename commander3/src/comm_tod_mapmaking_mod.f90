@@ -725,7 +725,7 @@ end subroutine bin_differential_TOD
      real(dp),         dimension(:, :),    intent(inout) :: bicg_sol
      integer(i4b),                            intent(in) :: npix, nmaps
      integer(i4b),                         intent(inout) :: num_cg_iters
-     real(dp),                                intent(in) :: epsil
+     real(dp),                             intent(inout) :: epsil
      real(sp),                  dimension(:), intent(in) :: procmask
      real(dp),                dimension(:,:), intent(in) :: map_full
      real(dp),                dimension(:,:), intent(in) :: M_diag
@@ -938,6 +938,10 @@ end subroutine bin_differential_TOD
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
+           end if
+           if (i > 20 .and. l == 1) then
+               write(*,*) 'Potential poorly measured mode detected, decreasing epsilon'
+               epsil = 1e-12
            end if
         end do bicg
 

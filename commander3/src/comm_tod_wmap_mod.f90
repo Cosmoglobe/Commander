@@ -622,14 +622,9 @@ contains
 
          ! Select data
          if (select_data) then 
+            ! Count how many good data points are thrown out from this
+            ! procedure.
             call remove_bad_data(self, i, sd%flag)
-            !pow2 = log(real(sd%ntod, sp))/log(2.0)
-            !if (2**(nint(pow2)) .ne. sd%ntod) then
-            !    write(*,*) self%scanid(i), sd%ntod, pow2
-            !    do j = 1, sd%ndet
-            !       self%scans(i)%d(j)%accept = .false.
-            !    end do
-            !end if
             n = len(trim(self%freq)) - 1
             if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
                 if (sd%ntod < 2**22) then
@@ -800,6 +795,8 @@ contains
           call timer%start(TOD_WRITE) 
           if (l == 1) then
              map_out%map = outmaps(1)%p%map
+             ! Do I need to multiply the rms map by 1000 to get it in units of
+             ! mK?
              rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
              call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
              call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
