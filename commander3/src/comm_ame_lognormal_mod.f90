@@ -93,7 +93,7 @@ contains
           constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
-       ! convert spec. ind. pixel map to alsm if lmax_ind >= 0
+       ! convert spec. ind. pixel map to alms if lmax_ind >= 0
        if (constructor%lmax_ind >= 0) then
           call constructor%theta(i)%p%YtW_scalar
        end if
