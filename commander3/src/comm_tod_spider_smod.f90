@@ -674,13 +674,13 @@ contains
      call synchronize_binmap(jump_map, self) 
 
      if (sample_rel_bandpass) then
-        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
      else
-        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
+        call finalize_binned_map(self, binmap, rms_out, 1.d6)
      end if
      map_out%map = binmap%outmaps(1)%p%map
 
-     call finalize_binned_map(self, jump_map, handle, rms_out, 1.d6) 
+     call finalize_binned_map(self, jump_map, rms_out, 1.d6) 
 
      ! Sample bandpass parameters
      if (sample_rel_bandpass .or. sample_abs_bandpass) then
