@@ -30,11 +30,7 @@ module comm_data_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
-<<<<<<< HEAD
-  use comm_tod_HFI_mod
-=======
   !use comm_tod_HFI_mod
->>>>>>> d6e1d7f368b3e246612337dfcd22e90e64af7955
   use locate_mod
   use comm_bp_utils
   implicit none
