@@ -30,7 +30,11 @@ module comm_data_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
+<<<<<<< HEAD
   use comm_tod_HFI_mod
+=======
+  !use comm_tod_HFI_mod
+>>>>>>> d6e1d7f368b3e246612337dfcd22e90e64af7955
   use locate_mod
   use comm_bp_utils
   implicit none
@@ -165,9 +169,11 @@ contains
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
             data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
-          else if (trim(data(n)%tod_type) == 'HFI') then
-             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
-             data(n)%ndet = data(n)%tod%ndet
+
+          !else if (trim(data(n)%tod_type) == 'HFI') then
+          !   data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+          !   data(n)%ndet = data(n)%tod%ndet
+
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
