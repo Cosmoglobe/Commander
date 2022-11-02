@@ -460,7 +460,6 @@ contains
                 else
                    ! Apply a prior per region
                    chisq_prior = 0.d0
-                   write(*,*) c%npixreg(pl,j), c%p_gauss(1,j), c%p_gauss(2,j)
                    do p = 1, c%npixreg(pl,j)
                       ! write(*,*) "theta", c%theta_pixreg(p,pl,j), c%pixreg_priors(p,pl,j), c%p_gauss(2,j)
                       !chisq_prior = chisq_prior + (((c%theta_pixreg(p,pl,j) - c%p_gauss(1,j))/c%p_gauss(2,j))**2)
