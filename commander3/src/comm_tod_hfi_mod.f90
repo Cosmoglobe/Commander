@@ -392,14 +392,14 @@ contains
           end if
        end if
 
-       open(123, file="todtest.txt")
-       if(self%scans(i)%chunk_num == 25083) then
-         write(*,*) "gain:", self%scans(i)%d(1)%gain
-         do k=1, self%scans(i)%ntod
-           write(123,*) sd%tod(k, 1)
-         end do
-       end if 
-       close(123)
+!!$       open(123, file="todtest.txt")
+!!$       if(self%scans(i)%chunk_num == 25083) then
+!!$         write(*,*) "gain:", self%scans(i)%d(1)%gain
+!!$         do k=1, self%scans(i)%ntod
+!!$           write(123,*) sd%tod(k, 1)
+!!$         end do
+!!$       end if 
+!!$       close(123)
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
