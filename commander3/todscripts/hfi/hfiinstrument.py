@@ -27,7 +27,7 @@ import math
 import argparse
 import sys
 from astropy.io import fits
-sys.path.insert(0, "/mn/stornext/u3/hke/git/Commander_hfi/commander3/python")
+#sys.path.insert(0, "/mn/stornext/u3/hke/git/Commander_hfi/commander3/python")
 from commander_tools.tod_tools.hfi import hfi
 from commander_tools.tod_tools.lfi import lfi
 from commander_tools.tod_tools import commander_instrument as inst
