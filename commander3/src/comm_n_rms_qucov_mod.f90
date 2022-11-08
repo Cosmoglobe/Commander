@@ -69,6 +69,7 @@ contains
     class(comm_map),                    pointer, intent(in), optional :: procmask
     class(comm_map),                    pointer, intent(in), optional :: map
 
+    class(comm_N_rms_QUcov),               pointer       :: constructor_temp
     integer(i4b)       :: i, ierr, tmp, nside_smooth
     real(dp)           :: sum_noise, npix
     character(len=512) :: dir
@@ -77,6 +78,7 @@ contains
 
     ! General parameters
     allocate(constructor)
+    allocate(constructor_temp)
     dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
@@ -89,6 +91,8 @@ contains
     constructor%info              => info
     constructor%info%nmaps        = constructor%nmaps
 
+    call update_status(status, 'reading in masks and stuff')
+
     if (id_smooth == 0) then
        constructor%nside        = info%nside
        constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
@@ -96,8 +100,8 @@ contains
        if (cpar%ds_regnoise(id_abs) /= 'none') then
           constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))
        end if
+       call update_status(status, 'updating N')
        if (present(procmask)) then
-          write(*,*) constructor%nmaps, 'what about this?'
           call constructor%update_N(constructor%info, handle, mask, regnoise, procmask=procmask, &
                & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
        else
@@ -126,20 +130,27 @@ contains
        end if
     end if
 
+    call update_status(status, 'checcking if pol only')
+
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
 
+    call update_status(status, 'checking CG stuff')
     ! Initialize CG sample group masks
     allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
+    constructor_temp => constructor
+    constructor_temp%info%nmaps = constructor_temp%info%nmaps - 1
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(dir)//trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
+       constructor%samp_group_mask(i)%p => comm_map(constructor_temp%info, trim(dir)//trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
        where (constructor%samp_group_mask(i)%p%map > 0.d0)
           constructor%samp_group_mask(i)%p%map = 1.d0
        elsewhere
           constructor%samp_group_mask(i)%p%map = 0.d0
        end where
     end do
+
+    call update_status(status, 'shoudl have finished constructing')
 
   end function constructor
 
@@ -160,10 +171,8 @@ contains
     class(comm_mapinfo), pointer :: info_lowres => null()
 
     if (present(noisefile)) then
-       write(*,*) 'initializing noise object'
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
-       write(*,*) 'initializing map object'
        self%rms0     => comm_map(info)
        self%rms0%map = map%map
     else
@@ -178,7 +187,7 @@ contains
        self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
     end if
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
-    self%siN%map = self%siN%map * mask%map ! Apply mask
+    ! self%siN%map = self%siN%map * mask%map ! Apply mask
     self%siN%map(:,1:3) = self%siN%map(:,1:3) * mask%map ! Apply mask
     self%siN%map(:,4)   = self%siN%map(:,4) * mask%map(:,3) ! Apply mask
     if (present(procmask)) then
@@ -200,6 +209,7 @@ contains
        self%siN%map = 0.d0
     end where
 
+
     ! Add white noise corresponding to the user-specified regularization noise map
     if (associated(self%rms_reg) .and. present(regnoise)) then
        do j = 1, self%rms_reg%info%nmaps
@@ -208,6 +218,7 @@ contains
           end do
        end do
     end if
+
 
     ! Set siN to its mean; useful for debugging purposes
     if (self%set_noise_to_mean) then
@@ -219,6 +230,7 @@ contains
           self%siN%map(:,i) = sum_noise/npix
        end do
     end if
+
 
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
@@ -257,11 +269,13 @@ contains
        end if
     end if
 
+
     ! Set up lowres map
     if (.not.associated(self%siN_lowres)) then
        info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
        self%siN_lowres => comm_map(info_lowres)
     end if
+
     iN => comm_map(self%siN)
     iN%map = iN%map**2
     call iN%udgrade(self%siN_lowres)

@@ -292,7 +292,7 @@ contains
       call constructor%collect_v_sun
 
       ! Precomputing low-resolution preconditioner
-      call constructor%precompute_M_lowres
+      ! call constructor%precompute_M_lowres
 
 
       ! Need precompute the main beam precomputation for both the A-horn and
@@ -404,10 +404,15 @@ contains
       real(dp) :: polang = 0d0
 
 
+      if (self%first_call) then
+          ! Precomputing low-resolution preconditioner
+          call self%precompute_M_lowres
+      end if
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
+
 
       call timer%start(TOD_ALLOC, self%band)
 
