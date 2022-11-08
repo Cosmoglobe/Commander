@@ -526,6 +526,7 @@ contains
          end do
       end if
 
+      if (.false.) then
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
           if (trim(self%level) == 'L1') then
@@ -567,6 +568,8 @@ contains
               self%x_im = 0
            end if
            call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+      end if
+
       end if
 
 
@@ -837,8 +840,11 @@ contains
 
              ! Somehow write out the rms_out...
 
+             write(*,*) shape(rms_out%map), nmaps, 'testing now'
+
              rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
              rms_out%map(:,nmaps+1) = QU_cov
+             ! Make sure this has the correct number of columns!
              call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
              deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
              deallocate(II_cov, QQ_cov, UU_cov, QU_cov)

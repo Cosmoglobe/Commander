@@ -72,14 +72,12 @@ contains
     class(comm_N_rms_QUcov),               pointer       :: constructor_temp
     integer(i4b)       :: i, ierr, tmp, nside_smooth
     real(dp)           :: sum_noise, npix
-    character(len=512) :: dir
     type(comm_mapinfo), pointer :: info_smooth => null()
 
 
     ! General parameters
     allocate(constructor)
     allocate(constructor_temp)
-    dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
@@ -98,15 +96,15 @@ contains
        constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
        constructor%np           = info%np
        if (cpar%ds_regnoise(id_abs) /= 'none') then
-          constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))
+          constructor%rms_reg => comm_map(constructor%info, trim(cpar%ds_regnoise(id_abs)))
        end if
        call update_status(status, 'updating N')
        if (present(procmask)) then
           call constructor%update_N(constructor%info, handle, mask, regnoise, procmask=procmask, &
-               & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+               & noisefile=trim(cpar%ds_noisefile(id_abs)))
        else
           call constructor%update_N(constructor%info, handle, mask, regnoise, &
-               & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+               & noisefile=trim(cpar%ds_noisefile(id_abs)))
        end if
     else
        if (present(map)) then
@@ -115,12 +113,12 @@ contains
           constructor%np           = info%np
           call constructor%update_N(info, handle, mask, regnoise, map=map)
        else
-          tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
+          tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
           info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
                & constructor%nmaps, constructor%pol)
           constructor%nside   = info_smooth%nside
           constructor%np      = info_smooth%np
-          constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+          constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
           
           where (constructor%siN%map > 0.d0) 
              constructor%siN%map = 1.d0 / constructor%siN%map
@@ -142,7 +140,7 @@ contains
     constructor_temp%info%nmaps = constructor_temp%info%nmaps - 1
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(constructor_temp%info, trim(dir)//trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
+       constructor%samp_group_mask(i)%p => comm_map(constructor_temp%info, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
        where (constructor%samp_group_mask(i)%p%map > 0.d0)
           constructor%samp_group_mask(i)%p%map = 1.d0
        elsewhere

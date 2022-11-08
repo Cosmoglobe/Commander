@@ -581,7 +581,7 @@ contains
        end if
        if (trim(cpar%ds_tod_type(i)) /= 'none') then
           call get_parameter_hashtable(htbl, 'BAND_TOD_DETECTOR_LIST'//itext, len_itext=len_itext, &
-               & par_string=cpar%ds_tod_dets(i), path=.true.)
+               & par_string=cpar%ds_tod_dets(i), path=.false.)
        end if
 
        if (cpar%enable_TOD_analysis) then
