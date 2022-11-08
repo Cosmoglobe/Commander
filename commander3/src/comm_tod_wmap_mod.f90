@@ -368,6 +368,8 @@ contains
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
+      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv
+      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, inv_determ
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
@@ -731,10 +733,9 @@ contains
         where (M_diag == 0d0)
            M_diag = 1d0
         end where
-        if (.not. self%comp_S) then
-           ! If we want to not do the "better preconditioning"
-           M_diag(:,4) = 0d0
-        end if
+        !if (.not. self%comp_S) then
+        !   M_diag(:,4) = 0d0
+        !end if
         if (self%myid == 0) self%M_diag = M_diag
 
 
@@ -797,9 +798,58 @@ contains
              map_out%map = outmaps(1)%p%map
              ! Do I need to multiply the rms map by 1000 to get it in units of
              ! mK?
-             rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
              call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+
+             ! Recall:
+             ! A = [[a, b],
+             !      [c, d]]
+             ! has the inverse
+             ! A-1 = [[d, -b],
+             !        [-c, a]]/(ad - bc)
+             ! Note that if bc = 0, then A-1 is just the inverse of the
+             ! diagonals.
+
+             allocate(II_inv(0:npix-1), QQ_inv(0:npix-1), UU_inv(0:npix-1), QU_inv(0:npix-1))
+             allocate(II_cov(0:npix-1), QQ_cov(0:npix-1), UU_cov(0:npix-1), QU_cov(0:npix-1))
+             allocate(inv_determ(0:npix-1))
+
+             II_inv = M_diag(self%info%pix, 1)
+             QQ_inv = M_diag(self%info%pix, 2)
+             UU_inv = M_diag(self%info%pix, 3)
+             QU_inv = M_diag(self%info%pix, 4)
+
+             inv_determ = 1/(QQ_inv*UU_inv - QU_inv**2)
+
+             II_cov = 1/II_inv
+             QQ_cov =  UU_inv*inv_determ
+             UU_cov =  QQ_inv*inv_determ
+             QU_cov = -QU_inv*inv_determ
+
+             rms_out%map(:,1) = sqrt(QQ_cov)
+             rms_out%map(:,2) = sqrt(UU_cov)
+             rms_out%map(:,3) = QU_cov
+             call rms_out%writeFITS(trim(prefix)//'rms2'//trim(postfix))
+
+             ! Somehow write out the rms_out...
+
+             rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+             rms_out%map(:,nmaps+1) = QU_cov
              call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
+             deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
+             deallocate(inv_determ)
+
+
+             ! determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
+             ! map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
+             ! map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
+             ! map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
+
+             ! How do I get the true RMS map? Assume that we have these maps...
+             ! rms_I = 1/sqrt(M_diag(self%info%pix, 1))
+             ! QQ = M_diag(self%info%pix, 1)
+             ! UU = M_diag(self%info%pix, 2)
+             ! QU = M_diag(self%info%pix, 3)
           else
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
           end if

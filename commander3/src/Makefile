@@ -71,6 +71,7 @@ F90SOURCES=hashtbl.f90 \
            comm_nonlin_mod.f90 \
            comm_n_mod.f90 \
            comm_n_rms_mod.f90 \
+           comm_n_rms_qucov_mod.f90 \
            comm_n_qucov_mod.f90 \
            comm_n_lcut_mod.f90 \
            comm_b_mod.f90 \
@@ -181,6 +182,7 @@ comm_nonlin_mod.o           : comm_param_mod.o comm_data_mod.o comm_comp_mod.o c
 comm_n_qucov_mod.o          : comm_n_mod.o comm_param_mod.o comm_map_mod.o
 comm_n_lcut_mod.o           : comm_n_mod.o comm_param_mod.o comm_map_mod.o
 comm_n_rms_mod.o            : comm_n_mod.o comm_param_mod.o comm_map_mod.o
+comm_n_rms_qucov_mod.o      : comm_n_mod.o comm_param_mod.o comm_map_mod.o
 comm_output_mod.o           : comm_param_mod.o comm_comp_mod.o comm_chisq_mod.o comm_hdf_mod.o
 comm_param_mod.o            : comm_utils.o comm_status_mod.o hashtbl.o
 comm_physdust_comp_mod.o    : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_map_mod.o comm_f_int_1d_mod.o comm_data_mod.o spline_2d_mod.o

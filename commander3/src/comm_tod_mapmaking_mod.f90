@@ -754,7 +754,7 @@ end subroutine bin_differential_TOD
      call timer%start(TOD_MAPSOLVE, tod%band)
      write_cg = .false.
      !write_cg = .true.
-     write_cg = tod%first_call
+     !write_cg = tod%first_call
 
      if (comp_S) then
         allocate (x_temp(nmaps+1,0:npix-1))
