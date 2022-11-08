@@ -28,6 +28,7 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
+  use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
   use locate_mod
@@ -154,6 +155,9 @@ contains
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'DIRBE') then
+             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)

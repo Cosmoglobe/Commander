@@ -31,7 +31,7 @@ program commander
   use comm_tod_gain_mod
   implicit none
 
-  integer(i4b)        :: i, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
+  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
   real(dp)            :: t0, t1, t2, t3, dbp
   logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
@@ -159,6 +159,7 @@ program commander
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
+
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
 
@@ -215,6 +216,7 @@ program commander
   !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
   !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
 
+
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
@@ -248,7 +250,7 @@ program commander
      ! If we are on 1st iteration and simulation was enabled,
      ! we copy real LFI data into specified folder.
      if ((iter == 1) .and. cpar%enable_tod_simulations) then
-       call copy_LFI_tod(cpar, ierr)
+       call copy_tod(cpar, ierr)
        call write_filelists_to_disk(cpar, ierr)
      end if
      !----------------------------------------------------------------------------------
@@ -312,7 +314,6 @@ program commander
      !call output_FITS_sample(cpar, 1000, .true.)
     
      call wall_time(t2)
-     if (first_sample > 1 .and. first) ok = .false. ! Reject first sample if restart
      if (ok) then
         if (cpar%myid_chain == 0) then
            write(*,fmt='(a,i4,a,f12.3,a)') ' |  Chain = ', cpar%mychain, ' -- wall time = ', t2-t1, ' sec'
@@ -386,10 +387,10 @@ contains
              cmbmap        => comm_map(c%x)
 !!$             call cmbmap%Y()
 !!$             call cmbmap%writeFITS('cmb_before.fits')
-             call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
+             ! call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
 !!$             call cmbmap%Y()
 !!$             call cmbmap%writeFITS('cmb_middle.fits')
-             call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
+             ! call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
 !!$             call cmbmap%Y()
 !!$             call cmbmap%writeFITS('cmb_after.fits')
           end if
@@ -402,7 +403,7 @@ contains
 
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '|  Processing TOD channel = ', trim(data(i)%tod_type) 
+          write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
        end if
 
        ! Compute current sky signal for default bandpass and MH proposal
@@ -456,7 +457,7 @@ contains
           !if (k > 1 .or. iter == 1) then
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
-               !  write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)       
@@ -489,12 +490,15 @@ contains
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
 
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
-         write(*,*) '|  Processing ', trim(data(i)%label)
-         write(*,*) '|'
+         write(*,*) '|  Finished processing ', trim(data(i)%label)
+         write(*,fmt='(a)') '---------------------------------------------------------------------'
+         !write(*,*) ''
        end if
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
 
        N => data(i)%N
        select type (N)
@@ -507,13 +511,6 @@ contains
           call N%P(data(i)%map)
           call data(i)%map%writeFITS(trim(prefix)//'lcut'//trim(postfix))
        end select
-
-       if (cpar%myid_chain == 0) then
-         write(*,*) '|'
-         write(*,*) '|  Finished processing ', trim(data(i)%label)
-         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-         !write(*,*) ''
-       end if
 
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))

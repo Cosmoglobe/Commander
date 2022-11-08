@@ -155,7 +155,7 @@ contains
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
 
-                if (cpar%myid == cpar%root) write(*,*) 'Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
+                if (cpar%myid == cpar%root) write(*,*) '| Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
                    if (c%lmax_ind_pol(p,j) < 0) then
@@ -180,7 +180,7 @@ contains
              if (samp_cg) then !need to resample amplitude
                 !call sample amplitude for the component specific cg_sample group
                 if (cpar%myid == cpar%root) then
-                   write(*,*) 'Sampling component amplitude of '//trim(c%label)//' after spectral index sampling of '// &
+                   write(*,*) '| Sampling component amplitude of '//trim(c%label)//' after spectral index sampling of '// &
                         & trim(c%indlabel(j))
                 end if
                 call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
@@ -190,9 +190,9 @@ contains
                    ! can only estimate if there is a pure (and full) mono/-dipole CG sampling group 
                    if (c%cg_samp_group_md > 0) then
                       if (cpar%myid == cpar%root) then
-                         write(*,*) 'Sampling monopoles of band after prior correcting monopole of '//&
+                         write(*,*) '| Sampling monopoles of band after prior correcting monopole of '//&
                               & trim(c%label)//' amplitude'
-                         write(*,*) 'Using CG sampling group:',c%cg_samp_group_md
+                         write(*,*) '| Using CG sampling group:',c%cg_samp_group_md
                       end if
                       call sample_amps_by_CG(cpar, c%cg_samp_group_md, handle, handle_noise)
                    end if
@@ -232,7 +232,7 @@ contains
     end if
 
     call wall_time(t2)
-    if (cpar%myid_chain == 0) write(*,*) 'CPU time specind = ', real(t2-t1,sp)
+    if (cpar%myid_chain == 0) write(*,*) '| CPU time specind = ', real(t2-t1,sp)
     
   end subroutine sample_nonlin_params
 
@@ -312,7 +312,7 @@ contains
        j = par_id !quick fix to only sample spec. ind. parameter par_id
              
        ! Set up smoothed data
-       if (cpar%myid_chain == 0) write(*,*) '   Sampling '//trim(c%label)//' '//trim(c%indlabel(j))
+       if (cpar%myid_chain == 0) write(*,*) '|   Sampling '//trim(c%label)//' '//trim(c%indlabel(j))
        call update_status(status, "spec_alm start "//trim(c%label)//' '//trim(c%indlabel(j)))
 
        if (c%apply_jeffreys) then
@@ -343,7 +343,7 @@ contains
        theta_max = c%p_uni(2,par_id) !hard upper prior on theta (i.e. parameter) 
 
        if (info%myid == 0 .and. c%L_read(j)) then
-          write(*,*) "Sampling with cholesky matrix"
+          write(*,*) "| Sampling with cholesky matrix"
        end if
 
        if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
@@ -407,7 +407,7 @@ contains
              if (cpar%myid_chain == 0) then
                allocate(buffer(c%npixreg(pl,j)))
                buffer = c%pixreg_priors(:c%npixreg(pl,j),pl,j)
-               write(*,regfmt) ' using region priors', buffer
+               write(*,regfmt) ' | using region priors', buffer
                deallocate(buffer)
              end if
           else 
@@ -471,14 +471,14 @@ contains
                 end if
 
                 ! Output init sample
-                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
 
                 chisq(0) = chisq(0) + chisq_prior 
                 !chisq(0) = chisq_prior ! test2
 
              else 
-                write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') " |# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
 
           end if
@@ -672,7 +672,7 @@ contains
                 ! Reject if proposed values are outside of range
                 if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
                    accepted = .false.
-                   write(*,fmt='(a, f7.3, f7.3, a)') "Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                   write(*,fmt='(a, f7.3, f7.3, a)') " | Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
                 end if
 
                 ! Count accepted and assign chisq values
@@ -686,13 +686,13 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
                    regs(i,:,pl) = c%theta_pixreg(:,pl,j)
-                   write(outmessage,fmt=regfmt) " regs:", theta_pixreg_prop(1:)
+                   write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
                    write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
@@ -744,10 +744,10 @@ contains
                 ! Write to screen every out_every'th
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
-                   write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                   write(*,fmt='(a, i3, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
 
                    ! Format region info
-                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -760,27 +760,27 @@ contains
                    ! Write to screen
                    call wall_time(t2)
                    ts = (t2-t1)/DFLOAT(check_every) ! Average time per sample
-                   write(*, fmt='(a, i6, a, i4, a, f8.2, a, f5.3, a, f5.2)') " "//tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
+                   write(*, fmt='(a, i3, a, i4, a, f8.2, a, f5.3, a, f5.2)') " | "//tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
                    call wall_time(t1)
 
                    ! Adjust steplen in tuning iteration
                    if (iter <= burnin) then
                       if (accept_rate < 0.2) then                 
                          c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
-                         write(*,fmt='(a,f10.5)') "Reducing steplen -> ", c%steplen(pl,j)
+                         write(*,fmt='(a,f10.5)') " | Reducing steplen -> ", c%steplen(pl,j)
                       !else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
                       !   c%steplen(pl,j) = c%steplen(pl,j)*2.0d0
                       !   write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", c%steplen(pl,j)
                       else if (accept_rate > 0.8) then
                          c%steplen(pl,j) = c%steplen(pl,j)*2.d0
-                         write(*,fmt='(a,f10.5)') "Increasing steplen -> ", c%steplen(pl,j)
+                         write(*,fmt='(a,f10.5)') " | Increasing steplen -> ", c%steplen(pl,j)
                       end if
                    end if
 
                    ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
                    if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
                       doexit = .true.
-                      write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
+                      write(*,*) "| Chisq threshold and accept rate reached for tuning iteration", thresh
                    end if
                 end if
              end if
@@ -788,7 +788,7 @@ contains
              call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
              if (doexit .or. i == nsamp) then
                 if (optimize) c%chisq_min(j,pl) = chisq(i) ! Stop increase in chisq
-                if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
+                if (info%myid == 0 .and. i == nsamp) write(*,*) "| nsamp samples reached", nsamp
 
                 ! Save max iteration for this signal
                 if (c%poltype(j) == 1) then
@@ -916,7 +916,7 @@ contains
        ! (Only if no longer tuning and not initialized from file)
        if (info%myid == 0 .and. .not. c%L_read(j)) then
           if (c%L_calculated(j)  .and. iter > burnin) then
-             write(*,*) "Computing correlation function"
+             write(*,*) "| Computing correlation function"
              do pl = 1, c%theta(j)%p%info%nmaps
                 ! Skip signals with poltype tag
                 if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
@@ -930,11 +930,11 @@ contains
                 end if
 
                 c%L_read(j) = .true.  ! L now exist
-                write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
+                write(*,*) "| Correlation length (< 0.1): ", c%corrlen(j,pl) 
              end do
           else
              ! If L does not exist yet, calculate
-             write(*,*) 'Calculating cholesky matrix'
+             write(*,*) '| Calculating cholesky matrix'
 
              do pl = 1, c%theta(j)%p%info%nmaps
                 if (maxit(pl) == 0) cycle ! Cycle if not sampled
@@ -950,7 +950,7 @@ contains
 
           ! Write almsamp tuning parameters to file
           filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
-          write(*,*) "Writing tuning parameters to file: ", trim(filename)
+          write(*,*) "| Writing tuning parameters to file: ", trim(filename)
           open(58, file=filename, recl=10000)
 
           if (maxval(c%corrlen(j,:)) > 0) then
@@ -1078,19 +1078,19 @@ contains
     ! Set up smoothed data
     select type (c)
     class is (comm_line_comp)
-       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
+       if (cpar%myid == 0) write(*,*) '|    Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
 
        ! Sample spectral parameters
        call c%sampleSpecInd(cpar, handle, par_id, iter)
 
     class is (comm_ptsrc_comp)
-       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label)
+       if (cpar%myid == 0) write(*,*) '|    Sampling ', trim(c%label)
 
        ! Sample spectral parameters
        call c%sampleSpecInd(cpar, handle, par_id, iter)
 
     class is (comm_diffuse_comp)
-       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
+       if (cpar%myid == 0) write(*,*) '|    Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
        call update_status(status, "nonlin start " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
 
        ! Set up type of smoothing scale
@@ -1354,7 +1354,7 @@ contains
 
        call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
        if (c%theta(par_id)%p%info%myid == 0 .and. cpar%verbosity > 2) &
-            & write(*,*) 'Updating Mixing matrix after sampling '// &
+            & write(*,*) '| Updating Mixing matrix after sampling '// &
             & trim(c%label)// ' ' // trim(c%indlabel(par_id))
 
     end select
@@ -1567,15 +1567,15 @@ contains
 
           call wall_time(t1)
           if (c_lnL%pol_pixreg_type(p,id) /= 0) then
-             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) '| Sampling poltype index', p, &
                   & 'of ', c_lnL%poltype(id) !Needed?
              call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
              call wall_time(t2)
-             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) '| poltype:',c_lnL%poltype(id),' pol:', &
                   & p,'CPU time specind = ', real(t2-t1,sp)
           else
-             write(*,*) 'Undefined spectral index sample region'
-             write(*,*) 'Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
+             write(*,*) '| Undefined spectral index sample region'
+             write(*,*) '| Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
              stop
           end if
 
@@ -1889,19 +1889,19 @@ contains
 
        if (.true.) then !debugging
           if (cpar%verbosity>2 .and. myid_pix==0) then
-             write(*,*) '  Monopoles of active bands in sampling '
-             write(*,*) '  label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
+             write(*,*) '|   Monopoles of active bands in sampling '
+             write(*,*) '|   label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
              do i = 1,numband
-                if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
-                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
+                if (monopole_active(i)) write(*,fmt='(a,a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
+                     & ' |',trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
              end do
 
-             write(*,*) '  '
-             write(*,*) '  And in band units'
-             write(*,*) '  label         band_number  mono        mu        rms'
+             write(*,*) '|   '
+             write(*,*) '|   And in band units'
+             write(*,*) '|   label         band_number  mono        mu        rms'
              do i = 1,numband
-                if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3, i6)') &
-                     & trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
+                if (monopole_active(i)) write(*,fmt='(a,a15,i13,e13.3,e11.3,e11.3, i6)') &
+                     & ' |',trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
                      & monopole_rms(i)*monopole_mixing(i)
              end do
 
@@ -1927,12 +1927,12 @@ contains
           !broadcast new_theta
           call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
           if (myid_pix == 0) then
-             write(*,*) 'Sampled new value using Gaussian prior'
-             write(*,fmt='(a,i6)') '  Pixel region = ',pr
-             write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
-             write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
-             write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(pr,p,id)
-             write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
+             write(*,*) '| Sampled new value using Gaussian prior'
+             write(*,fmt='(a,i6)') ' |  Pixel region = ',pr
+             write(*,fmt='(a,f7.3)') ' |  Prior mean = ',c_lnL%theta_prior(1,p,id)
+             write(*,fmt='(a,f10.6)') ' |  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
+             write(*,fmt='(a,f10.6)') ' |  Old value  = ',c_lnL%theta_pixreg(pr,p,id)
+             write(*,fmt='(a,f10.6)') ' |  New value  = ',new_theta
           end if
           c_lnL%theta_pixreg(pr,p,id) = new_theta
           new_thetas(pr) = new_theta
@@ -1989,8 +1989,8 @@ contains
           reduced_data=0.d0
           if (cpar%verbosity>2 .and. myid_pix==0) then
              !print info on the change in monopoles from initial monopoles 
-             write(*,*) '  Change in monopoles of active bands in sampling. In band units. '
-             write(*,*) '  band_label    mono_in        mono_out       prior_mean     prior_rms'
+             write(*,*) '|   Change in monopoles of active bands in sampling. In band units. '
+             write(*,*) '|   band_label    mono_in        mono_out       prior_mean     prior_rms'
           end if
 
           do j = 1,numband
@@ -2094,8 +2094,8 @@ contains
                 ! bcast new monopole to other processors
                 call mpi_bcast(mu, 1, MPI_DOUBLE_PRECISION, 0, info_lr%comm, ierr)
                 if (cpar%verbosity>2 .and. myid_pix==0) then
-                   if (monopole_active(j)) write(*,fmt='(a15,e15.5,e15.5,e15.5,e15.5)') &
-                        & trim(data(j)%label),monopole_val(j)*monopole_mixing(j), &
+                   if (monopole_active(j)) write(*,fmt='(a,a15,e15.5,e15.5,e15.5,e15.5)') &
+                        & ' |',trim(data(j)%label),monopole_val(j)*monopole_mixing(j), &
                         & mu*monopole_mixing(j),monopole_mu(j)*monopole_mixing(j), &
                         & monopole_rms(j)*monopole_mixing(j)
                 end if
@@ -2152,20 +2152,20 @@ contains
     if (band_count==0) then
        buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
        deallocate(band_i,pol_j)
-       if (myid_pix == 0 .and. cpar%verbosity>1)  write(*,*) 'no data bands available for sampling of spec ind'
+       if (myid_pix == 0 .and. cpar%verbosity>1)  write(*,*) '| no data bands available for sampling of spec ind'
        return
     else
-       if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
+       if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '| ### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
        if (cpar%verbosity>3 .and. myid_pix == 0) then
-          write(*,fmt='(a)') '  Active bands'
+          write(*,fmt='(a)') ' |  Active bands'
           do k = 1,band_count
-             write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
+             write(*,fmt='(a,i1)') ' |   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
           end do
 
           if (c_lnL%spec_mono_combined(par_id)) then
-             write(*,fmt='(a)') '  Active monopoles'
+             write(*,fmt='(a)') ' |  Active monopoles'
              do k = 1,numband
-                if (monopole_active(k)) write(*,fmt='(a,i1)') '   band: '//trim(data(k)%label)
+                if (monopole_active(k)) write(*,fmt='(a,i1)') ' |   band: '//trim(data(k)%label)
              end do
           end if
        end if
@@ -2237,7 +2237,7 @@ contains
     new_thetas = old_thetas
     ! that the root processor operates on
     init_thetas = old_thetas
-    if (cpar%verbosity>2 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
+    if (cpar%verbosity>2 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') " |  initial (avg) spec. ind. value: ", &
          & sum(init_thetas(1:npixreg))/npixreg
 
     if (myid_pix==0) then
@@ -2373,8 +2373,8 @@ contains
                 old_theta = old_thetas(pr)
                 proplen=c_lnL%proplen_pixreg(pr,p,id)
                 if (cpar%verbosity>2) then                
-                   write(*,fmt='(a, i3, a, f10.5)') "  initial pix.reg. ",pr,"  -- spec. ind. value: ", init_thetas(pr)
-                   write(*,fmt='(a, e14.5)') "  initial proposal length: ",proplen
+                   write(*,fmt='(a, i3, a, f10.5)') " |  initial pix.reg. ",pr,"  -- spec. ind. value: ", init_thetas(pr)
+                   write(*,fmt='(a, e14.5)') " |  initial proposal length: ",proplen
                 end if
                 new_thetas = old_thetas
                 new_theta = old_theta
@@ -2389,7 +2389,7 @@ contains
           new_thetas(pr) = new_theta
 
           if (cpar%verbosity>3 .and. myid_pix==0 .and. mod(j,out_every)==0) then
-             write(*,fmt='(a, i6, a, i3, a, f10.5, a, f10.5)') "  proposal: ", j," -- Pixreg ", pr, &
+             write(*,fmt='(a, i6, a, i3, a, f10.5, a, f10.5)') " |  proposal: ", j," -- Pixreg ", pr, &
                   & " -- Current ind: ", old_theta, " -- proposed ind: ", new_theta
           end if
 
@@ -2405,9 +2405,9 @@ contains
              lnL_new = -1.d30 
              ! skip the true caclulation of lnL, we reject the sample ~100%
              if (myid_pix==0 .and. cpar%verbosity > 2) then
-                write(*,fmt='(a, f10.5, a, f10.5)') "    Proposed ind outside limits.  min: ", &
+                write(*,fmt='(a, f10.5, a, f10.5)') " |    Proposed ind outside limits.  min: ", &
                      & theta_min," -- max: ", theta_max
-                write(*,fmt='(a, f10.5)') "    Proposed ind ",new_theta
+                write(*,fmt='(a, f10.5)') " |    Proposed ind ",new_theta
              end if
              loop_exit = .true.
           else
@@ -2750,7 +2750,7 @@ contains
 
              !first sample done
              if (first_sample) lnL_init = lnL_new
-             if (first_sample .and. myid_pix == 0 .and. cpar%verbosity > 2) write(*,fmt='(a, e14.5)') "    lnL_init = ", lnL_init
+             if (first_sample .and. myid_pix == 0 .and. cpar%verbosity > 2) write(*,fmt='(a, e14.5)') " |    lnL_init = ", lnL_init
 
           end if !new_theta outside spec limits
 
@@ -2766,9 +2766,9 @@ contains
              delta_lnL = lnL_new-lnL_old
 
              if (cpar%verbosity>3 .and. mod(j,out_every)==0) then
-                write(*,fmt='(a, e14.5)') "    lnL_new = ", lnL_new
-                write(*,fmt='(a, e14.5)') "    lnL_old = ", lnL_old
-                write(*,fmt='(a, e14.5)') "    lnL_new - lnL_old = ", delta_lnL
+                write(*,fmt='(a, e14.5)') " |    lnL_new = ", lnL_new
+                write(*,fmt='(a, e14.5)') " |    lnL_old = ", lnL_old
+                write(*,fmt='(a, e14.5)') " |    lnL_new - lnL_old = ", delta_lnL
              end if
 
              avg_dlnL = (avg_dlnL*(n_spec_prop) + abs(delta_lnL))/(n_spec_prop+1) 
@@ -2845,12 +2845,12 @@ contains
              accept_rate = n_accept*1.d0/n_spec_prop
              if (c_lnL%pol_sample_proplen(p,id)) then
                 if (cpar%verbosity>3 .and. mod(n_spec_prop,out_every)==0) then
-                   write(*,fmt='(a, f6.4)') "   accept rate = ", running_accept
-                   write(*,fmt='(a, e14.5)') "   avg. abs. delta_lnL = ", running_dlnL
-                   write(*,fmt='(a, e14.5)') "   correlation coeff = ", running_correlation
-                   write(*,fmt='(a, e14.5)') "    lnL_new = ", lnL_new
-                   write(*,fmt='(a, e14.5)') "    lnL_old = ", lnL_old
-                   write(*,fmt='(a, e14.5)') "    lnL_new - lnL_old = ", delta_lnL
+                   write(*,fmt='(a, f6.4)') " |   accept rate = ", running_accept
+                   write(*,fmt='(a, e14.5)') " |   avg. abs. delta_lnL = ", running_dlnL
+                   write(*,fmt='(a, e14.5)') " |   correlation coeff = ", running_correlation
+                   write(*,fmt='(a, e14.5)') " |    lnL_new = ", lnL_new
+                   write(*,fmt='(a, e14.5)') " |    lnL_old = ", lnL_old
+                   write(*,fmt='(a, e14.5)') " |    lnL_new - lnL_old = ", delta_lnL
                 end if
                 
                 if (.not. burned_in) then 
@@ -2891,10 +2891,10 @@ contains
                       n_spec_prop = 0 !reset with new prop length
                       avg_dlnL = 0.d0
                       if (cpar%verbosity>3) then
-                         write(*,fmt='(a, f6.4)')  "      accept rate =         ", running_accept
-                         write(*,fmt='(a, e14.5)') "      avg. abs. delta_lnL = ", running_dlnL
-                         write(*,fmt='(a, e14.5)') "      correlation coeff.  = ", running_correlation
-                         write(*,fmt='(a, e14.5)') "      New prop. len. =      ", proplen
+                         write(*,fmt='(a, f6.4)')  " |      accept rate =         ", running_accept
+                         write(*,fmt='(a, e14.5)') " |      avg. abs. delta_lnL = ", running_dlnL
+                         write(*,fmt='(a, e14.5)') " |      correlation coeff.  = ", running_correlation
+                         write(*,fmt='(a, e14.5)') " |      New prop. len. =      ", proplen
                       end if
                    else
                       !add additional requirement that avg. absolute delta chisq less than 10
@@ -2943,9 +2943,9 @@ contains
                 end if
              else
                 if (cpar%verbosity>2 .and. mod(j,out_every)==0) then
-                   write(*,fmt='(a, f6.4)') "   accept rate = ", accept_rate                   
-                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "   avg. abs. delta_lnL = ", avg_dlnL
-                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "   correlation coeff.  = ", running_correlation
+                   write(*,fmt='(a, f6.4)') " |    accept rate = ", accept_rate                   
+                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "|    avg. abs. delta_lnL = ", avg_dlnL
+                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "|    correlation coeff.  = ", running_correlation
                 end if
              end if
 
@@ -2961,7 +2961,7 @@ contains
           call wall_time(t2)
 
           if (cpar%verbosity>3 .and. myid_pix == 0 .and. mod(j,out_every)==0 .and. n_spec_prop/=0) then
-             write(*,*) '   Sample:',n_spec_prop,'  Wall time per sample:',real((t2-t1)/n_spec_prop,sp)
+             write(*,*) '|    Sample:',n_spec_prop,'  Wall time per sample:',real((t2-t1)/n_spec_prop,sp)
           end if
 
           call mpi_bcast(loop_exit, 1, MPI_LOGICAL, 0, info_fr%comm, ierr)
@@ -2974,13 +2974,13 @@ contains
              if (c_lnL%spec_corr_convergence(id)) then
                 if (n_spec_prop > c_lnL%nprop_uni(2,id)) then
                    if (cpar%verbosity>3 .and. myid_pix == 0) then
-                      write(*,*) 'Maximum number of samples reached. Convercence criteria not reached.'
-                      write(*,*) 'Current correlation coefficient: ',running_correlation
-                      write(*,*) 'Convergence criteria:            ',correlation_limit
+                      write(*,*) '| Maximum number of samples reached. Convercence criteria not reached.'
+                      write(*,*) '| Current correlation coefficient: ',running_correlation
+                      write(*,*) '| Convergence criteria:            ',correlation_limit
                    end if
                 else if (abs(running_correlation) > correlation_limit) then
                    if (cpar%verbosity>3 .and. myid_pix == 0) & 
-                        & write(*,*) 'pushing back samples for convergence. Nsamples pushed:', n_prop_limit
+                        & write(*,*) '| pushing back samples for convergence. Nsamples pushed:', n_prop_limit
                    j = j - n_prop_limit
                    if (j < 0) j = 0
                 end if
@@ -3004,24 +3004,23 @@ contains
 
        if (cpar%verbosity>2) then !pixreg pr
           if (myid_pix==0) then
-             write(*,fmt='(a, i5)')    "    Pixel region: ",pr
-             write(*,fmt='(a, f10.5)') "      Final spec. ind. value:                   ", old_thetas(pr)
-             write(*,fmt='(a, e14.5)') "      Difference in spec. ind., new - old:      ", &
+             write(*,fmt='(a, i5)')    " |    Pixel region: ",pr
+             write(*,fmt='(a, f10.5)') " |      Final spec. ind. value:                   ", old_thetas(pr)
+             write(*,fmt='(a, e14.5)') " |      Difference in spec. ind., new - old:      ", &
                   & (old_thetas(pr)-init_thetas(pr))
-             write(*,*) '      Samples:',nsamp
-             if (nsamp > 0) write(*,*) '        Wall time per sample (sec):                 ',real((t2-t1)/nsamp,sp)
-             write(*,*) '        Initialization wall time pixel region (sec):',real((t1-t0),sp)
-             write(*,*) '        Total wall time pixel region (sec):         ',real((t2-t0),sp)
+             write(*,*) '|      Samples:',nsamp
+             if (nsamp > 0) write(*,*) '|         Wall time per sample (sec):                 ',real((t2-t1)/nsamp,sp)
+             write(*,*) '|         Initialization wall time pixel region (sec):',real((t1-t0),sp)
+             write(*,*) '|         Total wall time pixel region (sec):         ',real((t2-t0),sp)
 
-             if (sampled_nprop) write(*,fmt='(a, i5)') "      Number of proposals after tuning: ",c_lnL%nprop_pixreg(pr,p,id)
-             if (sampled_proplen) write(*,fmt='(a, e14.5)') "      Proposal length after tuning: ",c_lnL%proplen_pixreg(pr,p,id)
-             write(*,fmt='(a, e14.5)') "      New Log-Likelihood:                       ", lnl_old
-             write(*,fmt='(a, e14.5)') "      Difference in Log-Likelihood (new - old): ", lnl_old-lnl_init
-             write(*,*) ''
+             if (sampled_nprop) write(*,fmt='(a, i5)') " |      Number of proposals after tuning: ",c_lnL%nprop_pixreg(pr,p,id)
+             if (sampled_proplen) write(*,fmt='(a, e14.5)') " |      Proposal length after tuning: ",c_lnL%proplen_pixreg(pr,p,id)
+             write(*,fmt='(a, e14.5)') " |      New Log-Likelihood:                       ", lnl_old
+             write(*,fmt='(a, e14.5)') " |      Difference in Log-Likelihood (new - old): ", lnl_old-lnl_init
+             write(*,*) '|'
           end if
        end if
 
-       if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
        call theta_single_lr%dealloc(); deallocate(theta_single_lr)
        call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
        theta_single_lr => null()
@@ -3085,6 +3084,7 @@ contains
 
 
     end do !pr = 1,max_pr
+    if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
 
     !bcast proposal length
     call mpi_bcast(c_lnL%proplen_pixreg(1:npixreg,p,id), npixreg, MPI_DOUBLE_PRECISION, 0, &
@@ -3114,19 +3114,19 @@ contains
     c_lnL%theta_pixreg(0:npixreg,p,id)=old_thetas
 
     if (cpar%verbosity>2 .and. myid_pix==0 .and. npixreg > 1) then
-       write(*,*) "    Average values from pixel region sampling"
-       write(*,fmt='(a, i5)') "    Number of proposals (after tuning):  ", &
+       write(*,*) "|    Average values from pixel region sampling"
+       write(*,fmt='(a, i5)') " |   Number of proposals (after tuning):  ", &
             & sum(c_lnL%nprop_pixreg(1:npixreg,p,id))/npixreg
-       write(*,fmt='(a, e14.5)') "  --  Proposal length (after tuning): ", &
+       write(*,fmt='(a, e14.5)') " | --  Proposal length (after tuning): ", &
             & sum(c_lnL%proplen_pixreg(1:npixreg,p,id))/npixreg
-       write(*,fmt='(a, f10.5)') "    Final spec. ind. value:           ", sum(old_thetas(1:npixreg))/npixreg
-       write(*,fmt='(a, e14.5)') "    Difference in spec. ind., new - old: ", &
+       write(*,fmt='(a, f10.5)') " |   Final spec. ind. value:           ", sum(old_thetas(1:npixreg))/npixreg
+       write(*,fmt='(a, e14.5)') " |   Difference in spec. ind., new - old: ", &
             & sum(old_thetas(1:npixreg)-init_thetas(1:npixreg))/npixreg
-       write(*,fmt='(a, e14.5)') "    New Log-Likelihood:               ", &
+       write(*,fmt='(a, e14.5)') " |   New Log-Likelihood:               ", &
             & lnl_old
-       write(*,fmt='(a, e14.5)') "    Difference in Log-Likelihood (new - old): ", &
+       write(*,fmt='(a, e14.5)') " |   Difference in Log-Likelihood (new - old): ", &
             & lnl_old-lnl_total_init
-       write(*,*) ''
+       write(*,*) '|'
     end if
 
     call int2string(iter,         itext)
@@ -3194,8 +3194,8 @@ contains
 
        if (cpar%verbosity>2 .and. myid_pix==0) then
           !print info on the change in monopoles from initial monopoles 
-          write(*,*) '  Change in monopoles of active bands in sampling. In band units. '
-          write(*,*) '  band_label    mono_in        mono_out       prior_mean     prior_rms'
+          write(*,*) '|  Change in monopoles of active bands in sampling. In band units. '
+          write(*,*) '|  band_label    mono_in        mono_out       prior_mean     prior_rms'
           do i = 1,numband
              if (monopole_active(i)) write(*,fmt='(a15,e15.5,e15.5,e15.5,e15.5)') &
                   & trim(data(i)%label),monopole_val(i)*monopole_mixing(i), &
