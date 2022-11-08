@@ -124,10 +124,9 @@ contains
        constructor%band      = band
 
        ! Read template and mask
-       dir = trim(cpar%datadir) // '/'
-       constructor%T => comm_map(data(band)%info, trim(dir)//trim(mapfile))
+       constructor%T => comm_map(data(band)%info, trim(mapfile))
        if (trim(maskfile) /= 'fullsky') then
-          constructor%mask  => comm_map(data(band)%info, trim(dir)//trim(maskfile))
+          constructor%mask  => comm_map(data(band)%info, trim(maskfile))
           constructor%P_cg  =  [mu,1.d-6]
        else
           constructor%P_cg  =  constructor%P      
@@ -167,7 +166,7 @@ contains
 
     ! Find number of lines
     n = 0
-    open(unit, file=trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
+    open(unit, file=trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))

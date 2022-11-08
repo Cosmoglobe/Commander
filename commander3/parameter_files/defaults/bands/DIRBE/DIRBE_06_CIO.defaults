@@ -1,7 +1,7 @@
 #DIRBE 25 micron CIO default parameters
 # NOTE: data dir in parameter file
 
-BAND_LABEL&&&                  = DIRBE_06
+BAND_LABEL&&&                  = 06_25um
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 128
@@ -20,7 +20,7 @@ BAND_BANDPASS_TYPE&&&          = DIRBE
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
 BAND_NOMINAL_FREQ&&&           = 11991.7
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = DIRBE_instrument.h5 # WMAP has a .dat file here..?
+BAND_BANDPASSFILE&&&           = DIRBE_instrument_01.h5 # WMAP has a .dat file here..?
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
 BAND_GAIN_PRIOR_RMS&&&          = 0
@@ -40,9 +40,9 @@ BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_START_SCANID&&&       = 1
 BAND_TOD_END_SCANID&&&         = 285
 BAND_TOD_TOT_NUMSCAN&&&        = 285
-BAND_TOD_FLAG&&&               = 6111232 # Not sure what this is either
+BAND_TOD_FLAG&&&               = 1 # Not sure what this is either
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
-BAND_TOD_DETECTOR_LIST&&&      = 06A
+BAND_TOD_DETECTOR_LIST&&&      = 06_A
 BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
 
@@ -55,6 +55,6 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0128.fits   # What goes here??
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0128.fits
-BAND_TOD_RIMO&&&               = DIRBE_instrument.h5
-BAND_TOD_FILELIST&&&           = filelists/filelist_06_128.txt
+BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_06_25um.txt
 

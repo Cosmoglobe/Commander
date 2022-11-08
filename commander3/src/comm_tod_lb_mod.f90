@@ -155,7 +155,7 @@ contains
     call constructor%read_tod(constructor%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
@@ -400,9 +400,9 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0)
+       call finalize_binned_map(self, binmap, rms_out, 1.d0)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 
