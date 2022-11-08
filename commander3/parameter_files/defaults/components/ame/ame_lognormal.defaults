@@ -31,9 +31,12 @@ COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
 COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
 
 COMP_AMP_LMIN&&               = 0
-COMP_AMP_LMAX&&               = 1000
+COMP_AMP_LMAX&&               = 100
 COMP_AMP_INPUT_MAP&&          = init_ame_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none 
+COMP_AMP_PRIOR_LMAX&&         = -1
+
+COMP_IND_LMAX&&               = 0
 
 COMP_NU_P_POLTYPE&&           = 1        # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_NU_P_INPUT_MAP&&         = init_ame_nu_p_BP8.1_v1.fits
@@ -64,7 +67,6 @@ COMP_W_AME_INT_PIXREG_PRIORS&& = none
 COMP_W_AME_POL_PIXREG_PRIORS&& = none
 
 COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
-COMP_PRIOR_AMP_LMAX&&         = -1
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 

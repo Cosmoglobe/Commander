@@ -37,7 +37,7 @@ COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 1500
 COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = ff_prior_mean_2015_median_90arc.fits none
-COMP_AMP_PRIOR_LMAX&&         = 1500
+COMP_AMP_PRIOR_LMAX&&         = -1
 
 COMP_EM_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_EM_INPUT_MAP&&           = default    # null_n2048.fits

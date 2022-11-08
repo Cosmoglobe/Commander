@@ -71,15 +71,18 @@ contains
      constructor%n_xi            = 3
      constructor%noise_psd_model = 'oof'
      allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+     allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
      allocate(constructor%xi_n_P_rms(constructor%n_xi))
      
      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
      if (trim(constructor%freq) == 'SPIDER_150') then
-        constructor%xi_n_nu_fit = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
         constructor%xi_n_P_uni(2,:)  = [0.0010d0, 0.45d0] ! fknee
         constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else if (trim(constructor%freq) == 'SPIDER_90') then
-        constructor%xi_n_nu_fit = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        constructor%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        constructor%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
         constructor%xi_n_P_uni(2,:)  = [0.002d0, 0.40d0]  ! fknee
         constructor%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else
@@ -196,10 +199,6 @@ contains
      allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
      if (constructor%orb_4pi_beam) constructor%orb_dp => comm_orbdipole(constructor%mbeam)
  
-     ! Initialize all baseline corrections to zero
-     do i = 1, constructor%nscan
-        constructor%scans(i)%d%baseline = 0.d0
-     end do
 
      call timer%stop(TOD_INIT, id_abs)
 

@@ -69,7 +69,7 @@ contains
 !   end subroutine simulate_n_corr
 
 
-   subroutine copy_LFI_tod(cpar, ierr)
+   subroutine copy_tod(cpar, ierr)
      !
      ! Routine which copies the original hdf5 TODs for
      ! subsequent processing.
@@ -125,7 +125,7 @@ contains
        val     = 0
        ! processing files only with Master process
        if (cpar%myid == 0) then
-         write(*,*) "   Starting copying files..."
+         write(*,*) "|   Starting copying files..."
          ! copying an existing filelist into simulation folder
          !call system("cp "//trim(filelist)//" "//trim(simsdir))
          !mystring = filelist
@@ -140,20 +140,20 @@ contains
          iostatus = 0
          do while(iostatus == 0)
            read(unit,*, iostat=iostatus) val
-           n_lines = n_lines + 1
+           if (iostatus == 0) n_lines = n_lines + 1
          end do
          close(unit)
          ! an input array of strings,
          ! which will store filenames
-         allocate(input_array(1:n_lines))
+         allocate(input_array(1:n_lines-1))
          ! array which will store pid values
          !allocate(pid_array(1:n_lines))
-         write(*,*) "--------------------------------------------------------------"
+         write(*,*) "| --------------------------------------------------------------"
          ! once again open the same file to start reading
          ! it from the top to bottom
          open(unit, file=trim(filelist), action="read")
          ! we need to ignore the first line, otherwise it will appear inside an input array
-         do i = 0, n_lines-2
+         do i = 0, n_lines-1
            if (i == 0) then
              read(unit,*) val
            else
@@ -162,8 +162,8 @@ contains
          end do
          close(unit)
          allocate(dummy_array(size(input_array)))
-         write(*,*) "--------------------------------------------------------------"
-         do i = 2, size(input_array)
+         write(*,*) "| --------------------------------------------------------------"
+         do i = 1, size(input_array)
            ! if the number already exists in result check next
            if (any(dummy_array == input_array(i))) cycle
            ! No match was found, so add it to the output
@@ -171,7 +171,7 @@ contains
            dummy_array(n_elem) = input_array(i)
          end do
          deallocate(input_array)
-         write(*,*) "--------------------------------------------------------------"
+         write(*,*) "| --------------------------------------------------------------"
          ! reducing the size of output array of strings from 45000 to 1490
          allocate(output_array(1:n_elem))
          do i = 1, size(output_array)
@@ -215,13 +215,13 @@ contains
        !  !call system("cp "//trim(filelist)//" "//trim(simsdir))
        !  !call 
        !end if 
-       if (cpar%myid == 0) write(*,*) "Finished copying files!"
-       if (cpar%myid == 0) write(*,*) "--------------------------------------------------------------"
+       if (cpar%myid == 0) write(*,*) "| Finished copying files!"
+       if (cpar%myid == 0) write(*,*) "| --------------------------------------------------------------"
        call MPI_BARRIER(MPI_COMM_WORLD, ierr)
      end do
      !call MPI_Finalize(ierr)
      !stop
-   end subroutine copy_LFI_tod
+   end subroutine copy_tod
 
 
   subroutine write_filelists_to_disk(cpar, ierr)
@@ -271,15 +271,18 @@ contains
       filelist = trim(cpar%ds_tod_filelist(band))
       ! processing files only with Master process
       if (cpar%myid == 0) then
+        ! GENERALIZE THIS TO NON-LFI DATA
         mysubstring = 'LFI_0'
+        mysubstring = 'wmap_'
         n_lines = 0
         n_elem  = 0
         val     = 0
         ! copying an existing filelist and renaming it
         freq = cpar%ds_label(band)
         sims_filelist = trim(simsdir)//"filelist_"//trim(freq)//"_simulations.txt"
-        write(*,*) "filelist is "//trim(filelist)
-        write(*,*) "sims_filelist is "//trim(sims_filelist)
+        write(*,*) "| filelist is "//trim(filelist)
+        write(*,*) "| sims_filelist is "//trim(sims_filelist)
+
         call system("cp "//trim(filelist)//" "//trim(sims_filelist))
         ! Now, changing pointings inside the file
         unit = getlun()
@@ -291,15 +294,14 @@ contains
         iostatus = 0
         do while(iostatus == 0)
           read(unit,*, iostat=iostatus) val
-          n_lines = n_lines + 1
+          if (iostatus == 0) n_lines = n_lines + 1
         end do
-        write(*,*) "n_lines is ", n_lines
         close(unit)
         allocate(input_array(n_lines), pid_array(n_lines), output_array(n_lines))
         allocate(column3(n_lines), column4(n_lines), column5(n_lines))
         ! array which will store pid values
         !allocate(pid_array(1:n_lines))
-        write(*,*) "--------------------------------------------------------------"
+        write(*,*) "| --------------------------------------------------------------"
         ! once again open the same file to start reading
         ! it from the top to bottom
         open(unit, file=trim(sims_filelist), action="read")
@@ -307,7 +309,7 @@ contains
         ! also, we will get 1 additional line (i.e. the number n_lines will be  1 value larger
         ! than it should be, because of the way we count lines); thus, we need to loop from
         ! 1 to (n_lines - 1), or from 0 to (n_lines - 2)
-        do i = 0, n_lines-2
+        do i = 0, n_lines-1
           if (i == 0) then
             read(unit,*) val
           else
@@ -323,7 +325,7 @@ contains
         ! (recl=1024 is used so the last column won't be put into
         ! next row)
         open(unit, file=trim(sims_filelist), action="write", recl=1024)
-        do i = 0, n_lines-2
+        do i = 0, n_lines-1
           if (i == 0) then
             write(unit,*) val
           else
@@ -331,7 +333,7 @@ contains
           end if
         end do
         close(unit)
-        write(*,*) "--------------------------------------------------------------"
+        write(*,*) "| --------------------------------------------------------------"
         deallocate(input_array, pid_array, output_array)
         deallocate(column3, column4, column5)
       end if
