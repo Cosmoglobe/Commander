@@ -447,7 +447,7 @@ contains
 1   close(unit)
     
     if (any(.not. ok)) then
-       write(*,*) 'ERROR -- all bands are defined in CMB relativistic quadrupole file = ', trim(filename)
+       write(*,*) 'ERROR -- all bands must be defined in CMB relativistic quadrupole file = ', trim(filename)
        stop
     end if
 

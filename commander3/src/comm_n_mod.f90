@@ -21,6 +21,7 @@
 module comm_N_mod
   use comm_param_mod
   use comm_map_mod
+  use comm_status_mod
   implicit none
 
   private
@@ -151,7 +152,9 @@ contains
     end if
     call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
 
-    call wall_time(t1)
+    call update_status(status, "compute_invN_lm 3j")
+
+    !call wall_time(t1)
     !!$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
     allocate(threej_symbols(twolmaxp2))
     allocate(threej_symbols_m0(twolmaxp2))
@@ -189,6 +192,8 @@ contains
     deallocate(threej_symbols, threej_symbols_m0)
     !!$OMP END PARALLEL
     call wall_time(t2)
+
+    call update_status(status, "compute_invN_lm done")
 
     invN_diag%alm = N_lm
     !write(*,*) sum(abs(invN_diag%alm))

@@ -22,6 +22,7 @@ module comm_N_rms_mod
   use comm_N_mod
   use comm_param_mod
   use comm_map_mod
+  use comm_status_mod
   implicit none
 
   private
@@ -73,6 +74,7 @@ contains
     real(dp)           :: sum_noise, npix
     type(comm_mapinfo), pointer :: info_smooth => null()
 
+    call update_status(status, "comm_N_rms constructor")
     
     ! General parameters
     allocate(constructor)
@@ -125,6 +127,8 @@ contains
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
 
+    call update_status(status, "cg sample group masks")
+
     ! Initialize CG sample group masks
     allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
     do i = 1, cpar%cg_num_user_samp_groups
@@ -154,6 +158,8 @@ contains
     real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
     class(comm_map),     pointer :: invW_tau => null(), iN => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
+
+    call update_status(status, "update_N_rms")
 
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
@@ -206,6 +212,8 @@ contains
        end do
     end if
 
+    call update_status(status, "N_rms cg_precond")
+
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
        if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
@@ -242,6 +250,8 @@ contains
           call invW_tau%dealloc(); deallocate(invW_tau)
        end if
     end if
+
+    call update_status(status, "N_rms lowres")
 
     ! Set up lowres map
     if (.not.associated(self%siN_lowres)) then

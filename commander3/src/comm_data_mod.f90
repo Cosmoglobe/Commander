@@ -275,6 +275,8 @@ contains
           end if
        end do
 
+       call update_status(status, "data_BP")
+
        if (trim(cpar%ds_tod_type(i)) == 'none') then
           data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
@@ -288,7 +290,10 @@ contains
        do j = 1, cpar%num_smooth_scales
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+             if(cpar%myid == 0) then
+               write(*,*) "Creating filtered noise maps at ", cpar%fwhm_smooth(j), " arcmins"
+             end if 
+            info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
                   & data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
