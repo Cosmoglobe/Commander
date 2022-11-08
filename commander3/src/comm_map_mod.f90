@@ -1094,7 +1094,7 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(in)    :: self
     class(comm_map), intent(inout) :: map_out
 
-    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last
+    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last, nmaps
     real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer, tmp
 
     if (self%info%nside == map_out%info%nside) then
@@ -1128,10 +1128,11 @@ subroutine tod2file_dp3(filename,d)
 !!$       stop
 !!$    end if
 
+    nmaps = size(self%map, dim=2)
     bsize = 1000
-    allocate(m_in(0:self%info%npix-1,self%info%nmaps))
-    allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
-    allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
+    allocate(m_in(0:self%info%npix-1,nmaps))
+    allocate(m_out(0:map_out%info%npix-1,nmaps))
+    allocate(buffer(0:map_out%info%npix-1,nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
 !    write(*,*) 'a', self%info%myid, sum(abs(m_in))

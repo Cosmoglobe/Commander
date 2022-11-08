@@ -173,8 +173,14 @@ contains
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
-       self%rms0     => comm_map(info)
-       self%rms0%map = map%map
+       !info%nmaps    = info%nmaps + 1
+       !self%rms0     => comm_map(info)
+       if (size(map%map, dim=2) == 3) then
+           self%rms0%map(:,1:3) = map%map
+           self%rms0%map(:,4) = 0
+       else
+           self%rms0%map = map%map
+       end if
     else
        call report_error('Error in update_N_rms - no noisefile or map declared')
     end if
@@ -235,8 +241,9 @@ contains
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
        if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
+       !write(*,*) info%nmaps, shape(self%invN_diag%map), 'basdfa'
        self%invN_diag%map = self%siN%map**2
-       call compute_invN_lm(self%invN_diag)
+       !call compute_invN_lm(self%invN_diag)
     else if (trim(self%cg_precond) == 'pseudoinv') then
        ! Compute alpha_nu for pseudo-inverse preconditioner
        if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
