@@ -140,6 +140,7 @@ contains
        
     ! go through compList and check if any diffuse component is using a band monopole
     ! as the zero-level prior
+
     c => compList
     do while (associated(c))
        select type (c)
@@ -172,8 +173,6 @@ contains
        end select
        c => c%next()
     end do
-
-
 
   end subroutine initialize_signal_mod
 
@@ -338,13 +337,18 @@ contains
        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
        initsamp = init_samp
-    else 
+    else
        call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
        if (present(init_samp)) initsamp = init_samp
     end if
     call int2string(initsamp, itext)
     call open_hdf_file(chainfile, file, 'r')
     
+    !TODO: I get a crash here when the init file is missing or doesn't have the
+    !required sample number, but it's some sort of MPI crash with no good
+    !explanation or description so we should check for that somehow and write a
+    !better error
+
     if (cpar%resamp_CMB .and. present(init_from_output)) then
        ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList

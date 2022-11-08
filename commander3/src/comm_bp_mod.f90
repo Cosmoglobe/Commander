@@ -104,7 +104,7 @@ contains
     class(comm_bp),     pointer             :: constructor
 
     integer(i4b)       :: i, j, ndet
-    character(len=512) :: dir, label
+    character(len=512) :: label
     character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
     
@@ -112,7 +112,6 @@ contains
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
 
     constructor%nu_c = cpar%ds_nu_c(id_abs)
     
@@ -159,41 +158,41 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
-    else if (trim(constructor%type) == 'DIRBE') then
-       if (index(subdets, '.txt') /=0) then
-          ndet = count_detectors(subdets, cpar%datadir)
-          call get_detectors(subdets, cpar%datadir, dets, ndet)
-       else
-          call get_tokens(subdets, ",", dets, ndet)
-       end if
-       call read_bandpass_dirbe(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
-               & constructor%threshold, &
-               & constructor%n, constructor%nu0, constructor%tau0)
-       allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
+   !  else if (trim(constructor%type) == 'DIRBE') then
+   !     if (index(subdets, '.txt') /=0) then
+   !        ndet = count_detectors(subdets, cpar%datadir)
+   !        call get_detectors(subdets, cpar%datadir, dets, ndet)
+   !     else
+   !        call get_tokens(subdets, ",", dets, ndet)
+   !     end if
+   !     write(*, *) "dets", dets(1)
+   !     write(*, *) "alldets", dets
+   !     call read_bandpass_dirbe(trim(dir)//trim(cpar%ds_bpfile(id_abs)), dets(1), &
+   !             & constructor%threshold, &
+   !             & constructor%n, constructor%nu0, constructor%tau0)
+   !     allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
-          call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), detlabel, &
+          call read_bandpass(cpar%ds_bpfile(id_abs), detlabel, &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
-          if (index(subdets, '.txt') /=0) then
-             ndet = count_detectors(subdets, cpar%datadir)
-             call get_detectors(subdets, cpar%datadir, dets, ndet)
+          call get_tokens(subdets, ",", dets, ndet)
+          if (constructor%threshold == 0.d0) then
+               call read_bandpass(cpar%ds_bpfile(id_abs), dets(1), &
+                    & constructor%threshold, &
+                    & constructor%n, constructor%nu0, constructor%tau0)
+               do i = 2, ndet
+                    call read_bandpass(cpar%ds_bpfile(id_abs), dets(i), &
+                        & constructor%threshold, constructor%n, nu0, tau0)
+                    constructor%tau0 = constructor%tau0 + tau0
+                    deallocate(nu0, tau0)
+               end do
+               constructor%tau0 = constructor%tau0 / ndet
           else
-             call get_tokens(subdets, ",", dets, ndet)
-          end if
-
-          call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
-               & constructor%threshold, &
-               & constructor%n, constructor%nu0, constructor%tau0)
-          if (ndet > 1) then
-             do i = 2, ndet
-                call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
-                     & constructor%threshold, constructor%n, nu0, tau0)
-                constructor%tau0 = constructor%tau0 + tau0
-                deallocate(nu0, tau0)
-             end do
-             constructor%tau0 = constructor%tau0 / ndet
+               call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
+                    & constructor%threshold, &
+                    & constructor%n, constructor%nu0, constructor%tau0)
           end if
        end if
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
@@ -214,7 +213,7 @@ contains
     end if
 
     ! Read default delta from instrument parameter file
-    call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+    call read_instrument_file(trim(cpar%cs_inst_parfile), &
          & 'delta', cpar%ds_label(id_abs), 0.d0, constructor%delta(1))
 
     ! Initialize active bandpass 

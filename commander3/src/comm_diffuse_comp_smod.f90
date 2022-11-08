@@ -50,7 +50,7 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=512) :: temp_filename
+    character(len=512) :: temp_filename, temp2
     character(len=512), dimension(1000) :: tokens
     integer(i4b) :: i, j, k, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior, param_dp
@@ -120,7 +120,7 @@ contains
        self%x => comm_map(info)
     else
        ! Read map from FITS file, and convert to alms
-       self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
+       self%x => comm_map(info, trim(cpar%cs_input_amp(id_abs)))
        do i = 1, self%x%info%nmaps
           self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale(i))
        end do
@@ -139,19 +139,19 @@ contains
 
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
-       self%mask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_mask(id_abs)), &
+       self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
             & udgrade=.true.)
     end if
 
     ! Read processing mask
     if (trim(cpar%ds_procmask) /= 'none') then
-       self%procmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+       self%procmask => comm_map(self%x%info, trim(cpar%ds_procmask), &
             & udgrade=.true.)
     end if
 
     ! Read index sampling mask; downgrade to each channel; re-use for equal Nsides; skip for dense matrices
     if (trim(cpar%cs_indmask(id_abs)) /= 'fullsky') then
-       indmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_indmask(id_abs)), &
+       indmask => comm_map(self%x%info, trim(cpar%cs_indmask(id_abs)), &
             & udgrade=.true.)
        allocate(self%indmask(numband))
        do i = 1, numband
@@ -190,7 +190,7 @@ contains
        self%nside_def     = 32
        self%fwhm_def      = 90.d0
        info_def => comm_mapinfo(self%comm, self%nside_def, self%lmax_def, 1, .false.)
-       self%defmask => comm_map(info_def, trim(cpar%datadir)//'/'//trim(cpar%cs_defmask(id_abs)), udgrade=.true.)
+       self%defmask => comm_map(info_def, trim(cpar%cs_defmask(id_abs)), udgrade=.true.)
        where (self%defmask%map < 0.5)
           self%defmask%map = 0.d0
        elsewhere
@@ -204,7 +204,7 @@ contains
 
     ! Initialize prior mean
     if (trim(cpar%cs_prior_amp(id_abs)) /= 'none') then
-       self%mu => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_prior_amp(id_abs)))
+       self%mu => comm_map(info, trim(cpar%cs_prior_amp(id_abs)))
        call self%mu%YtW
     end if
 
@@ -250,8 +250,13 @@ contains
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
+       if(temp2(1:1) /= '/') then
+          if(trim(self%mono_prior_type) /= 'bandmono') then
+            temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
+          end if
+       end if
        call get_tokens(temp_filename, ",", tokens, i)
-       
+ 
        if (trim(self%mono_prior_type) == 'lower_value_prior') then
           if (i < 4) then
              call report_error('monopole lower_value_prior needs filename,mean,rms,fwhm as input. Not enough inputs found')
@@ -263,7 +268,7 @@ contains
           if (self%mono_prior_gaussian_rms < 0.d0) call report_error('Lower value monopole prior requires a non-negative prior RMS. component '//trim(self%label))
           read(tokens(4),*) self%mono_prior_fwhm
           if (self%mono_prior_fwhm <= 0.d0) call report_error('Lower value monopole prior requires a positive FWHM. component '//trim(self%label))
-          self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+          self%mono_prior_map => comm_map(self%x%info, trim(filename))
 
           !scale prior mean and rms by cg_scale to make sure units match during correction
           self%mono_prior_gaussian_mean = self%mono_prior_gaussian_mean/self%cg_scale(1)
@@ -291,7 +296,7 @@ contains
           !read crosscorr map
           info      => comm_mapinfo(cpar%comm_chain, self%mono_prior_nside, &
                & -1, self%x%info%nmaps, self%x%info%pol)
-          self%mono_prior_map => comm_map(info, trim(cpar%datadir)//'/'//trim(filename))
+          self%mono_prior_map => comm_map(info, trim(filename))
           !init smoothing beam for the component amplitude, to be used for monopole prior correction
           self%B_mono_prior => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=self%mono_prior_fwhm, nside=self%nside,&
                & init_realspace=.false.)
@@ -301,7 +306,7 @@ contains
           self%mono_prior_band=trim(filename)
        else          
           filename = get_token(temp_filename, ",", 1)
-          self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+          self%mono_prior_map => comm_map(self%x%info, trim(filename))
        end if
     end if
 
@@ -666,7 +671,7 @@ contains
              self%spec_mono_mask(i)%p => comm_map(info2)
              self%spec_mono_mask(i)%p%map = 1.d0
           else
-             self%spec_mono_mask(i)%p => comm_map(info2, trim(cpar%datadir)// '/' //trim(cpar%cs_spec_mono_mask(id_abs,i)))
+             self%spec_mono_mask(i)%p => comm_map(info2, trim(cpar%cs_spec_mono_mask(id_abs,i)))
 
              if (min(self%poltype(i),self%nmaps) > &
                   & self%spec_mono_mask(i)%p%info%nmaps) then
@@ -700,7 +705,7 @@ contains
              self%pol_ind_mask(i)%p%map = 1.d0
           else
              ! Read map from FITS file
-             self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_mask(i,id_abs)))
+             self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%cs_spec_mask(i,id_abs)))
 
              if (min(self%poltype(i),self%nmaps) > &
                   & self%pol_ind_mask(i)%p%info%nmaps) then
@@ -724,7 +729,7 @@ contains
              self%pol_proplen(i)%p%map = 1.d0
           else
              ! Read map from FITS file
-             self%pol_proplen(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_proplen(i,id_abs)))
+             self%pol_proplen(i)%p => comm_map(info, trim(cpar%cs_spec_proplen(i,id_abs)))
              if (min(self%poltype(i),self%nmaps) > &
                   & self%pol_proplen(i)%p%info%nmaps) then
                 write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' proplen map has fewer maps (', & 
@@ -755,7 +760,7 @@ contains
              self%pol_nprop(i)%p%map = 1.d0
           else
              ! Read map from FITS file
-             self%pol_nprop(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_nprop(i,id_abs)))
+             self%pol_nprop(i)%p => comm_map(info, trim(cpar%cs_spec_nprop(i,id_abs)))
              if (min(self%poltype(i),self%nmaps) > &
                   & self%pol_nprop(i)%p%info%nmaps) then
                 write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' nprop map has fewer maps (', & 
@@ -824,7 +829,7 @@ contains
                 self%ind_pixreg_map(i)%p%map = 0.d0
              else
                 ! Read map from FITS file
-                self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+                self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%cs_spec_pixreg_map(i,id_abs)))
                 if (min(self%poltype(i),self%nmaps) > &
                      & self%ind_pixreg_map(i)%p%info%nmaps) then
                    write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
@@ -892,7 +897,7 @@ contains
              tp%map = self%theta(i)%p%map !take avrage from existing theta map
           else
              !read map from init map (non-smoothed theta map)
-             tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
+             tp => comm_map(self%theta(i)%p%info, trim(cpar%cs_pixreg_init_theta(i,id_abs)))
           end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
@@ -1206,7 +1211,7 @@ contains
           self%L_read(j) = .true.
           if ( self%myid == 0 ) write(*,*) "|    Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
-          open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
+          open(unit=11, file=trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) corrlen_arr
           self%corrlen(j,:) = corrlen_arr
 

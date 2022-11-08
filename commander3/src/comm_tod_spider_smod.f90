@@ -109,7 +109,7 @@ contains
      end if 
 
      constructor%nmaps           = info%nmaps
-   !   constructor%ndet            = num_tokens(trim(cpar%datadir)//'/'//trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
+   !   constructor%ndet            = num_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
      
      nside_beam                  = 512
      nmaps_beam                  = 3
@@ -118,7 +118,7 @@ contains
  
      ! Get detector labels
      if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-        call get_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir, constructor%label)
+        call get_detectors(cpar%ds_tod_dets(id_abs), constructor%label)
      else
         call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label)
      end if
@@ -187,7 +187,7 @@ contains
      call constructor%read_tod(constructor%label, cpar%datadir)
  
      ! Initialize bandpass mean and proposal matrix
-     call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+     call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
  
      ! Construct lookup tables
      call constructor%precompute_lookups()
@@ -673,13 +673,13 @@ contains
      call synchronize_binmap(jump_map, self) 
 
      if (sample_rel_bandpass) then
-        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+        call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
      else
-        call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
+        call finalize_binned_map(self, binmap, rms_out, 1.d6)
      end if
      map_out%map = binmap%outmaps(1)%p%map
 
-     call finalize_binned_map(self, jump_map, handle, rms_out, 1.d6) 
+     call finalize_binned_map(self, jump_map, rms_out, 1.d6) 
 
      ! Sample bandpass parameters
      if (sample_rel_bandpass .or. sample_abs_bandpass) then

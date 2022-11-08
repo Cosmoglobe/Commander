@@ -68,11 +68,9 @@ contains
     real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
-    character(len=512) :: dir
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
     constructor%type              = trim(cpar%ds_noise_format(id_abs))
@@ -90,7 +88,7 @@ contains
     constructor%nprocs            = info%nprocs
     constructor%info              => info
     constructor%pol_only          = .true.
-    call constructor%update_N(info, handle, mask=mask, noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+    call constructor%update_N(info, handle, mask=mask, noisefile=trim(cpar%ds_noisefile(id_abs)))
 
   end function constructor
 

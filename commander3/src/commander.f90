@@ -199,7 +199,6 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
-  !write(*,*) 'first', first_sample
   !first_sample = 1
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
@@ -382,7 +381,7 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%label) == 'cmb') then
+          if (trim(c%label) == 'cmb' .and. c%nmaps > 1) then
              rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
              cmbmap        => comm_map(c%x)
 !!$             call cmbmap%Y()

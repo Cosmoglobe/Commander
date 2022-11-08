@@ -287,7 +287,7 @@ contains
     type(hdf_file) :: file
     call close_hdf_set(file)
     call h5fclose_f(file%filehandle, file%status)
-    call assert(file%status>=0, 'comm_hdf_mod: Could not close file')
+    call assert(file%status>=0, 'comm_hdf_mod: Could not close file '//trim(file%filename))
   end subroutine close_hdf_file
 
   subroutine open_hdf_set(file, setname)

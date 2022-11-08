@@ -28,9 +28,9 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
-  use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
+  !use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   implicit none
@@ -54,7 +54,6 @@ module comm_data_mod
      class(comm_map),     pointer :: c_prop    => null()
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
-     class(comm_map),     pointer :: procmask2 => null()
      class(comm_map),     pointer :: gainmask  => null()
      class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
@@ -129,11 +128,11 @@ contains
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
        call get_mapfile(cpar, i, mapfile)
-       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
+       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
-          data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+          data(n)%procmask => comm_map(data(n)%info, trim(cpar%ds_procmask), &
                & udgrade=.true.)
        end if
        data(n)%res  => comm_map(data(n)%map)
@@ -142,7 +141,7 @@ contains
        if (data(n)%sample_gain) then
           ! Read calibration mask
           if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
-             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_maskfile_calib(i)), &
+             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
                   & udgrade=.true.)
           end if
        end if
@@ -156,9 +155,6 @@ contains
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
-          else if (trim(data(n)%tod_type) == 'DIRBE') then
-             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
-             data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
@@ -169,6 +165,11 @@ contains
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
             data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
+
+          !else if (trim(data(n)%tod_type) == 'HFI') then
+          !   data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+          !   data(n)%ndet = data(n)%tod%ndet
+
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
@@ -198,7 +199,7 @@ contains
        call update_status(status, "data_beam")
  
        ! Read default gain from instrument parameter file
-       call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+       call read_instrument_file(trim(cpar%cs_inst_parfile), &
             & 'gain', cpar%ds_label(i), 1.d0, data(n)%gain)
 
        ! Initialize mask structures
@@ -206,7 +207,7 @@ contains
           data(n)%mask     => comm_map(data(n)%info)
           data(n)%mask%map =  1.d0
        else
-          data(n)%mask  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
+          data(n)%mask  => comm_map(data(n)%info, trim(cpar%ds_maskfile(i)))
           where (data(n)%mask%map > 0.5d0)
              data(n)%mask%map = 1.d0
           elsewhere
@@ -215,7 +216,7 @@ contains
        end if
        data(n)%mask%map = data(n)%mask%map * mask_misspix
        if (trim(cpar%ds_sourcemask) /= 'none') then
-          call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
+          call apply_source_mask(data(n)%mask, trim(cpar%ds_sourcemask), &
                & data(n)%B(0)%p%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
@@ -256,7 +257,7 @@ contains
             data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
           else
             ! Check if bandpass already exists in detector list
-            call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
+            call read_bandpass(trim(cpar%ds_bpfile(i)), &
                               & data(n)%tod%label(j), &
                               & 0.d0, &
                               & n_dummy, &
@@ -274,6 +275,8 @@ contains
           end if
        end do
 
+       call update_status(status, "data_BP")
+
        if (trim(cpar%ds_tod_type(i)) == 'none') then
           data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
@@ -287,7 +290,10 @@ contains
        do j = 1, cpar%num_smooth_scales
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+             if(cpar%myid == 0) then
+               write(*,*) "Creating filtered noise maps at ", cpar%fwhm_smooth(j), " arcmins"
+             end if 
+            info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
                   & data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
@@ -662,7 +668,7 @@ contains
     else if (filename(n-2:n) == 'txt') then
        ! Assume filelist; pick the number given by mychain. 
        unit = getlun()
-       open(unit, file=trim(cpar%datadir)//'/'//trim(filename), recl=1024)
+       open(unit, file=trim(filename), recl=1024)
        do i = 1, cpar%mychain
           read(unit,'(a)') mapfile
        end do
