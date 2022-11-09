@@ -369,6 +369,7 @@ contains
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
+    type(comm_mapinfo), pointer :: rmsinfo => null()
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: cmbmap => null()
     class(comm_comp), pointer :: c => null()
@@ -396,6 +397,7 @@ contains
        end select
        c => c%next()
     end do
+
 
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
@@ -487,7 +489,14 @@ contains
 
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
-       rms => comm_map(data(i)%info)
+       if (trim(data(i)%noise_format) == 'rms_qucov') then
+          rmsinfo => data(i)%info
+          rmsinfo%nmaps = data(i)%info%nmaps + 1
+          rms => comm_map(rmsinfo)
+          data(i)%info%nmaps = data(i)%info%nmaps - 1
+       else
+          rms => comm_map(data(i)%info)
+       end if
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 

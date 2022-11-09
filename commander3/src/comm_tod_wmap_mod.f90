@@ -228,7 +228,7 @@ contains
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 50
+      constructor%chisq_threshold = 1000
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
@@ -404,10 +404,6 @@ contains
       real(dp) :: polang = 0d0
 
 
-      if (self%first_call) then
-          ! Precomputing low-resolution preconditioner
-          call self%precompute_M_lowres
-      end if
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -459,6 +455,7 @@ contains
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
 
 
+
       ! Distribute processing masks
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
@@ -484,6 +481,7 @@ contains
       M_diag = 0d0
       b_map = 0d0
 
+
       allocate(outmaps(1))
       outmaps(1)%p => comm_map(self%info)
 
@@ -494,6 +492,7 @@ contains
       end if
 
       call timer%stop(TOD_ALLOC, self%band)
+
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -526,7 +525,6 @@ contains
          end do
       end if
 
-      if (.false.) then
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
           if (trim(self%level) == 'L1') then
@@ -568,8 +566,6 @@ contains
               self%x_im = 0
            end if
            call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
-      end if
-
       end if
 
 
@@ -747,6 +743,10 @@ contains
         if (self%myid == 0) self%M_diag = M_diag
 
 
+        if (self%first_call) then
+            ! Precomputing low-resolution preconditioner
+            call self%precompute_M_lowres
+        end if
 
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
@@ -833,19 +833,12 @@ contains
              UU_cov =  QQ_inv*inv_determ
              QU_cov = -QU_inv*inv_determ
 
-             rms_out%map(:,1) = sqrt(QQ_cov)
-             rms_out%map(:,2) = sqrt(UU_cov)
-             rms_out%map(:,3) = QU_cov
-             call rms_out%writeFITS(trim(prefix)//'rms2'//trim(postfix))
-
-             ! Somehow write out the rms_out...
-
-             write(*,*) shape(rms_out%map), nmaps, 'testing now'
-
+             rms_out%info%nmaps           = rms_out%info%nmaps + 1
              rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
              rms_out%map(:,nmaps+1) = QU_cov
              ! Make sure this has the correct number of columns!
              call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             rms_out%info%nmaps           = rms_out%info%nmaps - 1
              deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
              deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
              deallocate(inv_determ)

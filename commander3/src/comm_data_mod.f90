@@ -36,7 +36,7 @@ module comm_data_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit, comp_sens
+     character(len=512)           :: label, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain, gain_prior(2)
@@ -118,6 +118,7 @@ contains
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
+       data(n)%noise_format   = cpar%ds_noise_format(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
@@ -304,7 +305,7 @@ contains
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
              if(cpar%myid == 0) then
-               write(*,*) "Creating filtered noise maps at ", cpar%fwhm_smooth(j), " arcmins"
+               write(*,*) "| Creating filtered noise maps at ", cpar%fwhm_smooth(j), " arcmins"
              end if 
             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &

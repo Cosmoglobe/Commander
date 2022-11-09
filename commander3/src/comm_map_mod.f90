@@ -1008,7 +1008,7 @@ subroutine tod2file_dp3(filename,d)
     logical(lgt),                       intent(in), optional :: nest
 
     integer(i4b)   :: npix, nlheader, nmaps, i, nside
-    logical(lgt)   :: polarization
+    logical(lgt)   :: polarization, rms_cov
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -1017,6 +1017,7 @@ subroutine tod2file_dp3(filename,d)
     nside        = nint(sqrt(real(npix,sp)/12.))
     nmaps        = size(map(0,:))
     polarization = (nmaps == 3)
+    rms_cov      = (nmaps == 4)
     unit_        = '';       if (present(unit)) unit_  = unit
     ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
 
@@ -1059,20 +1060,40 @@ subroutine tod2file_dp3(filename,d)
     call add_card(header) ! blank line
     call add_card(header,"POLAR",polarization," Polarisation included (True/False)")
 
-    call add_card(header) ! blank line
-    call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
-    call add_card(header,"TUNIT1", unit_,"Map unit")
-    call add_card(header)
+    if (rms_cov) then
+        call add_card(header) ! blank line
+        call add_card(header,"TTYPE1", "II_"//ttype_,"Stokes II")
+        call add_card(header,"TUNIT1", unit_,"Map unit")
+        call add_card(header)
 
-    if (polarization) then
-       call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
-       call add_card(header,"TUNIT2", unit_,"Map unit")
-       call add_card(header)
-       
-       call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
-       call add_card(header,"TUNIT3", unit_,"Map unit")
-       call add_card(header)
-    endif
+        call add_card(header,"TTYPE2", "QQ_"//ttype_,"Stokes QQ")
+        call add_card(header,"TUNIT2", unit_,"Map unit")
+        call add_card(header)
+        
+        call add_card(header,"TTYPE3", "UU_"//ttype_,"Stokes UU")
+        call add_card(header,"TUNIT3", unit_,"Map unit")
+        call add_card(header)
+
+        call add_card(header,"TTYPE4", "QU_"//ttype_,"Stokes QU")
+        call add_card(header,"TUNIT4", unit_,"Map unit")
+        call add_card(header)
+
+    else
+        call add_card(header) ! blank line
+        call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
+        call add_card(header,"TUNIT1", unit_,"Map unit")
+        call add_card(header)
+
+        if (polarization) then
+           call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
+           call add_card(header,"TUNIT2", unit_,"Map unit")
+           call add_card(header)
+           
+           call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
+           call add_card(header,"TUNIT3", unit_,"Map unit")
+           call add_card(header)
+        endif
+    end if
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
     call add_card(header,"COMMENT","-----------------------------------------------")
