@@ -45,7 +45,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
-     real(sp)          :: baseline
+     real(sp)          :: baseline, baseline2
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)

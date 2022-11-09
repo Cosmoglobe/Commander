@@ -51,11 +51,11 @@ module comm_tod_HFI_mod
 
   type, extends(comm_tod) :: comm_HFI_tod
    contains
-     procedure     :: process_tod        => process_HFI_tod
-     procedure     :: read_tod_inst      => read_tod_inst_HFI
-     procedure     :: read_scan_inst     => read_scan_inst_HFI
-     procedure     :: initHDF_inst       => initHDF_HFI
-     procedure     :: dumpToHDF_inst     => dumpToHDF_HFI
+     procedure     :: process_tod          => process_HFI_tod
+     procedure     :: read_tod_inst        => read_tod_inst_HFI
+     procedure     :: read_scan_inst       => read_scan_inst_HFI
+     procedure     :: initHDF_inst         => initHDF_HFI
+     procedure     :: dumpToHDF_inst       => dumpToHDF_HFI
   end type comm_HFI_tod
 
   interface comm_HFI_tod
@@ -250,7 +250,7 @@ contains
     nmaps           = map_out%info%nmaps
     npix            = 12*nside**2
     self%output_n_maps = 3
-    if (self%output_aux_maps > 0) then
+    if (self%output_aux_maps > 0 .or. .true.) then
        if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 7
     end if
 
@@ -262,13 +262,18 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! already in K_cmb
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
+
+    call map_in(1,1)%p%writeFITS(trim(self%outdir) // "/input_sky_model_"//trim(self%label(1))//".fits")
+
+!    call mpi_finalize(ierr)
+!    stop
 
     ! Precompute far sidelobe Conviqt structures
     !if (self%correct_sl) then
@@ -326,19 +331,34 @@ contains
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
 
+       ! Estimate ADC corrections
+       !    Not implemented yet
+
+       ! Estimate baselines; separate for odd and even samples
+       call sample_hfi_baselines(sd, self, i)
+
+       ! Demodulate TOD
+       call demodulate_tod(sd, self, i)
+
+
        allocate(s_buf(sd%ntod,sd%ndet))
  
        ! demodulate the data
-       s_buf = sd%tod * (1 - (iand(sd%flag, self%flag0)))
-       do j=1, sd%ndet
-         if (.not. self%scans(i)%d(j)%accept) cycle 
-         sd%tod(:,j) = sd%tod(:,j) - sum(s_buf(:,j))/sum((1 - (iand(sd%flag(:,j),self%flag0))))
-         do k=1, sd%ntod
-           if (sd%tod(k,j) < 0.d0) then 
-             sd%tod(k,j) = - sd%tod(k,j)
-           end if
-         end do
-       end do
+!!$       s_buf = sd%tod * (1 - (iand(sd%flag, self%flag0)))
+!!$       do j=1, sd%ndet
+!!$         if (.not. self%scans(i)%d(j)%accept) cycle 
+!!$         sd%tod(:,j) = sd%tod(:,j) - sum(s_buf(:,j))/sum((1 - (iand(sd%flag(:,j),self%flag0))))
+!!$         do k=1, sd%ntod
+!!$           !if (sd%tod(k,j) < 0.d0) then 
+!!$           if (mod(k,2) == 0) then 
+!!$             sd%tod(k,j) = - sd%tod(k,j)
+!!$           end if
+!!$         end do
+!!$       end do
+
+!!$       write(*,*) sd%tod(1:6,1)
+!!$       call mpi_finalize(ierr)
+!!$       stop
 
        ! remove cosmic rays
        do j=1, sd%ndet
@@ -355,10 +375,11 @@ contains
        end if
 
        ! Sample correlated noise
-       call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+       sd%n_corr = 0.
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -367,7 +388,7 @@ contains
        end do
 
        ! Select data
-       if (select_data) call remove_bad_data(self, i, sd%flag)
+       !if (select_data) call remove_bad_data(self, i, sd%flag)
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
@@ -392,14 +413,14 @@ contains
           end if
        end if
 
-!!$       open(123, file="todtest.txt")
-!!$       if(self%scans(i)%chunk_num == 25083) then
-!!$         write(*,*) "gain:", self%scans(i)%d(1)%gain
-!!$         do k=1, self%scans(i)%ntod
-!!$           write(123,*) sd%tod(k, 1)
-!!$         end do
-!!$       end if 
-!!$       close(123)
+       if(self%scans(i)%chunk_num == 3) then
+          open(123, file="testhke.txt", recl=1024)
+         write(*,*) "gain:", self%scans(i)%d(1)%gain
+         do k=1, self%scans(i)%ntod
+           write(123,*) k, sd%s_sky(k,1), d_calib(:,k,1)
+         end do
+         close(123)
+       end if 
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -429,15 +450,15 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        if (self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
+         call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
        else
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6, chisq_S=chisq_s, mask=procmask2)
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0, chisq_S=chisq_s, mask=procmask2)
        end if
     else
        if(self%nmaps > 1) then
-         call finalize_binned_map(self, binmap, rms_out, 1.d6)
+         call finalize_binned_map(self, binmap, rms_out, 1.d0)
        else 
-         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d6)
+         call finalize_binned_map_unpol(self, binmap, rms_out, 1.d0)
        end if
     end if
     map_out%map = binmap%outmaps(1)%p%map
@@ -474,6 +495,73 @@ contains
     call update_status(status, "tod_end"//ctext)
 
   end subroutine process_HFI_tod
+
+
+  subroutine sample_hfi_baselines(self, tod, scan)
+    ! 
+    ! Estimates baselines for MODULATED data, separate for odd and even samples (ARTEM)
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scandata)
+    !           HFI-specific TOD object
+    ! tod:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! scan:     scan ID
+    !           
+    !
+    ! Returns
+    ! ----------
+    !   None, but updates tod%scans(scan)%d(:)%baseline  (for odd samples)
+    !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
+    !
+    implicit none
+    class(comm_scandata),                         intent(in)    :: self
+    class(comm_tod),                              intent(inout) :: tod
+    integer(i4b),                                 intent(in)    :: scan
+
+    integer(i4b) :: i
+
+    do i = 1, tod%ndet
+       tod%scans(scan)%d(i)%baseline  = 0.
+       tod%scans(scan)%d(i)%baseline2 = 0.
+    end do
+
+  end subroutine sample_hfi_baselines
+
+
+  subroutine demodulate_tod(self, tod, scan)
+    ! 
+    ! Demodulate HFI TOD
+    ! 
+    ! Arguments:
+    ! ----------
+    ! self:     derived class (comm_scandata)
+    !           HFI-specific TOD object
+    ! tod:      comm_tod derived type
+    !             contains TOD-specific information         
+    ! scan:     Scan ID
+    !
+    ! Returns
+    ! ----------
+    !   None, but updates self%tod
+    !
+    implicit none
+    class(comm_scandata),                         intent(inout) :: self
+    class(comm_tod),                              intent(in)    :: tod
+    integer(i4b),                                 intent(in)    :: scan
+
+    integer(i4b) :: i
+
+    do i = 1, tod%ndet
+       ! Subtract baselines
+
+       ! Flip sign of even samples
+
+       ! Make sure that the Galactic plane signal is positive; if not, switch sign
+    end do
+
+  end subroutine demodulate_tod
 
   
   subroutine read_tod_inst_HFI(self, file)

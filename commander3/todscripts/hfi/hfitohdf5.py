@@ -286,6 +286,9 @@ def make_od(comm_tod, freq, od, args):
                 phi = math.radians(rimo[1].data.field('phi_uv')[rimo_i])
                 theta = math.radians(rimo[1].data.field('theta_uv')[rimo_i])
                 psi = math.radians(rimo[1].data.field('psi_uv')[rimo_i] + rimo[1].data.field('psi_pol')[rimo_i]) - phi
+                #print(phi)
+                #print(theta)
+                #print(psi)
 
                 det_s = np.cos(0.5 * theta) * np.cos(0.5 * (phi + psi))
                 # vector part
@@ -295,7 +298,11 @@ def make_od(comm_tod, freq, od, args):
 
                 #convert from boresight pointing to per detector pointing
                 r_det = rot.from_quat([det_x, det_y, det_z, det_s])
+                #print r_det 
+                #print r_boresight
+                #print
 
+                #print("Disabling focal plane")
                 r_total = r_boresight * r_det
 
                 #convert to theta, phi, psi
@@ -391,7 +398,16 @@ def make_od(comm_tod, freq, od, args):
                 #make psd noise
                    
                 #make tod data
-                tod = exFile[exFile.index_of(str(freq)+'-' + det)].data.field('signal')[pid_start:pid_end] - offset
+                tod = exFile[exFile.index_of(str(freq)+'-' + det)].data.field('signal')[pid_start:pid_end] #- offset
+
+                #fout1 = open("output.dat","w")
+                #for i in range(len(tod)):
+                #    fout1.write(str(tod[i])+"\n")
+                #fout1.close()
+
+                #print(tod)
+                #print(offset)
+                #ghj
 
                 #compArray = [hfi.todDtype, hfi.rice]
                 compArray = [hfi.todDtype, hfi.huffTod]
