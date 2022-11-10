@@ -961,6 +961,8 @@ contains
          cpar%cs_latmask(i) = -1.d0
         end if 
       end if
+    else
+      cpar%cs_latmask(i) = -1.d0
     end if
     cpar%cs_indmask(i) = 'fullsky'
 
