@@ -438,7 +438,7 @@ contains
          if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
-      !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
+      if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -524,6 +524,7 @@ contains
             self%scans(i)%d%accept = .true.
          end do
       end if
+
 
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
@@ -742,7 +743,6 @@ contains
         !end if
         if (self%myid == 0) self%M_diag = M_diag
 
-
         if (self%first_call) then
             ! Precomputing low-resolution preconditioner
             call self%precompute_M_lowres
@@ -817,31 +817,37 @@ contains
              ! Note that if bc = 0, then A-1 is just the inverse of the
              ! diagonals.
 
-             allocate(II_inv(0:npix-1), QQ_inv(0:npix-1), UU_inv(0:npix-1), QU_inv(0:npix-1))
-             allocate(II_cov(0:npix-1), QQ_cov(0:npix-1), UU_cov(0:npix-1), QU_cov(0:npix-1))
-             allocate(inv_determ(0:npix-1))
 
-             II_inv = M_diag(self%info%pix, 1)
-             QQ_inv = M_diag(self%info%pix, 2)
-             UU_inv = M_diag(self%info%pix, 3)
-             QU_inv = M_diag(self%info%pix, 4)
-
-             inv_determ = 1/(QQ_inv*UU_inv - QU_inv**2)
-
-             II_cov = 1/II_inv
-             QQ_cov =  UU_inv*inv_determ
-             UU_cov =  QQ_inv*inv_determ
-             QU_cov = -QU_inv*inv_determ
-
-             rms_out%info%nmaps           = rms_out%info%nmaps + 1
              rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-             rms_out%map(:,nmaps+1) = QU_cov
+
+             if (size(rms_out%map, dim=2) == 4) then
+               allocate(II_inv(0:npix-1), QQ_inv(0:npix-1), UU_inv(0:npix-1), QU_inv(0:npix-1))
+               allocate(II_cov(0:npix-1), QQ_cov(0:npix-1), UU_cov(0:npix-1), QU_cov(0:npix-1))
+               allocate(inv_determ(0:npix-1))
+
+               II_inv = M_diag(self%info%pix, 1)
+               QQ_inv = M_diag(self%info%pix, 2)
+               UU_inv = M_diag(self%info%pix, 3)
+               QU_inv = M_diag(self%info%pix, 4)
+
+               inv_determ = 1/(QQ_inv*UU_inv - QU_inv**2)
+
+               II_cov = 1/II_inv
+               QQ_cov =  UU_inv*inv_determ
+               UU_cov =  QQ_inv*inv_determ
+               QU_cov = -QU_inv*inv_determ
+   
+               rms_out%info%nmaps           = rms_out%info%nmaps + 1
+               rms_out%map(:,nmaps+1) = QU_cov
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+               rms_out%info%nmaps           = rms_out%info%nmaps - 1
+               deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
+               deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
+               deallocate(inv_determ)
+             else
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             end if
              ! Make sure this has the correct number of columns!
-             call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-             rms_out%info%nmaps           = rms_out%info%nmaps - 1
-             deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
-             deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
-             deallocate(inv_determ)
 
 
              ! determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
@@ -919,9 +925,9 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn
+      integer(i4b) :: i, j, k, t, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn
       real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
-      real(dp)     :: dx, xbar, x_pos, x_neg, fA, fB, mA, mB
+      real(dp)     :: dx, xbar, fA, fB, mA, mB
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
@@ -936,7 +942,7 @@ contains
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
-      self%nside_M_lowres = 8
+      self%nside_M_lowres = 16
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
       nhorn               = self%nhorn
@@ -949,8 +955,8 @@ contains
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
       xbar = (self%x_im(1) + self%x_im(3))*0.5
-      x_pos = 1 + xbar
-      x_neg = 1 - xbar
+      dx = 0
+      xbar = 0
 
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
@@ -982,11 +988,13 @@ contains
 
          var = 0.d0
          do k = 1, 4
-            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/4
+            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2
          end do
          ! TODO
-         !inv_sigma = sqrt(1.d0/var)
+         inv_sigma = sqrt(1.d0/var)
 
+         fA = 1
+         fB = 1
          do t = 1, ntod
             if (iand(flag(t),self%flag0) .ne. 0) cycle
             lpix = dgrade(pix(t, 1))
@@ -1012,23 +1020,33 @@ contains
             pl    = pl * inv_sigma * fA
 
             pr(1) = dx
-            pr(2) = (1-xbar) * self%cos2psi(psi(t,2))
-            pr(3) = (1-xbar) * self%sin2psi(psi(t,2))
+            pr(2) = -(1-xbar) * self%cos2psi(psi(t,2))
+            pr(3) = -(1-xbar) * self%sin2psi(psi(t,2))
             pr    = pr * inv_sigma * fB
 
             do k1 = 1, self%nmaps_M_lowres
-               p1 = (k1-1)*npix + lpix
+               p1_l = (k1-1)*npix + lpix
+               p1_r = (k1-1)*npix + rpix
                do k2 = 1, self%nmaps_M_lowres
-                  p2 = (k2-1)*npix + rpix
-                  M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
-                  M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
-                  M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
-                  M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
+                  p2_l = (k2-1)*npix + lpix
+                  p2_r = (k2-1)*npix + rpix
+                  !write(*,*) p1_l, p1_r, k1, p2_l, p2_r, k2
 
-                  M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
-                  M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
-                  M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
-                  M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
+                  ! Intensity
+                  ! P_A N^-1 P_A
+                  M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
+                  ! P_B N^-1 P_B
+                  M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
+                  ! P_A N^-1 P_B
+                  M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
+                  ! P_B N^-1 P_A
+                  M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
+
+                  ! Polarization
+                  M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
+                  M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
+                  M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
+                  M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
                end do
             end do
 
@@ -1037,15 +1055,21 @@ contains
          deallocate(pix, psi, flag)
       end do
 
+      call timer%start(TOD_WAIT, self%band)
+      call mpi_barrier(self%comm, ierr)
+      call timer%stop(TOD_WAIT, self%band)
+
       if (self%myid == 0) write(*,*) '|    Inverting preconditioner'
       ! Collect contributions from all cores 
       if (self%myid == 0) then
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-!!$         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-!!$         call write_hdf(precond_file, '/M', self%M_lowres)
-!!$         call close_hdf_file(precond_file)
+         if (self%first_call) then
+             call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+             call write_hdf(precond_file, '/M', self%M_lowres)
+             call close_hdf_file(precond_file)
+         end if
 
          call invert_matrix(self%M_lowres)
       else

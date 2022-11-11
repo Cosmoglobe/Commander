@@ -305,7 +305,7 @@ contains
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
              if(cpar%myid == 0) then
-               write(*,*) "| Creating filtered noise maps at ", cpar%fwhm_smooth(j), " arcmins"
+               write(*,*) "|   Creating filtered noise maps at ", int(cpar%fwhm_smooth(j)), " arcmins"
              end if 
             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &

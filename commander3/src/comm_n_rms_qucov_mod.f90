@@ -194,6 +194,7 @@ contains
     ! self%siN%map = self%siN%map * mask%map ! Apply mask
     self%siN%map(:,1:3) = self%siN%map(:,1:3) * mask%map ! Apply mask
     self%siN%map(:,4)   = self%siN%map(:,4) * mask%map(:,3) ! Apply mask
+    ! Store the diagonal version, and the inverted 2x2 matrix
     if (present(procmask)) then
        where (procmask%map < 0.5d0)
           self%siN%map = self%siN%map * 20.d0 ! Boost noise by 20 in processing mask
@@ -295,7 +296,8 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN%map)**2 * map%map
+    map%map = (self%siN%map(:,1:3))**2 * map%map
+    !  add the off-diagonal terms, but in inverse
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
