@@ -141,7 +141,7 @@ contains
           read(unit) Ncov
           close(unit)
        else
-          write(*,*) '|  Eigen-decomposing ', trim(noisefile)
+          write(*,*) '|   Eigen-decomposing ', trim(noisefile)
           allocate(Ninv_sp(2*self%npix,2*self%npix))
           call WMAP_Read_NInv(noisefile, status, Ninv_sp, ordering)
 
@@ -194,7 +194,6 @@ contains
        end do
        write(unit) .false. ! Not inverse
        close(unit)
-       write(*,*) '| done'
        deallocate(ind)
 
 !!$       allocate(rms(self%npix,self%nmaps))
