@@ -106,6 +106,7 @@ contains
     integer(i4b) :: i, j, k, ierr, status, unit, nval
     logical(lgt) :: exist
     character(len=512) :: filename
+    character (80)     :: ordering
     real(dp)     :: sum_tau, sum_tau2, val
     real(sp),        dimension(:,:), pointer     :: Ninv_sp => null()
     real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky, rms
@@ -142,17 +143,20 @@ contains
        else
           write(*,*) '|  Eigen-decomposing ', trim(noisefile)
           allocate(Ninv_sp(2*self%npix,2*self%npix))
-          call WMAP_Read_NInv(noisefile, status, Ninv_sp)
+          call WMAP_Read_NInv(noisefile, status, Ninv_sp, ordering)
+          write(*,*) 'status, maxval ', status, maxval(abs(Ninv_sp))
 
-          ! Convert from nest to ring format
-          do i = 1, 2*self%npix ! Rows
-             call convert_nest2ring(self%nside, Ninv_sp(          1:  self%npix,i))
-             call convert_nest2ring(self%nside, Ninv_sp(self%npix+1:2*self%npix,i))
-          end do
-          do i = 1, 2*self%npix ! Columns
-             call convert_nest2ring(self%nside, Ninv_sp(i,          1:  self%npix))
-             call convert_nest2ring(self%nside, Ninv_sp(i,self%npix+1:2*self%npix))
-          end do
+          if (index(ordering, 'NESTED') .ne. 0) then
+              ! Convert from nest to ring format
+              do i = 1, 2*self%npix ! Rows
+                 call convert_nest2ring(self%nside, Ninv_sp(          1:  self%npix,i))
+                 call convert_nest2ring(self%nside, Ninv_sp(self%npix+1:2*self%npix,i))
+              end do
+              do i = 1, 2*self%npix ! Columns
+                 call convert_nest2ring(self%nside, Ninv_sp(i,          1:  self%npix))
+                 call convert_nest2ring(self%nside, Ninv_sp(i,self%npix+1:2*self%npix))
+              end do
+          end if
           Ncov = Ninv_sp
           deallocate(Ninv_sp)
 
