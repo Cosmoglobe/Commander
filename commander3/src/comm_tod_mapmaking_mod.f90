@@ -297,8 +297,9 @@ contains
       if (tod%scans(scan)%d(1)%accept) then
          !inv_sigmasq = 0.d0 
          var = 0
+         ! 16 because each variable is divided by 4, variance goes as Var(aX) = a^2 Var(X)
          do det = 1, 4
-           var = var + (tod%scans(scan)%d(det)%N_psd%sigma0/tod%scans(scan)%d(det)%gain)**2/4
+           var = var + (tod%scans(scan)%d(det)%N_psd%sigma0/tod%scans(scan)%d(det)%gain)**2/16
          end do
          inv_sigmasq = 1/var
          do t = 1, tod%scans(scan)%ntod

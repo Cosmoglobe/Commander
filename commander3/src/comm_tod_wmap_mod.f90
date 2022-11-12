@@ -838,7 +838,7 @@ contains
                QU_cov = -QU_inv*inv_determ
    
                rms_out%info%nmaps           = rms_out%info%nmaps + 1
-               rms_out%map(:,nmaps+1) = QU_cov
+               rms_out%map(:,nmaps+1) = QU_inv
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
                rms_out%info%nmaps           = rms_out%info%nmaps - 1
                deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
@@ -925,9 +925,9 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn
+      integer(i4b) :: i, j, k, t, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi
       real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
-      real(dp)     :: dx, xbar, fA, fB, mA, mB
+      real(dp)     :: dx, xbar, f_l, f_r, mA, mB
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
@@ -955,8 +955,8 @@ contains
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
       xbar = (self%x_im(1) + self%x_im(3))*0.5
-      dx = 0
-      xbar = 0
+      !dx = 0
+      !xbar = 0
 
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
@@ -973,8 +973,8 @@ contains
       M = 0.d0
 
       inv_sigma = 1
-      fA = 1
-      fB = 1
+      f_l = 1
+      f_r = 1
       ! Loop over scans
       do i = 1, self%nscan
          ! Skip scan if no accepted data
@@ -987,42 +987,43 @@ contains
          call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
 
          var = 0.d0
+         ! 16 because each variable is divided by 4, variance goes as Var(aX) = a^2 Var(X)
          do k = 1, 4
-            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2
+            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/16
          end do
          ! TODO
          inv_sigma = sqrt(1.d0/var)
 
-         fA = 1
-         fB = 1
          do t = 1, ntod
             if (iand(flag(t),self%flag0) .ne. 0) cycle
             lpix = dgrade(pix(t, 1))
             rpix = dgrade(pix(t, 2))
+            lpsi = psi(t,1)
+            rpsi = psi(t,2)
 
-            fA = procmask(pix(t, 2))
-            fB = procmask(pix(t, 1))
+            f_l = procmask(pix(t,2))
+            f_r = procmask(pix(t,1))
 
             dl(1) = 1+xbar
-            dl(2) = dx * self%cos2psi(psi(t,1))
-            dl(3) = dx * self%sin2psi(psi(t,1))
-            dl    = dl * inv_sigma * fA
+            dl(2) = dx * self%cos2psi(lpsi)
+            dl(3) = dx * self%sin2psi(lpsi)
+            dl    = dl * inv_sigma * f_l
 
             dr(1) = -(1-xbar)
-            dr(2) = dx * self%cos2psi(psi(t,2))
-            dr(3) = dx * self%sin2psi(psi(t,2))
-            dr    = dr * inv_sigma * fB
+            dr(2) = dx * self%cos2psi(rpsi)
+            dr(3) = dx * self%sin2psi(rpsi)
+            dr    = dr * inv_sigma * f_r
 
 
             pl(1) = dx
-            pl(2) = (1+xbar) * self%cos2psi(psi(t,1))
-            pl(3) = (1+xbar) * self%sin2psi(psi(t,1))
-            pl    = pl * inv_sigma * fA
+            pl(2) = (1+xbar) * self%cos2psi(lpsi)
+            pl(3) = (1+xbar) * self%sin2psi(lpsi)
+            pl    = pl * inv_sigma * f_l
 
             pr(1) = dx
-            pr(2) = -(1-xbar) * self%cos2psi(psi(t,2))
-            pr(3) = -(1-xbar) * self%sin2psi(psi(t,2))
-            pr    = pr * inv_sigma * fB
+            pr(2) = -(1-xbar) * self%cos2psi(rpsi)
+            pr(3) = -(1-xbar) * self%sin2psi(rpsi)
+            pr    = pr * inv_sigma * f_r
 
             do k1 = 1, self%nmaps_M_lowres
                p1_l = (k1-1)*npix + lpix
@@ -1032,21 +1033,23 @@ contains
                   p2_r = (k2-1)*npix + rpix
                   !write(*,*) p1_l, p1_r, k1, p2_l, p2_r, k2
 
-                  ! Intensity
-                  ! P_A N^-1 P_A
-                  M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
-                  ! P_B N^-1 P_B
-                  M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
-                  ! P_A N^-1 P_B
-                  M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
-                  ! P_B N^-1 P_A
-                  M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
+                  if ((k1 .eq. 1 .and. k2 .eq. 1) .or. (k1 > 1 .and. k2 > 1)) then
+                      ! Intensity
+                      ! P_A N^-1 P_A
+                      M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
+                      ! P_B N^-1 P_B
+                      M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
+                      ! P_A N^-1 P_B
+                      M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
+                      ! P_B N^-1 P_A
+                      M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
 
-                  ! Polarization
-                  M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
-                  M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
-                  M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
-                  M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
+                      ! Polarization
+                      M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
+                      M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
+                      M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
+                      M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
+                 end if
                end do
             end do
 
@@ -1059,9 +1062,9 @@ contains
       call mpi_barrier(self%comm, ierr)
       call timer%stop(TOD_WAIT, self%band)
 
-      if (self%myid == 0) write(*,*) '|    Inverting preconditioner'
       ! Collect contributions from all cores 
       if (self%myid == 0) then
+         write(*,*) '|    Inverting preconditioner'
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
