@@ -144,7 +144,6 @@ contains
           write(*,*) '|  Eigen-decomposing ', trim(noisefile)
           allocate(Ninv_sp(2*self%npix,2*self%npix))
           call WMAP_Read_NInv(noisefile, status, Ninv_sp, ordering)
-          write(*,*) 'status, maxval ', status, maxval(abs(Ninv_sp))
 
           if (index(ordering, 'NESTED') .ne. 0) then
               ! Convert from nest to ring format
