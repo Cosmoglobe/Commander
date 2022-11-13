@@ -148,7 +148,7 @@ contains
        end where
     end do
 
-    call update_status(status, 'shoudl have finished constructing')
+    call update_status(status, 'should have finished constructing')
 
   end function constructor
 
@@ -164,7 +164,7 @@ contains
     class(comm_map),                     intent(in),   optional :: map
 
     integer(i4b) :: i, j, ierr
-    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
+    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, buffer
     class(comm_map),     pointer :: invW_tau => null(), iN => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
 
@@ -208,11 +208,21 @@ contains
     ! QQ_cov =  UU_inv*inv_determ
     ! UU_cov =  QQ_inv*inv_determ
     ! QU_cov = -QU_inv*inv_determ
-    where (self%siN%map > 0.d0) 
-       self%siN%map = 1.d0 / self%siN%map
-    elsewhere
-       self%siN%map = 0.d0
-    end where
+    do j = 1, int(npix)
+       if (self%siN%map(j,1) > 0.d0) then
+           self%siN%map(j,1) = 1.d0 / self%siN%map(j,1)
+           buffer = self%siN%map(j, 2)
+           self%siN%map(j,2) = self%siN%map(j,3)
+           self%siN%map(j,3) = buffer
+           self%siN%map(j,4) = -self%siN%map(j,4)
+           buffer = self%siN%map(j,2)*self%siN%map(j,3) - self%siN%map(j,4)**2
+           self%siN%map(j,2) = self%siN%map(j,2)/buffer
+           self%siN%map(j,3) = self%siN%map(j,3)/buffer
+           self%siN%map(j,4) = self%siN%map(j,4)/buffer
+        else
+           self%siN%map(j,:) = 0.d0
+        end if
+    end do
 
 
     ! Add white noise corresponding to the user-specified regularization noise map
@@ -241,7 +251,7 @@ contains
        ! Set up diagonal covariance matrix
        if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
        !write(*,*) info%nmaps, shape(self%invN_diag%map), 'basdfa'
-       self%invN_diag%map = self%siN%map**2
+       self%invN_diag%map = self%siN%map(:,1:3)**2
        !call compute_invN_lm(self%invN_diag)
     else if (trim(self%cg_precond) == 'pseudoinv') then
        ! Compute alpha_nu for pseudo-inverse preconditioner
@@ -297,7 +307,10 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     map%map = (self%siN%map(:,1:3))**2 * map%map
-    !  add the off-diagonal terms, but in inverse
+    map%map(:, 2) = map%map(:, 2) + self%siN%map(:, 4)*map%map(:, 3)
+    ! Better allocate copies of the maps or do more flops?
+    map%map(:, 3) = map%map(:, 3) + self%siN%map(:, 4) &
+      & *(map%map(:, 2) - self%siN%map(:, 4)*map%map(:,3)) / self%siN%map(:,2)**2
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -309,7 +322,11 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN_lowres%map)**2 * map%map
+    map%map = (self%siN_lowres%map(:,1:3))**2 * map%map
+    map%map(:, 2) = map%map(:, 2) + self%siN_lowres%map(:, 4)*map%map(:, 3)
+    ! Better allocate copies of the maps or do more flops?
+    map%map(:, 3) = map%map(:, 3) + self%siN_lowres%map(:, 4) &
+      & *(map%map(:, 2) - self%siN_lowres%map(:, 4)*map%map(:,3)) / self%siN_lowres%map(:,2)**2
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -321,11 +338,12 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    where (self%siN%map > 0.d0)
-       map%map = map%map / (self%siN%map)**2 
+    where (self%siN%map(:,1) > 0.d0)
+       map%map(:,1) = map%map(:,1) / (self%siN%map(:,1))**2 
     elsewhere
-       map%map = 0.d0
+       map%map(:,1) = 0.d0
     end where
+
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -337,7 +355,26 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = self%siN%map * map%map
+    integer(i4b) :: npix, i, j
+    real(dp) :: s, t, a, b, rho, buffQ, buffU
+    map%map(:,1) = self%siN%map(:,1) * map%map(:,1)
+    ! The square root of a 2x2 matrix M =((A, B), (C,D)) is
+    ! R = (M + sI)/t = ((A+s, B), (C, D+s))/t
+    ! where s = sqrt(AD - BC), tau = sqrt(A + D +2*s)
+    ! For us, M = ((a, rho), (rho, b))
+    npix = size(map%map, dim=1)
+    do i = 0, npix-1
+      if (self%siN%map(i,2) == 0) cycle
+      a = self%siN%map(i, 2)
+      b = self%siN%map(i, 3)
+      rho = self%siN%map(i,4)
+      s = sqrt(a*b - rho**2)
+      t = sqrt(a + b +2*s)
+      buffQ = ((a+s)*map%map(i,2) + rho  *map%map(i,3))/t
+      buffU = (rho  *map%map(i,2) + (b+s)*map%map(i,3))/t
+      map%map(i,2) = buffQ
+      map%map(i,3) = buffU
+    end do
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
