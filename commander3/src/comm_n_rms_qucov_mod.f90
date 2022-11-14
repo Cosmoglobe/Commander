@@ -363,6 +363,9 @@ contains
     ! where s = sqrt(AD - BC), tau = sqrt(A + D +2*s)
     ! For us, M = ((a, rho), (rho, b))
     npix = size(map%map, dim=1)
+
+    write(*,*) npix, shape(self%siN%map)
+
     do i = 0, npix-1
       if (self%siN%map(i,2) == 0) cycle
       a = self%siN%map(i, 2)

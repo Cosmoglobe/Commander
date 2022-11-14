@@ -438,7 +438,7 @@ contains
          if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
-      if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
+      !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -804,8 +804,6 @@ contains
           call timer%start(TOD_WRITE) 
           if (l == 1) then
              map_out%map = outmaps(1)%p%map
-             ! Do I need to multiply the rms map by 1000 to get it in units of
-             ! mK?
              call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
 
              ! Recall:
@@ -818,7 +816,6 @@ contains
              ! diagonals.
 
 
-             rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
 
              if (size(rms_out%map, dim=2) == 4) then
                allocate(II_inv(0:npix-1), QQ_inv(0:npix-1), UU_inv(0:npix-1), QU_inv(0:npix-1))
@@ -837,29 +834,16 @@ contains
                UU_cov =  QQ_inv*inv_determ
                QU_cov = -QU_inv*inv_determ
    
-               rms_out%info%nmaps           = rms_out%info%nmaps + 1
+               rms_out%info%nmaps           = nmaps + 1
                rms_out%map(:,nmaps+1) = QU_inv
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-               rms_out%info%nmaps           = rms_out%info%nmaps - 1
                deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
                deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
                deallocate(inv_determ)
              else
+               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
              end if
-             ! Make sure this has the correct number of columns!
-
-
-             ! determ       = self%M_diag(i,2)*self%M_diag(i,3) - self%M_diag(i,4)**2
-             ! map_out(i,1) =  map_out(i,1)/self%M_diag(i,1)
-             ! map_out(i,2) = (map_out(i,2)*self%M_diag(i,3) - map_out(i,2)*self%M_diag(i,4))/determ
-             ! map_out(i,3) = (map_out(i,3)*self%M_diag(i,2) - map_out(i,3)*self%M_diag(i,4))/determ
-
-             ! How do I get the true RMS map? Assume that we have these maps...
-             ! rms_I = 1/sqrt(M_diag(self%info%pix, 1))
-             ! QQ = M_diag(self%info%pix, 1)
-             ! UU = M_diag(self%info%pix, 2)
-             ! QU = M_diag(self%info%pix, 3)
           else
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
@@ -1068,11 +1052,11 @@ contains
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-         if (self%first_call) then
-             call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-             call write_hdf(precond_file, '/M', self%M_lowres)
-             call close_hdf_file(precond_file)
-         end if
+         !if (self%first_call) then
+         !    call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+         !    call write_hdf(precond_file, '/M', self%M_lowres)
+         !    call close_hdf_file(precond_file)
+         !end if
 
          call invert_matrix(self%M_lowres)
       else

@@ -1014,7 +1014,7 @@ end subroutine bin_differential_TOD
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
            end if
-           if (i > 20 .and. l == 1) then
+           if (i > 10 .and. l == 1 .and. epsil > 1e-12) then
                write(*,*) 'Potential poorly measured mode detected, decreasing epsilon'
                epsil = 1e-12
            end if
