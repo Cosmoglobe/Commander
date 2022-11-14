@@ -421,7 +421,7 @@ end subroutine bin_differential_TOD
 
             var = 0.d0
             do k = 1, 4
-               var = var + (tod%scans(j)%d(k)%N_psd%sigma0/tod%scans(j)%d(k)%gain)**2/4
+               var = var + (tod%scans(j)%d(k)%N_psd%sigma0/tod%scans(j)%d(k)%gain)**2/16
             end do
             inv_sigmasq = 1.d0/var
 
