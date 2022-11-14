@@ -70,8 +70,8 @@ contains
     class(comm_map),                    pointer, intent(in), optional :: map
 
     class(comm_N_rms_QUcov),               pointer       :: constructor_temp
-    integer(i4b)       :: i, ierr, tmp, nside_smooth
-    real(dp)           :: sum_noise, npix
+    integer(i4b)       :: i, j, ierr, tmp, nside_smooth
+    real(dp)           :: sum_noise, npix, buffer
     type(comm_mapinfo), pointer :: info_smooth => null()
 
 
@@ -115,20 +115,38 @@ contains
        else
           tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
           info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-               & constructor%nmaps, constructor%pol)
+               & constructor%nmaps + 1, constructor%pol)
           constructor%nside   = info_smooth%nside
           constructor%np      = info_smooth%np
           constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
           
+!          npix      = size(constructor%siN%map(:,1))
+!          do j = 1, int(npix)
+!             if (constructor%siN%map(j,1) > 0.d0) then
+!                 constructor%siN%map(j,1) = 1.d0 / constructor%siN%map(j,1)
+!                 buffer = constructor%siN%map(j, 2)
+!                 constructor%siN%map(j,2) = constructor%siN%map(j,3)
+!                 constructor%siN%map(j,3) = buffer
+!                 constructor%siN%map(j,4) = -constructor%siN%map(j,4)
+!                 buffer = constructor%siN%map(j,2)*constructor%siN%map(j,3) - constructor%siN%map(j,4)**2
+!                 constructor%siN%map(j,2) = constructor%siN%map(j,2)/buffer
+!                 constructor%siN%map(j,3) = constructor%siN%map(j,3)/buffer
+!                 constructor%siN%map(j,4) = constructor%siN%map(j,4)/buffer
+!              else
+!                 constructor%siN%map(j,:) = 0.d0
+!              end if
+!          end do
+
           where (constructor%siN%map > 0.d0) 
              constructor%siN%map = 1.d0 / constructor%siN%map
           elsewhere
              constructor%siN%map = 0.d0
           end where
+
        end if
     end if
 
-    call update_status(status, 'checcking if pol only')
+    call update_status(status, 'checking if pol only')
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
@@ -208,22 +226,31 @@ contains
     ! QQ_cov =  UU_inv*inv_determ
     ! UU_cov =  QQ_inv*inv_determ
     ! QU_cov = -QU_inv*inv_determ
-    do j = 1, int(npix)
-       if (self%siN%map(j,1) > 0.d0) then
-           self%siN%map(j,1) = 1.d0 / self%siN%map(j,1)
-           buffer = self%siN%map(j, 2)
-           self%siN%map(j,2) = self%siN%map(j,3)
-           self%siN%map(j,3) = buffer
-           self%siN%map(j,4) = -self%siN%map(j,4)
-           buffer = self%siN%map(j,2)*self%siN%map(j,3) - self%siN%map(j,4)**2
-           self%siN%map(j,2) = self%siN%map(j,2)/buffer
-           self%siN%map(j,3) = self%siN%map(j,3)/buffer
-           self%siN%map(j,4) = self%siN%map(j,4)/buffer
-        else
-           self%siN%map(j,:) = 0.d0
-        end if
-    end do
-
+    if (maxval(abs(self%siN%map(:,4))) == 0) then
+        where (self%siN%map(:,1:3) > 0.d0)
+           self%siN%map(:,1:3) = 1 / (self%siN%map(:,1:3))**2 
+        elsewhere
+           self%siN%map(:,1:3) = 0.d0
+        end where
+    else
+        npix      = size(self%siN%map(:,1))
+        write(*,*) 'we have some nonzero elements on the off-diagonal'
+        do j = 1, int(npix)
+           if (self%siN%map(j,1) > 0.d0) then
+               self%siN%map(j,1) = 1.d0 / self%siN%map(j,1)
+               buffer = self%siN%map(j, 2)
+               self%siN%map(j,2) = self%siN%map(j,3)
+               self%siN%map(j,3) = buffer
+               self%siN%map(j,4) = -self%siN%map(j,4)
+               buffer = self%siN%map(j,2)*self%siN%map(j,3) - self%siN%map(j,4)**2
+               self%siN%map(j,2) = self%siN%map(j,2)/buffer
+               self%siN%map(j,3) = self%siN%map(j,3)/buffer
+               self%siN%map(j,4) = self%siN%map(j,4)/buffer
+            else
+               self%siN%map(j,:) = 0.d0
+            end if
+        end do
+    end if
 
     ! Add white noise corresponding to the user-specified regularization noise map
     if (associated(self%rms_reg) .and. present(regnoise)) then
@@ -306,11 +333,16 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN%map(:,1:3))**2 * map%map
-    map%map(:, 2) = map%map(:, 2) + self%siN%map(:, 4)*map%map(:, 3)
-    ! Better allocate copies of the maps or do more flops?
-    map%map(:, 3) = map%map(:, 3) + self%siN%map(:, 4) &
-      & *(map%map(:, 2) - self%siN%map(:, 4)*map%map(:,3)) / self%siN%map(:,2)**2
+    real(dp), dimension(:), allocatable :: buff_Q, buff_U
+    integer(i4b) :: npix
+    npix = size(self%siN%map(:,1))
+    allocate(buff_Q(npix), buff_U(npix))
+    buff_Q = map%map(:,2)
+    buff_U = map%map(:,3)
+    map%map(:,1) = self%siN%map(:,1)**2 * map%map(:,1)
+    map%map(:,2) = map%map(:,2) + buff_Q*self%siN%map(:,2) + buff_U*self%siN%map(:, 4)
+    map%map(:,3) = map%map(:,3) + buff_U*self%siN%map(:,3) + buff_Q*self%siN%map(:, 4)
+    deallocate(buff_Q, buff_U)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if

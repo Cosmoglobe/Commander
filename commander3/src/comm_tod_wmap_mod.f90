@@ -435,7 +435,7 @@ contains
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 3
          if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
-         if (iter .eq. 1)                              self%output_n_maps = 1
+         !if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
       !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
@@ -822,10 +822,10 @@ contains
                allocate(II_cov(0:npix-1), QQ_cov(0:npix-1), UU_cov(0:npix-1), QU_cov(0:npix-1))
                allocate(inv_determ(0:npix-1))
 
-               II_inv = M_diag(self%info%pix, 1)
-               QQ_inv = M_diag(self%info%pix, 2)
-               UU_inv = M_diag(self%info%pix, 3)
-               QU_inv = M_diag(self%info%pix, 4)
+               II_inv = M_diag(:, 1)
+               QQ_inv = M_diag(:, 2)
+               UU_inv = M_diag(:, 3)
+               QU_inv = M_diag(:, 4)
 
                inv_determ = 1/(QQ_inv*UU_inv - QU_inv**2)
 
@@ -837,6 +837,7 @@ contains
                rms_out%info%nmaps           = nmaps + 1
                rms_out%map(:,nmaps+1) = QU_inv
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+               rms_out%info%nmaps           = nmaps
                deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
                deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
                deallocate(inv_determ)
@@ -909,7 +910,7 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi
+      integer(i4b) :: i, j, k, t, p1, p2, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi
       real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
       real(dp)     :: dx, xbar, f_l, f_r, mA, mB
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
@@ -1009,31 +1010,47 @@ contains
             pr(3) = -(1-xbar) * self%sin2psi(rpsi)
             pr    = pr * inv_sigma * f_r
 
+            !do k1 = 1, self%nmaps_M_lowres
+            !   p1_l = (k1-1)*npix + lpix
+            !   p1_r = (k1-1)*npix + rpix
+            !   do k2 = 1, self%nmaps_M_lowres
+            !      p2_l = (k2-1)*npix + lpix
+            !      p2_r = (k2-1)*npix + rpix
+            !      !write(*,*) p1_l, p1_r, k1, p2_l, p2_r, k2
+
+            !      if ((k1 .eq. 1 .and. k2 .eq. 1) .or. (k1 > 1 .and. k2 > 1)) then
+            !          ! Intensity
+            !          ! P_A N^-1 P_A
+            !          M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
+            !          ! P_B N^-1 P_B
+            !          M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
+            !          ! P_A N^-1 P_B
+            !          M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
+            !          ! P_B N^-1 P_A
+            !          M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
+
+            !          ! Polarization
+            !          M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
+            !          M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
+            !          M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
+            !          M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
+            !     end if
+            !   end do
+            !end do
+
             do k1 = 1, self%nmaps_M_lowres
-               p1_l = (k1-1)*npix + lpix
-               p1_r = (k1-1)*npix + rpix
+               p1 = (k1-1)*npix + lpix
                do k2 = 1, self%nmaps_M_lowres
-                  p2_l = (k2-1)*npix + lpix
-                  p2_r = (k2-1)*npix + rpix
-                  !write(*,*) p1_l, p1_r, k1, p2_l, p2_r, k2
+                  p2 = (k2-1)*npix + rpix
+                  M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
+                  M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
+                  M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
+                  M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
 
-                  if ((k1 .eq. 1 .and. k2 .eq. 1) .or. (k1 > 1 .and. k2 > 1)) then
-                      ! Intensity
-                      ! P_A N^-1 P_A
-                      M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
-                      ! P_B N^-1 P_B
-                      M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
-                      ! P_A N^-1 P_B
-                      M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
-                      ! P_B N^-1 P_A
-                      M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
-
-                      ! Polarization
-                      M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
-                      M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
-                      M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
-                      M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
-                 end if
+                  M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
+                  M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
+                  M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
+                  M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
                end do
             end do
 

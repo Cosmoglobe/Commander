@@ -3114,7 +3114,6 @@ contains
     if (present(band)) then
        do i = 1, data(band)%info%nmaps
           do j = 0, data(band)%ndet
-             write(*,*) 'band ', band, ' det, ', j, ' pol, ', i
              call self%F_int(i,band,j)%p%update(pol=i)
           end do
        end do
