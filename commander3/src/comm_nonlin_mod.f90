@@ -386,9 +386,6 @@ contains
           ! if sample only pol, skip T
           if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
 
-          ! HKE -- disabling T for now
-          if (pl==1) cycle 
-
           ! p already calculated if larger than poltype 
           if (pl > c%poltype(j)) cycle
 
