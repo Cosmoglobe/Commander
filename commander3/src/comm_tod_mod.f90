@@ -1200,8 +1200,8 @@ contains
        open(unit, file=trim(filelist))
        read(unit,*) n
        do i = 1, n
-          read(unit,*) j
-          if (j >= self%first_scan .and. j <= self%last_scan) n_tot = n_tot+1
+          read(unit,*) j, infile, w, spin
+          if (j >= self%first_scan .and. j <= self%last_scan .and. w > 0) n_tot = n_tot+1
        end do
        close(unit)
 
@@ -1217,7 +1217,7 @@ contains
          do i = 1, n
             !read(unit,*) scanid(j), filename(j), weight(j), spinpos(1:2,j)
             read(unit,*) p, infile, w, spin
-            if (p < self%first_scan .or. p > self%last_scan) cycle
+            if (p < self%first_scan .or. p > self%last_scan .or. w == 0d0) cycle
             scanid(j)      = p
             filename(j)    = infile
             weight(j)      = 2
@@ -1236,7 +1236,7 @@ contains
          filenum = 0
          do i = 1, n
             read(unit,*) p, infile, w, spin
-            if (p < self%first_scan .or. p > self%last_scan) cycle
+            if (p < self%first_scan .or. p > self%last_scan .or. w == 0d0) cycle
             scanid(j)      = p
             filename(j)    = infile
             weight(j)      = w
