@@ -461,6 +461,18 @@ contains
                 call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
                 call close_hdf_file(file2)
              end if
+          class is (comm_N_rms_qucov)
+             if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
+                call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
+             else
+                call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
+                     & chainfile, initsamp2)
+                call open_hdf_file(chainfile, file2, 'r')
+                call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+                call close_hdf_file(file2)
+             end if
+          class default 
+             write(*,*) 'Noise type is not covered'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
