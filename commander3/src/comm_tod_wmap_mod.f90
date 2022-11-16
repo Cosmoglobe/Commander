@@ -433,7 +433,7 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 3
+         if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 1
          !if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
          !if (iter .eq. 1)                              self%output_n_maps = 1
       end if

@@ -487,8 +487,6 @@ contains
 
        !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
-       ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
-       ! Needs in-code computation of smoothed RMS maps, so long-term..
        if (trim(data(i)%noise_format) == 'rms_qucov') then
           rmsinfo => data(i)%info
           rmsinfo%nmaps = data(i)%info%nmaps + 1
