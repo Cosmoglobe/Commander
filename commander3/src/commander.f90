@@ -487,14 +487,7 @@ contains
 
        !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
-       if (trim(data(i)%noise_format) == 'rms_qucov') then
-          rmsinfo => data(i)%info
-          rmsinfo%nmaps = data(i)%info%nmaps + 1
-          rms => comm_map(rmsinfo)
-          data(i)%info%nmaps = data(i)%info%nmaps - 1
-       else
-          rms => comm_map(data(i)%info)
-       end if
+        rms => comm_map(data(i)%info)
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
 
