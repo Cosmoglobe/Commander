@@ -19,6 +19,51 @@
 !
 !================================================================================
 module comm_N_rms_QUcov_mod
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! This module handles the case of a white noise matrix where there is
+  ! correlation between the Q and U Stokes parameters, but each pixel is
+  ! independent. Explicitly, each matrix is represented mathematically as
+  ! N^{-1}_{pp} = [\sum 1/\sigma^2, 0,                             0                               ]
+  !               [0,              \sum \cos^2 2\psi/\sigma^2,     \sum \cos2\psi\sin2\psi/\sigma^2]
+  !               [0,              \sum\cos2\psi\sin2\psi/\sigma^2 \sum \sin^2 2\psi/\sigma^2      ]
+  ! If there were no off-diagonal term, the diagonal terms would be 1/\sigma_{T/Q/U}^2.
+  !
+  ! The rms0 object contains four maps, the first three being the usual \sigma_{T/Q/U} from 
+  ! inverting the diagonal of the weighted hits matrix above, and the fourth one
+  ! being the off-diagonal as recorded above. In the event that no off-diagonal
+  ! terms are recorded, this should reduce to the usual diagonal case.
+  !
+  ! The siN matrix is the square root of the inverse of N (N^{-1/2}) and is often used
+  ! during the Gaussian sampling routines (see, e.g., Appendix A2 of arXiv:2011.05609).
+  ! 
+  ! Using the notation of the wikipedia page
+  ! https://en.wikipedia.org/wiki/Square_root_of_a_2_by_2_matrix
+  ! where M = ((A,  B), (C, D)), we can write
+  !       R = ((A+s, B), (C, D+s))/t,
+  ! where s=\sqrt{AD-BC} and t=\sqrt{(A+D)+2s}.
+  !
+  ! So we need to implement the N^{-1}m and N^{-1/2}m operations, specifically
+  ! for QU.
+  !  
+  ! N^{-1} = ((\sigma_Q^{-2}, \rho), (\rho, \sigma_U^{-2}))
+  !
+  ! N^{-1}m = (\sigma_Q^{-2} Q + \rho U, \sigma_U^{-2} U + \rho Q)
+  !
+  ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
+  ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
+  !
+  ! N^{-1/2} = ((\sigma_Q^{-2} + s, \rho), (\rho, \sigma_U^{-2} + s))/t
+  !
+  ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
+  !
+  ! siN is the N^{-1/2} term.
+  !
+  ! A trickier one is computing Nm
+  ! N = ((\sigma_U^{-2}, -\rho), (-\rho, \sigma_Q^{-2}))/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
+  !
+  ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
+  ! 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   use comm_N_mod
   use comm_param_mod
   use comm_map_mod
@@ -120,29 +165,6 @@ contains
           constructor%np      = info_smooth%np
           constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
           
-!          npix      = size(constructor%siN%map(:,1))
-!          do j = 1, int(npix)
-!             if (constructor%siN%map(j,1) > 0.d0) then
-!                 constructor%siN%map(j,1) = 1.d0 / constructor%siN%map(j,1)
-!                 buffer = constructor%siN%map(j, 2)
-!                 constructor%siN%map(j,2) = constructor%siN%map(j,3)
-!                 constructor%siN%map(j,3) = buffer
-!                 constructor%siN%map(j,4) = -constructor%siN%map(j,4)
-!                 buffer = constructor%siN%map(j,2)*constructor%siN%map(j,3) - constructor%siN%map(j,4)**2
-!                 constructor%siN%map(j,2) = constructor%siN%map(j,2)/buffer
-!                 constructor%siN%map(j,3) = constructor%siN%map(j,3)/buffer
-!                 constructor%siN%map(j,4) = constructor%siN%map(j,4)/buffer
-!              else
-!                 constructor%siN%map(j,:) = 0.d0
-!              end if
-!          end do
-
-          where (constructor%siN%map > 0.d0) 
-             constructor%siN%map = 1.d0 / constructor%siN%map
-          elsewhere
-             constructor%siN%map = 0.d0
-          end where
-
        end if
     end if
 
@@ -219,38 +241,6 @@ contains
        end where
     end if
 
-    ! Invert rms
-    ! inv_determ = 1/(QQ_inv*UU_inv - QU_inv**2)
-
-    ! II_cov = 1/II_inv
-    ! QQ_cov =  UU_inv*inv_determ
-    ! UU_cov =  QQ_inv*inv_determ
-    ! QU_cov = -QU_inv*inv_determ
-    if (maxval(abs(self%siN%map(:,4))) == 0) then
-        where (self%siN%map(:,1:3) > 0.d0)
-           self%siN%map(:,1:3) = 1 / (self%siN%map(:,1:3))**2 
-        elsewhere
-           self%siN%map(:,1:3) = 0.d0
-        end where
-    else
-        npix      = size(self%siN%map(:,1))
-        write(*,*) 'we have some nonzero elements on the off-diagonal'
-        do j = 1, int(npix)
-           if (self%siN%map(j,1) > 0.d0) then
-               self%siN%map(j,1) = 1.d0 / self%siN%map(j,1)
-               buffer = self%siN%map(j, 2)
-               self%siN%map(j,2) = self%siN%map(j,3)
-               self%siN%map(j,3) = buffer
-               self%siN%map(j,4) = -self%siN%map(j,4)
-               buffer = self%siN%map(j,2)*self%siN%map(j,3) - self%siN%map(j,4)**2
-               self%siN%map(j,2) = self%siN%map(j,2)/buffer
-               self%siN%map(j,3) = self%siN%map(j,3)/buffer
-               self%siN%map(j,4) = self%siN%map(j,4)/buffer
-            else
-               self%siN%map(j,:) = 0.d0
-            end if
-        end do
-    end if
 
     ! Add white noise corresponding to the user-specified regularization noise map
     if (associated(self%rms_reg) .and. present(regnoise)) then
@@ -262,16 +252,6 @@ contains
     end if
 
 
-    ! Set siN to its mean; useful for debugging purposes
-    if (self%set_noise_to_mean) then
-       do i = 1, self%nmaps
-          sum_noise = sum(self%siN%map(:,i))
-          npix      = size(self%siN%map(:,i))
-          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          self%siN%map(:,i) = sum_noise/npix
-       end do
-    end if
 
 
     if (trim(self%cg_precond) == 'diagonal') then
@@ -335,13 +315,15 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp), dimension(:), allocatable :: buff_Q, buff_U
     integer(i4b) :: npix
-    npix = size(self%siN%map(:,1))
+    npix = size(map%map(:,1))
     allocate(buff_Q(npix), buff_U(npix))
     buff_Q = map%map(:,2)
     buff_U = map%map(:,3)
-    map%map(:,1) = self%siN%map(:,1)**2 * map%map(:,1)
-    map%map(:,2) = map%map(:,2) + buff_Q*self%siN%map(:,2) + buff_U*self%siN%map(:, 4)
-    map%map(:,3) = map%map(:,3) + buff_U*self%siN%map(:,3) + buff_Q*self%siN%map(:, 4)
+    map%map(:,1) = (self%rms0%map(:,1))**(-2) * map%map(:,1)
+    map%map(:,2) = self%rms0%map(:,2)**(-2) * buff_Q + &
+                 & self%rms0%map(:,4)       * buff_U
+    map%map(:,3) = self%rms0%map(:,3)**(-2) * buff_U + &
+                 & self%rms0%map(:,4)       * buff_Q
     deallocate(buff_Q, buff_U)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -354,11 +336,8 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN_lowres%map(:,1:3))**2 * map%map
-    map%map(:, 2) = map%map(:, 2) + self%siN_lowres%map(:, 4)*map%map(:, 3)
-    ! Better allocate copies of the maps or do more flops?
-    map%map(:, 3) = map%map(:, 3) + self%siN_lowres%map(:, 4) &
-      & *(map%map(:, 2) - self%siN_lowres%map(:, 4)*map%map(:,3)) / self%siN_lowres%map(:,2)**2
+    ! Implement same thing as above, just downgrade the matrices appropriately.
+    map%map = (self%siN_lowres%map)**2 * map%map
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -370,11 +349,21 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    where (self%siN%map(:,1) > 0.d0)
-       map%map(:,1) = map%map(:,1) / (self%siN%map(:,1))**2 
-    elsewhere
-       map%map(:,1) = 0.d0
-    end where
+    real(dp), dimension(:), allocatable :: buff_Q, buff_U
+    integer(i4b) :: npix
+    npix = size(map%map(:,1))
+    allocate(buff_Q(npix), buff_U(npix))
+    buff_Q = map%map(:,2)
+    buff_U = map%map(:,3)
+    ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
+    map%map(:,1) = map%map(:,1) / self%rms0%map(:,1)**2
+    map%map(:,2) = (buff_Q/self%rms0%map(:,3)**2 - buff_U*self%rms0%map(:,4)) / &
+                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)**0.5
+    map%map(:,3) = (buff_U/self%rms0%map(:,2)**2 - buff_Q*self%rms0%map(:,4)) / &
+                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)**0.5
+
+    deallocate(buff_Q, buff_U)
+
 
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -388,28 +377,25 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     integer(i4b) :: npix, i, j
-    real(dp) :: s, t, a, b, rho, buffQ, buffU
-    map%map(:,1) = self%siN%map(:,1) * map%map(:,1)
-    ! The square root of a 2x2 matrix M =((A, B), (C,D)) is
-    ! R = (M + sI)/t = ((A+s, B), (C, D+s))/t
-    ! where s = sqrt(AD - BC), tau = sqrt(A + D +2*s)
-    ! For us, M = ((a, rho), (rho, b))
-    npix = size(map%map, dim=1)
+    real(dp), dimension(:), allocatable :: buff_Q, buff_U, s, t
+    npix = size(map%map(:,1))
+    allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
+    buff_Q = map%map(:,2)
+    buff_U = map%map(:,3)
+    ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
+    ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
+    !
+    ! N^{-1/2} = ((\sigma_Q^{-2} + s, \rho), (\rho, \sigma_U^{-2} + s))/t
+    !
+    ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
 
-    write(*,*) npix, shape(self%siN%map)
-
-    do i = 0, npix-1
-      if (self%siN%map(i,2) == 0) cycle
-      a = self%siN%map(i, 2)
-      b = self%siN%map(i, 3)
-      rho = self%siN%map(i,4)
-      s = sqrt(a*b - rho**2)
-      t = sqrt(a + b +2*s)
-      buffQ = ((a+s)*map%map(i,2) + rho  *map%map(i,3))/t
-      buffU = (rho  *map%map(i,2) + (b+s)*map%map(i,3))/t
-      map%map(i,2) = buffQ
-      map%map(i,3) = buffU
-    end do
+    map%map(:,1) = self%rms0%map(:,1) * map%map(:,1)
+    where (self%rms0%map(:,2) > 0)
+      s = ((self%rms0%map(:,2)*self%rms0%map(:,3))**(-2) - self%rms0%map(:,4)**2)**0.5
+      t = (self%rms0%map(:,2)**(-2) + self%rms0%map(:,3)**(-2) + 2*s)
+      map%map(:,2) = ((self%rms0%map(:,2)**(-2) + s)*buff_Q + self%rms0%map(:,4)*buff_U)/t
+      map%map(:,3) = ((self%rms0%map(:,3)**(-2) + s)*buff_U + self%rms0%map(:,4)*buff_Q)/t
+    end where
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if

@@ -434,7 +434,7 @@ contains
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 3
-         if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
+         !if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
          !if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
@@ -818,29 +818,12 @@ contains
 
 
              if (size(rms_out%map, dim=2) == 4) then
-               allocate(II_inv(0:npix-1), QQ_inv(0:npix-1), UU_inv(0:npix-1), QU_inv(0:npix-1))
-               allocate(II_cov(0:npix-1), QQ_cov(0:npix-1), UU_cov(0:npix-1), QU_cov(0:npix-1))
-               allocate(inv_determ(0:npix-1))
-
-               II_inv = M_diag(:, 1)
-               QQ_inv = M_diag(:, 2)
-               UU_inv = M_diag(:, 3)
-               QU_inv = M_diag(:, 4)
-
-               inv_determ = 1/(QQ_inv*UU_inv - QU_inv**2)
-
-               II_cov = 1/II_inv
-               QQ_cov =  UU_inv*inv_determ
-               UU_cov =  QQ_inv*inv_determ
-               QU_cov = -QU_inv*inv_determ
-   
                rms_out%info%nmaps           = nmaps + 1
-               rms_out%map(:,nmaps+1) = QU_inv
+               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+               !rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
+               rms_out%map(:,nmaps+1) = 0.d0
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
                rms_out%info%nmaps           = nmaps
-               deallocate(II_inv, QQ_inv, UU_inv, QU_inv)
-               deallocate(II_cov, QQ_cov, UU_cov, QU_cov)
-               deallocate(inv_determ)
              else
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
