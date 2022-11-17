@@ -676,6 +676,8 @@ subroutine tod2file_dp3(filename,d)
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
        call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+       write(*,*) ext, self%info%npix, self%info%nmaps, 'what is the extension? will my map fail?'
+       ! Find some way to get an exception to this...
        if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
           write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
           stop
@@ -1062,15 +1064,15 @@ subroutine tod2file_dp3(filename,d)
 
     if (rms_cov) then
         call add_card(header) ! blank line
-        call add_card(header,"TTYPE1", "II_"//ttype_,"Stokes II")
+        call add_card(header,"TTYPE1", "II_"//ttype_,"Stokes I")
         call add_card(header,"TUNIT1", unit_,"Map unit")
         call add_card(header)
 
-        call add_card(header,"TTYPE2", "QQ_"//ttype_,"Stokes QQ")
+        call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
         call add_card(header,"TUNIT2", unit_,"Map unit")
         call add_card(header)
         
-        call add_card(header,"TTYPE3", "UU_"//ttype_,"Stokes UU")
+        call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
         call add_card(header,"TUNIT3", unit_,"Map unit")
         call add_card(header)
 

@@ -449,7 +449,7 @@ contains
           if (trim(data(i)%tod%init_from_HDF) == 'none' .and. .not. present(init_from_output))     cycle
           if (cpar%myid == 0) write(*,*) '|  Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
-          rms => comm_map(data(i)%info)
+          rms => comm_map(data(i)%rmsinfo)
           select type (N)
           class is (comm_N_rms)
              if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
@@ -476,11 +476,11 @@ contains
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          allocate(regnoise(0:data(i)%rmsinfo%np-1,data(i)%rmsinfo%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map0%map = data(i)%map%map
@@ -496,7 +496,7 @@ contains
           if (cpar%myid == 0) write(*,*) '|  Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
-          rms     => comm_map(data(i)%info)
+          rms     => comm_map(data(i)%rmsinfo)
           N       => data(i)%N
           !write(*,*) trim(file%filename), trim(adjustl(hdfpath))//'map'
           call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
@@ -506,11 +506,11 @@ contains
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          allocate(regnoise(0:data(i)%rmsinfo%np-1,data(i)%rmsinfo%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map%map = data(i)%map%map + regnoise
