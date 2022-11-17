@@ -58,6 +58,7 @@ module comm_tod_WMAP_mod
       logical(lgt) :: comp_S
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
       real(dp), allocatable, dimension(:,:)        :: M_lowres, M_diag
+      character(len=512) :: noise_format
    contains
       procedure     :: process_tod             => process_WMAP_tod
       procedure     :: precompute_M_lowres
@@ -264,6 +265,9 @@ contains
 
       ! Get detector labels
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+
+      ! Get noise format
+      constructor%noise_format   = cpar%ds_noise_format(id_abs)
 
       ! Define detector partners
       ! I don't think this is necessary for WMAP...
@@ -817,16 +821,17 @@ contains
 
 
 
-             if (size(rms_out%map, dim=2) == 4) then
-               rms_out%info%nmaps           = nmaps + 1
+             if (trim(self%noise_format) == 'rms_qucov') then
+               rms_out%info%nmaps           = 4
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-               !rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
-               rms_out%map(:,nmaps+1) = 0.d0
+               rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-               rms_out%info%nmaps           = nmaps
+               rms_out%info%nmaps           = 3
+             else if (trim(self%noise_format) == 'rms') then
+               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
              else
-               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+               if (self%myid == 0) write(*,*) 'unexpected noise format'
              end if
           else
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))

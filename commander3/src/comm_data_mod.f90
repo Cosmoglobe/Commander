@@ -47,6 +47,7 @@ module comm_data_mod
      logical(lgt)                 :: pol_only
 
      class(comm_mapinfo), pointer :: info      => null()
+     class(comm_mapinfo), pointer :: rmsinfo   => null()
      class(comm_map),     pointer :: map       => null()
      class(comm_map),     pointer :: map0      => null() !for TOD data if outputing to HDF
      class(comm_map),     pointer :: res       => null()
@@ -128,6 +129,13 @@ contains
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
+       if (trim(data(n)%noise_format) == 'rms_qucov') then 
+          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+                   & nmaps+1, cpar%ds_polarization(i))
+       else
+          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+                   & nmaps, cpar%ds_polarization(i))
+       end if
        call get_mapfile(cpar, i, mapfile)
        data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
@@ -227,34 +235,34 @@ contains
        ! Initialize noise structures
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
-          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+          allocate(regnoise(0:data(n)%rmsinfo%np-1,data(n)%rmsinfo%nmaps))
           if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
           else
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case ('rms_qucov') 
           call update_status(status, 'setting some stuff up')
-          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+          allocate(regnoise(0:data(n)%rmsinfo%np-1,data(n)%rmsinfo%nmaps))
           if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
           else
-             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
           end if
           call update_status(status, 'set data(n)%N')
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           call update_status(status, 'added regnoise')
           deallocate(regnoise)
        case ('lcut') 
-          data(n)%N       => comm_N_lcut(cpar, data(n)%info, n, i, 0, data(n)%mask, handle)
+          data(n)%N       => comm_N_lcut(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)
           call data(n)%N%P(data(n)%map)
           call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
        case ('QUcov') 
-          data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+          data(n)%N       => comm_N_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
           data(n)%pol_only = .true.
        case default
@@ -380,6 +388,7 @@ contains
 
     ! Dump unit conversion factors to file
     if (cpar%myid == 0) call dump_unit_conversion(cpar%outdir)
+
 
   end subroutine initialize_data_mod
 

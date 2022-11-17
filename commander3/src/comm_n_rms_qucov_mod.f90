@@ -19,6 +19,11 @@
 !
 !================================================================================
 module comm_N_rms_QUcov_mod
+  use comm_N_mod
+  use comm_param_mod
+  use comm_map_mod
+  use comm_status_mod
+  implicit none
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! This module handles the case of a white noise matrix where there is
   ! correlation between the Q and U Stokes parameters, but each pixel is
@@ -64,10 +69,6 @@ module comm_N_rms_QUcov_mod
   ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
   ! 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  use comm_N_mod
-  use comm_param_mod
-  use comm_map_mod
-  implicit none
 
   private
   public comm_N_rms_QUcov, comm_N_rms_QUcov_ptr
@@ -104,7 +105,7 @@ contains
   !**************************************************
   function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask, map)
     implicit none
-    class(comm_N_rms_QUcov),               pointer       :: constructor
+    class(comm_N_rms_QUcov),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
     type(comm_mapinfo), target,         intent(in)    :: info
     integer(i4b),                       intent(in)    :: id, id_abs, id_smooth
@@ -114,27 +115,27 @@ contains
     class(comm_map),                    pointer, intent(in), optional :: procmask
     class(comm_map),                    pointer, intent(in), optional :: map
 
-    class(comm_N_rms_QUcov),               pointer       :: constructor_temp
-    integer(i4b)       :: i, j, ierr, tmp, nside_smooth
-    real(dp)           :: sum_noise, npix, buffer
+    integer(i4b)       :: i, ierr, tmp, nside_smooth
+    real(dp)           :: sum_noise, npix
     type(comm_mapinfo), pointer :: info_smooth => null()
 
-
+    call update_status(status, "comm_N_rms_QUcov constructor")
+    
     ! General parameters
     allocate(constructor)
-    allocate(constructor_temp)
 
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
-    constructor%nmaps             = info%nmaps + 1
-    constructor%pol               = info%nmaps == 4 ! sigmaT, sigmaQ, sigmaU, Cov(Q,U)
+    constructor%nmaps             = info%nmaps
+    constructor%pol               = .true.
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
     constructor%info              => info
-    constructor%info%nmaps        = constructor%nmaps
 
-    call update_status(status, 'reading in masks and stuff')
+
+
+
 
     if (id_smooth == 0) then
        constructor%nside        = info%nside
@@ -143,12 +144,11 @@ contains
        if (cpar%ds_regnoise(id_abs) /= 'none') then
           constructor%rms_reg => comm_map(constructor%info, trim(cpar%ds_regnoise(id_abs)))
        end if
-       call update_status(status, 'updating N')
        if (present(procmask)) then
-          call constructor%update_N(constructor%info, handle, mask, regnoise, procmask=procmask, &
+          call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
                & noisefile=trim(cpar%ds_noisefile(id_abs)))
        else
-          call constructor%update_N(constructor%info, handle, mask, regnoise, &
+          call constructor%update_N(info, handle, mask, regnoise, &
                & noisefile=trim(cpar%ds_noisefile(id_abs)))
        end if
     else
@@ -160,41 +160,44 @@ contains
        else
           tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
           info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-               & constructor%nmaps + 1, constructor%pol)
+               & constructor%nmaps, constructor%pol)
           constructor%nside   = info_smooth%nside
           constructor%np      = info_smooth%np
           constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
           
+          where (constructor%siN%map > 0.d0) 
+             constructor%siN%map = 1.d0 / constructor%siN%map
+          elsewhere
+             constructor%siN%map = 0.d0
+          end where
        end if
     end if
 
-    call update_status(status, 'checking if pol only')
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
 
-    call update_status(status, 'checking CG stuff')
+    call update_status(status, "cg sample group masks")
+
     ! Initialize CG sample group masks
     allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
-    constructor_temp => constructor
-    constructor_temp%info%nmaps = constructor_temp%info%nmaps - 1
+    constructor%info%nmaps = 3
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(constructor_temp%info, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
+       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
        where (constructor%samp_group_mask(i)%p%map > 0.d0)
           constructor%samp_group_mask(i)%p%map = 1.d0
        elsewhere
           constructor%samp_group_mask(i)%p%map = 0.d0
        end where
     end do
-
-    call update_status(status, 'should have finished constructing')
+    constructor%info%nmaps = 4
 
   end function constructor
 
   subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
-    class(comm_N_rms_QUcov),                intent(inout)          :: self
+    class(comm_N_rms_QUcov),                   intent(inout)          :: self
     class(comm_mapinfo),                 intent(in)             :: info
     type(planck_rng),                    intent(inout)          :: handle
     class(comm_map),                     intent(in),   optional :: mask
@@ -204,15 +207,15 @@ contains
     class(comm_map),                     intent(in),   optional :: map
 
     integer(i4b) :: i, j, ierr
-    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix, buffer
+    real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
     class(comm_map),     pointer :: invW_tau => null(), iN => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
+
+    call update_status(status, "update_N_rms")
 
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
     else if (present(map)) then
-       !info%nmaps    = info%nmaps + 1
-       !self%rms0     => comm_map(info)
        if (size(map%map, dim=2) == 3) then
            self%rms0%map(:,1:3) = map%map
            self%rms0%map(:,4) = 0
@@ -231,16 +234,20 @@ contains
        self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
     end if
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
-    ! self%siN%map = self%siN%map * mask%map ! Apply mask
-    self%siN%map(:,1:3) = self%siN%map(:,1:3) * mask%map ! Apply mask
-    self%siN%map(:,4)   = self%siN%map(:,4) * mask%map(:,3) ! Apply mask
-    ! Store the diagonal version, and the inverted 2x2 matrix
+    self%siN%map = self%siN%map * mask%map ! Apply mask
     if (present(procmask)) then
        where (procmask%map < 0.5d0)
           self%siN%map = self%siN%map * 20.d0 ! Boost noise by 20 in processing mask
        end where
     end if
 
+    ! Invert rms
+    self%siN%map = 0
+    where (self%siN%map(:, 1:3) > 0.d0) 
+       self%siN%map(:, 1:3) = 1.d0 / self%siN%map(:, 1:3)
+    elsewhere
+       self%siN%map(:, 1:3) = 0.d0
+    end where
 
     ! Add white noise corresponding to the user-specified regularization noise map
     if (associated(self%rms_reg) .and. present(regnoise)) then
@@ -251,15 +258,24 @@ contains
        end do
     end if
 
+    ! Set siN to its mean; useful for debugging purposes
+    if (self%set_noise_to_mean) then
+       do i = 1, self%nmaps
+          sum_noise = sum(self%siN%map(:,i))
+          npix      = size(self%siN%map(:,i))
+          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          self%siN%map(:,i) = sum_noise/npix
+       end do
+    end if
 
-
+    call update_status(status, "N_rms cg_precond")
 
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
        if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
-       !write(*,*) info%nmaps, shape(self%invN_diag%map), 'basdfa'
-       self%invN_diag%map = self%siN%map(:,1:3)**2
-       !call compute_invN_lm(self%invN_diag)
+       self%invN_diag%map = self%siN%map**2
+       call compute_invN_lm(self%invN_diag)
     else if (trim(self%cg_precond) == 'pseudoinv') then
        ! Compute alpha_nu for pseudo-inverse preconditioner
        if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
@@ -292,13 +308,13 @@ contains
        end if
     end if
 
+    call update_status(status, "N_rms lowres")
 
     ! Set up lowres map
     if (.not.associated(self%siN_lowres)) then
        info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
        self%siN_lowres => comm_map(info_lowres)
     end if
-
     iN => comm_map(self%siN)
     iN%map = iN%map**2
     call iN%udgrade(self%siN_lowres)
@@ -336,7 +352,6 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    ! Implement same thing as above, just downgrade the matrices appropriately.
     map%map = (self%siN_lowres%map)**2 * map%map
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -363,8 +378,6 @@ contains
                  & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)**0.5
 
     deallocate(buff_Q, buff_U)
-
-
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -376,26 +389,7 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    integer(i4b) :: npix, i, j
-    real(dp), dimension(:), allocatable :: buff_Q, buff_U, s, t
-    npix = size(map%map(:,1))
-    allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
-    buff_Q = map%map(:,2)
-    buff_U = map%map(:,3)
-    ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
-    ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
-    !
-    ! N^{-1/2} = ((\sigma_Q^{-2} + s, \rho), (\rho, \sigma_U^{-2} + s))/t
-    !
-    ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
-
-    map%map(:,1) = self%rms0%map(:,1) * map%map(:,1)
-    where (self%rms0%map(:,2) > 0)
-      s = ((self%rms0%map(:,2)*self%rms0%map(:,3))**(-2) - self%rms0%map(:,4)**2)**0.5
-      t = (self%rms0%map(:,2)**(-2) + self%rms0%map(:,3)**(-2) + 2*s)
-      map%map(:,2) = ((self%rms0%map(:,2)**(-2) + s)*buff_Q + self%rms0%map(:,4)*buff_U)/t
-      map%map(:,3) = ((self%rms0%map(:,3)**(-2) + s)*buff_U + self%rms0%map(:,4)*buff_Q)/t
-    end where
+    map%map = self%siN%map * map%map
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
