@@ -64,9 +64,9 @@ module comm_N_rms_QUcov_mod
   ! siN is the N^{-1/2} term.
   !
   ! A trickier one is computing Nm
-  ! N = ((\sigma_U^{-2}, -\rho), (-\rho, \sigma_Q^{-2}))/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
+  ! N = ((\sigma_U^{-2}, -\rho), (-\rho, \sigma_Q^{-2}))/((\sigma_Q\sigma_U)^{-2}-\rho^2)
   !
-  ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
+  ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/((\sigma_Q\sigma_U)^{-2}-\rho^2)
   ! 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -234,7 +234,8 @@ contains
        self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
     end if
     call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
-    self%siN%map = self%siN%map * mask%map ! Apply mask
+    self%siN%map(:,1:3) = self%siN%map(:,1:3) * mask%map ! Apply mask
+    self%siN%map(:,4)   = self%siN%map(:,4)   * mask%map(:,3)
     if (present(procmask)) then
        where (procmask%map < 0.5d0)
           self%siN%map = self%siN%map * 20.d0 ! Boost noise by 20 in processing mask
@@ -333,6 +334,7 @@ contains
     integer(i4b) :: npix
     npix = size(map%map(:,1))
     allocate(buff_Q(npix), buff_U(npix))
+    write(*,*) 'invN*map'
     buff_Q = map%map(:,2)
     buff_U = map%map(:,3)
     map%map(:,1) = (self%rms0%map(:,1))**(-2) * map%map(:,1)
@@ -352,6 +354,7 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    write(*,*) 'invN * map lowres'
     map%map = (self%siN_lowres%map)**2 * map%map
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -366,16 +369,17 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp), dimension(:), allocatable :: buff_Q, buff_U
     integer(i4b) :: npix
+    write(*,*) 'N * map'
     npix = size(map%map(:,1))
     allocate(buff_Q(npix), buff_U(npix))
     buff_Q = map%map(:,2)
     buff_U = map%map(:,3)
     ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
-    map%map(:,1) = map%map(:,1) / self%rms0%map(:,1)**2
+    map%map(:,1) = map%map(:,1) * self%rms0%map(:,1)**2
     map%map(:,2) = (buff_Q/self%rms0%map(:,3)**2 - buff_U*self%rms0%map(:,4)) / &
-                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)**0.5
+                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)
     map%map(:,3) = (buff_U/self%rms0%map(:,2)**2 - buff_Q*self%rms0%map(:,4)) / &
-                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)**0.5
+                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)
 
     deallocate(buff_Q, buff_U)
     if (present(samp_group)) then
@@ -389,7 +393,29 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = self%siN%map * map%map
+    real(dp), dimension(:), allocatable :: buff_Q, buff_U, s, t
+    integer(i4b) :: npix
+    ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
+    ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
+    ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
+    write(*,*) 'sqrtinvN * map'
+    npix = size(map%map(:,1))
+    allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
+    buff_Q = map%map(:,2)
+    buff_U = map%map(:,3)
+    ! This line causes floating overflow errors if you're not careful...
+    s = ((self%rms0%map(:,2)*self%rms0%map(:,3))**-2 - self%rms0%map(:,4)**2)**0.5
+    t = (self%rms0%map(:,2)**-2 + self%rms0%map(:,3)**-2 + 2*s)**0.5
+    where (t > 0)
+       map%map(:,1) = map%map(:,1) / self%rms0%map(:,1)
+       map%map(:,2) = ((self%rms0%map(:,2)**-2 + s)*buff_Q + self%rms0%map(:,4)*buff_U)/t
+       map%map(:,3) = ((self%rms0%map(:,3)**-2 + s)*buff_U + self%rms0%map(:,4)*buff_Q)/t
+    elsewhere
+       map%map(:,1) = 0
+       map%map(:,2) = 0
+       map%map(:,3) = 0
+    end where
+    deallocate(buff_Q,buff_U,s,t)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -419,6 +445,7 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
     integer(i4b),      intent(in),   optional  :: samp_group
+    write(*,*) 'returning rms'
     where (self%siN%map > 0.d0)
        res%map = 1.d0/self%siN%map
     elsewhere
@@ -440,6 +467,7 @@ contains
     integer(i4b),        intent(in)              :: pix, pol
     real(dp)                                     :: returnRMSpix
     integer(i4b),        intent(in),   optional  :: samp_group
+    write(*,*) 'returning rmspix'
     if (self%siN%map(pix,pol) > 0.d0) then
        returnRMSpix = 1.d0/self%siN%map(pix,pol)
     else
