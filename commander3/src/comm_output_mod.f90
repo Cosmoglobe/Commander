@@ -438,6 +438,11 @@ contains
              class is (comm_N_lcut)
                 call data(i)%tod%dumpToHDF(file, iter, &
                      & data(i)%map0, N%rms0)
+             class is (comm_N_rms_qucov)
+                call data(i)%tod%dumpToHDF(file, iter, &
+                     & data(i)%map0, N%rms0)
+             class default
+               if (cpar%myid == 0) write(*,*) '| For some reason, your data was not written to hdf'
              end select
           end if
        end do

@@ -822,11 +822,9 @@ contains
 
 
              if (trim(self%noise_format) == 'rms_qucov') then
-               rms_out%info%nmaps           = 4
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
                rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-               rms_out%info%nmaps           = 3
              else if (trim(self%noise_format) == 'rms') then
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))

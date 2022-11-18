@@ -672,21 +672,33 @@ subroutine tod2file_dp3(filename,d)
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    logical(lgt)                              :: rms_exception
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
+       rms_exception = .false.
        call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
-       write(*,*) ext, self%info%npix, self%info%nmaps, 'what is the extension? will my map fail?'
-       ! Find some way to get an exception to this...
-       if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
+       if (self%info%nmaps == 4 .and. ext(2) == 3) then
+          write(*,*) '| WARNING - nmaps = 4 but expecting 3'
+          write(*,*) '| If this is not a new rms file, you have a problem'
+          rms_exception = .true.
+       else if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
           write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
           stop
        end if
        npix  = self%info%npix
-       allocate(p(npix), map(0:npix-1,ext(2)))
-       call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
-       nmaps = min(self%info%nmaps,ext(2))
-       self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+       if (rms_exception) then
+          allocate(p(npix), map(0:npix-1,self%info%nmaps))
+          map = 0d0
+          call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map(:,1:ext(2)))
+          nmaps = self%info%nmaps
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+       else
+          allocate(p(npix), map(0:npix-1,ext(2)))
+          call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
+          nmaps = min(self%info%nmaps,ext(2))
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+       end if
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
