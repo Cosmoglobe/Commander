@@ -334,7 +334,6 @@ contains
     integer(i4b) :: npix
     npix = size(map%map(:,1))
     allocate(buff_Q(npix), buff_U(npix))
-    write(*,*) 'invN*map'
     buff_Q = map%map(:,2)
     buff_U = map%map(:,3)
     map%map(:,1) = (self%rms0%map(:,1))**(-2) * map%map(:,1)
@@ -354,7 +353,6 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    write(*,*) 'invN * map lowres'
     map%map = (self%siN_lowres%map)**2 * map%map
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -369,7 +367,6 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp), dimension(:), allocatable :: buff_Q, buff_U
     integer(i4b) :: npix
-    write(*,*) 'N * map'
     npix = size(map%map(:,1))
     allocate(buff_Q(npix), buff_U(npix))
     buff_Q = map%map(:,2)
@@ -398,7 +395,6 @@ contains
     ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
     ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
     ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
-    write(*,*) 'sqrtinvN * map'
     npix = size(map%map(:,1))
     allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
     buff_Q = map%map(:,2)
@@ -445,7 +441,6 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
     integer(i4b),      intent(in),   optional  :: samp_group
-    write(*,*) 'returning rms'
     where (self%siN%map > 0.d0)
        res%map = 1.d0/self%siN%map
     elsewhere
@@ -467,7 +462,6 @@ contains
     integer(i4b),        intent(in)              :: pix, pol
     real(dp)                                     :: returnRMSpix
     integer(i4b),        intent(in),   optional  :: samp_group
-    write(*,*) 'returning rmspix'
     if (self%siN%map(pix,pol) > 0.d0) then
        returnRMSpix = 1.d0/self%siN%map(pix,pol)
     else
