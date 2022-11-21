@@ -60,7 +60,7 @@ contains
     if (solve_S) then
        self%ncol = tod%nmaps + tod%ndet - 1
        self%n_A  = tod%nmaps*(tod%nmaps+1)/2 + 4*(tod%ndet-1)
-       self%nout = tod%output_n_maps + tod%n_bp_prop - 1
+       self%nout = tod%output_n_maps + tod%n_bp_prop
        !write(*,*) 'hei!', size(tod%bp_delta,2)
     else
        self%ncol = tod%nmaps
