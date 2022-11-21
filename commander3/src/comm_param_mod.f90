@@ -3467,7 +3467,12 @@ contains
                 elseif (present(par_dp)) then
                    read(val,*) par_dp
                 elseif (present(par_lgt)) then
-                   read(val,*) par_lgt
+                   if (trim(val) == '.true.' .or. trim(val) == '.false.') then
+                      read(val,*) par_lgt
+                   else
+                      write(*,*) "Error: parameter "//trim(parname)//" should be .true. or .false."
+                      stop
+                   end if
                 else
                    write(*,*) "get_parameter: Reached unreachable point! ", val, present(par_string)
                 end if
