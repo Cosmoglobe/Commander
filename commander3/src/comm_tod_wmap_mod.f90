@@ -800,6 +800,7 @@ contains
           if (l == 1) then
             bicg_sol = transpose(map_full)
             epsil = 1d-10
+            if (split) epsil = 1d-12
           else
             bicg_sol = 0d0
             epsil = 1d-6
@@ -815,15 +816,21 @@ contains
                          & epsil, procmask, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S, 0)
           if (split .and. l == 1) then
-             epsil = 1e-8
-             bicg_sol_1 = bicg_sol
-             bicg_sol_2 = bicg_sol
+             epsil = 1d-12
+             bicg_sol_1 = transpose(map_full)
              call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
                             & epsil, procmask, map_full, M_diag_1, b_map_1, l, &
                             & prefix, postfix, self%comp_S, 1)
+             bicg_sol_2 = transpose(map_full)
              call run_bicgstab(self, handle, bicg_sol_2, npix, nmaps, num_cg_iters, &
                             & epsil, procmask, map_full, M_diag_2, b_map_2, l, &
                             & prefix, postfix, self%comp_S, 2)
+             monopole = sum((bicg_sol_1(:,1)-map_full(1,:))*M_diag_1(:,1)*procmask) &
+                    & / sum(M_diag_1(:,1)*procmask)
+             bicg_sol_1(:,1) = bicg_sol_1(:,1) - monopole
+             monopole = sum((bicg_sol_2(:,1)-map_full(1,:))*M_diag_2(:,1)*procmask) &
+                    & / sum(M_diag_2(:,1)*procmask)
+             bicg_sol_2(:,1) = bicg_sol_2(:,1) - monopole
           end if
           
           if (l == 1 .and. self%myid == 0) then
@@ -847,27 +854,21 @@ contains
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
 
           if (split .and. l == 1) then
+             call timer%start(TOD_WRITE) 
              call mpi_bcast(bicg_sol_1, size(bicg_sol_1),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
              do j = 1, nmaps
                 outmaps(1)%p%map(:, j) = bicg_sol_1(self%info%pix, j)
              end do
-             call timer%start(TOD_WRITE) 
-             if (l == 1) then
-                map_out%map = outmaps(1)%p%map
-                call map_out%writeFITS(trim(prefix)//'map_split1'//trim(postfix))
-             else
-                call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//'_split1_'//trim(postfix))
-             end if
+             map_out%map = outmaps(1)%p%map
+             call map_out%writeFITS(trim(prefix)//'map_split1'//trim(postfix))
+
+             call mpi_bcast(bicg_sol_2, size(bicg_sol_2),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
              do j = 1, nmaps
                 outmaps(1)%p%map(:, j) = bicg_sol_2(self%info%pix, j)
              end do
-             call timer%start(TOD_WRITE) 
-             if (l == 1) then
-                map_out%map = outmaps(1)%p%map
-                call map_out%writeFITS(trim(prefix)//'map_split2'//trim(postfix))
-             else
-                call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//'_split2_'//trim(postfix))
-             end if
+             map_out%map = outmaps(1)%p%map
+             call map_out%writeFITS(trim(prefix)//'map_split2'//trim(postfix))
+             call timer%stop(TOD_WRITE) 
           end if
 
           if (self%comp_S) then
