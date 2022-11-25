@@ -476,7 +476,7 @@ contains
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
-          allocate(regnoise(0:data(i)%rmsinfo%np-1,data(i)%rmsinfo%nmaps))
+          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
              call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else

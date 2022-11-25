@@ -252,7 +252,8 @@ contains
 
     ! Add white noise corresponding to the user-specified regularization noise map
     if (associated(self%rms_reg) .and. present(regnoise)) then
-       do j = 1, self%rms_reg%info%nmaps
+       write(*,*) 'Warning -- QUcov not accounted for in regnoise'
+       do j = 1, size(regnoise,2)
           do i = 0, self%rms_reg%info%np-1
              regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
           end do
@@ -390,28 +391,49 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    real(dp), dimension(:), allocatable :: buff_Q, buff_U, s, t
-    integer(i4b) :: npix
+    !real(dp), dimension(:), allocatable :: buff_Q, buff_U, s, t
+    real(dp)     :: buff_Q, buff_U, s, t
+    integer(i4b) :: i, npix
     ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
     ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
     ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
-    npix = size(map%map(:,1))
-    allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
-    buff_Q = map%map(:,2)
-    buff_U = map%map(:,3)
-    ! This line causes floating overflow errors if you're not careful...
-    s = ((self%rms0%map(:,2)*self%rms0%map(:,3))**-2 - self%rms0%map(:,4)**2)**0.5
-    t = (self%rms0%map(:,2)**-2 + self%rms0%map(:,3)**-2 + 2*s)**0.5
-    where (t > 0)
-       map%map(:,1) = map%map(:,1) / self%rms0%map(:,1)
-       map%map(:,2) = ((self%rms0%map(:,2)**-2 + s)*buff_Q + self%rms0%map(:,4)*buff_U)/t
-       map%map(:,3) = ((self%rms0%map(:,3)**-2 + s)*buff_U + self%rms0%map(:,4)*buff_Q)/t
-    elsewhere
-       map%map(:,1) = 0
-       map%map(:,2) = 0
-       map%map(:,3) = 0
-    end where
-    deallocate(buff_Q,buff_U,s,t)
+
+    do i = 0, map%info%np-1
+       if (self%rms0%map(i,1) > 0.) then
+          map%map(i,1) = map%map(i,1) / self%rms0%map(i,1)
+       else
+          map%map(i,1) = 0.
+       end if
+       if (self%rms0%map(i,2) > 0. .and. self%rms0%map(i,3) > 0.) then
+          buff_Q       = map%map(i,2)
+          buff_U       = map%map(i,3)
+          s            = sqrt((self%rms0%map(i,2)/self%rms0%map(i,3))**2 - self%rms0%map(i,4)**2)
+          t            = sqrt(self%rms0%map(i,2)**-2 + self%rms0%map(i,3)**-2 + 2.*s)
+          map%map(i,2) = ((self%rms0%map(i,2)**-2 + s)*buff_Q + self%rms0%map(i,4)*buff_U)/t
+          map%map(i,3) = ((self%rms0%map(i,3)**-2 + s)*buff_U + self%rms0%map(i,4)*buff_Q)/t
+       else
+          map%map(i,2) = 0.
+          map%map(i,3) = 0.
+       end if
+    end do
+
+!!$    npix = size(map%map(:,1))
+!!$    allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
+!!$    buff_Q = map%map(:,2)
+!!$    buff_U = map%map(:,3)
+!!$    ! This line causes floating overflow errors if you're not careful...
+!!$    s = ((self%rms0%map(:,2)*self%rms0%map(:,3))**-2 - self%rms0%map(:,4)**2)**0.5
+!!$    t = (self%rms0%map(:,2)**-2 + self%rms0%map(:,3)**-2 + 2*s)**0.5
+!!$    where (t > 0)
+!!$       map%map(:,1) = map%map(:,1) / self%rms0%map(:,1)
+!!$       map%map(:,2) = ((self%rms0%map(:,2)**-2 + s)*buff_Q + self%rms0%map(:,4)*buff_U)/t
+!!$       map%map(:,3) = ((self%rms0%map(:,3)**-2 + s)*buff_U + self%rms0%map(:,4)*buff_Q)/t
+!!$    elsewhere
+!!$       map%map(:,1) = 0
+!!$       map%map(:,2) = 0
+!!$       map%map(:,3) = 0
+!!$    end where
+!!$    deallocate(buff_Q,buff_U,s,t)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if

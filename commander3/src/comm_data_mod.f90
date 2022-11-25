@@ -133,8 +133,7 @@ contains
           data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
                    & nmaps+1, cpar%ds_polarization(i))
        else
-          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
-                   & nmaps, cpar%ds_polarization(i))
+          data(n)%rmsinfo => data(n)%info
        end if
        call get_mapfile(cpar, i, mapfile)
        data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
@@ -235,7 +234,7 @@ contains
        ! Initialize noise structures
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
-          allocate(regnoise(0:data(n)%rmsinfo%np-1,data(n)%rmsinfo%nmaps))
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
              data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
@@ -246,7 +245,7 @@ contains
           deallocate(regnoise)
        case ('rms_qucov') 
           call update_status(status, 'setting some stuff up')
-          allocate(regnoise(0:data(n)%rmsinfo%np-1,data(n)%rmsinfo%nmaps))
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
              data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
