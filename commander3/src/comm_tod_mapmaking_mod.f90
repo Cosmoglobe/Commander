@@ -731,12 +731,27 @@ end subroutine bin_differential_TOD
                end do
             end do
          end if
+
+         ! Store map in correct units
          do j = 1, nmaps
-            rms%map(i, j) = sqrt(A_inv(j, j))*scale
             do k = 1, tod%output_n_maps
                binmap%outmaps(k)%p%map(i, j) = b_tot(k, j, i)*scale
             end do
          end do
+
+         ! Store N in correct units
+         if (rms%info%nmaps == 3) then
+            ! Diagonal matrix; store RMS
+            do j = 1, nmaps
+               rms%map(i,j) = sqrt(A_inv(j, j))*scale
+            end do
+         else if (rms%info%nmaps == 4) then           
+            ! Block-diagonal T + QU; store N
+            rms%map(i,1) = A_inv(1,1)*scale**2
+            rms%map(i,2) = A_inv(2,2)*scale**2
+            rms%map(i,3) = A_inv(3,3)*scale**2
+            rms%map(i,4) = A_inv(2,3)*scale**2
+         end if
       end do
 
       if (present(chisq_S)) then
