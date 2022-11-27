@@ -396,6 +396,9 @@ contains
       real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
 
+      ! Counting data kept, lost
+      integer(i8b) :: n_tot, n_flag, n_discard
+
       character(len=80), dimension(180) :: header
 
 
@@ -583,6 +586,9 @@ contains
             write(*,*) '|    --> Sampling ncorr, xi_n, maps'
           end if
       endif
+      n_tot = 0
+      n_discard = 0
+      n_flag = 0
       do i = 1, self%nscan
          ! Skip scan if no accepted data
 
@@ -591,6 +597,13 @@ contains
                write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
                     & '"', 0.0, &
                     & real(self%spinaxis(i,:),sp)
+            end if
+            if (select_data) then 
+               call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+                 & init_s_bp=bp_corr, polang=polang)
+               n_tot = n_tot + sd%ntod
+               n_flag = n_flag + sd%ntod
+               call sd%dealloc
             end if
             cycle
          end if
@@ -635,17 +648,24 @@ contains
          if (select_data) then 
             ! Count how many good data points are thrown out from this
             ! procedure.
+            n_tot = n_tot + sd%ntod
+            n_flag = n_flag + count(iand(sd%flag(:,1),self%flag0) .ne. 0)
             call remove_bad_data(self, i, sd%flag)
+            if (.not. self%scans(i)%d(1)%accept) then
+                n_discard = n_discard + (sd%ntod -count(iand(sd%flag(:,1),self%flag0) .ne. 0))
+            end if
             n = len(trim(self%freq)) - 1
             if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
                 if (sd%ntod < 2**22) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))
                 end if
             else
                 if (sd%ntod < 2**21) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))
                 end if
             end if
          end if
@@ -736,6 +756,16 @@ contains
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
         call update_status(status, "Ran allreduce on b_map")
+
+
+        if (select_data) then
+          call mpi_allreduce(mpi_in_place, n_tot, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_flag, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_discard, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+        end if
         call timer%stop(TOD_MPI, self%band)
 
 
@@ -847,6 +877,13 @@ contains
         !   call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
         !   self%bp_delta = delta(:,:,1)
         !end if
+      end if
+
+      if (self%myid == 0  .and. select_data) then
+        write(*,*) '| Data rejection statistics'
+        write(*,*) '| n_tot     ', n_tot
+        write(*,*) '| flagged   ', n_flag
+        write(*,*) '| discarded ', n_discard
       end if
 
       ! Clean up temporary arrays
