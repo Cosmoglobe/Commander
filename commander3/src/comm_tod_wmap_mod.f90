@@ -373,7 +373,7 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
       real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv
-      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, inv_determ
+      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, det
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
@@ -819,11 +819,14 @@ contains
              ! Note that if bc = 0, then A-1 is just the inverse of the
              ! diagonals.
 
-
-
              if (trim(self%noise_format) == 'rms_qucov') then
-               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-               rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
+               allocate(det(0:npix-1))
+               det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+               rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
+               rms_out%map(:,2) = M_diag(self%info%pix,3)/det(self%info%pix)
+               rms_out%map(:,3) = M_diag(self%info%pix,2)/det(self%info%pix)
+               rms_out%map(:,4) = -M_diag(self%info%pix,4)/det(self%info%pix)
+               deallocate(det)
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
              else if (trim(self%noise_format) == 'rms') then
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
