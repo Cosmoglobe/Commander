@@ -331,7 +331,21 @@ contains
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
 
+!!$       ! Calling Simulation Routine
+!!$       if (self%enable_tod_simulations) then
+!!$          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
+!!$          call sd%dealloc
+!!$          cycle
+!!$       end if
+
+       ! ************************************************************************************
+       !       Perform low-level TOD processing; raw modulated TOD -> clean demodulated TOD
+       ! ************************************************************************************
+
        ! Estimate ADC corrections
+       !    Not implemented yet
+
+       ! Apply ADC corrections to raw self%tod
        !    Not implemented yet
 
        ! Estimate baselines; separate for odd and even samples
@@ -340,25 +354,16 @@ contains
        ! Demodulate TOD
        call demodulate_tod(sd, self, i)
 
+       if (self%first_call) then
+          ! Search for jumps
+          !    Not implemented yet
+       end if
 
-       allocate(s_buf(sd%ntod,sd%ndet))
- 
-       ! demodulate the data
-!!$       s_buf = sd%tod * (1 - (iand(sd%flag, self%flag0)))
-!!$       do j=1, sd%ndet
-!!$         if (.not. self%scans(i)%d(j)%accept) cycle 
-!!$         sd%tod(:,j) = sd%tod(:,j) - sum(s_buf(:,j))/sum((1 - (iand(sd%flag(:,j),self%flag0))))
-!!$         do k=1, sd%ntod
-!!$           !if (sd%tod(k,j) < 0.d0) then 
-!!$           if (mod(k,2) == 0) then 
-!!$             sd%tod(k,j) = - sd%tod(k,j)
-!!$           end if
-!!$         end do
-!!$       end do
+       ! Apply jump corrections
+       !    Not implemented yet       
 
-!!$       write(*,*) sd%tod(1:6,1)
-!!$       call mpi_finalize(ierr)
-!!$       stop
+       ! Fit and subtract dark bolometer signal; should this come before or after cosmic rays..?
+       !    Not implemented yet       
 
        ! remove cosmic rays
        do j=1, sd%ndet
@@ -366,13 +371,17 @@ contains
         call self%cray(j)%p%fit_cray_amplitudes()
        end do
 
+       ! Fit and subtract 4K lines
+       !    Not implemented yet       
 
-       ! Calling Simulation Routine
-       if (self%enable_tod_simulations) then
-          call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-          call sd%dealloc
-          cycle
-       end if
+       ! Fit and deconvolve bolometer transfer function
+       !    Not implemented yet       
+
+
+
+       ! ************************************************************************************
+       !       Perform high-level TOD processing; clean demodulated TOD -> maps
+       ! ************************************************************************************
 
        ! Sample correlated noise
        !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
@@ -393,26 +402,10 @@ contains
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
-       ! Compute binned map
+       ! Compute calibrated TOD for mapmaking
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)
        
-       ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-       if (self%output_4D_map > 0) then
-          if (mod(iter-1,self%output_4D_map) == 0) then
-             allocate(sigma0(sd%ndet))
-             do j = 1, sd%ndet
-                sigma0(j) = self%scans(i)%d(j)%N_psd%sigma0/self%scans(i)%d(j)%gain
-             end do
-             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-                  & samptext, self%scanid(i), self%nside, self%npsi, &
-                  & self%label, self%horn_id, real(self%polang*180/pi,sp), sigma0, &
-                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-                  & self%scans(i)%d(:)%accept)
-             deallocate(sigma0)
-          end if
-       end if
-
        if(self%scans(i)%chunk_num == 3) then
           open(123, file="testhke.txt", recl=1024)
          write(*,*) "gain:", self%scans(i)%d(1)%gain
@@ -437,7 +430,7 @@ contains
 
        ! Clean up
        call sd%dealloc
-       deallocate(s_buf, d_calib)
+       deallocate(d_calib)
 
     end do
 
