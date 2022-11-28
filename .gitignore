@@ -70,3 +70,9 @@ Thumbs.db
 commander3/todscripts/quiet/quiet_qband_beam_effective_v1.fits
 commander3/todscripts/quiet/quiet_qband_bandpass_v1.txt
 commander3/todscripts/quiet/quiet_qband_beam_instrumental_v1.fits
+
+
+param_*.txt
+myoutput.dat
+run_commander.sh
+chains/

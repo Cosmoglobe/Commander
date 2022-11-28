@@ -335,7 +335,7 @@ contains
        !    Not implemented yet
 
        ! Estimate baselines; separate for odd and even samples
-       call sample_hfi_baselines(sd, self, i)
+       call sample_hfi_baselines(sd, self, i, handle)
 
        ! Demodulate TOD
        call demodulate_tod(sd, self, i)
@@ -497,7 +497,7 @@ contains
   end subroutine process_HFI_tod
 
 
-  subroutine sample_hfi_baselines(self, tod, scan)
+  subroutine sample_hfi_baselines(self, tod, scan, handle)
     ! 
     ! Estimates baselines for MODULATED data, separate for odd and even samples (ARTEM)
     ! 
@@ -508,6 +508,10 @@ contains
     ! tod:      comm_tod derived type
     !             contains TOD-specific information         
     ! scan:     scan ID
+    ! handle:   planck_rng derived type
+    !           Healpix definition for random number generation
+    !           so that the same sequence can be resumed later on from that same
+    !           point
     !           
     !
     ! Returns
@@ -519,13 +523,132 @@ contains
     class(comm_scandata),                         intent(in)    :: self
     class(comm_tod),                              intent(inout) :: tod
     integer(i4b),                                 intent(in)    :: scan
+    type(planck_rng),                             intent(inout) :: handle
 
-    integer(i4b) :: i
+    real(sp) :: sigma_0
+    integer(i4b) :: i, j
+    real(sp), allocatable, dimension(:,:)     :: T, even, uneven, tod_inv_N, matrix_buf, A, A_sqrt, s_tot_inv_N
+    real(sp), allocatable, dimension(:)       :: B, eta, X
+
+
+    ! tod%scans(scan)%d(i)%gain - the gain constant over a scan [real number]
+    ! sd = self --- self%s_tot - sky signal model
+    ! self%s_tot(self%ntod, self%ndet) - how s_tot structured
+
+    
+    allocate(s_tot_inv_N(self%ntod, tod%ndet))
+    allocate(tod_inv_N(self%ntod, tod%ndet))
+    allocate(even(self%ntod, tod%ndet), uneven(self%ntod, tod%ndet))
+
+    s_tot_inv_N = self%s_tot
+    tod_inv_N = self%tod
 
     do i = 1, tod%ndet
-       tod%scans(scan)%d(i)%baseline  = 0.
-       tod%scans(scan)%d(i)%baseline2 = 0.
+        sigma_0  = tod%scans(scan)%d(i)%N_psd%sigma0
+
+        do j = 1, self%ntod
+            even(j,i) = 0.0/sigma_0/sigma_0
+            uneven(j,i) = 1.0/sigma_0/sigma_0
+            s_tot_inv_N(j,i) = s_tot_inv_N(j,i)/sigma_0/sigma_0
+            tod_inv_N(j,i) = tod_inv_N(j,i)/sigma_0/sigma_0
+        end do
     end do
+
+    !call multiply_inv_N(tod, scan, s_tot_inv_N)
+    !call multiply_inv_N(tod, scan, tod_inv_N)
+    !call multiply_inv_N(tod, scan, even)
+    !call multiply_inv_N(tod, scan, uneven)
+
+
+    do i = 1, tod%ndet
+
+       allocate(T(self%ntod,3))
+       allocate(matrix_buf(self%ntod,3))
+       allocate(A(3,3), A_sqrt(3,3))
+       allocate(B(3), eta(3), X(3))
+
+
+       ! fill the matrix T and flip every other sample
+       do j = 1, self%ntod
+           if (mod(j,2) /= 0) then
+               T(j,1) = -1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
+               T(j,2) = 0.0
+               T(j,3) = 1.0
+           else
+               T(j,1) = 1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
+               T(j,2) = 1.0
+               T(j,3) = 0.0
+           end if
+       end do
+
+       ! multiply matrices (N^-1 x T)
+       do j = 1, self%ntod
+           if (mod(j,2) /= 0) then
+               matrix_buf(j,1) = -1.0 * s_tot_inv_N(j,i)
+               matrix_buf(j,2) = even(j,i)
+               matrix_buf(j,3) = uneven(j,i)
+           else
+               matrix_buf(j,1) = 1.0 * s_tot_inv_N(j,i)
+               matrix_buf(j,2) = uneven(j,i)
+               matrix_buf(j,3) = even(j,i)     
+           end if
+       end do
+
+       
+       ! multiply matrices T^t x N^-1 x T
+       do j = 1, 3
+           A(1,j) = sum(T(:,1)*matrix_buf(:,j))
+           A(2,j) = sum(T(:,2)*matrix_buf(:,j))
+           A(3,j) = sum(T(:,3)*matrix_buf(:,j))
+       
+           ! preparing A_sqrt
+           A_sqrt(1,j) = A(1,j)
+           A_sqrt(2,j) = A(2,j)
+           A_sqrt(3,j) = A(3,j)
+
+       end do
+
+       
+       ! multiply T^t x N^-1 x d
+       do j = 1, 3
+           B(j) = sum(T(:,j)*tod_inv_N(:,i))
+       end do
+
+       !do j = 1,3
+       !    write(*,*) A(j,1), " ", A(j,2), " ", A(j,3)
+       !end do
+
+
+       call compute_hermitian_root_sp(A_sqrt, 0.5)       
+
+       ! fill random gaussian N(0,1) eta
+       do j = 1, 3
+           eta(j) = rand_gauss(handle) 
+       end do
+
+
+       ! multiply ((T^t x N^-1) x T)^0.5 eta
+       do j = 1, 3
+           B(j) = B(j) + sum(A_sqrt(j,:)*eta(:))
+       end do
+
+       ! solving the linear system 
+       call solve_system_real_sp(A, X, B)
+
+
+       write(*,*) "X=", X(1), " ", X(2), " ", X(3)
+       ! saving the offset to the tod object
+       tod%scans(scan)%d(i)%baseline  = X(2)
+       tod%scans(scan)%d(i)%baseline2 = X(3)
+
+
+       deallocate(T, matrix_buf, A, A_sqrt)
+       deallocate(B, eta, X)
+
+    end do
+
+
+  deallocate(s_tot_inv_N, tod_inv_N, even, uneven)
 
   end subroutine sample_hfi_baselines
 
@@ -551,14 +674,28 @@ contains
     class(comm_tod),                              intent(in)    :: tod
     integer(i4b),                                 intent(in)    :: scan
 
-    integer(i4b) :: i
+    integer(i4b) :: i, j
 
     do i = 1, tod%ndet
-       ! Subtract baselines
+       ! Subtract baselines and Flip sign of even samples
+       do j = 1, self%ntod
+           if (mod(j,2) /= 0) then
+               self%tod(j,i) = -(self%tod(j,i) - tod%scans(scan)%d(i)%baseline)
+           else
+               self%tod(j,i) = (self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
+           end if
+       end do
 
-       ! Flip sign of even samples
 
-       ! Make sure that the Galactic plane signal is positive; if not, switch sign
+       if (i == 1) then
+           write(*,*) "it's output file time"
+           open(58, file="myoutput.dat", status="new")
+           do j = 1, self%ntod
+               write(58,*) j, self%tod(j,i), self%s_tot(j, i)
+           end do
+           close(58)
+       end if
+
     end do
 
   end subroutine demodulate_tod
