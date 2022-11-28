@@ -692,7 +692,7 @@ subroutine tod2file_dp3(filename,d)
           map = 0d0
           call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map(:,1:ext(2)))
           nmaps = self%info%nmaps
-          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)**2
        else
           allocate(p(npix), map(0:npix-1,ext(2)))
           call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
