@@ -221,6 +221,7 @@ contains
 !!$          end do
 !!$       end do
 !!$    end if
+    regnoise = 0d0
 
     ! Boost noise rms by 20 in processing mask; only for T
     if (present(procmask)) then
@@ -299,13 +300,15 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
-    do i = 1, self%info%np-1
+
+    do i = 0, self%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
        map%map(i,1) = self%iN(1,i) * map%map(i,1)
        map%map(i,2) = self%iN(2,i) * buff_Q + self%iN(4,i) * buff_U
        map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
     end do
+    if (self%myid == 0) write(*,*) 'here I am for the third time', map%map(1,1)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -319,7 +322,9 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
-    do i = 1, self%N_low%info%np-1
+
+    write(*,*) 'lowres happening'
+    do i = 0, self%N_low%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
        map%map(i,1) = self%iN_low(1,i) * map%map(i,1)
@@ -339,7 +344,8 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
-    do i = 1, self%info%np-1
+    write(*,*) 'N map'
+    do i = 0, self%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
        map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
@@ -359,7 +365,10 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
-    do i = 1, self%info%np-1
+
+    !write(*,*) 'matmul sqrtInvN * map'
+
+    do i = 0, self%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
        map%map(i,1) = self%siN(1,i) * map%map(i,1)

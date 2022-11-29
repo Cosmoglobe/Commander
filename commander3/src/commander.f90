@@ -369,7 +369,6 @@ contains
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
-    type(comm_mapinfo), pointer :: rmsinfo => null()
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: cmbmap => null()
     class(comm_comp), pointer :: c => null()
