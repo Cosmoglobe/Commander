@@ -750,7 +750,7 @@ end subroutine bin_differential_TOD
             rms%map(i,1) = A_inv(1,1)*scale**2
             rms%map(i,2) = A_inv(2,2)*scale**2
             rms%map(i,3) = A_inv(3,3)*scale**2
-            rms%map(i,4) = 0!A_inv(2,3)*scale**2
+            rms%map(i,4) = A_inv(2,3)*scale**2
          end if
       end do
 
