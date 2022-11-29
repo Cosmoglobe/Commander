@@ -40,7 +40,7 @@ module comm_N_rms_QUcov_mod
   public comm_N_rms_QUcov, comm_N_rms_QUcov_ptr
   
   type, extends (comm_N) :: comm_N_rms_QUcov
-     real(sp),        allocatable, dimension(:,:) :: siN, iN, iN_low
+     real(dp),        allocatable, dimension(:,:) :: siN, iN, iN_low
      class(comm_map), pointer                     :: N_map => null()
      class(comm_map), pointer                     :: N_low => null()
    contains
@@ -441,8 +441,8 @@ contains
   subroutine initialize_iN_siN(N, iN, siN)
     implicit none
     class(comm_map),                   intent(in)    :: N
-    real(sp),        dimension(1:,0:), intent(inout) :: iN
-    real(sp),        dimension(1:,0:), intent(inout) :: siN
+    real(dp),        dimension(1:,0:), intent(inout) :: iN
+    real(dp),        dimension(1:,0:), intent(inout) :: siN
 
     integer(i4b) :: i
     real(dp) :: A(2,2)
@@ -450,11 +450,11 @@ contains
     do i = 0, N%info%np-1
        ! T component
        if (N%map(i,1) > 0.) then
-          iN(1,i)  = 1. / N%map(i,1)
+          iN(1,i)  = 1.d0 / N%map(i,1)
           siN(1,i) = sqrt(iN(1,i))
        else
-          iN(1,i)  = 0.
-          siN(1,i) = 0.
+          iN(1,i)  = 0.d0
+          siN(1,i) = 0.d0
        end if
 
        ! QU block; check for positive definite matrix
@@ -474,8 +474,8 @@ contains
           siN(3,i) = A(2,2)    ! UU
           siN(4,i) = A(1,2)    ! QU = UQ
        else
-          iN(2:4,i)  = 0.
-          siN(2:4,i) = 0.
+          iN(2:4,i)  = 0.d0
+          siN(2:4,i) = 0.d0
        end if
     end do
 
