@@ -221,6 +221,7 @@ contains
 !!$          end do
 !!$       end do
 !!$    end if
+    regnoise = 0d0
 
     ! Boost noise rms by 20 in processing mask; only for T
     if (present(procmask)) then
@@ -299,6 +300,10 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
+
+    write(*,*) 'Does this make sense?'
+
+    write(*,*) 'matmulInvN_1map'
     do i = 1, self%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
@@ -319,6 +324,8 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
+
+    write(*,*) 'lowres happening'
     do i = 1, self%N_low%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
@@ -339,6 +346,7 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
+    write(*,*) 'N map'
     do i = 1, self%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
@@ -359,6 +367,7 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
+
     do i = 1, self%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       

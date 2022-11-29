@@ -679,17 +679,17 @@ subroutine tod2file_dp3(filename,d)
        rms_exception = .false.
        call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
        if (self%info%nmaps == 4 .and. ext(2) == 3) then
-!          write(*,*) '| WARNING - nmaps = 4 but expecting 3'
-!          write(*,*) '| If this is not a new rms file, you have a problem'
+          write(*,*) '| WARNING - nmaps = 4 but expecting 3'
+          write(*,*) '| If this is not a new rms file, you have a problem'
           rms_exception = .true.
        else if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
           write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
           stop
        end if
        npix  = self%info%npix
+       map = 0d0
        if (rms_exception) then
           allocate(p(npix), map(0:npix-1,self%info%nmaps))
-          map = 0d0
           call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map(:,1:ext(2)))
           nmaps = self%info%nmaps
           self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)**2

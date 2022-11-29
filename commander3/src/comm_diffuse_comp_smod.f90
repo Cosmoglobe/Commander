@@ -3928,6 +3928,7 @@ contains
        ! real(dp) :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
        c => compList
        a=0.d0
+       b=0.d0
        prior_vals=0.d0
        do while (associated(c))
           select type (c)
@@ -3955,6 +3956,8 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, prior_vals, 2, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+
+
 
        diff_mono = (b - a)/sqrt(4.d0*pi) !to get it in pixel space units
 
