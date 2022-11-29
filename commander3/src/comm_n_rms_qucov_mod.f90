@@ -308,7 +308,6 @@ contains
        map%map(i,2) = self%iN(2,i) * buff_Q + self%iN(4,i) * buff_U
        map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
     end do
-    if (self%myid == 0) write(*,*) 'here I am for the third time', map%map(1,1)
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
