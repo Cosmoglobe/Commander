@@ -129,14 +129,14 @@ contains
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
+       call get_mapfile(cpar, i, mapfile)
+       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (trim(data(n)%noise_format) == 'rms_qucov') then 
           data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
                    & nmaps+1, cpar%ds_polarization(i))
        else
           data(n)%rmsinfo => data(n)%info
        end if
-       call get_mapfile(cpar, i, mapfile)
-       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
