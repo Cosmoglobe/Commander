@@ -601,8 +601,8 @@ contains
             if (select_data) then 
                call sd%init_differential(self, i, map_sky, procmask, procmask2, &
                  & init_s_bp=bp_corr, polang=polang)
-               n_tot = n_tot + sd%ntod
-               n_flag = n_flag + sd%ntod
+               n_tot = n_tot + sd%ntod/1000
+               n_flag = n_flag + sd%ntod/1000
                call sd%dealloc
             end if
             cycle
@@ -648,24 +648,24 @@ contains
          if (select_data) then 
             ! Count how many good data points are thrown out from this
             ! procedure.
-            n_tot = n_tot + sd%ntod
-            n_flag = n_flag + count(iand(sd%flag(:,1),self%flag0) .ne. 0)
+            n_tot = n_tot + sd%ntod/1000
+            n_flag = n_flag + count(iand(sd%flag(:,1),self%flag0) .ne. 0)/1000
             call remove_bad_data(self, i, sd%flag)
             if (.not. self%scans(i)%d(1)%accept) then
-                n_discard = n_discard + (sd%ntod -count(iand(sd%flag(:,1),self%flag0) .ne. 0))
+                n_discard = n_discard + (sd%ntod -count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
             end if
             n = len(trim(self%freq)) - 1
             if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
                 if (sd%ntod < 2**22) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
-                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             else
                 if (sd%ntod < 2**21) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
-                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             end if
          end if
