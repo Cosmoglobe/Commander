@@ -84,6 +84,7 @@ contains
     real(dp)           :: sum_noise, npix
     type(comm_mapinfo), pointer :: info_smooth => null()
     type(comm_mapinfo), pointer :: info_cg => null()
+    type(comm_mapinfo), pointer :: info_lowres => null()
 
     call update_status(status, "comm_N_rms_QUcov constructor")
     
@@ -125,9 +126,14 @@ contains
           constructor%nside   = info_smooth%nside
           constructor%np      = info_smooth%np
           constructor%N_map   => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+          info_lowres => comm_mapinfo(info%comm, constructor%nside_chisq_lowres, 0, constructor%nmaps, constructor%pol)
+          constructor%N_low => comm_map(info_lowres)
+          call constructor%N_map%udgrade(constructor%N_low)
+          constructor%N_low%map = constructor%N_low%map * (constructor%nside/constructor%nside_chisq_lowres)
           allocate(constructor%iN(4,0:info_smooth%np-1))
+          allocate(constructor%iN_low(4,0:info_smooth%np-1))
           allocate(constructor%siN(4,0:info_smooth%np-1))
-          call initialize_iN_siN(constructor%N_map, constructor%iN, constructor%siN)
+          call initialize_iN_siN(constructor%N_map, constructor%N_low, constructor%iN, constructor%siN, constructor%iN_low)
        end if
     end if
 
@@ -230,11 +236,21 @@ contains
        end where
     end if
 
+
+    ! Set up lowres map
+    call update_status(status, "N_rms_QUcov lowres")
+    if (.not.associated(self%N_low)) then
+       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
+       self%N_low => comm_map(info_lowres)
+    end if
+    call self%N_map%udgrade(self%N_low)
+    self%N_low%map = self%N_low%map * (self%nside/self%nside_chisq_lowres)
+
     ! Compute invN and sqrt(invN); both are symmetric 
     if (.not. allocated(self%iN))  allocate(self%iN(4,0:info%np-1))
     if (.not. allocated(self%siN)) allocate(self%siN(4,0:info%np-1))
-    call initialize_iN_siN(self%N_map, self%iN, self%siN)
-
+    if (.not. allocated(self%iN_low)) allocate(self%iN_low(4,0:info%np-1))
+    call initialize_iN_siN(self%N_map, self%N_low, self%iN, self%siN, self%iN_low)
 
     ! Initialize preconditioner noise
     call update_status(status, "N_rms_QUcov cg_precond")
@@ -281,14 +297,6 @@ contains
        end if
     end if
 
-    ! Set up lowres map
-    call update_status(status, "N_rms_QUcov lowres")
-    if (.not.associated(self%N_low)) then
-       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
-       self%N_low => comm_map(info_lowres)
-    end if
-    call self%N_map%udgrade(self%N_low)
-    self%N_low%map = self%N_low%map * (self%nside/self%nside_chisq_lowres)
 
   end subroutine update_N_rms_QUcov
 
@@ -322,7 +330,6 @@ contains
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
 
-    write(*,*) 'lowres happening'
     do i = 0, self%N_low%info%np-1
        buff_Q = map%map(i,2)
        buff_U = map%map(i,3)       
@@ -438,11 +445,13 @@ contains
     end if
   end function returnRMSpix
 
-  subroutine initialize_iN_siN(N, iN, siN)
+  subroutine initialize_iN_siN(N, N_low, iN, siN, iN_low)
     implicit none
     class(comm_map),                   intent(in)    :: N
+    class(comm_map),                   intent(in)    :: N_low
     real(dp),        dimension(1:,0:), intent(inout) :: iN
     real(dp),        dimension(1:,0:), intent(inout) :: siN
+    real(dp),        dimension(1:,0:), intent(inout) :: iN_low
 
     integer(i4b) :: i
     real(dp) :: A(2,2)
@@ -476,6 +485,30 @@ contains
        else
           iN(2:4,i)  = 0.d0
           siN(2:4,i) = 0.d0
+       end if
+    end do
+
+    do i = 0, N_low%info%np-1
+       ! T component
+       if (N_low%map(i,1) > 0.) then
+          iN_low(1,i)  = 1.d0 / N_low%map(i,1)
+       else
+          iN_low(1,i)  = 0.d0
+       end if
+
+       ! QU block; check for positive definite matrix
+       if (N_low%map(i,2)*N_low%map(i,3)-N_low%map(i,4)**2 > 0.) then
+          A(1,1)  = N_low%map(i,2) ! QQ
+          A(1,2)  = N_low%map(i,4) ! QU
+          A(2,1)  = N_low%map(i,4) ! UQ
+          A(2,2)  = N_low%map(i,3) ! UU
+
+          call compute_hermitian_root(A, -1.d0)
+          iN_low(2,i)  = A(1,1)    ! QQ
+          iN_low(3,i)  = A(2,2)    ! UU
+          iN_low(4,i)  = A(1,2)    ! QU = UQ
+       else
+          iN_low(2:4,i)  = 0.d0
        end if
     end do
 
