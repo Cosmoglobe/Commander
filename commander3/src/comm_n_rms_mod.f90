@@ -123,7 +123,6 @@ contains
           end where
        end if
     end if
-    call constructor%siN%writeFITS('siN_rms.fits')
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
