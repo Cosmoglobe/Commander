@@ -709,6 +709,7 @@ end subroutine bin_differential_TOD
             end do
          end if
 
+         ! Can I return the condition number?
          call invert_singular_matrix(A_inv, 1d-12)
          do k = 1, tod%output_n_maps
             b_tot(k, 1:nmaps, i) = matmul(A_inv, b_tot(k, 1:nmaps, i))

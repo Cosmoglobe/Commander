@@ -440,8 +440,8 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 3
-         if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
+         if (mod(iter-1,10) == 0)                self%output_n_maps = 3
+         if (mod(iter-1,25) == 0 .and. i .ne. 1) self%output_n_maps = 6
          !if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
@@ -714,8 +714,9 @@ contains
          end if
          
          ! Bin TOD
+         ! Using procmask2 to only mask out the very brightest pixels.
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
-           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
+           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map, M_diag, i, &
            & self%comp_S)
 
          ! Update scan list
@@ -801,7 +802,7 @@ contains
             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
           end if
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                         & epsil, procmask, map_full, M_diag, b_map, l, &
+                         & epsil, procmask2, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S)
           
           if (l == 1 .and. self%myid == 0) then
