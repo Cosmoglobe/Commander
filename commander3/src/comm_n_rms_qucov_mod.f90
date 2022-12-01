@@ -129,7 +129,7 @@ contains
           info_lowres => comm_mapinfo(info%comm, constructor%nside_chisq_lowres, 0, constructor%nmaps, constructor%pol)
           constructor%N_low => comm_map(info_lowres)
           call constructor%N_map%udgrade(constructor%N_low)
-          constructor%N_low%map = constructor%N_low%map * (constructor%nside/constructor%nside_chisq_lowres)
+          constructor%N_low%map = constructor%N_low%map * (constructor%nside/constructor%nside_chisq_lowres)**2
           allocate(constructor%iN(4,0:info_smooth%np-1))
           allocate(constructor%iN_low(4,0:info_smooth%np-1))
           allocate(constructor%siN(4,0:info_smooth%np-1))
