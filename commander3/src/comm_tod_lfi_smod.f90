@@ -1820,11 +1820,12 @@ contains
     if (self%L2_exist) then
        if (self%myid == 0) write(*,*) "|  Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
+       call update_status(status, "Opened HDF file"
     end if
     
     ! Reduce all scans
     do i = 1, self%nscan
-       !call update_status(status, "L1_to_L2")
+       if (i == 1) call update_status(status, "L1_to_L2 loop")
 
        ! Generate detector TOD
        n = self%scans(i)%ntod
@@ -1832,6 +1833,7 @@ contains
        if (self%L2_exist) then
           call int2string(self%scanid(i), scantext)
           call read_hdf(h5_file, scantext, tod)
+          if (i == 1) call update_status(status, "read_hdf in loop")
        else
           if (self%myid == 0 .and. i == 1) write(*,*) "Converting L1 to L2"
           call self%diode2tod_inst(i, map_sky, procmask, tod)
@@ -1844,6 +1846,7 @@ contains
           allocate(self%scans(i)%d(j)%tod(n))
           self%scans(i)%d(j)%tod = tod(:,j)
        end do
+       if (i == 1) call update_status(status, "read in scans")
 
 !!$       ! Find effective TOD length
 !!$       if (self%halfring_split == 0) then
