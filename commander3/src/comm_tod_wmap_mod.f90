@@ -442,7 +442,6 @@ contains
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,25) == 0) self%output_n_maps = 8
          if (mod(iter-1,10) == 0) self%output_n_maps = 3
-         !if (iter .eq. 1)         self%output_n_maps = 1
       end if
 
       !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
