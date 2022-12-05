@@ -1134,6 +1134,10 @@ contains
              select type (tmp)
              class is (comm_N_rms)
                 rms_smooth(i)%p    => tmp
+             class is (comm_N_rms_qucov)
+                rms_smooth(i)%p    => tmp
+             class default
+                if (cpar%myid ==0 ) write(*,*) 'YOUR NOISE TYPE IS NOT TAKEN INTO ACCOUNT HERE, WE CANNOT GUARANTEE SUCCESS BEYOND THIS POINT'
              end select
           else if (status_fit(i) == 2) then
              ! Fit is done with downgraded data
@@ -2609,7 +2613,7 @@ contains
 
                 do k = 1,band_count !run over all active bands
 
-                   if (data(band_i(k))%N%type == "rms") then !normal chisq
+                   if (data(band_i(k))%N%type == "rms" .or. data(band_i(k))%N%type == "rms_qucov") then !normal chisq
 
 
                       do pix = 0,np_lr-1 !loop over pixels covered by the processor (on the lowres (smooth scale) map)
@@ -2677,7 +2681,14 @@ contains
                       lnL_new = lnL_new -0.5d0*sum(temp_res%map(:,pol_j(k)))
                       call temp_res%dealloc(); deallocate(temp_res)
 
+                   else
+                       if (cpar%myid == 0) then
+                         write(*,*) "YOUR NOISE TYPE IS NOT BEING TREATED"
+                         write(*,*) trim(data(band_i(k))%N%type)
+                         write(*,*) "ADD THIS CASE"
+                       end if
                    end if
+
                 end do
 
              else if ((trim(c_lnL%pol_lnLtype(p,id))=='ridge') .or. &
@@ -2710,9 +2721,10 @@ contains
                          mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
                               & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                          data_arr(l_count)=reduced_data(pix,k)
-                         if (data(band_i(k))%N%type == "rms") then !normal diagonal noise
+                         if (data(band_i(k))%N%type == "rms" .or. data(band_i(k))%N%type == "rms_qucov") then !normal diagonal noise
                             invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
                          else
+                            if (cpar%myid == 0) write(*,*) data(band_i(k))%N%type, 'not implemented yet'
                             invN_arr(l_count)=0.d0 ! Neglect the band (should just get the diagonal element of the cov matrix)
                          end if
                       end do

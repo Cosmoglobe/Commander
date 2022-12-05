@@ -164,8 +164,9 @@ module comm_diffuse_comp_mod
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
   real(dp), allocatable, dimension(:,:),   private :: buffer_lnL        
   logical(lgt),                            private :: apply_mixmat = .true.
-  type(map_ptr),        allocatable, dimension(:) :: res_smooth
-  type(comm_N_rms_ptr), allocatable, dimension(:) :: rms_smooth
+  type(map_ptr),              allocatable, dimension(:) :: res_smooth
+  type(comm_N_rms_ptr),       allocatable, dimension(:) :: rms_smooth
+  type(comm_N_rms_QUcov_ptr), allocatable, dimension(:) :: rms_qucov_smooth
   
 interface
 
