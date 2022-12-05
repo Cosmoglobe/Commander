@@ -62,7 +62,7 @@ module comm_data_mod
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
-     type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
+     class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
      procedure :: chisq => get_chisq
@@ -340,11 +340,7 @@ contains
              nullify(data(n)%B_postproc(j)%p)
           end if
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
-             tmp => data(n)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                data(n)%N_smooth(j)%p => tmp
-             end select
+             data(n)%N_smooth(j)%p => data(n)%N
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
              ! Point to the regular old RMS map
              tmp => data(n)%N

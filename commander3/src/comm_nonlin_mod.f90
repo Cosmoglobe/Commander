@@ -1131,14 +1131,7 @@ contains
              info               => data(i)%res%info
              res_smooth(i)%p    => data(i)%res
              tmp                => data(i)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                rms_smooth(i)%p    => tmp
-             class is (comm_N_rms_qucov)
-                rms_smooth(i)%p    => tmp
-             class default
-                if (cpar%myid ==0 ) write(*,*) 'YOUR NOISE TYPE IS NOT TAKEN INTO ACCOUNT HERE, WE CANNOT GUARANTEE SUCCESS BEYOND THIS POINT'
-             end select
+             rms_smooth(i)%p    => data(i)%N
           else if (status_fit(i) == 2) then
              ! Fit is done with downgraded data
              ! Needs rewrite! We should smooth at Nside and lmax of the data band, then downgrade to low resolution Nside. This to limit chances for ringing. 
@@ -1689,12 +1682,12 @@ contains
     class(comm_map),                 pointer :: mask_lr => null() ! lowres mask
     class(comm_map),                 pointer :: mask_mono => null() ! lowres mask
     class(comm_map),                 pointer :: res_map => null() ! lowres  residual map
+    class(comm_map),                 pointer :: ones_map => null() ! Constant sky
     class(comm_map),                 pointer :: temp_res => null() 
     class(comm_map),                 pointer :: temp_map => null() 
     class(comm_map),                 pointer :: temp_noise => null() 
     class(comm_map),                 pointer :: temp_mixing => null() 
     class(comm_map),                 pointer :: temp_chisq => null() 
-    type(map_ptr), allocatable, dimension(:) :: lr_chisq
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
     real(dp),      allocatable, dimension(:) :: old_mono, new_mono
@@ -1786,7 +1779,7 @@ contains
     !set up which bands and polarizations to include
     allocate(band_i(3*numband),pol_j(3*numband))
 
-    !set up the monopoles if appliccable
+    !set up the monopoles if applicable
     if (c_lnL%spec_mono_combined(par_id)) then
        allocate(monopole_val(numband))
        allocate(monopole_mu(numband))
@@ -1808,6 +1801,17 @@ contains
        elsewhere
           mask_mono%map=0.d0
        end where
+
+       ! Creating map of all ones for estimating monopole amplitude
+       ones_map  => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(ones_map)
+       ones_map%map(:,1) =  1.d0
+       ones_map%map(:,2:) = 0.d0
+
+       ! Creating chisq map
+       temp_chisq => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(temp_chisq)
+       temp_chisq%map = 0.d0
 
        !set up harmonics matrices for solving mono- and dipole estimates
        allocate(harmonics(0:np_lr-1,0:3)) !harmonics without mixing scaling (will not chainge)
@@ -2039,33 +2043,48 @@ contains
                    call solve_system_real(md_A, multipoles, md_b) 
 
                    ! Need to get the statistical power for when adding the monopole prior
-                   a=0.d0
-                   do pix = 0,np_lr-1
-                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                      end if
-                   end do
+                   ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                   call rms_smooth(j)%p%sqrtInvN(ones_map)
+                   a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
+                   !do pix = 0,np_lr-1
+                   !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                   !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                   !   end if
+                   !end do
+                   ones_map%map(:,1)  = 1d0
+                   ones_map%map(:,2:) = 0d0
 
-                   !gather a
-                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                        & MPI_SUM, info_lr%comm, ierr)
+
+
+                   !!gather a
+                   !call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                   !     & MPI_SUM, info_lr%comm, ierr)
 
                 else if (trim(monocorr_type) == 'monopole') then
 
                    a=0.d0
                    b=0.d0
-                   do pix = 0,np_lr-1
-                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                         b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
-                      end if
-                   end do
+                   ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                   call rms_smooth(j)%p%sqrtInvN(ones_map)
+                   a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
 
-                   !gather a and b
-                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                        & MPI_SUM, info_lr%comm, ierr)
-                   call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                        & MPI_SUM, info_lr%comm, ierr)
+                   ones_map%map = reduced_data
+                   call rms_smooth(j)%p%sqrtInvN(ones_map)
+                   b = sum(ones_map%map(:,1))**2 * monopole_mixing(j)
+
+
+                   !do pix = 0,np_lr-1
+                   !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                   !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                   !      b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                   !   end if
+                   !end do
+
+                   !!gather a and b
+                   !call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                   !     & MPI_SUM, info_lr%comm, ierr)
+                   !call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                   !     & MPI_SUM, info_lr%comm, ierr)
                    if (a > 0.d0) then
                       multipoles(0) = b/a
                    else
@@ -2172,13 +2191,6 @@ contains
                 if (monopole_active(k)) write(*,fmt='(a,i1)') ' |   band: '//trim(data(k)%label)
              end do
           end if
-       end if
-       if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .false.) then !debug chisq (RMS scaling) for smoothing scale
-          allocate(lr_chisq(band_count))
-          do k = 1,band_count
-             lr_chisq(k)%p => comm_map(info_lr_single)
-             lr_chisq(k)%p%map=0.d0
-          end do
        end if
     end if
 
@@ -2471,33 +2483,63 @@ contains
                          !solve the mono-/dipole system
                          call solve_system_real(md_A, multipoles, md_b) 
 
-                         ! Need to get the statistical power for when adding the monopole prior
-                         a=0.d0
-                         do pix = 0,np_lr-1
-                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                            end if
-                         end do
 
-                         !gather a
-                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                              & MPI_SUM, info_lr%comm, ierr)
+
+
+
+
+
+
+
+
+                         ! Need to get the statistical power for when adding the monopole prior
+                         !        a=0.d0
+                         !        do pix = 0,np_lr-1
+                         !           if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         !              a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                         !           end if
+                         !        end do
+
+                         !        !gather a
+                         !        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                         !             & MPI_SUM, info_lr%comm, ierr)
+                         ! Need to get the statistical power for when adding the monopole prior
+                         ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                         call rms_smooth(j)%p%sqrtInvN(ones_map)
+                         a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
+                         !do pix = 0,np_lr-1
+                         !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                         !   end if
+                         !end do
+                         ones_map%map(:,1)  = 1d0
+                         ones_map%map(:,2:) = 0d0
+
 
                       else if (trim(monocorr_type) == 'monopole') then
-                         a=0.d0
-                         b=0.d0
-                         do pix = 0,np_lr-1
-                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                               b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                            end if
-                         end do
+                         ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                         call rms_smooth(j)%p%sqrtInvN(ones_map)
+                         a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
+      
+                         ones_map%map = reduced_data
+                         call rms_smooth(j)%p%sqrtInvN(ones_map)
+                         b = sum(ones_map%map(:,1))**2 * monopole_mixing(j)
 
-                         !gather a and b
-                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                              & MPI_SUM, info_lr%comm, ierr)
-                         call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                              & MPI_SUM, info_lr%comm, ierr)
+
+                         !a=0.d0
+                         !b=0.d0
+                         !do pix = 0,np_lr-1
+                         !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         !      a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                         !      b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                         !   end if
+                         !end do
+
+                         !!gather a and b
+                         !call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                         !     & MPI_SUM, info_lr%comm, ierr)
+                         !call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                         !     & MPI_SUM, info_lr%comm, ierr)
                          if (a > 0.d0) then
                             multipoles(0) = b/a
                          else
@@ -2610,84 +2652,31 @@ contains
 
              !lnL type should split here
              if (trim(c_lnL%pol_lnLtype(p,id))=='chisq') then
-
+                temp_chisq%map = 0d0
                 do k = 1,band_count !run over all active bands
 
-                   if (data(band_i(k))%N%type == "rms" .or. data(band_i(k))%N%type == "rms_qucov") then !normal chisq
-
-
-                      do pix = 0,np_lr-1 !loop over pixels covered by the processor (on the lowres (smooth scale) map)
-                         
-                         if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
-                         all_thetas(id)=new_theta_smooth(pix)
-                         !get the values of the remaining spec inds of the component for the given pixel
-                         do i = 1, npar
-                            if (i == id) cycle
-                            all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
-                         end do
-
-                         ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
-                         ! both for old and new spec. ind. and calc. log likelihood (chisq)
-
-                         mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
-
-                         res_lnL = reduced_data(pix,k) - mixing_new* &
-                              & c_lnL%x_smooth%map(pix,pol_j(k))
-
-
-                         if (allocated(lr_chisq)) then !for debugging
-                            lr_chisq(k)%p%map(pix,1) = (res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                         end if
-
-                         lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                      end do
-
-                   else if (data(band_i(k))%N%type == "QUcov") then !QU_cov rms, udgrade if necessary
+                   do pix = 0,np_lr-1 !loop over pixels covered by the processor (on the lowres (smooth scale) map)
                       
-                      !build residual map
-                      res_map%map = 0.d0
-                      do pix = 0,np_lr-1 !loop over pixels covered by the processor
-                         if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
-
-                         do i = 1, npar
-                            if (i == id) cycle
-                            all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
-                         end do
-
-                         all_thetas(id)=new_theta_smooth(pix)
-
-                         mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
-
-                         res_map%map(pix,pol_j(k)) = reduced_data(pix,k) - mixing_new* &
-                              & c_lnL%x_smooth%map(pix,pol_j(k))
+                      if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
+                      all_thetas(id)=new_theta_smooth(pix)
+                      !get the values of the remaining spec inds of the component for the given pixel
+                      do i = 1, npar
+                         if (i == id) cycle
+                         all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
                       end do
 
-                      if (data(band_i(k))%info%nside /= info_lr%nside) then
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, data(band_i(k))%info%nmaps, data(band_i(k))%info%nmaps==3)
-                         temp_res => comm_map(info_data)
-                         call res_map%udgrade(temp_res)
-                      else
-                         temp_res => comm_map(info_lr)
-                         temp_res%map = res_map%map
-                      end if
+                      ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                      ! both for old and new spec. ind. and calc. log likelihood (chisq)
 
-                      call data(i)%N%sqrtInvN(temp_res)
+                      mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
-                      temp_res%map = temp_res%map*temp_res%map
+                      temp_chisq%map(pix,pol_j(k)) = reduced_data(pix,k) - mixing_new* &
+                           & c_lnL%x_smooth%map(pix,pol_j(k))
 
-                      lnL_new = lnL_new -0.5d0*sum(temp_res%map(:,pol_j(k)))
-                      call temp_res%dealloc(); deallocate(temp_res)
-
-                   else
-                       if (cpar%myid == 0) then
-                         write(*,*) "YOUR NOISE TYPE IS NOT BEING TREATED"
-                         write(*,*) trim(data(band_i(k))%N%type)
-                         write(*,*) "ADD THIS CASE"
-                       end if
-                   end if
+                   end do
+                   call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
+                   lnL_new = lnL_new -0.5d0*sum(temp_chisq%map)**2
 
                 end do
 
@@ -2699,43 +2688,38 @@ contains
                    use_det = .true.
                 end if
 
-                do pix = 0,np_lr-1 !More precise, we need to loop over pixels covered by the processor
 
-                   if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
+                !as we compute the maximum likelihood amplitude in the evaluation, we must split between
+                !polarizations, and compute the evaluations individually for each polarization
+                do l = p_min,p_max
+                   l_count=0
+                   !build mixing matrix
+                   do k = 1,band_count !run over all active bands
+                      if (pol_j(k) /= l) cycle
+                      l_count = l_count+1
+                      mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
-                   all_thetas(id)=new_theta_smooth(pix)
-                   !get the values of the remaining spec inds of the component for the given pixel
-                   do i = 1, npar
-                      if (i == id) cycle
-                      all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
-                   end do
+                      do pix = 0,np_lr-1 !More precise, we need to loop over pixels covered by the processor
 
-                   !as we compute the maximum likelihood amplitude in the evaluation, we must split between
-                   !polarizations, and compute the evaluations individually for each polarization
-                   do l = p_min,p_max
-                      l_count=0
-                      !build mixing matrix
-                      do k = 1,band_count !run over all active bands
-                         if (pol_j(k) /= l) cycle
-                         l_count = l_count+1
-                         mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
+                         if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
+
+                         all_thetas(id)=new_theta_smooth(pix)
+                         !get the values of the remaining spec inds of the component for the given pixel
+                         do i = 1, npar
+                            if (i == id) cycle
+                            all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
+                         end do
+
                          data_arr(l_count)=reduced_data(pix,k)
-                         if (data(band_i(k))%N%type == "rms" .or. data(band_i(k))%N%type == "rms_qucov") then !normal diagonal noise
-                            invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
-                         else
-                            if (cpar%myid == 0) write(*,*) data(band_i(k))%N%type, 'not implemented yet'
-                            invN_arr(l_count)=0.d0 ! Neglect the band (should just get the diagonal element of the cov matrix)
-                         end if
                       end do
+                      temp_chisq%map = 0d0
+                      ! invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
+                      call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
+                      invN_arr(l_count) = sum(temp_chisq%map**2)
 
-                      !compute the marginal/ridge log-likelihood for the pixel, by computing the maximum likelihood chisq
                       lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, data_arr, &
                            & use_det, l_count)
-                      
-                      !!compute the marginal/ridge log-likelihood for the pixel (This fails in combined monopole sampling!)
-                      !lnL_new = lnL_new + comp_lnL_marginal_diagonal(mixing_new_arr, invN_arr, data_arr, &
-                      !     & use_det, l_count)
                    end do
                 end do
              else 
@@ -3146,29 +3130,6 @@ contains
     call int2string(cpar%mychain, ctext)
     postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
 
-    !debug output
-    if (.false. .and. cpar%cs_output_localsamp_maps .and. allocated(lr_chisq)) then
-       call int2string(cpar%mychain, ctext)
-       call int2string(iter,         itext)
-
-       do k = 1,band_count
-          filename=trim(cpar%outdir)//'/'//'chisq_local_'//trim(data(band_i(k))%label)
-
-          if (pol_j(k) == 1) then
-             filename=trim(filename)//'_I'
-          else if (pol_j(k) == 2) then
-             filename=trim(filename)//'_Q'
-          else if (pol_j(k) == 3) then
-             filename=trim(filename)//'_U'             
-          end if
-          filename=trim(filename)//'_'//trim(postfix)//'.fits'
-
-          call lr_chisq(k)%p%writeFITS(trim(filename))
-          call lr_chisq(k)%p%dealloc(); deallocate(lr_chisq(k)%p)
-          lr_chisq(k)%p => null()
-       end do
-       deallocate(lr_chisq)
-    end if
 
     if (iter >= c_lnL%sample_first_niter) then !only stop sampling after n'th iteration, in case first iter is far off.
        c_lnL%pol_sample_nprop(p,id) = .false. !set sampling of correlation length (number of proposals) and
@@ -3347,8 +3308,10 @@ contains
     
     if (c_lnL%spec_mono_combined(par_id)) then
        call mask_mono%dealloc() 
-       deallocate(mask_mono)
        mask_mono => null()
+       call ones_map%dealloc()
+       ones_map => null()
+       deallocate(ones_map,mask_mono)
     end if
 
     if (allocated(monopole_val)) deallocate(monopole_val)

@@ -2815,85 +2815,86 @@ contains
 
   end subroutine sampleDiffuseSpecInd
 
-  module function lnL_diffuse_multi(p)
-    use healpix_types
-    implicit none
-    real(dp), dimension(:), intent(in), optional :: p
-    real(dp)                                     :: lnL_diffuse_multi
-    
-    integer(i4b) :: i, l, k, q, pix, ierr, flag, p_min, p_max
-    real(dp)     :: lnL, amp, s, a
-    real(dp), allocatable, dimension(:) :: theta
+  ! module function lnL_diffuse_multi(p)
+  !   use healpix_types
+  !   implicit none
+  !   real(dp), dimension(:), intent(in), optional :: p
+  !   real(dp)                                     :: lnL_diffuse_multi
+  !   
+  !   integer(i4b) :: i, l, k, q, pix, ierr, flag, p_min, p_max
+  !   real(dp)     :: lnL, amp, s, a
+  !   real(dp), allocatable, dimension(:) :: theta
 
-    allocate(theta(c_lnL%npar))
-    theta         = theta_lnL
-    theta(id_lnL) = p(1)
-    
-    ! Check spectral index priors
-    do l = 1, c_lnL%npar
-       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
-          lnL_diffuse_multi = 1.d30
-          deallocate(theta)
-          return
-       end if
-    end do
+  !   allocate(theta(c_lnL%npar))
+  !   theta         = theta_lnL
+  !   theta(id_lnL) = p(1)
+  !   
+  !   ! Check spectral index priors
+  !   do l = 1, c_lnL%npar
+  !      if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+  !         lnL_diffuse_multi = 1.d30
+  !         deallocate(theta)
+  !         return
+  !      end if
+  !   end do
 
-    ! Choose which polarization fields to include
-    if (c_lnL%poltype(id_lnL) == 1) then
-       p_min = 1; p_max = c_lnL%nmaps
-       if (only_pol) p_min = 2
-    else if (c_lnL%poltype(id_lnL) == 2) then
-       if (p_lnL == 1) then
-          p_min = 1; p_max = 1
-       else
-          p_min = 2; p_max = c_lnL%nmaps
-       end if
-    else if (c_lnL%poltype(id_lnL) == 3) then
-       p_min = p_lnL
-       p_max = p_lnL
-    else
-       write(*,*) 'Unsupported polarization type'
-       stop
-    end if
+  !   ! Choose which polarization fields to include
+  !   if (c_lnL%poltype(id_lnL) == 1) then
+  !      p_min = 1; p_max = c_lnL%nmaps
+  !      if (only_pol) p_min = 2
+  !   else if (c_lnL%poltype(id_lnL) == 2) then
+  !      if (p_lnL == 1) then
+  !         p_min = 1; p_max = 1
+  !      else
+  !         p_min = 2; p_max = c_lnL%nmaps
+  !      end if
+  !   else if (c_lnL%poltype(id_lnL) == 3) then
+  !      p_min = p_lnL
+  !      p_max = p_lnL
+  !   else
+  !      write(*,*) 'Unsupported polarization type'
+  !      stop
+  !   end if
 
-    lnL = 0.d0
-    do k = p_min, p_max
+  !   lnL = 0.d0
+  !   do k = p_min, p_max
 
-       do l = 1, numband
-       !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
-          if (.not. associated(rms_smooth(l)%p)) cycle
-          if (k > data(l)%info%nmaps) cycle
-          
-       ! Compute predicted source amplitude for current band
-          s = a_lnL(k) * c_lnL%F_int(k,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(k)
-          
-          ! Compute likelihood 
-          lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
+  !      do l = 1, numband
+  !      !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
+  !         if (.not. associated(rms_smooth(l)%p)) cycle
+  !         if (k > data(l)%info%nmaps) cycle
+  !         
+  !      ! Compute predicted source amplitude for current band
+  !         s = a_lnL(k) * c_lnL%F_int(k,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(k)
+  !         
+  !         ! Compute likelihood 
+  !         lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
+  !         ! Need to replace this with the matrix product.
 
-!          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
-       end do
-    end do
+! !          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
+  !      end do
+  !   end do
 
-!    if (c_lnL%x%info%myid == 0) write(*,*)
-!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
+! !    if (c_lnL%x%info%myid == 0) write(*,*)
+! !    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
 
-    ! Apply index priors
-    do l = 1, c_lnL%npar
-       if (c_lnL%p_gauss(2,l) > 0.d0) then
-          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
-       end if
-    end do
+  !   ! Apply index priors
+  !   do l = 1, c_lnL%npar
+  !      if (c_lnL%p_gauss(2,l) > 0.d0) then
+  !         lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
+  !      end if
+  !   end do
 
-!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
-    
-    ! Return chi-square
-    lnL_diffuse_multi = -2.d0*lnL
+! !    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
+  !   
+  !   ! Return chi-square
+  !   lnL_diffuse_multi = -2.d0*lnL
 
-!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL_diffuse_multi
+! !    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL_diffuse_multi
 
-    deallocate(theta)
+  !   deallocate(theta)
 
-  end function lnL_diffuse_multi
+  ! end function lnL_diffuse_multi
 
 
 
