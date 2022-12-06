@@ -1795,6 +1795,7 @@ contains
 
        !ud_grade monopole mask (if it is not same nside as smoothing scale)
        mask_mono => comm_map(info_lr)
+       mask_mono%map = 0d0
        call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
        where (mask_mono%map > 0.5d0)
           mask_mono%map=1.d0
@@ -1805,8 +1806,8 @@ contains
        ! Creating map of all ones for estimating monopole amplitude
        ones_map  => comm_map(info_lr)
        call c_lnL%spec_mono_mask(par_id)%p%udgrade(ones_map)
+       ones_map%map      = 0.d0
        ones_map%map(:,1) =  1.d0
-       ones_map%map(:,2:) = 0.d0
 
        ! Creating chisq map
        temp_chisq => comm_map(info_lr)
@@ -2041,56 +2042,47 @@ contains
 
                    !solve the mono-/dipole system
                    call solve_system_real(md_A, multipoles, md_b) 
-
                    ! Need to get the statistical power for when adding the monopole prior
-                   ones_map%map = 1d0
-                   write(*,*) 'here I am at the first line ', maxval(ones_map%map(:,1)), maxval(mask_mono%map), maxval(mask_mono%map(:,1)), trim(data(j)%label)
-                   ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
-                   ones_map%map(:,2:) = 0d0
-                   write(*,*) 'here I am at this line ', maxval(ones_map%map(:,1)), trim(data(j)%label)
-                   call rms_smooth(j)%p%sqrtInvN(ones_map)
-                   a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
-                   write(*,*) 'here I am at that line ', maxval(ones_map%map(:,1)), trim(data(j)%label), a
-                   !do pix = 0,np_lr-1
-                   !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                   !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                   !   end if
-                   !end do
-                   ones_map%map(:,1)  = 1d0
-                   ones_map%map(:,2:) = 0d0
 
-
-
-                   !!gather a
-                   !call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                   !     & MPI_SUM, info_lr%comm, ierr)
+                   ! Not all cores get low resolution pixels. These if tests
+                   ! avoid that
+                   if (np_lr > 0) then
+                       ones_map%map = 0d0
+                       ones_map%map(:,1)  = 1d0
+                       ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                       ones_map%map(:,2:) = 0d0
+                       call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       a = sum(ones_map%map(:,1)**2)
+                   else 
+                       a = 0d0
+                   end if
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+                   a = a * monopole_mixing(j)**2
 
                 else if (trim(monocorr_type) == 'monopole') then
 
                    a=0.d0
                    b=0.d0
-                   ones_map%map = 1d0
-                   ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
-                   call rms_smooth(j)%p%sqrtInvN(ones_map)
-                   a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
+                   if (np_lr > 0) then
+                       ones_map%map = 0d0
+                       ones_map%map(:,1) = 1d0
+                       ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                       call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       a = sum(ones_map%map(:,1)**2)
 
-                   ones_map%map = reduced_data
-                   call rms_smooth(j)%p%sqrtInvN(ones_map)
-                   b = sum(ones_map%map(:,1))**2 * monopole_mixing(j)
+                       ones_map%map = reduced_data
+                       call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       b = sum(ones_map%map(:,1)**2)
+                   end if
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+                   a = a*monopole_mixing(j)**2
+                   b = b*monopole_mixing(j)**2
 
 
-                   !do pix = 0,np_lr-1
-                   !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                   !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                   !      b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
-                   !   end if
-                   !end do
-
-                   !!gather a and b
-                   !call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                   !     & MPI_SUM, info_lr%comm, ierr)
-                   !call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                   !     & MPI_SUM, info_lr%comm, ierr)
                    if (a > 0.d0) then
                       multipoles(0) = b/a
                    else
@@ -2157,8 +2149,6 @@ contains
           theta_lr_hole => null()
           call theta_fr%dealloc(); deallocate(theta_fr)
           theta_fr => null()
-          !call mask_mono%dealloc(); deallocate(mask_mono)
-          !mask_mono => null()
           
        end if
 
@@ -2498,56 +2488,42 @@ contains
 
 
 
-                         ! Need to get the statistical power for when adding the monopole prior
-                         !        a=0.d0
-                         !        do pix = 0,np_lr-1
-                         !           if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         !              a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                         !           end if
-                         !        end do
-
-                         !        !gather a
-                         !        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                         !             & MPI_SUM, info_lr%comm, ierr)
-                         ! Need to get the statistical power for when adding the monopole prior
-                         ones_map%map = 1d0
-                         ones_map%map(:,2:) = 0d0
-                         ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
-                         call rms_smooth(j)%p%sqrtInvN(ones_map)
-                         a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
-                         !do pix = 0,np_lr-1
-                         !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                         !   end if
-                         !end do
-                         ones_map%map(:,1)  = 1d0
-                         ones_map%map(:,2:) = 0d0
-
+                         if (np_lr > 0) then
+                             ones_map%map = 0d0
+                             ones_map%map(:,1) = 1d0
+                             ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                             call rms_smooth(j)%p%sqrtInvN(ones_map)
+                             a = sum(ones_map%map(:,1)**2)
+                         else
+                             a = 0d0
+                         end if
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         a = a*monopole_mixing(j)**2
 
                       else if (trim(monocorr_type) == 'monopole') then
-                         ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
-                         call rms_smooth(j)%p%sqrtInvN(ones_map)
-                         a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
+                         if (np_lr > 0) then
+                             ones_map%map = 0d0
+                             ones_map%map(:,1) = 1d0
+                             ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                             call rms_smooth(j)%p%sqrtInvN(ones_map)
+                             a = sum(ones_map%map(:,1)**2)
       
-                         ones_map%map = reduced_data
-                         call rms_smooth(j)%p%sqrtInvN(ones_map)
-                         b = sum(ones_map%map(:,1))**2 * monopole_mixing(j)
+                             ones_map%map = reduced_data
+                             call rms_smooth(j)%p%sqrtInvN(ones_map)
+                             b = sum(ones_map%map(:,1)**2)
+                         else
+                             a = 0d0
+                             b = 0d0
+                         end if
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         a = a*monopole_mixing(j)**2
+                         b = b*monopole_mixing(j)**2
 
 
-                         !a=0.d0
-                         !b=0.d0
-                         !do pix = 0,np_lr-1
-                         !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         !      a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                         !      b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                         !   end if
-                         !end do
-
-                         !!gather a and b
-                         !call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                         !     & MPI_SUM, info_lr%comm, ierr)
-                         !call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                         !     & MPI_SUM, info_lr%comm, ierr)
                          if (a > 0.d0) then
                             multipoles(0) = b/a
                          else
@@ -2594,61 +2570,6 @@ contains
                       reduced_data(:,k) = res_smooth(band_i(k))%p%map(:,pol_j(k)) + &
                            & monopole_mixing(band_i(k))*(monopole_val(band_i(k))-new_mono(band_i(k)))
                       
-
-                      if (first_sample .and. .false.) then !debugging
-                         !we want to compare the power of the smoothing scale nside to pull monopole away from prior compared to the full resolution of the data band
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, 1, .false.)
-                         temp_map => comm_map(info_fr_single)
-                         temp_map%map(:,1) = c_lnL%spec_mono_mask(par_id)%p%map(:,1)
-                         temp_res => comm_map(info_data) !reusing temp_res as a ud_graded monopole mask
-                         if (info_data%nside /= c_lnL%nside) then
-                            call temp_map%udgrade(temp_res)
-                            where (temp_res%map > 0.5d0)
-                               temp_res%map=1.d0
-                            elsewhere 
-                               temp_res%map = 0.d0
-                            end where
-                         else
-                            temp_res%map = temp_map%map
-                         end if
-                         
-                         call temp_map%dealloc(); deallocate(temp_map)
-                         nullify(temp_map)
-                         a = 0.d0
-
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, data(band_i(k))%info%nmaps, data(band_i(k))%info%nmaps==3)
-                         temp_map => comm_map(info_data)
-                         temp_map%map = 1.d0
-                         call data(band_i(k))%N%invN(temp_map) !get inverse Noise matrix of data band
-                         
-                         do pix = 0,info_data%np-1
-                            if (temp_res%map(pix,1) > 0.5d0) a = a + monopole_mixing(band_i(k))**2 * &
-                                 & temp_map%map(pix,1)
-                         end do
-
-                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                              & MPI_SUM, info_lr%comm, ierr)
-                         sigma_p=sqrt(a)
-
-                         call temp_map%dealloc(); deallocate(temp_map)
-                         nullify(temp_map)
-                         call temp_res%dealloc(); deallocate(temp_res)
-                         nullify(temp_res)
-
-                         if (myid_pix == 0) then
-                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') trim(data(band_i(k))%label), &
-                                 & monopole_val(band_i(k))*monopole_mixing(band_i(k)), &
-                                 & new_mono(band_i(k))*monopole_mixing(band_i(k)), &
-                                 & monopole_mu(band_i(k))*monopole_mixing(band_i(k))
-
-                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') ' ', &
-                                 & sigma*monopole_mixing(band_i(k)), & !the low resolution(smoothscale) sigma
-                                 & sigma_p*monopole_mixing(band_i(k)), & ! the full data sigma
-                                 & monopole_rms(band_i(k))*monopole_mixing(band_i(k)) ! the prior sigma
-                         end if
-                      end if
 
                    end if !monopole_active(band_i(k) .and. pol_j(k)==1
                 end do !band_count
