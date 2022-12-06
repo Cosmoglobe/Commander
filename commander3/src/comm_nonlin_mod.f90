@@ -2043,8 +2043,10 @@ contains
                    call solve_system_real(md_A, multipoles, md_b) 
 
                    ! Need to get the statistical power for when adding the monopole prior
+                   ones_map%map = 1d0
                    ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                    call rms_smooth(j)%p%sqrtInvN(ones_map)
+                   write(*,*) maxval(ones_map%map(:,1)), monopole_mixing(j)
                    a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
                    !do pix = 0,np_lr-1
                    !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
@@ -2064,6 +2066,7 @@ contains
 
                    a=0.d0
                    b=0.d0
+                   ones_map%map = 1d0
                    ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                    call rms_smooth(j)%p%sqrtInvN(ones_map)
                    a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
@@ -2504,6 +2507,8 @@ contains
                          !        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                          !             & MPI_SUM, info_lr%comm, ierr)
                          ! Need to get the statistical power for when adding the monopole prior
+                         ones_map%map = 1d0
+                         ones_map%map(:,2:) = 0d0
                          ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                          call rms_smooth(j)%p%sqrtInvN(ones_map)
                          a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
