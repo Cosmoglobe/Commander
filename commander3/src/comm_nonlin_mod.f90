@@ -2044,10 +2044,13 @@ contains
 
                    ! Need to get the statistical power for when adding the monopole prior
                    ones_map%map = 1d0
+                   write(*,*) 'here I am at the first line ', maxval(ones_map%map(:,1)), maxval(mask_mono%map), maxval(mask_mono%map(:,1)), trim(data(j)%label)
                    ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                   ones_map%map(:,2:) = 0d0
+                   write(*,*) 'here I am at this line ', maxval(ones_map%map(:,1)), trim(data(j)%label)
                    call rms_smooth(j)%p%sqrtInvN(ones_map)
-                   write(*,*) maxval(ones_map%map(:,1)), monopole_mixing(j)
                    a = sum(ones_map%map(:,1)*monopole_mixing(j))**2
+                   write(*,*) 'here I am at that line ', maxval(ones_map%map(:,1)), trim(data(j)%label), a
                    !do pix = 0,np_lr-1
                    !   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
                    !      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
@@ -2154,8 +2157,8 @@ contains
           theta_lr_hole => null()
           call theta_fr%dealloc(); deallocate(theta_fr)
           theta_fr => null()
-          call mask_mono%dealloc(); deallocate(mask_mono)
-          mask_mono => null()
+          !call mask_mono%dealloc(); deallocate(mask_mono)
+          !mask_mono => null()
           
        end if
 
