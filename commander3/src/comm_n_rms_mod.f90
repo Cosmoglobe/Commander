@@ -276,9 +276,18 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN%map)**2 * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    map%map(:,:nmaps_band) = (self%siN%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulInvN_1map
 
@@ -288,9 +297,18 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN_lowres%map)**2 * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    map%map(:,:nmaps_band) = (self%siN_lowres%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulInvN_1map_lowres
 
@@ -300,13 +318,19 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
     where (self%siN%map > 0.d0)
        map%map = map%map / (self%siN%map)**2 
     elsewhere
        map%map = 0.d0
     end where
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+         map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+         map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulN_1map
   
@@ -317,7 +341,6 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     integer(i4b)  :: nmaps_band, nmaps_inp
-    ! Temporary fix, limit multiplication to max of the siN%map dimension.
     nmaps_band = size(self%siN%map, dim=2)
     nmaps_inp  = size(map%map, dim=2)
     map%map(:,:nmaps_band) = self%siN%map * map%map(:,:nmaps_band)
