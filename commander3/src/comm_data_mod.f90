@@ -341,25 +341,6 @@ contains
           end if
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
              data(n)%N_smooth(j)%p => data(n)%N
-!!$          else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
-!!$             ! Point to the regular old RMS map
-!!$             tmp => data(n)%N
-!!$             select type (tmp)
-!!$             ! Now we smooth that RMS map to the new resolutions
-!!$             class is (comm_N_rms)
-!!$
-!!$                ! Create map info for smoothed rms maps
-!!$                smoothed_rms_info => comm_mapinfo(data(n)%info%comm, &
-!!$                     & cpar%nside_smooth(j), cpar%lmax_smooth(j), &
-!!$                     & data(n)%info%nmaps, data(n)%info%pol)
-!!$
-!!$                ! Smooth the rms map, make new comm_N_rms object for the result 
-!!$                call smooth_rms(cpar, smoothed_rms_info, handle, &
-!!$                     & data(n)%B(0)%p%b_l, tmp, &
-!!$                     & data(n)%B_smooth(j)%p%b_l, smoothed_rms)
-!!$
-!!$                data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
-!!$             end select
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else

@@ -1683,6 +1683,7 @@ contains
     class(comm_map),                 pointer :: mask_mono => null() ! lowres mask
     class(comm_map),                 pointer :: res_map => null() ! lowres  residual map
     class(comm_map),                 pointer :: ones_map => null() ! Constant sky
+    class(comm_map),                 pointer :: Ninv_map => null() ! Inverse covariance diagonal
     class(comm_map),                 pointer :: temp_res => null() 
     class(comm_map),                 pointer :: temp_map => null() 
     class(comm_map),                 pointer :: temp_noise => null() 
@@ -1803,7 +1804,7 @@ contains
           mask_mono%map=0.d0
        end where
 
-       ! Creating map of all ones for estimating monopole amplitude
+       ! Creating map of all ones. Useful in general.
        ones_map  => comm_map(info_lr)
        call c_lnL%spec_mono_mask(par_id)%p%udgrade(ones_map)
        ones_map%map      = 0.d0
@@ -2223,6 +2224,9 @@ contains
 
     !init lowres residual map
     res_map => comm_map(info_lr)
+
+    ! Init inverse noise diagonal map
+    Ninv_map => comm_map(info_lr)
 
 
     ! This is used for marginal/ridge sampling
@@ -2645,18 +2649,19 @@ contains
                          end do
 
                          data_arr(l_count)=reduced_data(pix,k)
+
+                         mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
+                         Ninv_map%map = 0d0
+                         Ninv_map%map(:,l) = 1d0
+                         ! Gets the equivalent of the inverse diagonal of the
+                         ! covariance matrix
+                         call rms_smooth(band_i(k))%p%InvN(Ninv_map)
+                         invN_arr(l_count) = Ninv_map%map(pix, l)
+
+                         lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                              & use_det, l_count)
                       end do
-
-                      mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
-                      write(*,*) 'testing mixing_new_arr', mixing_new_arr(:lcount)
-                      ! invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
-                      !call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
-                      !invN_arr(l_count) = sum(temp_chisq%map**2)
-                      invN_arr = 0
-
-                      lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, rms_smooth, data_arr, &
-                           & use_det, l_count)
 
                    end do
                 end do
@@ -3243,6 +3248,7 @@ contains
     call theta_single_fr%dealloc(); deallocate(theta_single_fr); theta_single_fr => null()
     call mask_lr%dealloc();         deallocate(mask_lr);         mask_lr => null()
     call res_map%dealloc();         deallocate(res_map);         res_map => null()
+    call Ninv_map%dealloc();        deallocate(Ninv_map);        Ninv_map => null()
     
     if (c_lnL%spec_mono_combined(par_id)) then
        call mask_mono%dealloc() 
@@ -3346,12 +3352,11 @@ contains
     deallocate(MN)
   end function comp_lnL_marginal_diagonal
 
-  function comp_lnL_max_chisq_diagonal(mixing,invN_arr,N_mats,data,use_det,arr_len)
+  function comp_lnL_max_chisq_diagonal(mixing,invN_arr,data,use_det,arr_len)
     implicit none
     logical(lgt),               intent(in)           :: use_det
     real(dp),     dimension(:), intent(in)           :: mixing
     real(dp),     dimension(:), intent(in)           :: invN_arr
-    class(comm_N_ptr),    dimension(:), intent(in)   :: N_mats
     real(dp),     dimension(:), intent(in)           :: data
     integer(i4b),               intent(in), optional :: arr_len
     real(dp)                                         :: comp_lnL_max_chisq_diagonal
@@ -3360,7 +3365,10 @@ contains
     real(dp)     :: MNd,MNM,invMNM, amp, chisq
     real(dp), dimension(:), allocatable :: MN
     !  
-    !  Evaluates Equation (23) "ridge likelihood" from BP13, arXiv:2201.08188
+    !  Evaluates "ridge likelihood" from BP13, arXiv:2201.08188. Take equation
+    !  23 from this, but replace the integral with the the maximum likelihood
+    !  solution for a given beta.
+    !
     !  Implicitly assumes that we are evaluating for a single component.
     !
     !  Function to evaluate the log-likelihood for a pixel across all bands in one polarization,
@@ -3400,9 +3408,6 @@ contains
     !     The evaluated log-likelihood value for the pixel, assuming the maximum likelihood chisq given the mixing matrix.
     !
     !  
-
-    write(*,*) 'Testing'
-    stop
 
     if (present(arr_len)) then
        allocate(MN(arr_len))

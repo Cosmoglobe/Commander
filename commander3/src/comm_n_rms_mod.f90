@@ -279,7 +279,12 @@ contains
     integer(i4b)  :: nmaps_band, nmaps_inp
     nmaps_band = size(self%siN%map, dim=2)
     nmaps_inp  = size(map%map, dim=2)
-    map%map(:,:nmaps_band) = (self%siN%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    if (nmaps_inp .ge. nmaps_band) then
+        map%map(:,:nmaps_band) = (self%siN%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    else if (nmaps_band > nmaps_inp) then
+        ! Should be happening if we have an intensity-only map?
+        map%map(:,:nmaps_inp) = (self%siN%map(:,:nmaps_inp))**2 * map%map(:,:nmaps_inp)
+    end if
     if (nmaps_inp > nmaps_band) then
       map%map(:,nmaps_band+1:nmaps_inp) = 0
     end if
