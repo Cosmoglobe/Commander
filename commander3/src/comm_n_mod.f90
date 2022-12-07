@@ -100,12 +100,13 @@ contains
      end subroutine returnRMS
 
      ! Return rms map
-     function returnRMSpix(self, pix, pol, samp_group)
+     function returnRMSpix(self, pix, pol, samp_group, ret_invN)
        implicit none
        class(comm_N),   intent(in)             :: self
        integer(i4b),    intent(in)             :: pix, pol
        real(dp)                                :: returnRMSpix
        integer(i4b),    intent(in),   optional :: samp_group
+       logical(lgt),    intent(in),   optional :: ret_invN
        returnRMSpix = infinity
      end function returnRMSpix
 

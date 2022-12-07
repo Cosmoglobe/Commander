@@ -2048,24 +2048,13 @@ contains
                    ! Not all cores get low resolution pixels. These if tests
                    ! avoid that
                    if (np_lr > 0) then
-                       ! ones_map is unitless
                        ones_map%map = 0d0
                        ones_map%map(:,1)  = 1d0
                        ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                        ones_map%map(:,2:) = 0d0
                        call rms_smooth(j)%p%sqrtInvN(ones_map)
                        ones_map%map = ones_map%map * monopole_mixing(j)
-                       !if (trim(data(j)%label) .eq. '857') then
-                       !  ! Current hypothesis -- 857 is the only band whose
-                       !  ! monopole is estimated and has no polarization.
-                       !  a = 0d0
-                       !  do m = 0, np_lr-1
-                       !    write(*,*) a, ones_map%map(m,1), info_lr%myid, m, np_lr
-                       !    a = a + ones_map%map(m,1)**2
-                       !  end do
-                       !else
                        a = sum(ones_map%map(:,1)**2)
-                       !end if
                    else 
                        a = 0d0
                    end if
@@ -2616,6 +2605,7 @@ contains
 
                 end do
 
+
              else if ((trim(c_lnL%pol_lnLtype(p,id))=='ridge') .or. &
                   & (trim(c_lnL%pol_lnLtype(p,id))=='marginal')) then
                 if (trim(c_lnL%pol_lnLtype(p,id))=='ridge') then
@@ -2624,45 +2614,38 @@ contains
                    use_det = .true.
                 end if
 
-                call mpi_barrier(info_fr%comm, ierr)
+                do pix = 0,np_lr-1 !More precise, we need to loop over pixels covered by the processor
 
+                   if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
 
-                !as we compute the maximum likelihood amplitude in the evaluation, we must split between
-                !polarizations, and compute the evaluations individually for each polarization
-                do l = p_min,p_max
-                   if (np_lr == 0) cycle
-                   l_count=0
-                   !build mixing matrix
-                   do k = 1,band_count !run over all active bands
-                      if (pol_j(k) /= l) cycle
-                      l_count = l_count+1
+                   all_thetas(id)=new_theta_smooth(pix)
+                   !get the values of the remaining spec inds of the component for the given pixel
+                   do i = 1, npar
+                      if (i == id) cycle
+                      all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
+                   end do
 
-                      do pix = 0,np_lr-1 !More precise, we need to loop over pixels covered by the processor
-
-                         if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out
-
-                         all_thetas(id)=new_theta_smooth(pix)
-                         !get the values of the remaining spec inds of the component for the given pixel
-                         do i = 1, npar
-                            if (i == id) cycle
-                            all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
-                         end do
-
-                         data_arr(l_count)=reduced_data(pix,k)
-
+                   !as we compute the maximum likelihood amplitude in the evaluation, we must split between
+                   !polarizations, and compute the evaluations individually for each polarization
+                   do l = p_min,p_max
+                      l_count=0
+                      !build mixing matrix
+                      do k = 1,band_count !run over all active bands
+                         if (pol_j(k) /= l) cycle
+                         l_count = l_count+1
                          mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
                               & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
-                         Ninv_map%map = 0d0
-                         Ninv_map%map(:,l) = 1d0
-                         ! Gets the equivalent of the inverse diagonal of the
-                         ! covariance matrix
-                         call rms_smooth(band_i(k))%p%InvN(Ninv_map)
-                         invN_arr(l_count) = Ninv_map%map(pix, l)
-
-                         lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, data_arr, &
-                              & use_det, l_count)
+                         data_arr(l_count)=reduced_data(pix,k)
+                         invN_arr(l_count)=rms_smooth(band_i(k))%p%rms_pix(pix, pol_j(k), ret_invN=.true.)
                       end do
 
+                      !compute the marginal/ridge log-likelihood for the pixel, by computing the maximum likelihood chisq
+                      lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                           & use_det, l_count)
+                      
+                      !!compute the marginal/ridge log-likelihood for the pixel (This fails in combined monopole sampling!)
+                      !lnL_new = lnL_new + comp_lnL_marginal_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                      !     & use_det, l_count)
                    end do
                 end do
              else 
