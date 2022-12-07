@@ -1056,7 +1056,7 @@ contains
        nullify(res)
     end do
 
-    c           => compList     ! Extremely ugly hack...
+    c           => compList     
     do while (c%id /= comp_id)
        c => c%next()
     end do
@@ -1532,7 +1532,7 @@ contains
 
 
     id = par_id
-    c           => compList     ! Extremely ugly hack...
+    c           => compList     
     do while (comp_id /= c%id)
        c => c%next()
     end do
@@ -1700,7 +1700,7 @@ contains
     real(dp),                 dimension(3)   :: vector
     integer(i4b) :: i_md, j_md, k_md, max_prop
 
-    c           => compList     ! Extremely ugly hack...
+    c           => compList     
     do while (comp_id /= c%id)
        c => c%next()
     end do
@@ -1851,7 +1851,7 @@ contains
        if (c_lnL%spec_mono_combined(par_id)) then
           if (p_min > 1) cycle !only polarization maps active, i.e. no monopoles are to be sampled
 
-          c2           => compList     ! Extremely ugly hack...
+          c2           => compList     
 
           do while (associated(c2))
              select type (c2)
@@ -2134,7 +2134,7 @@ contains
                 monopole_val(j)=mu
                 
                 !find the monopole component and update the monopole
-                c2           => compList     ! Extremely ugly hack...
+                c2           => compList     
                 do while (associated(c2))
                    select type (c2)
                    class is (comm_md_comp)
@@ -2440,6 +2440,7 @@ contains
              ! threshold smoothed map on uniform limits
              new_theta_smooth(:) =min(theta_max,max(theta_min, new_theta_smooth(:))) 
 
+
              !###################################################################################################
              ! if monopole sampling together with spectral parameter:
              !
@@ -2450,12 +2451,14 @@ contains
 
                 do k = 1,band_count
                    if (monopole_active(band_i(k)) .and. pol_j(k)==1) then
+                      write(*,*) 'probably here'
                       do pix = 0, np_lr-1
                          do i = 1, npar
                             if (i == id) cycle
                             all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
                          end do
 
+                         write(*,*) 'all_thetas,new_theta_smooth', maxval(all_thetas), maxval(new_theta_smooth)
                          all_thetas(id)=new_theta_smooth(pix)
 
                          mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
@@ -2617,17 +2620,18 @@ contains
                    use_det = .true.
                 end if
 
+                call mpi_barrier(info_fr%comm, ierr)
+
 
                 !as we compute the maximum likelihood amplitude in the evaluation, we must split between
                 !polarizations, and compute the evaluations individually for each polarization
                 do l = p_min,p_max
+                   if (np_lr == 0) cycle
                    l_count=0
                    !build mixing matrix
                    do k = 1,band_count !run over all active bands
                       if (pol_j(k) /= l) cycle
                       l_count = l_count+1
-                      mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
                       do pix = 0,np_lr-1 !More precise, we need to loop over pixels covered by the processor
 
@@ -2642,13 +2646,18 @@ contains
 
                          data_arr(l_count)=reduced_data(pix,k)
                       end do
-                      temp_chisq%map = 0d0
-                      ! invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
-                      call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
-                      invN_arr(l_count) = sum(temp_chisq%map**2)
 
-                      lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, data_arr, &
+                      mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
+                      write(*,*) 'testing mixing_new_arr', mixing_new_arr(:lcount)
+                      ! invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
+                      !call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
+                      !invN_arr(l_count) = sum(temp_chisq%map**2)
+                      invN_arr = 0
+
+                      lnL_new = lnL_new + comp_lnL_max_chisq_diagonal(mixing_new_arr, invN_arr, rms_smooth, data_arr, &
                            & use_det, l_count)
+
                    end do
                 end do
              else 
@@ -3110,7 +3119,7 @@ contains
        do j = 1,numband
           if (monopole_active(j)) then
              !find the monopole component and update the monopole
-             c2           => compList     ! Extremely ugly hack...
+             c2           => compList     
              do while (associated(c2))
                 select type (c2)
                 class is (comm_md_comp)
@@ -3337,11 +3346,12 @@ contains
     deallocate(MN)
   end function comp_lnL_marginal_diagonal
 
-  function comp_lnL_max_chisq_diagonal(mixing,invN_arr,data,use_det,arr_len)
+  function comp_lnL_max_chisq_diagonal(mixing,invN_arr,N_mats,data,use_det,arr_len)
     implicit none
     logical(lgt),               intent(in)           :: use_det
     real(dp),     dimension(:), intent(in)           :: mixing
     real(dp),     dimension(:), intent(in)           :: invN_arr
+    class(comm_N_ptr),    dimension(:), intent(in)   :: N_mats
     real(dp),     dimension(:), intent(in)           :: data
     integer(i4b),               intent(in), optional :: arr_len
     real(dp)                                         :: comp_lnL_max_chisq_diagonal
@@ -3349,6 +3359,10 @@ contains
     integer(i4b) :: i, j, mat_len
     real(dp)     :: MNd,MNM,invMNM, amp, chisq
     real(dp), dimension(:), allocatable :: MN
+    !  
+    !  Evaluates Equation (23) "ridge likelihood" from BP13, arXiv:2201.08188
+    !  Implicitly assumes that we are evaluating for a single component.
+    !
     !  Function to evaluate the log-likelihood for a pixel across all bands in one polarization,
     !  returning the highest likelihood chisq value of the log-likelihood for the given theta/mixing matrix.
     !
@@ -3369,7 +3383,7 @@ contains
     !  Arguments:
     !  ------------------
     !  mixing: double precision array, unknown length
-    !     An arraycontaining the pixel specific mixing matrix values for the different bands in the evaluation.
+    !     An array containing the pixel specific mixing matrix values for the different bands in the evaluation.
     !  invN_arr: double precision array, unknown length
     !     An array with the pixel specific inverse noise variance values for the different bands in the evaluation.
     !  data: double precision array, unknown length
@@ -3386,6 +3400,9 @@ contains
     !     The evaluated log-likelihood value for the pixel, assuming the maximum likelihood chisq given the mixing matrix.
     !
     !  
+
+    write(*,*) 'Testing'
+    stop
 
     if (present(arr_len)) then
        allocate(MN(arr_len))

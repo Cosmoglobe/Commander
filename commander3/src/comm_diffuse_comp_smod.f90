@@ -2934,7 +2934,7 @@ contains
 !!$          do k = 0, data(6)%info%np-1
 !!$             p_lnL       = p
 !!$             k_lnL       = k
-!!$             c           => compList     ! Extremely ugly hack...
+!!$             c           => compList     
 !!$             do while (self%id /= c%id)
 !!$                c => c%next()
 !!$             end do
