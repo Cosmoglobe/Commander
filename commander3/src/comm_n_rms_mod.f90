@@ -325,7 +325,10 @@ contains
       map%map(:,nmaps_band+1:nmaps_inp) = 0
     end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulSqrtInvN_1map
 
