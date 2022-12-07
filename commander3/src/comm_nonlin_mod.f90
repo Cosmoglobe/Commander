@@ -2047,18 +2047,29 @@ contains
                    ! Not all cores get low resolution pixels. These if tests
                    ! avoid that
                    if (np_lr > 0) then
+                       ! ones_map is unitless
                        ones_map%map = 0d0
                        ones_map%map(:,1)  = 1d0
                        ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                        ones_map%map(:,2:) = 0d0
                        call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       ones_map%map = ones_map%map * monopole_mixing(j)
+                       !if (trim(data(j)%label) .eq. '857') then
+                       !  ! Current hypothesis -- 857 is the only band whose
+                       !  ! monopole is estimated and has no polarization.
+                       !  a = 0d0
+                       !  do m = 0, np_lr-1
+                       !    write(*,*) a, ones_map%map(m,1), info_lr%myid, m, np_lr
+                       !    a = a + ones_map%map(m,1)**2
+                       !  end do
+                       !else
                        a = sum(ones_map%map(:,1)**2)
+                       !end if
                    else 
                        a = 0d0
                    end if
                    call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                         & MPI_SUM, info_lr%comm, ierr)
-                   a = a * monopole_mixing(j)**2
 
                 else if (trim(monocorr_type) == 'monopole') then
 
@@ -2069,18 +2080,18 @@ contains
                        ones_map%map(:,1) = 1d0
                        ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                        call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       ones_map%map = ones_map%map * monopole_mixing(j)
                        a = sum(ones_map%map(:,1)**2)
 
                        ones_map%map = reduced_data
                        call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       ones_map%map = ones_map%map * monopole_mixing(j)
                        b = sum(ones_map%map(:,1)**2)
                    end if
                    call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                         & MPI_SUM, info_lr%comm, ierr)
                    call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
                         & MPI_SUM, info_lr%comm, ierr)
-                   a = a*monopole_mixing(j)**2
-                   b = b*monopole_mixing(j)**2
 
 
                    if (a > 0.d0) then
@@ -2479,27 +2490,18 @@ contains
                          !solve the mono-/dipole system
                          call solve_system_real(md_A, multipoles, md_b) 
 
-
-
-
-
-
-
-
-
-
                          if (np_lr > 0) then
                              ones_map%map = 0d0
                              ones_map%map(:,1) = 1d0
                              ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                              call rms_smooth(j)%p%sqrtInvN(ones_map)
-                             a = sum(ones_map%map(:,1)**2)
+                             write(*,*) 'hereherehere', maxval(ones_map%map(:,1)), 'band', k
+                             a = sum((ones_map%map(:,1)/monopole_mixing(j))**2)
                          else
                              a = 0d0
                          end if
                          call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                               & MPI_SUM, info_lr%comm, ierr)
-                         a = a*monopole_mixing(j)**2
 
                       else if (trim(monocorr_type) == 'monopole') then
                          if (np_lr > 0) then
@@ -2507,11 +2509,11 @@ contains
                              ones_map%map(:,1) = 1d0
                              ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
                              call rms_smooth(j)%p%sqrtInvN(ones_map)
-                             a = sum(ones_map%map(:,1)**2)
+                             a = sum((ones_map%map(:,1)/monopole_mixing(j))**2)
       
                              ones_map%map = reduced_data
                              call rms_smooth(j)%p%sqrtInvN(ones_map)
-                             b = sum(ones_map%map(:,1)**2)
+                             b = sum((ones_map%map(:,1)/monopole_mixing(j))**2)
                          else
                              a = 0d0
                              b = 0d0
@@ -2520,8 +2522,6 @@ contains
                               & MPI_SUM, info_lr%comm, ierr)
                          call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
                               & MPI_SUM, info_lr%comm, ierr)
-                         a = a*monopole_mixing(j)**2
-                         b = b*monopole_mixing(j)**2
 
 
                          if (a > 0.d0) then

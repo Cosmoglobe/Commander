@@ -79,6 +79,10 @@ contains
     ! General parameters
     allocate(constructor)
 
+    ! NEED TO ADD A TEST
+    ! Check that when you're doing matrix multiplication, the number of maps is
+    ! consistent with the input and the noise covariance matrix.
+
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
     constructor%nmaps             = info%nmaps
@@ -312,7 +316,14 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = self%siN%map * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    ! Temporary fix, limit multiplication to max of the siN%map dimension.
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    map%map(:,:nmaps_band) = self%siN%map * map%map(:,:nmaps_band)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
