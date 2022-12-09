@@ -220,7 +220,8 @@ class commander_tod:
                 self.add_field(encoding, [self.encodings[encoding]])
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
-            self.add_field('/common/version', self.version)
+            print(self.version)
+            self.add_field('/common/version', np.string_(self.version))
             # [Maksym]: was getting the error:
             # ...
             # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
