@@ -687,13 +687,15 @@ contains
                 
                 ! Output chisq and diff and mean alm
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                !write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                write(*,*) trim(outmessage)
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
                    regs(i,:,pl) = c%theta_pixreg(:,pl,j)
                    write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
-                   write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   !write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                   write(*,*) trim(outmessage)
                 end if
              end if
 
