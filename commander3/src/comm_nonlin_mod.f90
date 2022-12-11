@@ -1951,7 +1951,9 @@ contains
 
        end do
        do pix=0,np_fr-1
-          buffer_lnL(pix,1)=new_thetas(c_lnL%ind_pixreg_arr(pix,p,id))
+          do i = p_min, p_max
+             buffer_lnL(pix,i)=new_thetas(c_lnL%ind_pixreg_arr(pix,p,id))
+          end do
        end do
        deallocate(new_thetas)
 
