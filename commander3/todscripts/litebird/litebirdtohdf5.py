@@ -11,18 +11,20 @@ import h5py
 
 def main():
     parser = argparse.ArgumentParser()
-    outpath = '/mn/stornext/u3/eirikgje/data/litebird_tods/'
+#    outpath = '/mn/stornext/u3/eirikgje/data/litebird_tods/'
+    outpath = '/home/eirik/data/litebird_sims/'
     name = 'litebird'
     version = '1.0'
     imo_version = 'v1.3'
-    dicts = None
+    dicts = {60: {}}
     overwrite = True
 
 #    pool = mp.Pool(processes=num_procs)
 #    manager = mp.Manager()
-    manager_dicts = {}
+#    manager_dicts = {}
 
-    comm_tod = tod.commander_tod(outpath, name, version, manager_dicts, overwrite)
+#    comm_tod = tod.commander_tod(outpath, name, version, manager_dicts, overwrite)
+    comm_tod = tod.commander_tod(outpath, name, version, dicts, overwrite)
     make_ods(comm_tod, 'L1-060', None, imo_version)
 
 
@@ -38,7 +40,8 @@ def create_new_tod(comm_tod, od, freq, fsamps, nside, dets, polang):
 
     
 def make_ods(comm_tod, freq, args, imo_version,
-             simpath='/mn/stornext/d16/cmbco/bp/mathew/litebird/sim0000/LFT_L1-060/tods/'):
+#             simpath='/mn/stornext/d16/cmbco/bp/mathew/litebird/sim0000/LFT_L1-060/tods/'):
+             simpath='/home/eirik/data/litebird_sims/'):
     if freq[0] == 'L':
         instrument = 'LFT'
     elif freq[0] == 'M':
@@ -83,6 +86,7 @@ def make_ods(comm_tod, freq, args, imo_version,
                         comm_tod.add_field(f'{prefix}/tod', chunk[field_idx][i, :])
                     elif field == 'psi':
                         comm_tod.add_field(f'{prefix}/psi', chunk[field_idx][i, :])
+            comm_tod.finalize_chunk(curr_scan_id)
             comm_tod.finalize_file()
     comm_tod.make_filelists()
 
