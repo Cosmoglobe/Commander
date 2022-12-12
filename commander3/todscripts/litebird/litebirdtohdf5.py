@@ -68,7 +68,8 @@ def make_ods(comm_tod, freq, args, imo_version,
         polang = [int(it.split('_')[3][:1]) + 90 * int(it.split('_')[3][2] == 'B') for it in dets]
 
     with LitebirdTodReader(simpath,
-                           'LFT_L1-060_obs_cmb',
+                           ['LFT_L1-060_obs_cmb',
+                            'LFT_L1-060_obs_1_over_f_noise_pessimistic'],
                            start_day=100,
                            end_day=105, 
                            fields=['tod', 'pointings', 'psi']) as reader:
