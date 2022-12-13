@@ -565,34 +565,34 @@ contains
        do j = 1, self%ntod
            if (mod(j,2) /= 0) then
                T(j,1) = -1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
-               T(j,2) = 0.0
-               T(j,3) = 1.0
-           else
-               T(j,1) = 1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
                T(j,2) = 1.0
                T(j,3) = 0.0
+           else
+               T(j,1) = 1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
+               T(j,2) = 0.0
+               T(j,3) = 1.0
            end if
        end do
 
-       ! multiply matrices (N^-1 x T)
+       ! multiply matrices (N^-1 x T) possibly (T^t x N^-1)
        do j = 1, self%ntod
            if (mod(j,2) /= 0) then
                matrix_buf(j,1) = -1.0 * s_tot_inv_N(j,i)
-               matrix_buf(j,2) = even(j,i)
-               matrix_buf(j,3) = uneven(j,i)
+               matrix_buf(j,2) = uneven(j,i)
+               matrix_buf(j,3) = even(j,i)
            else
                matrix_buf(j,1) = 1.0 * s_tot_inv_N(j,i)
-               matrix_buf(j,2) = uneven(j,i)
-               matrix_buf(j,3) = even(j,i)     
+               matrix_buf(j,2) = even(j,i)
+               matrix_buf(j,3) = uneven(j,i)     
            end if
        end do
 
        
        ! multiply matrices T^t x N^-1 x T
        do j = 1, 3
-           A(1,j) = sum(T(:,1)*matrix_buf(:,j))
-           A(2,j) = sum(T(:,2)*matrix_buf(:,j))
-           A(3,j) = sum(T(:,3)*matrix_buf(:,j))
+           A(1,j) = sum(matrix_buf(:,1) * T(:,j)) !sum(T(:,1)*matrix_buf(:,j))
+           A(2,j) = sum(matrix_buf(:,2) * T(:,j)) !sum(T(:,2)*matrix_buf(:,j))
+           A(3,j) = sum(matrix_buf(:,3) * T(:,j)) !sum(T(:,3)*matrix_buf(:,j))
        
            ! preparing A_sqrt
            A_sqrt(1,j) = A(1,j)
@@ -604,7 +604,7 @@ contains
        
        ! multiply T^t x N^-1 x d
        do j = 1, 3
-           B(j) = sum(T(:,j)*tod_inv_N(:,i))
+           B(j) = sum(matrix_buf(:,j)* self%tod(:,i)) !sum(T(:,j)*tod_inv_N(:,i))
        end do
 
        !do j = 1,3
@@ -668,8 +668,11 @@ contains
     integer(i4b),                                 intent(in)    :: scan
 
     integer(i4b) :: i, j
+    logical :: exists
 
     do i = 1, tod%ndet
+
+
        ! Subtract baselines and Flip sign of even samples
        do j = 1, self%ntod
            if (mod(j,2) /= 0) then
@@ -677,17 +680,33 @@ contains
            else
                self%tod(j,i) = (self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if
+
        end do
 
 
+       ! flip the sign if all negative
+       !if (all(check_negative)) then
+       !    do j = 1, self%ntod
+       !        self%tod(j,i) = - self%tod(j,i)
+       !    end do
+       !end if 
+
+
        if (i == 1) then
-           write(*,*) "it's output file time"
-           open(58, file="myoutput.dat", status="new")
+
+           inquire(file="myoutput.dat", exist=exists)
+           if (exists) then
+               open(58, file="myoutput.dat", status="old", position="append")
+           else
+               open(58, file="myoutput.dat", status="new")
+           end if
+
            do j = 1, self%ntod
                write(58,*) j, self%tod(j,i), self%s_tot(j, i)
            end do
            close(58)
        end if
+
 
     end do
 
