@@ -444,7 +444,6 @@ contains
          if (mod(iter-1,10) == 0) self%output_n_maps = 3
       end if
 
-      !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -499,6 +498,7 @@ contains
 
       call timer%stop(TOD_ALLOC, self%band)
 
+      if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -776,12 +776,6 @@ contains
         !   M_diag(:,4) = 0d0
         !end if
         if (self%myid == 0) self%M_diag = M_diag
-
-        if (self%first_call) then
-            ! Precomputing low-resolution preconditioner
-            call self%precompute_M_lowres
-        end if
-
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = self%output_n_maps, 1, -1

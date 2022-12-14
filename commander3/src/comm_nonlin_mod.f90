@@ -387,7 +387,7 @@ contains
           if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
 
           ! HKE -- disabling T for now
-          if (pl==1) cycle 
+          !if (pl==1) cycle 
 
           ! p already calculated if larger than poltype 
           if (pl > c%poltype(j)) cycle
@@ -686,7 +686,7 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f10.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 !write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 write(*,*) trim(outmessage)
 
