@@ -1,0 +1,113 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT LFI_tod.defaults
+
+OPERATION                     = sample  # {sample,optimize}
+VERBOSITY                     = 3       # [0,...,3]
+
+##############################################################
+#                   Algorithm specification                  #
+##############################################################
+
+# Monte Carlo options
+NUMCHAIN         = 1       # Number of independent chains
+NUM_GIBBS_ITER   = 100000       # Length of each Markov chain
+CHAIN_STATUS     = new
+NUM_INIT_CHAINS  = 1
+INIT_CHAIN01     = none
+
+SAMPLE_SIGNAL_AMPLITUDES      = .false.
+SAMPLE_SPECTRAL_INDICES       = .false.
+
+SAMPLE_CAMB_PARAMETERS        = .true.
+SAMPLE_N_COSMO_PARAMS         = 3
+SAMPLE_STEP_AMPLITUDE         = 0.3
+
+CAMB_COSMOLOGICAL_PARAMETERS01 = 1
+CAMB_COSMOLOGICAL_PARAMETERS02 = 1
+CAMB_COSMOLOGICAL_PARAMETERS03 = 1
+CAMB_COSMOLOGICAL_PARAMETERS04 = 1
+CAMB_COSMOLOGICAL_PARAMETERS05 = 1
+CAMB_COSMOLOGICAL_PARAMETERS06 = 1
+
+# TOD sampling options
+TOD_NUM_BP_PROPOSALS_PER_ITER  = 1    # 1 for sampling; >= 1 for optimize
+
+ENABLE_TOD_SIMULATIONS        = .false.
+ENABLE_TOD_ANALYSIS           = .false.
+
+##############################################################
+#                       Output options                       #
+##############################################################
+
+OUTPUT_DIRECTORY              = chains_camb_nside64_50mask
+#OUTPUT_EVERY_NTH_CG_ITERATION = 500
+
+##############################################################
+#                         Data sets                          #
+##############################################################	
+
+DATA_DIRECTORY                 = /mn/stornext/d16/cmbco/bp/johanres/commander_camb/camb_data
+NUMBAND                        = 1 
+
+# LFI
+INCLUDE_BAND001                = .true.   # 70 GHz
+
+# 70 GHz parameters
+@START 001
+@DEFAULT bands/LFI/LFI_070_TOD.defaults
+BAND_MAPFILE&&&                 = 70_noise_cmb_nside_64_xrms.fits
+BAND_NOISEFILE&&&               = tod_070_rms_c0001_k000797_xrms_nside64.fits
+BAND_NSIDE&&&                   = 64
+BAND_LMAX&&&                    = 192  # replaceme
+BAND_UNIT&&&                    = uK_cmb
+BAND_MASKFILE&&&                = mask_50.fits
+#### BAND_NOISEFILE001          = rms_0.14uK_n512.fits
+# Make ideal_cmb_rms a white noise file, maybe all zeros?
+BAND_NOISE_FORMAT&&&            = rms
+BAND_REG_NOISEFILE&&&           = none   
+BAND_NOISE_RMS&&&_SMOOTH01      = none
+BAND_BANDPASSFILE&&&            = LFI_instrument_v5.h5
+BAND_TOD_TYPE&&&                = none
+BAND_BEAMTYPE&&&                = b_l         # {b_l, febecop}
+BAND_BEAM_B_L_FILE&&&           = 3deg_beam.fits ###fixme
+# look at the example of the beam file in the data directory from compsep
+BAND_PIXEL_WINDOW&&&            = pixel_window_n0064.fits
+# This is in your healpix install # find . -name pixel_window_n0128.fits
+@END 001
+
+
+##############################################################
+#                     Model parameters                       #
+##############################################################	
+
+INSTRUMENT_PARAM_FILE         = instrument_params_init_BP8.1_v1.dat
+INIT_INSTRUMENT_FROM_HDF      = default
+ 
+NUM_SIGNAL_COMPONENTS         = 1 
+INCLUDE_COMP01                = .true.  # Cmb # CMB; no monopole or dipole
+
+NUM_CG_SAMPLING_GROUPS = 1
+CG_SAMPLING_GROUP01          = cmb
+CG_SAMPLING_GROUP_MASK01     = fullsky
+CG_SAMPLING_GROUP_MAXITER01  = 5500
+
+# CMB
+@START 01
+@DEFAULT components/cmb/cmb_LFI.defaults
+COMP_INPUT_AMP_MAP&&          = 70_noise_cmb_nside_64_xrms.fits
+COMP_INIT_FROM_HDF&&          = none default
+COMP_POLARIZATION&&           = .true.
+COMP_MONOPOLE_PRIOR&&         = none # monopole:mask_fullsky_n1024_TQU.fits
+COMP_L_APOD&&                 = 192
+COMP_LMAX_AMP&&               = 192
+COMP_CL_TYPE&&                = power_law     # {none, binned, power_law}
+COMP_MASK&&                   = fullsky
+COMP_INPUT_AMP_MAP&&          = none
+COMP_PRIOR_AMP_MAP&&          = none
+COMP_OUTPUT_EB_MAP&&          = .false.
+COMP_INIT_FROM_HDF&&          = default
+COMP_UNIT&&                   = uK_cmb
+@END 01
+
