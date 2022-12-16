@@ -79,12 +79,12 @@ module comm_param_mod
 
      ! Output parameters
      character(len=512) :: outdir
-     integer(i4b)       :: nside_chisq, nmaps_chisq
+     integer(i4b)       :: nside_chisq, nmaps_chisq, sample_n_cosmo_params
      logical(lgt)       :: pol_chisq, output_mixmat, output_residuals, output_chisq, output_cg_eigenvals
      integer(i4b)       :: output_cg_freq
      logical(lgt)       :: output_input_model, ignore_gain_bp, output_debug_seds, output_sig_per_band
-     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec, sample_camb, sample_only_tau
-
+     logical(lgt)       :: sample_signal_amplitudes, sample_specind, sample_powspec, sample_camb
+     real(dp)           :: sample_step_amplitude
      ! CAMB parameters
      real(dp),           allocatable, dimension(:)    :: cmb_theta
      
@@ -436,17 +436,16 @@ contains
     ! CAMB STUFF
     call get_parameter_hashtable(htbl, 'SAMPLE_CAMB_PARAMETERS',   par_lgt=cpar%sample_camb)
     if (cpar%sample_camb) then
-      call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_TAU',        par_lgt=cpar%sample_only_tau)
-
-      if (cpar%sample_only_tau) then
-        allocate(cpar%cmb_theta(1))
-      else
-        allocate(cpar%cmb_theta(6))
-        do i = 1, 6
-          call int2string(i, itext)
-          call get_parameter_hashtable(htbl, 'CAMB_COSMOLOGICAL_PARAMETERS'//itext, len_itext=len(trim(itext)), par_dp=cpar%cmb_theta(i))
-        end do
-      end if
+      call get_parameter_hashtable(htbl, 'SAMPLE_N_COSMO_PARAMS', par_int=cpar%sample_n_cosmo_params)
+      
+      call get_parameter_hashtable(htbl, 'SAMPLE_STEP_AMPLITUDE',  par_dp=cpar%sample_step_amplitude)
+      allocate(cpar%cmb_theta(cpar%sample_n_cosmo_params))
+      !if (cpar%sample_n_cosmo_params >= 2) then
+      !  do i = 1, cpar%sample_n_cosmo_params
+      !    call int2string(i, itext)
+      !    call get_parameter_hashtable(htbl, 'CAMB_COSMOLOGICAL_PARAMETERS'//itext, len_itext=len(trim(itext)), par_dp=cpar%cmb_theta(i))
+      !  end do
+      !end if
       
     end if
 

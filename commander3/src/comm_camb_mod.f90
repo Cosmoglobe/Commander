@@ -126,7 +126,6 @@ contains
     integer(i4b),              intent(in) :: lmin, lmax
     class(comm_camb), pointer             :: constructor
     type(comm_params)                     :: cpar
-    class(comm_camb_sample), pointer      :: old_sample
     type(planck_rng), intent(inout)       :: handle, handle_noise
     real(dp), dimension(4, 0: lmax)       :: init_sample_c_l, first_sample_c_l
     logical(i4b)                          :: finished
@@ -151,17 +150,21 @@ contains
     constructor%sample_new => constructor_camb_sample(cpar, lmin, lmax, constructor%nmaps)
     constructor%sample_old => constructor_camb_sample(cpar, lmin, lmax, constructor%nmaps)
     ! Static variables
-    constructor%proposal_multiplier = 0.5d0
+    constructor%proposal_multiplier = cpar%sample_step_amplitude
 
     constructor%n_parameters = size(cpar%cmb_theta)
+    allocate(constructor%correct_cosmo_param(constructor%n_parameters))
+    allocate(constructor%sigma_cosmo_param(constructor%n_parameters))
     if (constructor%n_parameters == 1) then
-      allocate(constructor%correct_cosmo_param(1))
-      allocate(constructor%sigma_cosmo_param(1))
+      ! Tau
       constructor%correct_cosmo_param = [0.055d0]
       constructor%sigma_cosmo_param   = [0.012d0]
+    else if (constructor%n_parameters == 3) then
+      ! Tau, As, ns
+      constructor%correct_cosmo_param = [0.0544d0, 2.1d0, 0.9649d0]
+      constructor%sigma_cosmo_param   = [0.0015d0, 0.012d0, 0.012d0] 
     else
-      allocate(constructor%correct_cosmo_param(6))
-      allocate(constructor%sigma_cosmo_param(6))
+      ! Omega_b, omega_m, H_0, tau, As, ns
       constructor%correct_cosmo_param = [0.02237d0, 0.12d0, 67.36d0, 0.0544d0, 2.1d0, 0.9649d0] ! Cosmo Params used to simulate CMB power spectra
       constructor%sigma_cosmo_param   = [0.002d0,   0.0015d0,  0.6d0,   0.002d0, 0.015d0, 0.015d0] ! Hard coded uncertainty in cosmo param proposal
     end if
@@ -180,7 +183,7 @@ contains
           call constructor%format_theta_and_get_c_l_from_camb(constructor%correct_cosmo_param, init_sample_c_l)
           !call get_c_l_from_camb(constructor%correct_cosmo_param, init_sample_c_l)
           
-          call constructor%init_covariance_matrix(L_mat)
+          call constructor%init_covariance_matrix(cpar, L_mat)
           
           call mpi_bcast(init_sample_c_l, size(init_sample_c_l),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
           call mpi_bcast(L_mat, size(L_mat),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
@@ -225,6 +228,14 @@ contains
 
     call constructor%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, constructor%sample_old, constructor%sample_old, .false.)
 
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+        c%x%alm = constructor%sample_old%s_lm + constructor%sample_old%f_lm
+      end select
+      c => c%next()
+    end do
   end function constructor
 
   function constructor_camb_sample(cpar, lmin, lmax, nmaps, s_init)
@@ -422,16 +433,47 @@ contains
     new_sample%theta = new_theta_proposal
     new_sample%c_l = new_sample_c_l
 
+    ! Find s_lm and f_lm
     call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm=.true.)
     
-    accept = acceptance(self, new_sample, old_sample, handle)
+    ! Set Commander's CMB equal to s_lm + f_lm
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+        c%x%alm = new_sample%s_lm + new_sample%f_lm
+      end select
+      c => c%next()
+    end do
+    
+    accept = acceptance(self, cpar, new_sample, old_sample, handle)
 
     self%total_samples = self%total_samples + 1 
     if (accept) then
       ! Sample was accepted
       self%accepted_samples = self%accepted_samples + 1
       self%sample_old = new_sample
+      c => compList
+      do while (associated(c))
+        select type (c)
+        class is (comm_cmb_comp)
+          c%x%alm = new_sample%s_lm + new_sample%f_lm
+        end select
+        c => c%next()
+      end do
+    else
+      ! Sample was not accepted
+      c => compList
+      do while (associated(c))
+        select type (c)
+        class is (comm_cmb_comp)
+          c%x%alm = old_sample%s_lm + old_sample%f_lm
+        end select
+        c => c%next()
+      end do
     end if
+
+    call new_sample%dealloc(); deallocate(new_sample)
 
     ! Save sample
     c => compList
@@ -441,8 +483,11 @@ contains
         if (c%x%info%myid == 0) then
           write(*, *) 'accepted samples, total samples, acceptance rate', self%accepted_samples, self%total_samples, real(self%accepted_samples, dp) / self%total_samples 
 
-          open(unit=1, file='cosmo_param_out.dat', position="append", action='write')
+          open(unit=1, file=trim(cpar%outdir)//'/cosmo_param_out.dat', position="append", action='write')
             write(1, '( 6(2X, ES14.6) )') self%sample_old%theta
+          close(1)
+          open(unit=1, file=trim(cpar%outdir)//'/acceptance_rate.dat', position="append", action='write')
+            write(1, '( 6(2X, ES14.6) )') real(self%accepted_samples, dp) / self%total_samples
           close(1)
         end if
       end select
@@ -559,7 +604,7 @@ contains
   end subroutine cosmo_param_proposal
 
 
-  function acceptance(self, new_sample, old_sample, handle)
+  function acceptance(self, cpar, new_sample, old_sample, handle)
     ! 
     ! This function determines if the new sample should be accepted or not.
     ! Assumes no priors and that the proposal is symmetric. Hence 
@@ -585,13 +630,14 @@ contains
     ! 
     implicit none
     class(comm_camb),                    intent(inout) :: self
+    type(comm_params),                  intent(in)     :: cpar
     type(comm_camb_sample),              intent(inout) :: old_sample, new_sample
     type(planck_rng),                    intent(inout) :: handle
 
     class(comm_comp), pointer                          :: c => null()
-    real(dp), dimension(:, :), allocatable             :: temp, sigma_l, temp_flm
+    real(dp), dimension(:, :), allocatable             :: temp, sigma_l
     real(dp), dimension(4, 0: self%lmax)               :: old_c_l, new_c_l
-    real(dp)                                           :: ln_pi_ip1, ln_pi_i, cur_i, cur_ip1, chisq_ip1, chisq_i, log_probability, uni, fluc_ip1, fluc_i, fluc_test, f_lm_scaled_squared, f_lm_squared
+    real(dp)                                           :: chisq_first_ip1, chisq_first_i, chisq_second_ip1, chisq_second_i, chisq_third_ip1, chisq_third_i, cur_i, cur_ip1, log_probability, uni, f_lm_scaled_squared, f_lm_squared
     real(dp), dimension(3, 3)                          :: new_S, old_S
     integer(i4b)                                       :: k, i, l, m, comm, ierr
     logical(i4b)                                       :: acceptance, finished
@@ -601,8 +647,8 @@ contains
     new_c_l  = new_sample%c_l
     finished = .false.
 
-    ln_pi_ip1 = 0.d0
-    ln_pi_i   = 0.d0
+    chisq_first_ip1 = 0.d0
+    chisq_first_i   = 0.d0
 
     c => compList
     do while (associated(c))
@@ -627,8 +673,8 @@ contains
             cur_ip1 = dot_product(new_sample%s_lm(i, :), matmul(new_S, new_sample%s_lm(i, :)))
             cur_i = dot_product(old_sample%s_lm(i, :), matmul(old_S, old_sample%s_lm(i, :)))
 
-            ln_pi_ip1 = ln_pi_ip1 + cur_ip1
-            ln_pi_i   = ln_pi_i + cur_i
+            chisq_second_ip1 = chisq_second_ip1 + cur_ip1
+            chisq_second_i   = chisq_second_i + cur_i
           end if
         end do
 
@@ -640,60 +686,70 @@ contains
         allocate(sigma_l(0:c%x%info%lmax,c%x%info%nspec))
         call c%x%getSigmaL(sigma_l)
         if (c%x%info%myid == 0) then
-          filename = 'sigma_l_s_hat.dat'
+          filename = trim(cpar%outdir)//'/sigma_l_s_hat.dat'
           call write_sigma_l(filename, sigma_l)
         end if
-        call compute_chisq(c%x%info%comm, chisq_fullsky=chisq_ip1, evalpol=.true.)
+        call compute_chisq(c%x%info%comm, chisq_fullsky=chisq_first_ip1, evalpol=.true.)
 
         c%x%alm = old_sample%s_lm
-        call compute_chisq(c%x%info%comm, chisq_fullsky=chisq_i, evalpol=.true.)
+        call compute_chisq(c%x%info%comm, chisq_fullsky=chisq_first_i, evalpol=.true.)
 
         ! For plotting purposes
         c%x%alm = new_sample%s_lm+new_sample%f_lm
         call c%x%getSigmaL(sigma_l)
         if (c%x%info%myid == 0) then
-          filename = 'sigma_l_s_hat_f_hat.dat'
+          filename = trim(cpar%outdir) // '/sigma_l_s_hat_f_hat.dat'
           call write_sigma_l(filename, sigma_l)
         end if
         c%x%alm = new_sample%f_lm
         call c%x%getSigmaL(sigma_l)
         if (c%x%info%myid == 0) then
-          filename = 'sigma_l_f_hat.dat'
+          filename = trim(cpar%outdir) // '/sigma_l_f_hat.dat'
           call write_sigma_l(filename, sigma_l)
         end if
         c%x%alm = new_sample%scaled_f_lm
         call c%x%getSigmaL(sigma_l)
         if (c%x%info%myid == 0) then
-          filename = 'sigma_l_f_hat_scaled.dat'
+          filename = trim(cpar%outdir) // '/sigma_l_f_hat_scaled.dat'
           call write_sigma_l(filename, sigma_l)
         end if
       
 
         c%x%alm = new_sample%scaled_f_lm
         call get_alm_squared(self, c, comm, f_lm_scaled_squared)
-        call compute_fluctuation_acceptance(self, c, comm, fluc_ip1)
-        c%x%alm = new_sample%f_lm
-        call compute_fluctuation_acceptance(self, c, comm, fluc_test)
+        call compute_fluctuation_acceptance(self, c, comm, chisq_third_ip1)
+
         c%x%alm = old_sample%f_lm
         call get_alm_squared(self, c, comm, f_lm_squared)
-        call compute_fluctuation_acceptance(self, c, comm, fluc_i)
+        call compute_fluctuation_acceptance(self, c, comm, chisq_third_i)
         
 
         c%x%alm = temp
 
-        call mpi_allreduce(MPI_IN_PLACE, ln_pi_ip1, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
-        call mpi_allreduce(MPI_IN_PLACE, ln_pi_i, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+        call mpi_allreduce(MPI_IN_PLACE, chisq_first_ip1, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+        call mpi_allreduce(MPI_IN_PLACE, chisq_first_i, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
         
-        log_probability = -(ln_pi_ip1 - ln_pi_i) / 2.0d0
         if (c%x%info%myid == 0) then
-          write(*,*) 's_lm cl', ln_pi_ip1, ln_pi_i, log_probability
-          write(*,*) 'd-As_lm', chisq_ip1, chisq_i, -(chisq_ip1 - chisq_i)/2.0d0
-          write(*,*) 'f_lm', fluc_ip1, fluc_i, -(fluc_ip1 - fluc_i)/2.0d0, fluc_test
-          write(*,*) 'f_lm^2', f_lm_scaled_squared, f_lm_squared, -(f_lm_scaled_squared - f_lm_squared)/2.0d0
-          write(*, *) 'new chi^2', ln_pi_ip1 + chisq_ip1 + fluc_ip1
-          write(*, *) 'old chi^2', ln_pi_i + chisq_i + fluc_i
+          log_probability = -(chisq_first_ip1 - chisq_first_i) / 2.0d0
+          write(*,*) 'd-As_lm', chisq_first_ip1, chisq_first_i, log_probability
+          open(unit=1, file=trim(cpar%outdir)//'/chisq_first_term.dat', position="append", action='write')
+            write(1, '( 6(2X, ES14.6) )') chisq_first_ip1
+          close(1)
+
+          write(*,*) 's_lm cl', chisq_second_ip1, chisq_second_i, -(chisq_second_ip1 - chisq_second_i)/2.0d0
+          open(unit=1, file=trim(cpar%outdir)//'/chisq_second_term.dat', position="append", action='write')
+            write(1, '( 6(2X, ES14.6) )') chisq_second_ip1
+          close(1)
+          
+          write(*,*) 'f_lm', chisq_third_ip1, chisq_third_i, -(chisq_third_ip1 - chisq_third_i)/2.0d0
+          open(unit=1, file=trim(cpar%outdir)//'/chisq_third_term.dat', position="append", action='write')
+            write(1, '( 6(2X, ES14.6) )') chisq_third_ip1
+          close(1)
+          
+          write(*, *) 'new chi^2', chisq_first_ip1 + chisq_second_ip1 + chisq_third_ip1
+          write(*, *) 'old chi^2', chisq_first_i + chisq_second_i + chisq_third_i
           write(*, *) 'correct tau, proposed tau, old tau', 0.0544d0, new_sample%theta(1), old_sample%theta(1)
-          log_probability = log_probability - (chisq_ip1 - chisq_i)/2.0d0 - (fluc_ip1 - fluc_i)/2.0d0
+          log_probability = log_probability - (chisq_second_ip1 - chisq_second_i)/2.0d0 - (chisq_third_ip1 - chisq_third_i)/2.0d0
           write(*,*) 'Total log prob:', log_probability
           uni = rand_uni(handle)
           if (log_probability > 0) then
@@ -713,6 +769,7 @@ contains
             acceptance = .false.
             write(*,*) '-------- NOT ACCEPTED ---------'
           end if
+
           call mpi_bcast(acceptance, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
           finished = .true.
           call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
@@ -720,13 +777,15 @@ contains
           loop: do while (.true.)
             call mpi_bcast(acceptance, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
+
             if (finished) exit loop
           end do loop
         end if
       end select
       c => c%next()
     end do
-    
+  deallocate(temp)
+  deallocate(sigma_l)
   end function acceptance
 
   subroutine get_s_lm_f_lm(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm)
@@ -758,14 +817,10 @@ contains
     class(comm_comp), pointer                           :: c => null()
     real(dp), dimension(3, 3)                           :: new_S, old_S
     real(dp), dimension(4, 0: self%lmax)                :: old_c_l, new_c_l
-    real(dp), dimension(:, :), allocatable :: sigma_l
-    character(len=512)                                 :: filename
-    real(dp) :: res1, res2
+    character(len=512)                                  :: filename
     old_c_l  = old_sample%c_l
     new_c_l  = new_sample%c_l
 
-    res1 = 0
-    res2 = 0
     ! Solve for mean-field map
     include_mean = .true.
     include_fluct = .false.
@@ -808,7 +863,7 @@ contains
           do i = 0, c%x%info%nalm-1
             l = c%x%info%lm(1, i)
             if (l < 2) then
-              ! If scale_f_lm = True, then this is not first sample
+              ! If do_scale_f_lm = True, then this is not first sample
               if (do_scale_f_lm) then
                 new_sample%f_lm(i, :) = old_sample%f_lm(i, :)
               else
@@ -848,7 +903,7 @@ contains
 
   end subroutine get_s_lm_f_lm
 
-  subroutine init_covariance_matrix(self, L)
+  subroutine init_covariance_matrix(self, cpar, L)
     ! 
     ! Caclulates a multivariate Gaussian for the proposal function w
     ! If there exists a cosmo_param_out.dat file in the parent folder it uses
@@ -867,6 +922,7 @@ contains
     !    Cholesky decomposition matrix L from covariance matrix (L*L^T)      
     implicit none
     class(comm_camb),                  intent(inout) :: self
+    type(comm_params),                  intent(in)   :: cpar
     real(dp),         dimension(:, :), allocatable, intent(out)   :: L
 
     real(dp), dimension(:, :), allocatable :: covariance_matrix
@@ -882,12 +938,12 @@ contains
     allocate(L(n_theta, n_theta))
     allocate(covariance_matrix(n_theta, n_theta))
     
-    INQUIRE(FILE="cosmo_param_chain.dat", EXIST=previous_sample)
+    INQUIRE(FILE=trim(cpar%outdir)//'/cosmo_param_chain.dat', EXIST=previous_sample)
 
     if (previous_sample) then
        ! Caclulate covariance matrix
        print *, 'Found previous sample chain. Calculating covariance matrix and use Cholesky decomposition in proposals for this run'
-       open(1, file="cosmo_param_chain.dat", status='old', action='read')
+       open(1, file=trim(cpar%outdir)//'/cosmo_param_chain.dat', status='old', action='read')
        
        nlines = 0
        DO
@@ -898,7 +954,7 @@ contains
        
        allocate(old_samples(nlines, n_theta))
        
-       open(1, file="cosmo_param_chain.dat", status='old', action='read')
+       open(1, file=trim(cpar%outdir)//'/cosmo_param_chain.dat', status='old', action='read')
        DO k = 1, nlines
           READ (1, *) old_samples(k, :)
        END DO
@@ -953,10 +1009,12 @@ contains
     real(dp), dimension(6) :: camb_theta
 
     if (size(theta) == 1) then
-      ! Only sampling tau
       write(*, *) 'Only sampling tau'
       camb_theta = [0.02237d0, 0.12d0, 67.36d0, theta(1), 2.1d0, 0.9649d0]
       !camb_theta(5) = theta(1)
+    else if (size(theta) == 3) then
+      write(*, *) 'Only sampling tau, As, ns'
+      camb_theta = [0.02237d0, 0.12d0, 67.36d0, theta(1), theta(2), theta(3)]
     else
       camb_theta = theta
     end if

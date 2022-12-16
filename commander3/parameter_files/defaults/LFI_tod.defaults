@@ -27,7 +27,7 @@ NUM_SUBSAMP_PER_MAIN_SAMPLE   = 10
 # Numerical accuracy settings
 CG_CONVERGENCE_CRITERION       = fixed_iter chisq   # {residual, chisquare}
 CG_LMAX_PRECOND                =    -1   # lmax for low-l preconditioner
-CG_MAXITER                     =   300   # Conjugate gradients time out limit
+CG_MAXITER                     =   5000   # Conjugate gradients time out limit
 CG_MINITER                     =     5
 CG_TOLERANCE                   = 1.d-8   # Fractional CG convergence criterion
 CG_CONV_CHECK_FREQUENCY        =     1   # Check convergence every n'th iteration

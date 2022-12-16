@@ -62,6 +62,7 @@ contains
 
     pi      = 3.141592653589793238462643383279502884197_8
     lmax    = size(Cl,2)-1
+    write(*,*) lmax, 'lmax'
     
     P%ombh2 = cosmo_param(1)
     P%omch2 = cosmo_param(2)
@@ -127,10 +128,9 @@ contains
         END DO
     END DO
     !write(*,*) 'C^TT ell=100', Cl(1, 100), Cl(1, 100)*100*101/(2.d0*pi)
-    open(unit=1, file='cosmo_cl_out.dat', position="append", action='write')
-      write(1, '( 6(2X, ES14.6) )') Cl(3, :)
-    close(1)
-    write(*,*) 'cl written out!!!'
+    !open(unit=1, file='cosmo_cl_out.dat', position="append", action='write')
+    !  write(1, '( 6(2X, ES14.6) )') Cl(3, :)
+    !close(1)
     
   end subroutine get_c_l_from_camb
 
