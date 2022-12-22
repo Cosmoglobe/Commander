@@ -573,7 +573,7 @@ contains
 
                    ! Loop over priors on regions
                    if (.not. trim(cpar%cs_spec_pixreg_priors(j,i,id_abs)) == 'none') then
-                      if (self%npixreg(j,i) > 20) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)
+                      if (self%npixreg(j,i) > 32) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)
                       call get_tokens(cpar%cs_spec_pixreg_priors(j,i,id_abs), ",", pixreg_prior, n)
                       if (n == self%npixreg(j,i)) then
                          do pr = 1,self%npixreg(j,i)
