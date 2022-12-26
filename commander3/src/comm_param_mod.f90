@@ -748,6 +748,8 @@ contains
              call read_cmb_params_hash(htbl,cpar)
           case ('power_law')
              call read_power_law_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+          case ('exponential')
+             call read_power_law_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('power_law_break')
              call read_power_law_break_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('curvature')
@@ -3141,6 +3143,11 @@ contains
                   call validate_file(trim(cpar%cs_input_ind(1,i)))
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+          case ('exponential')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
           case ('physdust')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
                   call validate_file(trim(cpar%cs_input_ind(1,i)))
@@ -3555,7 +3562,7 @@ contains
     
     integer(i4b) :: i, num
     character(len=512), dimension(2) :: toks
-    
+
     call get_tokens(string, ":", toks, num)    
     chainfile = toks(1)
     read(toks(2),*) initsamp

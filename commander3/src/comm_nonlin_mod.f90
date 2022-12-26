@@ -2448,14 +2448,12 @@ contains
 
                 do k = 1,band_count
                    if (monopole_active(band_i(k)) .and. pol_j(k)==1) then
-                      write(*,*) 'probably here'
                       do pix = 0, np_lr-1
                          do i = 1, npar
                             if (i == id) cycle
                             all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
                          end do
 
-                         write(*,*) 'all_thetas,new_theta_smooth', maxval(all_thetas), maxval(new_theta_smooth)
                          all_thetas(id)=new_theta_smooth(pix)
 
                          mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
@@ -2494,9 +2492,8 @@ contains
                              ones_map%map = 0d0
                              ones_map%map(:,1) = 1d0
                              ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
-                             call rms_smooth(j)%p%sqrtInvN(ones_map)
-                             write(*,*) 'hereherehere', maxval(ones_map%map(:,1)), 'band', k
-                             a = sum((ones_map%map(:,1)/monopole_mixing(j))**2)
+                             call rms_smooth(band_i(k))%p%sqrtInvN(ones_map)
+                             a = sum((ones_map%map(:,1)/monopole_mixing(band_i(k)))**2)
                          else
                              a = 0d0
                          end if
@@ -2508,12 +2505,12 @@ contains
                              ones_map%map = 0d0
                              ones_map%map(:,1) = 1d0
                              ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
-                             call rms_smooth(j)%p%sqrtInvN(ones_map)
-                             a = sum((ones_map%map(:,1)/monopole_mixing(j))**2)
+                             call rms_smooth(band_i(k))%p%sqrtInvN(ones_map)
+                             a = sum((ones_map%map(:,1)/monopole_mixing(band_i(k)))**2)
       
                              ones_map%map = reduced_data
-                             call rms_smooth(j)%p%sqrtInvN(ones_map)
-                             b = sum((ones_map%map(:,1)/monopole_mixing(j))**2)
+                             call rms_smooth(band_i(k))%p%sqrtInvN(ones_map)
+                             b = sum((ones_map%map(:,1)/monopole_mixing(band_i(k)))**2)
                          else
                              a = 0d0
                              b = 0d0
@@ -3242,7 +3239,7 @@ contains
        mask_mono => null()
        call ones_map%dealloc()
        ones_map => null()
-       deallocate(ones_map,mask_mono)
+       !deallocate(ones_map,mask_mono)
     end if
 
     if (allocated(monopole_val)) deallocate(monopole_val)
