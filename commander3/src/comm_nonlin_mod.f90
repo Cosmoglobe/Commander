@@ -2650,7 +2650,7 @@ contains
                    end do
                 end do
              else 
-                write(*,*) 'invalid polarized lnL sampler type'
+                write(*,*) 'invalid polarized lnL sampler type: ', p, id, trim(c_lnL%pol_lnLtype(p,id))
                 stop
 
              end if !chisq/marginal/ridge
