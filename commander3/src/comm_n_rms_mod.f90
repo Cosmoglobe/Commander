@@ -345,17 +345,18 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    integer(i4b)  :: nmaps_band, nmaps_inp
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
     nmaps_band = size(self%siN%map, dim=2)
     nmaps_inp  = size(map%map, dim=2)
-    map%map(:,:nmaps_band) = self%siN%map * map%map(:,:nmaps_band)
+    nmaps      = min(nmaps_inp,nmaps_band)
+    map%map(:,:nmaps) = self%siN%map * map%map(:,:nmaps)
     if (nmaps_inp > nmaps_band) then
       map%map(:,nmaps_band+1:nmaps_inp) = 0
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
-          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
-          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+          map%map(:,:nmaps) = map%map(:,:nmaps) * self%samp_group_mask(samp_group)%p%map(:,:nmaps)
+          map%map(:,nmaps+1:nmaps_inp) = 0.d0
        end if
     end if
   end subroutine matmulSqrtInvN_1map
