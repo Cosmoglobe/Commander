@@ -105,7 +105,7 @@ contains
           constructor%theta(i)%p%map = constructor%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
+          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0
@@ -116,7 +116,7 @@ contains
     end do
 
     ! Initialize spectral template !CHANGE??
-    call read_spectrum(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), SED)
+    call read_spectrum(trim(cpar%cs_SED_template(1,id_abs)), SED)
     ind                = maxloc(SED(:,2))
     constructor%nu_p0  = SED(ind(1),1)
     constructor%nu_min = minval(SED(:,1))

@@ -58,6 +58,7 @@ module comm_tod_WMAP_mod
       logical(lgt) :: comp_S
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
       real(dp), allocatable, dimension(:,:)        :: M_lowres, M_diag
+      character(len=512) :: noise_format
    contains
       procedure     :: process_tod             => process_WMAP_tod
       procedure     :: precompute_M_lowres
@@ -216,7 +217,9 @@ contains
       constructor%baseline_order  = 1
       ! Jarosik et al. uses a third-order baseline. How much of a difference
       ! would this make?
-      constructor%baseline_order  = 3
+      ! constructor%baseline_order  = 3
+      ! It turns out that the noise parameters get weird very quickly, with some
+      ! bands immediately going to the boundaries.
       constructor%apply_inst_corr = .true.
       if (trim(constructor%level) == 'L1') then
           constructor%compressed_tod  = .true.
@@ -226,7 +229,7 @@ contains
       constructor%correct_sl      = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 50
+      constructor%chisq_threshold = 1000
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
       constructor%verbosity       = cpar%verbosity
@@ -263,6 +266,9 @@ contains
       ! Get detector labels
       call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
 
+      ! Get noise format
+      constructor%noise_format   = cpar%ds_noise_format(id_abs)
+
       ! Define detector partners
       ! I don't think this is necessary for WMAP...
       do i = 1, constructor%ndet
@@ -278,7 +284,7 @@ contains
       call constructor%read_tod(constructor%label)
 
       ! Initialize bandpass mean and proposal matrix
-      call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+      call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
       call constructor%precompute_lookups()
@@ -290,7 +296,7 @@ contains
       call constructor%collect_v_sun
 
       ! Precomputing low-resolution preconditioner
-      call constructor%precompute_M_lowres
+      ! call constructor%precompute_M_lowres
 
 
       ! Need precompute the main beam precomputation for both the A-horn and
@@ -366,6 +372,8 @@ contains
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
+      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv
+      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, det
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
@@ -388,6 +396,9 @@ contains
       real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
 
+      ! Counting data kept, lost
+      integer(i8b) :: n_tot, n_flag, n_discard
+
       character(len=80), dimension(180) :: header
 
 
@@ -405,6 +416,7 @@ contains
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
 
+
       call timer%start(TOD_ALLOC, self%band)
 
       ! Toggle optional operations
@@ -412,8 +424,9 @@ contains
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      select_data           = .false.         ! no data selection
-      select_data           = self%first_call ! only perform data selection the first time
+      !select_data           = .false.         ! no data selection
+      !select_data           = self%first_call ! only perform data selection the first time
+      select_data           = iter == 1 ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
@@ -428,12 +441,10 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 1
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0)    self%output_n_maps = 3
-         if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 6
-         if (iter .eq. 1)                              self%output_n_maps = 1
+         if (mod(iter-1,25) == 0) self%output_n_maps = 8
+         if (mod(iter-1,10) == 0) self%output_n_maps = 3
       end if
 
-      !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -448,6 +459,7 @@ contains
       allocate(map_full(nmaps, 0:npix-1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
+
 
 
       ! Distribute processing masks
@@ -475,6 +487,7 @@ contains
       M_diag = 0d0
       b_map = 0d0
 
+
       allocate(outmaps(1))
       outmaps(1)%p => comm_map(self%info)
 
@@ -485,6 +498,8 @@ contains
       end if
 
       call timer%stop(TOD_ALLOC, self%band)
+
+      if (mod(iter-1, 10) == 0 .or. self%first_call) call self%precompute_M_lowres
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -516,6 +531,7 @@ contains
             self%scans(i)%d%accept = .true.
          end do
       end if
+
 
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
@@ -570,6 +586,9 @@ contains
             write(*,*) '|    --> Sampling ncorr, xi_n, maps'
           end if
       endif
+      n_tot = 0
+      n_discard = 0
+      n_flag = 0
       do i = 1, self%nscan
          ! Skip scan if no accepted data
 
@@ -578,6 +597,13 @@ contains
                write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
                     & '"', 0.0, &
                     & real(self%spinaxis(i,:),sp)
+            end if
+            if (select_data) then 
+               call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+                 & init_s_bp=bp_corr, polang=polang)
+               n_tot = n_tot + sd%ntod/1000
+               n_flag = n_flag + sd%ntod/1000
+               call sd%dealloc
             end if
             cycle
          end if
@@ -620,24 +646,26 @@ contains
 
          ! Select data
          if (select_data) then 
+            ! Count how many good data points are thrown out from this
+            ! procedure.
+            n_tot = n_tot + sd%ntod/1000
+            n_flag = n_flag + count(iand(sd%flag(:,1),self%flag0) .ne. 0)/1000
             call remove_bad_data(self, i, sd%flag)
-            !pow2 = log(real(sd%ntod, sp))/log(2.0)
-            !if (2**(nint(pow2)) .ne. sd%ntod) then
-            !    write(*,*) self%scanid(i), sd%ntod, pow2
-            !    do j = 1, sd%ndet
-            !       self%scans(i)%d(j)%accept = .false.
-            !    end do
-            !end if
+            if (.not. self%scans(i)%d(1)%accept) then
+                n_discard = n_discard + (sd%ntod -count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
+            end if
             n = len(trim(self%freq)) - 1
             if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
                 if (sd%ntod < 2**22) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             else
                 if (sd%ntod < 2**21) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             end if
          end if
@@ -654,8 +682,8 @@ contains
 
 
          !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
-         if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
-         !if (.false.) then
+         !if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
+         if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
             call open_hdf_file(trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5', tod_file, 'w')
@@ -686,8 +714,9 @@ contains
          end if
          
          ! Bin TOD
+         ! Using procmask2 to only mask out the very brightest pixels.
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
-           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
+           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map, M_diag, i, &
            & self%comp_S)
 
          ! Update scan list
@@ -728,20 +757,26 @@ contains
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
              & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
         call update_status(status, "Ran allreduce on b_map")
+
+
+        if (select_data) then
+          call mpi_allreduce(mpi_in_place, n_tot, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_flag, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_discard, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+        end if
         call timer%stop(TOD_MPI, self%band)
 
 
         where (M_diag == 0d0)
            M_diag = 1d0
         end where
-        if (.not. self%comp_S) then
-           ! If we want to not do the "better preconditioning"
-           M_diag(:,4) = 0d0
-        end if
+        !if (.not. self%comp_S) then
+        !   M_diag(:,4) = 0d0
+        !end if
         if (self%myid == 0) self%M_diag = M_diag
-
-
-
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = self%output_n_maps, 1, -1
@@ -761,7 +796,7 @@ contains
             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
           end if
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                         & epsil, procmask, map_full, M_diag, b_map, l, &
+                         & epsil, procmask2, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S)
           
           if (l == 1 .and. self%myid == 0) then
@@ -798,9 +833,32 @@ contains
           call timer%start(TOD_WRITE) 
           if (l == 1) then
              map_out%map = outmaps(1)%p%map
-             rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
              call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-             call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+
+             ! Recall:
+             ! A = [[a, b],
+             !      [c, d]]
+             ! has the inverse
+             ! A-1 = [[d, -b],
+             !        [-c, a]]/(ad - bc)
+             ! Note that if bc = 0, then A-1 is just the inverse of the
+             ! diagonals.
+
+             if (trim(self%noise_format) == 'rms_qucov') then
+               allocate(det(0:npix-1))
+               det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+               rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
+               rms_out%map(:,2) = M_diag(self%info%pix,3)/det(self%info%pix)
+               rms_out%map(:,3) = M_diag(self%info%pix,2)/det(self%info%pix)
+               rms_out%map(:,4) = -M_diag(self%info%pix,4)/det(self%info%pix)
+               deallocate(det)
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             else if (trim(self%noise_format) == 'rms') then
+               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             else
+               if (self%myid == 0) write(*,*) 'unexpected noise format'
+             end if
           else
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
@@ -814,6 +872,13 @@ contains
         !   call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
         !   self%bp_delta = delta(:,:,1)
         !end if
+      end if
+
+      if (self%myid == 0  .and. select_data) then
+        write(*,*) '| Data rejection statistics'
+        write(*,*) '| n_tot     ', n_tot
+        write(*,*) '| flagged   ', n_flag
+        write(*,*) '| discarded ', n_discard
       end if
 
       ! Clean up temporary arrays
@@ -866,9 +931,9 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn
+      integer(i4b) :: i, j, k, t, p1, p2, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi
       real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
-      real(dp)     :: dx, xbar, x_pos, x_neg, fA, fB, mA, mB
+      real(dp)     :: dx, xbar, f_l, f_r, mA, mB
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
@@ -883,6 +948,7 @@ contains
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
+      !self%nside_M_lowres = 16
       self%nside_M_lowres = 8
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
@@ -896,8 +962,8 @@ contains
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
       xbar = (self%x_im(1) + self%x_im(3))*0.5
-      x_pos = 1 + xbar
-      x_neg = 1 - xbar
+      !dx = 0
+      !xbar = 0
 
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
@@ -914,8 +980,8 @@ contains
       M = 0.d0
 
       inv_sigma = 1
-      fA = 1
-      fB = 1
+      f_l = 1
+      f_r = 1
       ! Loop over scans
       do i = 1, self%nscan
          ! Skip scan if no accepted data
@@ -928,71 +994,108 @@ contains
          call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
 
          var = 0.d0
+         ! 16 because each variable is divided by 4, variance goes as Var(aX) = a^2 Var(X)
          do k = 1, 4
-            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/4
+            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/16
          end do
          ! TODO
-         !inv_sigma = sqrt(1.d0/var)
+         inv_sigma = sqrt(1.d0/var)
 
          do t = 1, ntod
             if (iand(flag(t),self%flag0) .ne. 0) cycle
             lpix = dgrade(pix(t, 1))
             rpix = dgrade(pix(t, 2))
+            lpsi = psi(t,1)
+            rpsi = psi(t,2)
 
-            fA = procmask(pix(t, 2))
-            fB = procmask(pix(t, 1))
+            f_l = procmask(pix(t,2))
+            f_r = procmask(pix(t,1))
 
             dl(1) = 1+xbar
-            dl(2) = dx * self%cos2psi(psi(t,1))
-            dl(3) = dx * self%sin2psi(psi(t,1))
-            dl    = dl * inv_sigma * fA
+            dl(2) = dx * self%cos2psi(lpsi)
+            dl(3) = dx * self%sin2psi(lpsi)
+            dl    = dl * inv_sigma * f_l
 
             dr(1) = -(1-xbar)
-            dr(2) = dx * self%cos2psi(psi(t,2))
-            dr(3) = dx * self%sin2psi(psi(t,2))
-            dr    = dr * inv_sigma * fB
+            dr(2) = dx * self%cos2psi(rpsi)
+            dr(3) = dx * self%sin2psi(rpsi)
+            dr    = dr * inv_sigma * f_r
 
 
             pl(1) = dx
-            pl(2) = (1+xbar) * self%cos2psi(psi(t,1))
-            pl(3) = (1+xbar) * self%sin2psi(psi(t,1))
-            pl    = pl * inv_sigma * fA
+            pl(2) = (1+xbar) * self%cos2psi(lpsi)
+            pl(3) = (1+xbar) * self%sin2psi(lpsi)
+            pl    = pl * inv_sigma * f_l
 
             pr(1) = dx
-            pr(2) = (1-xbar) * self%cos2psi(psi(t,2))
-            pr(3) = (1-xbar) * self%sin2psi(psi(t,2))
-            pr    = pr * inv_sigma * fB
+            pr(2) = -(1-xbar) * self%cos2psi(rpsi)
+            pr(3) = -(1-xbar) * self%sin2psi(rpsi)
+            pr    = pr * inv_sigma * f_r
 
             do k1 = 1, self%nmaps_M_lowres
-               p1 = (k1-1)*npix + lpix
+               p1_l = (k1-1)*npix + lpix
+               p1_r = (k1-1)*npix + rpix
                do k2 = 1, self%nmaps_M_lowres
-                  p2 = (k2-1)*npix + rpix
-                  M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
-                  M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
-                  M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
-                  M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
+                  p2_l = (k2-1)*npix + lpix
+                  p2_r = (k2-1)*npix + rpix
+                  !write(*,*) p1_l, p1_r, k1, p2_l, p2_r, k2
 
-                  M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
-                  M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
-                  M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
-                  M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
+                  if ((k1 .eq. 1 .and. k2 .eq. 1) .or. (k1 > 1 .and. k2 > 1)) then
+                      ! Intensity
+                      ! P_A N^-1 P_A
+                      M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
+                      ! P_B N^-1 P_B
+                      M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
+                      ! P_A N^-1 P_B
+                      M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
+                      ! P_B N^-1 P_A
+                      M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
+
+                      ! Polarization
+                      M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
+                      M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
+                      M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
+                      M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
+                 end if
                end do
             end do
+
+            !do k1 = 1, self%nmaps_M_lowres
+            !   p1 = (k1-1)*npix + lpix
+            !   do k2 = 1, self%nmaps_M_lowres
+            !      p2 = (k2-1)*npix + rpix
+            !      M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
+            !      M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
+            !      M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
+            !      M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
+
+            !      M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
+            !      M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
+            !      M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
+            !      M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
+            !   end do
+            !end do
 
          end do
 
          deallocate(pix, psi, flag)
       end do
 
-      if (self%myid == 0) write(*,*) '|    Inverting preconditioner'
+      call timer%start(TOD_WAIT, self%band)
+      call mpi_barrier(self%comm, ierr)
+      call timer%stop(TOD_WAIT, self%band)
+
       ! Collect contributions from all cores 
       if (self%myid == 0) then
+         write(*,*) '|    Inverting preconditioner'
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-!!$         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-!!$         call write_hdf(precond_file, '/M', self%M_lowres)
-!!$         call close_hdf_file(precond_file)
+         !if (self%first_call) then
+         !    call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+         !    call write_hdf(precond_file, '/M', self%M_lowres)
+         !    call close_hdf_file(precond_file)
+         !end if
 
          call invert_matrix(self%M_lowres)
       else

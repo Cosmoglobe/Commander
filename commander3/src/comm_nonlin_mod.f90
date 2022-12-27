@@ -628,15 +628,16 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f10.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                !write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                write(*,*) trim(outmessage)
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
                    regs(i,:,pl) = c%theta_pixreg(:,pl,j)
                    if (c%npixreg(pl,j) < 20) then
                       write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
-                      write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                      write(*,*) trim(outmessage)
                    end if
                 end if
              end if
@@ -1006,7 +1007,7 @@ contains
        nullify(res)
     end do
 
-    c           => compList     ! Extremely ugly hack...
+    c           => compList     
     do while (c%id /= comp_id)
        c => c%next()
     end do
@@ -1081,10 +1082,7 @@ contains
              info               => data(i)%res%info
              res_smooth(i)%p    => data(i)%res
              tmp                => data(i)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                rms_smooth(i)%p    => tmp
-             end select
+             rms_smooth(i)%p    => data(i)%N
           else if (status_fit(i) == 2) then
              ! Fit is done with downgraded data
              ! Needs rewrite! We should smooth at Nside and lmax of the data band, then downgrade to low resolution Nside. This to limit chances for ringing. 
@@ -1485,7 +1483,7 @@ contains
 
 
     id = par_id
-    c           => compList     ! Extremely ugly hack...
+    c           => compList     
     do while (comp_id /= c%id)
        c => c%next()
     end do
@@ -1635,12 +1633,13 @@ contains
     class(comm_map),                 pointer :: mask_lr => null() ! lowres mask
     class(comm_map),                 pointer :: mask_mono => null() ! lowres mask
     class(comm_map),                 pointer :: res_map => null() ! lowres  residual map
+    class(comm_map),                 pointer :: ones_map => null() ! Constant sky
+    class(comm_map),                 pointer :: Ninv_map => null() ! Inverse covariance diagonal
     class(comm_map),                 pointer :: temp_res => null() 
     class(comm_map),                 pointer :: temp_map => null() 
     class(comm_map),                 pointer :: temp_noise => null() 
     class(comm_map),                 pointer :: temp_mixing => null() 
     class(comm_map),                 pointer :: temp_chisq => null() 
-    type(map_ptr), allocatable, dimension(:) :: lr_chisq
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
     real(dp),      allocatable, dimension(:) :: old_mono, new_mono
@@ -1653,7 +1652,7 @@ contains
     real(dp),                 dimension(3)   :: vector
     integer(i4b) :: i_md, j_md, k_md, max_prop
 
-    c           => compList     ! Extremely ugly hack...
+    c           => compList     
     do while (comp_id /= c%id)
        c => c%next()
     end do
@@ -1732,7 +1731,7 @@ contains
     !set up which bands and polarizations to include
     allocate(band_i(3*numband),pol_j(3*numband))
 
-    !set up the monopoles if appliccable
+    !set up the monopoles if applicable
     if (c_lnL%spec_mono_combined(par_id)) then
        allocate(monopole_val(numband))
        allocate(monopole_mu(numband))
@@ -1748,12 +1747,24 @@ contains
 
        !ud_grade monopole mask (if it is not same nside as smoothing scale)
        mask_mono => comm_map(info_lr)
+       mask_mono%map = 0d0
        call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
        where (mask_mono%map > 0.5d0)
           mask_mono%map=1.d0
        elsewhere
           mask_mono%map=0.d0
        end where
+
+       ! Creating map of all ones. Useful in general.
+       ones_map  => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(ones_map)
+       ones_map%map      = 0.d0
+       ones_map%map(:,1) =  1.d0
+
+       ! Creating chisq map
+       temp_chisq => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(temp_chisq)
+       temp_chisq%map = 0.d0
 
        !set up harmonics matrices for solving mono- and dipole estimates
        allocate(harmonics(0:np_lr-1,0:3)) !harmonics without mixing scaling (will not chainge)
@@ -1792,7 +1803,7 @@ contains
        if (c_lnL%spec_mono_combined(par_id)) then
           if (p_min > 1) cycle !only polarization maps active, i.e. no monopoles are to be sampled
 
-          c2           => compList     ! Extremely ugly hack...
+          c2           => compList     
 
           do while (associated(c2))
              select type (c2)
@@ -1889,7 +1900,9 @@ contains
 
        end do
        do pix=0,np_fr-1
-          buffer_lnL(pix,1)=new_thetas(c_lnL%ind_pixreg_arr(pix,p,id))
+          do i = p_min, p_max
+             buffer_lnL(pix,i)=new_thetas(c_lnL%ind_pixreg_arr(pix,p,id))
+          end do
        end do
        deallocate(new_thetas)
 
@@ -1983,16 +1996,21 @@ contains
 
                    !solve the mono-/dipole system
                    call solve_system_real(md_A, multipoles, md_b) 
-
                    ! Need to get the statistical power for when adding the monopole prior
-                   a=0.d0
-                   do pix = 0,np_lr-1
-                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                      end if
-                   end do
 
-                   !gather a
+                   ! Not all cores get low resolution pixels. These if tests
+                   ! avoid that
+                   if (np_lr > 0) then
+                       ones_map%map = 0d0
+                       ones_map%map(:,1)  = 1d0
+                       ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                       ones_map%map(:,2:) = 0d0
+                       call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       ones_map%map = ones_map%map * monopole_mixing(j)
+                       a = sum(ones_map%map(:,1)**2)
+                   else 
+                       a = 0d0
+                   end if
                    call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                         & MPI_SUM, info_lr%comm, ierr)
 
@@ -2000,18 +2018,25 @@ contains
 
                    a=0.d0
                    b=0.d0
-                   do pix = 0,np_lr-1
-                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                         b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
-                      end if
-                   end do
+                   if (np_lr > 0) then
+                       ones_map%map = 0d0
+                       ones_map%map(:,1) = 1d0
+                       ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                       call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       ones_map%map = ones_map%map * monopole_mixing(j)
+                       a = sum(ones_map%map(:,1)**2)
 
-                   !gather a and b
+                       ones_map%map = reduced_data
+                       call rms_smooth(j)%p%sqrtInvN(ones_map)
+                       ones_map%map = ones_map%map * monopole_mixing(j)
+                       b = sum(ones_map%map(:,1)**2)
+                   end if
                    call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                         & MPI_SUM, info_lr%comm, ierr)
                    call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
                         & MPI_SUM, info_lr%comm, ierr)
+
+
                    if (a > 0.d0) then
                       multipoles(0) = b/a
                    else
@@ -2052,7 +2077,7 @@ contains
                 monopole_val(j)=mu
                 
                 !find the monopole component and update the monopole
-                c2           => compList     ! Extremely ugly hack...
+                c2           => compList     
                 do while (associated(c2))
                    select type (c2)
                    class is (comm_md_comp)
@@ -2078,8 +2103,6 @@ contains
           theta_lr_hole => null()
           call theta_fr%dealloc(); deallocate(theta_fr)
           theta_fr => null()
-          call mask_mono%dealloc(); deallocate(mask_mono)
-          mask_mono => null()
           
        end if
 
@@ -2119,13 +2142,6 @@ contains
              end do
           end if
        end if
-       if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .false.) then !debug chisq (RMS scaling) for smoothing scale
-          allocate(lr_chisq(band_count))
-          do k = 1,band_count
-             lr_chisq(k)%p => comm_map(info_lr_single)
-             lr_chisq(k)%p%map=0.d0
-          end do
-       end if
     end if
 
 
@@ -2150,6 +2166,9 @@ contains
 
     !init lowres residual map
     res_map => comm_map(info_lr)
+
+    ! Init inverse noise diagonal map
+    Ninv_map => comm_map(info_lr)
 
 
     ! This is used for marginal/ridge sampling
@@ -2369,6 +2388,7 @@ contains
              ! threshold smoothed map on uniform limits
              new_theta_smooth(:) =min(theta_max,max(theta_min, new_theta_smooth(:))) 
 
+
              !###################################################################################################
              ! if monopole sampling together with spectral parameter:
              !
@@ -2419,33 +2439,39 @@ contains
                          !solve the mono-/dipole system
                          call solve_system_real(md_A, multipoles, md_b) 
 
-                         ! Need to get the statistical power for when adding the monopole prior
-                         a=0.d0
-                         do pix = 0,np_lr-1
-                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                            end if
-                         end do
-
-                         !gather a
+                         if (np_lr > 0) then
+                             ones_map%map = 0d0
+                             ones_map%map(:,1) = 1d0
+                             ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                             call rms_smooth(band_i(k))%p%sqrtInvN(ones_map)
+                             a = sum((ones_map%map(:,1)/monopole_mixing(band_i(k)))**2)
+                         else
+                             a = 0d0
+                         end if
                          call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                               & MPI_SUM, info_lr%comm, ierr)
 
                       else if (trim(monocorr_type) == 'monopole') then
-                         a=0.d0
-                         b=0.d0
-                         do pix = 0,np_lr-1
-                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                               b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
-                            end if
-                         end do
-
-                         !gather a and b
+                         if (np_lr > 0) then
+                             ones_map%map = 0d0
+                             ones_map%map(:,1) = 1d0
+                             ones_map%map(:,1) = ones_map%map(:,1) * mask_mono%map(:,1)
+                             call rms_smooth(band_i(k))%p%sqrtInvN(ones_map)
+                             a = sum((ones_map%map(:,1)/monopole_mixing(band_i(k)))**2)
+      
+                             ones_map%map = reduced_data
+                             call rms_smooth(band_i(k))%p%sqrtInvN(ones_map)
+                             b = sum((ones_map%map(:,1)/monopole_mixing(band_i(k)))**2)
+                         else
+                             a = 0d0
+                             b = 0d0
+                         end if
                          call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
                               & MPI_SUM, info_lr%comm, ierr)
                          call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
                               & MPI_SUM, info_lr%comm, ierr)
+
+
                          if (a > 0.d0) then
                             multipoles(0) = b/a
                          else
@@ -2493,61 +2519,6 @@ contains
                            & monopole_mixing(band_i(k))*(monopole_val(band_i(k))-new_mono(band_i(k)))
                       
 
-                      if (first_sample .and. .false.) then !debugging
-                         !we want to compare the power of the smoothing scale nside to pull monopole away from prior compared to the full resolution of the data band
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, 1, .false.)
-                         temp_map => comm_map(info_fr_single)
-                         temp_map%map(:,1) = c_lnL%spec_mono_mask(par_id)%p%map(:,1)
-                         temp_res => comm_map(info_data) !reusing temp_res as a ud_graded monopole mask
-                         if (info_data%nside /= c_lnL%nside) then
-                            call temp_map%udgrade(temp_res)
-                            where (temp_res%map > 0.5d0)
-                               temp_res%map=1.d0
-                            elsewhere 
-                               temp_res%map = 0.d0
-                            end where
-                         else
-                            temp_res%map = temp_map%map
-                         end if
-                         
-                         call temp_map%dealloc(); deallocate(temp_map)
-                         nullify(temp_map)
-                         a = 0.d0
-
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, data(band_i(k))%info%nmaps, data(band_i(k))%info%nmaps==3)
-                         temp_map => comm_map(info_data)
-                         temp_map%map = 1.d0
-                         call data(band_i(k))%N%invN(temp_map) !get inverse Noise matrix of data band
-                         
-                         do pix = 0,info_data%np-1
-                            if (temp_res%map(pix,1) > 0.5d0) a = a + monopole_mixing(band_i(k))**2 * &
-                                 & temp_map%map(pix,1)
-                         end do
-
-                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                              & MPI_SUM, info_lr%comm, ierr)
-                         sigma_p=sqrt(a)
-
-                         call temp_map%dealloc(); deallocate(temp_map)
-                         nullify(temp_map)
-                         call temp_res%dealloc(); deallocate(temp_res)
-                         nullify(temp_res)
-
-                         if (myid_pix == 0) then
-                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') trim(data(band_i(k))%label), &
-                                 & monopole_val(band_i(k))*monopole_mixing(band_i(k)), &
-                                 & new_mono(band_i(k))*monopole_mixing(band_i(k)), &
-                                 & monopole_mu(band_i(k))*monopole_mixing(band_i(k))
-
-                            write(*,fmt='(a15,e15.5,e15.5,e15.5)') ' ', &
-                                 & sigma*monopole_mixing(band_i(k)), & !the low resolution(smoothscale) sigma
-                                 & sigma_p*monopole_mixing(band_i(k)), & ! the full data sigma
-                                 & monopole_rms(band_i(k))*monopole_mixing(band_i(k)) ! the prior sigma
-                         end if
-                      end if
-
                    end if !monopole_active(band_i(k) .and. pol_j(k)==1
                 end do !band_count
 
@@ -2558,79 +2529,34 @@ contains
 
              !lnL type should split here
              if (trim(c_lnL%pol_lnLtype(p,id))=='chisq') then
-
+                temp_chisq%map = 0d0
                 do k = 1,band_count !run over all active bands
 
-                   if (data(band_i(k))%N%type == "rms") then !normal chisq
-
-
-                      do pix = 0,np_lr-1 !loop over pixels covered by the processor (on the lowres (smooth scale) map)
-                         
-                         if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
-                         all_thetas(id)=new_theta_smooth(pix)
-                         !get the values of the remaining spec inds of the component for the given pixel
-                         do i = 1, npar
-                            if (i == id) cycle
-                            all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
-                         end do
-
-                         ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
-                         ! both for old and new spec. ind. and calc. log likelihood (chisq)
-
-                         mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
-
-                         res_lnL = reduced_data(pix,k) - mixing_new* &
-                              & c_lnL%x_smooth%map(pix,pol_j(k))
-
-
-                         if (allocated(lr_chisq)) then !for debugging
-                            lr_chisq(k)%p%map(pix,1) = (res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                         end if
-
-                         lnL_new = lnL_new -0.5d0*(res_lnL*rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                      end do
-
-                   else if (data(band_i(k))%N%type == "QUcov") then !QU_cov rms, udgrade if necessary
+                   do pix = 0,np_lr-1 !loop over pixels covered by the processor (on the lowres (smooth scale) map)
                       
-                      !build residual map
-                      res_map%map = 0.d0
-                      do pix = 0,np_lr-1 !loop over pixels covered by the processor
-                         if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
-
-                         do i = 1, npar
-                            if (i == id) cycle
-                            all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
-                         end do
-
-                         all_thetas(id)=new_theta_smooth(pix)
-
-                         mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
-                              & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
-
-                         res_map%map(pix,pol_j(k)) = reduced_data(pix,k) - mixing_new* &
-                              & c_lnL%x_smooth%map(pix,pol_j(k))
+                      if (mask_lr%map(pix,p) < 0.5d0) cycle     ! if pixel is masked out, go to next pixel
+                      all_thetas(id)=new_theta_smooth(pix)
+                      !get the values of the remaining spec inds of the component for the given pixel
+                      do i = 1, npar
+                         if (i == id) cycle
+                         all_thetas(i) = c_lnL%theta_smooth(i)%p%map(pix,p) 
                       end do
 
-                      if (data(band_i(k))%info%nside /= info_lr%nside) then
-                         info_data  => comm_mapinfo(data(band_i(k))%info%comm, data(band_i(k))%info%nside, &
-                              & 0, data(band_i(k))%info%nmaps, data(band_i(k))%info%nmaps==3)
-                         temp_res => comm_map(info_data)
-                         call res_map%udgrade(temp_res)
-                      else
-                         temp_res => comm_map(info_lr)
-                         temp_res%map = res_map%map
-                      end if
+                      ! get conversion factor from amplitude to data (i.e. mixing matrix element)           
+                      ! both for old and new spec. ind. and calc. log likelihood (chisq)
 
-                      call data(i)%N%sqrtInvN(temp_res)
+                      mixing_new = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
+                           & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
 
-                      temp_res%map = temp_res%map*temp_res%map
+                      temp_chisq%map(pix,pol_j(k)) = reduced_data(pix,k) - mixing_new* &
+                           & c_lnL%x_smooth%map(pix,pol_j(k))
 
-                      lnL_new = lnL_new -0.5d0*sum(temp_res%map(:,pol_j(k)))
-                      call temp_res%dealloc(); deallocate(temp_res)
+                   end do
+                   call rms_smooth(band_i(k))%p%sqrtInvN(temp_chisq)
+                   lnL_new = lnL_new -0.5d0*sum(temp_chisq%map)**2
 
-                   end if
                 end do
+
 
              else if ((trim(c_lnL%pol_lnLtype(p,id))=='ridge') .or. &
                   & (trim(c_lnL%pol_lnLtype(p,id))=='marginal')) then
@@ -2662,11 +2588,7 @@ contains
                          mixing_new_arr(l_count) = c_lnL%F_int(pol_j(k),band_i(k),0)%p%eval(all_thetas) * &
                               & data(band_i(k))%gain * c_lnL%cg_scale(pol_j(k))
                          data_arr(l_count)=reduced_data(pix,k)
-                         if (data(band_i(k))%N%type == "rms") then !normal diagonal noise
-                            invN_arr(l_count)=rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k))**2 !assumed diagonal and uncorrelated 
-                         else
-                            invN_arr(l_count)=0.d0 ! Neglect the band (should just get the diagonal element of the cov matrix)
-                         end if
+                         invN_arr(l_count)=rms_smooth(band_i(k))%p%rms_pix(pix, pol_j(k), ret_invN=.true.)
                       end do
 
                       !compute the marginal/ridge log-likelihood for the pixel, by computing the maximum likelihood chisq
@@ -2679,7 +2601,7 @@ contains
                    end do
                 end do
              else 
-                write(*,*) 'invalid polarized lnL sampler type'
+                write(*,*) 'invalid polarized lnL sampler type: ', p, id, trim(c_lnL%pol_lnLtype(p,id))
                 stop
 
              end if !chisq/marginal/ridge
@@ -3086,29 +3008,6 @@ contains
     call int2string(cpar%mychain, ctext)
     postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
 
-    !debug output
-    if (.false. .and. cpar%cs_output_localsamp_maps .and. allocated(lr_chisq)) then
-       call int2string(cpar%mychain, ctext)
-       call int2string(iter,         itext)
-
-       do k = 1,band_count
-          filename=trim(cpar%outdir)//'/'//'chisq_local_'//trim(data(band_i(k))%label)
-
-          if (pol_j(k) == 1) then
-             filename=trim(filename)//'_I'
-          else if (pol_j(k) == 2) then
-             filename=trim(filename)//'_Q'
-          else if (pol_j(k) == 3) then
-             filename=trim(filename)//'_U'             
-          end if
-          filename=trim(filename)//'_'//trim(postfix)//'.fits'
-
-          call lr_chisq(k)%p%writeFITS(trim(filename))
-          call lr_chisq(k)%p%dealloc(); deallocate(lr_chisq(k)%p)
-          lr_chisq(k)%p => null()
-       end do
-       deallocate(lr_chisq)
-    end if
 
     if (iter >= c_lnL%sample_first_niter) then !only stop sampling after n'th iteration, in case first iter is far off.
        c_lnL%pol_sample_nprop(p,id) = .false. !set sampling of correlation length (number of proposals) and
@@ -3160,7 +3059,7 @@ contains
        do j = 1,numband
           if (monopole_active(j)) then
              !find the monopole component and update the monopole
-             c2           => compList     ! Extremely ugly hack...
+             c2           => compList     
              do while (associated(c2))
                 select type (c2)
                 class is (comm_md_comp)
@@ -3284,11 +3183,14 @@ contains
     call theta_single_fr%dealloc(); deallocate(theta_single_fr); theta_single_fr => null()
     call mask_lr%dealloc();         deallocate(mask_lr);         mask_lr => null()
     call res_map%dealloc();         deallocate(res_map);         res_map => null()
+    call Ninv_map%dealloc();        deallocate(Ninv_map);        Ninv_map => null()
     
     if (c_lnL%spec_mono_combined(par_id)) then
        call mask_mono%dealloc() 
-       deallocate(mask_mono)
        mask_mono => null()
+       call ones_map%dealloc()
+       ones_map => null()
+       !deallocate(ones_map,mask_mono)
     end if
 
     if (allocated(monopole_val)) deallocate(monopole_val)
@@ -3397,6 +3299,13 @@ contains
     integer(i4b) :: i, j, mat_len
     real(dp)     :: MNd,MNM,invMNM, amp, chisq
     real(dp), dimension(:), allocatable :: MN
+    !  
+    !  Evaluates "ridge likelihood" from BP13, arXiv:2201.08188. Take equation
+    !  23 from this, but replace the integral with the the maximum likelihood
+    !  solution for a given beta.
+    !
+    !  Implicitly assumes that we are evaluating for a single component.
+    !
     !  Function to evaluate the log-likelihood for a pixel across all bands in one polarization,
     !  returning the highest likelihood chisq value of the log-likelihood for the given theta/mixing matrix.
     !
@@ -3417,7 +3326,7 @@ contains
     !  Arguments:
     !  ------------------
     !  mixing: double precision array, unknown length
-    !     An arraycontaining the pixel specific mixing matrix values for the different bands in the evaluation.
+    !     An array containing the pixel specific mixing matrix values for the different bands in the evaluation.
     !  invN_arr: double precision array, unknown length
     !     An array with the pixel specific inverse noise variance values for the different bands in the evaluation.
     !  data: double precision array, unknown length

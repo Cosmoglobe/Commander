@@ -72,7 +72,7 @@ contains
              !stop
           end if
           
-          if (trim(data(i)%N%type) == "rms" .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
+          if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
              if (lowres_eval) then
                 lowres = .true.
                 info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
@@ -91,6 +91,7 @@ contains
           else
              lowres=.false.
              call data(i)%N%sqrtInvN(res) 
+             write(*,*) 'N*sqrtInv(N) = ', res%map(1,1)
              res%map = res%map**2 !(sqrtInvN*res)**2 = res*invN*res
           end if
 

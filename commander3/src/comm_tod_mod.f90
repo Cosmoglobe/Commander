@@ -1,4 +1,4 @@
-!================================================================================
+!===============================================================================
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
@@ -106,6 +106,7 @@ module comm_tod_mod
      integer(i4b) :: npsi                                         ! Number of discretized psi steps
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
+     integer(i4b) :: ntime                                        ! Number of time values
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
 
      real(dp)     :: central_freq                                 !Central frequency
@@ -116,6 +117,7 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
+     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -163,6 +165,7 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
+     class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
@@ -329,6 +332,7 @@ contains
       self%orbital = .true.
     end if
 
+
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}
     else if (trim(self%noise_psd_model) == '2oof') then
@@ -352,10 +356,10 @@ contains
 
     datadir = trim(cpar%datadir)//'/'
     self%datadir     = datadir
-    self%filelist    = trim(datadir)//trim(cpar%ds_tod_filelist(id_abs))
-    self%procmaskf1  = trim(datadir)//trim(cpar%ds_tod_procmask1(id_abs))
-    self%procmaskf2  = trim(datadir)//trim(cpar%ds_tod_procmask2(id_abs))
-    self%instfile    = trim(datadir)//trim(cpar%ds_tod_instfile(id_abs))
+    self%filelist    = trim(cpar%ds_tod_filelist(id_abs))
+    self%procmaskf1  = trim(cpar%ds_tod_procmask1(id_abs))
+    self%procmaskf2  = trim(cpar%ds_tod_procmask2(id_abs))
+    self%instfile    = trim(cpar%ds_tod_instfile(id_abs))
 
     if (trim(self%level) == 'L1') then
         if (.not. self%sample_L1_par) then
@@ -390,14 +394,14 @@ contains
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs), cpar%datadir)
+      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs))
     else
-      self%ndet     = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+      self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if
 
 
     ! Initialize jumplist
-    call self%read_jumplist(datadir, cpar%ds_tod_jumplist(id_abs))
+    call self%read_jumplist(cpar%ds_tod_jumplist(id_abs))
 
     allocate(self%stokes(self%nmaps))
     allocate(self%w(self%nmaps, self%nhorn, self%ndet))
@@ -486,6 +490,9 @@ contains
             self%pix2ind(pix(1)) = 1
             do k = 2, self%scans(i)%ntod
                pix(k)  = pix(k-1)  + pix(k)
+               if (pix(k) > 12*self%nside**2-1) then
+                   write(*,*) pix(k), k, pix(1), l, self%label(j),self%scans(i)%chunk_num
+               end if
                self%pix2ind(pix(k)) = 1
             end do
           end do
@@ -548,21 +555,17 @@ contains
 
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl,   nmaps_beam, pol_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
+    self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       if (self%correct_sl) then
-         self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-         call self%slbeam(i)%p%Y()
-       end if
-       if (self%orb_4pi_beam) then
-         self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)), lmax_file=lmax_beam)
-         call self%mbeam(i)%p%Y()
-       end if
-       call self%load_instrument_inst(h5_file, i)
+       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
+       call self%mbeam(i)%p%Y()
     end do
 
     call close_hdf_file(h5_file)
@@ -611,13 +614,13 @@ contains
     if (self%myid == 0) then
        call open_hdf_file(self%initfile, file, "r")
        !TODO: figure out how to make this work
-       call read_hdf_string2(file, "/common/det",    det_buf, n)
+       call read_hdf_string2(file, "/common/det", det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
        
        if (index(det_buf(1:n), '.txt') /= 0) then
-         ndet_tot = count_detectors(det_buf(1:n), datadir)
+         ndet_tot = count_detectors(det_buf(1:n))
        else
          ndet_tot = num_tokens(det_buf(1:n), ",")
        end if
@@ -629,7 +632,7 @@ contains
        self%polang = 0
        self%mbang = 0
        if (index(det_buf(1:n), '.txt') /= 0) then
-         call get_detectors(det_buf(1:n), datadir, dets)
+         call get_detectors(det_buf(1:n), dets)
        else
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
@@ -652,9 +655,9 @@ contains
        call read_hdf(file, "common/fsamp",  self%samprate)
        call read_hdf(file, "common/polang", polang_buf, opt=.true.)
        call read_hdf(file, "common/mbang",  mbang_buf, opt=.true.)
-!!$          do j = 1, ndet_tot
-!!$             write(*,*) j, trim(dets(j))
-!!$          end do
+      !  do j = 1, ndet_tot
+      !     print *,  j, trim(dets(j))
+      !  end do
        do i = 1, self%ndet
           do j = 1, ndet_tot
              if(trim(adjustl(detlabels(i))) == trim(adjustl(dets(j)))) then
@@ -763,6 +766,7 @@ contains
        end do
     end do
 
+    call update_status(status, "ccc")
 
     ! Precompute trigonometric functions
     allocate(self%sin2psi(self%npsi), self%cos2psi(self%npsi))
@@ -839,9 +843,11 @@ contains
     real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
 
+
     self%chunk_num = scan
     call int2string(scan, slabel)
-
+    
+    !print *, filename
     call open_hdf_file(filename, file, "r")
 
     ! Find array sizes
@@ -864,10 +870,10 @@ contains
     self%ext_lowres(2)   = int(self%ntod/int(tod%samprate/tod%samprate_lowres)) + 1 + self%ext_lowres(1)
 
     ! Read common scan data
-    call read_hdf(file, slabel // "/common/vsun",  self%v_sun)
+    call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
     call read_hdf(file, slabel // "/common/time",  self%t0)
     ! HKE: LFI files should be regenerated with (x,y,z) info
-    !call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
+    call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -881,6 +887,7 @@ contains
        field                = detlabels(i)
        self%d(i)%label      = trim(field)
        call read_hdf(file, slabel // "/" // trim(field) // "/scalars",   scalars)
+      
        self%d(i)%gain_def   = scalars(1)
        self%d(i)%gain       = scalars(1)
        xi_n(1:3)            = scalars(2:4)
@@ -1137,10 +1144,10 @@ contains
   end subroutine read_hdf_scan_data
 
 
-  subroutine read_jumplist(self, datadir, jumplist)
+  subroutine read_jumplist(self, jumplist)
     implicit none
     class(comm_tod),   intent(inout) :: self
-    character(len=*),  intent(in)    :: datadir, jumplist
+    character(len=*),  intent(in)    :: jumplist
 
     integer(i4b) :: i, j, n_jumps, unit
 
@@ -1153,7 +1160,7 @@ contains
     else
 
        unit = getlun()
-       open(unit,file=trim(datadir)//'/'//trim(jumplist))
+       open(unit,file=trim(jumplist))
        read(unit,*) n_jumps
        allocate(self%jumplist(self%ndet, n_jumps+2))
        self%jumplist(:,1) = 1

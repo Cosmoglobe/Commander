@@ -106,7 +106,7 @@ contains
           constructor%theta(i)%p%map = constructor%theta_def(1)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
+          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0
@@ -143,7 +143,7 @@ contains
 
     allocate(comp_mat(num_nu,constructor%num_u,constructor%num_comp))    
     do k = 1, constructor%num_comp
-       open(unit,file=trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(k,id_abs)),recl=4096)
+       open(unit,file=trim(cpar%cs_SED_template(k,id_abs)),recl=4096)
        do i = 1, num_nu
           read(unit,fmt='(1P26E11.3)') constructor%log_dust_wav(i), constructor%extcrv(i),&
                & constructor%extpol(i), constructor%scat(i), (comp_mat(i,j,k),j=1,constructor%num_u), &

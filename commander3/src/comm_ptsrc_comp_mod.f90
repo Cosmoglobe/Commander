@@ -605,7 +605,7 @@ contains
     allocate(amp(nmaps), amp_rms(nmaps), beta(npar,nmaps), beta_rms(npar,nmaps))
 
     ! Count number of valid sources
-    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
+    open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     self%nsrc    = 0
     self%ncr     = 0
     self%ncr_tot = 0
@@ -625,12 +625,12 @@ contains
 1   close(unit)
 
     if (self%nsrc == 0) call report_error('No valid sources in = ' // &
-         & trim(trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs))))
+         & trim(cpar%cs_catalog(id_abs)))
     
     ! Initialize point sources based on catalog information
     allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
     allocate(mask(self%nsrc,self%nmaps), mask2(self%nsrc,self%nmaps))
-    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
+    open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     i    = 0
     mask = 1
     do while (.true.)
@@ -703,7 +703,7 @@ contains
 
     ! Initialize parameter values on existing catalog if requested
     if (trim(cpar%cs_init_catalog(id_abs)) /= 'none') then
-       open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_init_catalog(id_abs)),recl=1024)
+       open(unit,file=trim(cpar%cs_init_catalog(id_abs)),recl=1024)
        i    = 0
        do while (.true.)
           read(unit,'(a)',end=4) line
@@ -738,7 +738,7 @@ contains
 
 
     ! Initialize beam templates
-    tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))
+    tempfile = trim(cpar%cs_ptsrc_template(id_abs))
     do j = 1, self%nsrc
        if (mod(j,1000) == 0 .and. self%myid == 0) &
        !if (mod(j,100) == 0 .and. self%myid == 0) &
@@ -756,7 +756,7 @@ contains
                   & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
              !write(*,*) i, trim(data(i)%label), trim(cpar%ds_btheta_file(i))
-             filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(data(i)%id_abs))
+             filename = trim(cpar%ds_btheta_file(data(i)%id_abs))
              n        = len(trim(adjustl(filename)))
              if (filename(n-2:n) == '.h5') then
                 ! Read precomputed Febecop beam from HDF file
@@ -1572,7 +1572,7 @@ contains
              do k = 1, self%nsrc             
                 p_lnL       = p
                 k_lnL       = k
-                c           => compList     ! Extremely ugly hack...
+                c           => compList     
                 do while (self%id /= c%id)
                    c => c%next()
                 end do
