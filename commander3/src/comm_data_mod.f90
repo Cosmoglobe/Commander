@@ -62,7 +62,7 @@ module comm_data_mod
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
-     type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
+     class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
      procedure :: chisq => get_chisq
@@ -129,15 +129,14 @@ contains
        nmaps = 1; if (cpar%ds_polarization(i)) nmaps = 3
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
+       call get_mapfile(cpar, i, mapfile)
+       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (trim(data(n)%noise_format) == 'rms_qucov') then 
           data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
                    & nmaps+1, cpar%ds_polarization(i))
        else
-          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
-                   & nmaps, cpar%ds_polarization(i))
+          data(n)%rmsinfo => data(n)%info
        end if
-       call get_mapfile(cpar, i, mapfile)
-       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
@@ -235,7 +234,7 @@ contains
        ! Initialize noise structures
        select case (trim(cpar%ds_noise_format(i)))
        case ('rms') 
-          allocate(regnoise(0:data(n)%rmsinfo%np-1,data(n)%rmsinfo%nmaps))
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
              data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
@@ -246,7 +245,7 @@ contains
           deallocate(regnoise)
        case ('rms_qucov') 
           call update_status(status, 'setting some stuff up')
-          allocate(regnoise(0:data(n)%rmsinfo%np-1,data(n)%rmsinfo%nmaps))
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
              data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
@@ -341,30 +340,7 @@ contains
              nullify(data(n)%B_postproc(j)%p)
           end if
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
-             tmp => data(n)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                data(n)%N_smooth(j)%p => tmp
-             end select
-          else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
-             ! Point to the regular old RMS map
-             tmp => data(n)%N
-             select type (tmp)
-             ! Now we smooth that RMS map to the new resolutions
-             class is (comm_N_rms)
-
-                ! Create map info for smoothed rms maps
-                smoothed_rms_info => comm_mapinfo(data(n)%info%comm, &
-                     & cpar%nside_smooth(j), cpar%lmax_smooth(j), &
-                     & data(n)%info%nmaps, data(n)%info%pol)
-
-                ! Smooth the rms map, make new comm_N_rms object for the result 
-                call smooth_rms(cpar, smoothed_rms_info, handle, &
-                     & data(n)%B(0)%p%b_l, tmp, &
-                     & data(n)%B_smooth(j)%p%b_l, smoothed_rms)
-
-                data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
-             end select
+             data(n)%N_smooth(j)%p => data(n)%N
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else

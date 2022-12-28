@@ -440,7 +440,7 @@ contains
                      & data(i)%map0, N%rms0)
              class is (comm_N_rms_qucov)
                 call data(i)%tod%dumpToHDF(file, iter, &
-                     & data(i)%map0, N%rms0)
+                     & data(i)%map0, N%N_map)
              class default
                if (cpar%myid == 0) write(*,*) '| For some reason, your data was not written to hdf'
              end select

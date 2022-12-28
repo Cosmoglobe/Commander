@@ -1572,7 +1572,7 @@ contains
              do k = 1, self%nsrc             
                 p_lnL       = p
                 k_lnL       = k
-                c           => compList     ! Extremely ugly hack...
+                c           => compList     
                 do while (self%id /= c%id)
                    c => c%next()
                 end do

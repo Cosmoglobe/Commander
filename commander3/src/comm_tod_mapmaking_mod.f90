@@ -706,6 +706,7 @@ end subroutine bin_differential_TOD
             end do
          end if
 
+         ! Can I return the condition number?
          call invert_singular_matrix(A_inv, 1d-12)
          do k = 1, tod%output_n_maps
             b_tot(k, 1:nmaps, i) = matmul(A_inv, b_tot(k, 1:nmaps, i))
@@ -728,12 +729,27 @@ end subroutine bin_differential_TOD
                end do
             end do
          end if
+
+         ! Store map in correct units
          do j = 1, nmaps
-            rms%map(i, j) = sqrt(A_inv(j, j))*scale
             do k = 1, tod%output_n_maps
                binmap%outmaps(k)%p%map(i, j) = b_tot(k, j, i)*scale
             end do
          end do
+
+         ! Store N in correct units
+         if (rms%info%nmaps == 3) then
+            ! Diagonal matrix; store RMS
+            do j = 1, nmaps
+               rms%map(i,j) = sqrt(A_inv(j, j))*scale
+            end do
+         else if (rms%info%nmaps == 4) then           
+            ! Block-diagonal T + QU; store N
+            rms%map(i,1) = A_inv(1,1)*scale**2
+            rms%map(i,2) = A_inv(2,2)*scale**2
+            rms%map(i,3) = A_inv(3,3)*scale**2
+            rms%map(i,4) = A_inv(2,3)*scale**2
+         end if
       end do
 
       if (present(chisq_S)) then
@@ -944,7 +960,7 @@ end subroutine bin_differential_TOD
                           & s(:, 1:3))
            end if
 
-           if (delta_s .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
+           if (abs(delta_s) .le. (delta_0*epsil) .and. 2*i-1 .ge. i_min) then
               if (tod%verbosity > 1) write(*,*) '|      Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
@@ -995,7 +1011,7 @@ end subroutine bin_differential_TOD
               write(*,102) 2*i, delta_r/delta_0
 102           format (' |', 6X, I4, ':   delta_r/delta_0:',  2X, ES11.4)
            end if
-           if (delta_r .le. delta_0*epsil .and. 2*i .ge. i_min) then
+           if (abs(delta_r) .le. delta_0*epsil .and. 2*i .ge. i_min) then
               if (tod%verbosity > 1) write(*,*) '|      Reached bicg-stab tolerance'
               finished = .true.
               call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
@@ -1011,10 +1027,6 @@ end subroutine bin_differential_TOD
              finished = .true.
              call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, tod%info%comm, ierr)
              exit bicg
-           end if
-           if (i > 10 .and. l == 1 .and. epsil > 1e-12) then
-               write(*,*) 'Potential poorly measured mode detected, decreasing epsilon'
-               epsil = 1e-12
            end if
         end do bicg
 

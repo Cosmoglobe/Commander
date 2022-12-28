@@ -91,6 +91,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_physdust_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_b_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_line_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_exp_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_powlaw_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_powlaw_break_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90

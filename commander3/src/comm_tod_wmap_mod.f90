@@ -373,8 +373,13 @@ contains
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1, M_diag_1, M_diag_2
       real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv
+<<<<<<< HEAD
       real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, inv_determ
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2, b_map_1, b_map_2
+=======
+      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, det
+      real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
+>>>>>>> rms_qu_cov
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
@@ -395,6 +400,9 @@ contains
       real(dp), allocatable, dimension(:, :)    :: bicg_sol, bicg_sol_1, bicg_sol_2
       real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
+
+      ! Counting data kept, lost
+      integer(i8b) :: n_tot, n_flag, n_discard
 
       character(len=80), dimension(180) :: header
 
@@ -421,8 +429,9 @@ contains
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      select_data           = .false.         ! no data selection
-      select_data           = self%first_call ! only perform data selection the first time
+      !select_data           = .false.         ! no data selection
+      !select_data           = self%first_call ! only perform data selection the first time
+      select_data           = iter == 1 ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
@@ -438,15 +447,19 @@ contains
       self%output_n_maps = 1
       split = .false.
       if (self%output_aux_maps > 0) then
+<<<<<<< HEAD
          if (mod(iter-1,self%output_aux_maps) == 0) then
            self%output_n_maps = 3
            split = .true.
          end if
          !if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 4
          if (iter .eq. 1)                              self%output_n_maps = 1
+=======
+         if (mod(iter-1,25) == 0) self%output_n_maps = 8
+         if (mod(iter-1,10) == 0) self%output_n_maps = 3
+>>>>>>> rms_qu_cov
       end if
 
-      !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -513,6 +526,7 @@ contains
       end if
       call timer%stop(TOD_ALLOC, self%band)
 
+      if (mod(iter-1, 10) == 0 .or. self%first_call) call self%precompute_M_lowres
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -599,6 +613,9 @@ contains
             write(*,*) '|    --> Sampling ncorr, xi_n, maps'
           end if
       endif
+      n_tot = 0
+      n_discard = 0
+      n_flag = 0
       do i = 1, self%nscan
          ! Skip scan if no accepted data
 
@@ -607,6 +624,13 @@ contains
                write(slist(i),*) self%scanid(i), '"',trim(self%hdfname(i)), &
                     & '"', 0.0, &
                     & real(self%spinaxis(i,:),sp)
+            end if
+            if (select_data) then 
+               call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+                 & init_s_bp=bp_corr, polang=polang)
+               n_tot = n_tot + sd%ntod/1000
+               n_flag = n_flag + sd%ntod/1000
+               call sd%dealloc
             end if
             cycle
          end if
@@ -651,17 +675,24 @@ contains
          if (select_data) then 
             ! Count how many good data points are thrown out from this
             ! procedure.
+            n_tot = n_tot + sd%ntod/1000
+            n_flag = n_flag + count(iand(sd%flag(:,1),self%flag0) .ne. 0)/1000
             call remove_bad_data(self, i, sd%flag)
+            if (.not. self%scans(i)%d(1)%accept) then
+                n_discard = n_discard + (sd%ntod -count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
+            end if
             n = len(trim(self%freq)) - 1
             if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
                 if (sd%ntod < 2**22) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             else
                 if (sd%ntod < 2**21) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             end if
          end if
@@ -710,8 +741,9 @@ contains
          end if
          
          ! Bin TOD
+         ! Using procmask2 to only mask out the very brightest pixels.
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
-           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
+           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map, M_diag, i, &
            & self%comp_S)
 
          ! Temporal splits
@@ -765,6 +797,18 @@ contains
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
              & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
         call update_status(status, "Ran reduce on b_map")
+             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
+        call update_status(status, "Ran allreduce on b_map")
+
+
+        if (select_data) then
+          call mpi_allreduce(mpi_in_place, n_tot, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_flag, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_discard, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+        end if
         call timer%stop(TOD_MPI, self%band)
         if (split) then
            call timer%start(TOD_MPI, self%band)
@@ -788,12 +832,6 @@ contains
         !end if
         if (self%myid == 0) self%M_diag = M_diag
 
-        if (self%first_call) then
-            ! Precomputing low-resolution preconditioner
-            call self%precompute_M_lowres
-        end if
-
-
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = self%output_n_maps, 1, -1
           !if (l .ne. 6) b_map(:,:,l) = 0d0
@@ -813,6 +851,7 @@ contains
             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
           end if
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
+<<<<<<< HEAD
                          & epsil, procmask, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S, 0)
           if (split .and. l == 1) then
@@ -832,6 +871,10 @@ contains
                     & / sum(M_diag_2(:,1)*procmask)
              bicg_sol_2(:,1) = bicg_sol_2(:,1) - monopole
           end if
+=======
+                         & epsil, procmask2, map_full, M_diag, b_map, l, &
+                         & prefix, postfix, self%comp_S)
+>>>>>>> rms_qu_cov
           
           if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
@@ -896,9 +939,8 @@ contains
              ! Note that if bc = 0, then A-1 is just the inverse of the
              ! diagonals.
 
-
-
              if (trim(self%noise_format) == 'rms_qucov') then
+<<<<<<< HEAD
                if (split) then
                  rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps))
                  rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1)
@@ -909,6 +951,15 @@ contains
                end if
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
                rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
+=======
+               allocate(det(0:npix-1))
+               det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+               rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
+               rms_out%map(:,2) = M_diag(self%info%pix,3)/det(self%info%pix)
+               rms_out%map(:,3) = M_diag(self%info%pix,2)/det(self%info%pix)
+               rms_out%map(:,4) = -M_diag(self%info%pix,4)/det(self%info%pix)
+               deallocate(det)
+>>>>>>> rms_qu_cov
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
              else if (trim(self%noise_format) == 'rms') then
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
@@ -929,6 +980,13 @@ contains
         !   call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
         !   self%bp_delta = delta(:,:,1)
         !end if
+      end if
+
+      if (self%myid == 0  .and. select_data) then
+        write(*,*) '| Data rejection statistics'
+        write(*,*) '| n_tot     ', n_tot
+        write(*,*) '| flagged   ', n_flag
+        write(*,*) '| discarded ', n_discard
       end if
 
       ! Clean up temporary arrays

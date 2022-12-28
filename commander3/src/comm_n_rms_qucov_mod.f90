@@ -33,60 +33,25 @@ module comm_N_rms_QUcov_mod
   !               [0,              \sum\cos2\psi\sin2\psi/\sigma^2 \sum \sin^2 2\psi/\sigma^2      ]
   ! If there were no off-diagonal term, the diagonal terms would be 1/\sigma_{T/Q/U}^2.
   !
-  ! The rms0 object contains four maps, the first three being the usual \sigma_{T/Q/U} from 
-  ! inverting the diagonal of the weighted hits matrix above, and the fourth one
-  ! being the off-diagonal as recorded above. In the event that no off-diagonal
-  ! terms are recorded, this should reduce to the usual diagonal case.
-  !
-  ! The siN matrix is the square root of the inverse of N (N^{-1/2}) and is often used
-  ! during the Gaussian sampling routines (see, e.g., Appendix A2 of arXiv:2011.05609).
-  ! 
-  ! Using the notation of the wikipedia page
-  ! https://en.wikipedia.org/wiki/Square_root_of_a_2_by_2_matrix
-  ! where M = ((A,  B), (C, D)), we can write
-  !       R = ((A+s, B), (C, D+s))/t,
-  ! where s=\sqrt{AD-BC} and t=\sqrt{(A+D)+2s}.
-  !
-  ! So we need to implement the N^{-1}m and N^{-1/2}m operations, specifically
-  ! for QU.
-  !  
-  ! N^{-1} = ((\sigma_Q^{-2}, \rho), (\rho, \sigma_U^{-2}))
-  !
-  ! N^{-1}m = (\sigma_Q^{-2} Q + \rho U, \sigma_U^{-2} U + \rho Q)
-  !
-  ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
-  ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
-  !
-  ! N^{-1/2} = ((\sigma_Q^{-2} + s, \rho), (\rho, \sigma_U^{-2} + s))/t
-  !
-  ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
-  !
-  ! siN is the N^{-1/2} term.
-  !
-  ! A trickier one is computing Nm
-  ! N = ((\sigma_U^{-2}, -\rho), (-\rho, \sigma_Q^{-2}))/((\sigma_Q\sigma_U)^{-2}-\rho^2)
-  !
-  ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/((\sigma_Q\sigma_U)^{-2}-\rho^2)
-  ! 
+  ! The N_map object contains four maps, namely the TT, QQ, UU, and QU elements of the per-pixel covariance
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   private
   public comm_N_rms_QUcov, comm_N_rms_QUcov_ptr
   
   type, extends (comm_N) :: comm_N_rms_QUcov
-     class(comm_map), pointer :: siN        => null()
-     class(comm_map), pointer :: siN_lowres => null()
-     class(comm_map), pointer :: rms0       => null()
+     real(dp),        allocatable, dimension(:,:) :: siN, iN, iN_low
+     class(comm_map), pointer                     :: N_map => null()
+     class(comm_map), pointer                     :: N_low => null()
    contains
      ! Data procedures
-
      procedure :: invN        => matmulInvN_1map
      procedure :: invN_lowres => matmulInvN_1map_lowres
      procedure :: N           => matmulN_1map
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
      procedure :: rms         => returnRMS
      procedure :: rms_pix     => returnRMSpix
-     procedure :: update_N    => update_N_rms
+     procedure :: update_N    => update_N_rms_QUcov
   end type comm_N_rms_QUcov
 
   interface comm_N_rms_QUcov
@@ -115,9 +80,11 @@ contains
     class(comm_map),                    pointer, intent(in), optional :: procmask
     class(comm_map),                    pointer, intent(in), optional :: map
 
-    integer(i4b)       :: i, ierr, tmp, nside_smooth
+    integer(i4b)       :: i, ierr, nside_smooth
     real(dp)           :: sum_noise, npix
     type(comm_mapinfo), pointer :: info_smooth => null()
+    type(comm_mapinfo), pointer :: info_cg => null()
+    type(comm_mapinfo), pointer :: info_lowres => null()
 
     call update_status(status, "comm_N_rms_QUcov constructor")
     
@@ -126,16 +93,12 @@ contains
 
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
-    constructor%nmaps             = info%nmaps
+    constructor%nmaps             = 4
     constructor%pol               = .true.
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
     constructor%info              => info
-
-
-
-
 
     if (id_smooth == 0) then
        constructor%nside        = info%nside
@@ -158,44 +121,43 @@ contains
           constructor%np           = info%np
           call constructor%update_N(info, handle, mask, regnoise, map=map)
        else
-          tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
           info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
                & constructor%nmaps, constructor%pol)
           constructor%nside   = info_smooth%nside
           constructor%np      = info_smooth%np
-          constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
-          
-          where (constructor%siN%map > 0.d0) 
-             constructor%siN%map = 1.d0 / constructor%siN%map
-          elsewhere
-             constructor%siN%map = 0.d0
-          end where
+          constructor%N_map   => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+          info_lowres => comm_mapinfo(info%comm, constructor%nside_chisq_lowres, 0, constructor%nmaps, constructor%pol)
+          constructor%N_low => comm_map(info_lowres)
+          call constructor%N_map%udgrade(constructor%N_low)
+          constructor%N_low%map = constructor%N_low%map / (constructor%nside/constructor%nside_chisq_lowres)**2
+          allocate(constructor%iN(4,0:info_smooth%np-1))
+          allocate(constructor%iN_low(4,0:info_smooth%np-1))
+          allocate(constructor%siN(4,0:info_smooth%np-1))
+          call initialize_iN_siN(constructor%N_map, constructor%N_low, constructor%iN, constructor%siN, constructor%iN_low)
        end if
     end if
 
-
-    constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
+    constructor%pol_only = all(constructor%siN(1,:) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
 
     call update_status(status, "cg sample group masks")
 
     ! Initialize CG sample group masks
-    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
-    constructor%info%nmaps = 3
+    info_cg => comm_mapinfo(info%comm, info%nside, 0, 3, info%pol)
+    allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) 
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
+       constructor%samp_group_mask(i)%p => comm_map(info_cg, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
        where (constructor%samp_group_mask(i)%p%map > 0.d0)
           constructor%samp_group_mask(i)%p%map = 1.d0
        elsewhere
           constructor%samp_group_mask(i)%p%map = 0.d0
        end where
     end do
-    constructor%info%nmaps = 4
 
   end function constructor
 
-  subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
+  subroutine update_N_rms_QUcov(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
     class(comm_N_rms_QUcov),                   intent(inout)          :: self
     class(comm_mapinfo),                 intent(in)             :: info
@@ -208,80 +170,106 @@ contains
 
     integer(i4b) :: i, j, ierr
     real(dp)     :: sum_tau, sum_tau2, sum_noise, npix
-    class(comm_map),     pointer :: invW_tau => null(), iN => null()
+    class(comm_map),     pointer :: invW_tau => null(), N_tmp => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
+    class(comm_mapinfo), pointer :: info_pre => null()
 
-    call update_status(status, "update_N_rms")
+    call update_status(status, "update_N_rms_QUcov")
 
+    if (associated(self%rms_reg) .or. self%uni_fsky > 0) then
+       call report_error( "Regularization noise not yet supported for rms_QUcov")
+    end if
+
+    ! Initialize N
     if (present(noisefile)) then
-       self%rms0     => comm_map(info, noisefile)
+       self%N_map     => comm_map(info, noisefile)
     else if (present(map)) then
-       if (size(map%map, dim=2) == 3) then
-           self%rms0%map(:,1:3) = map%map
-           self%rms0%map(:,4) = 0
+       self%N_map => comm_map(info)
+       if (map%info%nmaps == 3) then
+           self%N_map%map(:,1:3) = map%map
+           self%N_map%map(:,4)   = 0
        else
-           self%rms0%map = map%map
+           self%N_map%map = map%map
        end if
     else
        call report_error('Error in update_N_rms - no noisefile or map declared')
     end if
-    if (associated(self%siN)) then
-       self%siN%map = self%rms0%map
-    else
-       self%siN     => comm_map(self%rms0)
+
+
+    ! Add regularization noise; rms_reg is N for this type, not RMS
+!!$    if (associated(self%rms_reg)) self%N_map = self%N_map + self%rms_reg 
+!!$    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
+
+    ! Apply mask
+    if (present(mask)) then
+       self%N_map%map(:,1:3) = self%N_map%map(:,1:3) * mask%map
+       self%N_map%map(:,4)   = self%N_map%map(:,4)   * mask%map(:,2)*mask%map(:,3)
     end if
-    if (associated(self%rms_reg)) then
-       self%siN%map = sqrt(self%siN%map**2 + self%rms_reg%map**2) 
+
+    ! Set N to its mean; useful for debugging purposes
+    if (self%set_noise_to_mean) then
+       do i = 1, self%nmaps
+          sum_noise = sum(self%N_map%map(:,i))
+          npix      = size(self%N_map%map(:,i))
+          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+          self%N_map%map(:,i) = sum_noise/npix
+       end do
     end if
-    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
-    self%siN%map(:,1:3) = self%siN%map(:,1:3) * mask%map ! Apply mask
-    self%siN%map(:,4)   = self%siN%map(:,4)   * mask%map(:,3)
+
+
+    ! Add white noise corresponding to the user-specified regularization noise map
+!!$    if (associated(self%rms_reg) .and. present(regnoise)) then
+!!$       write(*,*) 'Warning -- QUcov not accounted for in regnoise'
+!!$       do j = 1, size(regnoise,2)
+!!$          do i = 0, self%rms_reg%info%np-1
+!!$             regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
+!!$          end do
+!!$       end do
+!!$    end if
+    regnoise = 0d0
+
+    ! Boost noise rms by 20 in processing mask; only for T
     if (present(procmask)) then
-       where (procmask%map < 0.5d0)
-          self%siN%map = self%siN%map * 20.d0 ! Boost noise by 20 in processing mask
+       where (procmask%map(:,1) < 0.5d0)
+          self%N_map%map(:,1) = self%N_map%map(:,1) * 400.d0 
        end where
     end if
 
-    ! Invert rms
-    self%siN%map = 0
-    where (self%siN%map(:, 1:3) > 0.d0) 
-       self%siN%map(:, 1:3) = 1.d0 / self%siN%map(:, 1:3)
-    elsewhere
-       self%siN%map(:, 1:3) = 0.d0
-    end where
 
-    ! Add white noise corresponding to the user-specified regularization noise map
-    if (associated(self%rms_reg) .and. present(regnoise)) then
-       do j = 1, self%rms_reg%info%nmaps
-          do i = 0, self%rms_reg%info%np-1
-             regnoise(i,j) = regnoise(i,j) + self%rms_reg%map(i,j) * rand_gauss(handle) 
-          end do
-       end do
+    ! Set up lowres map
+    call update_status(status, "N_rms_QUcov lowres")
+    if (.not.associated(self%N_low)) then
+       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
+       self%N_low => comm_map(info_lowres)
     end if
+    call self%N_map%udgrade(self%N_low)
+    self%N_low%map = self%N_low%map / (self%nside/self%nside_chisq_lowres)**2
 
-    ! Set siN to its mean; useful for debugging purposes
-    if (self%set_noise_to_mean) then
-       do i = 1, self%nmaps
-          sum_noise = sum(self%siN%map(:,i))
-          npix      = size(self%siN%map(:,i))
-          call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-          self%siN%map(:,i) = sum_noise/npix
-       end do
-    end if
+    ! Compute invN and sqrt(invN); both are symmetric 
+    if (.not. allocated(self%iN))  allocate(self%iN(4,0:info%np-1))
+    if (.not. allocated(self%siN)) allocate(self%siN(4,0:info%np-1))
+    if (.not. allocated(self%iN_low)) allocate(self%iN_low(4,0:info%np-1))
+    call initialize_iN_siN(self%N_map, self%N_low, self%iN, self%siN, self%iN_low)
 
-    call update_status(status, "N_rms cg_precond")
-
+    ! Initialize preconditioner noise
+    call update_status(status, "N_rms_QUcov cg_precond")
+    info_pre => comm_mapinfo(info%comm, info%nside, info%lmax, &
+         & min(info%nmaps,3), info%pol)
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
-       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
-       self%invN_diag%map = self%siN%map**2
+       if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info_pre)
+       do i = 1, info_pre%nmaps
+          self%invN_diag%map(:,i) = self%iN(i,:)
+       end do
        call compute_invN_lm(self%invN_diag)
     else if (trim(self%cg_precond) == 'pseudoinv') then
        ! Compute alpha_nu for pseudo-inverse preconditioner
        if (.not. allocated(self%alpha_nu)) allocate(self%alpha_nu(self%nmaps))
-       invW_tau     => comm_map(self%siN)
-       invW_tau%map =  invW_tau%map**2
+       invW_tau     => comm_map(info_pre)
+       do i = 1, info_pre%nmaps
+          invW_tau%map(:,i) = self%iN(i,:)
+       end do
        call invW_tau%Yt()
        call invW_tau%Y()
        ! Temperature
@@ -295,7 +283,7 @@ contains
           self%alpha_nu(1) = 0.d0
        end if
 
-       if (self%nmaps == 3) then
+       if (info_pre%nmaps == 3) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
           call mpi_allreduce(MPI_IN_PLACE, sum_tau,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
@@ -309,20 +297,8 @@ contains
        end if
     end if
 
-    call update_status(status, "N_rms lowres")
 
-    ! Set up lowres map
-    if (.not.associated(self%siN_lowres)) then
-       info_lowres => comm_mapinfo(self%info%comm, self%nside_chisq_lowres, 0, self%nmaps, self%pol)
-       self%siN_lowres => comm_map(info_lowres)
-    end if
-    iN => comm_map(self%siN)
-    iN%map = iN%map**2
-    call iN%udgrade(self%siN_lowres)
-    call iN%dealloc(); deallocate(iN)
-    self%siN_lowres%map = sqrt(self%siN_lowres%map) * (self%nside/self%nside_chisq_lowres)
-
-  end subroutine update_N_rms
+  end subroutine update_N_rms_QUcov
 
   ! Return map_out = invN * map
   subroutine matmulInvN_1map(self, map, samp_group)
@@ -330,18 +306,16 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    real(dp), dimension(:), allocatable :: buff_Q, buff_U
-    integer(i4b) :: npix
-    npix = size(map%map(:,1))
-    allocate(buff_Q(npix), buff_U(npix))
-    buff_Q = map%map(:,2)
-    buff_U = map%map(:,3)
-    map%map(:,1) = (self%rms0%map(:,1))**(-2) * map%map(:,1)
-    map%map(:,2) = self%rms0%map(:,2)**(-2) * buff_Q + &
-                 & self%rms0%map(:,4)       * buff_U
-    map%map(:,3) = self%rms0%map(:,3)**(-2) * buff_U + &
-                 & self%rms0%map(:,4)       * buff_Q
-    deallocate(buff_Q, buff_U)
+    real(dp)     :: buff_Q, buff_U
+    integer(i4b) :: i
+
+    do i = 0, self%info%np-1
+       buff_Q = map%map(i,2)
+       buff_U = map%map(i,3)       
+       map%map(i,1) = self%iN(1,i) * map%map(i,1)
+       map%map(i,2) = self%iN(2,i) * buff_Q + self%iN(4,i) * buff_U
+       map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
+    end do
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -353,10 +327,19 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN_lowres%map)**2 * map%map
-    if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
-    end if
+    real(dp)     :: buff_Q, buff_U
+    integer(i4b) :: i
+
+    do i = 0, self%N_low%info%np-1
+       buff_Q = map%map(i,2)
+       buff_U = map%map(i,3)       
+       map%map(i,1) = self%iN_low(1,i) * map%map(i,1)
+       map%map(i,2) = self%iN_low(2,i) * buff_Q + self%iN_low(4,i) * buff_U
+       map%map(i,3) = self%iN_low(4,i) * buff_Q + self%iN_low(3,i) * buff_U
+    end do
+!!$    if (present(samp_group)) then
+!!$       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+!!$    end if
   end subroutine matmulInvN_1map_lowres
 
   ! Return map_out = N * map
@@ -365,20 +348,16 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    real(dp), dimension(:), allocatable :: buff_Q, buff_U
-    integer(i4b) :: npix
-    npix = size(map%map(:,1))
-    allocate(buff_Q(npix), buff_U(npix))
-    buff_Q = map%map(:,2)
-    buff_U = map%map(:,3)
-    ! Nm = (Q\sigma_U^{-2} - U \rho, U\sigma_U^{-2} - Q\rho)/\sqrt{(\sigma_Q\sigma_U)^{-2}-\rho^2}
-    map%map(:,1) = map%map(:,1) * self%rms0%map(:,1)**2
-    map%map(:,2) = (buff_Q/self%rms0%map(:,3)**2 - buff_U*self%rms0%map(:,4)) / &
-                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)
-    map%map(:,3) = (buff_U/self%rms0%map(:,2)**2 - buff_Q*self%rms0%map(:,4)) / &
-                 & (1/(self%rms0%map(:,2)*self%rms0%map(:,3))**2 - self%rms0%map(:,4)**2)
-
-    deallocate(buff_Q, buff_U)
+    real(dp)     :: buff_Q, buff_U
+    integer(i4b) :: i
+    write(*,*) 'N map'
+    do i = 0, self%info%np-1
+       buff_Q = map%map(i,2)
+       buff_U = map%map(i,3)       
+       map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
+       map%map(i,2) = self%N_map%map(i,2) * buff_Q + self%N_map%map(i,4) * buff_U
+       map%map(i,3) = self%N_map%map(i,4) * buff_Q + self%N_map%map(i,3) * buff_U
+    end do
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -390,28 +369,18 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    real(dp), dimension(:), allocatable :: buff_Q, buff_U, s, t
-    integer(i4b) :: npix
-    ! s = \sqrt{\sigma_Q^{-2}\sigma_U^{-2} - \rho^2}
-    ! t = \sqrt{\sigma_Q^{-2} + \sigma_U^{-2} + 2s}
-    ! N^{-1/2}m = ((\sigma_Q^{-2}+s)Q + \rho U, (\sigma_U^{-2}+s)U + \rho Q))/t
-    npix = size(map%map(:,1))
-    allocate(buff_Q(npix), buff_U(npix), s(npix), t(npix))
-    buff_Q = map%map(:,2)
-    buff_U = map%map(:,3)
-    ! This line causes floating overflow errors if you're not careful...
-    s = ((self%rms0%map(:,2)*self%rms0%map(:,3))**-2 - self%rms0%map(:,4)**2)**0.5
-    t = (self%rms0%map(:,2)**-2 + self%rms0%map(:,3)**-2 + 2*s)**0.5
-    where (t > 0)
-       map%map(:,1) = map%map(:,1) / self%rms0%map(:,1)
-       map%map(:,2) = ((self%rms0%map(:,2)**-2 + s)*buff_Q + self%rms0%map(:,4)*buff_U)/t
-       map%map(:,3) = ((self%rms0%map(:,3)**-2 + s)*buff_U + self%rms0%map(:,4)*buff_Q)/t
-    elsewhere
-       map%map(:,1) = 0
-       map%map(:,2) = 0
-       map%map(:,3) = 0
-    end where
-    deallocate(buff_Q,buff_U,s,t)
+    real(dp)     :: buff_Q, buff_U
+    integer(i4b) :: i
+
+    !write(*,*) 'matmul sqrtInvN * map'
+
+    do i = 0, self%info%np-1
+       buff_Q = map%map(i,2)
+       buff_U = map%map(i,3)       
+       map%map(i,1) = self%siN(1,i) * map%map(i,1)
+       map%map(i,2) = self%siN(2,i) * buff_Q + self%siN(4,i) * buff_U
+       map%map(i,3) = self%siN(4,i) * buff_Q + self%siN(3,i) * buff_U
+    end do
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -441,8 +410,8 @@ contains
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
     integer(i4b),      intent(in),   optional  :: samp_group
-    where (self%siN%map > 0.d0)
-       res%map = 1.d0/self%siN%map
+    where (self%N_map%map(:,1:3) > 0.d0)
+       res%map = sqrt(self%N_map%map(:,1:3))
     elsewhere
        res%map = infinity
     end where
@@ -456,14 +425,15 @@ contains
   end subroutine returnRMS
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group)
+  function returnRMSpix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_rms_QUcov),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
     real(dp)                                     :: returnRMSpix
     integer(i4b),        intent(in),   optional  :: samp_group
-    if (self%siN%map(pix,pol) > 0.d0) then
-       returnRMSpix = 1.d0/self%siN%map(pix,pol)
+    logical(lgt),        intent(in),   optional  :: ret_invN
+    if (self%N_map%map(pix,pol) > 0.d0) then
+       returnRMSpix = sqrt(self%N_map%map(pix,pol))
     else
        returnRMSpix = infinity
     end if
@@ -474,6 +444,78 @@ contains
           end if
        end if
     end if
+    if (present(ret_invN)) then
+       if (ret_invN) returnRMSpix = 1d0/returnRMSpix**2
+    end if
   end function returnRMSpix
+
+  subroutine initialize_iN_siN(N, N_low, iN, siN, iN_low)
+    implicit none
+    class(comm_map),                   intent(in)    :: N
+    class(comm_map),                   intent(in)    :: N_low
+    real(dp),        dimension(1:,0:), intent(inout) :: iN
+    real(dp),        dimension(1:,0:), intent(inout) :: siN
+    real(dp),        dimension(1:,0:), intent(inout) :: iN_low
+
+    integer(i4b) :: i
+    real(dp) :: A(2,2)
+
+    do i = 0, N%info%np-1
+       ! T component
+       if (N%map(i,1) > 0.) then
+          iN(1,i)  = 1.d0 / N%map(i,1)
+          siN(1,i) = sqrt(iN(1,i))
+       else
+          iN(1,i)  = 0.d0
+          siN(1,i) = 0.d0
+       end if
+
+       ! QU block; check for positive definite matrix
+       if (N%map(i,2)*N%map(i,3)-N%map(i,4)**2 > 0.) then
+          A(1,1)  = N%map(i,2) ! QQ
+          A(1,2)  = N%map(i,4) ! QU
+          A(2,1)  = N%map(i,4) ! UQ
+          A(2,2)  = N%map(i,3) ! UU
+
+          call compute_hermitian_root(A, -1.d0)
+          iN(2,i)  = A(1,1)    ! QQ
+          iN(3,i)  = A(2,2)    ! UU
+          iN(4,i)  = A(1,2)    ! QU = UQ
+
+          call compute_hermitian_root(A, 0.5d0)
+          siN(2,i) = A(1,1)    ! QQ
+          siN(3,i) = A(2,2)    ! UU
+          siN(4,i) = A(1,2)    ! QU = UQ
+       else
+          iN(2:4,i)  = 0.d0
+          siN(2:4,i) = 0.d0
+       end if
+    end do
+
+    do i = 0, N_low%info%np-1
+       ! T component
+       if (N_low%map(i,1) > 0.) then
+          iN_low(1,i)  = 1.d0 / N_low%map(i,1)
+       else
+          iN_low(1,i)  = 0.d0
+       end if
+
+       ! QU block; check for positive definite matrix
+       if (N_low%map(i,2)*N_low%map(i,3)-N_low%map(i,4)**2 > 0.) then
+          A(1,1)  = N_low%map(i,2) ! QQ
+          A(1,2)  = N_low%map(i,4) ! QU
+          A(2,1)  = N_low%map(i,4) ! UQ
+          A(2,2)  = N_low%map(i,3) ! UU
+
+          call compute_hermitian_root(A, -1.d0)
+          iN_low(2,i)  = A(1,1)    ! QQ
+          iN_low(3,i)  = A(2,2)    ! UU
+          iN_low(4,i)  = A(1,2)    ! QU = UQ
+       else
+          iN_low(2:4,i)  = 0.d0
+       end if
+    end do
+
+  end subroutine initialize_iN_siN
 
 end module comm_N_rms_QUcov_mod

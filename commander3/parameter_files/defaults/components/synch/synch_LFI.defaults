@@ -44,7 +44,7 @@ COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.1   #0.1
 COMP_BETA_SMOOTHING_SCALE&&   = 3
 COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_BETA_NU_MIN&&            =   0.        # Lowest frequency for index estimation in GHz
-COMP_BETA_NU_MAX&&            =  80.        # Highest frequency for index estimation in GHz
+COMP_BETA_NU_MAX&&            =  98.        # Highest frequency for index estimation in GHz
 COMP_BETA_INPUT_MAP&&         = init_synch_beta_BP8.1_v1.fits
 COMP_BETA_DEFAULT&&           = -3.1
 

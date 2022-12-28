@@ -281,6 +281,11 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
+    !
+    ! Note that procmask should be larger, cover the residuals in the galactic
+    ! plane, so that it is not used for calibration and correlated noise. 
+    ! procmask2 should be smaller and be used only for mapmaking.
+    !
 
     call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 2) then
@@ -391,7 +396,7 @@ contains
        do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), &
                & self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask, &
+               & procmask2, scan, s_bufA, s_bufB, self%mask2, &
                &  s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -404,7 +409,7 @@ contains
     else if (init_s_sky_prop_) then
        do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask)
+               & procmask2, scan, s_bufA, s_bufB, self%mask2)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              self%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)

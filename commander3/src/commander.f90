@@ -369,7 +369,6 @@ contains
     real(dp),      allocatable, dimension(:,:,:) :: delta
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
-    type(comm_mapinfo), pointer :: rmsinfo => null()
     class(comm_map),  pointer :: rms => null()
     class(comm_map),  pointer :: cmbmap => null()
     class(comm_comp), pointer :: c => null()
@@ -514,9 +513,9 @@ contains
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
        if (associated(data(i)%procmask)) then
-          call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+          call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
        else
-          call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+          call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
        end if
        if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
        !copy data map without regnoise, to write to chain file

@@ -244,6 +244,8 @@ contains
           if (val_convergence < lim_convergence .and. &
                & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0) .and. &
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
+          if (delta_new <= 1d-30 * delta0 .and. &
+               & trim(cpar%cg_conv_crit) == 'fixed_iter') exit
        end if
        
        !call update_status(status, "cg2")
@@ -271,6 +273,9 @@ contains
        beta      = delta_new / delta_old
        d         = s + beta * d
        !call update_status(status, "cg4")
+
+!call mpi_finalize(ierr)
+!stop
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
