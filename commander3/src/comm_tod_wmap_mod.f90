@@ -830,8 +830,10 @@ contains
                          & epsil, procmask2, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S, 0)
           if (split .and. l == 1) then
-             epsil = 1d-12
              do k = 1, 9
+               if (self%verbosity > 0 .and. self%myid == 0) then
+                 write(*,*) '|      Solving for map year ', k
+               end if
                bicg_sol_1 = transpose(map_full)
                call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
                               & epsil, procmask2, map_full, M_diag_1(:,:,k), b_map_1(:,:,k,:), l, &
