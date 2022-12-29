@@ -382,6 +382,8 @@ end subroutine bin_differential_TOD
 
       integer(i4b), allocatable, dimension(:)         :: flag
       integer(i4b), allocatable, dimension(:, :)      :: pix, psi
+      integer(i4b), dimension(10) :: t_arr=(/52131,52496,52861,53227,53592,53957,54322, &
+                                          &  54688,55053,55418/)
 
       logical(lgt) :: finished
       integer(i4b) :: j, k, ntod, ndet, lpix, rpix, lpsi, rpsi, ierr
@@ -409,8 +411,9 @@ end subroutine bin_differential_TOD
       y      = 0.d0
 
       do j = 1, tod%nscan
-         if (split == 1 .and. tod%scans(j)%t0(1) > 53765) cycle
-         if (split == 2 .and. tod%scans(j)%t0(1) < 53765) cycle
+         if (split > 0) then
+            if (tod%scans(j)%t0(1) < t_arr(split) .or. tod%scans(j)%t0(1) > t_arr(split+1)) cycle
+         end if
          if (.not. tod%scans(j)%d(1)%accept) cycle
          ntod = tod%scans(j)%ntod
          allocate (pix(ntod, nhorn))             ! Decompressed pointing

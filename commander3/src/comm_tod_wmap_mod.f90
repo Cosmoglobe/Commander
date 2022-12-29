@@ -368,18 +368,17 @@ contains
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
       integer(i4b) :: ierr, ndelta, t_mid=53765
+      integer(i4b), dimension(10) :: t_arr=(/52131,52496,52861,53227,53592,53957,54322, &
+                                          &  54688,55053,55418/)
+      ! MJDs August 10, {2001,...2010}
       real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
-      real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1, M_diag_1, M_diag_2
-      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv
-<<<<<<< HEAD
-      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, inv_determ
-      real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2, b_map_1, b_map_2
-=======
-      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, det
+      real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
+      real(dp), allocatable, dimension(:, :, :)       :: M_diag_1
+      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv, det
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
->>>>>>> rms_qu_cov
+      real(dp), allocatable, dimension(:,:,:,:)       :: b_map_1, b_map_2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
@@ -447,17 +446,11 @@ contains
       self%output_n_maps = 1
       split = .false.
       if (self%output_aux_maps > 0) then
-<<<<<<< HEAD
-         if (mod(iter-1,self%output_aux_maps) == 0) then
-           self%output_n_maps = 3
-           split = .true.
-         end if
          !if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 4
          if (iter .eq. 1)                              self%output_n_maps = 1
-=======
          if (mod(iter-1,25) == 0) self%output_n_maps = 8
          if (mod(iter-1,10) == 0) self%output_n_maps = 3
->>>>>>> rms_qu_cov
+         if (iter == 1) split = .true.
       end if
 
 
@@ -502,14 +495,10 @@ contains
       M_diag = 0d0
       b_map = 0d0
       if (split) then
-          allocate (M_diag_1(0:npix-1, nmaps+1))
-          allocate (M_diag_2(0:npix-1, nmaps+1))
-          allocate ( b_map_1(0:npix-1, nmaps,   1))
-          allocate ( b_map_2(0:npix-1, nmaps,   1))
+          allocate (M_diag_1(0:npix-1, nmaps+1, 9))
+          allocate ( b_map_1(0:npix-1, nmaps,   9, 1))
           M_diag_1 = 0d0
           b_map_1 = 0d0
-          M_diag_2 = 0d0
-          b_map_2 = 0d0
       end if
 
       allocate(outmaps(1))
@@ -521,8 +510,7 @@ contains
         allocate (bicg_sol(0:npix-1, nmaps  ))
       end if
       if (split) then
-          allocate (bicg_sol_1(0:npix-1, 1))
-          allocate (bicg_sol_2(0:npix-1, 1))
+          allocate (bicg_sol_1(0:npix-1, 9))
       end if
       call timer%stop(TOD_ALLOC, self%band)
 
@@ -748,15 +736,14 @@ contains
 
          ! Temporal splits
          if (split) then
-            if (self%scans(i)%t0(1) < t_mid) then
-               call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
-                 & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map_1, M_diag_1, i, &
-                 & self%comp_S)
-            else
-               call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
-                 & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map_2, M_diag_2, i, &
-                 & self%comp_S)
-            end if
+
+            do j = 1, 9
+               if (self%scans(i)%t0(1) > t_arr(j) .and. self%scans(i)%t0(1) < t_arr(j+1)) then
+                 call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
+                   & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map_1(:,:,j,:), M_diag_1(:,:,j), i, &
+                   & self%comp_S)
+               end if
+            end do
          end if
 
          ! Update scan list
@@ -788,17 +775,10 @@ contains
 
 
         call timer%start(TOD_MPI, self%band)
-        call update_status(status, "Running reduce on M_diag")
         call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
              & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
-        call update_status(status, "Ran reduce on M_diag")
-
-        call update_status(status, "Running reduce on b_map")
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
              & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
-        call update_status(status, "Ran reduce on b_map")
-             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-        call update_status(status, "Ran allreduce on b_map")
 
 
         if (select_data) then
@@ -812,13 +792,9 @@ contains
         call timer%stop(TOD_MPI, self%band)
         if (split) then
            call timer%start(TOD_MPI, self%band)
-           call mpi_allreduce(mpi_in_place, M_diag_1, size(M_diag_1), &
-                & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
-           call mpi_allreduce(mpi_in_place, M_diag_2, size(M_diag_2), &
-                & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
            call mpi_allreduce(mpi_in_place, b_map_1, size(b_map_1), &
                 & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
-           call mpi_allreduce(mpi_in_place, b_map_2, size(b_map_2), &
+           call mpi_allreduce(mpi_in_place, M_diag_1, size(M_diag_1), &
                 & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
            call timer%stop(TOD_MPI, self%band)
         end if
@@ -851,30 +827,29 @@ contains
             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
           end if
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-<<<<<<< HEAD
-                         & epsil, procmask, map_full, M_diag, b_map, l, &
+                         & epsil, procmask2, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S, 0)
           if (split .and. l == 1) then
              epsil = 1d-12
-             bicg_sol_1 = transpose(map_full)
-             call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
-                            & epsil, procmask, map_full, M_diag_1, b_map_1, l, &
-                            & prefix, postfix, self%comp_S, 1)
-             bicg_sol_2 = transpose(map_full)
-             call run_bicgstab(self, handle, bicg_sol_2, npix, nmaps, num_cg_iters, &
-                            & epsil, procmask, map_full, M_diag_2, b_map_2, l, &
-                            & prefix, postfix, self%comp_S, 2)
-             monopole = sum((bicg_sol_1(:,1)-map_full(1,:))*M_diag_1(:,1)*procmask) &
-                    & / sum(M_diag_1(:,1)*procmask)
-             bicg_sol_1(:,1) = bicg_sol_1(:,1) - monopole
-             monopole = sum((bicg_sol_2(:,1)-map_full(1,:))*M_diag_2(:,1)*procmask) &
-                    & / sum(M_diag_2(:,1)*procmask)
-             bicg_sol_2(:,1) = bicg_sol_2(:,1) - monopole
+             do k = 1, 9
+               bicg_sol_1 = transpose(map_full)
+               call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
+                              & epsil, procmask2, map_full, M_diag_1(:,:,k), b_map_1(:,:,k,:), l, &
+                              & prefix, postfix, self%comp_S, k)
+               monopole = sum((bicg_sol_1(:,1)-map_full(1,:))*M_diag_1(:,1,k)*procmask) &
+                      & / sum(M_diag_1(:,1,k)*procmask)
+
+               call timer%start(TOD_WRITE) 
+               call mpi_bcast(bicg_sol_1, size(bicg_sol_1),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+               do j = 1, nmaps
+                  outmaps(1)%p%map(:, j) = bicg_sol_1(self%info%pix, j)
+               end do
+               map_out%map = outmaps(1)%p%map
+               call int2string(k, ctext)
+               call map_out%writeFITS(trim(prefix)//'map_split_'//ctext//trim(postfix))
+               call timer%stop(TOD_WRITE) 
+             end do
           end if
-=======
-                         & epsil, procmask2, map_full, M_diag, b_map, l, &
-                         & prefix, postfix, self%comp_S)
->>>>>>> rms_qu_cov
           
           if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
@@ -896,23 +871,6 @@ contains
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
 
-          if (split .and. l == 1) then
-             call timer%start(TOD_WRITE) 
-             call mpi_bcast(bicg_sol_1, size(bicg_sol_1),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-             do j = 1, nmaps
-                outmaps(1)%p%map(:, j) = bicg_sol_1(self%info%pix, j)
-             end do
-             map_out%map = outmaps(1)%p%map
-             call map_out%writeFITS(trim(prefix)//'map_split1'//trim(postfix))
-
-             call mpi_bcast(bicg_sol_2, size(bicg_sol_2),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-             do j = 1, nmaps
-                outmaps(1)%p%map(:, j) = bicg_sol_2(self%info%pix, j)
-             end do
-             map_out%map = outmaps(1)%p%map
-             call map_out%writeFITS(trim(prefix)//'map_split2'//trim(postfix))
-             call timer%stop(TOD_WRITE) 
-          end if
 
           if (self%comp_S) then
              outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
@@ -940,18 +898,16 @@ contains
              ! diagonals.
 
              if (trim(self%noise_format) == 'rms_qucov') then
-<<<<<<< HEAD
-               if (split) then
-                 rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps))
-                 rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1)
-                 call rms_out%writeFITS(trim(prefix)//'rms_split1'//trim(postfix))
-                 rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_2(self%info%pix, 1:nmaps))
-                 rms_out%map(:,nmaps+1) = M_diag_2(self%info%pix, nmaps+1)
-                 call rms_out%writeFITS(trim(prefix)//'rms_split2'//trim(postfix))
-               end if
-               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-               rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
-=======
+               !if (split) then
+               !  rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps))
+               !  rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1)
+               !  call rms_out%writeFITS(trim(prefix)//'rms_split1'//trim(postfix))
+               !  rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_2(self%info%pix, 1:nmaps))
+               !  rms_out%map(:,nmaps+1) = M_diag_2(self%info%pix, nmaps+1)
+               !  call rms_out%writeFITS(trim(prefix)//'rms_split2'//trim(postfix))
+               !end if
+               !rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+               !rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
                allocate(det(0:npix-1))
                det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
                rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
@@ -959,7 +915,6 @@ contains
                rms_out%map(:,3) = M_diag(self%info%pix,2)/det(self%info%pix)
                rms_out%map(:,4) = -M_diag(self%info%pix,4)/det(self%info%pix)
                deallocate(det)
->>>>>>> rms_qu_cov
                call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
              else if (trim(self%noise_format) == 'rms') then
                rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
@@ -1000,7 +955,7 @@ contains
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
-      if (allocated(b_map_1)) deallocate(b_map_1,b_map_2,M_diag_1,M_diag_2,bicg_sol_1,bicg_sol_2)
+      if (allocated(b_map_1)) deallocate(b_map_1,M_diag_1,bicg_sol_1)
 
       if (allocated(outmaps)) then
          call outmaps(1)%p%dealloc
