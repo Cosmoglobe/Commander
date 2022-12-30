@@ -918,9 +918,7 @@ end subroutine bin_differential_TOD
         bicg: do
            i = i + 1
            rho_old = rho_new
-           call update_status(status, 'dot product')
            rho_new = sum(r0*r)
-           call update_status(status, 'done dot product')
            if (rho_new == 0d0) then
              if (tod%verbosity > 1) write(*,*) '|      Residual norm is zero'
              finished = .true.

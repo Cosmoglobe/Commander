@@ -1331,12 +1331,12 @@ contains
 
 
     dt = 1.d0 / self%scans(scan)%ntod
+    s = 0.
     do j = 1, self%ndet
        t = 0.d0
        if (.not. self%scans(scan)%d(j)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
-          s(k,j) = 0.
           do i = 0, self%baseline_order
              s(k,j) = s(k,j) + self%scans(scan)%d(j)%baseline(i) * t**i
           end do
