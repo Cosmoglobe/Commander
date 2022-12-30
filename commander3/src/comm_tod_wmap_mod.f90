@@ -1331,8 +1331,8 @@ contains
 
 
     dt = 1.d0 / self%scans(scan)%ntod
-    t = 0.d0
     do j = 1, self%ndet
+       t = 0.d0
        if (.not. self%scans(scan)%d(j)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
