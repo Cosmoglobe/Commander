@@ -814,7 +814,6 @@ contains
           if (l == 1) then
             bicg_sol = transpose(map_full)
             epsil = 1d-10
-            if (split) epsil = 1d-12
           else
             bicg_sol = 0d0
             epsil = 1d-6
@@ -848,6 +847,7 @@ contains
                end do
                map_out%map = outmaps(1)%p%map
                call int2string(k, ctext)
+               write(*,*) trim(prefix)//'map_split_'//ctext//trim(postfix)
                call map_out%writeFITS(trim(prefix)//'map_split_'//ctext//trim(postfix))
                call timer%stop(TOD_WRITE) 
              end do
