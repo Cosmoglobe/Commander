@@ -847,7 +847,6 @@ contains
                end do
                map_out%map = outmaps(1)%p%map
                call int2string(k, ctext)
-               write(*,*) trim(prefix)//'map_split_'//ctext//trim(postfix)
                call map_out%writeFITS(trim(prefix)//'map_split_'//ctext//trim(postfix))
                call timer%stop(TOD_WRITE) 
              end do
