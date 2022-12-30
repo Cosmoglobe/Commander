@@ -450,7 +450,7 @@ contains
          if (iter .eq. 1)                              self%output_n_maps = 1
          if (mod(iter-1,25) == 0) self%output_n_maps = 8
          if (mod(iter-1,10) == 0) self%output_n_maps = 3
-         if (iter == 1) split = .true.
+         if (mod(iter-1,25) == 0) split = .true.
       end if
 
 
