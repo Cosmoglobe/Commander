@@ -447,10 +447,10 @@ contains
       split = .false.
       if (self%output_aux_maps > 0) then
          !if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 4
-         if (iter .eq. 1)                              self%output_n_maps = 1
          if (mod(iter-1,25) == 0) self%output_n_maps = 8
          if (mod(iter-1,10) == 0) self%output_n_maps = 3
          if (mod(iter-1,25) == 0) split = .true.
+         if (iter .eq. 1)                              self%output_n_maps = 1
       end if
 
 
@@ -738,11 +738,10 @@ contains
          if (split) then
 
             do j = 1, 9
-               if (self%scans(i)%t0(1) > t_arr(j) .and. self%scans(i)%t0(1) < t_arr(j+1)) then
-                 call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
-                   & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map_1(:,:,j,:), M_diag_1(:,:,j), i, &
-                   & self%comp_S)
-               end if
+               if (self%scans(i)%t0(1) < t_arr(j) .or. self%scans(i)%t0(1) > t_arr(j+1)) cycle
+               call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
+                 & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map_1(:,:,j,:), M_diag_1(:,:,j), i, &
+                 & self%comp_S)
             end do
          end if
 
@@ -828,6 +827,25 @@ contains
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                          & epsil, procmask2, map_full, M_diag, b_map, l, &
                          & prefix, postfix, self%comp_S, 0)
+
+          if (l == 1 .and. self%myid == 0) then
+             ! Maximum likelihood monopole
+             monopole = sum((bicg_sol(:,1)-map_full(1,:))*M_diag(:,1)*procmask) &
+                    & / sum(M_diag(:,1)*procmask)
+             if (trim(self%operation) == 'sample') then
+                ! Add fluctuation term if requested
+                sigma_mono = sum(M_diag(:,1) * procmask)
+                if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
+                if (self%verbosity > 1) then
+                  write(*,*) '|  monopole, fluctuation sigma'
+                  write(*,*) '|  ', monopole, sigma_mono
+                end if
+                monopole = monopole + sigma_mono * rand_gauss(handle)
+             end if
+             bicg_sol(:,1) = bicg_sol(:,1) - monopole
+          end if
+          call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
           if (split .and. l == 1) then
              do k = 1, 9
                if (self%verbosity > 0 .and. self%myid == 0) then
@@ -847,29 +865,11 @@ contains
                end do
                map_out%map = outmaps(1)%p%map
                call int2string(k, ctext)
-               call map_out%writeFITS(trim(prefix)//'map_split_'//ctext//trim(postfix))
+               call map_out%writeFITS(trim(prefix)//'map_yr'//ctext//trim(postfix))
                call timer%stop(TOD_WRITE) 
              end do
           end if
           
-          if (l == 1 .and. self%myid == 0) then
-             ! Maximum likelihood monopole
-             monopole = sum((bicg_sol(:,1)-map_full(1,:))*M_diag(:,1)*procmask) &
-                    & / sum(M_diag(:,1)*procmask)
-             if (trim(self%operation) == 'sample') then
-                ! Add fluctuation term if requested
-                sigma_mono = sum(M_diag(:,1) * procmask)
-                if (sigma_mono > 0.d0) sigma_mono = 1.d0 / sqrt(sigma_mono)
-                if (self%verbosity > 1) then
-                  write(*,*) '|  monopole, fluctuation sigma'
-                  write(*,*) '|  ', monopole, sigma_mono
-                end if
-                monopole = monopole + sigma_mono * rand_gauss(handle)
-             end if
-             bicg_sol(:,1) = bicg_sol(:,1) - monopole
-          end if
-
-          call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
 
 
