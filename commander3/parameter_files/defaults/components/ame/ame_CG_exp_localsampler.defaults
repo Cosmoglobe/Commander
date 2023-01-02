@@ -1,7 +1,7 @@
  New Local sampling parameters, 'ame'
-COMP_BETA_INT_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_INT_LMAX&&          = 0          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_BETA_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
-COMP_BETA_INT_LNLTYPE&&       = marginal    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
+COMP_BETA_INT_LNLTYPE&&       = chisq    # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_POL_LNLTYPE&&       = chisq       # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_INT_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
 COMP_BETA_POL_PIXREG&&        = fullsky     # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
@@ -24,7 +24,7 @@ COMP_BETA_INT_FIX_PIXREG&&    = none
 COMP_BETA_POL_FIX_PIXREG&&    = none
 COMP_BETA_PIXREG_MAP&&        = fullsky     # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_BETA_PIXREG_INITVALUE_MAP&& = none
-COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .true.
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
 COMP_BETA_COMBINED_MONOPOLE_TYPE&& = monopole-dipole
 COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sample monopoles from during combined sampling. separate with comma ','
 COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
