@@ -1,3 +1,4 @@
+
 # Synchrotron component for LFI TOD analysis
 COMP_LABEL&&                  = ame
 COMP_TYPE&&                   = exponential
@@ -38,10 +39,10 @@ COMP_AMP_PRIOR_MAP&&          = npipe6v20_857_map_n1024_60arcmin_QUADCOR_ZODICOR
 COMP_AMP_PRIOR_LMAX&&         = -1
 COMP_IND_LMAX&&               = 0
 
-COMP_BETA_PRIOR_UNI_LOW&&     =  -5.0
-COMP_BETA_PRIOR_UNI_HIGH&&    =  -3.0
+COMP_BETA_PRIOR_UNI_LOW&&     =  -4.0
+COMP_BETA_PRIOR_UNI_HIGH&&    =  -2.5
 COMP_BETA_PRIOR_GAUSS_MEAN&&  =  -3.6
-COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.1   #0.1
+COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.3   #0.1
 COMP_BETA_SMOOTHING_SCALE&&   = 1
 COMP_BETA_POLTYPE&&           = 1          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_BETA_NU_MIN&&            =  10.        # Lowest frequency for index estimation in GHz
