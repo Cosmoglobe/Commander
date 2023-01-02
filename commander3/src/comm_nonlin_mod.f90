@@ -300,11 +300,13 @@ contains
     
 
     ! Sample spectral parameter (parid) for the given signal component
-    allocate(status_fit(numband))
     c => compList
     do while (c%id /= comp_id)
        c => c%next()
     end do
+
+    if (c%p_gauss(2,par_id) == 0.d0) return
+    allocate(status_fit(numband))  
 
     select type (c)
     class is (comm_diffuse_comp)
@@ -1562,8 +1564,7 @@ contains
           if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
           if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
           if (p > c_lnL%nmaps) cycle ! poltype > number of maps
-
-
+          ! Return if all prior RMS's are zero
 
           call wall_time(t1)
           if (c_lnL%pol_pixreg_type(p,id) /= 0) then
