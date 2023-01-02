@@ -851,7 +851,7 @@ contains
                if (self%verbosity > 0 .and. self%myid == 0) then
                  write(*,*) '|      Solving for map year ', k
                end if
-               bicg_sol_1 = transpose(map_full)
+               bicg_sol_1 = bicg_sol
                call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
                               & epsil, procmask2, map_full, M_diag_1(:,:,k), b_map_1(:,:,k,:), l, &
                               & prefix, postfix, self%comp_S, k)
@@ -899,17 +899,16 @@ contains
              ! diagonals.
 
              if (trim(self%noise_format) == 'rms_qucov') then
-               !if (split) then
-               !  rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps))
-               !  rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1)
-               !  call rms_out%writeFITS(trim(prefix)//'rms_split1'//trim(postfix))
-               !  rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_2(self%info%pix, 1:nmaps))
-               !  rms_out%map(:,nmaps+1) = M_diag_2(self%info%pix, nmaps+1)
-               !  call rms_out%writeFITS(trim(prefix)//'rms_split2'//trim(postfix))
-               !end if
-               !rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
-               !rms_out%map(:,nmaps+1) = M_diag(self%info%pix, nmaps+1)
                allocate(det(0:npix-1))
+               if (split) then
+                 do k = 1, 9
+                   det = M_diag_1(:,2,k)*M_diag_1(:,3,k) - M_diag_1(:,4,k)**2
+                   rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps,k))
+                   rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1,k)
+                   call int2string(k, ctext)
+                   call rms_out%writeFITS(trim(prefix)//'rms_yr'//ctext//trim(postfix))
+                 end do
+               end if
                det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
                rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
                rms_out%map(:,2) = M_diag(self%info%pix,3)/det(self%info%pix)
