@@ -446,14 +446,13 @@ contains
       self%output_n_maps = 1
       split = .false.
       if (self%output_aux_maps > 0) then
-         !if (mod(iter-1,10*self%output_aux_maps) == 0) self%output_n_maps = 4
-         if (iter .eq. 1)then
-           self%output_n_maps = 1
+         if (iter .eq. 2) then
+           self%output_n_maps = 3
            split = .false.
          else
-           if (mod(iter-1,25) == 0) self%output_n_maps = 8
-           if (mod(iter-1,25) == 0) split = .true.
-           if (mod(iter-1,10) == 0) self%output_n_maps = 3
+           if (mod(iter-1,10) == 0)  self%output_n_maps = 3
+           if (mod(iter-1,25) == 0)  self%output_n_maps = 8
+           if (mod(iter-1,100) == 0) split = .true.
          end if
       end if
 
