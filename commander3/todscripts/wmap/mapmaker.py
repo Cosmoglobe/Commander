@@ -7,14 +7,11 @@ import scipy.linalg
 
 import matplotlib.pyplot as plt
 
-# import sys
-# sys.path.append('/mn/stornext/u3/duncanwa/Commander/commander3/python/')
-# from commander_tools.tod_tools import commander_tod as tod
 from cosmoglobe.tod_tools import TODLoader
 
 # Takes the directory where .h5 files are located and the dataset in question as
 # arguments
-comm_tod = TODLoader("/mn/stornext/d16/cmbco/bp/wmap/data", "wmap")
+comm_tod = TODLoader("/mn/stornext/d16/cmbco/bp/wmap/data_2n_test11", "wmap")
 
 
 def dot_prod(b_map, pixA, pixB, res_A, res_B, psiA, psiB, flags, npnt, pmask, x1, x2):
