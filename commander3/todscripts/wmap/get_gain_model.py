@@ -681,11 +681,11 @@ if __name__ == "__main__":
     # fpa_tests()
     # rxb_tests()
 
-    # fullgain_tests()
-    # for i in range(10):
-    #  temp_tests(band='K113')
-    # plt.show()
-    plot_gain_history(band="Q113")
-    plot_gain_history(band="Q114")
-    plot_gain_history(band="Q123")
-    plot_gain_history(band="Q124")
+    fullgain_tests()
+    #for i in range(10):
+    #    temp_tests(band="K113")
+    #plt.show()
+    plot_gain_history(band="K113")
+    # plot_gain_history(band="Q114")
+    # plot_gain_history(band="Q123")
+    # plot_gain_history(band="Q124")
