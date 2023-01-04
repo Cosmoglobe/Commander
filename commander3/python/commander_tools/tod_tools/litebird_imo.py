@@ -18,3 +18,12 @@ class LitebirdImo:
     def get_detector_property(self, channel, detector, prop):
         detinfo = lbs.DetectorInfo.from_imo(self.imo, f'/releases/v1.3/satellite/LFT/{channel}/{detector}/detector_info')
         return getattr(detinfo, prop)
+
+    def get_detector_frequency(self, channel):
+        return lbs.FreqChannelInfo.from_imo(self.imo, url=f'{self.url_prefix}{channel}/channel_info').bandcenter_ghz
+
+    def get_detector_bandwidth(self, channel):
+        return lbs.FreqChannelInfo.from_imo(self.imo, url=f'{self.url_prefix}{channel}/channel_info').bandwidth_ghz
+
+    def get_detector_fwhm(self, channel):
+        return lbs.FreqChannelInfo.from_imo(self.imo, url=f'{self.url_prefix}{channel}/channel_info').fwhm_arcmin
