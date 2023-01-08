@@ -1301,7 +1301,7 @@ contains
                do i = n_tot, 1, -1
                  j = minloc(pweight, dim=1)
                  pweight(j-1) = pweight(j-1) + weight(i)
-                 proc(id(i)) = j
+                 proc(id(i)) = j-1
                end do
             end if
             
