@@ -1297,6 +1297,8 @@ contains
             else
                pweight = 0d0
                ! Greedy after sorting
+               ! Algorithm 2 of
+               ! http://web.stanford.edu/class/msande319/Approximation%20Algorithm/lec1.pdf
                call QuickSort(id, weight)
                do i = n_tot, 1, -1
                  j = minloc(pweight, dim=1)
