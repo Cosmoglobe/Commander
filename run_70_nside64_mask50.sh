@@ -31,7 +31,7 @@ killall -9 commander3
 #mpirun -env I_MPI_FABRICS shm -n $n /mn/stornext/u3/duncanwa/Commander/build_$build/install/bin/commander3 $pfile --OUTPUT_DIRECTORY=$dir 2>&1| tee $dir/slurm.txt
 
 pfile=/mn/stornext/d16/cmbco/bp/johanres/commander_camb/Commander/commander3/parameter_files/param_camb_sim_nside64_mask50.txt
-dir=chains_camb_nside64_50mask_2
+dir=chains_camb_nside64_50mask
 
 #pfile=param_WMAP_bp_comp_only.txt
 #dir=chains_WMAP_amps_220126

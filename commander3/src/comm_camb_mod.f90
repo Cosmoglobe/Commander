@@ -68,10 +68,11 @@ module comm_camb_mod
      procedure init_covariance_matrix
      procedure cosmo_param_proposal
      procedure acceptance
-     procedure get_s_lm_f_lm
+     procedure get_hat_s_lm
+     procedure get_hat_f_lm
+     procedure get_scaled_hat_f_lm
      procedure compute_fluctuation_acceptance
      procedure format_theta_and_get_c_l_from_camb
-     procedure get_alm_squared
   end type comm_camb
 
   interface comm_camb
@@ -122,16 +123,18 @@ contains
     !          pointer to CAMB object
     ! 
     implicit none
-    class(comm_comp), pointer             :: c => null()
-    integer(i4b),              intent(in) :: lmin, lmax
-    class(comm_camb), pointer             :: constructor
-    type(comm_params)                     :: cpar
-    type(planck_rng), intent(inout)       :: handle, handle_noise
-    real(dp), dimension(4, 0: lmax)       :: init_sample_c_l, first_sample_c_l
-    logical(i4b)                          :: finished
-    integer(i4b)                          :: ierr, comm, l
-    
+    class(comm_comp), pointer              :: c => null()
+    integer(i4b),              intent(in)  :: lmin, lmax
+    class(comm_camb), pointer              :: constructor
+    type(comm_params)                      :: cpar
+    type(planck_rng), intent(inout)        :: handle, handle_noise
+    real(dp), dimension(4, 0: lmax)        :: init_sample_c_l, first_sample_c_l
+    logical(i4b)                           :: finished
+    integer(i4b)                           :: ierr, comm, l
+    real(dp), dimension(:, :), allocatable :: sigma_l
     real(dp), dimension(:, :), allocatable :: L_mat
+    character(len=512)                     :: filename
+    class(comm_map),  pointer :: cmbmap => null()
 
     integer(i4b) :: samp_group
 
@@ -179,10 +182,9 @@ contains
         comm = c%x%info%comm
         if (c%x%info%myid == 0) then
           ! Root core is running this
-          ! First sample
+          ! Initial sample
           call constructor%format_theta_and_get_c_l_from_camb(constructor%correct_cosmo_param, init_sample_c_l)
-          !call get_c_l_from_camb(constructor%correct_cosmo_param, init_sample_c_l)
-          
+      
           call constructor%init_covariance_matrix(cpar, L_mat)
           
           call mpi_bcast(init_sample_c_l, size(init_sample_c_l),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
@@ -216,9 +218,9 @@ contains
         do l = 2, lmax
           c%Cl%Dl(l, 1) = init_sample_c_l(1, l) * l * (l+1) / (2*pi)
           c%Cl%Dl(l, 2) = init_sample_c_l(4, l) * l * (l+1) / (2*pi)
-          c%Cl%Dl(l, 3) = 0d0 !TB=0 bad approximation given that cosmic birefringence is real ;)
+          c%Cl%Dl(l, 3) = 0d0 !TB=0 is a bad approximation given that cosmic birefringence is real ;)
           c%Cl%Dl(l, 4) = init_sample_c_l(2, l) * l * (l+1) / (2*pi)
-          c%Cl%Dl(l, 5) = 0d0 !EB=0 bad approximation given that cosmic birefringence is real ;)
+          c%Cl%Dl(l, 5) = 0d0 !EB=0 is a bad approximation given that cosmic birefringence is real ;)
           c%Cl%Dl(l, 6) = init_sample_c_l(3, l) * l * (l+1) / (2*pi)
         end do
         call c%Cl%updateS
@@ -226,16 +228,45 @@ contains
       c => c%next()
     end do
 
-    call constructor%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, constructor%sample_old, constructor%sample_old, .false.)
+    ! Set initial s_lm and f_lm
+    call constructor%get_hat_s_lm(cpar, samp_group, handle, handle_noise, constructor%sample_old, constructor%sample_old)
+    call constructor%get_hat_f_lm(cpar, samp_group, handle, handle_noise, constructor%sample_old, constructor%sample_old)
 
     c => compList
     do while (associated(c))
       select type (c)
       class is (comm_cmb_comp)
+         ! Plot sigma_l from s_lm and f_lm
+        c%x%alm = constructor%sample_old%s_lm
+        allocate(sigma_l(0:c%x%info%lmax,c%x%info%nspec))
+        call c%x%getSigmaL(sigma_l)
+        if (c%x%info%myid == 0) then
+          filename = trim(cpar%outdir)//'/sigma_l_s_hat_init.dat'
+          call write_sigma_l(filename, sigma_l)
+        end if
+
+        c%x%alm = constructor%sample_old%f_lm
+        call c%x%getSigmaL(sigma_l)
+        if (c%x%info%myid == 0) then
+          filename = trim(cpar%outdir)//'/sigma_l_f_hat_init.dat'
+          call write_sigma_l(filename, sigma_l)
+        end if
+        cmbmap        => comm_map(c%x)
+        call cmbmap%Y()
+        call cmbmap%writeFITS(trim(cpar%outdir) // "/f_hat_map_init.fits")
+        
+
         c%x%alm = constructor%sample_old%s_lm + constructor%sample_old%f_lm
+        call c%x%getSigmaL(sigma_l)
+        if (c%x%info%myid == 0) then
+          filename = trim(cpar%outdir)//'/sigma_l_s_hat_pluss_f_hat_init.dat'
+          call write_sigma_l(filename, sigma_l)
+        end if
       end select
       c => c%next()
     end do
+  
+  deallocate(sigma_l)
   end function constructor
 
   function constructor_camb_sample(cpar, lmin, lmax, nmaps, s_init)
@@ -341,22 +372,12 @@ contains
     ! ---------
     ! self: derived type (comm_camb)
     !    CAMB object
-    ! old_sample: derived type (comm_camb_sample)
-    !    Previous sample used to get new cosmological parameters and to
-    !    scale fluctuation term f_lm
-    ! L_mat: array
-    !    Matrix Cholesky decomposition of covariance matrix used for to propose
-    !    new cosmological parameters
+    ! cpar: comm_params
+    ! samp_group: int
     ! handle: derived type (planck_rng)
     !    Random number handle
-    !
-    ! Returns:
-    ! --------
-    ! accept: bool
-    !    True if proposal is accepted
-    ! new_sample: derived type (comm_camb_sample)
-    !    New sample which includes proposed cosmological parameters
-    !    with its corresponding mean field s_lm and (un-scaled) fluctuation f_lm
+    ! handle_noise: derived type (planck_rng)
+    !    Random number noise handle
     ! 
     implicit none
     class(comm_camb),                   intent(inout) :: self
@@ -366,7 +387,6 @@ contains
     logical(lgt)                                      :: accept, finished
     type(comm_camb_sample), pointer                   :: new_sample
     type(comm_camb_sample)                            :: old_sample
-    real(dp), dimension(:, :), allocatable            :: scaled_f_lm
     real(dp), dimension(4, 0: self%lmax)              :: new_sample_c_l
     integer(i4b)                                      :: ierr, comm, l
     real(dp), dimension(:), allocatable               :: new_theta_proposal
@@ -379,6 +399,7 @@ contains
     old_sample = self%sample_old
     finished = .false.
 
+    ! Get proposed cosmological parameters and their corresponding power spectra
     c => compList
     do while (associated(c))
       select type (c)
@@ -388,8 +409,8 @@ contains
           ! Root core is making a proposal and getting CAMB C_\ell
           call self%cosmo_param_proposal(old_sample, handle, new_theta_proposal)
           call self%format_theta_and_get_c_l_from_camb(new_theta_proposal, new_sample_c_l)
-          !call get_c_l_from_camb(new_theta_proposal, new_sample_c_l)
           
+          ! Sharing the C_ell and cosmo param with other cores
           call mpi_bcast(new_theta_proposal, size(new_theta_proposal),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
           call mpi_bcast(new_sample_c_l, size(new_sample_c_l),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
 
@@ -397,6 +418,7 @@ contains
           call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
         else
           loop: do while (.true.)
+            ! Receiving the C_ell and cosmo param from main core
             call mpi_bcast(new_theta_proposal, size(new_theta_proposal),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
             call mpi_bcast(new_sample_c_l, size(new_sample_c_l),  MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
             call mpi_bcast(finished, 1,  MPI_LOGICAL, 0, c%x%info%comm, ierr)
@@ -407,6 +429,7 @@ contains
       c => c%next()
     end do
 
+    ! Set C_ell in Commander so that we can get s_lm and scaled f_lm
     c => compList
     do while (associated(c))
       select type (c)
@@ -430,29 +453,31 @@ contains
       c => c%next()
     end do
     
+    ! Set the cosmological parameters and C_ell into the new_sample object
     new_sample%theta = new_theta_proposal
     new_sample%c_l = new_sample_c_l
 
-    ! Find s_lm and f_lm
-    call self%get_s_lm_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm=.true.)
+    ! Find s_lm
+    call self%get_hat_s_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample)
+
+    ! Get scaled f_lm from previous sample.
+    call self%get_scaled_hat_f_lm(cpar, new_sample, old_sample)
     
-    ! Set Commander's CMB equal to s_lm + f_lm
-    c => compList
-    do while (associated(c))
-      select type (c)
-      class is (comm_cmb_comp)
-        c%x%alm = new_sample%s_lm + new_sample%f_lm
-      end select
-      c => c%next()
-    end do
-    
-    accept = acceptance(self, cpar, new_sample, old_sample, handle)
+    ! Get acceptance
+    accept = acceptance(self, cpar, new_sample, old_sample, handle, self%total_samples)
 
     self%total_samples = self%total_samples + 1 
     if (accept) then
       ! Sample was accepted
       self%accepted_samples = self%accepted_samples + 1
+
+      ! Only calculate hat_f_lm when accepted
+      call self%get_hat_f_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample)
+
+      ! Since it was accepted, set the old sample to be the new sample
       self%sample_old = new_sample
+
+      ! Set the a_lm to be the sample. Not really necessary yet.
       c => compList
       do while (associated(c))
         select type (c)
@@ -462,7 +487,8 @@ contains
         c => c%next()
       end do
     else
-      ! Sample was not accepted
+
+      ! Sample was not accepted. Set the a_lm to be the sample to be the old sample
       c => compList
       do while (associated(c))
         select type (c)
@@ -493,13 +519,19 @@ contains
       end select
       c => c%next()
     end do
-    
-
   end subroutine sample_joint_Cl_theta_sampler
 
-  subroutine get_alm_squared(self, c, comm, res)
+  subroutine compute_fluctuation_acceptance(self, cpar, c, comm, res)
+  ! Computes the fluctuation term in the acceptance term, hat(f) * A * N^(-1) * A * hat(f)
+  !
+  ! Returns:
+  ! --------
+  ! res: float
+  !    Returns hat(f) * A * N^(-1) * A * hat(f) from f_hat which is in c%x%alm
+  
     implicit none
     class(comm_camb),                         intent(inout) :: self
+    type(comm_params),                        intent(in)    :: cpar
     class(comm_cmb_comp),                     intent(in)    :: c
     integer(i4b),                             intent(in)    :: comm
     real(dp),                                 intent(out)   :: res
@@ -509,35 +541,6 @@ contains
     class(comm_mapinfo), pointer                            :: info 
 
     res = 0d0
-    do i = 1, numband
-      nmaps =  min(data(i)%info%nmaps, c%nmaps)
-      info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, data(i)%info%lmax, nmaps, nmaps==3)
-      f_lm_map   => comm_map(info)
-      call c%x%alm_equal(f_lm_map)
-      call f_lm_map%Y()
-      ! Take the square
-      res = res + sum(f_lm_map%map**2)
-
-      call f_lm_map%dealloc(); deallocate(f_lm_map)
-    end do
-
-    call mpi_allreduce(MPI_IN_PLACE, res, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
-
-  end subroutine get_alm_squared
-
-  subroutine compute_fluctuation_acceptance(self, c, comm, res)
-    implicit none
-    class(comm_camb),                         intent(inout) :: self
-    class(comm_cmb_comp),                     intent(in)    :: c
-    integer(i4b),                             intent(in)    :: comm
-    real(dp),                                 intent(out)   :: res
-    class(comm_map), pointer                                :: f_lm_map
-
-    integer(i4b)                                            :: i, ierr, nmaps
-    class(comm_mapinfo), pointer                            :: info 
-
-    res = 0d0
-
     do i = 1, numband
       nmaps =  min(data(i)%info%nmaps, c%nmaps)
       info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, data(i)%info%lmax, nmaps, nmaps==3)
@@ -547,9 +550,11 @@ contains
       ! Beam convolution
       call data(i)%B(0)%p%conv(trans=.false., map=f_lm_map)
       call f_lm_map%Y()
+      !call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A_' // filename // ".fits")
 
       ! Divide by sqrt(N_ell)
       call data(i)%N%sqrtInvN(f_lm_map)
+      !call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A_sqrt_N_inv' // filename // ".fits")
 
       ! Take the square
       res = res + sum(f_lm_map%map**2)
@@ -573,16 +578,13 @@ contains
     ! old_sample: derived type (comm_camb_sample)
     !    Previous sample used to get new cosmological parameters and to
     !    scale fluctuation term f_lm
-    ! L: array
-    !    Matrix Cholesky decomposition of covariance matrix used for to propose
-    !    new cosmological parameters
     ! handle: derived type (planck_rng)
     !    Random number handle
     !
     ! Returns:
     ! --------
-    ! new_sample: derived type (comm_camb_sample)
-    !    New sample which includes proposed cosmological parameters
+    ! new_theta_proposal: array
+    !    Proposed cosmological parameters
     ! 
     implicit none
     class(comm_camb),                        intent(inout) :: self
@@ -604,7 +606,7 @@ contains
   end subroutine cosmo_param_proposal
 
 
-  function acceptance(self, cpar, new_sample, old_sample, handle)
+  function acceptance(self, cpar, new_sample, old_sample, handle, iter)
     ! 
     ! This function determines if the new sample should be accepted or not.
     ! Assumes no priors and that the proposal is symmetric. Hence 
@@ -614,14 +616,14 @@ contains
     ! ---------
     ! self: derived type (comm_camb)
     !    CAMB object
-    ! scaled_f_lm: array
-    !    Scaled fluctuation term f_lm. See Racine et al. (2016) for details.
-    ! new_sample: derived type (comm_camb_sample)
+    ! new_sample: derived type (comm_camb_samplecpar)
     !    Proposed sample with cosmological parameters, CAMB power spectras, s_lm and f_lm
     ! old_sample: derived type (comm_camb_sample)
     !    Previous sample with cosmological parameters, CAMB power spectras, s_lm and f_lm
     ! handle: derived type (planck_rng)
     !    Random number handle
+    ! iter: int
+    !    Iteration number of the sampling.
     !
     ! Returns
     ! -------
@@ -634,14 +636,17 @@ contains
     type(comm_camb_sample),              intent(inout) :: old_sample, new_sample
     type(planck_rng),                    intent(inout) :: handle
 
+    class(comm_map),  pointer :: cmbmap => null()
+
     class(comm_comp), pointer                          :: c => null()
-    real(dp), dimension(:, :), allocatable             :: temp, sigma_l
+    real(dp), dimension(:, :), allocatable             :: sigma_l
     real(dp), dimension(4, 0: self%lmax)               :: old_c_l, new_c_l
-    real(dp)                                           :: chisq_first_ip1, chisq_first_i, chisq_second_ip1, chisq_second_i, chisq_third_ip1, chisq_third_i, cur_i, cur_ip1, log_probability, uni, f_lm_scaled_squared, f_lm_squared
+    real(dp)                                           :: chisq_first_ip1, chisq_first_i, chisq_second_ip1, chisq_second_i, chisq_third_ip1, chisq_third_i, cur_i, cur_ip1, log_probability, uni
     real(dp), dimension(3, 3)                          :: new_S, old_S
-    integer(i4b)                                       :: k, i, l, m, comm, ierr
+    integer(i4b)                                       :: k, i, l, m, comm, ierr, iter
     logical(i4b)                                       :: acceptance, finished
     character(len=512)                                 :: filename
+    character(len=6)                                   :: samptext
 
     old_c_l  = old_sample%c_l
     new_c_l  = new_sample%c_l
@@ -649,7 +654,14 @@ contains
 
     chisq_first_ip1 = 0.d0
     chisq_first_i   = 0.d0
+    chisq_second_ip1 = 0.d0
+    chisq_second_i   = 0.d0
+    chisq_third_ip1 = 0.d0
+    chisq_third_i   = 0.d0
 
+    call int2string(iter, samptext)
+
+    ! This part calculates the hat(s)S^(-1)hat(s) part of the chi^2
     c => compList
     do while (associated(c))
       select type (c)
@@ -678,60 +690,26 @@ contains
           end if
         end do
 
-        
-        allocate(temp(size(c%x%alm,1), size(c%x%alm,2)))
-        temp = c%x%alm
+        ! This part calculates the (d-A*hat(s)) * N^(-1) * (d-A*hat(s)) part of the chi^2
         c%x%alm = new_sample%s_lm
-
-        allocate(sigma_l(0:c%x%info%lmax,c%x%info%nspec))
-        call c%x%getSigmaL(sigma_l)
-        if (c%x%info%myid == 0) then
-          filename = trim(cpar%outdir)//'/sigma_l_s_hat.dat'
-          call write_sigma_l(filename, sigma_l)
-        end if
-        call compute_chisq(c%x%info%comm, chisq_fullsky=chisq_first_ip1, evalpol=.true.)
+        call compute_chisq(comm, chisq_fullsky=chisq_first_ip1, evalpol=.true.)
 
         c%x%alm = old_sample%s_lm
-        call compute_chisq(c%x%info%comm, chisq_fullsky=chisq_first_i, evalpol=.true.)
+        call compute_chisq(comm, chisq_fullsky=chisq_first_i, evalpol=.true.)
 
-        ! For plotting purposes
-        c%x%alm = new_sample%s_lm+new_sample%f_lm
-        call c%x%getSigmaL(sigma_l)
-        if (c%x%info%myid == 0) then
-          filename = trim(cpar%outdir) // '/sigma_l_s_hat_f_hat.dat'
-          call write_sigma_l(filename, sigma_l)
-        end if
-        c%x%alm = new_sample%f_lm
-        call c%x%getSigmaL(sigma_l)
-        if (c%x%info%myid == 0) then
-          filename = trim(cpar%outdir) // '/sigma_l_f_hat.dat'
-          call write_sigma_l(filename, sigma_l)
-        end if
+        ! This part calculates the hat(f) * A * N^(-1) * A * hat(f) part of the chi^2
         c%x%alm = new_sample%scaled_f_lm
-        call c%x%getSigmaL(sigma_l)
-        if (c%x%info%myid == 0) then
-          filename = trim(cpar%outdir) // '/sigma_l_f_hat_scaled.dat'
-          call write_sigma_l(filename, sigma_l)
-        end if
-      
-
-        c%x%alm = new_sample%scaled_f_lm
-        call get_alm_squared(self, c, comm, f_lm_scaled_squared)
-        call compute_fluctuation_acceptance(self, c, comm, chisq_third_ip1)
+        call compute_fluctuation_acceptance(self, cpar, c, comm, chisq_third_ip1)
 
         c%x%alm = old_sample%f_lm
-        call get_alm_squared(self, c, comm, f_lm_squared)
-        call compute_fluctuation_acceptance(self, c, comm, chisq_third_i)
-        
+        call compute_fluctuation_acceptance(self, cpar, c, comm, chisq_third_i)
 
-        c%x%alm = temp
+        call mpi_allreduce(MPI_IN_PLACE, chisq_second_ip1, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+        call mpi_allreduce(MPI_IN_PLACE, chisq_second_i, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
 
-        call mpi_allreduce(MPI_IN_PLACE, chisq_first_ip1, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
-        call mpi_allreduce(MPI_IN_PLACE, chisq_first_i, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
-        
         if (c%x%info%myid == 0) then
-          log_probability = -(chisq_first_ip1 - chisq_first_i) / 2.0d0
-          write(*,*) 'd-As_lm', chisq_first_ip1, chisq_first_i, log_probability
+          ! Print a bunch of stuff
+          write(*,*) 'd-As_lm', chisq_first_ip1, chisq_first_i, -(chisq_first_ip1 - chisq_first_i) / 2.0d0
           open(unit=1, file=trim(cpar%outdir)//'/chisq_first_term.dat', position="append", action='write')
             write(1, '( 6(2X, ES14.6) )') chisq_first_ip1
           close(1)
@@ -749,9 +727,9 @@ contains
           write(*, *) 'new chi^2', chisq_first_ip1 + chisq_second_ip1 + chisq_third_ip1
           write(*, *) 'old chi^2', chisq_first_i + chisq_second_i + chisq_third_i
           write(*, *) 'correct tau, proposed tau, old tau', 0.0544d0, new_sample%theta(1), old_sample%theta(1)
-          log_probability = log_probability - (chisq_second_ip1 - chisq_second_i)/2.0d0 - (chisq_third_ip1 - chisq_third_i)/2.0d0
-          write(*,*) 'Total log prob:', log_probability
+          log_probability = - (chisq_first_ip1 - chisq_first_i) / 2.0d0 - (chisq_second_ip1 - chisq_second_i)/2.0d0 - (chisq_third_ip1 - chisq_third_i)/2.0d0
           uni = rand_uni(handle)
+          write(*,*) 'Total log prob:', log_probability, exp(log_probability), uni
           if (log_probability > 0) then
             ! If log_p > 0 then exp(log_p) > 1 and will always be accepted
             ! We do this to avoid overflow
@@ -781,16 +759,72 @@ contains
             if (finished) exit loop
           end do loop
         end if
+
+        ! For plotting purposes
+        allocate(sigma_l(0:c%x%info%lmax,c%x%info%nspec))
+        c%x%alm = new_sample%s_lm
+        call c%x%getSigmaL(sigma_l)
+        if (c%x%info%myid == 0) then
+          filename = trim(cpar%outdir)//'/sigma_l_s_hat'// '_' // trim(samptext) // '.dat'
+          call write_sigma_l(filename, sigma_l)
+        end if
       end select
       c => c%next()
     end do
-  deallocate(temp)
   deallocate(sigma_l)
   end function acceptance
 
-  subroutine get_s_lm_f_lm(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample, do_scale_f_lm)
+  subroutine get_hat_s_lm(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample)
     ! 
-    ! Calculates mean field s_lm and fluctuation f_lm from c_l from new_sample
+    ! Calculates mean field s_lm from c_l from new_sample
+    !
+    ! Arguments
+    ! ---------
+    ! self: derived type (comm_camb)
+    !    CAMB object
+    ! samp_group: int
+    ! handle: derived type (planck_rng)
+    !    Random number handle
+    ! handle_noise: derived type (planck_rng)
+    !    Random number noise handle
+    ! new_sample: derived type (comm_camb_sample)
+    ! old_sample: derived type (comm_camb_sample)
+    ! 
+    ! Returns
+    ! -------
+    ! new_sample: derived type (comm_camb_sample)
+    !    Returns s_lm in new_sample
+    !
+
+    implicit none
+    class(comm_camb),                     intent(inout) :: self
+    type(comm_camb_sample),               intent(inout) :: new_sample
+    type(comm_camb_sample),               intent(inout) :: old_sample
+    type(comm_params)                                   :: cpar
+    type(planck_rng)                                    :: handle, handle_noise
+    integer(i4b)                                        :: samp_group, i, l, m, ierr
+    logical(lgt)                                        :: include_mean, include_fluct
+    class(comm_comp), pointer                           :: c => null()
+
+    ! Solve for mean-field map
+    include_mean = .true.
+    include_fluct = .false.
+    call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
+
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+          allocate(new_sample%s_lm(0:c%x%info%nalm-1, 3))
+          new_sample%s_lm = c%x%alm
+      end select
+      c => c%next()
+    end do
+  end subroutine get_hat_s_lm
+
+  subroutine get_hat_f_lm(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample)
+    ! 
+    ! Calculates fluctuation f_lm from c_l from new_sample
     !
     ! Arguments
     ! ---------
@@ -798,110 +832,110 @@ contains
     !    CAMB object
     ! handle: derived type (planck_rng)
     !    Random number handle
+    ! handle_noise: derived type (planck_rng)
+    !    Random number noise handle
+    ! new_sample: derived type (comm_camb_sample)
+    ! old_sample: derived type (comm_camb_sample)
     ! 
     ! Returns
     ! -------
     ! new_sample: derived type (comm_camb_sample)
-    !    Returns s_lm and f_lm in new_sample
+    !    Returns f_lm in new_sample
     !
 
     implicit none
     class(comm_camb),                     intent(inout) :: self
     type(comm_camb_sample),               intent(inout) :: new_sample
     type(comm_camb_sample),               intent(inout) :: old_sample
-    logical(lgt)                                        :: do_scale_f_lm
     type(comm_params)                                   :: cpar
     type(planck_rng)                                    :: handle, handle_noise
-    integer(i4b)                                        :: samp_group, i, l, m, ierr
+    integer(i4b)                                        :: samp_group, i, l, m
     logical(lgt)                                        :: include_mean, include_fluct
     class(comm_comp), pointer                           :: c => null()
-    real(dp), dimension(3, 3)                           :: new_S, old_S
-    real(dp), dimension(4, 0: self%lmax)                :: old_c_l, new_c_l
-    character(len=512)                                  :: filename
-    old_c_l  = old_sample%c_l
-    new_c_l  = new_sample%c_l
-
-    ! Solve for mean-field map
-    include_mean = .true.
-    include_fluct = .false.
-    call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
-
-    !s_lm = c
-    c => compList
-    do while (associated(c))
-      select type (c)
-      class is (comm_cmb_comp)
-          allocate(new_sample%s_lm(0:c%x%info%nalm-1, 3))
-          new_sample%s_lm = c%x%alm
-          do i = 0, c%x%info%nalm-1
-            l = c%x%info%lm(1, i)
-            if (l < 2) then
-              ! If scale_f_lm = True, then this is not first sample
-              ! If first sample, then set s_lm equal to alm
-              if (do_scale_f_lm) then
-                new_sample%s_lm(i, :) = old_sample%s_lm(i, :)
-              else
-                new_sample%s_lm(i, :) = c%x%alm(i, :)
-              end if
-            end if
-          end do
-      end select
-      c => c%next()
-    end do
 
     ! Solve for fluctuation map
     include_mean = .false.
     include_fluct = .true.
     call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
-    !s_lm = c
+
     c => compList
     do while (associated(c))
       select type (c)
       class is (comm_cmb_comp)
           allocate(new_sample%f_lm(0:c%x%info%nalm-1, 3))
           new_sample%f_lm = c%x%alm
+          
           do i = 0, c%x%info%nalm-1
             l = c%x%info%lm(1, i)
-            if (l < 2) then
-              ! If do_scale_f_lm = True, then this is not first sample
-              if (do_scale_f_lm) then
-                new_sample%f_lm(i, :) = old_sample%f_lm(i, :)
-              else
-                new_sample%f_lm(i, :) = c%x%alm(i, :)
-              end if
+            if (l <= 1) then
+              new_sample%f_lm = 0d0
             end if
           end do
+        end select
+        c => c%next()
+      end do
+  end subroutine get_hat_f_lm
 
-          if (do_scale_f_lm == .true.) then
-            allocate(new_sample%scaled_f_lm(0:c%x%info%nalm-1, 3))
-            do i = 0, c%x%info%nalm-1
-              l = c%x%info%lm(1, i)
-              
-              if (l >= 2) then
-                m = c%x%info%lm(2, i)
-                new_S = reshape((/ new_c_l(1, l), new_c_l(4, l), 0d0, &
-                                   new_c_l(4, l), new_c_l(2, l), 0d0, &
-                                   0d0,           0d0,           new_c_l(3, l) /), shape(new_S))
-                old_S = reshape((/ old_c_l(1, l), old_c_l(4, l), 0d0, &
-                                   old_c_l(4, l), old_c_l(2, l), 0d0, &
-                                   0d0,           0d0,           old_c_l(3, l) /), shape(old_S))
-                
-                call compute_hermitian_root(new_S, 0.5d0)
-                call compute_hermitian_root(old_S, -0.5d0)
+  subroutine get_scaled_hat_f_lm(self, cpar, new_sample, old_sample)
+    ! 
+    ! Calculates scaled fluctuation f_lm from c_l from new_sample and old_sample
+    !
+    ! Arguments
+    ! ---------
+    ! self: derived type (comm_camb)
+    !    CAMB object
+    ! cpar: comm_params
+    ! new_sample: derived type (comm_camb_sample)
+    ! old_sample: derived type (comm_camb_sample)
+    ! 
+    ! Returns
+    ! -------
+    ! new_sample: derived type (comm_camb_sample)
+    !    Returns scaled f_lm in new_sample
+    !
 
-                new_sample%scaled_f_lm(i, :) = matmul(new_S, matmul(old_S, old_sample%f_lm(i, :)))
-              else
-                new_sample%scaled_f_lm(i, :) = old_sample%f_lm(i, :)
-              end if
-            end do
+    implicit none
+    class(comm_camb),                     intent(inout) :: self
+    type(comm_camb_sample),               intent(inout) :: new_sample
+    type(comm_camb_sample),               intent(inout) :: old_sample
+    type(comm_params)                                   :: cpar
+    integer(i4b)                                        :: i, l, m
+    class(comm_comp), pointer                           :: c => null()
+    real(dp), dimension(3, 3)                           :: new_S, old_S
+    real(dp), dimension(4, 0: self%lmax)                :: old_c_l, new_c_l
+    old_c_l  = old_sample%c_l
+    new_c_l  = new_sample%c_l
 
+    c => compList
+    do while (associated(c))
+      select type (c)
+      class is (comm_cmb_comp)
+        allocate(new_sample%scaled_f_lm(0:c%x%info%nalm-1, 3))
+        do i = 0, c%x%info%nalm-1
+          l = c%x%info%lm(1, i)
+          
+          if (l >= 2) then
+            m = c%x%info%lm(2, i)
+            new_S = reshape((/ new_c_l(1, l), new_c_l(4, l), 0d0, &
+                                new_c_l(4, l), new_c_l(2, l), 0d0, &
+                                0d0,           0d0,           new_c_l(3, l) /), shape(new_S))
+                                
+            old_S = reshape((/ old_c_l(1, l), old_c_l(4, l), 0d0, &
+                                old_c_l(4, l), old_c_l(2, l), 0d0, &
+                                0d0,           0d0,           old_c_l(3, l) /), shape(old_S))
             
+            call compute_hermitian_root(new_S, 0.5d0)
+            call compute_hermitian_root(old_S, -0.5d0)
+      
+            new_sample%scaled_f_lm(i, :) = matmul(new_S, matmul(old_S, old_sample%f_lm(i, :)))
+          else
+            new_sample%scaled_f_lm(i, :) = 0d0 ! We dont want to sample the dipole and monopole
           end if
+        end do
       end select
       c => c%next()
     end do
-
-  end subroutine get_s_lm_f_lm
+  end subroutine get_scaled_hat_f_lm
 
   subroutine init_covariance_matrix(self, cpar, L)
     ! 
@@ -921,16 +955,16 @@ contains
     ! L: array
     !    Cholesky decomposition matrix L from covariance matrix (L*L^T)      
     implicit none
-    class(comm_camb),                  intent(inout) :: self
-    type(comm_params),                  intent(in)   :: cpar
-    real(dp),         dimension(:, :), allocatable, intent(out)   :: L
+    class(comm_camb),                               intent(inout) :: self
+    type(comm_params),                                 intent(in) :: cpar
+    real(dp),           dimension(:, :), allocatable, intent(out) :: L
 
-    real(dp), dimension(:, :), allocatable :: covariance_matrix
-    integer(i4b) :: i, j, k, nlines, n_theta
-    real(dp)     :: tot
-    logical(lgt) :: previous_sample
-    real(dp),    dimension(:, :), allocatable :: old_samples 
-    real(dp),    dimension(:), allocatable                 :: averages
+    real(dp),                        dimension(:, :), allocatable :: covariance_matrix
+    integer(i4b)                                                  :: i, j, k, nlines, n_theta
+    real(dp)                                                      :: tot
+    logical(lgt)                                                  :: previous_sample
+    real(dp),                        dimension(:, :), allocatable :: old_samples 
+    real(dp),           dimension(:), allocatable                 :: averages
 
     n_theta = self%n_parameters
 
@@ -1001,6 +1035,21 @@ contains
   end subroutine init_covariance_matrix
 
   subroutine format_theta_and_get_c_l_from_camb(self, theta, c_l)
+    ! 
+    ! Caclulates the power spectra from CAMB using the cosmological parameters
+    ! in theta.
+    ! 
+    ! Arguments
+    ! ---------
+    ! self: derived type (comm_camb)
+    !    CAMB object
+    ! theta: array
+    !     cosmological parameters
+    !
+    ! Returns
+    ! ---------
+    ! c_l: array
+    !    The power spectrum of the CMB    
     implicit none
     class(comm_camb),                  intent(inout) :: self
     real(dp), dimension(1:,0:), intent(out) :: c_l
@@ -1011,17 +1060,15 @@ contains
     if (size(theta) == 1) then
       write(*, *) 'Only sampling tau'
       camb_theta = [0.02237d0, 0.12d0, 67.36d0, theta(1), 2.1d0, 0.9649d0]
-      !camb_theta(5) = theta(1)
     else if (size(theta) == 3) then
       write(*, *) 'Only sampling tau, As, ns'
       camb_theta = [0.02237d0, 0.12d0, 67.36d0, theta(1), theta(2), theta(3)]
     else
+      ! Sample all 6 LCDM parameters
       camb_theta = theta
     end if
 
     call get_c_l_from_camb(camb_theta, c_l)
-
   end subroutine format_theta_and_get_c_l_from_camb
-
 end module comm_camb_mod
 
