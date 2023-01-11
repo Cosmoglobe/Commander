@@ -1294,7 +1294,7 @@ contains
                do k = 1, n_tot
                   pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
                end do
-            else
+            else if (index(filelist, '-WMAP_') .ne. 0) then
                pweight = 0d0
                ! Greedy after sorting
                ! Algorithm 2 of
@@ -1304,6 +1304,36 @@ contains
                  j = minloc(pweight, dim=1)
                  pweight(j-1) = pweight(j-1) + weight(i)
                  proc(id(i)) = j-1
+               end do
+            else 
+               ! Sort by spin axis (Planck)
+               proc    = -1
+               call QuickSort(id, sid)
+               w_curr = 0.d0
+               j     = 1
+               do i = np-1, 0, -1
+                  w = 0.d0
+                  do k = 1, n_tot
+                     if (proc(k) == i) w = w + weight(k) 
+                  end do
+                  do while (w < w_tot/np .and. j <= n_tot)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     if (w > 1.2d0*w_tot/np) then
+                        ! Assign large scans to next core
+                        proc(id(j)) = i-1
+                        w           = w - weight(id(j))
+                     end if
+                     j           = j+1
+                  end do
+               end do
+               do while (j <= n_tot)
+                  proc(id(j)) = 0
+                  j = j+1
+               end do
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
                end do
             end if
             

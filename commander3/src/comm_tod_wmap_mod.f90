@@ -428,8 +428,8 @@ contains
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      !select_data           = .false.         ! no data selection
-      select_data           = self%first_call ! only perform data selection the first time
+      select_data           = .false.         ! no data selection
+      !select_data           = self%first_call ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
