@@ -305,12 +305,6 @@ contains
     integer(i4b) :: i, j, m, n, ierr, mpistat(MPI_STATUS_SIZE)
     integer(i4b), allocatable, dimension(:,:) :: ind
 
-    ! !the following commented lines are moved to commander.f90 in order to initialize
-    ! !the mpi structure so that one only reads parameter file with one processor
-    !call mpi_init(ierr)
-    !call mpi_comm_rank(MPI_COMM_WORLD, cpar%myid, ierr)
-    !call mpi_comm_size(MPI_COMM_WORLD, cpar%numprocs, ierr)
-    !cpar%root = 0
     if (.not. (present(reinit_rng))) then
        cpar%numchain = min(cpar%numchain, cpar%numprocs)
 
@@ -2220,7 +2214,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_W_AME_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,2,i))
        call get_parameter_hashtable(htbl, 'COMP_W_AME_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_W_AME_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
        call get_parameter_hashtable(htbl, 'COMP_W_AME_PROPLEN'//itext, &

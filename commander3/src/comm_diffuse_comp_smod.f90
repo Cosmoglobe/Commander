@@ -583,7 +583,6 @@ contains
                          ! write(*,fmt='(a,i1,a,i1,a,i1,a,i1)') 'n = ', n, 'self%npixreg(',j,',',i,') = ', self%npixreg(j,i)
                       end if
                    end if
-                   !write(*,*) "pixreg priors", self%pixreg_priors(:,j,i)
                    ! Loop over frozen regions
                    if (.not. trim(cpar%cs_spec_fix_pixreg(j,i,id_abs)) == 'none') then
                       do pr = 1,self%npixreg(j,i)
@@ -1777,10 +1776,11 @@ contains
                    end do
                 end do
                 call t%dealloc(); deallocate(t)
-             end if
+             ! end if
 
              ! if any polarization is local sampled. Only set theta using polarizations with local sampling
-             if (any(self%lmax_ind_pol(1:self%poltype(j),j) < 0)) then
+             ! if (any(self%lmax_ind_pol(1:self%poltype(j),j) < 0)) then
+             else
                 info_tp => comm_mapinfo(self%theta(j)%p%info%comm, self%theta(j)%p%info%nside, &
                      & 2*self%theta(j)%p%info%nside, nmaps, .false.)
                 tp    => comm_map(info_tp)
@@ -1860,10 +1860,6 @@ contains
                    cycle
                 end if
              end if
-
-!          if (all(self%lmax_ind_mix(1:min(self%nmaps,data(i)%info%nmaps)) == 0)) then  !if (self%lmax_ind == 0) then
-!             cycle
-!          end if
 
              ! NEW ! Check band sensitivity before mixing matrix update
              ! Possible labels are "broadband", "cmb", "synch", "dust", "co10", "co21", "co32", "ff", "ame"

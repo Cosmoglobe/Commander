@@ -148,20 +148,12 @@ program commander
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call define_cg_samp_groups(cpar)
   ! Initialising Bandpass
-  ! TODO: Add QUIET stuff into bandpass module
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   ! Initialising Data -- load it into memory?
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   ! Debug statement to actually see whether
-  ! QUIET is loaded into memory
-  !stop
-  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
-
-
-!write(*,*) 'Setting gain to 1'
-!data(6)%gain = 1.d0
 
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
@@ -190,7 +182,6 @@ program commander
   ! **************************************************************
 
   if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
-     !write(*,*) '|'
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
      write(*,fmt='(a,f12.3,a)') ' |  Time to read data = ', t2-t1, ' sec'
      write(*,*) '|  Starting Gibbs sampling'
@@ -199,7 +190,6 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
-  !first_sample = 1
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
      first_sample = 1
@@ -212,9 +202,6 @@ program commander
      first_sample = first_sample+1
   end if
   call timer%stop(TOT_INIT)
-  !data(1)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
-  !data(2)%bp(0)%p%delta(1) = data(1)%bp(0)%p%delta(1) + 0.2
-
 
   ! Run Gibbs loop
   iter  = first_sample
@@ -274,7 +261,6 @@ program commander
      end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
-     !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
         call timer%start(TOT_AMPSAMP)
         do samp_group = 1, cpar%cg_num_user_samp_groups
@@ -307,11 +293,6 @@ program commander
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
      call timer%stop(TOT_OUTPUT)
 
-     ! Sample partial-sky templates
-     !call sample_partialsky_tempamps(cpar, handle)
-
-     !call output_FITS_sample(cpar, 1000, .true.)
-    
      call wall_time(t2)
      if (ok) then
         if (cpar%myid_chain == 0) then
