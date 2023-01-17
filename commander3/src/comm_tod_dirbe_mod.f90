@@ -294,7 +294,6 @@ contains
    do j = 1, self%ndet
       iras_factors(j) = self%bandpass(j)%p%SED2F(self%bandpass(j)%p%nu_c / self%bandpass(j)%p%nu)
    end do
-
     call update_status(status, "tod_init")
 
     !------------------------------------

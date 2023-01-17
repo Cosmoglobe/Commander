@@ -1,3 +1,11 @@
+"""
+version 2: add smoothing of pixels to remove pixelization effects
+version 3: rotate tods to galactic coordinates
+version 4: add custom planet flags
+version 5: larger flagging radii
+version 6: per pointing time for accurate planet flags
+"""
+
 from __future__ import annotations
 from multiprocessing.managers import DictProxy
 import os
@@ -6,6 +14,7 @@ import random
 from typing import TYPE_CHECKING
 import sys
 from scipy import interpolate
+from datetime import datetime, timedelta
 
 if TYPE_CHECKING:
     from ...python.commander_tools.tod_tools.commander_tod import (
@@ -19,15 +28,20 @@ import dirbe_utils
 from astropy.coordinates import (
     HeliocentricMeanEcliptic,
     get_body,
+    solar_system_ephemeris,
 )
+from scipy.interpolate import interp1d
 import healpy as hp
 import numpy as np
 from numpy.typing import NDArray
 import multiprocessing
 import h5py
 import astropy.units as u
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 
+version = 7
+smooth_pixels = True
+nside_out = 128
 
 TEMP_OUTPUT_PATH = "/mn/stornext/d16/cmbco/bp/metins/dirbe/data/"
 PATH_TO_HDF5_FILES = "/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/"
@@ -40,14 +54,26 @@ FSAMP = 8
 BAD_DATA_SENTINEL = -16375
 N_SMOOTHING_BOUNDARY = 100
 N_CONV_BOX_POINTS = 30
+NSIDE = 128
+
+FLAG_BODIES = [
+    "moon",
+    "mercury",
+    "venus",
+    "mars",
+    "jupiter",
+    "saturn",
+    "uranus",
+    "neptune",
+]
 
 
 def write_dirbe_commmander_tods(
     output_path: str,
     version: int,
     smooth_pixels: bool = False,
-    nside_in: int = 128,
-    nside_out: int = 128,
+    nside_in: int = NSIDE,
+    nside_out: int = NSIDE,
 ) -> None:
     """Writes DIRBE time-ordered data to h5 files."""
 
@@ -55,6 +81,16 @@ def write_dirbe_commmander_tods(
     os.environ["OMP_NUM_THREADS"] = "1"
     pool = multiprocessing.Pool(processes=NUM_PROCS)
     manager = multiprocessing.Manager()
+
+    planet_interp_times = Time(
+        [
+            (datetime(1989, 9, 11) + timedelta(hours=i)).isoformat()
+            for i in range(int(425 * 24))
+        ],
+        format="isot",
+        scale="utc",
+    )
+    planet_interps = get_planet_lonlats(planet_interp_times)
 
     multiprocessor_manager_dicts: dict[str, DictProxy] = {}
     for idx, wavelength in enumerate(dirbe_utils.WAVELENGHTS, start=1):
@@ -78,7 +114,8 @@ def write_dirbe_commmander_tods(
                     nside_in,
                     nside_out,
                     smooth_pixels,
-                    filenames[detector-1],
+                    filenames[detector - 1],
+                    planet_interps,
                 ],
             )
             for detector in dirbe_utils.DETECTORS
@@ -102,6 +139,7 @@ def write_detector(
     nside_out: int,
     smooth: bool,
     filename: str,
+    planet_interps: dict[str, dict[str, interp1d]],
 ) -> None:
     """Writes a single chunk of tod to file."""
 
@@ -168,7 +206,6 @@ def write_detector(
         for band in dirbe_utils.BANDS_LABELS:
             band_chunk_group = f"{chunk_label}/{detector:02}_{band}/"
 
-            flags = get_chunk_band_flags(chunk_label, hdf5_filename, band)
             tods = get_chunk_band_tods(chunk_label, hdf5_filename, band)
             pixels = get_chunk_band_pixels(
                 chunk_label,
@@ -178,6 +215,15 @@ def write_detector(
                 nside_in=nside_in,
                 nside_out=nside_out,
                 smooth=smooth,
+            )
+            flags = get_chunk_band_flags(
+                chunk_label,
+                hdf5_filename,
+                band,
+                nside_in,
+                planet_interps,
+                pixels,
+                tods,
             )
             psi = get_chunk_band_psi(chunk_label, hdf5_filename, band)
 
@@ -252,19 +298,53 @@ def get_chunk_mjd_times(chunk_label: str, hdf5_filename: str) -> NDArray[np.floa
         return file[f"{chunk_label}/A/time"][()]
 
 
+def get_planet_lonlats(times: Time) -> dict[str, dict[str, interp1d]]:
+    print("precomputing planet interpolators...")
+    interpolaters = {}
+    with solar_system_ephemeris.set("de432s"):
+        for body_name in FLAG_BODIES:
+            interpolaters[body_name] = {}
+            body = get_body(body_name, times).galactic
+
+            interpolaters[body_name]["l"] = interp1d(times.mjd, body.l.value)
+            interpolaters[body_name]["b"] = interp1d(times.mjd, body.b.value)
+
+    print("done")
+    return interpolaters
+
+
 def get_chunk_band_flags(
-    chunk_label: str, hdf5_filename: str, band: str
+    chunk_label: str,
+    hdf5_filename: str,
+    band: str,
+    nside_in: int,
+    planet_interpolaters: dict[str, dict[str, interp1d]],
+    pixels: NDArray[np.integer],
+    tods: NDArray[np.floating],
 ) -> NDArray[np.integer]:
     """Gets dirbe flags from gustavs files."""
+    flagging_radii = 5
 
-    bit_13 = int(2**13)
+    sentinel_indices = tods <= BAD_DATA_SENTINEL
+    flags[sentinel_indices] += int(2**13) # Add sentinel flag for values less than SENTINEL_VALUE
 
     with h5py.File(hdf5_filename, "r") as file:
-        tods = file[f"{chunk_label}/{band}/tod"][()]
         flags = file[f"{chunk_label}/{band}/flag"][()]
+        time = file[f"{chunk_label}/{band}/time"][()]
 
-        condition = tods <= BAD_DATA_SENTINEL
-        flags[condition] += bit_13
+
+        for bit_idx, body in enumerate(FLAG_BODIES, start=14):
+            lon, lat = hp.pix2ang(nside_in, pixels, lonlat=True)
+            planet_lon = planet_interpolaters[body]["l"](time)
+            planet_lat = planet_interpolaters[body]["b"](time)
+            ang_dist = hp.rotator.angdist(
+                np.asarray([lon, lat]),
+                np.asarray([planet_lon, planet_lat]),
+                lonlat=True,
+            )
+
+            planet_indices = ang_dist <= np.deg2rad(flagging_radii)
+            flags[planet_indices] += int(2 ** (bit_idx))
 
         return flags
 
@@ -343,7 +423,9 @@ def get_scalars(tods: NDArray[np.floating]) -> NDArray[np.floating]:
     return np.array([TEMP_GAIN, sigma0, fknee, TEMP_ALPHA]).flatten()
 
 
-def get_sat_and_earth_pos(day: int, dirbe_times: NDArray[np.floating]) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+def get_sat_and_earth_pos(
+    day: int, dirbe_times: NDArray[np.floating]
+) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
     """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
 
     N_EARTH_INTERP_STEPS = 100
@@ -409,9 +491,6 @@ def get_sat_and_earth_pos(day: int, dirbe_times: NDArray[np.floating]) -> tuple[
 
 
 def main() -> None:
-    version = 3
-    smooth_pixels = True
-    nside_out = 128
     print(f"Writing tods: {smooth_pixels=}, {nside_out=}")
     write_dirbe_commmander_tods(
         output_path=TEMP_OUTPUT_PATH,
