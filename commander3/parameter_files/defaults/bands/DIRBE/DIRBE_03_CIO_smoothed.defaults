@@ -1,7 +1,7 @@
 #DIRBE 25 micron CIO default parameters
 # NOTE: data dir in parameter file
 
-BAND_LABEL&&&                  = 07_60um
+BAND_LABEL&&&                  = 03_3.5um
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 128
@@ -18,7 +18,7 @@ BAND_PIXEL_WINDOW&&&           = pixel_window_n0128.fits
 BAND_SAMP_NOISE_AMP&&&         = .false.
 BAND_BANDPASS_TYPE&&&          = DIRBE
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
-BAND_NOMINAL_FREQ&&&           = 4996.54096667
+BAND_NOMINAL_FREQ&&&           = 85654.988
 BAND_SAMP_BANDPASS&&&          = .false.
 BAND_BANDPASSFILE&&&           = DIRBE_instrument_01.h5
 BAND_SAMP_GAIN&&&              = .false.
@@ -42,13 +42,13 @@ BAND_TOD_END_SCANID&&&         = 285
 BAND_TOD_TOT_NUMSCAN&&&        = 285
 BAND_TOD_FLAG&&&               = 16335
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
-BAND_TOD_DETECTOR_LIST&&&      = 07_A
+BAND_TOD_DETECTOR_LIST&&&      = 03_A
 BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_SUBTRACT_ZODI&&&      = true
 
-BAND_MAPFILE&&&                = DIRBE_06_128.fits
-BAND_NOISEFILE&&&              = DIRBE_06_SIGMA_final_1_128.fits
+BAND_MAPFILE&&&                = DIRBE_03_128.fits
+BAND_NOISEFILE&&&              = DIRBE_03_SIGMA_final_1_128.fits
 BAND_REG_NOISEFILE&&&          = none   BP_030_rms_v11_median_regnoise.fits
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
@@ -57,5 +57,4 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0128.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0128.fits
 BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_60um_smoothed.txt
-
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_3.5um_smoothed.txt

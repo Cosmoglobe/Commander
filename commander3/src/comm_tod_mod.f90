@@ -335,7 +335,7 @@ contains
        self%subtract_zodi = cpar%ds_tod_subtract_zodi(id_abs)
     else if (cpar%ds_tod_subtract_zodi(id_abs) .and. self%myid == 0) then
          write(*, *) "WARNING:"
-         write(*, *) "Ignoring zodi subtractions for band: ", trim(cpar%ds_label(id_abs)), "since general parameter SUBTRACT_ZODI is false"
+         write(*, *) "Ignoring zodi subtractions for band: ", trim(cpar%ds_label(id_abs)), "-- general parameter SUBTRACT_ZODI is false"
     endif
    
     if (trim(self%tod_type)=='SPIDER') then

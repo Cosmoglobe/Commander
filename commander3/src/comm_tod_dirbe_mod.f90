@@ -103,9 +103,6 @@ contains
 
     call timer%start(TOD_INIT, id_abs)
 
-   ! print *, bandpass(1)%p%nu_eff
-   ! stop 
-
     ! Allocate object
     allocate(constructor)
 
@@ -238,19 +235,21 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
     real(dp)            :: t1, t2
+    real(dp)            :: iras_factor
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
     type(comm_binmap)   :: binmap
     type(comm_scandata) :: sd
     character(len=4)    :: ctext, myid_text
     character(len=6)    :: samptext, scantext
-    character(len=512)  :: prefix, postfix, prefix4D, filename
+    character(len=512)  :: prefix, postfix, prefix4D
     character(len=512), allocatable, dimension(:) :: slist
     real(sp), allocatable, dimension(:)       :: procmask, procmask2
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
+    real(dp), allocatable :: iras_factors(:)
    type(hdf_file) :: tod_file
 
     call int2string(iter, ctext)
@@ -291,6 +290,10 @@ contains
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
 
+   allocate(iras_factors(self%ndet))
+   do j = 1, self%ndet
+      iras_factors(j) = self%bandpass(j)%p%SED2F(self%bandpass(j)%p%nu_c / self%bandpass(j)%p%nu)
+   end do
     call update_status(status, "tod_init")
 
     !------------------------------------
@@ -368,6 +371,12 @@ contains
        d_calib = 0.d0
        d_calib(1, :, :) = sd%tod
        if (self%subtract_zodi) d_calib(7, :, :) = sd%s_zodi
+
+      ! Remove iras convention from tods
+      do j = 1, self%ndet
+         d_calib(1, :, j) = d_calib(1, :, j) * iras_factors(j)
+      end do
+
       !  call compute_calibrated_data(self, i, sd, d_calib)    
       ! write(*,*)sd%tod
       if (.false.) then
@@ -446,6 +455,8 @@ contains
        call sample_bp(self, iter, delta, map_sky, handle, chisq_S)
        self%bp_delta = delta(:,:,1)
     end if
+
+
 
       
 
