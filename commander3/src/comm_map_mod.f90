@@ -1077,19 +1077,19 @@ subroutine tod2file_dp3(filename,d)
     if (rms_cov) then
         call add_card(header) ! blank line
         call add_card(header,"TTYPE1", "II_"//ttype_,"Stokes I")
-        call add_card(header,"TUNIT1", unit_,"Map unit")
+        call add_card(header,"TUNIT1", unit_//'^2',"Map unit")
         call add_card(header)
 
-        call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
-        call add_card(header,"TUNIT2", unit_,"Map unit")
+        call add_card(header,"TTYPE2", "QQ_"//ttype_,"Stokes Q")
+        call add_card(header,"TUNIT2", unit_//'^2',"Map unit")
         call add_card(header)
         
-        call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
-        call add_card(header,"TUNIT3", unit_,"Map unit")
+        call add_card(header,"TTYPE3", "UU_"//ttype_,"Stokes U")
+        call add_card(header,"TUNIT3", unit_//'^2',"Map unit")
         call add_card(header)
 
         call add_card(header,"TTYPE4", "QU_"//ttype_,"Stokes QU")
-        call add_card(header,"TUNIT4", unit_,"Map unit")
+        call add_card(header,"TUNIT4", unit_//'^2',"Map unit")
         call add_card(header)
 
     else

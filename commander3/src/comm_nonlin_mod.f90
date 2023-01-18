@@ -243,11 +243,13 @@ contains
     
 
     ! Sample spectral parameter (parid) for the given signal component
-    allocate(status_fit(numband))
     c => compList
     do while (c%id /= comp_id)
        c => c%next()
     end do
+
+    if (c%p_gauss(2,par_id) == 0.d0) return
+    allocate(status_fit(numband))  
 
     select type (c)
     class is (comm_diffuse_comp)
@@ -628,9 +630,9 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f10.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
-                !write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
-                write(*,*) trim(outmessage)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f10.2)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff
+                write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
+                !write(*,*) trim(outmessage)
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
@@ -1511,8 +1513,7 @@ contains
           if (c_lnL%lmax_ind_pol(p,id) >= 0) cycle !this set of polarizations are not to be local sampled (is checked before this point)
           if (c_lnL%poltype(id) > 1 .and. cpar%only_pol .and. p == 1) cycle !only polarization (poltype > 1)
           if (p > c_lnL%nmaps) cycle ! poltype > number of maps
-
-
+          ! Return if all prior RMS's are zero
 
           call wall_time(t1)
           if (c_lnL%pol_pixreg_type(p,id) /= 0) then

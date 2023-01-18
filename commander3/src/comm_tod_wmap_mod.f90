@@ -300,8 +300,10 @@ contains
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
 
-      ! Precomputing low-resolution preconditioner
-      ! call constructor%precompute_M_lowres
+
+      ! MJDs corresponding to August 10, 2001--2010
+      constructor%split = (/52131,52496,52861,53227,53592,&
+                          & 53957,54322,54688,55053,55418/)
 
 
       ! Need precompute the main beam precomputation for both the A-horn and
@@ -372,18 +374,19 @@ contains
       real(dp)     :: t1, t2, monopole, sigma_mono
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
-      integer(i4b) :: ierr, ndelta
+      integer(i4b) :: ierr, ndelta, t_mid=53765
       real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
-      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv
-      real(dp), allocatable, dimension(:)             :: II_cov, QQ_cov, UU_cov, QU_cov, det
+      real(dp), allocatable, dimension(:, :, :)       :: M_diag_1
+      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv, det
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
+      real(dp), allocatable, dimension(:,:,:,:)       :: b_map_1, b_map_2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, bp_corr, output_scanlist
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, bp_corr, output_scanlist, split
       type(comm_scandata) :: sd
 
       character(len=4)   :: ctext, myid_text
@@ -397,7 +400,7 @@ contains
       integer(i4b) :: num_cg_iters
       real(dp) ::  epsil
       real(dp) ::  nullval
-      real(dp), allocatable, dimension(:, :)    :: bicg_sol
+      real(dp), allocatable, dimension(:, :)    :: bicg_sol, bicg_sol_1, bicg_sol_2
       real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
 
@@ -429,9 +432,8 @@ contains
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
-      !select_data           = .false.         ! no data selection
+      select_data           = .false.         ! no data selection
       !select_data           = self%first_call ! only perform data selection the first time
-      select_data           = iter == 1 ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
@@ -445,9 +447,16 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 1
+      split = .false.
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,25) == 0) self%output_n_maps = 8
-         if (mod(iter-1,10) == 0) self%output_n_maps = 3
+         if (iter .eq. 2) then
+           self%output_n_maps = 3
+           split = .false.
+         else
+           if (mod(iter-1,10) == 0)  self%output_n_maps = 3
+           if (mod(iter-1,25) == 0)  self%output_n_maps = 8
+           if (mod(iter-1,100) == 0) split = .true.
+         end if
       end if
 
 
@@ -491,7 +500,12 @@ contains
       end if
       M_diag = 0d0
       b_map = 0d0
-
+      if (split) then
+          allocate (M_diag_1(0:npix-1, nmaps+1, 9))
+          allocate ( b_map_1(0:npix-1, nmaps,   9, 1))
+          M_diag_1 = 0d0
+          b_map_1 = 0d0
+      end if
 
       allocate(outmaps(1))
       outmaps(1)%p => comm_map(self%info)
@@ -501,7 +515,9 @@ contains
       else
         allocate (bicg_sol(0:npix-1, nmaps  ))
       end if
-
+      if (split) then
+          allocate (bicg_sol_1(0:npix-1, 9))
+      end if
       call timer%stop(TOD_ALLOC, self%band)
 
       if (mod(iter-1, 10) == 0 .or. self%first_call) call self%precompute_M_lowres
@@ -686,8 +702,6 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
 
 
-         !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
-         !if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
          if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -724,6 +738,17 @@ contains
            & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map, M_diag, i, &
            & self%comp_S)
 
+         ! Temporal splits
+         if (split) then
+
+            do j = 1, 9
+               if (self%scans(i)%t0(1) < self%split(j) .or. self%scans(i)%t0(1) > self%split(j+1)) cycle
+               call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
+                 & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map_1(:,:,j,:), M_diag_1(:,:,j), i, &
+                 & self%comp_S)
+            end do
+         end if
+
          ! Update scan list
          call wall_time(t2)
          self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
@@ -753,15 +778,10 @@ contains
 
 
         call timer%start(TOD_MPI, self%band)
-        call update_status(status, "Running allreduce on M_diag")
         call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
-             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-        call update_status(status, "Ran allreduce on M_diag")
-
-        call update_status(status, "Running allreduce on b_map")
+             & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
-             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-        call update_status(status, "Ran allreduce on b_map")
+             & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
 
 
         if (select_data) then
@@ -773,14 +793,19 @@ contains
                & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
         end if
         call timer%stop(TOD_MPI, self%band)
+        if (split) then
+           call timer%start(TOD_MPI, self%band)
+           call mpi_allreduce(mpi_in_place, b_map_1, size(b_map_1), &
+                & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
+           call mpi_allreduce(mpi_in_place, M_diag_1, size(M_diag_1), &
+                & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
+           call timer%stop(TOD_MPI, self%band)
+        end if
 
 
         where (M_diag == 0d0)
            M_diag = 1d0
         end where
-        !if (.not. self%comp_S) then
-        !   M_diag(:,4) = 0d0
-        !end if
         if (self%myid == 0) self%M_diag = M_diag
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
@@ -802,8 +827,8 @@ contains
           end if
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
                          & epsil, procmask2, map_full, M_diag, b_map, l, &
-                         & prefix, postfix, self%comp_S)
-          
+                         & prefix, postfix, self%comp_S, 0)
+
           if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
              monopole = sum((bicg_sol(:,1)-map_full(1,:))*M_diag(:,1)*procmask) &
@@ -820,9 +845,34 @@ contains
              end if
              bicg_sol(:,1) = bicg_sol(:,1) - monopole
           end if
-
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
+          if (split .and. l == 1) then
+             do k = 1, 9
+               if (self%verbosity > 0 .and. self%myid == 0) then
+                 write(*,*) '|      Solving for map year ', k
+               end if
+               bicg_sol_1 = bicg_sol
+               call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
+                              & epsil, procmask2, map_full, M_diag_1(:,:,k), b_map_1(:,:,k,:), l, &
+                              & prefix, postfix, self%comp_S, k)
+               monopole = sum((bicg_sol_1(:,1)-map_full(1,:))*M_diag_1(:,1,k)*procmask) &
+                      & / sum(M_diag_1(:,1,k)*procmask)
+
+               call timer%start(TOD_WRITE) 
+               call mpi_bcast(bicg_sol_1, size(bicg_sol_1),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+               do j = 1, nmaps
+                  outmaps(1)%p%map(:, j) = bicg_sol_1(self%info%pix, j)
+               end do
+               map_out%map = outmaps(1)%p%map
+               call int2string(k, ctext)
+               call map_out%writeFITS(trim(prefix)//'map_yr'//ctext//trim(postfix))
+               call timer%stop(TOD_WRITE) 
+             end do
+          end if
+          
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+
 
           if (self%comp_S) then
              outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
@@ -851,6 +901,15 @@ contains
 
              if (trim(self%noise_format) == 'rms_qucov') then
                allocate(det(0:npix-1))
+               if (split) then
+                 do k = 1, 9
+                   det = M_diag_1(:,2,k)*M_diag_1(:,3,k) - M_diag_1(:,4,k)**2
+                   rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps,k))
+                   rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1,k)
+                   call int2string(k, ctext)
+                   call rms_out%writeFITS(trim(prefix)//'rms_yr'//ctext//trim(postfix))
+                 end do
+               end if
                det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
                rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
                rms_out%map(:,2) = M_diag(self%info%pix,3)/det(self%info%pix)
@@ -897,6 +956,7 @@ contains
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
+      if (allocated(b_map_1)) deallocate(b_map_1,M_diag_1,bicg_sol_1)
 
       if (allocated(outmaps)) then
          call outmaps(1)%p%dealloc
@@ -953,7 +1013,6 @@ contains
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
-      !self%nside_M_lowres = 16
       self%nside_M_lowres = 8
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
@@ -1065,22 +1124,6 @@ contains
                end do
             end do
 
-            !do k1 = 1, self%nmaps_M_lowres
-            !   p1 = (k1-1)*npix + lpix
-            !   do k2 = 1, self%nmaps_M_lowres
-            !      p2 = (k2-1)*npix + rpix
-            !      M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
-            !      M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
-            !      M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
-            !      M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
-
-            !      M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
-            !      M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
-            !      M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
-            !      M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
-            !   end do
-            !end do
-
          end do
 
          deallocate(pix, psi, flag)
@@ -1096,11 +1139,11 @@ contains
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-         !if (self%first_call) then
-         !    call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-         !    call write_hdf(precond_file, '/M', self%M_lowres)
-         !    call close_hdf_file(precond_file)
-         !end if
+         if (.false.) then
+             call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+             call write_hdf(precond_file, '/M', self%M_lowres)
+             call close_hdf_file(precond_file)
+         end if
 
          call invert_matrix(self%M_lowres)
       else
@@ -1108,7 +1151,6 @@ contains
       end if
 
       deallocate(M, dgrade, dl, dr, pl, pr)
-      !deallocate(pmask, m_buf)
 
 
       call update_status(status, "M_lowres_done")
@@ -1271,12 +1313,12 @@ contains
 
 
     dt = 1.d0 / self%scans(scan)%ntod
-    t = 0.d0
+    s = 0.
     do j = 1, self%ndet
+       t = 0.d0
        if (.not. self%scans(scan)%d(j)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
-          s(k,j) = 0.
           do i = 0, self%baseline_order
              s(k,j) = s(k,j) + self%scans(scan)%d(j)%baseline(i) * t**i
           end do
