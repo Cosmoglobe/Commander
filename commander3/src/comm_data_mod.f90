@@ -30,9 +30,10 @@ module comm_data_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
-  !use comm_tod_HFI_mod
+  use comm_tod_DIRBE_mod
   use locate_mod
   use comm_bp_utils
+  use comm_bp_mod
   implicit none
 
   type comm_data_set
@@ -86,6 +87,7 @@ contains
 
     integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
+    character(len=16)  :: dets(1500)
     class(comm_N), pointer  :: tmp => null()
     class(comm_map), pointer  :: smoothed_rms => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
@@ -95,6 +97,7 @@ contains
 
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
+    logical(lgt)                        :: is_wavelength_dummy = .false.
 
 
     character(len=1) :: j_str
@@ -154,25 +157,61 @@ contains
           end if
        end if
 
+       ! Initialize bandpass structures; 0 is full freq, j is detector       
+       call get_tokens(cpar%ds_tod_dets(i), ",", dets, num=data(n)%ndet)
+       allocate(data(n)%bp(0:data(n)%ndet))
+       do j = 1, data(n)%ndet
+          if (j==1) then
+            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
+          else
+            ! Check if bandpass already exists in detector list
+            call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
+                              & dets(j), &
+                              & 0.d0, is_wavelength_dummy, &
+                              & n_dummy, &
+                              & nu_dummy, &
+                              & tau_dummy)
+            do k=1, j
+               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+                  data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
+                  exit
+               else if (k==j-1) then
+                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
+               end if
+            end do
+            deallocate(nu_dummy, tau_dummy)
+          end if
+       end do
+
+       if (trim(cpar%ds_tod_type(i)) == 'none') then
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
+       else
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=cpar%ds_tod_dets(i))
+       end if
+
+
        ! Initialize TOD structures
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
-             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'DIRBE') then
+             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
-             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
              data(n)%ndet = data(n)%tod%ndet
           ! Adding QUIET data into a loop
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
-            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
+            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
@@ -265,39 +304,6 @@ contains
        data(n)%map%map  = data(n)%map%map * data(n)%mask%map
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
-
-       ! Initialize bandpass structures; 0 is full freq, i is detector       
-       allocate(data(n)%bp(0:data(n)%ndet))
-       do j = 1, data(n)%ndet
-          if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
-          else
-            ! Check if bandpass already exists in detector list
-            call read_bandpass(trim(cpar%ds_bpfile(i)), &
-                              & data(n)%tod%label(j), &
-                              & 0.d0, &
-                              & n_dummy, &
-                              & nu_dummy, &
-                              & tau_dummy)
-            do k=1, j
-               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
-                  data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
-                  exit
-               else if (k==j-1) then
-                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
-               end if
-            end do
-            deallocate(nu_dummy, tau_dummy)
-          end if
-       end do
-
-       call update_status(status, "data_BP")
-
-       if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
-       else
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
-       end if
 
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))

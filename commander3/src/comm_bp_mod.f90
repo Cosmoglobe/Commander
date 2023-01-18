@@ -107,6 +107,7 @@ contains
     character(len=512) :: label
     character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
+    logical(lgt) :: is_wavelength = .false.
     
     label = cpar%ds_label(id_abs)
     
@@ -126,6 +127,7 @@ contains
        constructor%threshold = 0.d0
     case ('DIRBE') 
        constructor%threshold = 1.d-5
+       is_wavelength = .true.
     case ('HFI_cmb') 
        constructor%threshold = 1.d-7
     case ('PSM_LFI') 
@@ -158,33 +160,20 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
-   !  else if (trim(constructor%type) == 'DIRBE') then
-   !     if (index(subdets, '.txt') /=0) then
-   !        ndet = count_detectors(subdets, cpar%datadir)
-   !        call get_detectors(subdets, cpar%datadir, dets, ndet)
-   !     else
-   !        call get_tokens(subdets, ",", dets, ndet)
-   !     end if
-   !     write(*, *) "dets", dets(1)
-   !     write(*, *) "alldets", dets
-   !     call read_bandpass_dirbe(trim(dir)//trim(cpar%ds_bpfile(id_abs)), dets(1), &
-   !             & constructor%threshold, &
-   !             & constructor%n, constructor%nu0, constructor%tau0)
-   !     allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
           call read_bandpass(cpar%ds_bpfile(id_abs), detlabel, &
-               & constructor%threshold, &
+               & constructor%threshold, is_wavelength, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
           call get_tokens(subdets, ",", dets, ndet)
           if (constructor%threshold == 0.d0) then
                call read_bandpass(cpar%ds_bpfile(id_abs), dets(1), &
-                    & constructor%threshold, &
+                    & constructor%threshold, is_wavelength, &
                     & constructor%n, constructor%nu0, constructor%tau0)
                do i = 2, ndet
                     call read_bandpass(cpar%ds_bpfile(id_abs), dets(i), &
-                        & constructor%threshold, constructor%n, nu0, tau0)
+                        & constructor%threshold, is_wavelength, constructor%n, nu0, tau0)
                     constructor%tau0 = constructor%tau0 + tau0
                     deallocate(nu0, tau0)
                end do
@@ -265,9 +254,9 @@ contains
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
        if (trim(self%type) == 'DIRBE') then
-          bnu_prime(i)    = comp_bnu_prime(self%nu(i))
-          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
-          sz(i)           = comp_sz_thermo(self%nu(i))
+          bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
+          bnu_prime_RJ(i) = 1.d0 !comp_bnu_prime_RJ(self%nu(i))
+          sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
           bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
@@ -330,13 +319,13 @@ contains
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
  
     case ('DIRBE') 
-
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
-       self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+      !  self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+       self%tau     = self%tau / tsum(self%nu, self%tau)
 
     ! NEW !
     case ('dame')
@@ -373,6 +362,8 @@ contains
   end subroutine update_tau
 
   function SED2F(self, f)
+    ! Routine to perform bandpass integration and unit conversion given a 
+    ! frequency scaling f (see equation 43 in BP1).
     implicit none
 
     class(comm_bp),               intent(in) :: self
@@ -391,7 +382,9 @@ contains
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
-       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
+      !  SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
+       SED2F = tsum(self%nu, self%tau * f)
+
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW

@@ -211,6 +211,8 @@ contains
        write(unit,*) ''
        write(unit,*) '   Channel-specific global timers:'
 
+       write(*, *) "numsamp:", self%numsamp
+
        do band = 1, self%numband
           b = NUM_GLOBAL + (band-1)*NUM_TOD
           if (t(b+TOD_TOT) == 0.d0) cycle

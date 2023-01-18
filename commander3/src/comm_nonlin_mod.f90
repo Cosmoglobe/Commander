@@ -1060,8 +1060,8 @@ contains
              status_fit(i)   = 1    ! Native
           else
              if (.not. associated(data(i)%N_smooth(smooth_scale)%p) .or. &
-                  & data(i)%bp(0)%p%nu_c < c%nu_min_ind(par_id) .or. &
-                  & data(i)%bp(0)%p%nu_c > c%nu_max_ind(par_id)) then
+                  & maxval(data(i)%bp(0)%p%nu) < c%nu_min_ind(par_id) .or. &
+                  & minval(data(i)%bp(0)%p%nu) > c%nu_max_ind(par_id)) then
                 status_fit(i) = 0
              else
                 if (.not. associated(data(i)%B_smooth(smooth_scale)%p)) then
@@ -1073,6 +1073,7 @@ contains
           end if
                 
           if (status_fit(i) == 0) then
+
              ! Channel is not included in fit
              nullify(res_smooth(i)%p)
              nullify(rms_smooth(i)%p)
@@ -1685,12 +1686,11 @@ contains
     n_ok                = 50
     burn_in             = 50
     burned_in           = .false.
-    first_call          = .false.
+    first_call          = .false.    
+    n_prop_limit        = 100
+    n_corr_limit        = n_prop_limit
+    out_every           = 100
 
-    
-    n_prop_limit = 100
-    n_corr_limit = n_prop_limit
-    out_every    = 100
     if (c_lnL%spec_corr_convergence(id)) then
        correlation_limit = c_lnL%spec_corr_limit(id)
     else
@@ -1698,6 +1698,7 @@ contains
     end if
     !     buffer_lnL (theta, limited by min/max)
 
+    ! Check to see which polarization types we care about
     if (c_lnL%poltype(id) == 1) then
        p_min = 1; p_max = c_lnL%nmaps
        if (cpar%only_pol) p_min = 2
@@ -1877,6 +1878,7 @@ contains
        allocate(new_thetas(0:npixreg))
        new_thetas = c_lnL%theta_pixreg(:npixreg,p,id)
        do pr = 1,npixreg
+          ! Don't even think about sampling regions which are held fixed
           if (c_lnL%pol_pixreg_type(p,id) == 3) then
              if (c_lnL%fix_pixreg(pr,p,id)) cycle
           end if
@@ -2121,6 +2123,8 @@ contains
 
        return
     end if
+    ! Now the prior sampling section is done
+    !###################################################################################################
 
     if (band_count==0) then
        buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
@@ -2169,7 +2173,6 @@ contains
 
     ! Init inverse noise diagonal map
     Ninv_map => comm_map(info_lr)
-
 
     ! This is used for marginal/ridge sampling
     allocate(all_thetas(npar))
@@ -2518,7 +2521,6 @@ contains
                       reduced_data(:,k) = res_smooth(band_i(k))%p%map(:,pol_j(k)) + &
                            & monopole_mixing(band_i(k))*(monopole_val(band_i(k))-new_mono(band_i(k)))
                       
-
                    end if !monopole_active(band_i(k) .and. pol_j(k)==1
                 end do !band_count
 
@@ -2823,7 +2825,7 @@ contains
                 end if
              end if
 
-          end if !myid_pix == 0
+          end if !end if (first_sample) !myid_pix == 0
 
           ! if j has been reset/changed by master proc (myid_pix==0), then the others need to know. Same with first_sample logical flag
           call mpi_bcast(j, 1, MPI_INTEGER, 0, info_fr%comm, ierr)

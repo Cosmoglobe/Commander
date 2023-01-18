@@ -1,29 +1,29 @@
-#DIRBE 140 micron CIO default parameters
+#DIRBE 25 micron CIO default parameters
 # NOTE: data dir in parameter file
 
-BAND_LABEL&&&                  = DIRBE_09
+BAND_LABEL&&&                  = 09_140um
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
-BAND_NSIDE&&&                  = 256
-BAND_LMAX&&&                   = 800   # What should this be?
+BAND_NSIDE&&&                  = 128
+BAND_LMAX&&&                   = 350
 BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_mod and scale weights
 BAND_NOISE_FORMAT&&&           = rms
 BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
 BAND_MASKFILE&&&               = fullsky
-BAND_MASKFILE_CALIB&&&         = mask_common_dx12_n0256.fits  fullsky # THIS DOESNT EXIST FOR NSIDE 128
+BAND_MASKFILE_CALIB&&&         = mask_common_dx12_n0128.fits  fullsky
 BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
 BAND_BEAM_B_L_FILE&&&          = B_l_beam_0.7deg.fits  # This needs to be the DIRBE beam fits file
 BAND_BEAM_B_PTSRC_FILE&&&      = none
-BAND_PIXEL_WINDOW&&&           = pixel_window_n0256.fits
+BAND_PIXEL_WINDOW&&&           = pixel_window_n0128.fits
 BAND_SAMP_NOISE_AMP&&&         = .false.
 BAND_BANDPASS_TYPE&&&          = DIRBE
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
-BAND_NOMINAL_FREQ&&&           = 2141. #140 #um
+BAND_NOMINAL_FREQ&&&           = 2141.3747
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = DIRBE_09_bandpass.dat # WMAP has a .dat file here..?
+BAND_BANDPASSFILE&&&           = DIRBE_instrument_01.h5
 BAND_SAMP_GAIN&&&              = .false.
-BAND_GAIN_PRIOR_MEAN&&&        = 1.
-BAND_GAIN_PRIOR_RMS&&&         = 0
+BAND_GAIN_PRIOR_MEAN&&&         = 1.
+BAND_GAIN_PRIOR_RMS&&&          = 0
 BAND_GAIN_CALIB_COMP&&&        = all
 BAND_GAIN_LMIN&&&              = -1
 BAND_GAIN_LMAX&&&              = -1
@@ -35,26 +35,27 @@ BAND_DEFAULT_NOISEAMP&&&       =   1.
 BAND_COMPONENT_SENSITIVITY&&&  = broadband
 
 BAND_TOD_TYPE&&&               = DIRBE
-BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v1.dat # Make one of these for DIRBE? YES
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v1.dat
 BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_START_SCANID&&&       = 1
 BAND_TOD_END_SCANID&&&         = 285
 BAND_TOD_TOT_NUMSCAN&&&        = 285
-BAND_TOD_FLAG&&&               = 6111232 # Not sure what this is either
+BAND_TOD_FLAG&&&               = 16335
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
-BAND_TOD_DETECTOR_LIST&&&      = A
+BAND_TOD_DETECTOR_LIST&&&      = 09_A
 BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
+BAND_TOD_SUBTRACT_ZODI&&&      = true
 
-BAND_MAPFILE&&&                = DIRBE_09_256.fits    # need dirbe files here?
-BAND_NOISEFILE&&&              = DIRBE_09_SIGMA_final_1_256.fits    # need dirbe files here?
+BAND_MAPFILE&&&                = DIRBE_06_128.fits
+BAND_NOISEFILE&&&              = DIRBE_06_SIGMA_final_1_128.fits
 BAND_REG_NOISEFILE&&&          = none   BP_030_rms_v11_median_regnoise.fits
-BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_09_SIGMA_n0032_5deg.fits
-BAND_NOISE_RMS&&&_SMOOTH02     = DIRBE_09_SIGMA_n0016_10deg.fits
-BAND_NOISE_RMS&&&_SMOOTH03     = DIRBE_09_SIGMA_n0016_60arcmin.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
 
-BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits   # What goes here??
-BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
-BAND_TOD_RIMO&&&               = DIRBE_instrument.h5
-BAND_TOD_FILELIST&&&           = filelists/filelist_06_256.txt
+BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0128.fits
+BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0128.fits
+BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_09_140um_smoothed.txt
 

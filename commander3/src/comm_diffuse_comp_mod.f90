@@ -149,7 +149,7 @@ module comm_diffuse_comp_mod
   integer(i4b) :: nmaps_pre = -1
   logical(lgt) :: recompute_diffuse_precond = .true.
   logical(lgt) :: output_cg_eigenvals
-  logical(lgt), private :: only_pol
+  logical(lgt), private :: only_pol, only_I
   character(len=512) :: outdir, precond_type
   integer(i4b),        allocatable, dimension(:) :: ind_pre
   class(comm_mapinfo), pointer                   :: info_pre => null()

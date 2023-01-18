@@ -48,6 +48,8 @@ module comm_tod_WMAP_mod
    use comm_tod_orbdipole_mod
    use comm_tod_driver_mod
    use comm_utils
+   use comm_bp_mod
+
    implicit none
 
    private
@@ -77,7 +79,7 @@ contains
    !**************************************************
    !             Constructor
    !**************************************************
-   function constructor(cpar, id_abs, info, tod_type)
+   function constructor(cpar, id_abs, info, tod_type, bandpass)
       !
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -94,6 +96,8 @@ contains
       ! tod_type: string
       !           Instrument specific tod type
       !
+      ! bandpass: list of comm_bp objects
+      !           bandpasses
       ! Returns
       ! ----------
       ! constructor: pointer
@@ -104,6 +108,7 @@ contains
       integer(i4b),           intent(in) :: id_abs
       class(comm_mapinfo),    target     :: info
       character(len=128),     intent(in) :: tod_type
+      class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
       class(comm_WMAP_tod),   pointer    :: constructor
 
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
@@ -205,7 +210,7 @@ contains
          stop
       end if
 
-      call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+      call constructor%tod_constructor(cpar, id_abs, info, tod_type, bandpass)
       if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
 
       ! Set up WMAP specific parameters

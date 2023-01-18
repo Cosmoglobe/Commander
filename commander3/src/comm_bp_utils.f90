@@ -181,23 +181,26 @@ contains
   end function dB_rj_dnu
 
   ! Routine for reading bandpass files for one detecor with threshold
-  subroutine read_bandpass(filename, label, threshold, n, nu, tau)
+  subroutine read_bandpass(filename, label, threshold, is_wavelength, n, nu, tau)
     implicit none
 
     character(len=*),                            intent(in)  :: filename
     character(len=*),                            intent(in)  :: label
     real(dp),                                    intent(in)  :: threshold
+    logical(lgt),                                intent(in)  :: is_wavelength ! If true then bandpassx is assumed to be given in microns
     integer(i4b),                                intent(out) :: n
     real(dp),         allocatable, dimension(:), intent(out) :: nu, tau
+    real(dp),         allocatable, dimension(:)              :: um, tau_um
 
-    integer(i4b)        :: unit, first, last, m, ierr, l, ext(1)
+
+    integer(i4b)        :: unit, first, last, m, ierr, l, i, ext(1)
     logical(lgt)        :: exist
     character(len=128)  :: string
     type(hdf_file)     :: file
     real(dp), allocatable, dimension(:) :: x, y
 
     unit = getlun()
-    
+
     inquire(file=trim(filename), exist=exist)
     if (.not. exist) call report_error('Bandpass file does not exist = ' // trim(filename))
 
@@ -259,8 +262,6 @@ contains
 2      close(unit)
     end if
 
-    x(1:m) = x(1:m) * 1.d9 ! Convert from GHz to Hz
-
     first = 1
     last  = m
     if (threshold > 0.d0) then
@@ -277,11 +278,28 @@ contains
     nu  = x(first:last)
     tau = y(first:last)
 
-    deallocate(x, y)
+   if (is_wavelength) then ! Convert from micron to Hz
+      allocate(um(n), tau_um(n))
+      do i = 1, n ! reverse tau and nu arrays
+         um(i)  = 2.99792458d14/nu(n-i+1) ! Convert from micron to Hz
+         tau_um(i) = tau(n-i+1)! * ((um(i)**2)/c) ! scale weights by factor (nu**2/c) if weights are in lambda units
+      end do
 
+      ! renormalize weights to sum to 1 under trapezoidal integration
+      tau_um = tau_um / tsum(um, tau_um)
+
+      nu = um
+      tau = tau_um
+
+   else
+      nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
+   end if
+
+    deallocate(x, y)
   end subroutine read_bandpass
 
   ! Routine for reading bandpass files
+  ! THIS SHOULD BE DELETED
   subroutine read_bandpass_dirbe(filename, label, threshold, n, nu, tau)
     implicit none
 

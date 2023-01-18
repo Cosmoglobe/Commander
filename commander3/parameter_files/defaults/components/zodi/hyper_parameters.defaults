@@ -1,0 +1,15 @@
+# Hyper parameters for zodiacal emission modeling
+ZODI_GAUSS_QUAD_ORDER            = 100
+ZODI_LOS_CUT                     = 5.2d0
+ZODI_DELTA_T                     = 0.5d0
+
+ZODI_USE_UNIT_EMISSIVITY         = .false.
+ZODI_USE_UNIT_ALBEDO             = .false.
+
+# Enable components
+ZODI_USE_CLOUD                   = .true.
+ZODI_USE_BAND1                   = .true.
+ZODI_USE_BAND2                   = .true.
+ZODI_USE_BAND3                   = .true.
+ZODI_USE_RING                    = .true.
+ZODI_USE_FEATURE                 = .true.

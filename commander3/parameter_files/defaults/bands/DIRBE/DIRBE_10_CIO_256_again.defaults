@@ -1,7 +1,7 @@
-#DIRBE 140 micron CIO default parameters
+#DIRBE 240 micron CIO default parameters
 # NOTE: data dir in parameter file
 
-BAND_LABEL&&&                  = DIRBE_09
+BAND_LABEL&&&                  = DIRBE_10
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 256
@@ -18,9 +18,9 @@ BAND_PIXEL_WINDOW&&&           = pixel_window_n0256.fits
 BAND_SAMP_NOISE_AMP&&&         = .false.
 BAND_BANDPASS_TYPE&&&          = DIRBE
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
-BAND_NOMINAL_FREQ&&&           = 2141. #140 #um
+BAND_NOMINAL_FREQ&&&           = 1249.13524167 #um
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = DIRBE_09_bandpass.dat # WMAP has a .dat file here..?
+BAND_BANDPASSFILE&&&           = DIRBE_10_bandpass.dat # WMAP has a .dat file here..?
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&        = 1.
 BAND_GAIN_PRIOR_RMS&&&         = 0
@@ -42,16 +42,16 @@ BAND_TOD_END_SCANID&&&         = 285
 BAND_TOD_TOT_NUMSCAN&&&        = 285
 BAND_TOD_FLAG&&&               = 6111232 # Not sure what this is either
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
-BAND_TOD_DETECTOR_LIST&&&      = A
-BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_TOD_DETECTOR_LIST&&&      = 10A
+BAND_TOD_INIT_FROM_HDF&&&      = none
 BAND_TOD_JUMPLIST&&&           = none
 
-BAND_MAPFILE&&&                = DIRBE_09_256.fits    # need dirbe files here?
-BAND_NOISEFILE&&&              = DIRBE_09_SIGMA_final_1_256.fits    # need dirbe files here?
+BAND_MAPFILE&&&                = DIRBE_10_256.fits    # need dirbe files here?
+BAND_NOISEFILE&&&              = DIRBE_10_SIGMA_final_1_256.fits    # need dirbe files here?
 BAND_REG_NOISEFILE&&&          = none   BP_030_rms_v11_median_regnoise.fits
-BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_09_SIGMA_n0032_5deg.fits
-BAND_NOISE_RMS&&&_SMOOTH02     = DIRBE_09_SIGMA_n0016_10deg.fits
-BAND_NOISE_RMS&&&_SMOOTH03     = DIRBE_09_SIGMA_n0016_60arcmin.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = 
+BAND_NOISE_RMS&&&_SMOOTH02     = 
+BAND_NOISE_RMS&&&_SMOOTH03     = none
 
 BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits   # What goes here??
 BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits

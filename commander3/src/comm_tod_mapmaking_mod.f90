@@ -185,7 +185,6 @@ contains
 
     integer(i4b) :: det, i, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq
-
     nout = size(data,1) 
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
@@ -588,7 +587,7 @@ end subroutine bin_differential_TOD
          end if
          rms%map(i, 1) = sqrt(A_inv)*scale
          do k = 1, tod%output_n_maps
-            binmap%outmaps(k)%p%map(i, 1) = b_tot(k, 1, i)/A_inv*scale
+            binmap%outmaps(k)%p%map(i, 1) = b_tot(k, 1, i)*A_inv*scale
          end do
       end do
 

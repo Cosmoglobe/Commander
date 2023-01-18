@@ -52,7 +52,7 @@ contains
     end if
 
     !
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    call constructor%tod_constructor(cpar, id_abs, info, tod_type, bandpass)
 
     ! Set up WMAP specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz

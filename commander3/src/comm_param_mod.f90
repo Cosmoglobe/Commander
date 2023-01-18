@@ -58,7 +58,7 @@ module comm_param_mod
      character(len=512) :: MJysr_convention
      character(len=512) :: fft_magic_number_file
      character(len=512) :: output_comps
-     logical(lgt)       :: only_pol
+     logical(lgt)       :: only_pol, only_I
      logical(lgt)       :: enable_TOD_analysis
      logical(lgt)       :: enable_TOD_simulations !< start commander in simulation regime
      integer(i4b)       :: tod_freq
@@ -148,6 +148,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
+     logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -236,6 +237,23 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:)     :: cs_amp_rms_scale
      real(dp),           allocatable, dimension(:,:)   :: cs_auxpar
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
+
+     ! Zodi parameters
+     integer(i4b)       :: zs_gauss_quad_order, zs_nbands, zs_ncomps
+     real(dp)           :: zs_los_cut, zs_delta_t
+     logical(lgt)       :: zs_use_cloud, zs_use_band1, zs_use_band2, zs_use_band3, zs_use_ring, &
+                           zs_use_feature, zs_use_unit_emissivity
+     real(dp), allocatable, dimension(:, :) :: zs_common ! shape: (n_comps, 6)
+     real(dp)                               :: zs_cloud_alpha, zs_cloud_beta, zs_cloud_gamma, zs_cloud_mu
+     real(dp), allocatable, dimension(:)    :: zs_bands_delta_zeta, zs_bands_v, zs_bands_p, zs_bands_delta_r !(n_dust_bands)
+     real(dp)                               :: zs_ring_r, zs_ring_sigma_r, zs_ring_sigma_z
+     real(dp)                               :: zs_feature_r, zs_feature_sigma_r, zs_feature_sigma_z, &
+                                               zs_feature_theta, zs_feature_sigma_theta
+     real(dp)                               :: zs_t_0, zs_delta
+     real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo! (n_band, n_comp)
+     real(dp), allocatable, dimension(:, :) :: zs_phase_coeff ! (n_band, 3)
+     real(dp), allocatable, dimension(:)    :: zs_nu_ref, zs_solar_irradiance ! (n_band)
+
   end type comm_params
 
 contains
@@ -282,6 +300,7 @@ contains
     call read_global_params_hash(htable,cpar)
     call read_data_params_hash(htable,cpar)
     call read_component_params_hash(htable,cpar)
+    if (cpar%include_tod_zodi) call read_zodi_params_hash(htable, cpar) 
 
     !output parameter file to output directory
     if (cpar%myid == cpar%root) then
@@ -396,6 +415,7 @@ contains
        call get_parameter_hashtable(htbl, 'INIT_CHAIN'//itext,     par_string=cpar%init_chain_prefixes(i))
     end do
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
+    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_TEMPERATURE', par_lgt=cpar%only_I)
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
     call get_parameter_hashtable(htbl, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
     call get_parameter_hashtable(htbl, 'CG_LMAX_PRECOND',          par_int=cpar%cg_lmax_precond)
@@ -520,7 +540,7 @@ contains
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n), cpar%ds_tod_level(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
-    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n))
+    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -599,6 +619,8 @@ contains
                   & par_int=cpar%ds_tod_flag(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
                   & par_lgt=cpar%ds_tod_orb_abscal(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SUBTRACT_ZODI'//itext, len_itext=len_itext, &
+                  & par_lgt=cpar%ds_tod_subtract_zodi(i))         
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_instfile(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &
@@ -865,6 +887,121 @@ contains
 
 
   ! Try breaking apart the component readers so that it's a bit more navigable
+  subroutine read_zodi_params_hash(htbl, cpar)
+    ! NOTE: reading in zodi parameters requires adding the following to your parameter file:
+    ! # DIRBE IPD parameters ------------------------------------------------------------------
+    ! @DEFAULT components/zodi/K98.defaults
+    ! @DEFAULT components/zodi/DIRBE.defaults (or alternatively Planck18.defaults)
+    ! @DEFAULT components/zodi/hyper_parameters.defaults
+    
+    implicit none
+    
+    type(hash_tbl_sll), intent(in) :: htbl
+    type(comm_params),  intent(inout) :: cpar
+    
+    integer(i4b) :: i, j
+    integer(i4b), parameter :: n_common_params = 6
+    integer(i4b), parameter :: n_dust_bands = 3
+    character(len=128), dimension(6) :: comp_labels
+    character(len=1) :: dust_band_label
+    character(len=2) :: obs_band_label
+    character(len=512) :: temp_emissivity, temp_albedo, temp_phase_function
+    character(len=128), allocatable, dimension(:) :: emissivity_string, albedo_string, phase_function_string
+    
+    allocate(cpar%zs_bands_delta_r(n_dust_bands))
+    allocate(cpar%zs_bands_delta_zeta(n_dust_bands))
+    allocate(cpar%zs_bands_p(n_dust_bands))
+    allocate(cpar%zs_bands_v(n_dust_bands))
+    
+    comp_labels = [character(len=128) :: "CLOUD", "BAND1", "BAND2", "BAND3", "RING", "FEATURE"]
+    
+    ! Hyper parameters
+    call get_parameter_hashtable(htbl, 'ZODI_GAUSS_QUAD_ORDER', par_int=cpar%zs_gauss_quad_order)
+    call get_parameter_hashtable(htbl, 'ZODI_LOS_CUT', par_dp=cpar%zs_los_cut)
+    call get_parameter_hashtable(htbl, 'ZODI_DELTA_T', par_dp=cpar%zs_delta_t)
+    call get_parameter_hashtable(htbl, 'ZODI_USE_UNIT_EMISSIVITY', par_lgt=cpar%zs_use_unit_emissivity)
+    
+    call get_parameter_hashtable(htbl, 'ZODI_USE_CLOUD', par_lgt=cpar%zs_use_cloud)
+    call get_parameter_hashtable(htbl, 'ZODI_USE_BAND1', par_lgt=cpar%zs_use_band1)
+    call get_parameter_hashtable(htbl, 'ZODI_USE_BAND2', par_lgt=cpar%zs_use_band2)
+    call get_parameter_hashtable(htbl, 'ZODI_USE_BAND3', par_lgt=cpar%zs_use_band3)
+    call get_parameter_hashtable(htbl, 'ZODI_USE_RING', par_lgt=cpar%zs_use_ring)
+    call get_parameter_hashtable(htbl, 'ZODI_USE_FEATURE', par_lgt=cpar%zs_use_feature)
+    
+    ! Allocate source parameters which depend on number of bands used to observe (DIRBE=10, Planck=6)
+    call get_parameter_hashtable(htbl, 'ZODI_NCOMPS', par_int=cpar%zs_ncomps)
+    call get_parameter_hashtable(htbl, 'ZODI_NBANDS', par_int=cpar%zs_nbands)
+    allocate(cpar%zs_emissivity(cpar%zs_nbands, cpar%zs_ncomps))
+    allocate(cpar%zs_albedo(cpar%zs_nbands, cpar%zs_ncomps))
+    allocate(cpar%zs_phase_coeff(cpar%zs_nbands, 3))
+    allocate(cpar%zs_solar_irradiance(cpar%zs_nbands))
+    allocate(cpar%zs_nu_ref(cpar%zs_nbands))
+    allocate(emissivity_string(cpar%zs_ncomps))
+    allocate(albedo_string(cpar%zs_ncomps))
+    allocate(phase_function_string(cpar%zs_ncomps))
+    
+    ! Common parameters for all components
+    allocate(cpar%zs_common(cpar%zs_ncomps, n_common_params))
+    do i = 1, cpar%zs_ncomps
+       call get_parameter_hashtable(htbl, 'ZODI_'//trim(comp_labels(i))//'_X_0', par_dp=cpar%zs_common(i, 1))
+       call get_parameter_hashtable(htbl, 'ZODI_'//trim(comp_labels(i))//'_Y_0', par_dp=cpar%zs_common(i, 2))
+       call get_parameter_hashtable(htbl, 'ZODI_'//trim(comp_labels(i))//'_Z_0', par_dp=cpar%zs_common(i, 3))
+       call get_parameter_hashtable(htbl, 'ZODI_'//trim(comp_labels(i))//'_I', par_dp=cpar%zs_common(i, 4))
+       call get_parameter_hashtable(htbl, 'ZODI_'//trim(comp_labels(i))//'_OMEGA', par_dp=cpar%zs_common(i, 5))
+       call get_parameter_hashtable(htbl, 'ZODI_'//trim(comp_labels(i))//'_N_0', par_dp=cpar%zs_common(i, 6))
+    end do
+
+    ! Component specific parameters
+    call get_parameter_hashtable(htbl, 'ZODI_CLOUD_ALPHA', par_dp=cpar%zs_cloud_alpha)
+    call get_parameter_hashtable(htbl, 'ZODI_CLOUD_BETA', par_dp=cpar%zs_cloud_beta)
+    call get_parameter_hashtable(htbl, 'ZODI_CLOUD_GAMMA', par_dp=cpar%zs_cloud_gamma)
+    call get_parameter_hashtable(htbl, 'ZODI_CLOUD_MU', par_dp=cpar%zs_cloud_mu)
+
+    do i = 1, size(cpar%zs_bands_delta_r)
+       call int2string(i, dust_band_label)
+       call get_parameter_hashtable(htbl, 'ZODI_BAND'//dust_band_label//'_DELTA_ZETA', par_dp=cpar%zs_bands_delta_zeta(i))
+       call get_parameter_hashtable(htbl, 'ZODI_BAND'//dust_band_label//'_DELTA_R', par_dp=cpar%zs_bands_delta_r(i))
+       call get_parameter_hashtable(htbl, 'ZODI_BAND'//dust_band_label//'_V', par_dp=cpar%zs_bands_v(i))
+       call get_parameter_hashtable(htbl, 'ZODI_BAND'//dust_band_label//'_P', par_dp=cpar%zs_bands_p(i))
+    end do
+
+    call get_parameter_hashtable(htbl, 'ZODI_RING_R', par_dp=cpar%zs_ring_r)
+    call get_parameter_hashtable(htbl, 'ZODI_RING_SIGMA_R', par_dp=cpar%zs_ring_sigma_r)
+    call get_parameter_hashtable(htbl, 'ZODI_RING_SIGMA_Z', par_dp=cpar%zs_ring_sigma_z)
+
+    call get_parameter_hashtable(htbl, 'ZODI_FEATURE_R', par_dp=cpar%zs_feature_r)
+    call get_parameter_hashtable(htbl, 'ZODI_FEATURE_SIGMA_R', par_dp=cpar%zs_feature_sigma_r)
+    call get_parameter_hashtable(htbl, 'ZODI_FEATURE_SIGMA_Z', par_dp=cpar%zs_feature_sigma_z)
+    call get_parameter_hashtable(htbl, 'ZODI_FEATURE_THETA', par_dp=cpar%zs_feature_theta)
+    call get_parameter_hashtable(htbl, 'ZODI_FEATURE_SIGMA_THETA', par_dp=cpar%zs_feature_sigma_theta)
+
+    ! Interplanetary dust parameters
+    call get_parameter_hashtable(htbl, 'ZODI_T_0', par_dp=cpar%zs_t_0)
+    call get_parameter_hashtable(htbl, 'ZODI_DELTA', par_dp=cpar%zs_delta)
+
+
+    ! Source parameters
+    do i = 1, cpar%zs_nbands
+       call int2string(i, obs_band_label)
+       call get_parameter_hashtable(htbl, 'ZODI_NU_REF_'//obs_band_label, par_dp=cpar%zs_nu_ref(i))
+       call get_parameter_hashtable(htbl, 'ZODI_EMISSIVITY_'//obs_band_label, par_string=temp_emissivity)
+       call get_parameter_hashtable(htbl, 'ZODI_ALBEDO_'//obs_band_label, par_string=temp_albedo)
+       call get_parameter_hashtable(htbl, 'ZODI_SOLAR_IRRADIANCE_'//obs_band_label, par_dp=cpar%zs_solar_irradiance(i))
+       call get_parameter_hashtable(htbl, 'ZODI_C_'//obs_band_label, par_string=temp_phase_function)
+       call get_tokens(temp_emissivity, ',', emissivity_string)
+       call get_tokens(temp_albedo, ',', albedo_string)
+       call get_tokens(temp_phase_function, ',', phase_function_string)
+       do j = 1, cpar%zs_ncomps
+          read(emissivity_string(j), *) cpar%zs_emissivity(i, j)
+          read(albedo_string(j), *) cpar%zs_albedo(i, j)
+          if (j <= 3) read(phase_function_string(j), *) cpar%zs_phase_coeff(i, j)
+       end do
+    end do
+
+    ! Convert from GHz to Hz
+    cpar%zs_nu_ref = cpar%zs_nu_ref * 1d9
+
+  end subroutine read_zodi_params_hash
 
   subroutine read_diffuse_gen_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
     implicit none

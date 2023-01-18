@@ -29,6 +29,8 @@ module comm_tod_mod
   use comm_zodi_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
+  use comm_bp_mod
+
   USE ISO_C_BINDING
   implicit none
 
@@ -169,6 +171,7 @@ module comm_tod_mod
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
+     class(comm_bp_ptr), allocatable, dimension(:)     :: bandpass ! Bandpass object
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
      integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
@@ -254,10 +257,11 @@ contains
     if (initialized) return
 
     call initialize_fft_mod(cpar)
+
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
-  subroutine tod_constructor(self, cpar, id_abs, info, tod_type)
+  subroutine tod_constructor(self, cpar, id_abs, info, tod_type, bandpass)
     ! 
     ! Common constructor function for all TOD objects; allocatates and initializes general
     ! data structures. This routine is typically called from within an instrument-specific 
@@ -275,6 +279,8 @@ contains
     !           Information about the maps for this band, like how the maps are distributed in memory
     ! tod_type: string
     !           Instrument specific tod type
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     !
     ! Returns
     ! ----------
@@ -286,6 +292,7 @@ contains
     type(comm_params),              intent(in)     :: cpar
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
+    class(comm_bp_ptr), dimension(0:), intent(in)   :: bandpass
 
     integer(i4b) :: i, ndelta, ierr, unit
     character(len=512) :: datadir
@@ -313,7 +320,6 @@ contains
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
-    self%subtract_zodi = cpar%include_TOD_zodi
     self%central_freq  = cpar%ds_nu_c(id_abs)
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)
@@ -326,6 +332,18 @@ contains
     self%sample_abs_bp   = .false.
     self%baseline_order  = -1
 
+    allocate(self%bandpass(0:size(bandpass)-1))
+    do i = 0, size(bandpass) - 1
+      self%bandpass(i)%p => bandpass(i)%p
+    end do
+
+    if (cpar%include_tod_zodi) then
+       self%subtract_zodi = cpar%ds_tod_subtract_zodi(id_abs)
+    else if (cpar%ds_tod_subtract_zodi(id_abs) .and. self%myid == 0) then
+         write(*, *) "WARNING:"
+         write(*, *) "Ignoring zodi subtractions for band: ", trim(cpar%ds_label(id_abs)), "-- general parameter SUBTRACT_ZODI is false"
+    endif
+   
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
     else

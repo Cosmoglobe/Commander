@@ -8,6 +8,7 @@
 # Possible values: oneapi, nvidia, flang, gnu, intel <= only intel and gnu should work with commander so far
 toolchain="oneapi" #"gnu"
 buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
+# buildtype="Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -105,12 +106,12 @@ then
     build_dir="build_bee47_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
     build_dir="build_hya5_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
+  elif [[ "${HOSTNAME}" =~ $hya6 ]]; then
     build_dir="build_hya6_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya79 ]]; then
-    build_dir="build_hya716_$toolchain"
+    build_dir="build_hya79_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
-    build_dir="build_hya716_$toolchain"
+    build_dir="build_hya1016_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya13 ]]; then
     build_dir="build_hya13_$toolchain"
 	fi
