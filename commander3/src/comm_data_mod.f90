@@ -244,7 +244,7 @@ contains
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case ('rms_qucov') 
-          call update_status(status, 'setting some stuff up')
+          call update_status(status, 'Initializing rms qucov'
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
              data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
@@ -311,9 +311,6 @@ contains
        do j = 1, cpar%num_smooth_scales
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             !if(cpar%myid == 0) then
-             !  write(*,*) "|   Creating filtered noise maps at ", int(cpar%fwhm_smooth(j)), " arcmins"
-             !end if 
             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
                   & data(n)%info%lmax, &

@@ -295,9 +295,6 @@ contains
       ! Collect Sun velocities from all scals
       call constructor%collect_v_sun
 
-      ! Precomputing low-resolution preconditioner
-      ! call constructor%precompute_M_lowres
-
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
@@ -698,8 +695,6 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
 
 
-         !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
-         !if (mod(self%scanid(i), 100) == 0 .and. .not. self%enable_tod_simulations) then
          if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -804,9 +799,6 @@ contains
         where (M_diag == 0d0)
            M_diag = 1d0
         end where
-        !if (.not. self%comp_S) then
-        !   M_diag(:,4) = 0d0
-        !end if
         if (self%myid == 0) self%M_diag = M_diag
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
@@ -1014,7 +1006,6 @@ contains
       if (self%myid == 0) write(*,*) '|    Computing preconditioner'
 
       self%nmaps_M_lowres = 3; if (self%comp_S) self%nmaps_M_lowres = 4
-      !self%nside_M_lowres = 16
       self%nside_M_lowres = 8
       npix                = 12  *self%nside_M_lowres**2
       ntot                = npix*self%nmaps_M_lowres
@@ -1126,22 +1117,6 @@ contains
                end do
             end do
 
-            !do k1 = 1, self%nmaps_M_lowres
-            !   p1 = (k1-1)*npix + lpix
-            !   do k2 = 1, self%nmaps_M_lowres
-            !      p2 = (k2-1)*npix + rpix
-            !      M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
-            !      M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
-            !      M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
-            !      M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
-
-            !      M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
-            !      M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
-            !      M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
-            !      M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
-            !   end do
-            !end do
-
          end do
 
          deallocate(pix, psi, flag)
@@ -1157,11 +1132,11 @@ contains
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-         !if (self%first_call) then
-         !    call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-         !    call write_hdf(precond_file, '/M', self%M_lowres)
-         !    call close_hdf_file(precond_file)
-         !end if
+         if (.false.) then
+             call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+             call write_hdf(precond_file, '/M', self%M_lowres)
+             call close_hdf_file(precond_file)
+         end if
 
          call invert_matrix(self%M_lowres)
       else
@@ -1169,7 +1144,6 @@ contains
       end if
 
       deallocate(M, dgrade, dl, dr, pl, pr)
-      !deallocate(pmask, m_buf)
 
 
       call update_status(status, "M_lowres_done")

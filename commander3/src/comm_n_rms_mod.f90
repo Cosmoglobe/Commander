@@ -79,10 +79,6 @@ contains
     ! General parameters
     allocate(constructor)
 
-    ! NEED TO ADD A TEST
-    ! Check that when you're doing matrix multiplication, the number of maps is
-    ! consistent with the input and the noise covariance matrix.
-
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
     constructor%nmaps             = info%nmaps

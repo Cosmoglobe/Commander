@@ -96,11 +96,6 @@ contains
     ! General parameters
     allocate(constructor)
 
-!!$    if (rms == 0.d0) then
-!!$       if (cpar%myid == 0) write(*,*) 'template_comp: RMS is zero'
-!!$       call mpi_finalize(ierr)
-!!$       stop
-!!$    end if
 
     ! Initialize general parameters
     constructor%class     = cpar%cs_class(id_abs)
