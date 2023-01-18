@@ -244,7 +244,7 @@ contains
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
        case ('rms_qucov') 
-          call update_status(status, 'Initializing rms qucov'
+          call update_status(status, 'Initializing rms qucov')
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
              data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &

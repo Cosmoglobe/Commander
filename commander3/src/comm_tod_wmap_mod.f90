@@ -296,6 +296,11 @@ contains
       call constructor%collect_v_sun
 
 
+      ! MJDs corresponding to August 10, 2001--2010
+      constructor%split = (/52131,52496,52861,53227,53592,&
+                          & 53957,54322,54688,55053,55418/)
+
+
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
       ! Allocate sidelobe convolution data structures
@@ -365,9 +370,6 @@ contains
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
       integer(i4b) :: ierr, ndelta, t_mid=53765
-      integer(i4b), dimension(10) :: t_arr=(/52131,52496,52861,53227,53592,53957,54322, &
-                                          &  54688,55053,55418/)
-      ! MJDs August 10, {2001,...2010}
       real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
@@ -735,7 +737,7 @@ contains
          if (split) then
 
             do j = 1, 9
-               if (self%scans(i)%t0(1) < t_arr(j) .or. self%scans(i)%t0(1) > t_arr(j+1)) cycle
+               if (self%scans(i)%t0(1) < self%split(j) .or. self%scans(i)%t0(1) > self%split(j+1)) cycle
                call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
                  & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map_1(:,:,j,:), M_diag_1(:,:,j), i, &
                  & self%comp_S)
