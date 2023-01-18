@@ -9,7 +9,8 @@ def worker1(arr):
 def worker2(arr):
     arr[1] += 1
 
-array = Array("i", [0,1])
+
+array = Array("i", [0, 1])
 
 p1 = Process(target=worker1, args=[array])
 p2 = Process(target=worker2, args=[array])

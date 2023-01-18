@@ -188,6 +188,7 @@ module comm_tod_mod
      real(dp) :: gain_sigma0_std ! std for metropolis-hastings sampling
      real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
+     integer(i4b), allocatable, dimension(:) :: split
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -1281,18 +1282,6 @@ contains
                sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
                if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
             end do
-
-       ! Sort according to weight
-!!$       pweight = 0.d0
-!!$       w_tot = sum(weight)
-!!$       call QuickSort(id, weight)
-!!$       do i = n_tot, 1, -1
-!!$          ind             = minloc(pweight)-1
-!!$          proc(id(i))     = ind(1)
-!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
-!!$       end do
-!!$       deallocate(id, pweight, weight)
-
             
             w_tot = sum(weight)
             if (self%enable_tod_simulations) then
@@ -1302,47 +1291,53 @@ contains
                   read(infile(q-8:q-3),*) q
                   proc(i) = mod(q,np)
                end do
-            else
-               ! Sort according to scan id
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
+            else if (index(filelist, '-WMAP_') .ne. 0) then
+               pweight = 0d0
+               ! Greedy after sorting
+               ! Algorithm 2 of
+               ! http://web.stanford.edu/class/msande319/Approximation%20Algorithm/lec1.pdf
+               call QuickSort(id, weight)
+               do i = n_tot, 1, -1
+                 j = minloc(pweight, dim=1)
+                 pweight(j-1) = pweight(j-1) + weight(i)
+                 proc(id(i)) = j-1
+               end do
+            else 
+               ! Sort by spin axis (Planck)
                proc    = -1
                call QuickSort(id, sid)
                w_curr = 0.d0
                j     = 1
-               if (n_tot < 10*np) then
-                  do while (j <= n_tot)
-                      do i = np-1, 0, -1
-                          if (j <= n_tot) proc(id(j)) = i
-                          j = j + 1
-                      end do
+               do i = np-1, 0, -1
+                  w = 0.d0
+                  do k = 1, n_tot
+                     if (proc(k) == i) w = w + weight(k) 
                   end do
-               else
-                  do i = np-1, 0, -1
-                     w = 0.d0
-                     do k = 1, n_tot
-                        if (proc(k) == i) w = w + weight(k) 
-                     end do
-                     do while (w < w_tot/np .and. j <= n_tot)
-                        proc(id(j)) = i
-                        w           = w + weight(id(j))
-                        if (w > 1.2d0*w_tot/np) then
-                           ! Assign large scans to next core
-                           proc(id(j)) = i-1
-                           w           = w - weight(id(j))
-                        end if
-                        j           = j+1
-                     end do
-                   end do
-                   do while (j <= n_tot)
-                      proc(id(j)) = 0
-                      j = j+1
-                   end do
-               end if
+                  do while (w < w_tot/np .and. j <= n_tot)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     if (w > 1.2d0*w_tot/np) then
+                        ! Assign large scans to next core
+                        proc(id(j)) = i-1
+                        w           = w - weight(id(j))
+                     end if
+                     j           = j+1
+                  end do
+               end do
+               do while (j <= n_tot)
+                  proc(id(j)) = 0
+                  j = j+1
+               end do
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
             end if
             
-            pweight = 0.d0
-            do k = 1, n_tot
-               pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
-            end do
             write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
          end if

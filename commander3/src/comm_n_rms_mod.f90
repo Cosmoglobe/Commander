@@ -272,9 +272,23 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN%map)**2 * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    if (nmaps_inp .ge. nmaps_band) then
+        map%map(:,:nmaps_band) = (self%siN%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    else if (nmaps_band > nmaps_inp) then
+        ! Should be happening if we have an intensity-only map?
+        map%map(:,:nmaps_inp) = (self%siN%map(:,:nmaps_inp))**2 * map%map(:,:nmaps_inp)
+    end if
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulInvN_1map
 
@@ -284,9 +298,18 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN_lowres%map)**2 * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    map%map(:,:nmaps_band) = (self%siN_lowres%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulInvN_1map_lowres
 
@@ -296,13 +319,19 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
     where (self%siN%map > 0.d0)
        map%map = map%map / (self%siN%map)**2 
     elsewhere
        map%map = 0.d0
     end where
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+         map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+         map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulN_1map
   
@@ -312,9 +341,19 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = self%siN%map * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    nmaps      = min(nmaps_inp,nmaps_band)
+    map%map(:,:nmaps) = self%siN%map * map%map(:,:nmaps)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps) = map%map(:,:nmaps) * self%samp_group_mask(samp_group)%p%map(:,:nmaps)
+          map%map(:,nmaps+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulSqrtInvN_1map
 
@@ -357,12 +396,13 @@ contains
   end subroutine returnRMS
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group)
+  function returnRMSpix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_rms),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
     real(dp)                                     :: returnRMSpix
     integer(i4b),        intent(in),   optional  :: samp_group
+    logical(lgt),        intent(in),   optional  :: ret_invN
     if (self%siN%map(pix,pol) > 0.d0) then
        returnRMSpix = 1.d0/self%siN%map(pix,pol)
     else
@@ -374,6 +414,9 @@ contains
              returnRMSpix = infinity
           end if
        end if
+    end if
+    if (present(ret_invN)) then
+       if (ret_invN) returnRMSpix = self%siN%map(pix,pol)**2
     end if
   end function returnRMSpix
 

@@ -90,20 +90,23 @@ contains
     class(comm_template_comp), pointer              :: constructor
 
     integer(i4b) :: i, j, n
-    character(len=16), dimension(1000) :: comp_label
+    character(len=24), dimension(1000) :: comp_label
     character(len=512) :: dir
 
     ! General parameters
     allocate(constructor)
 
+
     ! Initialize general parameters
     constructor%class     = cpar%cs_class(id_abs)
     constructor%type      = cpar%cs_type(id_abs)
-    constructor%label     = cpar%cs_label(id_abs)
+    constructor%label     = label !cpar%cs_label(id_abs)
     constructor%id        = id
     constructor%nmaps     = 1    ! Only used for CR book-keeping; must be 1 for templates
     constructor%outprefix = trim(cpar%cs_label(id_abs))
+    constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
     constructor%cg_scale  = 1.d0
+    constructor%output    = .true.
     constructor%myid      = cpar%myid_chain
     constructor%comm      = cpar%comm_chain
     constructor%numprocs  = cpar%numprocs_chain
@@ -127,7 +130,7 @@ contains
        constructor%T => comm_map(data(band)%info, trim(mapfile))
        if (trim(maskfile) /= 'fullsky') then
           constructor%mask  => comm_map(data(band)%info, trim(maskfile))
-          constructor%P_cg  =  [mu,1.d-6]
+          constructor%P_cg  =  constructor%P      ![mu,1.d-6]
        else
           constructor%P_cg  =  constructor%P      
        end if
@@ -136,16 +139,18 @@ contains
     ! Set up CG sampling groups
     allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
     constructor%active_samp_group = .false.
-    do i = 1, cpar%cg_num_samp_groups
-       call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
-       do j = 1, n
-          if (trim(constructor%label) == trim(comp_label(j))) then
-             constructor%active_samp_group(i) = .true.
-             if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
-             exit
-          end if
+    if (mu > 0.d0) then
+       do i = 1, cpar%cg_num_samp_groups
+          call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
+          do j = 1, n
+             if (trim(constructor%label) == trim(comp_label(j))) then
+                constructor%active_samp_group(i) = .true.
+                if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+                exit
+             end if
+          end do
        end do
-    end do
+    end if
 
   end function constructor
 
@@ -179,9 +184,9 @@ contains
 
        if (n == 0) then
           initialize_template_comps => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, &
-               & i, label, mapfile, maskfile)
+               & i, trim(cpar%cs_label(id_abs))//'_'//trim(label), mapfile, maskfile)
        else
-          c => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, i, label, mapfile, maskfile)
+          c => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, i, trim(cpar%cs_label(id_abs))//'_'//trim(label), mapfile, maskfile)
           call initialize_template_comps%add(c)
        end if
        n = n+1
@@ -276,11 +281,20 @@ contains
     character(len=*),                        intent(in)           :: postfix
     character(len=*),                        intent(in)           :: dir
 
+    character(len=6) :: itext
+    character(len=512) :: path
+
     if (.not. self%output) return
 
-    if (self%myid == 0) write(*,*) '     Template amplitude = ', self%x
+    if (self%myid == 0) write(*,*) '     Temp amp ', trim(adjustl(data(self%band)%label)), ' = ', self%x
 
-    return
+    if (output_hdf .and. self%myid == 0) then
+       call int2string(iter, itext)
+       path = trim(adjustl(itext))//'/'//trim(self%outprefix)
+       call create_hdf_group(chainfile, trim(adjustl(path)))
+       path = trim(adjustl(path))//'/'//trim(adjustl(data(self%band)%label))
+       call write_hdf(chainfile, trim(adjustl(path)), self%x)
+    end if
     
   end subroutine dumpTemplateToFITS
 
@@ -292,10 +306,10 @@ contains
     type(hdf_file),            intent(in)    :: hdffile
     character(len=*),          intent(in)    :: hdfpath
 
-    integer(i4b)       :: i, j
-    real(dp)           :: md(4)
     character(len=512) :: path
-    real(dp), allocatable, dimension(:,:,:) :: theta
+
+    path = trim(adjustl(hdfpath))//'/'//trim(self%outprefix)//'/'//trim(adjustl(data(self%band)%label))
+    call read_hdf(hdffile, path, self%x)
 
 !!$    path = trim(adjustl(hdfpath))//trim(adjustl(self%label)) // '/'
 !!$    if (self%myid == 0) then
@@ -342,7 +356,7 @@ contains
        select type (c1)
        class is (comm_template_comp)
           pt1  => c1
-          skip = .false.
+          if (c1%band /= 0) skip = .false.
        end select
        if (skip) then
           c1 => c1%next()
@@ -360,7 +374,7 @@ contains
           select type (c2)
           class is (comm_template_comp)
              pt2 => c2
-             skip = .false.
+             if (pt2%band == pt1%band) skip = .false.
           end select
           if (skip) then
              c2 => c2%next()
@@ -390,7 +404,7 @@ contains
           select type (c1)
           class is (comm_template_comp)
              pt1  => c1
-             skip = .false.
+             if (c1%band /= 0) skip = .false.
           end select
           if (skip) then
              c1 => c1%next()
@@ -408,7 +422,7 @@ contains
           select type (c1)
           class is (comm_template_comp)
              pt1  => c1
-             skip = .false.
+             if (c1%band /= 0) skip = .false.
           end select
           if (skip) then
              c1 => c1%next()
@@ -453,8 +467,9 @@ contains
     class(comm_comp),          pointer                     :: c => null() 
     class(comm_template_comp), pointer                     :: pt => null()
 
+    return
     if (npre == 0 .or. myid_pre /= 0) return
-    
+
     ! Reformat linear array into y(npre) structure
     allocate(y(npre))
     y = 0.d0
@@ -465,7 +480,7 @@ contains
        select type (c)
        class is (comm_template_comp)
           pt => c
-          skip = .false.
+          if (pt%band /= 0) skip = .false.
        end select
        if (skip) then
           c => c%next()
@@ -489,7 +504,7 @@ contains
        select type (c)
        class is (comm_template_comp)
           pt => c
-          skip = .false.
+          if (pt%band /= 0) skip = .false.
        end select
        if (skip) then
           c => c%next()
@@ -502,7 +517,7 @@ contains
        c => c%next()
        deallocate(amp)
     end do
-    
+
     deallocate(y)
 
   end subroutine applyTemplatePrecond
