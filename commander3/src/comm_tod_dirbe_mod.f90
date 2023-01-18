@@ -349,7 +349,7 @@ contains
        end if
 
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -358,7 +358,8 @@ contains
        end do
 
        ! Select data
-       if (select_data) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
+       ! if (select_data) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
+       if (.false.) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
