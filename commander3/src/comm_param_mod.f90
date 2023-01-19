@@ -3351,158 +3351,159 @@ contains
 2   write(*,*) "Error: Cannot open include file '" // trim(filenames(depth)) // "'"
     write(*,*) " in file " // trim(filenames(depth-1))
     do i = depth-2, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
-       do i = depth-1, 1, -1; close(units(i)); end do
-          stop
+    do i = depth-1, 1, -1; close(units(i)); end do
+    stop
 
-          ! Case 2: Directive error
-3         write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
-          write(*,*) " in file " // trim(filenames(depth))
-          do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
-             do i = depth, 1, -1; close(units(i)); end do
-                stop
-                ! Case 3: Top level parameter file unreadable
-4               write(*,*) "Error: Cannot open parameter file '" // trim(paramfile) // "'"
-                stop
+    ! Case 2: Directive error
+3   write(*,*) "Error: Unrecognized directive '" // trim(key) //"'"
+    write(*,*) " in file " // trim(filenames(depth))
+    do i = depth-1, 1, -1; write(*,*) " included from " // trim(filenames(i)); end do
+    do i = depth, 1, -1; close(units(i)); end do
+    stop
 
-              end subroutine read_paramfile_to_ascii
+    ! Case 3: Top level parameter file unreadable
+4   write(*,*) "Error: Cannot open parameter file '" // trim(paramfile) // "'"
+    stop
+
+    end subroutine read_paramfile_to_ascii
 
 
-              ! read parameter from input argument or hash table
-              subroutine get_parameter_hashtable(htbl, parname, len_itext, par_int, par_char, &
-                   & par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
-                implicit none
-                type(hash_tbl_sll), intent(in) :: htbl 
-                character(len=*),   intent(in) :: parname
-                integer(i4b),     optional :: len_itext
-                integer(i4b),     optional :: par_int
-                character(len=*), optional :: par_char
-                character(len=*), optional :: par_string
-                real(sp),         optional :: par_sp
-                real(dp),         optional :: par_dp
-                logical(lgt),     optional :: par_lgt
-                logical(lgt),     optional :: par_present
-                character(len=*), optional :: desc
-                logical(lgt),     optional :: path
+    ! read parameter from input argument or hash table
+    subroutine get_parameter_hashtable(htbl, parname, len_itext, par_int, par_char, &
+         & par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
+      implicit none
+      type(hash_tbl_sll), intent(in) :: htbl 
+      character(len=*),   intent(in) :: parname
+      integer(i4b),     optional :: len_itext
+      integer(i4b),     optional :: par_int
+      character(len=*), optional :: par_char
+      character(len=*), optional :: par_string
+      real(sp),         optional :: par_sp
+      real(dp),         optional :: par_dp
+      logical(lgt),     optional :: par_lgt
+      logical(lgt),     optional :: par_present
+      character(len=*), optional :: desc
+      logical(lgt),     optional :: path
 
-                logical(lgt)               :: found
+      logical(lgt)               :: found
 
-                found = .false.
-                call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
-                if(found) then
-                   if(present(par_present)) par_present = .true.
-                else
-                   call get_parameter_from_hash(htbl, parname, len_itext, par_int, &
-                        & par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
-                end if
-              end subroutine get_parameter_hashtable
+      found = .false.
+      call get_parameter_arg(parname, par_int, par_char, par_string, par_sp, par_dp, par_lgt, found, desc)
+      if(found) then
+         if(present(par_present)) par_present = .true.
+      else
+         call get_parameter_from_hash(htbl, parname, len_itext, par_int, &
+              & par_char, par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
+      end if
+    end subroutine get_parameter_hashtable
 
-              ! getting parameter value from hash table
-              subroutine get_parameter_from_hash(htbl, parname, len_itext, par_int, par_char, &
-                   & par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
-                implicit none
-                type(hash_tbl_sll), intent(in) :: htbl
-                character(len=*),   intent(in) :: parname
-                integer(i4b),     optional :: len_itext
-                integer(i4b),     optional :: par_int
-                character(len=*), optional :: par_char
-                character(len=*), optional :: par_string
-                real(sp),         optional :: par_sp
-                real(dp),         optional :: par_dp
-                logical(lgt),     optional :: par_lgt
-                logical(lgt),     optional :: par_present
-                character(len=*), optional :: desc
-                logical(lgt),     optional :: path
-                character(len=256)         :: key
-                character(len=:), ALLOCATABLE   :: itext,jtext
-                CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3
-                character(len=512)              :: val4
-                integer(i4b)                    :: i,j
-                logical(lgt)                    :: loc_path
+    ! getting parameter value from hash table
+    subroutine get_parameter_from_hash(htbl, parname, len_itext, par_int, par_char, &
+         & par_string, par_sp, par_dp, par_lgt, par_present, desc, path)
+      implicit none
+      type(hash_tbl_sll), intent(in) :: htbl
+      character(len=*),   intent(in) :: parname
+      integer(i4b),     optional :: len_itext
+      integer(i4b),     optional :: par_int
+      character(len=*), optional :: par_char
+      character(len=*), optional :: par_string
+      real(sp),         optional :: par_sp
+      real(dp),         optional :: par_dp
+      logical(lgt),     optional :: par_lgt
+      logical(lgt),     optional :: par_present
+      character(len=*), optional :: desc
+      logical(lgt),     optional :: path
+      character(len=256)         :: key
+      character(len=:), ALLOCATABLE   :: itext,jtext
+      CHARACTER(len=:), ALLOCATABLE   :: val,val2,val3
+      character(len=512)              :: val4
+      integer(i4b)                    :: i,j
+      logical(lgt)                    :: loc_path
     
-                if(.not. present(path)) then 
-                  loc_path = .false.
-                else
-                  loc_path = path
-                end if
-                key=trim(parname)
-                call tolower(key)
-                call get_hash_tbl_sll(htbl,trim(key),val)
-                if (.not. allocated(val)) then
-                   goto 1
-                   if (.not. present(len_itext)) goto 1
-                   allocate(character(len=len_itext) :: itext,jtext)
-                   itext=key(len(trim(key))-(len_itext-1):len(trim(key)))
-                   call get_hash_tbl_sll(htbl,'band_default_params'//trim(itext),val2)
-                   if (allocated(val2)) then
-                      read(val2,*) j
-                      if (j /= 0) then
-                         call int2string(j, jtext)
-                         call get_hash_tbl_sll(htbl,'band_default_params'//trim(jtext),val3)
-                         if (allocated(val3)) then
-                            read(val3,*) i
-                            if (i /= 0) goto 2
-                         end if
-                         call get_hash_tbl_sll(htbl,key(1:len(trim(key))-len_itext)//trim(jtext),val)
-                         if (.not. allocated(val)) goto 3
-                      else
-                         goto 1
-                      end if
-                   else
-                      goto 1
-                   end if
-                   deallocate(itext,jtext)
-                end if
+      if(.not. present(path)) then 
+        loc_path = .false.
+      else
+        loc_path = path
+      end if
+      key=trim(parname)
+      call tolower(key)
+      call get_hash_tbl_sll(htbl,trim(key),val)
+      if (.not. allocated(val)) then
+         goto 1
+         if (.not. present(len_itext)) goto 1
+         allocate(character(len=len_itext) :: itext,jtext)
+         itext=key(len(trim(key))-(len_itext-1):len(trim(key)))
+         call get_hash_tbl_sll(htbl,'band_default_params'//trim(itext),val2)
+         if (allocated(val2)) then
+            read(val2,*) j
+            if (j /= 0) then
+               call int2string(j, jtext)
+               call get_hash_tbl_sll(htbl,'band_default_params'//trim(jtext),val3)
+               if (allocated(val3)) then
+                  read(val3,*) i
+                  if (i /= 0) goto 2
+               end if
+               call get_hash_tbl_sll(htbl,key(1:len(trim(key))-len_itext)//trim(jtext),val)
+               if (.not. allocated(val)) goto 3
+            else
+               goto 1
+            end if
+         else
+            goto 1
+         end if
+         deallocate(itext,jtext)
+      end if
 
-                if (present(par_int)) then
-                   read(val,*) par_int
-                elseif (present(par_char)) then
-                   read(val,*) par_char
-                elseif (present(par_string)) then
-                   !append data directory if required
-                   if(len(val) > 0) then
-                     if(loc_path .and. trim(val) /= 'fullsky' .and. trim(val) /= 'none' .and. trim(val) /= 'native' .and. trim(val) /= 'default') then
-                       if(val(1:1) /= '/') then
-                        call get_parameter_hashtable(htbl, "DATA_DIRECTORY", par_string=val4, path=.false.)
-                        val = trim(val4) // '/' // trim(val)
-                       end if
-                     end if
-                   end if
-                   !read(val,*) par_string
-                   par_string = val
-                elseif (present(par_sp)) then
-                   read(val,*) par_sp
-                elseif (present(par_dp)) then
-                   read(val,*) par_dp
-                elseif (present(par_lgt)) then
-                   if (trim(val) == '.true.' .or. trim(val) == '.false.') then
-                      read(val,*) par_lgt
-                   else
-                      write(*,*) "Error: parameter "//trim(parname)//" should be .true. or .false."
-                      stop
-                   end if
-                else
-                   write(*,*) "get_parameter: Reached unreachable point! ", val, present(par_string)
-                end if
+      if (present(par_int)) then
+         read(val,*) par_int
+      elseif (present(par_char)) then
+         read(val,*) par_char
+      elseif (present(par_string)) then
+         !append data directory if required
+         if(len(val) > 0) then
+           if(loc_path .and. trim(val) /= 'fullsky' .and. trim(val) /= 'none' .and. trim(val) /= 'native' .and. trim(val) /= 'default') then
+             if(val(1:1) /= '/') then
+              call get_parameter_hashtable(htbl, "DATA_DIRECTORY", par_string=val4, path=.false.)
+              val = trim(val4) // '/' // trim(val)
+             end if
+           end if
+         end if
+         !read(val,*) par_string
+         par_string = val
+      elseif (present(par_sp)) then
+         read(val,*) par_sp
+      elseif (present(par_dp)) then
+         read(val,*) par_dp
+      elseif (present(par_lgt)) then
+         if (trim(val) == '.true.' .or. trim(val) == '.false.') then
+            read(val,*) par_lgt
+         else
+            write(*,*) "Error: parameter "//trim(parname)//" should be .true. or .false."
+            stop
+         end if
+      else
+         write(*,*) "get_parameter: Reached unreachable point! ", val, present(par_string)
+      end if
 
-                deallocate(val)
-                return
+      deallocate(val)
+      return
 
-                !if (cpar%myid == cpar%root) then
+      !if (cpar%myid == cpar%root) then
 
-1               write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
-                write(*,*) ""
-                stop
+1     write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
+      write(*,*) ""
+      stop
 
 
-2               write(*,*) "Error: Recursive default parameters, bands " // &
-                     & trim(jtext) // " and " //trim(itext)
-                write(*,*) ""
-                stop
+2     write(*,*) "Error: Recursive default parameters, bands " // &
+           & trim(jtext) // " and " //trim(itext)
+      write(*,*) ""
+      stop
 
-3    write(*,*) "Error: Could not find parameter '" // trim(parname)//&
-        & "' from default '"//key(1:len(trim(key))-len_itext)//trim(jtext)//"'"
-     write(*,*) ""
-     stop
+3     write(*,*) "Error: Could not find parameter '" // trim(parname)//&
+         & "' from default '"//key(1:len(trim(key))-len_itext)//trim(jtext)//"'"
+      write(*,*) ""
+      stop
   end subroutine get_parameter_from_hash
 
   ! outputs the parameter file to the path provided
