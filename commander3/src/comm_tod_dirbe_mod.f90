@@ -112,16 +112,19 @@ contains
     constructor%noise_psd_model = 'oof'
     allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
     
     constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
-    !if (.true.) then
-    !   constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
-    !   constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-    !   constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
-    !else
-    !   write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
-    !   stop
-    !end if
+    if (.true.) then
+      constructor%xi_n_nu_fit(1,:)  = [0.,    0.200] ! More than max(2*fknee_default)
+      constructor%xi_n_nu_fit(2,:)  = [0.,    0.200] ! More than max(2*fknee_default)
+      constructor%xi_n_nu_fit(3,:)  = [0.,    0.200] ! More than max(2*fknee_default)
+      constructor%xi_n_P_uni(2,:)  = [0.001, 0.45]  ! fknee
+      constructor%xi_n_P_uni(3,:)  = [-2.5, -0.4]   ! alpha
+    else
+      write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
+      stop
+    end if
 
     ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type, bandpass)
