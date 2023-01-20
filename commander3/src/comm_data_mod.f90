@@ -44,6 +44,7 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
+     integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only
 
      class(comm_mapinfo), pointer :: info      => null()
@@ -187,6 +188,7 @@ contains
 
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
+             data(n)%tod_freq       = cpar%ds_tod_freq(i)
           end if
        end if
        call update_status(status, "data_tod")

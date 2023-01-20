@@ -449,7 +449,7 @@ contains
            split = .false.
          else
            if (mod(iter-1,10) == 0)  self%output_n_maps = 3
-           if (mod(iter-1,25) == 0)  self%output_n_maps = 8
+           if (mod(iter-1,20) == 0)  self%output_n_maps = 8
            if (mod(iter-1,100) == 0) split = .true.
          end if
       end if

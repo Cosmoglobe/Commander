@@ -148,6 +148,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_flag
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_halfring
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
+     integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -526,7 +527,7 @@ contains
     allocate(cpar%ds_tod_type(n), cpar%ds_tod_filelist(n), cpar%ds_tod_jumplist(n), cpar%ds_tod_initHDF(n), cpar%ds_tod_level(n))
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
-    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n))
+    allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_orb_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_freq(n))
 
     do i = 1, n
        call int2string(i, itext)
@@ -615,6 +616,8 @@ contains
                 write(*,*) "Unrecognized BAND_TOD_LEVEL"//itext//" parameter", trim(cpar%ds_tod_level(i))
                 stop
              end if
+             call get_parameter_hashtable(htbl, 'N_GIBBS_PER_TOD'//itext, len_itext=len_itext, &
+                  & par_int=cpar%ds_tod_freq(i))
           end if
        end if
 
