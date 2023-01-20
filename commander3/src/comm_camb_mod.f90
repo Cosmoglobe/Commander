@@ -244,6 +244,9 @@ contains
           filename = trim(cpar%outdir)//'/sigma_l_s_hat_init.dat'
           call write_sigma_l(filename, sigma_l)
         end if
+        cmbmap        => comm_map(c%x)
+        call cmbmap%Y()
+        call cmbmap%writeFITS(trim(cpar%outdir) // "/s_hat_map_init.fits")
 
         c%x%alm = constructor%sample_old%f_lm
         call c%x%getSigmaL(sigma_l)
@@ -262,6 +265,11 @@ contains
           filename = trim(cpar%outdir)//'/sigma_l_s_hat_pluss_f_hat_init.dat'
           call write_sigma_l(filename, sigma_l)
         end if
+        cmbmap        => comm_map(c%x)
+        call cmbmap%Y()
+        call cmbmap%writeFITS(trim(cpar%outdir) // "/s_hat_pluss_f_hat_map_init.fits")
+
+        call cmbmap%dealloc(); deallocate(cmbmap)
       end select
       c => c%next()
     end do
@@ -388,9 +396,13 @@ contains
     type(comm_camb_sample), pointer                   :: new_sample
     type(comm_camb_sample)                            :: old_sample
     real(dp), dimension(4, 0: self%lmax)              :: new_sample_c_l
+    real(dp), dimension(:, :), allocatable            :: sigma_l
     integer(i4b)                                      :: ierr, comm, l
+    character(len=6)                                  :: samptext
     real(dp), dimension(:), allocatable               :: new_theta_proposal
+    character(len=512)                                :: filename
     class(comm_comp), pointer                         :: c => null()
+    class(comm_map),  pointer                         :: cmbmap => null()
 
     allocate(new_sample)
     allocate(new_sample%c_l(self%nmaps, 0 : self%lmax))
@@ -464,7 +476,7 @@ contains
     call self%get_scaled_hat_f_lm(cpar, new_sample, old_sample)
     
     ! Get acceptance
-    accept = acceptance(self, cpar, new_sample, old_sample, handle, self%total_samples)
+    accept = acceptance(self, cpar, new_sample, old_sample, handle)
 
     self%total_samples = self%total_samples + 1 
     if (accept) then
@@ -477,17 +489,54 @@ contains
       ! Since it was accepted, set the old sample to be the new sample
       self%sample_old = new_sample
 
+      call int2string(self%total_samples, samptext)
+
       ! Set the a_lm to be the sample. Not really necessary yet.
+      ! Also save the map and sigma_ell
       c => compList
       do while (associated(c))
         select type (c)
         class is (comm_cmb_comp)
+          ! Save s_lm
+          allocate(sigma_l(0:c%x%info%lmax,c%x%info%nspec))
+          c%x%alm = new_sample%s_lm
+          call c%x%getSigmaL(sigma_l)
+          if (c%x%info%myid == 0) then
+            filename = trim(cpar%outdir)//'/sigma_l_s_hat_' // trim(samptext) // '.dat'
+            call write_sigma_l(filename, sigma_l)
+          end if
+          cmbmap        => comm_map(c%x)
+          call cmbmap%Y()
+          call cmbmap%writeFITS(trim(cpar%outdir) // "/s_hat_map_"// trim(samptext) // ".fits")
+
+          ! Save f_Lm
+          c%x%alm = new_sample%f_lm
+          call c%x%getSigmaL(sigma_l)
+          if (c%x%info%myid == 0) then
+            filename = trim(cpar%outdir)//'/sigma_l_f_hat_' // trim(samptext) // '.dat'
+            call write_sigma_l(filename, sigma_l)
+          end if
+          cmbmap        => comm_map(c%x)
+          call cmbmap%Y()
+          call cmbmap%writeFITS(trim(cpar%outdir) // "/f_hat_map_"// trim(samptext) // ".fits")
+
+          ! Save s_lm+f_lm
           c%x%alm = new_sample%s_lm + new_sample%f_lm
+          call c%x%getSigmaL(sigma_l)
+          if (c%x%info%myid == 0) then
+            filename = trim(cpar%outdir)//'/sigma_l_s_hat_plus_f_hat_' // trim(samptext) // '.dat'
+            call write_sigma_l(filename, sigma_l)
+          end if
+          cmbmap        => comm_map(c%x)
+          call cmbmap%Y()
+          call cmbmap%writeFITS(trim(cpar%outdir) // "/s_hat_pluss_f_hat_map_"// trim(samptext) // ".fits")
+        
+          call cmbmap%dealloc(); deallocate(cmbmap)
         end select
         c => c%next()
       end do
-    else
 
+    else
       ! Sample was not accepted. Set the a_lm to be the sample to be the old sample
       c => compList
       do while (associated(c))
@@ -519,6 +568,7 @@ contains
       end select
       c => c%next()
     end do
+    if (allocated(sigma_l)) deallocate(sigma_l)
   end subroutine sample_joint_Cl_theta_sampler
 
   subroutine compute_fluctuation_acceptance(self, cpar, c, comm, res)
@@ -606,7 +656,7 @@ contains
   end subroutine cosmo_param_proposal
 
 
-  function acceptance(self, cpar, new_sample, old_sample, handle, iter)
+  function acceptance(self, cpar, new_sample, old_sample, handle)
     ! 
     ! This function determines if the new sample should be accepted or not.
     ! Assumes no priors and that the proposal is symmetric. Hence 
@@ -622,8 +672,6 @@ contains
     !    Previous sample with cosmological parameters, CAMB power spectras, s_lm and f_lm
     ! handle: derived type (planck_rng)
     !    Random number handle
-    ! iter: int
-    !    Iteration number of the sampling.
     !
     ! Returns
     ! -------
@@ -639,14 +687,13 @@ contains
     class(comm_map),  pointer :: cmbmap => null()
 
     class(comm_comp), pointer                          :: c => null()
-    real(dp), dimension(:, :), allocatable             :: sigma_l
     real(dp), dimension(4, 0: self%lmax)               :: old_c_l, new_c_l
     real(dp)                                           :: chisq_first_ip1, chisq_first_i, chisq_second_ip1, chisq_second_i, chisq_third_ip1, chisq_third_i, cur_i, cur_ip1, log_probability, uni
     real(dp), dimension(3, 3)                          :: new_S, old_S
-    integer(i4b)                                       :: k, i, l, m, comm, ierr, iter
+    integer(i4b)                                       :: k, i, l, m, comm, ierr
     logical(i4b)                                       :: acceptance, finished
     character(len=512)                                 :: filename
-    character(len=6)                                   :: samptext
+    
 
     old_c_l  = old_sample%c_l
     new_c_l  = new_sample%c_l
@@ -658,8 +705,6 @@ contains
     chisq_second_i   = 0.d0
     chisq_third_ip1 = 0.d0
     chisq_third_i   = 0.d0
-
-    call int2string(iter, samptext)
 
     ! This part calculates the hat(s)S^(-1)hat(s) part of the chi^2
     c => compList
@@ -726,7 +771,7 @@ contains
           
           write(*, *) 'new chi^2', chisq_first_ip1 + chisq_second_ip1 + chisq_third_ip1
           write(*, *) 'old chi^2', chisq_first_i + chisq_second_i + chisq_third_i
-          write(*, *) 'correct tau, proposed tau, old tau', 0.0544d0, new_sample%theta(1), old_sample%theta(1)
+          write(*, *) 'correct tau, proposed tau, old tau', 0.0544d0, new_sample%theta(4), old_sample%theta(4)
           log_probability = - (chisq_first_ip1 - chisq_first_i) / 2.0d0 - (chisq_second_ip1 - chisq_second_i)/2.0d0 - (chisq_third_ip1 - chisq_third_i)/2.0d0
           uni = rand_uni(handle)
           write(*,*) 'Total log prob:', log_probability, exp(log_probability), uni
@@ -759,19 +804,9 @@ contains
             if (finished) exit loop
           end do loop
         end if
-
-        ! For plotting purposes
-        allocate(sigma_l(0:c%x%info%lmax,c%x%info%nspec))
-        c%x%alm = new_sample%s_lm
-        call c%x%getSigmaL(sigma_l)
-        if (c%x%info%myid == 0) then
-          filename = trim(cpar%outdir)//'/sigma_l_s_hat'// '_' // trim(samptext) // '.dat'
-          call write_sigma_l(filename, sigma_l)
-        end if
       end select
       c => c%next()
     end do
-  deallocate(sigma_l)
   end function acceptance
 
   subroutine get_hat_s_lm(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample)
@@ -817,6 +852,13 @@ contains
       class is (comm_cmb_comp)
           allocate(new_sample%s_lm(0:c%x%info%nalm-1, 3))
           new_sample%s_lm = c%x%alm
+
+          !do i = 0, c%x%info%nalm-1
+          !  l = c%x%info%lm(1, i)
+          !  if (l <= 1) then
+          !    new_sample%s_lm(i, :) = 0d0
+          !  end if
+          !end do
       end select
       c => c%next()
     end do
@@ -865,12 +907,12 @@ contains
           allocate(new_sample%f_lm(0:c%x%info%nalm-1, 3))
           new_sample%f_lm = c%x%alm
           
-          do i = 0, c%x%info%nalm-1
-            l = c%x%info%lm(1, i)
-            if (l <= 1) then
-              new_sample%f_lm = 0d0
-            end if
-          end do
+          !do i = 0, c%x%info%nalm-1
+          !  l = c%x%info%lm(1, i)
+          !  if (l <= 1) then
+          !    new_sample%f_lm(i, :) = 0d0
+          !  end if
+          !end do
         end select
         c => c%next()
       end do
@@ -929,7 +971,8 @@ contains
       
             new_sample%scaled_f_lm(i, :) = matmul(new_S, matmul(old_S, old_sample%f_lm(i, :)))
           else
-            new_sample%scaled_f_lm(i, :) = 0d0 ! We dont want to sample the dipole and monopole
+            !new_sample%scaled_f_lm(i, :) = 0d0 ! We dont want to sample the dipole and monopole
+            new_sample%scaled_f_lm(i, :) = old_sample%f_lm(i, :)
           end if
         end do
       end select
