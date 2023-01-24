@@ -403,6 +403,14 @@ contains
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
+       if (iter .ne. 2 .and. mod(iter, data(i)%tod_freq) .ne. 0) then
+           if (cpar%myid == 0) then
+             write(*,*) '|  Only processing ', trim(data(i)%label), ' every ', &
+               & data(i)%tod_freq, 'Gibbs samples'
+           end if
+           cycle
+       end if
+
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
           write(*,*) '|  Processing TOD channel ', trim(data(i)%label)

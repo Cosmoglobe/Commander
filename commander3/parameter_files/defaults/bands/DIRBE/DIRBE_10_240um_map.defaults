@@ -37,3 +37,4 @@ BAND_DEFAULT_BP_DELTA&&&       =   0.
 BAND_DEFAULT_NOISEAMP&&&       =   1.
 BAND_COMPONENT_SENSITIVITY&&&  = broadband
 BAND_TOD_TYPE&&&               = none
+N_GIBBS_PER_TOD&&&             = 1

@@ -39,3 +39,4 @@ BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_08_SIGMA_n0032_5deg.fits
 BAND_NOISE_RMS&&&_SMOOTH02     = DIRBE_08_SIGMA_n0016_10deg.fits
 BAND_NOISE_RMS&&&_SMOOTH03     = DIRBE_08_SIGMA_n0016_60arcmin.fits
 BAND_TOD_TYPE&&&               = none
+N_GIBBS_PER_TOD&&&             = 1
