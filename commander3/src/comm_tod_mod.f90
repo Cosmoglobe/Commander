@@ -1524,12 +1524,8 @@ contains
 
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
-!       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
-!       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
-!       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,2))
        call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:2+self%n_xi))
-!       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
@@ -1537,19 +1533,9 @@ contains
        self%x_im(3) = self%x_im(2)
        self%x_im(4) = self%x_im(3)
        self%x_im(2) = self%x_im(1)
-!!$       if (trim(self%freq) .ne. '030') then
-!!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
-!!$       end if
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       !write(*,*) 'bp =', self%bp_delta
-       ! Redefine gains; should be removed when proper initfiles are available
-!!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
-!!$       !stop
-!!$       do i = 1, self%ndet
-!!$          self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
-!!$       end do
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
