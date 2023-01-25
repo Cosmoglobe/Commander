@@ -444,7 +444,7 @@ contains
       self%output_n_maps = 1
       split = .false.
       if (self%output_aux_maps > 0) then
-         if (iter .eq. 2) then
+         if (self%first_call) then
            self%output_n_maps = 3
            split = .false.
          else
@@ -453,6 +453,7 @@ contains
            if (mod(iter-1,100) == 0) split = .true.
          end if
       end if
+      self%output_n_maps = 0
 
 
 
