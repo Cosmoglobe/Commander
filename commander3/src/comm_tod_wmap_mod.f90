@@ -453,7 +453,6 @@ contains
            if (mod(iter-1,100) == 0) split = .true.
          end if
       end if
-      self%output_n_maps = 0
 
 
 
