@@ -3567,9 +3567,15 @@ contains
     integer(i4b) :: i, num
     character(len=512), dimension(2) :: toks
 
+
     call get_tokens(string, ":", toks, num)    
     chainfile = toks(1)
     read(toks(2),*) initsamp
+
+    if (index(chainfile, '.h5') == 0) then
+        write(*,*) "poorly formatted chainfile", trim(string)
+        stop
+    end if
     
   end subroutine get_chainfile_and_samp
   

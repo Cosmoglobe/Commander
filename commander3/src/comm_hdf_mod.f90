@@ -340,7 +340,7 @@ contains
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
     if (file%status == -1) then
-       write(*,*) 'Error reading file ', trim(file%filename), trim(setname)
+       write(*,*) 'Error reading file ', trim(file%filename)
        stop
     end if 
     n = min(size(ext),rank)
