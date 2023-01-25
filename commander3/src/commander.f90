@@ -331,7 +331,8 @@ program commander
      first = .false.
 
      call timer%stop(TOT_GIBBSSAMP)
-     call timer%incr_numsamp
+     call timer%incr_numsamp(0)
+     !write(*,*) timer%numsamp
      call timer%dumpASCII(cpar%ds_label, trim(cpar%outdir)//"/comm_timing.txt")
   end do
 
@@ -405,8 +406,8 @@ contains
 
        if (iter .ne. 2 .and. mod(iter, data(i)%tod_freq) .ne. 0) then
            if (cpar%myid == 0) then
-             write(*,*) '|  Only processing ', trim(data(i)%label), ' every ', &
-               & data(i)%tod_freq, 'Gibbs samples'
+             write(*,fmt='(a,i1,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
+               & data(i)%tod_freq, ' Gibbs samples'
            end if
            cycle
        end if
@@ -499,6 +500,7 @@ contains
        rms => comm_map(data(i)%rmsinfo)
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+       call timer%incr_numsamp(data(i)%id_abs)
 
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
