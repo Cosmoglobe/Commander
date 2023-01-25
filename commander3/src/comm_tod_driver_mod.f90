@@ -638,14 +638,14 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. tod%orb_abscal .and. tod%nhorn == 2) then
-             ! Calibrator = common mode signal
-             ! Jarosik uses the orbital dipole for this.
-             s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
-             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
-               & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
-             call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal .and. tod%nhorn == 2) then
+          !else if (trim(mode) == 'imbal' .and. tod%orb_abscal .and. tod%nhorn == 2) then
+          !   ! Calibrator = common mode signal
+          !   ! Jarosik uses the orbital dipole for this.
+          !   s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
+          !   call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+          !     & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+          !   call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
+          else if (trim(mode) == 'imbal' .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
@@ -671,13 +671,14 @@ contains
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
                 s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
-             else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
-                 s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
-             &   sd%s_totA(:,j) - sd%s_totB(:,j) + &
-             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j)   &
-             &                       -(sd%s_orbA(:,j) + sd%s_orbB(:,j))) &
-             &   )
-             else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
+             !else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
+             !    s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
+             !&   sd%s_totA(:,j) - sd%s_totB(:,j) + &
+             !&   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j)   &
+             !&                       -(sd%s_orbA(:,j) + sd%s_orbB(:,j))) &
+             !&   )
+             !else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
+             else if (trim(mode) == 'imbal') then
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
