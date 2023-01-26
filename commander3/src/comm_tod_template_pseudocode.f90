@@ -72,14 +72,16 @@ module comm_tod_TEMPLATE_mod
                call self%downsample_tod(s_orb(:,1), ext)
                do j = 1, ndet
                   if (.not. self%scans(i)%d(j)%accept) cycle
-                  if (do_oper(samp_G) .or. do_oper(samp_rcal) .or. .not. self%orb_abscal) then
-                     s_buf(:,j) = s_tot(:,j)
-                     call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
-                     call self%downsample_tod(s_buf(:,j), ext, &
-                          & s_lowres(:,j))
-                  else
-                     call self%downsample_tod(s_orb(:,j), ext, &
-                          & s_lowres(:,j))
+                  if (do_oper(samp_G) .or. do_oper(samp_rcal)) then
+                     if (trim(tod%abscal_comps) == 'full') then
+                       s_buf(:,j) = s_tot(:,j)
+                       call fill_all_masked(s_buf(:,j), mask(:,j), ntod, trim(self%operation)=='sample', real(self%scans(i)%d(j)%sigma0, sp), handle, self%scans(i)%chunk_num)
+                       call self%downsample_tod(s_buf(:,j), ext, &
+                            & s_lowres(:,j))
+                      else
+                         call self%downsample_tod(s_orb(:,j), ext, &
+                              & s_lowres(:,j))
+                      end if
                   end if
                end do
                s_invN = s_lowres
