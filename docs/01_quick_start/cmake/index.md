@@ -469,21 +469,20 @@ Procedure:
 - Note that there are two `cmake` versions installed on the Owl cluster, namely versions 2.8 and 3.17. To compile commander you need the latter, which has an alias of `cmake3`. Please check that the command `which cmake3` returns `/usr/bin/cmake3`, and that `cmake3 --version` returns `cmake3 version 3.17.2`.
 - Load the following modules:
 ```
-$ module load Intel_parallel_studio/2018/3.051
-$ module load gnu
-$ module load git/2.9
-$ module load hdf5/Intel/1.10.1
+$ module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
+$ module load mkl/latest
+$ module load gnu git/2.30.1 cmake/3.21.1
 ```
 - Run the CMake configuration process:
 ```
 $ git clone https://github.com/Cosmoglobe/Commander.git
 $ cd Commander
 $ mkdir build && cd build
-$ cmake3 -DCMAKE_INSTALL_PREFIX=$HOME/local -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+$ cmake -DCMAKE_INSTALL_PREFIX=$HOME/local -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
 ```
 - Wait for the configuration step to finish and then start the compilation process
 ```
-$ cmake3 --build . -j n
+$ cmake --build . --target install -j n
 ```
 where `n` is the number of processors to use.
 - Update your `.bashrc` file by adding the following variable:
