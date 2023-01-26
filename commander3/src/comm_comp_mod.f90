@@ -26,6 +26,7 @@ module comm_comp_mod
   use comm_cr_utils
   use comm_data_mod
   use comm_hdf_mod
+  use comm_zodi_mod
   implicit none
 
   private
@@ -391,10 +392,11 @@ contains
     c%nextLink    => link
   end subroutine add
 
-  subroutine update_mixing_matrices(band, update_F_int)
+  subroutine update_mixing_matrices(band, update_F_int, bandpass)
     implicit none
     integer(i4b), intent(in), optional :: band
     logical(lgt), intent(in), optional :: update_F_int
+    class(comm_bp_ptr), intent(in), optional :: bandpass(:)
 
     integer(i4b) :: i, j, k
     logical(lgt) :: update_F
@@ -413,7 +415,7 @@ contains
        end if
        c => c%nextLink
     end do
-
+    if (present(bandpass)) call update_zodi_spline_obj(bandpass)
   end subroutine update_mixing_matrices
   
 end module comm_comp_mod

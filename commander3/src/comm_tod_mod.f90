@@ -332,10 +332,9 @@ contains
     end do
 
     if (cpar%include_tod_zodi) then
-       self%subtract_zodi = cpar%ds_tod_subtract_zodi(id_abs)
-    else if (cpar%ds_tod_subtract_zodi(id_abs) .and. self%myid == 0) then
-         write(*, *) "WARNING:"
-         write(*, *) "Ignoring zodi subtractions for band: ", trim(cpar%ds_label(id_abs)), "-- general parameter SUBTRACT_ZODI is false"
+       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
+    else if (cpar%ds_tod_subtract_zodi(self%band) .and. self%myid == 0) then
+         write(*, *) "BAND_TOD_SUBTRACT_ZODI set to false for band ", trim(cpar%ds_label(self%band))
     endif
    
     if (trim(self%tod_type)=='SPIDER') then
@@ -343,7 +342,6 @@ contains
     else
       self%orbital = .true.
     end if
-
 
     if (trim(self%noise_psd_model) == 'oof') then
        self%n_xi = 3  ! {sigma0, fknee, alpha}

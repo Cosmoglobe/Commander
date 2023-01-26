@@ -620,7 +620,7 @@ contains
              call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
                   & par_lgt=cpar%ds_tod_orb_abscal(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_SUBTRACT_ZODI'//itext, len_itext=len_itext, &
-                  & par_lgt=cpar%ds_tod_subtract_zodi(i))         
+                  & par_lgt=cpar%ds_tod_subtract_zodi(i))       
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_instfile(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_BP_INIT_PROP'//itext, len_itext=len_itext, &

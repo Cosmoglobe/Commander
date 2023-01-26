@@ -34,24 +34,27 @@ module comm_zodi_mod
     use comm_param_mod
     use comm_bp_mod
     use spline_1D_mod
-
+    
     implicit none
 
     private
-    public :: initialize_zodi_mod, get_zodi_emission
+    public :: initialize_zodi_mod, get_zodi_emission, update_zodi_spline_obj
 
     ! Global parameters
     integer(i4b) :: gauss_degree
+    integer(i4b) :: n_interpolation_points=100
+    real(dp) :: min_ipd_temperature=40, max_ipd_temperature=550
 
     real(dp) :: EPS = 3.d-14
-    real(dp) :: R_cutoff, delta_t_reset_cash, previous_chunk_obs_time
-    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), cached_s_zodi(:)
+    real(dp) :: R_cutoff, delta_t_reset_cash, previous_chunk_obs_time, phase_function_normalization
+    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), cached_s_zodi(:), temperature_grid(:)
     real(dp), allocatable :: tabulated_earth_pos(:, :)
     type(spline_type) :: solar_irradiance_spline_obj
     type(spline_type) :: spline_earth_pos_obj(3)
-    type(spline_type), allocatable :: emissivity_spline_obj(:), albedo_spline_obj(:), phase_coeff_spline_obj(:)
+    type(spline_type), allocatable :: emissivity_spline_obj(:), albedo_spline_obj(:), phase_coeff_spline_obj(:), b_nu_spline_obj(:)
+
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
-                    apply_color_correction, use_unit_emissivity, use_unit_albedo
+                    apply_color_correction, use_unit_emissivity, use_unit_albedo, scattering
 
     ! Model parameters
     real(dp) :: T_0, delta, splined_solar_irradiance
@@ -69,6 +72,7 @@ module comm_zodi_mod
                 feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
     real(dp), allocatable :: emissivities(:, :), albedos(:, :), phase_coeffs(:, :)
     real(dp), allocatable :: splined_emissivities(:), splined_albedos(:), splined_phase_coeffs(:), solar_irradiances(:)
+
 
 
     type, abstract :: ZodiComponent
@@ -296,17 +300,67 @@ contains
         call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, solar_irradiances, regular=.false.)
 
         previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
+        
+        allocate(temperature_grid(n_interpolation_points))
 
-        ! Print zodi config
-        if (cpar%myid == cpar%root .and. cpar%verbosity > 0) then 
-            write(*, *) '|  Zodi simulations enabled:'
-            write(*, fmt='(a36, i8)') ' |  - Gaussian quadrature degree: ', gauss_degree
-            write(*, fmt='(a)') ' ---------------------------------------------------------------------'
-        end if
+        call linspace(min_ipd_temperature, max_ipd_temperature, temperature_grid)
 
     end subroutine initialize_zodi_mod
 
-    subroutine get_zodi_emission(nside, pix, obs_pos, obs_time, bandpass, s_zodi)
+    subroutine update_zodi_spline_obj(bandpass)
+        ! Updates the spline object which is used to evaluate b_nu over the bandpass
+
+        implicit none
+        class(comm_bp_ptr), intent(in) :: bandpass(:)
+
+        real(dp), allocatable :: b_nu(:)
+        real(dp) :: integrals(size(temperature_grid))
+        integer(i4b) :: i, j, k, n_det
+
+        n_det = size(bandpass) - 1
+        if (.not. allocated(b_nu_spline_obj)) allocate(b_nu_spline_obj(n_det))
+        if (.not. allocated(temperature_grid)) stop "temperature grid not allocated"
+
+        ! See if setting this matters?
+        previous_chunk_obs_time = 0.d0 ! Set initial previous chunk observation time to 0
+        splined_emissivities = 0.d0
+        splined_albedos = 0.d0
+        splined_phase_coeffs = 0.d0
+        splined_solar_irradiance = 0.d0
+        phase_function_normalization = 0.d0
+        allocate(b_nu(bandpass(j)%p%n))
+        do j = 1, n_det
+            do i = 1, n_interpolation_points    
+                call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
+                integrals(i) = bandpass(j)%p%SED2F(b_nu)
+            end do
+            call spline_simple(b_nu_spline_obj(j), temperature_grid, integrals)
+
+            do k = 1, size(splined_emissivities)
+                splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
+            end do
+            do k = 1, size(splined_albedos)
+                splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
+            end do
+            if (count(splined_albedos /= 0.d0) > 0) then
+                scattering = .true.
+                do k = 1, size(splined_phase_coeffs)
+                    splined_phase_coeffs(k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
+                end do
+                splined_solar_irradiance = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
+                call get_phase_normalization(splined_phase_coeffs, phase_function_normalization)
+            else 
+                scattering = .false.
+                splined_phase_coeffs = 0.d0
+                splined_solar_irradiance = 0.d0
+                phase_function_normalization = 0.d0
+            end if
+        end do
+        deallocate(b_nu)
+
+    end subroutine update_zodi_spline_obj
+
+    subroutine get_zodi_emission(nside, pix, obs_pos, obs_time, s_zodi)
         !   Simulates the zodiacal emission over a chunk of time-ordered data.
         !
         !   Given a set of observations, the observer position and time of 
@@ -327,39 +381,44 @@ contains
         !       Time of observation in MJD. Assumes a fixed time of observeration
         !       for the entire tod chunk. Chunk sizes exceeding 1 day in time will
         !       result in poor zodiacal emission estimates.
-        !   bandpass: comm_bp_ptr
-        !       Bandpass object used to apply bandpass or color corrections to the
-        !       predicted zodiacal emission.
         !
         !   Returns
         !   -------
         !   s_zodi: array
         !       Estimated zodiacal emission over the chunk of time-ordered data.
         !       Dimensions are (`n_tod`, `n_det`).
+
+        ! TODO: goal is to be able to do: b_nu_LOS = F_int%eval(T_LOS)
+        !
+        ! F_int strucutre: self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), where i think self is of type comp,
+        ! F_int(IQU,band,det) and theta_p(j,1,:) theta_p(n_par) so theta_p should just be T here.
+        !
+        ! So is it possible to pass in as an argument to this function: self%F_int(1,band, :)%p as b_nu_interp
+        ! and just do b_nu = b_nu_interp%eval(0, T) in the loop below?
+        !
+        ! Is using MBB comp a good idea? Thats a 2D interp but we only need a 1D interp here.
+        ! Dont know if it matters and how much of a performance hit we get by artificially doing F_int(0, T) 
+        ! over F_int(T).
+
         implicit none
         class(ZodiComponent), pointer :: comp
 
-        logical(lgt) :: scattering
         integer(i4b), intent(in) :: nside, pix(1:, 1:)
         real(dp), intent(in) :: obs_pos(3), obs_time
-        class(comm_bp_ptr), intent(in) :: bandpass(:)
         real(sp), intent(out) :: s_zodi(1:, 1:)
         
         integer(i4b) :: i, j, k, pix_idx, n_detectors, n_tods, npix
-        real(dp) :: earth_lon, R_obs, R_max, b_nu_delta_term1, b_nu_delta_term2, phase_function_normalization
+        real(dp) :: earth_lon, R_obs, R_max
         real(dp) :: earth_pos(3), unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree)
-        real(dp), allocatable :: b_nu_bandpass_term1(:), b_nu_bandpass_term2(:)
-        real(dp), allocatable :: tabulated_unit_vectors(:,:), b_nu_bandpass_LOS(:,:)
+        real(dp), allocatable :: tabulated_unit_vectors(:,:)
 
         ! Line of sight arrays and quantities
         real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
-                                             comp_emission_LOS, b_nu_bandpass_integrated_LOS, b_nu_colorcorr_LOS, &
-                                             b_nu_freq_corrected_LOS, b_nu_center_LOS, &
-                                             solar_flux_LOS, scattering_angle, phase_function
-
+                                             comp_emission_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
         n_tods = size(pix, dim=1)
         n_detectors = size(pix, dim=2)
         npix = nside2npix(nside)
+        s_zodi = 0.d0
 
         ! Get unit vectors corresponding to the observed pixels (only on first chunk)
         if (.not. allocated(tabulated_unit_vectors)) then 
@@ -373,15 +432,6 @@ contains
             cached_s_zodi = 0.d0
         end if
 
-        ! Reset quantites from previous chunk
-        comp_emission_LOS = 0.d0
-        gauss_nodes = 0.d0
-        gauss_weights = 0.d0
-        s_zodi = 0.d0
-        splined_emissivities = 1.d0
-        splined_albedos = 0.d0
-        phase_function_normalization = 0.d0
-
         ! Reset cached zodi if time since last chunk > DELTA_T_ZODI ~ 1day. 
         if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_s_zodi = 0.d0
 
@@ -392,38 +442,12 @@ contains
         R_obs = norm2(obs_pos)
         earth_lon = atan(earth_pos(2), earth_pos(1))
 
+        if (.not. allocated(b_nu_spline_obj)) stop "b_nu_spline_obj not allocated"
+
         ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
         ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
         ! San et al. 2022 (https://www.aanda.org/articles/aa/pdf/forth/aa44133-22.pdf).
         do j = 1, n_detectors
-            ! Allocate detector specific blackbody quantities
-            allocate(b_nu_bandpass_term1(bandpass(j)%p%n))
-            allocate(b_nu_bandpass_term2(bandpass(j)%p%n))
-            allocate(b_nu_bandpass_LOS(gauss_degree, bandpass(j)%p%n))
-            b_nu_bandpass_term1 = (2 * h * bandpass(j)%p%nu**3) / (c*c)
-            b_nu_bandpass_term2 = (h * bandpass(j)%p%nu)/ k_B
-
-            ! Interpolate in source parameters to the detector frequency
-            do k = 1, size(splined_emissivities)
-                splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
-            end do
-            do k = 1, size(splined_albedos)
-                splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
-            end do
-
-            ! If any of the interpolated albedos are non zero, we must take contributions from 
-            ! scattered sunlight into account when computing the zodiacal emission
-            if (count(splined_albedos /= 0.d0) > 0) then
-                scattering = .true.
-                do k = 1, size(splined_phase_coeffs)
-                    splined_phase_coeffs(k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
-                end do
-                splined_solar_irradiance = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
-                call get_phase_normalization(splined_phase_coeffs, phase_function_normalization)
-            else
-                scattering = .false.
-            end if
-
             do i = 1, n_tods
                 pix_idx = pix(i, j)
                 if (cached_s_zodi(pix_idx) /= 0.d0) then
@@ -454,17 +478,15 @@ contains
 
                     call get_dust_grain_temperature(R_helio_LOS, T_LOS)
 
-                    call get_blackbody_emission_bp(T_LOS, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_bandpass_LOS)
                     do k = 1, gauss_degree
-                        b_nu_bandpass_integrated_LOS(k) = bandpass(j)%p%SED2F(b_nu_bandpass_LOS(k, :))
+                        b_nu_LOS(k) = splint_simple(b_nu_spline_obj(j), T_LOS(k))
                     end do
-                    b_nu_freq_corrected_LOS = b_nu_bandpass_integrated_LOS
 
                     comp => comp_list
                     k = 1
                     do while (associated(comp))
                         call comp%get_density(X_helio_vec_LOS, earth_lon, density_LOS)
-                        comp_emission_LOS = (1.d0 - splined_albedos(k)) * (splined_emissivities(k) * b_nu_freq_corrected_LOS)
+                        comp_emission_LOS = (1.d0 - splined_albedos(k)) * (splined_emissivities(k) * b_nu_LOS)
                         if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(k) * solar_flux_LOS * phase_function)
                         comp_emission_LOS = comp_emission_LOS * density_LOS
 
@@ -475,9 +497,6 @@ contains
                     cached_s_zodi(pix_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
                 end if
             end do
-            deallocate(b_nu_bandpass_term1)
-            deallocate(b_nu_bandpass_term2)
-            deallocate(b_nu_bandpass_LOS)
         end do
         
         previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
@@ -511,17 +530,14 @@ contains
         T_out = T_0 * R ** (-delta)
     end subroutine get_dust_grain_temperature
 
-    subroutine get_blackbody_emission_bp(T, b_nu_bandpass_term1, b_nu_bandpass_term2, b_nu_out)
+    subroutine get_blackbody_emission(nus, T, b_nu)
         implicit none
-        real(dp), dimension(:), intent(in) :: T, b_nu_bandpass_term1, b_nu_bandpass_term2
-        real(dp), dimension(:, :), intent(out) :: b_nu_out
-        integer(i4b) :: i
+        real(dp), dimension(:), intent(in) :: nus
+        real(dp), intent(in) :: T
+        real(dp), dimension(:), intent(out) :: b_nu
 
-        do i = 1, gauss_degree
-            b_nu_out(i, :) = b_nu_bandpass_term1/(exp(b_nu_bandpass_term2/T(i)) - 1.d0)
-        end do
-        b_nu_out = b_nu_out * 1d20 !Convert from W/s/m^2/sr to MJy/sr
-    end subroutine get_blackbody_emission_bp
+        b_nu = 1d20 * ((2 * h * nus**3) / (c*c)) / (exp((h * nus) / (k_B * T)) - 1.d0)
+    end subroutine get_blackbody_emission
 
     subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
         implicit none

@@ -40,7 +40,7 @@ BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_START_SCANID&&&       = 1
 BAND_TOD_END_SCANID&&&         = 285
 BAND_TOD_TOT_NUMSCAN&&&        = 285
-BAND_TOD_FLAG&&&               = 16335
+BAND_TOD_FLAG&&&               = 4186121
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
 BAND_TOD_DETECTOR_LIST&&&      = 08_A
 BAND_TOD_INIT_FROM_HDF&&&      = default
@@ -57,5 +57,6 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0128.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0128.fits
 BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_100um_smoothed.txt
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_100um_smoothed_V07.txt
+
 

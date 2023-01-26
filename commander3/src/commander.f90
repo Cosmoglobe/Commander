@@ -458,7 +458,12 @@ contains
                !  write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
-             call update_mixing_matrices(i, update_F_int=.true.)       
+
+             if (cpar%include_tod_zodi .and. data(i)%subtract_zodi) then
+                call update_mixing_matrices(i, update_F_int=.true., bandpass=data(i)%bp)       
+             else 
+                call update_mixing_matrices(i, update_F_int=.true.)
+             end if
           !end if
 
           ! Evaluate sky for each detector given current bandpass
@@ -487,7 +492,7 @@ contains
        ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
        ! Needs in-code computation of smoothed RMS maps, so long-term..
        rms => comm_map(data(i)%info)
-
+       
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
          write(*,*) '|  Processing ', trim(data(i)%label)
@@ -534,7 +539,12 @@ contains
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
        end do
-       call update_mixing_matrices(i, update_F_int=.true.)       
+
+       if (cpar%include_tod_zodi .and. data(i)%subtract_zodi) then
+          call update_mixing_matrices(i, update_F_int=.true., bandpass=data(i)%bp)       
+       else 
+          call update_mixing_matrices(i, update_F_int=.true.)
+       end if
 
        ! Clean up temporary data structures
        do j = 1, data(i)%tod%ndet

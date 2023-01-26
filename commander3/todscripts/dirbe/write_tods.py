@@ -4,6 +4,7 @@ version 3: rotate tods to galactic coordinates
 version 4: add custom planet flags
 version 5: larger flagging radii
 version 6: per pointing time for accurate planet flags
+version 7: redo planet flags
 """
 
 from __future__ import annotations
@@ -56,16 +57,16 @@ N_SMOOTHING_BOUNDARY = 100
 N_CONV_BOX_POINTS = 30
 NSIDE = 128
 
-FLAG_BODIES = [
-    "moon",
-    "mercury",
-    "venus",
-    "mars",
-    "jupiter",
-    "saturn",
-    "uranus",
-    "neptune",
-]
+BODIES = {
+    "moon": 2,
+    "mercury": 1.5,
+    "venus": 1.5,
+    "mars": 1.5,
+    "jupiter": 1.5,
+    "saturn": 1.5,
+    "uranus": 1.5,
+    "neptune": 1.5,
+}
 
 
 def write_dirbe_commmander_tods(
@@ -82,15 +83,11 @@ def write_dirbe_commmander_tods(
     pool = multiprocessing.Pool(processes=NUM_PROCS)
     manager = multiprocessing.Manager()
 
-    planet_interp_times = Time(
-        [
-            (datetime(1989, 9, 11) + timedelta(hours=i)).isoformat()
-            for i in range(int(425 * 24))
-        ],
-        format="isot",
-        scale="utc",
-    )
-    planet_interps = get_planet_lonlats(planet_interp_times)
+    times = np.arange(
+        datetime(1989, 6, 1), datetime(1991, 1, 1), timedelta(hours=1)
+    ).astype(datetime)
+    astropy_times = Time(times, format="datetime", scale="utc")
+    planet_interps = get_planet_interps(astropy_times)
 
     multiprocessor_manager_dicts: dict[str, DictProxy] = {}
     for idx, wavelength in enumerate(dirbe_utils.WAVELENGHTS, start=1):
@@ -216,14 +213,15 @@ def write_detector(
                 nside_out=nside_out,
                 smooth=smooth,
             )
+            gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, band)
+            gustav_time = get_gustav_time(chunk_label, hdf5_filename, band)
             flags = get_chunk_band_flags(
-                chunk_label,
-                hdf5_filename,
-                band,
                 nside_in,
                 planet_interps,
                 pixels,
                 tods,
+                gustav_flags,
+                gustav_time,
             )
             psi = get_chunk_band_psi(chunk_label, hdf5_filename, band)
 
@@ -298,55 +296,78 @@ def get_chunk_mjd_times(chunk_label: str, hdf5_filename: str) -> NDArray[np.floa
         return file[f"{chunk_label}/A/time"][()]
 
 
-def get_planet_lonlats(times: Time) -> dict[str, dict[str, interp1d]]:
+def get_planet_interps(astropy_times: Time) -> dict[str, dict[str, interp1d]]:
     print("precomputing planet interpolators...")
     interpolaters = {}
+    rotator = hp.Rotator(coord=["E", "G"])
     with solar_system_ephemeris.set("de432s"):
-        for body_name in FLAG_BODIES:
+        for body_name in BODIES:
             interpolaters[body_name] = {}
-            body = get_body(body_name, times).galactic
-
-            interpolaters[body_name]["l"] = interp1d(times.mjd, body.l.value)
-            interpolaters[body_name]["b"] = interp1d(times.mjd, body.b.value)
+            body = get_body(body_name, astropy_times).transform_to(
+                "geocentricmeanecliptic"
+            )
+            lon, lat = rotator(body.lon.value, body.lat.value, lonlat=True)
+            interpolaters[body_name]["lon"] = interp1d(astropy_times.mjd, lon)
+            interpolaters[body_name]["lat"] = interp1d(astropy_times.mjd, lat)
 
     print("done")
     return interpolaters
 
 
+def get_gustav_flags(
+    chunk_label: str, hdf5_filename: str, band: int
+) -> NDArray[np.integer]:
+    with h5py.File(hdf5_filename, "r") as file:
+        return file[f"{chunk_label}/{band}/flag"][()]
+
+
+def get_gustav_time(
+    chunk_label: str, hdf5_filename: str, band: int
+) -> NDArray[np.integer]:
+    with h5py.File(hdf5_filename, "r") as file:
+        return file[f"{chunk_label}/{band}/time"][()]
+
+
 def get_chunk_band_flags(
-    chunk_label: str,
-    hdf5_filename: str,
-    band: str,
     nside_in: int,
     planet_interpolaters: dict[str, dict[str, interp1d]],
     pixels: NDArray[np.integer],
     tods: NDArray[np.floating],
+    flags: NDArray[np.integer],
+    time: NDArray[np.floating],
 ) -> NDArray[np.integer]:
-    """Gets dirbe flags from gustavs files."""
-    flagging_radii = 5
+    """Reprocess gustavs flags.
 
-    sentinel_indices = tods <= BAD_DATA_SENTINEL
-    flags[sentinel_indices] += int(2**13) # Add sentinel flag for values less than SENTINEL_VALUE
+    Gustav added the following flags:
+    - 0: radiation zone
+    - 3: oa
+    - 10: excess noise
+    - 11: moon
+    - 12: jupiter
 
-    with h5py.File(hdf5_filename, "r") as file:
-        flags = file[f"{chunk_label}/{band}/flag"][()]
-        time = file[f"{chunk_label}/{band}/time"][()]
+    We remove 11 and 12 (because we add redo these flags)
 
+    We add flags:
+    - 13: bad data sentinel
+    - 14-x: see `BODIES` object.
 
-        for bit_idx, body in enumerate(FLAG_BODIES, start=14):
-            lon, lat = hp.pix2ang(nside_in, pixels, lonlat=True)
-            planet_lon = planet_interpolaters[body]["l"](time)
-            planet_lat = planet_interpolaters[body]["b"](time)
-            ang_dist = hp.rotator.angdist(
-                np.asarray([lon, lat]),
-                np.asarray([planet_lon, planet_lat]),
-                lonlat=True,
-            )
+    """
+    flags[tods <= BAD_DATA_SENTINEL] += int(2**13)
 
-            planet_indices = ang_dist <= np.deg2rad(flagging_radii)
-            flags[planet_indices] += int(2 ** (bit_idx))
+    for bit_idx, (body, radius) in enumerate(BODIES.items(), start=14):
+        lon, lat = hp.pix2ang(nside_in, pixels, lonlat=True)
+        planet_lon = planet_interpolaters[body]["lon"](time)
+        planet_lat = planet_interpolaters[body]["lat"](time)
+        ang_dist = hp.rotator.angdist(
+            np.asarray([lon, lat]),
+            np.asarray([planet_lon, planet_lat]),
+            lonlat=True,
+        )
 
-        return flags
+        planet_indices = ang_dist <= np.deg2rad(radius)
+        flags[planet_indices] += int(2 ** (bit_idx))
+
+    return flags
 
 
 def get_chunk_band_tods(
@@ -491,7 +512,7 @@ def get_sat_and_earth_pos(
 
 
 def main() -> None:
-    print(f"Writing tods: {smooth_pixels=}, {nside_out=}")
+    print(f"Writing tods: {smooth_pixels=}, {nside_out=}, {version=}, {TEMP_OUTPUT_PATH=}")
     write_dirbe_commmander_tods(
         output_path=TEMP_OUTPUT_PATH,
         version=version,

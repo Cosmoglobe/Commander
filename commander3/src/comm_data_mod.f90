@@ -46,7 +46,7 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
-     logical(lgt)                 :: pol_only
+     logical(lgt)                 :: pol_only, subtract_zodi
 
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_map),     pointer :: map       => null()
@@ -123,6 +123,7 @@ contains
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
+       data(n)%subtract_zodi  = cpar%ds_tod_subtract_zodi(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
