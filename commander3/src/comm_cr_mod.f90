@@ -218,7 +218,7 @@ contains
 
     ! Set up convergence criterion
     if (trim(cpar%cg_conv_crit) == 'residual' .or. trim(cpar%cg_conv_crit) == 'fixed_iter') then
-       lim_convergence = eps*delta0
+       lim_convergence = eps!*delta0
        val_convergence = 1.d2*lim_convergence
     else if (trim(cpar%cg_conv_crit) == 'chisq') then
        lim_convergence = eps
