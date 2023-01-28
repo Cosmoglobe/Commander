@@ -470,7 +470,7 @@ contains
        end if
        if (tod%verbosity > 1) then
          write(*,fmt='(a,f12.8)') ' |      abscal = ', tod%gain0(0)
-         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
+         !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &

@@ -397,8 +397,6 @@ contains
             &  self%psi(:,1,:), self%flag(:,1), &
             &  procmask, scan, self%s_totA, self%s_totB, self%mask, &
             &  s_bpA=s_buf2A, s_bpB=s_buf2B)
-       call project_sky(tod, map_gain(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
-            & procmask, scan, self%s_gain, self%mask, s_bp=self%s_bp)
     else
        call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
             & self%psi(:,1,:), self%flag(:,1), &
