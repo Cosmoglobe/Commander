@@ -332,6 +332,9 @@ contains
     allocate(self%s_totB(self%ntod, self%ndet))
     allocate(self%s_orbA(self%ntod, self%ndet))
     allocate(self%s_orbB(self%ntod, self%ndet))
+    allocate(self%s_gain(self%ntod, self%ndet))
+    allocate(self%s_gainA(self%ntod, self%ndet))
+    allocate(self%s_gainB(self%ntod, self%ndet))
     allocate(self%s_inst(self%ntod, self%ndet))
     allocate(self%mask(self%ntod, self%ndet))
     allocate(self%pix(self%ntod, 1, self%nhorn))
@@ -391,15 +394,22 @@ contains
             &  self%psi(:,1,:), self%flag(:,1), &
             &  procmask, scan, self%s_totA, self%s_totB, self%mask, &
             &  s_bpA=s_buf2A, s_bpB=s_buf2B)
+       call project_sky(tod, map_gain(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
+            & procmask, scan, self%s_gain, self%mask, s_bp=self%s_bp)
     else
        call project_sky_differential(tod, map_sky(:,:,:,1), self%pix(:,1,:), &
             & self%psi(:,1,:), self%flag(:,1), &
             & procmask, scan, self%s_totA, self%s_totB, self%mask)
     end if
+    call project_sky_differential(tod, map_gain(:,:,:,1), self%pix(:,1,:), &
+         & self%psi(:,1,:), self%flag(:,1), &
+         & procmask, scan, self%s_gainA, self%s_gainB, self%mask)
+
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_sky(:,j)  = (1.+tod%x_im(j))*self%s_totA(:,j)  - (1.-tod%x_im(j))*self%s_totB(:,j)
        self%s_tot(:,j)  = self%s_sky(:,j)
+       self%s_gain(:,j) = (1.+tod%x_im(j))*self%s_gainA(:,j) - (1.-tod%x_im(j))*self%s_gainB(:,j)
        if (init_s_bp_) self%s_bp(:,j)  = (1.+tod%x_im(j))*s_buf2A(:,j) - (1.-tod%x_im(j))*s_buf2B(:,j)
     end do
 
