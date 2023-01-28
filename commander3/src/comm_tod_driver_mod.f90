@@ -345,13 +345,16 @@ contains
     if (init_s_sky_prop_)   allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
-    self%s_tot  = 0.
-    self%s_totA = 0.
-    self%s_totB = 0.
-    self%s_orb  = 0.
-    self%s_orbA = 0.
-    self%s_orbB = 0.
-    self%s_bp   = 0.
+    self%s_tot   = 0.
+    self%s_totA  = 0.
+    self%s_totB  = 0.
+    self%s_orb   = 0.
+    self%s_orbA  = 0.
+    self%s_orbB  = 0.
+    self%s_bp    = 0.
+    self%s_gain  = 0.
+    self%s_gainA = 0.
+    self%s_gainB = 0.
 
     allocate(s_bufA(self%ntod, self%ndet))
     allocate(s_bufB(self%ntod, self%ndet))
@@ -474,8 +477,8 @@ contains
        call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call tod%construct_sl_template(tod%slconvA(j)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  polang)
-          call tod%construct_sl_template(tod%slconvB(j)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j), -polang)
+          call tod%construct_sl_template(tod%slconvA(j)%p, self%pix(:,1,1), self%psi(:,1,1), s_bufA(:,j),  0d0)
+          call tod%construct_sl_template(tod%slconvB(j)%p, self%pix(:,1,2), self%psi(:,1,2), s_bufB(:,j),  0d0)
           self%s_sl(:,j)  = (1d0+tod%x_im(j))*s_bufA(:,j) - (1d0-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j) = self%s_tot(:,j) + self%s_sl(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
@@ -710,7 +713,7 @@ contains
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
-            call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
+          call accumulate_abscal(tod, i, sd%mask, s_buf, s_invsqrtN, A, b, handle, &
               & out=.true., mask_lowres=mask_lowres, tod_arr=sd%tod)
        else
           ! Time-variable gain terms

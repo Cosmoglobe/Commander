@@ -428,6 +428,7 @@ contains
        else 
           A_abs(j) = A_abs(j) + dA
           b_abs(j) = b_abs(j) + db
+          !write(*,*) scan, j, db/dA
        end if
 
        !if (tod%scanid(scan) == 30 .and. out) then
@@ -469,7 +470,7 @@ contains
        end if
        if (tod%verbosity > 1) then
          write(*,fmt='(a,f12.8)') ' |      abscal = ', tod%gain0(0)
-         !write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
+         write(*,*) 'sum(b), sum(A) = ', sum(b), sum(A)
        end if
     end if
     call mpi_bcast(tod%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
