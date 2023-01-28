@@ -135,7 +135,7 @@ contains
   end function constructor
 
   ! Definition:
-  !    SED  = exp(theta * (nu-nu_ref))
+  !    SED  = exp(theta * (nu-nu_ref) / nu_ref)
   ! where 
   !    beta = theta(1)
   function evalSED(self, nu, band, pol, theta)

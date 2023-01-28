@@ -146,7 +146,7 @@ contains
     character(len=6)   :: samptext, scantext
     character(len=512), allocatable, dimension(:) :: slist
     real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
-    real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
+    real(sp),  allocatable, dimension(:, :, :, :) :: map_sky, m_gain
     class(map_ptr),     allocatable, dimension(:) :: outmaps
 
     ! biconjugate gradient-stab parameters
@@ -181,8 +181,10 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
     !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
     call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
+    call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -209,10 +211,10 @@ contains
     ! Perform main sampling steps
     !------------------------------------
     ! For QUIET we need to only sample for absolute calibration
-    call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-    !call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2)
+    call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+    !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+    !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+    !call sample_calibration(self, 'imbal',  handle, map_sky, m_gain, procmask, procmask2)
     ! Write out the way that WMAP calculated the imbalance parameters.
 
     ! Prepare intermediate data structures
@@ -242,15 +244,15 @@ contains
        if (sample_rel_bandpass) then
           !call sd%init_differential(self, i, map_sky, procmask, procmask2, &
           !  & init_s_bp=.true., init_s_bp_prop=.true.)
-         call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
          ! call sd%init_differential(self, i, map_sky, procmask, procmask2, &
          !   & init_s_bp=.true., init_s_sky_prop=.true.)
-         call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else
          ! call sd%init_differential(self, i, map_sky, procmask, procmask2, &
          !   & init_s_bp=.true.)
-         call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
 

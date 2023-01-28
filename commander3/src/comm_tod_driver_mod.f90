@@ -24,11 +24,15 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop ! Stationary sky signal proposal for bandpass sampling
      real(sp),     allocatable, dimension(:,:)     :: s_orb      ! Orbital dipole
      real(sp),     allocatable, dimension(:,:)     :: s_mono     ! Detector monopole correction 
+     real(sp),     allocatable, dimension(:,:)     :: s_calib    ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibA   ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibB   ! Custom calibrator
      real(sp),     allocatable, dimension(:,:)     :: s_bp       ! Bandpass correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop  ! Bandpass correction proposal     
      real(sp),     allocatable, dimension(:,:)     :: s_zodi     ! Zodiacal light
      real(sp),     allocatable, dimension(:,:)     :: s_inst     ! Instrument-specific correction template
      real(sp),     allocatable, dimension(:,:)     :: s_tot      ! Total signal
+     real(sp),     allocatable, dimension(:,:)     :: s_gain     ! Absolute calibrator
      real(sp),     allocatable, dimension(:,:)     :: mask       ! TOD mask (flags + main processing mask)
      real(sp),     allocatable, dimension(:,:)     :: mask2      ! Small TOD mask, for bandpass sampling
      integer(i4b), allocatable, dimension(:,:,:)   :: pix        ! Discretized pointing 
@@ -37,6 +41,8 @@ module comm_tod_driver_mod
 
      real(sp),     allocatable, dimension(:,:)     :: s_totA     ! Total signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_totB     ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainA     ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainB     ! Total signal, horn B (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
      integer(i4b) :: band                                        ! Band ID
@@ -53,13 +59,14 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !  Scan data routines
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_scan_data_singlehorn(self, tod, scan, map_sky, procmask, procmask2, &
+  subroutine init_scan_data_singlehorn(self, tod, scan, map_sky, map_gain, procmask, procmask2, &
        & init_s_bp, init_s_bp_prop, init_s_sky_prop)
     implicit none
     class(comm_scandata),                      intent(inout)          :: self    
     class(comm_tod),                           intent(inout)          :: tod
     integer(i4b),                              intent(in)             :: scan
     real(sp),          dimension(1:,1:,0:,1:), intent(in)             :: map_sky
+    real(sp),          dimension(1:,1:,0:,1:), intent(in)             :: map_gain
     real(sp),          dimension(0:),          intent(in)             :: procmask
     real(sp),          dimension(0:),          intent(in)             :: procmask2
     logical(lgt),                              intent(in),   optional :: init_s_bp
@@ -100,6 +107,7 @@ contains
     allocate(self%s_bp(self%ntod, self%ndet))
     allocate(self%s_orb(self%ntod, self%ndet))
     allocate(self%s_tot(self%ntod, self%ndet))
+    allocate(self%s_gain(self%ntod, self%ndet))
     allocate(self%mask(self%ntod, self%ndet))
     allocate(self%pix(self%ntod, self%ndet, self%nhorn))
     allocate(self%psi(self%ntod, self%ndet, self%nhorn))
@@ -152,9 +160,13 @@ contains
     if (init_s_bp_) then
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask, s_bp=self%s_bp)
+       call project_sky(tod, map_gain(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
+            & procmask, scan, self%s_gain, self%mask, s_bp=self%s_bp)
     else
        call project_sky(tod, map_sky(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_sky, self%mask)
+       call project_sky(tod, map_gain(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
+            & procmask, scan, self%s_gain, self%mask)
     end if
     !call update_status(status, "todinit_sky")
     !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -264,13 +276,14 @@ contains
   end subroutine init_scan_data_singlehorn
 
 
-  subroutine init_scan_data_differential(self, tod, scan, map_sky, procmask, procmask2, &
+  subroutine init_scan_data_differential(self, tod, scan, map_sky, map_gain, procmask, procmask2, &
        & init_s_bp, init_s_bp_prop, init_s_sky_prop, polang)
     implicit none
     class(comm_scandata),                      intent(inout)          :: self    
     class(comm_tod),                           intent(inout)          :: tod
     integer(i4b),                              intent(in)             :: scan
     real(sp),          dimension(1:,1:,0:,1:), intent(in)             :: map_sky
+    real(sp),          dimension(1:,1:,0:,1:), intent(in)             :: map_gain
     real(sp),          dimension(0:),          intent(in)             :: procmask
     real(sp),          dimension(0:),          intent(in)             :: procmask2
     logical(lgt),                              intent(in),   optional :: init_s_bp
@@ -523,7 +536,7 @@ contains
 
     ! Deallocate data structures
     deallocate(self%tod, self%n_corr, self%s_sl, self%s_sky)
-    deallocate(self%s_orb, self%s_tot, self%mask)
+    deallocate(self%s_orb, self%s_tot, self%mask, self%s_gain)
     deallocate(self%pix, self%psi, self%flag)
     if (allocated(self%s_sky_prop))  deallocate(self%s_sky_prop)
     if (allocated(self%s_bp_prop))   deallocate(self%s_bp_prop)
@@ -533,6 +546,8 @@ contains
     if (allocated(self%s_zodi))      deallocate(self%s_zodi)
     if (allocated(self%s_totA))      deallocate(self%s_totA)
     if (allocated(self%s_totB))      deallocate(self%s_totB)
+    if (allocated(self%s_gainA))      deallocate(self%s_gainA)
+    if (allocated(self%s_gainB))      deallocate(self%s_gainB)
     if (allocated(self%s_inst))      deallocate(self%s_inst)
     if (allocated(self%s_orbA))      deallocate(self%s_orbA)
     if (allocated(self%s_orbB))      deallocate(self%s_orbB)
@@ -545,7 +560,8 @@ contains
   !  Sampling drivers etc.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-  subroutine sample_calibration(tod, mode, handle, map_sky, procmask, procmask2, polang, smooth)
+  subroutine sample_calibration(tod, mode, handle, map_sky, map_gain, procmask, procmask2, &
+      & polang, smooth)
     !
     !   Sample calibration modes
     !   Supported modes = {abscal, relcal, deltaG, imbal}
@@ -571,6 +587,7 @@ contains
     character(len=*),                             intent(in)    :: mode
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:,1:,1:,1:),   intent(in)    :: map_gain
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
     real(dp),                                  intent(in),   optional :: polang
     logical(lgt),                              intent(in),   optional :: smooth
@@ -621,9 +638,9 @@ contains
 
        ! Prepare data
        if (tod%nhorn == 1) then
-          call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+          call sd%init_singlehorn(tod, i, map_sky, map_gain, procmask, procmask2)
        else
-          call sd%init_differential(tod, i, map_sky, procmask, procmask2, polang=polang)
+          call sd%init_differential(tod, i, map_sky, map_gain, procmask, procmask2, polang=polang)
        end if
 
        ! Set up filtered calibration signal, conditional contribution and mask
@@ -644,13 +661,20 @@ contains
                 call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
                 call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
              else
-                write(*,*) "We should not be here yet"
+                s_buf(:,j) = sd%s_gain(:,j)
+                call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+                call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
              end if
           else if (trim(mode) == 'imbal' .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
                & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+             call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
+          else
+             ! Calibrator = total signal
+             s_buf(:,j) = sd%s_tot(:,j)
+             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
              call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
           end if
        end do
@@ -667,7 +691,8 @@ contains
                 else if (trim(tod%abscal_comps) == 'full') then
                   s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
                 else
-                  write(*,*) "We still should not be here yet"
+                  s_buf(:,j) = real(tod%gain0(0),sp) * (sd%s_tot(:,j) - sd%s_gain(:,j)) + &
+                       & real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
                 end if
              else if (trim(mode) == 'relcal') then
                 s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
