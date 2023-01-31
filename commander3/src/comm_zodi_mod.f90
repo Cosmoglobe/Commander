@@ -184,7 +184,7 @@ contains
 
         EPS = 3.d-14
 
-        ! Initialize hyper, shape, and source parameters for ipd model from cpar
+        ! Initialize hyper, shape, and source parameters for ipd model from files
         call init_hyper_parameters(cpar)
         call init_source_parameters(cpar)
         call init_shape_parameters(cpar)
@@ -245,7 +245,6 @@ contains
 
         sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
         allocate(unit_vector_list%vectors(size(sorted_unique_nsides)))
-
         do i = 1, size(sorted_unique_nsides)
             nside = sorted_unique_nsides(i)
             npix = nside2npix(nside)
@@ -307,98 +306,25 @@ contains
 
     end subroutine initialize_zodi_mod
 
-    subroutine update_zodi_spline_obj(bandpass)
-        ! Updates the spline object which is used to evaluate b_nu over the bandpass
-
-        implicit none
-        class(comm_bp_ptr), intent(in) :: bandpass(:)
-
-        real(dp), allocatable :: b_nu(:)
-        real(dp) :: integrals(size(temperature_grid))
-        integer(i4b) :: i, j, k, n_det
-
-        n_det = size(bandpass) - 1
-        if (.not. allocated(b_nu_spline_obj)) allocate(b_nu_spline_obj(n_det))
-        if (.not. allocated(temperature_grid)) stop "temperature grid not allocated"
-
-        ! See if setting this matters?
-        previous_chunk_obs_time = 0.d0 ! Set initial previous chunk observation time to 0
-        splined_emissivities = 0.d0
-        splined_albedos = 0.d0
-        splined_phase_coeffs = 0.d0
-        splined_solar_irradiance = 0.d0
-        phase_function_normalization = 0.d0
-        allocate(b_nu(bandpass(j)%p%n))
-        do j = 1, n_det
-            do i = 1, n_interpolation_points    
-                call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
-                integrals(i) = bandpass(j)%p%SED2F(b_nu)
-            end do
-            call spline_simple(b_nu_spline_obj(j), temperature_grid, integrals)
-
-            do k = 1, size(splined_emissivities)
-                splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
-            end do
-            do k = 1, size(splined_albedos)
-                splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
-            end do
-            if (count(splined_albedos /= 0.d0) > 0) then
-                scattering = .true.
-                do k = 1, size(splined_phase_coeffs)
-                    splined_phase_coeffs(k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
-                end do
-                splined_solar_irradiance = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
-                call get_phase_normalization(splined_phase_coeffs, phase_function_normalization)
-            else 
-                scattering = .false.
-                splined_phase_coeffs = 0.d0
-                splined_solar_irradiance = 0.d0
-                phase_function_normalization = 0.d0
-            end if
-        end do
-        deallocate(b_nu)
-
-    end subroutine update_zodi_spline_obj
-
     subroutine get_zodi_emission(nside, pix, obs_pos, obs_time, s_zodi)
-        !   Simulates the zodiacal emission over a chunk of time-ordered data.
+        !   Compute simulated zodiacal emission.
         !
         !   Given a set of observations, the observer position and time of 
         !   observation is used to perform line-of-sight integrations through 
-        !   the interplanetary dust distribution in the Solar System, yielding 
-        !   a prediction of the zodiacal emission seen by the observer.
+        !   the interplanetary dust distribution in the solar system.
         !
-        !   Parameters
-        !   ----------
-        !   nside: int
-        !       Resolution of the pixels given in `pix`.
-        !   pix: array
-        !       Pixel indices representing observations in a chunk of the 
-        !       time-ordered data. Dimensions are (`n_tod`, `n_det`)
-        !   obs_pos: real
-        !       Heliocentric ecliptic cartesian position of the observer in AU.
-        !   obs_time: real
-        !       Time of observation in MJD. Assumes a fixed time of observeration
-        !       for the entire tod chunk. Chunk sizes exceeding 1 day in time will
-        !       result in poor zodiacal emission estimates.
+        !   Args:
+        !       nside (int): HEALPix resolution parameter for pixels in `pix`.
+        !       pix (1D array): Pixel indices representing observations in a chunk of time-ordered 
+        !           data. Dimensions are (`n_tod`, `n_det`).
+        !       obs_pos (float): Heliocentric ecliptic cartesian position of the observer in AU.
+        !       obs_time (float): Time of observation in MJD. Assumes a fixed time of observeration
+        !           for the entire tod chunk.
         !
-        !   Returns
-        !   -------
-        !   s_zodi: array
-        !       Estimated zodiacal emission over the chunk of time-ordered data.
-        !       Dimensions are (`n_tod`, `n_det`).
+        !   Returns:
+        !       s_zodi (1D array): Simulated zodiacal emission over the chunk of time-ordered data
+        !           pixel pointing. Dimensions are (`n_tod`, `n_det`).
 
-        ! TODO: goal is to be able to do: b_nu_LOS = F_int%eval(T_LOS)
-        !
-        ! F_int strucutre: self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), where i think self is of type comp,
-        ! F_int(IQU,band,det) and theta_p(j,1,:) theta_p(n_par) so theta_p should just be T here.
-        !
-        ! So is it possible to pass in as an argument to this function: self%F_int(1,band, :)%p as b_nu_interp
-        ! and just do b_nu = b_nu_interp%eval(0, T) in the loop below?
-        !
-        ! Is using MBB comp a good idea? Thats a 2D interp but we only need a 1D interp here.
-        ! Dont know if it matters and how much of a performance hit we get by artificially doing F_int(0, T) 
-        ! over F_int(T).
 
         implicit none
         class(ZodiComponent), pointer :: comp
@@ -410,7 +336,7 @@ contains
         integer(i4b) :: i, j, k, pix_idx, n_detectors, n_tods, npix
         real(dp) :: earth_lon, R_obs, R_max
         real(dp) :: earth_pos(3), unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree)
-        real(dp), allocatable :: tabulated_unit_vectors(:,:)
+        real(dp), allocatable :: tabulated_unit_vectors(:, :)
 
         ! Line of sight arrays and quantities
         real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
@@ -421,13 +347,20 @@ contains
         s_zodi = 0.d0
 
         ! Get unit vectors corresponding to the observed pixels (only on first chunk)
-        if (.not. allocated(tabulated_unit_vectors)) then 
-            allocate(tabulated_unit_vectors(0:npix-1, 3))
-            call get_tabulated_unit_vectors(nside, tabulated_unit_vectors)
-        end if
+        allocate(tabulated_unit_vectors(0:npix-1, 3))
+        call get_tabulated_unit_vectors(npix, tabulated_unit_vectors)
+
+        if (.not. size(tabulated_unit_vectors, dim=1) == npix) stop "tabulated_unit_vectors not correctly allocated"
 
         ! Allocate cached zodi array (only on first chunk)
         if (.not. allocated(cached_s_zodi)) then
+            allocate(cached_s_zodi(0:npix-1))
+            cached_s_zodi = 0.d0
+        end if
+
+        ! If current band has a different resolution from the previous, reallocate and reset cache
+        if (.not. size(cached_s_zodi) == npix) then
+            if (allocated(cached_s_zodi)) deallocate(cached_s_zodi)
             allocate(cached_s_zodi(0:npix-1))
             cached_s_zodi = 0.d0
         end if
@@ -498,7 +431,7 @@ contains
                 end if
             end do
         end do
-        
+
         previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
     end subroutine get_zodi_emission
 
@@ -580,6 +513,58 @@ contains
         normalization_factor = 1.d0 / (term1 * (term2 + term3 + term4))
     end subroutine
 
+    subroutine update_zodi_spline_obj(bandpass)
+        ! Updates the spline object which is used to evaluate b_nu over the bandpass
+
+        implicit none
+        class(comm_bp_ptr), intent(in) :: bandpass(:)
+
+        real(dp), allocatable :: b_nu(:)
+        real(dp) :: integrals(size(temperature_grid))
+        integer(i4b) :: i, j, k, n_det
+
+        n_det = size(bandpass) - 1
+        if (.not. allocated(b_nu_spline_obj)) allocate(b_nu_spline_obj(n_det))
+        if (.not. allocated(temperature_grid)) stop "temperature grid not allocated"
+
+        previous_chunk_obs_time = 0.d0
+        splined_emissivities = 0.d0
+        splined_albedos = 0.d0
+        splined_phase_coeffs = 0.d0
+        splined_solar_irradiance = 0.d0
+        phase_function_normalization = 0.d0
+        
+        allocate(b_nu(bandpass(j)%p%n))
+        do j = 1, n_det
+            do i = 1, n_interpolation_points    
+                call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
+                integrals(i) = bandpass(j)%p%SED2F(b_nu)
+            end do
+            call spline_simple(b_nu_spline_obj(j), temperature_grid, integrals)
+
+            do k = 1, size(splined_emissivities)
+                splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
+            end do
+            do k = 1, size(splined_albedos)
+                splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
+            end do
+            if (count(splined_albedos /= 0.d0) > 0) then
+                scattering = .true.
+                do k = 1, size(splined_phase_coeffs)
+                    splined_phase_coeffs(k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
+                end do
+                splined_solar_irradiance = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
+                call get_phase_normalization(splined_phase_coeffs, phase_function_normalization)
+            else 
+                scattering = .false.
+                splined_phase_coeffs = 0.d0
+                splined_solar_irradiance = 0.d0
+                phase_function_normalization = 0.d0
+            end if
+        end do
+        deallocate(b_nu)
+
+    end subroutine update_zodi_spline_obj
 
     ! Methods initizializing the zodiacal components
     ! ----------------------------------------------
@@ -814,17 +799,18 @@ contains
         ! call invert_matrix_dp(matrix)
     end subroutine gal_to_ecl_conversion_matrix
 
-    subroutine get_tabulated_unit_vectors(band_nside, tabulated_unit_vectors)
+    subroutine get_tabulated_unit_vectors(npix, unit_vectors)
         ! Routine which selects coordinate transformation map based on resolution
         implicit none
-        integer(i4b), intent(in) :: band_nside
-        real(dp), dimension(:,:), intent(inout) :: tabulated_unit_vectors
-        integer(i4b) :: i, npix, nside_idx
+        integer(i4b), intent(in) :: npix
+        real(dp), dimension(:,:), intent(inout) :: unit_vectors
 
-        npix = nside2npix(band_nside)
+        integer(i4b) :: i
+
         do i = 1, size(unit_vector_list%vectors)
             if (size(unit_vector_list%vectors(i)%elements(:, 1)) == npix) then
-                tabulated_unit_vectors = unit_vector_list%vectors(i)%elements
+                unit_vectors = unit_vector_list%vectors(i)%elements
+                exit
             end if
         end do
     end subroutine get_tabulated_unit_vectors

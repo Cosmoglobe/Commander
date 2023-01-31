@@ -1342,32 +1342,24 @@ contains
 
 
    subroutine gauss_legendre_quadrature(x1, x2, n, x, w)
-      !!! Returns an integration grid and the corresponding Gauss-Legendre weights.
+      ! Computes the sample points and weights for Gauss-Legendre quadrature.
       !
-      ! Given lower and upper integration limits 'x1', and 'x2, and 'n', the order of 
-      ! quadrature, this routine returns the integration grid/abscissas 'x' and 
-      ! corresponding weights 'w' of the Gauss-Legendre n-point quadrature formula. 
+      ! Given lower and upper integration limits `x1`, and `x2, and `n`, the order of 
+      ! quadrature, this routine returns the integration grid/abscissas `x` and 
+      ! corresponding weights `w` of the Gauss-Legendre n-point quadrature formula. 
       ! Given the returned grid and weights, the integral of some function f is computed 
       ! as follows: integral = sum(f(x) * w) 
       !
       ! This code is from NUMERICAL RECIPES in FORTRAN 77 the second edition page 145.
       !
-      ! Parameters:
-      ! -----------
-      ! x1 (float)
-      !   Lower integration limit.         
-      ! x2 (float)
-      !   Upper integration limit.      
-      ! n (int)
-      !   Gaussian quadrature order.    
+      ! Args:
+      !     x1 (float): Lower integration limit.         
+      !     x2 (float): Upper integration limit.      
+      !     n (int): Gaussian quadrature order.    
       !
       ! Returns:
-      ! --------
-      ! x (Array with shape (n,))
-      !   Integration grid/abscissas.    
-      ! w (Array with shape (n,))
-      !   Gauss-Legendre weights.
-      !!!
+      !     x (1-D array with length n): Integration grid/abscissas.    
+      !     w (1-D array with length n): Gauss-Legendre weights.
 
       implicit none
    

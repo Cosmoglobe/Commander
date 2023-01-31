@@ -40,9 +40,9 @@ import h5py
 import astropy.units as u
 from astropy.time import Time, TimeDelta
 
-version = 7
+version = 8
 smooth_pixels = True
-nside_out = 128
+nside_out = 256
 
 TEMP_OUTPUT_PATH = "/mn/stornext/d16/cmbco/bp/metins/dirbe/data/"
 PATH_TO_HDF5_FILES = "/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/"
@@ -216,7 +216,7 @@ def write_detector(
             gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, band)
             gustav_time = get_gustav_time(chunk_label, hdf5_filename, band)
             flags = get_chunk_band_flags(
-                nside_in,
+                nside_out,
                 planet_interps,
                 pixels,
                 tods,
@@ -329,7 +329,7 @@ def get_gustav_time(
 
 
 def get_chunk_band_flags(
-    nside_in: int,
+    nside_out: int,
     planet_interpolaters: dict[str, dict[str, interp1d]],
     pixels: NDArray[np.integer],
     tods: NDArray[np.floating],
@@ -355,7 +355,7 @@ def get_chunk_band_flags(
     flags[tods <= BAD_DATA_SENTINEL] += int(2**13)
 
     for bit_idx, (body, radius) in enumerate(BODIES.items(), start=14):
-        lon, lat = hp.pix2ang(nside_in, pixels, lonlat=True)
+        lon, lat = hp.pix2ang(nside_out, pixels, lonlat=True)
         planet_lon = planet_interpolaters[body]["lon"](time)
         planet_lat = planet_interpolaters[body]["lat"](time)
         ang_dist = hp.rotator.angdist(
