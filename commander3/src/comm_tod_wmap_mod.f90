@@ -570,7 +570,21 @@ contains
               call timer%stop(TOD_WAIT, self%band)
 
               call update_status(status, "abscal")
-              call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+              if (trim(self%freq) == '023-WMAP_K') then
+                if (self%myid == 0) then
+                  self%gain0(0) = 1.182 + 0.002 * rand_gauss(handle)
+                  write(*,*) '| Prior sampling gain ', self%gain0(0)
+                  call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
+                       & self%info%comm, ierr)
+                  do j = 1, self%nscan
+                     do i = 1, self%ndet
+                        self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
+                     end do
+                  end do
+                end if
+              else
+                call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+              end if
               call update_status(status, "relcal")
               call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
               call update_status(status, "deltaG")
