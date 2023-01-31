@@ -574,14 +574,14 @@ contains
                 if (self%myid == 0) then
                   self%gain0(0) = 1.182 + 0.002 * rand_gauss(handle)
                   write(*,*) '| Prior sampling gain ', self%gain0(0)
-                  call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
-                       & self%info%comm, ierr)
-                  do j = 1, self%nscan
-                     do i = 1, self%ndet
-                        self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
-                     end do
-                  end do
                 end if
+                call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
+                     & self%info%comm, ierr)
+                do j = 1, self%nscan
+                   do i = 1, self%ndet
+                      self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
+                   end do
+                end do
               else
                 call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
               end if
