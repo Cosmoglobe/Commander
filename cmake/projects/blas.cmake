@@ -20,53 +20,12 @@
 #================================================================================
 # Author: Maksym Brilenkov
 #================================================================================
-# Description: This script determines the location of MKL/OpenBLAS on the host system.
-# If it fails to do so, it will download, compile and install OpenBLAS from source.
+# Description: This script defines how to install OpenBLAS or AMD BLIS/FLAME from
+# source on the host system. As a result, the `blas` target is created to be con-
+# sumed by Commander3. If BLAS/LAPACK implementation was found by find_package(),
+# then `blas` target is empty.
 #================================================================================
-#message(STATUS "---------------------------------------------------------------")
-# require BLAS and LAPACK
-# From docs: Note C, CXX or Fortran must be enabled
-# to detect a BLAS/LAPACK library. C or CXX must be
-# enabled to use Intel Math Kernel Library (MKL).
-# Note: Because native (shipped with Linux) BLAS/LAPACK
-# implementations are not optimized, we require usage of
-# either MKL or OpenBLAS. 
-
-#if(CMAKE_Fortran_COMPILER_ID MATCHES Intel)
-# This works for MKL
-#	set($ENV{BLA_VENDOR}
-#		#OpenBLAS
-#			Intel10_32
-#			Intel10_64lp
-#			Intel10_64lp_seq
-#			Intel10_64ilp
-#			Intel10_64ilp_seq
-#			Intel10_64_dyn
-#			)
-#else()
-#if(NOT (BLAS_FORCE_COMPILE OR ALL_FORCE_COMPILE))
-#if(USE_SYSTEM_BLAS AND USE_SYSTEM_LIBS)
-	# This works for OpenBLAS
-	# Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
-	# for some weird reason. In this case it is a good idea to logout and login
-	# to refresh terminal.
-#	set($ENV{BLA_VENDOR} 
-#			OpenBLAS
-#			Intel10_32
-#			Intel10_64lp
-#			Intel10_64lp_seq
-#			Intel10_64ilp
-#			Intel10_64ilp_seq
-#			Intel10_64_dyn
-#			)
-#	find_package(BLAS) #REQUIRED)
-#	find_package(LAPACK) #REQUIRED)
-#endif()
-
-# Download OpenBLAS from source if neither MKL or OpenBLAS
-# were found on the host system.
-#if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-if(COMPILE_BLAS)
+if(COMPILE_OPENBLAS)
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.
@@ -76,16 +35,17 @@ if(COMPILE_BLAS)
 	# Getting OpenBLAS from source
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
-	if(NOT EXISTS "${BLAS_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
+  #
+  if(NOT EXISTS "${OPENBLAS_SOURCE_DIR}/CMakeLists.txt")
+    #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
 		ExternalProject_Add(
-			blas_src
+			openblas_src
 			DEPENDS						required_libraries
-			URL								"${blas_url}"
-			URL_MD5						"${blas_md5}"
+			URL								"${openblas_url}"
+			URL_MD5						"${openblas_md5}"
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
-			SOURCE_DIR				"${BLAS_SOURCE_DIR}"
+      SOURCE_DIR				"${OPENBLAS_SOURCE_DIR}"
 			LOG_DIR						"${CMAKE_LOG_DIR}"
 			LOG_DOWNLOAD			ON
 			# commands how to build the project
@@ -94,39 +54,45 @@ if(COMPILE_BLAS)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing BLAS sources inside:\n${BLAS_SOURCE_DIR}")
-		add_custom_target(blas_src
+    #message(STATUS "Found an existing BLAS sources inside:\n${OPENBLAS_SOURCE_DIR}")
+		add_custom_target(openblas_src
 			ALL ""
 			)
 	endif()
 	#------------------------------------------------------------------------------
-	# Compiling and installing OpenBLAS
+  # Compiling and Installing Static and Shared OpenBLAS
 	#------------------------------------------------------------------------------
-	ExternalProject_Add(
-		blas
-		DEPENDS						required_libraries
-											blas_src
-		URL								"${blas_url}"
-		URL_MD5						"${blas_md5}"
-		PREFIX						"${LIBS_BUILD_DIR}"
-		SOURCE_DIR				"${BLAS_SOURCE_DIR}"
-		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
-		LOG_DIR						"${CMAKE_LOG_DIR}"
-		LOG_CONFIGURE 		ON
-		LOG_BUILD					ON
-		LOG_INSTALL				ON
-		# commands how to build the project
-		DOWNLOAD_COMMAND	""
-		CMAKE_ARGS
-			-DCMAKE_BUILD_TYPE=Release
-			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
-			-DUSE_OPENMP=ON
-			-DCMAKE_Fortran_COMPILER=${MPI_Fortran_COMPILER}
-			-DCMAKE_CXX_COMPILER=${MPI_CXX_COMPILER}
-			-DCMAKE_C_COMPILER=${MPI_C_COMPILER}
-			#-DCMAKE_INSTALL_LIBDIR=lib
-			-DCMAKE_INSTALL_LIBDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
-		)
+  list(APPEND _OPENBLAS_LIB_TYPES_ static shared)
+  list(APPEND _OPENBLAS_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
+  foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _OPENBLAS_LIB_TYPES_ _OPENBLAS_LIB_BOOL_VALS_)
+    ExternalProject_Add(
+			openblas_${_lib_type_}
+      DEPENDS           required_libraries 
+                        openblas_src
+      PREFIX            "${LIBS_BUILD_DIR}"
+      SOURCE_DIR        "${OPENBLAS_SOURCE_DIR}"
+      INSTALL_DIR       "${CMAKE_INSTALL_PREFIX}"
+      LOG_DIR	          "${CMAKE_LOG_DIR}"
+      LOG_CONFIGURE     ON 
+      LOG_BUILD         ON 
+			LOG_INSTALL       ON 
+      # commands how to build the project
+      DOWNLOAD_COMMAND  ""
+      CMAKE_ARGS
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
+        -DCMAKE_Fortran_COMPILER=${MPI_Fortran_COMPILER}
+        -DCMAKE_C_COMPILER=${MPI_C_COMPILER}
+        -DCMAKE_INSTALL_LIBDIR=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+        -DUSE_OPENMP=OFF #<= HKE said we are not using OMP version of BLAS/LAPACK
+        # To fix error Nils had with SMP_SERVER, this variable should be set to `false`
+        # For me, however, it does absolutely nothing for some reason
+        -DUSE_THREAD=OFF
+        # Building both static and shared libraries to be consistent 
+        # with Make and Autotools
+				${_bool_val_}
+      )
+  endforeach()
 	#------------------------------------------------------------------------------
 	# In case of static linking, we do not need to specify linker flags.
 	# NOTE: If OpenBLAS 0.3.12 is installed with CMake, there is a special
@@ -134,6 +100,7 @@ if(COMPILE_BLAS)
 	# CMAKE_INSTALL_LIBDIR. We need to set it manually as above to "lib"
 	# otherwise on some platforms the dir will be named "lib" and on others
 	# "lib64".
+	#------------------------------------------------------------------------------
 	set(BLAS_LINKER_FLAGS "")
 	set(BLAS_LIBRARIES
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
@@ -143,19 +110,233 @@ if(COMPILE_BLAS)
 		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}"
 		)
 	#------------------------------------------------------------------------------
+  # Creating ALIASes
+	#------------------------------------------------------------------------------
+  add_library(BLAS::BLAS INTERFACE IMPORTED)
+  set_target_properties(BLAS::BLAS PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${BLAS_LIBRARIES}"
+    )
+  set_target_properties(BLAS::BLAS PROPERTIES
+    INTERFACE_LINK_OPTIONS "${BLAS_LINKER_FLAGS}"
+    )
+  add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+  set_target_properties(LAPACK::LAPACK PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${LAPACK_LIBRARIES}"
+    )
+  set_target_properties(LAPACK::LAPACK PROPERTIES
+    INTERFACE_LINK_OPTIONS "${LAPACK_LINKER_FLAGS}"
+    )
+	#------------------------------------------------------------------------------
+	# Creating Unified Target
+	#------------------------------------------------------------------------------
+	add_custom_target(blas   
+    ALL ""
+		DEPENDS openblas_static
+						openblas_shared
+    )
+	#------------------------------------------------------------------------------
 	#message(STATUS "BLAS LINKER FLAGS will be:   ${BLAS_LINKER_FLAGS}")
 	#message(STATUS "BLAS LIBRARIES will be:      ${BLAS_LIBRARIES}")
 	#message(STATUS "LAPACK LINKER FLAGS will be: ${LAPACK_LINKER_FLAGS}")
 	#message(STATUS "LAPACK LIBRARIES will be:    ${LAPACK_LIBRARIES}")
 	#------------------------------------------------------------------------------
+elseif(COMPILE_FLAME)
+	#------------------------------------------------------------------------------
+  # Note: BLIS and FLAME have CMake implementation only for Windows.
+	#------------------------------------------------------------------------------
+  # Getting AMD BLIS from source
+	#------------------------------------------------------------------------------
+  # Note: For BLIS configure to properly work it needs to find the 
+  # blis.pc.in file located inside the root directory. Therefore, 
+  # either the file should be copied to `${LIBS_BUILD_DIR}/src/blis-build` 
+  # or the `BINARY_DIR` should have the same value as `SOURCE_DIR`. The 
+  # latter, of course, undermines the purpose of `subbuilds` directory;
+  # thus, the `copy` command is added to the `configure`. For future
+  # references, the respective error is the following:
+  # `gmake[4]: *** No rule to make target 'blis.pc.in', needed by`
+	#------------------------------------------------------------------------------
+  if(NOT EXISTS "${AMDBLIS_SOURCE_DIR}/CMakeLists.txt")
+    #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
+		ExternalProject_Add(
+			amdblis_src
+			DEPENDS						required_libraries
+      GIT_REPOSITORY		"${amdblis_git_url}"
+      GIT_TAG						"${amdblis_git_tag}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+      SOURCE_DIR				"${AMDBLIS_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+      LOG_DOWNLOAD			ON 
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+      COMMAND ${CMAKE_COMMAND} -E copy "${AMDBLIS_SOURCE_DIR}/blis.pc.in" "${LIBS_BUILD_DIR}/src/amdblis-build"
+			)
+	else()
+    #message(STATUS "Found an existing BLAS sources inside:\n${BLIS_SOURCE_DIR}")
+		add_custom_target(amdblis_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+  # Getting AMD FLAME from source
+	#------------------------------------------------------------------------------
+  # Note: LAPACK sources inside `src` directory is copied over to `subbuilds` , 
+  # because, otherwise, it complains about missing files.
+	#------------------------------------------------------------------------------
+  if(NOT EXISTS "${AMDFLAME_SOURCE_DIR}/CMakeLists.txt")
+    #message(STATUS "No BLAS sources were found; thus, will download it from source:\n${blas_url}")
+		ExternalProject_Add(
+			amdflame_src
+			DEPENDS						required_libraries
+      GIT_REPOSITORY		"${amdflame_git_url}"
+      GIT_TAG						"${amdflame_git_tag}"
+			PREFIX						"${LIBS_BUILD_DIR}"
+			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
+      SOURCE_DIR				"${AMDFLAME_SOURCE_DIR}"
+			LOG_DIR						"${CMAKE_LOG_DIR}"
+      LOG_DOWNLOAD			ON 
+			# commands how to build the project
+			CONFIGURE_COMMAND ""
+			BUILD_COMMAND			""
+			INSTALL_COMMAND		""
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${AMDFLAME_SOURCE_DIR}/src" "${LIBS_BUILD_DIR}/src/amdflame-build/src"
+			)
+	else()
+    #message(STATUS "Found an existing BLAS sources inside:\n${BLIS_SOURCE_DIR}")
+		add_custom_target(amdflame_src
+			ALL ""
+			)
+	endif()
+	#------------------------------------------------------------------------------
+  # Compiling and Installing Static and Shared BLIS
+	#------------------------------------------------------------------------------
+	list(APPEND 
+    amdblis_configure_command 
+		"${CMAKE_COMMAND}" "-E" "env" 
+    "FC=${MPI_Fortran_COMPILER}" 
+		"CXX=${MPI_CXX_COMPILER}" 
+		"CPP=${COMMANDER3_CPP_COMPILER}" 
+		"CC=${MPI_C_COMPILER}" 
+		"MPICC=${MPI_C_COMPILER}" 
+		#"./configure" 
+    "${AMDBLIS_SOURCE_DIR}/configure" 
+    "--prefix=<INSTALL_DIR>"
+    "auto"
+    )
+	ExternalProject_Add(
+		amdblis      
+		DEPENDS						amdblis_src
+		PREFIX						"${LIBS_BUILD_DIR}"
+    SOURCE_DIR				"${AMDBLIS_SOURCE_DIR}"
+    #BINARY_DIR				"${BLIS_SOURCE_DIR}" 
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+    LOG_CONFIGURE			ON 
+    LOG_BUILD					ON 
+    LOG_INSTALL				ON 
+		# Disabling download
+		DOWNLOAD_COMMAND	""
+		# Commands to configure, build and install the project
+		CONFIGURE_COMMAND "${amdblis_configure_command}"
+		)
+	#------------------------------------------------------------------------------
+  # Compiling and Installing Static and Shared AMD FLAME
+	#------------------------------------------------------------------------------
+  # Note: Usage of MPi compilers result in the errors:
+  # `Unrecognised command line option ...`
+  # So the usual GCC/GFortran is used instead. 
+	#------------------------------------------------------------------------------
+	list(APPEND 
+    amdflame_configure_command 
+    #"rm" "Makefile" "&&"
+    #"autoreconf" "-i" "&&" 
+		"${CMAKE_COMMAND}" "-E" "env" 
+    "FC=${CMAKE_Fortran_COMPILER}"#${MPI_Fortran_COMPILER}" 
+    "CXX=${CMAKE_CXX_COMPILER}"#${MPI_CXX_COMPILER}" 
+    "CPP=${COMMANDER3_CPP_COMPILER}" 
+    "CC=${CMAKE_C_COMPILER}"#${MPI_C_COMPILER}" 
+    #"MPICC=${MPI_C_COMPILER}" 
+    #"./configure"
+    "${AMDFLAME_SOURCE_DIR}/configure" 
+    "--prefix=<INSTALL_DIR>"
+    "--enable-static-build" 
+    "--enable-dynamic-build" 
+    "--enable-blas-ext-gemmt" 
+    "--enable-optimizations" 
+    "--enable-warnings" 
+    "--enable-max-arg-list-hack" 
+    "--enable-lapack2flame"
+    )
+	ExternalProject_Add(
+		amdflame
+		DEPENDS						amdflame_src
+                      amdblis 
+		PREFIX						"${LIBS_BUILD_DIR}"
+    SOURCE_DIR				"${AMDFLAME_SOURCE_DIR}"
+    #BINARY_DIR				"${BLIS_SOURCE_DIR}" 
+		INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
+		LOG_DIR						"${CMAKE_LOG_DIR}"
+    LOG_CONFIGURE			ON
+    LOG_BUILD					ON 
+    LOG_INSTALL				ON 
+		# Disabling download
+		DOWNLOAD_COMMAND	""
+		# Commands to configure, build and install the project
+		CONFIGURE_COMMAND "${amdflame_configure_command}"
+    # Note: For some reason CMake default install command results in errors,
+    # but if `make install` is explicitly stated, everything works fine.
+    INSTALL_COMMAND   "make" "install"
+		)
+	set(BLAS_LINKER_FLAGS "")
+	set(BLAS_LIBRARIES
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}blis${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		)
+	set(LAPACK_LINKER_FLAGS "-lgfortran" "-lm" "-lquadmath")
+	set(LAPACK_LIBRARIES
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}aocldtl${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}flame${CMAKE_STATIC_LIBRARY_SUFFIX}"
+		)
+  include_directories(${CMAKE_INSTALL_PREFIX}/include/blis)
+	#------------------------------------------------------------------------------
+  # Creating ALIASes
+	#------------------------------------------------------------------------------
+  add_library(BLAS::BLAS INTERFACE IMPORTED)
+  set_target_properties(BLAS::BLAS PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${BLAS_LIBRARIES}"
+    )
+  set_target_properties(BLAS::BLAS PROPERTIES
+    INTERFACE_LINK_OPTIONS "${BLAS_LINKER_FLAGS}"
+    )
+  add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+  set_target_properties(LAPACK::LAPACK PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${LAPACK_LIBRARIES}"
+    )
+  set_target_properties(LAPACK::LAPACK PROPERTIES
+    INTERFACE_LINK_OPTIONS "${LAPACK_LINKER_FLAGS}"
+    )
+	#------------------------------------------------------------------------------
+	# Creating Unified Target
+	#------------------------------------------------------------------------------
+	add_custom_target(blas 
+		ALL ""
+		DEPENDS amdblis
+            amdflame
+		)
 else()
-	# to avoid cmake errors we create and empty target
+	# to avoid cmake errors we create an empty target
 	add_custom_target(blas 
 		ALL ""
 		DEPENDS required_libraries
 		)
-	set(blas_lib ${BLAS_LINKER_FLAGS} ${BLAS_LIBRARIES} ${LAPACK_LINKER_FLAGS} ${LAPACK_LIBRARIES})
-	#------------------------------------------------------------------------------
+#	set(blas_lib 
+#    ${BLAS_LINKER_FLAGS} 
+#    ${BLAS_LIBRARIES} 
+#    ${LAPACK_LINKER_FLAGS} 
+#    ${LAPACK_LIBRARIES}
+#    )
+  #------------------------------------------------------------------------------
 	#message(STATUS "BLAS LINKER FLAGS:   ${BLAS_LINKER_FLAGS}")
 	#message(STATUS "BLAS LIBRARIES:      ${BLAS_LIBRARIES}")
 	#message(STATUS "LAPACK LINKER FLAGS: ${LAPACK_LINKER_FLAGS}")

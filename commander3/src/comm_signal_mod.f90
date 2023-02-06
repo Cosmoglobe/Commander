@@ -19,27 +19,28 @@
 !
 !================================================================================
 module comm_signal_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
+  use comm_ame_lognormal_mod
+  use comm_chisq_mod
   use comm_cmb_comp_mod
   use comm_cmb_relquad_comp_mod
+  use comm_comp_mod
+  use comm_cr_mod
+  use comm_cr_utils
+  use comm_curvature_comp_mod
+  use comm_data_mod
+  use comm_diffuse_comp_mod
+  use comm_freefree_comp_mod
+  use comm_hdf_mod
+  use comm_line_comp_mod
+  use comm_MBB_comp_mod
+  use comm_md_comp_mod
+  use comm_param_mod
   use comm_powlaw_comp_mod
+  use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
-  use comm_ame_lognormal_mod
-  use comm_MBB_comp_mod
-  use comm_freefree_comp_mod
-  use comm_line_comp_mod
-  use comm_md_comp_mod
   use comm_template_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_cr_mod
-  use comm_cr_utils
-  use comm_hdf_mod
-  use comm_data_mod
-  use comm_chisq_mod
   implicit none
 
 contains
@@ -71,12 +72,16 @@ contains
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
              call update_status(status, "init_done")
+          case ("curvature") 
+             c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")
              c => comm_physdust_comp(cpar, ncomp, i)
           case ("spindust")
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("spindust2")
              c => comm_spindust2_comp(cpar, ncomp, i)
+          case ("lognormal")
+             c => comm_ame_lognormal_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("freefree")
@@ -269,11 +274,11 @@ contains
                    call c%x%info%i2lm(i,l,m)
                    if (l == 0) then ! monopole
 
-                      write(*,fmt='(a)') "Band monopole of '"//&
+                      write(*,fmt='(a)') " |  Band monopole of '"//&
                            & trim(c%label)//"' used as zero-level prior"
-                      write(*,fmt='(a,f14.3)') "    Revert back to pre-CG value: ",&
+                      write(*,fmt='(a,f14.3)') " |     Revert back to pre-CG value: ",&
                            & c%mono_alm/sqrt(4.d0*pi)
-                      write(*,fmt='(a,f14.3,a)') "    (Sampled value in CG: ",&
+                      write(*,fmt='(a,f14.3,a)') " |     (Sampled value in CG: ",&
                            & c%x%alm(i,1)/sqrt(4.d0*pi)," )"
 
                       c%x%alm(i,1) = c%mono_alm  ! revert to pre-CG search value 
