@@ -164,7 +164,8 @@ contains
   end subroutine precompute_orb_dp_s
 
   subroutine compute_CMB_dipole(self, det, v_ref, nu, &
-       & relativistic, beam_4pi, P, s_dip, factor, v_ref_next)
+       & relativistic, beam_4pi, P, s_dip, factor, v_ref_next, &
+       & v_refs, mjds, t0, fsamp)
     ! Evaluates the CMB dipole as a function of time
     !
     !
@@ -201,8 +202,12 @@ contains
     real(sp),            dimension(:),     intent(out) :: s_dip
     real(dp),                              intent(in), optional :: factor
     real(dp),                              intent(in), optional :: v_ref_next(3)
+    real(dp),            dimension(:),     intent(in), optional :: mjds
+    real(dp),            dimension(:,:),   intent(in), optional :: v_refs
+    real(dp),                              intent(in), optional :: t0
+    real(dp),                              intent(in), optional :: fsamp
 
-    real(dp)     :: b, x, q, b_dot, f, vp_ref(3), xx, v(3)
+    real(dp)     :: b, x, q, b_dot, f, vp_ref(3), xx, v(3), err(3), v0(3), stoday, dt
     integer(i4b) :: i, j, k, s_len, ntod, subsample
     real(dp), dimension(:), allocatable :: x_vec, y_vec
 
@@ -214,10 +219,22 @@ contains
     q      = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
     vp_ref = v_ref; if (present(v_ref_next)) vp_ref = v_ref_next ! Velocity for next PID; for linear interpolation
 
+    stoday = 1d0/3600d0/24d0
+    dt = 1/fsamp * stoday
+
+
+    ! Should be able to do something like
+    ! do i = 1, ntod
+    !   do k = 1, 3
+    !     call polint(mjds(scanid:scanid+1), v_sun_all(k, scanid:scanid+1), &
+    !                                    &   t0 + f_samp * i, v(k), err)
+
+
     if (.not. beam_4pi) then
        do i = 1, ntod !length of the tod
-          xx       = real(i-1,dp)/real(ntod-1,dp)
-          v        = (1.d0-xx) * v_ref + xx*vp_ref
+          do k = 1, 3
+            call polint(mjds, v_refs(k,:), t0 + dt*(i-1), v(k), err(k))
+          end do
           b_dot    = dot_product(v, P(:,i))/c
           s_dip(i) = b_dot
           if (relativistic) then
@@ -232,6 +249,14 @@ contains
        do k = 1, s_len !number of subsampled samples
           xx       = real(k-1,dp)/real(s_len-1,dp)
           v        = (1.d0-xx)*v_ref + xx*vp_ref
+          do i = 1, 3
+            call polint(mjds, v_refs(i,:), t0 + (k-1)*subsample*dt, v0(i), err(i))
+          end do
+          !if (k .eq. s_len/2) then
+          !  do j = 1, 3
+          !    write(*,*) int(v_refs(j,:),i4b), ':',  int(v_ref(j)), int(vp_ref(j)), ':', int(v0(j), i4b), int(v(j), i4b)
+          !  end do
+          !end if
           j        = subsample * (k-1) + 1
           X_vec(k) = j
           y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v) * f

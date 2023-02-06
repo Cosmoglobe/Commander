@@ -35,6 +35,14 @@ module math_tools
      module procedure convert_fract2sigma_sp, convert_fract2sigma_dp
   end interface
 
+  interface polint
+     module procedure polint_dp, polint_sp
+  end interface
+
+  interface tridag
+     module procedure tridag_sp, tridag_dp
+  end interface
+
 contains
 
   subroutine invert_matrix_dpc(matrix)
@@ -1527,7 +1535,7 @@ contains
   end function
 
 
-  subroutine tridag(a, b, c, r, u)
+  subroutine tridag_dp(a, b, c, r, u)
     implicit none
 
     real(dp), dimension(:), intent(in)  :: a, b, c, r
@@ -1551,7 +1559,33 @@ contains
        u(j) = u(j) - gam(j+1)*u(j+1)
     end do
 
-  end subroutine tridag
+  end subroutine tridag_dp
+
+  subroutine tridag_sp(a, b, c, r, u)
+    implicit none
+
+    real(sp), dimension(:), intent(in)  :: a, b, c, r
+    real(sp), dimension(:), intent(out) :: u
+
+    real(sp)     :: bet
+    integer(i4b) :: n, j
+    real(sp), dimension(size(b)) :: gam
+    
+    n   = size(b)
+    bet = b(1)
+
+    u(1) = r(1) / bet
+    do j = 2, n
+       gam(j) = c(j-1)/bet
+       bet    = b(j)-a(j-1)*gam(j)
+       u(j)   = (r(j)-a(j-1)*u(j-1))/bet
+    end do
+
+    do j = n-1, 1, -1
+       u(j) = u(j) - gam(j+1)*u(j+1)
+    end do
+
+  end subroutine tridag_sp
 
 
 
@@ -1630,6 +1664,86 @@ contains
 
   end subroutine fit_polynomial
 
+
+  ! Adapted from Numerical Recipes in Fortran90, Chapter B3
+  subroutine polint_sp(xa, ya, x, y, dy)
+    implicit none
+    real(sp), dimension(:), intent(in) :: xa, ya
+    real(sp), intent(in)  :: x
+    real(sp), intent(out) :: y, dy
+
+    integer(i4b) :: m,n,ns
+    real(sp), dimension(size(xa)) :: c,d,den,ho
+    if (size(xa) .ne. size(ya)) then
+        write(*,*) "polint_sp size mismatch"
+        stop
+    else
+        n = size(xa)
+    end if
+    c = ya
+    d = ya
+    ho = xa - x
+    ns = minloc(abs(x-xa), dim=1)
+    y = ya(ns)
+    ns = ns - 1
+    do m = 1, n-1
+      den(1:n-m) = ho(1:n-m) - ho(1+m:n)
+      if (any(den(1:n-m) == 0.0)) then
+          write(*,*) 'polint_sp calculation failure'
+          stop
+      end if
+      den(1:n-m) = (c(2:n-m+1)-d(1:n-m))/den(1:n-m)
+      d(1:n-m) = ho(1+m:n)*den(1:n-m)
+      c(1:n-m) = ho(1:n-m)*den(1:n-m)
+      if (2*ns < n-m) then
+        dy = c(ns+1)
+      else
+        dy = d(ns)
+        ns = ns - 1
+      end if
+      y = y + dy
+    end do
+  end subroutine polint_sp
+
+  subroutine polint_dp(xa, ya, x, y, dy)
+    implicit none
+    real(dp), dimension(:), intent(in) :: xa, ya
+    real(dp), intent(in)  :: x
+    real(dp), intent(out) :: y, dy
+
+    integer(i4b) :: m,n,ns
+    real(dp), dimension(size(xa)) :: c,d,den,ho
+    if (size(xa) .ne. size(ya)) then
+        write(*,*) "polint_dp size mismatch"
+        stop
+    else
+        n = size(xa)
+    end if
+    c = ya
+    d = ya
+    ho = xa - x
+    ns = minloc(abs(x-xa), dim=1)
+    y = ya(ns)
+    ns = ns - 1
+    do m = 1, n-1
+      den(1:n-m) = ho(1:n-m) - ho(1+m:n)
+      if (any(den(1:n-m) == 0.0)) then
+          write(*,*) 'polint_dp calculation failure'
+          stop
+      end if
+      den(1:n-m) = (c(2:n-m+1)-d(1:n-m))/den(1:n-m)
+      d(1:n-m) = ho(1+m:n)*den(1:n-m)
+      c(1:n-m) = ho(1:n-m)*den(1:n-m)
+      if (2*ns < n-m) then
+        dy = c(ns+1)
+      else
+        dy = d(ns)
+        ns = ns - 1
+      end if
+      y = y + dy
+    end do
+  end subroutine polint_dp
+
   function calc_linear_regression(x_arr, y_arr, n_lim) 
     implicit none
     integer(i4b),               intent(in), optional :: n_lim
@@ -1639,7 +1753,7 @@ contains
     integer(i4b) :: i, j, ns
     real(dp)     :: x_mean, y_mean, sig_x, sig_y, covarr, corr
     !
-    !  Function to calculate the Pearson correlation coefficient between samples in a set of a sampled spectral parameter.
+    !  Function to calculate the Pearson correlation coefficient between samples in a set of a sampled dpectral parameter.
     !
     !  Arguments:
     !  ------------------

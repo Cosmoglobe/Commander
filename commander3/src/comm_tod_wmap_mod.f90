@@ -406,8 +406,6 @@ contains
 
 
       type(hdf_file) :: tod_file
-      real(sp) :: pow2  ! log2(ntod)
-
 
 
       call int2string(iter, ctext)
@@ -448,6 +446,8 @@ contains
            if (mod(iter-1,100) == 0) split = .true.
          end if
       end if
+      self%output_n_maps = 5
+
 
 
 

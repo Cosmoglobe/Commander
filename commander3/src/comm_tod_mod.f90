@@ -153,6 +153,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
+     real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -1894,8 +1895,9 @@ contains
     real(dp),               intent(in), optional     :: factor
 
     integer(i4b) :: i, j, ntod
-    real(dp)     :: v_ref(3), v_ref_next(3), f
-    real(dp), allocatable, dimension(:,:) :: P
+    real(dp)     :: v_ref(3), v_ref_next(3), f, t0
+    real(dp), allocatable, dimension(:,:) :: P, v_ref_arr
+    real(dp), allocatable, dimension(:)   :: mjds
     logical(lgt)  :: relativistic
 
     relativistic = .true.
@@ -1903,15 +1905,60 @@ contains
     f = 1.d0; if (present(factor)) f = factor
     ntod = self%scans(scan)%ntod
 
+    ! First, need to find out how close the scan is to the edge. Ideally we want
+    ! the polynomial to be centered in a cubic, i.e., if we are looking at scan,
+    ! we want points scan-1, scan, scan+1, scan+2, both in mjds and velocities.
+
+    ! Also need self%samprate
+
     allocate(P(3,ntod))
     j = 1
     if (self%orbital) then
-       v_ref = self%scans(scan)%v_sun
+       v_ref = self%v_sun(:, self%scanid(scan))
        if (self%scanid(scan) == self%nscan_tot) then
           v_ref_next = v_ref
        else
           v_ref_next = self%v_sun(:,self%scanid(scan)+1)
        end if
+
+       ! Cubic interpolation
+       if (self%scanid(scan) == 1) then
+          allocate(v_ref_arr(3, 3))
+          allocate(mjds(3))
+          v_ref_arr = self%v_sun(:,1:3)
+          mjds      = self%mjds(1:3)
+       else if (self%scanid(scan) == self%nscan_tot) then
+          allocate(v_ref_arr(3, 2))
+          allocate(mjds(2))
+          v_ref_arr = self%v_sun(:,self%nscan_tot-1:self%nscan_tot)
+          mjds      = self%mjds(self%nscan_tot-1:self%nscan_tot)
+       else if (self%scanid(scan) == self%nscan_tot - 1) then
+          allocate(v_ref_arr(3, 3))
+          allocate(mjds(3))
+          v_ref_arr = self%v_sun(:,self%scanid(scan)-1:self%scanid(scan)+1)
+          mjds      = self%mjds(self%scanid(scan)-1:self%scanid(scan)+1)
+       else
+          allocate(v_ref_arr(3, 4))
+          allocate(mjds(4))
+          v_ref_arr = self%v_sun(:,self%scanid(scan)-1:self%scanid(scan)+2)
+          mjds      = self%mjds(self%scanid(scan)-1:self%scanid(scan)+2)
+       end if
+
+       ! Linear interpolation
+       !if (self%scanid(scan) == self%nscan_tot - 1) then
+       !   allocate(v_ref_arr(3, 1))
+       !   allocate(mjds(1))
+       !   v_ref_arr = self%v_sun(:,self%scanid(scan):self%scanid(scan))
+       !   mjds      = self%mjds(self%scanid(scan):self%scanid(scan))
+       !else
+       !   allocate(v_ref_arr(3, 2))
+       !   allocate(mjds(2))
+       !   v_ref_arr = self%v_sun(:,self%scanid(scan):self%scanid(scan)+1)
+       !   mjds      = self%mjds(self%scanid(scan):self%scanid(scan)+1)
+       !end if
+
+
+       t0 = self%mjds(self%scanid(scan))
     else
        v_ref      = v_solar
        v_ref_next = v_solar
@@ -1934,16 +1981,21 @@ contains
        ! data.
        if (horn_ind == 1) then
           call self%orb_dp%compute_CMB_dipole(1, v_ref, self%nu_c(j), &
-               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, v_ref_next=v_ref_next)
+               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, &
+               & v_ref_next=v_ref_next, &
+               & v_refs=v_ref_arr, mjds=mjds, t0=t0, fsamp=self%samprate)
        else if (horn_ind == 2) then
           call self%orb_dp%compute_CMB_dipole(3, v_ref, self%nu_c(j), &
-               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, v_ref_next=v_ref_next)
+               & self%orbital, self%orb_4pi_beam, P, s_dip(:,j), factor=f, &
+               & v_ref_next=v_ref_next, &
+               & v_refs=v_ref_arr, mjds=mjds, t0=t0, fsamp=self%samprate)
        else
           write(*,*) "Should only be 1 or 2"
           stop
        end if
     end do
     deallocate(P)
+    if (self%orbital) deallocate(mjds, v_ref_arr)
 
   end subroutine construct_dipole_template_diff
 
@@ -2650,12 +2702,17 @@ contains
     integer(i4b) :: i, j, ierr
 
     allocate(self%v_sun(3,self%nscan_tot))
+    allocate(self%mjds(self%nscan_tot))
     self%v_sun = 0.d0
+    self%mjds  = 0.d0
     do i = 1, self%nscan
        self%v_sun(:,self%scanid(i)) = self%scans(i)%v_sun
+       self%mjds(self%scanid(i)) = self%scans(i)%t0(1)
     end do
 
     call mpi_allreduce(MPI_IN_PLACE, self%v_sun, size(self%v_sun), &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+    call mpi_allreduce(MPI_IN_PLACE, self%mjds, size(self%mjds), &
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
   end subroutine collect_v_sun
