@@ -20,8 +20,8 @@
 #================================================================================
 
 import h5py
-import tod_tools.huffman as huffman
-import tod_tools.rice as rice
+import commander_tools.tod_tools.huffman as huffman
+import commander_tools.tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -48,25 +48,25 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        # Checking whether `freq` is the number or not to get the correct file name in the end 
-        if str(freq).isnumeric():
-            self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq).zfill(3) + '_' + str(od).zfill(6) + '.h5')
+        if self.name.lower() == 'planck':
+            sfreq = str(freq).zfill(3)
         else:
-            self.outName = os.path.join(self.outPath, self.name+ '_' + str(freq) + '_' + str(od).zfill(6) + '.h5')
+            sfreq = str(freq)
+        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
 
         self.exists = False
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
-            if self.exists and self.overwrite:
-                os.remove(self.outName)
+            #if self.exists and self.overwrite:
+            #    os.remove(self.outName)
             try:
                 self.outFile = h5py.File(self.outName, 'a')
 
-                if self.exists and not self.overwrite:
-                    for pid in self.load_field('/common/pids'):
-                        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
-                        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+                #if self.exists and not self.overwrite:
+                #    for pid in self.load_field('/common/pids'):
+                #        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
+                #        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
             except (KeyError, OSError):
                 if(hasattr(self, 'outFile')):
                     self.outFile.close()
@@ -87,13 +87,13 @@ class commander_tod:
         dims = np.shape(data)
 
         if(len(dims) != 2):
-            raise TypeError('Call to add matrix with an object of shape ' + str(np.shape(data)))
+            raise TypeError('Call to add matrix with an object of shape ' + str(shape))
 
         if(dims[0] != len(columnInfo)):
             if(dims[1] == len(columnInfo)):
                 data = np.transpose(data)
             else:
-                raise ValueError('Data has shape ' + str(np.shape(data)) + ' but column headers have length ' + str(len(columnInfo)))  
+                raise ValueError('Data is shape ' + str(shape) + ' but column headers have length ' + str(len(columnInfo)))  
 
         if compression == None or compression == []:
             if type(data) == np.ndarray:
@@ -112,6 +112,10 @@ class commander_tod:
 
     #Single field write
     def add_field(self, fieldName, data, compression=None):
+          
+        if self.overwrite:
+            if fieldName in self.outFile.keys():
+                del self.outFile[fieldName]
         data = np.nan_to_num(data)
         writeField = True
         if(compression is not None and compression is not []):
@@ -178,11 +182,7 @@ class commander_tod:
             try:
                 self.outFile.create_dataset(fieldName, data=data)
             except OSError as e:
-                if self.overwrite:
-                    del self.outFile[fieldName]
-                    self.outFile.create_dataset(fieldName, data=data)
-                else:
-                    raise OSError(e)
+                raise OSError(e)
             for attr in self.attrDict.copy().keys():
                 fName, attrName = attr.split('@')
                 if fName == fieldName:
@@ -201,6 +201,10 @@ class commander_tod:
             if self.encodings[encoding] != value:
                print('Warning: Inconsistant encoding value ' + encoding + ' is set to ' + str(self.encodings[encoding]) + ' but wants to be ' + str(value))
 
+
+    def add_softlink(self, linkName, dataName):
+        self.outFile[linkName] = h5py.SoftLink(dataName)
+
     def finalize_file(self):
 
         if(not self.exists or self.overwrite):
@@ -209,13 +213,11 @@ class commander_tod:
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
             self.add_field('/common/version', self.version)
-            #print(f"Maksym's debug statement -- self.pids.keys(): {list(self.pids.keys())}")
-            #self.add_field('/common/pids', list(self.pids.keys()))
             # [Maksym]: was getting the error:
             # ...
-            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finalize_file
+            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
             # self.add_field('/common/pids', list(self.pids.keys()))
-            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 179, in add_field
+            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 179, in add_fie    ld
             # self.outFile.create_dataset(fieldName, data=data)
             # ...
             # File "h5py/h5t.pyx", line 1629, in h5py.h5t.py_create
@@ -241,7 +243,7 @@ class commander_tod:
             numStr = str(key)
             if(key == 1):
                 numStr = ''
-            #print("Maksym's debug statement -- finalize chunk is working")
+
             self.add_field('/' + str(pid).zfill(6) + '/common/hufftree' + numStr, huffArray)
             self.add_field('/' + str(pid).zfill(6) + '/common/huffsymb' + numStr, h.symbols)
             #with np.printoptions(threshold=np.inf):
@@ -302,11 +304,7 @@ class commander_tod:
         return
 
     def make_filelists(self):
-        #print(self.filelists)
-        #print(type(self.filelists))
-        #for freq in np.string_(self.filelists.keys()):
         for freq in self.filelists.keys():
-            #print("Maksym's debug message -- making filelists")
             outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
             outfile.write(str(len(self.filelists[freq])) + '\n')
             for buf in self.filelists[freq].values():
@@ -319,6 +317,8 @@ class commander_tod:
 
     #File Reading Functions
     def load_field(self, fieldName):
+        if(fieldName[0] != '/'): #catch common user error
+            fieldName = '/' + fieldName
         try:
             compStr = self.outFile[fieldName].attrs['compression']
         except KeyError:
@@ -373,7 +373,7 @@ class commander_tod:
                     nmax = self.outFile[field].attrs['max']
 
                     bins = np.linspace(nmin, nmax, num = nbins)
-                    dataBuf = bins[dataBuf]
+                    dataBuf = bins[dataBuf.astype('int')]
 
                 elif comp == 'huffman':
                     pid = field.split('/')[1]

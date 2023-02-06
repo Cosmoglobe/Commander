@@ -7,11 +7,15 @@ COMP_CG_SCALE_T&&             = 1.d0
 COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        =  1
 COMP_NSIDE&&                  = 1024
-COMP_MONOPOLE_PRIOR&&         = monopole:mask_monopoles_BP10_chisq_dx12_n1024.fits monopole:mask_common_dx12_n1024_TQU.fits
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 2000
-COMP_LMIN_AMP&&               = 0
-COMP_LMAX_AMP&&               = 2000
+
+COMP_AMP_LMIN&&               = 0
+COMP_AMP_LMAX&&               = 2000
+COMP_AMP_INPUT_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_AMP_PRIOR_MAP&&          = none
+
 COMP_LMAX_IND&&               = 0
 COMP_OUTPUT_FWHM&&            = 14         # arcmin
 COMP_UNIT&&                   = uK_cmb
@@ -29,8 +33,6 @@ COMP_CL_DEFAULT_BETA_T&&      =  0.d0
 COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
 COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
 COMP_MASK&&                   = fullsky
-COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
-COMP_PRIOR_AMP_MAP&&          = none
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = default
 

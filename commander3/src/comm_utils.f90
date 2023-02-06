@@ -170,6 +170,10 @@ contains
 
 
   ! Small utility for converting an integer to a string
+  ! WARNING TO FUTURE USERS: The length of the input string is very important
+  ! Only provide the length of string you think you will need, no extra space
+  ! at the end. It will crash if the string is too long
+
   subroutine int2string(integer, string)
     implicit none
 
@@ -1210,7 +1214,7 @@ contains
 
    n_unmasked = count(mask /= 0)
    if(n_unmasked == 0) then
-     masked_variance = 9999999999999
+     masked_variance = 9999999999999d0
      return
    end if
    currmean = sum(data * mask) / n_unmasked

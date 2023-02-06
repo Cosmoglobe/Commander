@@ -36,7 +36,7 @@
 if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE RelWithDebInfo
 		CACHE STRING
-		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: Release." FORCE)
+		"Specifies the Build type. Available options are: Release, Debug, RelWithDebInfo, MinSizeRel. Default: RelWithDebInfo." FORCE)
 endif()
 #------------------------------------------------------------------------------
 # Currently supported Compilers (CMake v3.21):
@@ -166,113 +166,113 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES NVHPC)
 #------------------------------------------------------------------------------
 # AOCC Flang
 #------------------------------------------------------------------------------
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0" 
-			"-g" 
-			#"-fno-strict-aliasing"
-			#"-fopenmp" 
-			#"-fbacktrace" 
-			#"-fexternal-blas"
-			#"-C" 
-			#"-Wall" 
-			#"-Wextra" 
-			#"-Warray-temporaries"
-			#"-Wconversion-extra" 
-			#"-pedantic" 
-			#"-fcheck=all" 
-			#"-ffpe-trap=invalid,zero,overflow,underflow" 
-			#"-ffunction-sections" 
-			#"-pipe"
-			#"-ffpe-trap=zero"
-			#"-fPIC"
-			)
-	endif()
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES Flang)
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+#			"-O0" 
+#			"-g" 
+#			#"-fno-strict-aliasing"
+#			#"-fopenmp" 
+#			#"-fbacktrace" 
+#			#"-fexternal-blas"
+#			#"-C" 
+#			#"-Wall" 
+#			#"-Wextra" 
+#			#"-Warray-temporaries"
+#			#"-Wconversion-extra" 
+#			#"-pedantic" 
+#			#"-fcheck=all" 
+#			#"-ffpe-trap=invalid,zero,overflow,underflow" 
+#			#"-ffunction-sections" 
+#			#"-pipe"
+#			#"-ffpe-trap=zero"
+#			#"-fPIC"
+#			)
+#	endif()
 #------------------------------------------------------------------------------
 # PGI	
 # TODO: For some reason commander dependencies crashes on this one
 # so figure out how to make it work
-elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
-	# Compiler flags
-	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
-			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
-			"-DNDEBUG"
-			"-fast" 
-			"-mp=all"
-			"-traceback" 
-			"-Mconcur"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-			"-O0" # -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
-			"-mp=all"
-			"-gopt" 
-			"-fast" 
-			"-traceback" 
-			"-Minfo" 
-			"-Mconcur"
-			"-C"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
-			"-DNDEBUG"
-			"-mp=all"
-			"-gopt" 
-			"-fast" 
-			"-traceback" 
-			"-Minfo" 
-			"-Mconcur"
-			"-C"
-			"-fPIC"
-			)
-	endif()
-	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
-			"-O0"# -mp=all -fast -traceback -Mconcur -fPIC" 
-			"-mp=all"
-			"-fast" 
-			"-traceback" 
-			"-Mconcur"
-			"-C"
-			"-fPIC"
-			)
-	endif()
-
-	# Linker flags
-	# the same logic as with compiler flags
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE 
-			"-mp=all"# -gopt -Mconcur"
-			"-gopt" 
-			"-Mconcur"
-			)
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG 
-			"-mp=all"# -gopt -Mconcur"
-			"-gopt" 
-			"-Mconcur"
-			)
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO 
-			"-mp=all"# -Mconcur"
-			"-Mconcur"
-			)
-	endif()
-	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
-		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL 
-			"-mp=all"# -Mconcur"
-			"-Mconcur"
-			)
-	endif()
+#elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
+#	# Compiler flags
+#	if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
+#			"-O4"# -fast -mp=all -traceback -Mconcur -fPIC" 
+#			"-DNDEBUG"
+#			"-fast" 
+#			"-mp=all"
+#			"-traceback" 
+#			"-Mconcur"
+#			"-fPIC"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
+#			"-O0" # -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+#			"-mp=all"
+#			"-gopt" 
+#			"-fast" 
+#			"-traceback" 
+#			"-Minfo" 
+#			"-Mconcur"
+#			"-C"
+#			"-fPIC"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
+#			"-O2"# -mp=all -gopt -fast -traceback -Minfo -Mconcur -C -fPIC" 
+#			"-DNDEBUG"
+#			"-mp=all"
+#			"-gopt" 
+#			"-fast" 
+#			"-traceback" 
+#			"-Minfo" 
+#			"-Mconcur"
+#			"-C"
+#			"-fPIC"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
+#			"-O0"# -mp=all -fast -traceback -Mconcur -fPIC" 
+#			"-mp=all"
+#			"-fast" 
+#			"-traceback" 
+#			"-Mconcur"
+#			"-C"
+#			"-fPIC"
+#			)
+#	endif()
+#
+#	# Linker flags
+#	# the same logic as with compiler flags
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_RELEASE MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELEASE 
+#			"-mp=all"# -gopt -Mconcur"
+#			"-gopt" 
+#			"-Mconcur"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_DEBUG MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_DEBUG 
+#			"-mp=all"# -gopt -Mconcur"
+#			"-gopt" 
+#			"-Mconcur"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO 
+#			"-mp=all"# -Mconcur"
+#			"-Mconcur"
+#			)
+#	endif()
+#	if(COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL MATCHES "")
+#		list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL 
+#			"-mp=all"# -Mconcur"
+#			"-Mconcur"
+#			)
+#	endif()
 #------------------------------------------------------------------------------
 # Flang
 # TODO: need to figure out why healpix doesn't compile with flang
@@ -307,48 +307,3 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES PGI)
 #	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_RELWITHDEBINFO "")
 #	list(APPEND COMMANDER3_Fortran_LINKER_FLAGS_MINSIZEREL "")
 endif()
-#------------------------------------------------------------------------------
-# Making a summary of compiler location and compile flags
-#------------------------------------------------------------------------------
-message(STATUS "---------------------------------------------------------------")
-message(STATUS "SUMMARY ON COMPILERS:")
-message(STATUS "---------------------------------------------------------------")
-message(STATUS "Your system is: ${CMAKE_SYSTEM_NAME}, ${CMAKE_SYSTEM}")
-message(STATUS "Fortran Compiler is: ${CMAKE_Fortran_COMPILER}")
-message(STATUS "C Compiler is: ${CMAKE_C_COMPILER}")
-message(STATUS "C++ Compiler is: ${CMAKE_CXX_COMPILER}")
-message(STATUS "Commander3 configuration is: ${CMAKE_BUILD_TYPE}. Compiler flags to be applied:")
-if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
-	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_Fortran_COMPILER_FLAGS_ADDITIONAL}")
-elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
-	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
-elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
-	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
-elseif(${CMAKE_BUILD_TYPE} STREQUAL "MinSizeRel")
-	message(STATUS "${COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL} ${COMMANDER3_Fortran_COMPILER_FLAGS};")#${COMMANDER3_COMPILER_FLAGS_ADDITIONAL}")
-endif()
-#------------------------------------------------------------------------------
-# Making a summary of Host System 
-#------------------------------------------------------------------------------
-# CMake reference:
-# https://cmake.org/cmake/help/v3.17/module/ProcessorCount.html 
-# https://cmake.org/cmake/help/v3.17/command/cmake_host_system_information.html
-include(ProcessorCount)
-ProcessorCount(N_CORES)
-
-cmake_host_system_information(RESULT N_LOGICAL_CORES  QUERY NUMBER_OF_LOGICAL_CORES)
-cmake_host_system_information(RESULT N_PHYSICAL_CORES QUERY NUMBER_OF_PHYSICAL_CORES)
-cmake_host_system_information(RESULT HOST_NAME QUERY HOSTNAME)
-# Processor
-cmake_host_system_information(RESULT PROC_NAME QUERY PROCESSOR_NAME)
-cmake_host_system_information(RESULT PROC_DESCRIPTION QUERY PROCESSOR_DESCRIPTION)
-# OS information
-cmake_host_system_information(RESULT HOST_OS_NAME QUERY OS_NAME)
-cmake_host_system_information(RESULT HOST_OS_RELEASE QUERY OS_RELEASE)
-cmake_host_system_information(RESULT HOST_OS_VERSION QUERY OS_VERSION)
-cmake_host_system_information(RESULT HOST_OS_PLATFORM QUERY OS_PLATFORM)
-
-message(STATUS ${HOST_NAME})
-message(STATUS "${HOST_OS_NAME} ${HOST_OS_PLATFORM} ${HOST_OS_RELEASE} ${HOST_OS_VERSION}")
-message(STATUS "${PROC_NAME} | ${PROC_DESCRIPTION}")
-

@@ -44,30 +44,21 @@ contains
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
-!      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
       do det = 1, tod%ndet
-!         if (tod%myid == 78) write(*,*) 'c6111', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
          if (.not. tod%scans(scan_id)%d(det)%accept) then
             s_sky(:, det) = 0.d0
             tmask(:, det) = 0.d0
             cycle
          end if
-         !if (tod%myid == 78) write(*,*) 'c6112', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
          do i = 1, tod%scans(scan_id)%ntod
             p = tod%pix2ind(pix(i,det))
-            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             s_sky(i,det) = map(1,p,det) + &
                          & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
-            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             tmask(i,det) = pmask(pix(i,det))
-            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61123', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
-            !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61124', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
          end do
-         !if (tod%myid == 78) write(*,*) 'c6113', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
       end do
-      !if (tod%myid == 78) write(*,*) 'c612', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
       if (present(s_bp)) then
          do det = 1, tod%ndet
@@ -84,7 +75,6 @@ contains
             end do
          end do
       end if
-      !if (tod%myid == 78) write(*,*) 'c613', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
    end subroutine project_sky
 
@@ -135,11 +125,11 @@ contains
             ! d23 = (1+x2)*[T(pA) - P(pA,gA) - S(pA)]
             !      -(1-x2)*[T(pB) - P(pB,gB) - S(pB)]
 
-            s_skyA(j, i) = map(1, lpoint, i) + &
+            s_skyA(j, i) = s_skyA(j,i) + map(1, lpoint, i) + &
                        &  sgn(i)*( &
                        &  map(2, lpoint, i)*tod%cos2psi(psi(j, 1)) + &
                        &  map(3, lpoint, i)*tod%sin2psi(psi(j, 1))) 
-            s_skyB(j, i) = map(1, rpoint, i) + &
+            s_skyB(j, i) = s_skyB(j,i) + map(1, rpoint, i) + &
                        &  sgn(i) *( &
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))

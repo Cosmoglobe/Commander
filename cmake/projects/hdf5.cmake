@@ -26,7 +26,7 @@
 # here as well.
 #================================================================================
 
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
 
 # TODO: make another variable for shared/static linking
 # also ensure that if hdf5 wasn't compiled with autotools
@@ -55,14 +55,15 @@ if(COMPILE_HDF5)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${HDF5_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
+    #message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
 		ExternalProject_Add(
 			hdf5_src
 			DEPENDS						required_libraries 
 												zlib 
 												libaec
 			URL								"${hdf5_url}"
-			URL_MD5						"${hdf5_md5}"
+      URL_MD5						"${hdf5_md5}"
+      #URL_HASH SHA256="${hdf5_sha256}"
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${HDF5_SOURCE_DIR}"
@@ -74,7 +75,7 @@ if(COMPILE_HDF5)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
+    #message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
 		add_custom_target(hdf5_src
 			ALL ""
 			)
@@ -158,8 +159,8 @@ if(COMPILE_HDF5)
 			)
 	include_directories(${HDF5_Fortran_INCLUDE_DIRS})
 	#------------------------------------------------------------------------------
-	message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
-	message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
+	#message(STATUS "HDF5 Fortran LIBRARIES will be: ${HDF5_Fortran_LIBRARIES}")
+	#message(STATUS "HDF5 Fortran INCLUDE DIRS will be: ${HDF5_Fortran_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	add_custom_target(hdf5
@@ -179,8 +180,8 @@ else()
 		#${HDF5_INCLUDE_DIRS}
 		#${HDF5_INCLUDE_DIRS}/shared #static
 		)
-	message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
-	message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
+	#message(STATUS "HDF5 Fortran INCLUDE DIRS are: ${HDF5_Fortran_INCLUDE_DIRS}")
+	#message(STATUS "HDF5 Fortran LIBRARIES are: ${HDF5_Fortran_LIBRARIES}")
 	#message(STATUS ${HDF5_Fortran_DEFINITIONS})
 	#message(STATUS ${HDF5_Fortran_LIBRARY})
 	#message(STATUS ${HDF5_LIBRARY})

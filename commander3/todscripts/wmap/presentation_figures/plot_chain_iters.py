@@ -3,11 +3,34 @@ import numpy as np
 
 import h5py
 
+from astropy.time import Time
+
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_beamtest/chain_c0001.h5', 'r')
-data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
-burn = 3
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_W_run/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_full_spec_test/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_sl_fixed_sample/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_noise_test/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220123/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_yr1beams_220129/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Ka_220428/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_BP_Ktod/chain_c0001.h5', 'r')
+#data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Q1_220428/chain_c0001.h5', 'r')
+data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_burnin_Q1_220501/chain_c0001.h5', 'r')
 thin = 1
+burn = 1
 burn = max(burn, thin)
+
+DATA_DIR = '/mn/stornext/d16/cmbco/bp/wmap/data'
+
+COL_WIDTH = 256.0748/72.27
+COL_HEIGHT = COL_WIDTH
+
+fknee = {}
+
+fknee['Q113'] = 1.09*1e-3
+fknee['Q114'] = 1.09*1e-3
+fknee['Q123'] = 0.35*1e-3
+fknee['Q124'] = 0.35*1e-3
 
 
 gain = {}
@@ -61,51 +84,79 @@ gain['W414'] = 0.2918
 gain['W423'] = 0.3796
 gain['W424'] = 0.3591
 
-bands=['023-WMAP_K']
-label_list = [
-         ['K113', 'K114', 'K123', 'K124']]
+#bands=['023-WMAP_K']
+#label_list = [
+#         ['K113', 'K114', 'K123', 'K124']]
 
 #data = h5py.File('/mn/stornext/d16/cmbco/bp/dwatts/WMAP/chains_WMAP_opt/chain_c0001.h5', 'r')
-bands=[#'023-WMAP_K', 
-       #'030-WMAP_Ka',
-       #'040-WMAP_Q1',
-       #'040-WMAP_Q2',
-       #'060-WMAP_V1',
-       #'060-WMAP_V2']
+bands=['023-WMAP_K', 
+       '030-WMAP_Ka',
+       '040-WMAP_Q1',
+       '040-WMAP_Q2',
+       '060-WMAP_V1',
+       '060-WMAP_V2',
        '090-WMAP_W1',
        '090-WMAP_W2',
        '090-WMAP_W3',
        '090-WMAP_W4']
 label_list = [
-         #['K113', 'K114', 'K123', 'K124'],
-         #['Ka113', 'Ka114', 'Ka123', 'Ka124'],
-         #['Q113', 'Q114', 'Q123', 'Q124'],
-         #['Q213', 'Q214', 'Q223', 'Q224'],
-         #['V113', 'V114', 'V123', 'V124'],
-         #['V213', 'V214', 'V223', 'V224']]
+         ['K113', 'K114', 'K123', 'K124'],
+         ['Ka113', 'Ka114', 'Ka123', 'Ka124'],
+         ['Q113', 'Q114', 'Q123', 'Q124'],
+         ['Q213', 'Q214', 'Q223', 'Q224'],
+         ['V113', 'V114', 'V123', 'V124'],
+         ['V213', 'V214', 'V223', 'V224'],
          ['W113', 'W114', 'W123', 'W124'],
          ['W213', 'W214', 'W223', 'W224'],
          ['W313', 'W314', 'W323', 'W324'],
          ['W413', 'W414', 'W423', 'W424']]
+
+
+bands = ['030-WMAP_Ka']
+label_list = [
+         ['Ka113', 'Ka114', 'Ka123', 'Ka124']
+         ]
+bands = ['023-WMAP_K']
+label_list = [
+         ['K113', 'K114', 'K123', 'K124']
+         ]
+bands = ['040-WMAP_Q1']
+label_list = [
+         ['Q113', 'Q114', 'Q123', 'Q124']
+         ]
+#bands = ['040-WMAP_Q2']
+#label_list = [
+#         ['Q213', 'Q214', 'Q223', 'Q224']
+#         ]
 for band, labels in zip(bands, label_list):
+    t = []
     print('\n')
     print(band, labels)
     for j in range(4):
         print('\n')
-        maxs =-np.ones(4)*np.inf
-        mins = np.ones(4)*np.inf
+        maxs =-np.ones(5)*np.inf
+        mins = np.ones(5)*np.inf
 
         inds = (data[str(0).zfill(6)+f'/tod/{band}/accept'][j] == 1)
         g = data[str(0).zfill(6)+f'/tod/{band}/gain'][j][inds]
         #mins[0] = min([g[0], g[-1]])
         #maxs[0] = max([g[0], g[-1]])
+        if j == 0:
+            for k in range(1, len(g)+1):
+                # reading MJD from the raw data
+                orig = h5py.File(f'{DATA_DIR}/wmap_{labels[j][:-2]}_{str(k).zfill(6)}.h5')
+                t.append(orig[f'{str(k).zfill(6)}/common/time'][0])
+            #t = Time(np.array(t), format='mjd')
+            t = np.array(t)
         for i in range(burn, len(data.keys())-1, thin):
-            inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1)# & \
+                
+            inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
+            (data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
             #(abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
-            #(data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
             inds = np.array(inds)
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
-            b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
+            sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]/g
+            sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]
             if min(g) < mins[0]:
               mins[0] = min(g)
             if max(g) > maxs[0]:
@@ -125,49 +176,59 @@ for band, labels in zip(bands, label_list):
             if max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds]) > maxs[2]:
               maxs[2] = max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds])
 
-            if min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) < mins[3]:
-              mins[3] = min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
-            if max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) > maxs[3]:
-              maxs[3] = max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
+            if min(sigma) < mins[3]:
+              mins[3] = min(sigma)
+            if max(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds]) > maxs[3]:
+              maxs[3] = max(sigma)
+
+            if min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) < mins[4]:
+              mins[4] = min(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
+            if max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) > maxs[4]:
+              maxs[4] = max(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds]) 
 
         for i in range(burn,len(data.keys())-1, thin):
-            fig, axes = plt.subplots(figsize=(8, 6), sharex=True, nrows=4)
+            fig, axes = plt.subplots(figsize=(8, 10), sharex=True, nrows=5)
             c = 'k'
             inds = (data[str(i).zfill(6)+f'/tod/{band}/accept'][j] == 1) & \
             (abs(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j]) < 100) & \
             (data[str(i).zfill(6)+f'/tod/{band}/gain'][j] > 0)
             inds = np.array(inds)
-            t = np.arange(len(inds))
+            g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
+            sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]/g
+            sigma = data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds]
+            #t = np.arange(len(inds))
 
             g = data[str(1).zfill(6)+f'/tod/{band}/gain'][j][inds]
             #axes[0].plot(t[inds], g, '.', color='r', ms=1)
             #axes[0].axhline(gain[labels[j]], color='r')
 
             g = data[str(i).zfill(6)+f'/tod/{band}/gain'][j][inds]
-            b = data[str(i).zfill(6)+f'/tod/{band}/baseline'][j][inds]
             axes[0].plot(t[inds], g, '.', color=c, ms=1)
             #axes[0].plot(t[inds], b, '.', color=c, ms=1)
             axes[1].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds], '.', color=c, ms=1)
             axes[2].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds], '.', color=c, ms=1)
-            #axes[3].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/xi_n'][0][j][inds], '.', color=c, ms=1)
-            axes[3].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds], color=c, ms=1)
+            axes[3].plot(t[inds], sigma, '.', color=c, ms=1)
+            axes[4].plot(t[inds], data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds], color=c, ms=1)
     
-            axes[3].axhline(0, color='r', linestyle=':', lw=0.5)
+            axes[4].axhline(0, color='r', linestyle=':', lw=0.5)
+
+            #axes[1].axhline(fknee[labels[j]], color='r', linestyle=':', lw=0.5)
    
             mu_chisq = np.mean(data[str(i).zfill(6)+f'/tod/{band}/chisq'][j][inds])
             mu_fknee = np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][1][j][inds])
             mu_alpha = np.mean(data[str(i).zfill(6)+f'/tod/{band}/xi_n'][2][j][inds])
             print(np.round(mu_chisq,3), np.round(mu_fknee*1e3, 3), np.round(mu_alpha,3))
 
-            for num in range(4):
+            for num in range(5):
                 axes[num].set_ylim(mins[num], maxs[num])
     
             axes[0].set_ylabel(r'$g$ [du/mK]')
             axes[1].set_ylabel(r'$f_\mathrm{k}$ [Hz]')
             axes[1].set_yscale('log')
             axes[2].set_ylabel(r'$\alpha$')
-            axes[3].set_ylabel(r'$(\chi^2-n_\mathrm{tod})/\sqrt{2n_\mathrm{tod}}$')
-            axes[3].set_xlabel('Scan number')
+            axes[3].set_ylabel(r'$\sigma_0$ [du]')
+            axes[4].set_ylabel(r'$(\chi^2-n_\mathrm{tod})/\sqrt{2n_\mathrm{tod}}$')
+            axes[4].set_xlabel('Time [MJD]')
     
     
             plt.suptitle(i, size=16, ha='right')

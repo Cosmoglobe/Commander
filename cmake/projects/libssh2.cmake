@@ -42,7 +42,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 		#------------------------------------------------------------------------------
 		# Checking whether we have source directory and this directory is not empty.
 		if(NOT EXISTS "${LIBSSH2_SOURCE_DIR}/CMakeLists.txt")
-			message(STATUS "No LIBSSH2 sources were found; thus, will download it from source:\n${libssh2_git_url}")
+      #message(STATUS "No LIBSSH2 sources were found; thus, will download it from source:\n${libssh2_git_url}")
 			ExternalProject_Add(
 				libssh2_src
 				GIT_REPOSITORY		"${libssh2_git_url}"
@@ -57,7 +57,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 				INSTALL_COMMAND		""
 				)
 		else()
-			message(STATUS "Found an existing LIBSSH2 sources inside:\n${LIBSSH2_SOURCE_DIR}")
+      #message(STATUS "Found an existing LIBSSH2 sources inside:\n${LIBSSH2_SOURCE_DIR}")
 			add_custom_target(libssh2_src
 				ALL ""
 				)
@@ -149,15 +149,15 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 			)
 		include_directories(${LIBSSH2_INCLUDE_DIR})
 		#------------------------------------------------------------------------------
-		message(STATUS "LibSSH2 LIBRARY will be: ${LIBSSH2_LIBRARY}")
-		message(STATUS "LibSSH2 INCLUDE DIR will be: ${LIBSSH2_INCLUDE_DIR}")
+		#message(STATUS "LibSSH2 LIBRARY will be: ${LIBSSH2_LIBRARY}")
+		#message(STATUS "LibSSH2 INCLUDE DIR will be: ${LIBSSH2_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	else()
 		# If libssh2 exists on the system, we just use this version instead.
 		add_custom_target(libssh2 ALL "")
 		#------------------------------------------------------------------------------
-		message(STATUS "LibSSH2 LIBRARY are: ${LIBSSH2_LIBRARY}")
-		message(STATUS "LibSSH2 INCLUDE DIR are: ${LIBSSH2_INCLUDE_DIR}")
+		#message(STATUS "LibSSH2 LIBRARY are: ${LIBSSH2_LIBRARY}")
+		#message(STATUS "LibSSH2 INCLUDE DIR are: ${LIBSSH2_INCLUDE_DIR}")
 		#------------------------------------------------------------------------------
 	endif()
 else()

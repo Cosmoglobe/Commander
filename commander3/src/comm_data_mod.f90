@@ -28,8 +28,11 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
+  use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
+  use comm_tod_QUIET_mod
   use locate_mod
+  use comm_bp_utils
   implicit none
 
   type comm_data_set
@@ -74,16 +77,22 @@ module comm_data_mod
 contains
 
   subroutine initialize_data_mod(cpar, handle)
+    !
+    ! Routine to initialise Commander3 data
+    !
     implicit none
     type(comm_params), intent(in)    :: cpar
     type(planck_rng),  intent(inout) :: handle
 
-    integer(i4b)       :: i, j, n, nmaps, numband_tot, ierr
+    integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
+
+    real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
+    integer(i4b)                        :: n_dummy
 
     ! Read all data sets
     numband = count(cpar%ds_active)
@@ -107,7 +116,7 @@ contains
        data(n)%tod_type       = cpar%ds_tod_type(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
-            & write(*,fmt='(a,i5,a,a)') '  Reading data set ', i, ' : ', trim(data(n)%label)
+            & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
        call update_status(status, "data_"//trim(data(n)%label))
 
        ! Initialize map structures
@@ -137,18 +146,26 @@ contains
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'DIRBE') then
+             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info)
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
              data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          ! Adding QUIET data into a loop
+          else if (trim(data(n)%tod_type) == 'QUIET') then
+            ! Class initialisation 
+            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
+             !write(*,*) 'Warning: TOD analysis enabled for TOD type "none"'
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
@@ -157,8 +174,8 @@ contains
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
           end if
-
        end if
+       call update_status(status, "data_tod")
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 
@@ -166,13 +183,14 @@ contains
        case ('b_l')
           data(n)%B(0)%p => comm_B_bl(cpar, data(n)%info, n, i)
           do j = 1, data(n)%ndet
-             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j), mb_eff=data(n)%tod%mb_eff(j))
+             data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+             ! MNG: I stripped mb_eff out of here to make it compile, if we need
+             ! this ever we need to introduce it back in somehow
           end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
        call update_status(status, "data_beam")
-   
  
        ! Read default gain from instrument parameter file
        call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
@@ -211,6 +229,10 @@ contains
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
+       case ('lcut') 
+          data(n)%N       => comm_N_lcut(cpar, data(n)%info, n, i, 0, data(n)%mask, handle)
+          call data(n)%N%P(data(n)%map)
+          call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
        case ('QUcov') 
           data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
@@ -222,11 +244,29 @@ contains
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
 
-       ! Initialize bandpass structures; 0 is full freq, i is detector
+       ! Initialize bandpass structures; 0 is full freq, i is detector       
        allocate(data(n)%bp(0:data(n)%ndet))
-
        do j = 1, data(n)%ndet
-          data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+          if (j==1) then
+            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+          else
+            ! Check if bandpass already exists in detector list
+            call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
+                              & data(n)%tod%label(j), &
+                              & 0.d0, &
+                              & n_dummy, &
+                              & nu_dummy, &
+                              & tau_dummy)
+            do k=1, j
+               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+                  data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
+                  exit
+               else if (k==j-1) then
+                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+               end if
+            end do
+            deallocate(nu_dummy, tau_dummy)
+          end if
        end do
 
        if (trim(cpar%ds_tod_type(i)) == 'none') then
@@ -360,12 +400,12 @@ contains
 
     unit = getlun()
     open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
-    write(unit,*) '# Band   BP type   Nu_c (GHz)  a2t [K_cmb/K_RJ]' // &
+    write(unit,*) '# Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
          & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a7,a10,f10.1,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
-            & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
+       write(unit,fmt='(a7,a10,f10.3,f10.3,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+             & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
     end do
     close(unit)
   end subroutine dump_unit_conversion

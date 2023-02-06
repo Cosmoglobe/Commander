@@ -32,7 +32,6 @@
 #endif()
 
 if(COMPILE_ZLIB)
-	message(STATUS "Required version -- 1.2.11 -- will be compiled from source.")
 	#------------------------------------------------------------------------------
 	# Note: the explicit splitting for download and install step is done on purpose
 	# to avoid errors when you want to recompile libraries for different owls etc.
@@ -43,7 +42,7 @@ if(COMPILE_ZLIB)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${ZLIB_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No ZLIB sources were found; thus, will download it from source:\n${zlib_url}")
+    #message(STATUS "No ZLIB sources were found; thus, will download it from source:\n${zlib_url}")
 		ExternalProject_Add(
 			zlib_src
 			DEPENDS						required_libraries
@@ -60,7 +59,7 @@ if(COMPILE_ZLIB)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing ZLIB sources inside:\n${ZLIB_SOURCE_DIR}")
+    #message(STATUS "Found an existing ZLIB sources inside:\n${ZLIB_SOURCE_DIR}")
 		add_custom_target(zlib_src
 			ALL ""
 			)
@@ -104,13 +103,13 @@ if(COMPILE_ZLIB)
 		"${CMAKE_INSTALL_PREFIX}"
 		)
 	#------------------------------------------------------------------------------
-	message(STATUS "ZLIB LIBRARIES will be: ${ZLIB_LIBRARIES}")
-	message(STATUS "ZLIB INCLUDE DIRS will be: ${ZLIB_INCLUDE_DIRS}")
+	#message(STATUS "ZLIB LIBRARIES will be: ${ZLIB_LIBRARIES}")
+	#message(STATUS "ZLIB INCLUDE DIRS will be: ${ZLIB_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
 	add_custom_target(zlib ALL "")
 	#------------------------------------------------------------------------------
-	message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
-	message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
+	#message(STATUS "ZLIB LIBRARIES are: ${ZLIB_LIBRARIES}")
+	#message(STATUS "ZLIB INCLUDE DIRS are: ${ZLIB_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 endif()

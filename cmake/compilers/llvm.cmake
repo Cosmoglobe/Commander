@@ -38,7 +38,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		"-fpe0"
 		"-fPIC"
 		"-fp-model" "strict"
-		"-qopenmp" 
+		#"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		"-g" 
@@ -63,8 +63,8 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
 		"-Os"# -traceback -DNDEBUG -parallel -qopenmp -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
 		"-traceback" 
 		"-DNDEBUG" 
-		"-parallel" 
-		"-qopenmp" 
+		#"-parallel" 
+		#"-qopenmp" 
 		"-C"
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"

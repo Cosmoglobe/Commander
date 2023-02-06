@@ -136,15 +136,26 @@ contains
           if (c%p_gauss(2,j) == 0.d0) cycle
           select type (c)
           class is (comm_diffuse_comp)
+
+             !check if any poltype has been sampled in a way that breaks the Gibbs chain
+             samp_cg = .false.
+
              !lmax_ind_pol is the lmax of poltype index p, for spec. ind. j 
-             if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) &
-                  & call sample_specind_alm(cpar, iter, handle, c%id, j)
+             if (any(c%lmax_ind_pol(1:c%poltype(j),j) >= 0)) then
+                call sample_specind_alm(cpar, iter, handle, c%id, j)
+                if (cpar%almsamp_pixreg) then
+                  do p = 1,min(c%nmaps, c%poltype(j))
+                   if (cpar%almsamp_priorsamp_frozen .and. &
+                        & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
+                      samp_cg = .true.
+                   end if
+                 end do
+                end if
+             end if
              if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
 
-                !check if any poltype has been sampled with ridge/marginal lnL
-                samp_cg = .false.
-                if (cpar%myid == cpar%root) write(*,*) 'Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
+                if (cpar%myid == cpar%root) write(*,*) '| Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
                 do p = 1,c%poltype(j)
                    if (p > c%nmaps) cycle
                    if (c%lmax_ind_pol(p,j) < 0) then
@@ -162,26 +173,33 @@ contains
                          end if
                       end if
                       samp_cg = .true.
-                   else
-                      if (cpar%almsamp_pixreg) then
-                         if (cpar%almsamp_priorsamp_frozen .and. &
-                              & any(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) then
-                            samp_cg = .true.
-                         end if
-                      end if
                    end if
                 end do
-
-                if (samp_cg) then !need to resample amplitude
-                   !call sample amplitude for the component specific cg_sample group
-                   if (cpar%myid == cpar%root) then
-                      write(*,*) 'Sampling component amplitude of ',trim(c%label),' after spectral index sampling of ', &
-                           & trim(c%indlabel(j))
-                   end if
-                   call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
-                end if
-                !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
              end if !any local sampling
+
+             if (samp_cg) then !need to resample amplitude
+                !call sample amplitude for the component specific cg_sample group
+                if (cpar%myid == cpar%root) then
+                   write(*,*) '| Sampling component amplitude of '//trim(c%label)//' after spectral index sampling of '// &
+                        & trim(c%indlabel(j))
+                end if
+                call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
+
+                ! need to check if the monopole prior is active, if so we need to re-estimate the mono-/dipoles
+                if (trim(c%mono_prior_type) /= 'none') then
+                   ! can only estimate if there is a pure (and full) mono/-dipole CG sampling group 
+                   if (c%cg_samp_group_md > 0) then
+                      if (cpar%myid == cpar%root) then
+                         write(*,*) '| Sampling monopoles of band after prior correcting monopole of '//&
+                              & trim(c%label)//' amplitude'
+                         write(*,*) '| Using CG sampling group:',c%cg_samp_group_md
+                      end if
+                      call sample_amps_by_CG(cpar, c%cg_samp_group_md, handle, handle_noise)
+                   end if
+                end if
+             end if
+             !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
+             
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
@@ -214,7 +232,7 @@ contains
     end if
 
     call wall_time(t2)
-    if (cpar%myid_chain == 0) write(*,*) 'CPU time specind = ', real(t2-t1,sp)
+    if (cpar%myid_chain == 0) write(*,*) '| CPU time specind = ', real(t2-t1,sp)
     
   end subroutine sample_nonlin_params
 
@@ -294,7 +312,7 @@ contains
        j = par_id !quick fix to only sample spec. ind. parameter par_id
              
        ! Set up smoothed data
-       if (cpar%myid_chain == 0) write(*,*) '   Sampling '//trim(c%label)//' '//trim(c%indlabel(j))
+       if (cpar%myid_chain == 0) write(*,*) '|   Sampling '//trim(c%label)//' '//trim(c%indlabel(j))
        call update_status(status, "spec_alm start "//trim(c%label)//' '//trim(c%indlabel(j)))
 
        if (c%apply_jeffreys) then
@@ -325,7 +343,7 @@ contains
        theta_max = c%p_uni(2,par_id) !hard upper prior on theta (i.e. parameter) 
 
        if (info%myid == 0 .and. c%L_read(j)) then
-          write(*,*) "Sampling with cholesky matrix"
+          write(*,*) "| Sampling with cholesky matrix"
        end if
 
        if (info%myid == 0 .and. maxval(c%corrlen(j,:)) > 0) nsamp = maxval(c%corrlen(j,:))
@@ -389,7 +407,7 @@ contains
              if (cpar%myid_chain == 0) then
                allocate(buffer(c%npixreg(pl,j)))
                buffer = c%pixreg_priors(:c%npixreg(pl,j),pl,j)
-               write(*,regfmt) ' using region priors', buffer
+               write(*,regfmt) ' | using region priors', buffer
                deallocate(buffer)
              end if
           else 
@@ -453,14 +471,14 @@ contains
                 end if
 
                 ! Output init sample
-                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
-                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
 
                 chisq(0) = chisq(0) + chisq_prior 
                 !chisq(0) = chisq_prior ! test2
 
              else 
-                write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') "# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') " |# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
 
           end if
@@ -654,7 +672,7 @@ contains
                 ! Reject if proposed values are outside of range
                 if (any(theta_pixreg_prop(1:) > c%p_uni(2,j)) .or. any(theta_pixreg_prop(1:) < c%p_uni(1,j))) then
                    accepted = .false.
-                   write(*,fmt='(a, f7.3, f7.3, a)') "Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
+                   write(*,fmt='(a, f7.3, f7.3, a)') " | Proposed value outside range: ", c%p_uni(1,j), c%p_uni(2,j), ", rejected."
                 end if
 
                 ! Count accepted and assign chisq values
@@ -668,13 +686,13 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
 
                 ! Output region information
                 if (cpar%almsamp_pixreg) then
                    regs(i,:,pl) = c%theta_pixreg(:,pl,j)
-                   write(outmessage,fmt=regfmt) " regs:", theta_pixreg_prop(1:)
+                   write(outmessage,fmt=regfmt) "| regs:", theta_pixreg_prop(1:)
                    write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 end if
              end if
@@ -714,17 +732,22 @@ contains
                 ! Output log to file
                 allocate(buffer2(c%nalm_tot))
                 buffer2 = alms(i,:,pl)
-                write(69, *) iter, tag, i, chisq(i), buffer2
+                ! [Maksym]: 
+                ! Comment this out, because otherwise I am getting
+                ! At line 735 of file comm_nonlin_mod.f90 (unit = 69, file =
+                ! 'chains_maksymb/nonlin-samples_synch_beta.dat')
+                ! "Fortran runtime error: End of record"
+                !write(69, *) iter, tag, i, chisq(i), buffer2
                 deallocate(buffer2)
                 write(66, *) iter, tag, i, chisq(i), c%theta_pixreg(:, pl, j)
 
                 ! Write to screen every out_every'th
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
-                   write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                   write(*,fmt='(a, i6, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
 
                    ! Format region info
-                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " regs:", real(c%theta_pixreg(1:,pl,j), sp)
+                   if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
                 end if
                 ! Adjust learning rate every check_every'th
                 if (mod(i, check_every) == 0) then
@@ -737,27 +760,27 @@ contains
                    ! Write to screen
                    call wall_time(t2)
                    ts = (t2-t1)/DFLOAT(check_every) ! Average time per sample
-                   write(*, fmt='(a, i6, a, i4, a, f8.2, a, f5.3, a, f5.2)') " "//tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
+                   write(*, fmt='(a, i6, a, i4, a, f8.2, a, f5.3, a, f5.2)') " | "//tag, i, " - diff last ", check_every, " ", diff, " - accept rate: ", accept_rate, " - time/sample: ", ts
                    call wall_time(t1)
 
                    ! Adjust steplen in tuning iteration
                    if (iter <= burnin) then
                       if (accept_rate < 0.2) then                 
                          c%steplen(pl,j) = c%steplen(pl,j)*0.5d0
-                         write(*,fmt='(a,f10.5)') "Reducing steplen -> ", c%steplen(pl,j)
+                         write(*,fmt='(a,f10.5)') " | Reducing steplen -> ", c%steplen(pl,j)
                       !else if (accept_rate > 0.45 .and. accept_rate < 0.55) then
                       !   c%steplen(pl,j) = c%steplen(pl,j)*2.0d0
                       !   write(*,fmt='(a,f10.5)') "Equilibrium - Increasing steplen -> ", c%steplen(pl,j)
                       else if (accept_rate > 0.8) then
                          c%steplen(pl,j) = c%steplen(pl,j)*2.d0
-                         write(*,fmt='(a,f10.5)') "Increasing steplen -> ", c%steplen(pl,j)
+                         write(*,fmt='(a,f10.5)') " | Increasing steplen -> ", c%steplen(pl,j)
                       end if
                    end if
 
                    ! Exit if threshold in tuning stage (First 2 iterations if not initialized on L)
                    if (c%corrlen(j,pl) == 0 .and. diff < thresh .and. accept_rate > 0.2 .and. i>=500) then
                       doexit = .true.
-                      write(*,*) "Chisq threshold and accept rate reached for tuning iteration", thresh
+                      write(*,*) "| Chisq threshold and accept rate reached for tuning iteration", thresh
                    end if
                 end if
              end if
@@ -765,7 +788,7 @@ contains
              call mpi_bcast(doexit, 1, MPI_LOGICAL, 0, c%comm, ierr)
              if (doexit .or. i == nsamp) then
                 if (optimize) c%chisq_min(j,pl) = chisq(i) ! Stop increase in chisq
-                if (info%myid == 0 .and. i == nsamp) write(*,*) "nsamp samples reached", nsamp
+                if (info%myid == 0 .and. i == nsamp) write(*,*) "| nsamp samples reached", nsamp
 
                 ! Save max iteration for this signal
                 if (c%poltype(j) == 1) then
@@ -893,7 +916,7 @@ contains
        ! (Only if no longer tuning and not initialized from file)
        if (info%myid == 0 .and. .not. c%L_read(j)) then
           if (c%L_calculated(j)  .and. iter > burnin) then
-             write(*,*) "Computing correlation function"
+             write(*,*) "| Computing correlation function"
              do pl = 1, c%theta(j)%p%info%nmaps
                 ! Skip signals with poltype tag
                 if (c%poltype(j) > 1 .and. cpar%only_pol .and. pl == 1) cycle 
@@ -907,11 +930,11 @@ contains
                 end if
 
                 c%L_read(j) = .true.  ! L now exist
-                write(*,*) "Correlation length (< 0.1): ", c%corrlen(j,pl) 
+                write(*,*) "| Correlation length (< 0.1): ", c%corrlen(j,pl) 
              end do
           else
              ! If L does not exist yet, calculate
-             write(*,*) 'Calculating cholesky matrix'
+             write(*,*) '| Calculating cholesky matrix'
 
              do pl = 1, c%theta(j)%p%info%nmaps
                 if (maxit(pl) == 0) cycle ! Cycle if not sampled
@@ -927,7 +950,7 @@ contains
 
           ! Write almsamp tuning parameters to file
           filename = trim(cpar%outdir)//'/init_alm_'//trim(c%label)//'_'//trim(c%indlabel(j))//'.dat'
-          write(*,*) "Writing tuning parameters to file: ", trim(filename)
+          write(*,*) "| Writing tuning parameters to file: ", trim(filename)
           open(58, file=filename, recl=10000)
 
           if (maxval(c%corrlen(j,:)) > 0) then
@@ -1055,19 +1078,19 @@ contains
     ! Set up smoothed data
     select type (c)
     class is (comm_line_comp)
-       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
+       if (cpar%myid == 0) write(*,*) '|    Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
 
        ! Sample spectral parameters
        call c%sampleSpecInd(cpar, handle, par_id, iter)
 
     class is (comm_ptsrc_comp)
-       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label)
+       if (cpar%myid == 0) write(*,*) '|    Sampling ', trim(c%label)
 
        ! Sample spectral parameters
        call c%sampleSpecInd(cpar, handle, par_id, iter)
 
     class is (comm_diffuse_comp)
-       if (cpar%myid == 0) write(*,*) '   Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
+       if (cpar%myid == 0) write(*,*) '|    Sampling ', trim(c%label), ' ', trim(c%indlabel(par_id))
        call update_status(status, "nonlin start " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
 
        ! Set up type of smoothing scale
@@ -1331,7 +1354,7 @@ contains
 
        call update_status(status, "nonlin stop " // trim(c%label)// ' ' // trim(c%indlabel(par_id)))
        if (c%theta(par_id)%p%info%myid == 0 .and. cpar%verbosity > 2) &
-            & write(*,*) 'Updating Mixing matrix after sampling '// &
+            & write(*,*) '| Updating Mixing matrix after sampling '// &
             & trim(c%label)// ' ' // trim(c%indlabel(par_id))
 
     end select
@@ -1544,15 +1567,15 @@ contains
 
           call wall_time(t1)
           if (c_lnL%pol_pixreg_type(p,id) /= 0) then
-             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'Sampling poltype index', p, &
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) '| Sampling poltype index', p, &
                   & 'of ', c_lnL%poltype(id) !Needed?
              call sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
              call wall_time(t2)
-             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) 'poltype:',c_lnL%poltype(id),' pol:', &
+             if (info%myid == 0 .and. cpar%verbosity > 1) write(*,*) '| poltype:',c_lnL%poltype(id),' pol:', &
                   & p,'CPU time specind = ', real(t2-t1,sp)
           else
-             write(*,*) 'Undefined spectral index sample region'
-             write(*,*) 'Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
+             write(*,*) '| Undefined spectral index sample region'
+             write(*,*) '| Component: ',trim(c_lnL%label),', ind: ',trim(c_lnL%indlabel(id))
              stop
           end if
 
@@ -1633,19 +1656,21 @@ contains
     !Following is for the local sampler
     real(dp)     :: mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, lnL_prior, lnL_init
     real(dp)     :: accept_rate, accept_scale, lnL_sum, proplen, chisq_jeffreys, avg_dlnL, lnL_total_init
-    real(dp)     :: old_theta, new_theta
+    real(dp)     :: old_theta, new_theta, prior_rms_scaling
     integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
-    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop
-    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt
+    logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop, sample_accepted
+    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt, monocorr_type
     character(len=6) :: itext
     character(len=4) :: ctext
     character(len=2) :: pind_txt
+    character(len=512), dimension(1000) :: tokens
     real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),      allocatable, dimension(:) :: theta_corr_arr, old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: theta_corr_arr
     real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth, dlnL_arr
-    real(dp),    allocatable, dimension(:,:) :: theta_MC_arr
+    real(dp),  allocatable, dimension(:,:,:) :: theta_MC_arr
     integer(i4b),  allocatable, dimension(:) :: band_i, pol_j, accept_arr
     class(comm_mapinfo),             pointer :: info_fr => null() !full resolution
     class(comm_mapinfo),             pointer :: info_fr_single => null() !full resolution, nmaps=1
@@ -1669,8 +1694,14 @@ contains
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
     real(dp),      allocatable, dimension(:) :: old_mono, new_mono
+    real(dp), allocatable, dimension(:,:,:,:) :: multipoles_trace !trace for proposed and accepted multipoles. (2,Nsamp,numband,0:3), the final dimension can be adjusted if only monopoles are estimated
     logical(lgt),  allocatable, dimension(:) :: monopole_active
     real(dp),    allocatable, dimension(:,:) :: reduced_data
+    real(dp),    allocatable, dimension(:,:) :: harmonics, harmonics2
+    real(dp),                 dimension(0:3) :: multipoles, md_b   
+    real(dp),             dimension(0:3,0:3) :: md_A
+    real(dp),                 dimension(3)   :: vector
+    integer(i4b) :: i_md, j_md, k_md, max_prop
 
     c           => compList     ! Extremely ugly hack...
     do while (comp_id /= c%id)
@@ -1682,6 +1713,8 @@ contains
     end select
 
     id = par_id !hack to not rewrite too much from diffuse_comp_mod
+
+    call update_status(status, "nonlin pixreg samling start " // trim(c_lnL%label)// ' ' // trim(c_lnL%indlabel(par_id)))
 
     info_fr  => comm_mapinfo(c_lnL%theta(id)%p%info%comm, c_lnL%theta(id)%p%info%nside, &
          & c_lnL%B_pp_fr(id)%p%info%lmax, c_lnL%theta(id)%p%info%nmaps, c_lnL%theta(id)%p%info%pol)
@@ -1756,11 +1789,39 @@ contains
        allocate(monopole_rms(numband))
        allocate(monopole_mixing(numband))
        allocate(monopole_active(numband))
+       monocorr_type=trim(c_lnL%spec_mono_type(par_id))
        monopole_active=.false.
        monopole_val=0.d0
        monopole_mu=0.d0
        monopole_rms=0.d0
        monopole_mixing=0.d0
+
+       !ud_grade monopole mask (if it is not same nside as smoothing scale)
+       mask_mono => comm_map(info_lr)
+       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
+       where (mask_mono%map > 0.5d0)
+          mask_mono%map=1.d0
+       elsewhere
+          mask_mono%map=0.d0
+       end where
+
+       !set up harmonics matrices for solving mono- and dipole estimates
+       allocate(harmonics(0:np_lr-1,0:3)) !harmonics without mixing scaling (will not chainge)
+       allocate(harmonics2(0:np_lr-1,0:3)) !harmonics with mixing (will change)
+       do i = 0, np_lr-1
+          call pix2vec_ring(info_lr%nside, info_lr%pix(i+1), vector) !important to get the correct pixel number, i.e. "info_lr%pix(+1i)", not "i". The +1 is because the pix array starts from index 1 (not 0)
+          
+          if (mask_mono%map(i,1) > 0.5d0) then
+             harmonics(i,0) = 1.d0
+             harmonics(i,1) = vector(1)
+             harmonics(i,2) = vector(2)
+             harmonics(i,3) = vector(3)
+          else
+             harmonics(i,:) = 0.d0
+          end if
+
+       end do
+
     end if
 
     band_count=0
@@ -1787,7 +1848,7 @@ contains
              select type (c2)
              class is (comm_md_comp)
                 c_mono => c2 !to be able to access all diffuse comp parameters through c_lnL
-                if (trim(c_mono%label) == data(k)%label) then
+                if (trim(c_mono%label) == trim(data(k)%label)) then
                    do i_mono = 0, c_mono%x%info%nalm-1
                       call c_mono%x%info%i2lm(i_mono,l_mono,m_mono)
                       if (l_mono == 0) then ! Monopole
@@ -1795,17 +1856,27 @@ contains
                          monopole_mu(k)=c_mono%mu%alm(i_mono,1) / sqrt(4.d0*pi)
                       end if
                    end do
+
                    monopole_rms(k)=sqrt(c_mono%Cl%Dl(0,1) / (4.d0*pi))
                    monopole_mixing(k)=c_mono%RJ2unit_(1)
                    monopole_active(k)=.true.
                    if (c_mono%mono_from_prior) monopole_active(k)=.false. !we should not sample monopoles that are sampled from prior
+
+                   call get_tokens(trim(c_lnL%spec_mono_freeze(par_id)), ",", tokens, n)
+
+                   do i_mono = 1, n
+                      if (trim(data(k)%label) == trim(tokens(i_mono)) ) then
+                         monopole_active(k)=.false. !we freeze monopoles the user wants to freeze
+                         exit
+                      end if
+                   end do
                    exit !exit the while-assiciated-loop, we have found the necessary information
                 end if
              end select
 
              c2 => c2%next()
           end do
-
+          
        end if
 
     end do
@@ -1816,22 +1887,22 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, monopole_val, numband, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, monopole_mu, numband, MPI_DOUBLE_PRECISION, MPI_SUM, info_fr%comm, ierr)
 
-       if (.false.) then !debugging
+       if (.true.) then !debugging
           if (cpar%verbosity>2 .and. myid_pix==0) then
-             write(*,*) '  Monopoles of active bands in sampling '
-             write(*,*) '  label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
+             write(*,*) '|   Monopoles of active bands in sampling '
+             write(*,*) '|   label         band_number  mono[uK_RJ]  mu[uK_RJ]  rms[uK_RJ]    mixing'
              do i = 1,numband
-                if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
-                     & trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i),myid_pix
+                if (monopole_active(i)) write(*,fmt='(a,a15,i13,e13.3,e11.3,e11.3,e11.4,i6)') &
+                     & ' |',trim(data(i)%label),i,monopole_val(i),monopole_mu(i),monopole_rms(i),monopole_mixing(i)
              end do
 
-             write(*,*) '  '
-             write(*,*) '  And in band units'
-             write(*,*) '  label         band_number  mono        mu        rms'
+             write(*,*) '|   '
+             write(*,*) '|   And in band units'
+             write(*,*) '|   label         band_number  mono        mu        rms'
              do i = 1,numband
-                if (monopole_active(i)) write(*,fmt='(a15,i13,e13.3,e11.3,e11.3, i6)') &
-                     & trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
-                     & monopole_rms(i)*monopole_mixing(i),myid_pix
+                if (monopole_active(i)) write(*,fmt='(a,a15,i13,e13.3,e11.3,e11.3, i6)') &
+                     & ' |',trim(data(i)%label),i,monopole_val(i)*monopole_mixing(i),monopole_mu(i)*monopole_mixing(i), &
+                     & monopole_rms(i)*monopole_mixing(i)
              end do
 
           end if
@@ -1856,12 +1927,12 @@ contains
           !broadcast new_theta
           call mpi_bcast(new_theta, 1, MPI_DOUBLE_PRECISION, 0, info_fr%comm, ierr)
           if (myid_pix == 0) then
-             write(*,*) 'Sampled new value using Gaussian prior'
-             write(*,fmt='(a,i6)') '  Pixel region = ',pr
-             write(*,fmt='(a,f7.3)') '  Prior mean = ',c_lnL%theta_prior(1,p,id)
-             write(*,fmt='(a,f10.6)') '  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
-             write(*,fmt='(a,f10.6)') '  Old value  = ',c_lnL%theta_pixreg(pr,p,id)
-             write(*,fmt='(a,f10.6)') '  New value  = ',new_theta
+             write(*,*) '| Sampled new value using Gaussian prior'
+             write(*,fmt='(a,i6)') ' |  Pixel region = ',pr
+             write(*,fmt='(a,f7.3)') ' |  Prior mean = ',c_lnL%theta_prior(1,p,id)
+             write(*,fmt='(a,f10.6)') ' |  Prior RMS  = ',c_lnL%theta_prior(2,p,id)
+             write(*,fmt='(a,f10.6)') ' |  Old value  = ',c_lnL%theta_pixreg(pr,p,id)
+             write(*,fmt='(a,f10.6)') ' |  New value  = ',new_theta
           end if
           c_lnL%theta_pixreg(pr,p,id) = new_theta
           new_thetas(pr) = new_theta
@@ -1910,14 +1981,6 @@ contains
              theta_lr_hole%map(:,1) = theta_fr%map(:,1)
           end if
 
-          !ud_grade monopole mask (if it is not same nside as smoothing scale)
-          mask_mono => comm_map(info_lr)
-          call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono) !ud_grade monopole mask to nside of smoothing scale
-          where (mask_mono%map > 0.5d0)
-             mask_mono%map=1.d0
-          elsewhere
-             mask_mono%map=0.d0
-          end where
 
           ! produce reduced data sets of the active bands in Temperature with active monopole
           ! then sample a new monopole
@@ -1926,8 +1989,8 @@ contains
           reduced_data=0.d0
           if (cpar%verbosity>2 .and. myid_pix==0) then
              !print info on the change in monopoles from initial monopoles 
-             write(*,*) '  Change in monopoles of active bands in sampling. In band units. '
-             write(*,*) '  band_label    mono_in        mono_out       prior_mean     prior_rms'
+             write(*,*) '|   Change in monopoles of active bands in sampling. In band units. '
+             write(*,*) '|   band_label    mono_in        mono_out       prior_mean     prior_rms'
           end if
 
           do j = 1,numband
@@ -1948,31 +2011,75 @@ contains
                         & c_lnL%x_smooth%map(pix,1) + monopole_mixing(j)*monopole_val(j)
                 end do
 
-                ! resample the monopole given the new reduced data
-                a=0.d0
-                b=0.d0
-                do pix = 0,np_lr-1
-                   if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                      a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
-                      b = b + monopole_mixing(j)*reduced_data(pix,1) * (rms_smooth(j)%p%siN%map(pix,1))**2
-                   end if
-                end do
+                if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                     & trim(monocorr_type) == 'monopole-dipole') then
+                   ! resample the monopole (and dipole) given the new reduced data
 
-                !gather a and b
-                call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                     & MPI_SUM, info_lr%comm, ierr)
-                call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                     & MPI_SUM, info_lr%comm, ierr)
-                
-                if (info_lr%myid == 0) then
+                   md_A = 0.d0
+                   md_b = 0.d0
+                   harmonics2=harmonics*monopole_mixing(j)
+                   do j_md = 0, 3
+                      do k_md = 0, 3
+                         md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
+                      end do
+
+                      md_b(j_md) = sum(reduced_data(:,1) * harmonics2(:,j_md)) !is to be set later, this will change
+                   end do
+
+                   multipoles=0.d0
+                   !we need to run an MPI reduce to get all harmonics for md_A and md_b
+                   call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+
+                   !solve the mono-/dipole system
+                   call solve_system_real(md_A, multipoles, md_b) 
+
+                   ! Need to get the statistical power for when adding the monopole prior
+                   a=0.d0
+                   do pix = 0,np_lr-1
+                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                      end if
+                   end do
+
+                   !gather a
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+
+                else if (trim(monocorr_type) == 'monopole') then
+
+                   a=0.d0
+                   b=0.d0
+                   do pix = 0,np_lr-1
+                      if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                         a = a + (monopole_mixing(j) * rms_smooth(j)%p%siN%map(pix,1))**2
+                         b = b + reduced_data(pix,1) * monopole_mixing(j) * (rms_smooth(j)%p%siN%map(pix,1))**2
+                      end if
+                   end do
+
+                   !gather a and b
+                   call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
+                   call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                        & MPI_SUM, info_lr%comm, ierr)
                    if (a > 0.d0) then
-                      mu = b/a
+                      multipoles(0) = b/a
+                   else
+                      multipoles(0) = 0.d0
+                   end if
+
+                end if
+
+                if (info_lr%myid == 0) then
+
+                   if (a > 0.d0) then !we have statistical power to estimate a monopole
                       sigma=sqrt(a)
+                      mu = multipoles(0)
                    else if (monopole_rms(j) > 0.d0) then !this will effectively set monopole to prior mean
-                      mu = 0
+                      mu=0.d0
                       sigma = 0.d0
                    else
-                      mu = monopole_mu(j) !just set to prior mean
+                      mu=0.d0
                       sigma = 0.d0
                    end if
 
@@ -1987,8 +2094,8 @@ contains
                 ! bcast new monopole to other processors
                 call mpi_bcast(mu, 1, MPI_DOUBLE_PRECISION, 0, info_lr%comm, ierr)
                 if (cpar%verbosity>2 .and. myid_pix==0) then
-                   if (monopole_active(j)) write(*,fmt='(a15,e15.5,e15.5,e15.5,e15.5)') &
-                        & trim(data(j)%label),monopole_val(j)*monopole_mixing(j), &
+                   if (monopole_active(j)) write(*,fmt='(a,a15,e15.5,e15.5,e15.5,e15.5)') &
+                        & ' |',trim(data(j)%label),monopole_val(j)*monopole_mixing(j), &
                         & mu*monopole_mixing(j),monopole_mu(j)*monopole_mixing(j), &
                         & monopole_rms(j)*monopole_mixing(j)
                 end if
@@ -2014,7 +2121,6 @@ contains
                    c2 => c2%next()
                 end do
 
-
              end if
           end do
 
@@ -2034,6 +2140,9 @@ contains
        if (allocated(monopole_active)) deallocate(monopole_active)
        if (allocated(reduced_data)) deallocate(reduced_data)
        if (allocated(all_thetas)) deallocate(all_thetas)
+       if (allocated(harmonics)) deallocate(harmonics)
+       if (allocated(harmonics2)) deallocate(harmonics2)
+
 
        !###################################################################################################
 
@@ -2043,15 +2152,22 @@ contains
     if (band_count==0) then
        buffer_lnL(:,p_min:p_max)=c_lnL%p_gauss(1,id) !set theta to prior, as no bands are valid, no data
        deallocate(band_i,pol_j)
-       if (myid_pix == 0 .and. cpar%verbosity>1)  write(*,*) 'no data bands available for sampling of spec ind'
+       if (myid_pix == 0 .and. cpar%verbosity>1)  write(*,*) '| no data bands available for sampling of spec ind'
        return
     else
-       if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
+       if (myid_pix==0 .and. cpar%verbosity>2) write(*,*) '| ### Using '//trim(c_lnL%pol_lnLtype(p,id))//' lnL evaluation ###'
        if (cpar%verbosity>3 .and. myid_pix == 0) then
-             write(*,fmt='(a)') '  Active bands'
+          write(*,fmt='(a)') ' |  Active bands'
           do k = 1,band_count
-             write(*,fmt='(a,i1)') '   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
+             write(*,fmt='(a,i1)') ' |   band: '//trim(data(band_i(k))%label)//', -- polarization: ',pol_j(k)
           end do
+
+          if (c_lnL%spec_mono_combined(par_id)) then
+             write(*,fmt='(a)') ' |  Active monopoles'
+             do k = 1,numband
+                if (monopole_active(k)) write(*,fmt='(a,i1)') ' |   band: '//trim(data(k)%label)
+             end do
+          end if
        end if
        if (trim(c_lnL%pol_lnLtype(p,id))=='chisq' .and. .false.) then !debug chisq (RMS scaling) for smoothing scale
           allocate(lr_chisq(band_count))
@@ -2061,6 +2177,7 @@ contains
           end do
        end if
     end if
+
 
     !allocate and assign low resolution reduced data maps
     allocate(reduced_data(0:np_lr-1,band_count))
@@ -2100,14 +2217,6 @@ contains
        allocate(old_mono(numband),new_mono(numband))
        old_mono=monopole_val
        new_mono=old_mono
-       !ud_grade monopole mask (if it is not same nside as smoothing scale)
-       mask_mono => comm_map(info_lr)
-       call c_lnL%spec_mono_mask(par_id)%p%udgrade(mask_mono)
-       where (mask_mono%map > 0.5d0)
-          mask_mono%map=1.d0
-       elsewhere
-          mask_mono%map=0.d0
-       end where
     end if
 
     !This is used for fullres chisq
@@ -2128,7 +2237,7 @@ contains
     new_thetas = old_thetas
     ! that the root processor operates on
     init_thetas = old_thetas
-    if (cpar%verbosity>2 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') "  initial (avg) spec. ind. value: ", &
+    if (cpar%verbosity>2 .and. info_fr%myid == 0 .and. npixreg > 0) write(*,fmt='(a, f10.5)') " |  initial (avg) spec. ind. value: ", &
          & sum(init_thetas(1:npixreg))/npixreg
 
     if (myid_pix==0) then
@@ -2136,9 +2245,14 @@ contains
        do pr = 1, npixreg
           if (c_lnL%nprop_pixreg(pr,p,id) > N_theta_MC ) N_theta_MC = c_lnL%nprop_pixreg(pr,p,id)
        end do
-       allocate(theta_MC_arr(N_theta_MC+1,npixreg))
+       allocate(theta_MC_arr(N_theta_MC+1,npixreg,2))
        theta_MC_arr = 0.d0
+       if (c_lnL%spec_mono_combined(par_id)) then 
+          allocate(multipoles_trace(2,0:N_theta_MC+1,numband,0:3))
+          multipoles_trace=0.d0
+       end if
     end if
+    max_prop = 0
 
     do pr = 1,npixreg
 
@@ -2182,7 +2296,14 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, pix_count, 1, MPI_INTEGER, & 
             & MPI_SUM, info_fr%comm, ierr)
        if (pix_count == 0) cycle !all pixels in pixreg is masked out
-       
+       if (.false.) then
+          !scaling number of pixels in pixel region (from component resolution to smoothing scale resolution)
+          prior_rms_scaling=1.d0*pix_count*info_lr%npix/info_fr%npix
+       else
+          prior_rms_scaling=1.d0 !no prior RMS scaling
+       end if
+
+
        if (c_lnL%pol_sample_nprop(p,id) .or. c_lnL%pol_sample_proplen(p,id)) then
           pixreg_nprop = 1000*n_prop_limit !should be enough to find proposal/correlation length, if prompted. 
           !c_lnL%pol_sample_nprop(j,p,id) = boolean array of size (n_pixreg,poltype)
@@ -2252,8 +2373,8 @@ contains
                 old_theta = old_thetas(pr)
                 proplen=c_lnL%proplen_pixreg(pr,p,id)
                 if (cpar%verbosity>2) then                
-                   write(*,fmt='(a, i3, a, f10.5)') "  initial pix.reg. ",pr,"  -- spec. ind. value: ", init_thetas(pr)
-                   write(*,fmt='(a, e14.5)') "  initial proposal length: ",proplen
+                   write(*,fmt='(a, i3, a, f10.5)') " |  initial pix.reg. ",pr,"  -- spec. ind. value: ", init_thetas(pr)
+                   write(*,fmt='(a, e14.5)') " |  initial proposal length: ",proplen
                 end if
                 new_thetas = old_thetas
                 new_theta = old_theta
@@ -2268,7 +2389,7 @@ contains
           new_thetas(pr) = new_theta
 
           if (cpar%verbosity>3 .and. myid_pix==0 .and. mod(j,out_every)==0) then
-             write(*,fmt='(a, i6, a, i3, a, f10.5, a, f10.5)') "  proposal: ", j," -- Pixreg ", pr, &
+             write(*,fmt='(a, i6, a, i3, a, f10.5, a, f10.5)') " |  proposal: ", j," -- Pixreg ", pr, &
                   & " -- Current ind: ", old_theta, " -- proposed ind: ", new_theta
           end if
 
@@ -2284,10 +2405,11 @@ contains
              lnL_new = -1.d30 
              ! skip the true caclulation of lnL, we reject the sample ~100%
              if (myid_pix==0 .and. cpar%verbosity > 2) then
-                write(*,fmt='(a, f10.5, a, f10.5)') "    Proposed ind outside limits.  min: ", &
+                write(*,fmt='(a, f10.5, a, f10.5)') " |    Proposed ind outside limits.  min: ", &
                      & theta_min," -- max: ", theta_max
-                write(*,fmt='(a, f10.5)') "    Proposed ind ",new_theta
+                write(*,fmt='(a, f10.5)') " |    Proposed ind ",new_theta
              end if
+             loop_exit = .true.
           else
 
              !set up the new theta map
@@ -2319,36 +2441,77 @@ contains
                          reduced_data(pix,k) = res_smooth(band_i(k))%p%map(pix,pol_j(k)) - mixing_new* &
                               & c_lnL%x_smooth%map(pix,pol_j(k))
                       end do
-                      
-                      !create reduced map from original reduced data (residual+component) and original monopole
-                      reduced_data(:,k) = reduced_data(:,k) + monopole_mixing(band_i(k))*monopole_val(band_i(k))
-                      
-                      !calculate new monopole value
-                      a=0.d0
-                      b=0.d0
-                      do pix = 0,np_lr-1
-                         if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
-                            a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                            b = b + monopole_mixing(band_i(k))*reduced_data(pix,k) * &
-                                 & (rms_smooth(band_i(k))%p%siN%map(pix,pol_j(k)))**2
-                         end if
-                      end do
+                      !reduced_data is now the original residual map
 
-                      !gather a and b
-                      call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
-                           & MPI_SUM, info_lr%comm, ierr)
-                      call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
-                           & MPI_SUM, info_lr%comm, ierr)
-                
-                      if (info_lr%myid == 0) then
+                      !create reduced data map for monopole estimation from original residual
+                      !i.e. a (residual+monopole)-map, add the original (input) monopole to the residual
+                      reduced_data(:,k) = reduced_data(:,k) + monopole_mixing(band_i(k))*monopole_val(band_i(k))
+                                            
+                      if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                           & trim(monocorr_type) == 'monopole-dipole') then
+                         ! resample the monopole (and dipole) given the new reduced data
+                         md_A = 0.d0
+                         md_b = 0.d0
+                         harmonics2=harmonics*monopole_mixing(band_i(k))
+                         do j_md = 0, 3
+                            do k_md = 0, 3
+                               md_A(j_md,k_md) = sum(harmonics2(:,j_md) * harmonics2(:,k_md)) 
+                            end do
+
+                            md_b(j_md) = sum(reduced_data(:,k) * harmonics2(:,j_md)) !is to be set later, this will change
+                         end do
+                         !we need to run an MPI reduce to get all harmonics for md_A and md_b
+                         call mpi_allreduce(MPI_IN_PLACE, md_A, 16, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, md_b, 4, MPI_DOUBLE_PRECISION, MPI_SUM, info_lr%comm, ierr)
+
+                         !solve the mono-/dipole system
+                         call solve_system_real(md_A, multipoles, md_b) 
+
+                         ! Need to get the statistical power for when adding the monopole prior
+                         a=0.d0
+                         do pix = 0,np_lr-1
+                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                            end if
+                         end do
+
+                         !gather a
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+
+                      else if (trim(monocorr_type) == 'monopole') then
+                         a=0.d0
+                         b=0.d0
+                         do pix = 0,np_lr-1
+                            if (mask_mono%map(pix,1) > 0.5d0) then !only Temperature we have monopole
+                               a = a + (monopole_mixing(band_i(k)) * rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                               b = b + reduced_data(pix,k) * monopole_mixing(band_i(k)) * (rms_smooth(band_i(k))%p%siN%map(pix,1))**2
+                            end if
+                         end do
+
+                         !gather a and b
+                         call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
+                         call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, & 
+                              & MPI_SUM, info_lr%comm, ierr)
                          if (a > 0.d0) then
-                            mu = b/a
+                            multipoles(0) = b/a
+                         else
+                            multipoles(0) = 0.d0
+                         end if
+                      end if
+
+                      
+                      if (info_lr%myid == 0) then
+
+                         if (a > 0.d0) then !we have statistical power to estimate a monopole
                             sigma=sqrt(a)
+                            mu = multipoles(0)
                          else if (monopole_rms(band_i(k)) > 0.d0) then
-                            mu = 0
+                            mu=0.d0
                             sigma = 0.d0
                          else
-                            mu = monopole_mu(band_i(k))
+                            mu=0.d0
                             sigma = 0.d0
                          end if
 
@@ -2363,6 +2526,15 @@ contains
                       ! bcast new monopole to other processors
                       call mpi_bcast(mu, 1, MPI_DOUBLE_PRECISION, 0, info_lr%comm, ierr)
                       new_mono(band_i(k)) = mu
+
+                      if (myid_pix == 0) then
+                         !trace multipoles
+                         multipoles_trace(1,j,band_i(k),0) = mu
+                         if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                              & trim(monocorr_type) == 'monopole-dipole') &
+                              & multipoles_trace(1,j,band_i(k),1:3) = multipoles(1:3)
+                      end if
+
 
                       !update the reduced data map with the new monopole
                       reduced_data(:,k) = res_smooth(band_i(k))%p%map(:,pol_j(k)) + &
@@ -2570,13 +2742,15 @@ contains
              if (c_lnL%p_gauss(2,id) > 0.d0) then
                 !Find prior "chisq" and add it to lnL
                 lnL_prior = (new_thetas(pr)-c_lnL%p_gauss(1,id))**2
-                lnL_prior = -0.5d0 * lnl_prior/c_lnL%p_gauss(2,id)**2
+                !prior variance is scaled by 
+                ! 1/<number of pixels in region (smooth scale resolution)>
+                lnL_prior = -0.5d0 * lnl_prior/(c_lnL%p_gauss(2,id)**2 / prior_rms_scaling) 
                 lnL_new = lnL_new + lnL_prior
              end if
 
              !first sample done
              if (first_sample) lnL_init = lnL_new
-             if (first_sample .and. myid_pix == 0 .and. cpar%verbosity > 2) write(*,fmt='(a, e14.5)') "    lnL_init = ", lnL_init
+             if (first_sample .and. myid_pix == 0 .and. cpar%verbosity > 2) write(*,fmt='(a, e14.5)') " |    lnL_init = ", lnL_init
 
           end if !new_theta outside spec limits
 
@@ -2586,14 +2760,15 @@ contains
              if (c_lnL%spec_mono_combined(par_id)) then
                 old_mono=new_mono
              end if
+             sample_accepted=.true.
           else if (myid_pix == 0) then
              !accept/reject new spec ind
              delta_lnL = lnL_new-lnL_old
 
              if (cpar%verbosity>3 .and. mod(j,out_every)==0) then
-                write(*,fmt='(a, e14.5)') "    lnL_new = ", lnL_new
-                write(*,fmt='(a, e14.5)') "    lnL_old = ", lnL_old
-                write(*,fmt='(a, e14.5)') "    lnL_new - lnL_old = ", delta_lnL
+                write(*,fmt='(a, e14.5)') " |    lnL_new = ", lnL_new
+                write(*,fmt='(a, e14.5)') " |    lnL_old = ", lnL_old
+                write(*,fmt='(a, e14.5)') " |    lnL_new - lnL_old = ", delta_lnL
              end if
 
              avg_dlnL = (avg_dlnL*(n_spec_prop) + abs(delta_lnL))/(n_spec_prop+1) 
@@ -2618,6 +2793,7 @@ contains
                    a = rand_uni(handle) !draw uniform number from 0 to 1
                    if (exp(delta_lnL) > a) then
                       !accept
+                      sample_accepted=.true.
                       old_theta = new_theta
                       lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
                       n_accept = n_accept + 1
@@ -2626,12 +2802,16 @@ contains
                          old_mono=new_mono
                       end if
                    else
+                      sample_accepted=.false.
                       accept_arr(arr_ind) = 0 !reject
                    end if
                 else
+                   sample_accepted=.false.
                    accept_arr(arr_ind) = 0 !reject if running optimize
                 end if
              else
+                sample_accepted=.true.
+
                 !accept new sample, higher likelihood
                 old_theta = new_theta
                 lnL_old = lnL_new !don't have to calculate this again for the next rounds of sampling
@@ -2642,12 +2822,22 @@ contains
                 end if
              end if
              
-             if (j <= N_theta_MC) theta_MC_arr(j,pr) = old_theta
-
+             if (j <= N_theta_MC) then
+                if (j > max_prop) max_prop = j
+                theta_MC_arr(j,pr,1) = new_theta
+                theta_MC_arr(j,pr,2) = old_theta
+                if (c_lnL%spec_mono_combined(par_id)) then
+                   if (sample_accepted) then
+                      multipoles_trace(2,j,:,:) = multipoles_trace(1,j,:,:) !accept new multipoles for the trace
+                   else
+                      if (j > 1) multipoles_trace(2,j,:,:) = multipoles_trace(2,j-1,:,:) !copy the previous sample multipoles as the "accepted" ones
+                   end if
+                end if
+             end if
              !compute the running acceptance and correlation coefficient values
              running_accept = (1.d0*sum(accept_arr(1:min(n_spec_prop,n_prop_limit))))/max(min(n_spec_prop,n_prop_limit),1)
-             theta_corr_arr(arr_ind) = old_theta
-             running_correlation=calc_corr_coeff(theta_corr_arr,min(n_spec_prop,n_prop_limit))
+             theta_corr_arr(arr_ind) = old_theta !keeping track of accepted thetas
+             running_correlation=calc_corr_coeff(theta_corr_arr(:),min(n_spec_prop,n_prop_limit))
 
              if (j-1 > burn_in) burned_in = .true.
              ! evaluate proposal_length, then correlation length. 
@@ -2655,12 +2845,12 @@ contains
              accept_rate = n_accept*1.d0/n_spec_prop
              if (c_lnL%pol_sample_proplen(p,id)) then
                 if (cpar%verbosity>3 .and. mod(n_spec_prop,out_every)==0) then
-                   write(*,fmt='(a, f6.4)') "   accept rate = ", running_accept
-                   write(*,fmt='(a, e14.5)') "   avg. abs. delta_lnL = ", running_dlnL
-                   write(*,fmt='(a, e14.5)') "   correlation coeff = ", running_correlation
-                   write(*,fmt='(a, e14.5)') "    lnL_new = ", lnL_new
-                   write(*,fmt='(a, e14.5)') "    lnL_old = ", lnL_old
-                   write(*,fmt='(a, e14.5)') "    lnL_new - lnL_old = ", delta_lnL
+                   write(*,fmt='(a, f6.4)') " |   accept rate = ", running_accept
+                   write(*,fmt='(a, e14.5)') " |   avg. abs. delta_lnL = ", running_dlnL
+                   write(*,fmt='(a, e14.5)') " |   correlation coeff = ", running_correlation
+                   write(*,fmt='(a, e14.5)') " |    lnL_new = ", lnL_new
+                   write(*,fmt='(a, e14.5)') " |    lnL_old = ", lnL_old
+                   write(*,fmt='(a, e14.5)') " |    lnL_new - lnL_old = ", delta_lnL
                 end if
                 
                 if (.not. burned_in) then 
@@ -2701,10 +2891,10 @@ contains
                       n_spec_prop = 0 !reset with new prop length
                       avg_dlnL = 0.d0
                       if (cpar%verbosity>3) then
-                         write(*,fmt='(a, f6.4)')  "      accept rate =         ", running_accept
-                         write(*,fmt='(a, e14.5)') "      avg. abs. delta_lnL = ", running_dlnL
-                         write(*,fmt='(a, e14.5)') "      correlation coeff.  = ", running_correlation
-                         write(*,fmt='(a, e14.5)') "      New prop. len. =      ", proplen
+                         write(*,fmt='(a, f6.4)')  " |      accept rate =         ", running_accept
+                         write(*,fmt='(a, e14.5)') " |      avg. abs. delta_lnL = ", running_dlnL
+                         write(*,fmt='(a, e14.5)') " |      correlation coeff.  = ", running_correlation
+                         write(*,fmt='(a, e14.5)') " |      New prop. len. =      ", proplen
                       end if
                    else
                       !add additional requirement that avg. absolute delta chisq less than 10
@@ -2732,7 +2922,7 @@ contains
                    n_corr_prop = 0
                    first_nprop = .false. !make sure not to reset again for this pixel region
                    j = -1 !reset while loop counter
-                   theta_MC_arr(:,pr) = 0.d0
+                   theta_MC_arr(:,pr,:) = 0.d0
                 end if
 
                 n_corr_prop = n_corr_prop + 1
@@ -2753,9 +2943,9 @@ contains
                 end if
              else
                 if (cpar%verbosity>2 .and. mod(j,out_every)==0) then
-                   write(*,fmt='(a, f6.4)') "   accept rate = ", accept_rate                   
-                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "   avg. abs. delta_lnL = ", avg_dlnL
-                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "   correlation coeff.  = ", running_correlation
+                   write(*,fmt='(a, f6.4)') " |    accept rate = ", accept_rate                   
+                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "|    avg. abs. delta_lnL = ", avg_dlnL
+                   if (cpar%verbosity>3) write(*,fmt='(a, f6.4)') "|    correlation coeff.  = ", running_correlation
                 end if
              end if
 
@@ -2763,6 +2953,7 @@ contains
 
           ! if j has been reset/changed by master proc (myid_pix==0), then the others need to know. Same with first_sample logical flag
           call mpi_bcast(j, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
+          call mpi_bcast(n_spec_prop, 1, MPI_INTEGER, 0, info_fr%comm, ierr)
           call mpi_bcast(first_sample, 1, MPI_LOGICAL, 0, info_fr%comm, ierr)
 
           !bcast the running correlation coefficient for the pushback check, else the other procs are going to run aditional times and get stuck in some bcats/mpi_allreduce call
@@ -2770,7 +2961,7 @@ contains
           call wall_time(t2)
 
           if (cpar%verbosity>3 .and. myid_pix == 0 .and. mod(j,out_every)==0 .and. n_spec_prop/=0) then
-             write(*,*) '   Sample:',n_spec_prop,'  Wall time per sample:',real((t2-t1)/n_spec_prop,sp)
+             write(*,*) '|    Sample:',n_spec_prop,'  Wall time per sample:',real((t2-t1)/n_spec_prop,sp)
           end if
 
           call mpi_bcast(loop_exit, 1, MPI_LOGICAL, 0, info_fr%comm, ierr)
@@ -2783,20 +2974,19 @@ contains
              if (c_lnL%spec_corr_convergence(id)) then
                 if (n_spec_prop > c_lnL%nprop_uni(2,id)) then
                    if (cpar%verbosity>3 .and. myid_pix == 0) then
-                      write(*,*) 'Maximum number of samples reached. Convercence criteria not reached.'
-                      write(*,*) 'Current correlation coefficient: ',running_correlation
-                      write(*,*) 'Convergence criteria:            ',correlation_limit
+                      write(*,*) '| Maximum number of samples reached. Convercence criteria not reached.'
+                      write(*,*) '| Current correlation coefficient: ',running_correlation
+                      write(*,*) '| Convergence criteria:            ',correlation_limit
                    end if
                 else if (abs(running_correlation) > correlation_limit) then
                    if (cpar%verbosity>3 .and. myid_pix == 0) & 
-                        & write(*,*) 'pushing back samples for convergence. Nsamples pushed:', n_prop_limit
+                        & write(*,*) '| pushing back samples for convergence. Nsamples pushed:', n_prop_limit
                    j = j - n_prop_limit
                    if (j < 0) j = 0
                 end if
              end if
           end if
        end do !while j < nprop
-
        if (pr == 1) lnl_total_init = lnl_init
 
        call wall_time(t2)
@@ -2814,20 +3004,20 @@ contains
 
        if (cpar%verbosity>2) then !pixreg pr
           if (myid_pix==0) then
-             write(*,fmt='(a, i5)')    "    Pixel region: ",pr
-             write(*,fmt='(a, f10.5)') "      Final spec. ind. value:                   ", old_thetas(pr)
-             write(*,fmt='(a, e14.5)') "      Difference in spec. ind., new - old:      ", &
+             write(*,fmt='(a, i5)')    " |    Pixel region: ",pr
+             write(*,fmt='(a, f10.5)') " |      Final spec. ind. value:                   ", old_thetas(pr)
+             write(*,fmt='(a, e14.5)') " |      Difference in spec. ind., new - old:      ", &
                   & (old_thetas(pr)-init_thetas(pr))
-             write(*,*) '      Samples:',nsamp
-             if (nsamp > 0) write(*,*) '        Wall time per sample (sec):                 ',real((t2-t1)/nsamp,sp)
-             write(*,*) '        Initialization wall time pixel region (sec):',real((t1-t0),sp)
-             write(*,*) '        Total wall time pixel region (sec):         ',real((t2-t0),sp)
+             write(*,*) '|      Samples:',nsamp
+             if (nsamp > 0) write(*,*) '|         Wall time per sample (sec):                 ',real((t2-t1)/nsamp,sp)
+             write(*,*) '|         Initialization wall time pixel region (sec):',real((t1-t0),sp)
+             write(*,*) '|         Total wall time pixel region (sec):         ',real((t2-t0),sp)
 
-             if (sampled_nprop) write(*,fmt='(a, i5)') "      Number of proposals after tuning: ",c_lnL%nprop_pixreg(pr,p,id)
-             if (sampled_proplen) write(*,fmt='(a, e14.5)') "      Proposal length after tuning: ",c_lnL%proplen_pixreg(pr,p,id)
-             write(*,fmt='(a, e14.5)') "      New Log-Likelihood:                       ", lnl_old
-             write(*,fmt='(a, e14.5)') "      Difference in Log-Likelihood (new - old): ", lnl_old-lnl_init
-             write(*,*) ''
+             if (sampled_nprop) write(*,fmt='(a, i5)') " |      Number of proposals after tuning: ",c_lnL%nprop_pixreg(pr,p,id)
+             if (sampled_proplen) write(*,fmt='(a, e14.5)') " |      Proposal length after tuning: ",c_lnL%proplen_pixreg(pr,p,id)
+             write(*,fmt='(a, e14.5)') " |      New Log-Likelihood:                       ", lnl_old
+             write(*,fmt='(a, e14.5)') " |      Difference in Log-Likelihood (new - old): ", lnl_old-lnl_init
+             write(*,*) '|'
           end if
        end if
 
@@ -2836,6 +3026,63 @@ contains
        call theta_lr_hole%dealloc(); deallocate(theta_lr_hole)
        theta_single_lr => null()
        theta_lr_hole => null()
+       
+       !print MC multipoles to file, (partially debug)
+       if (.true. .and. c_lnL%spec_mono_combined(par_id) .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
+          call int2string(iter,         itext)
+          call int2string(p,         pind_txt)
+          call int2string(cpar%mychain, ctext)
+          postfix = 'c'//ctext//'_k'//itext//'_p'//pind_txt
+          call int2string(pr,         pind_txt)
+          postfix = trim(postfix)//'_pixreg'//pind_txt
+          unit = getlun()
+          do k_md = 1,numband
+             if (.not. monopole_active(k_md)) cycle
+             call int2string(k_md,         pind_txt)
+             if (trim(monocorr_type) == 'monopole+dipole' .or. &
+                  & trim(monocorr_type) == 'monopole-dipole') then
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_accepted_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, 4e14.5)') i_md, multipoles_trace(2,i_md,k_md,:)
+                end do
+                close(unit)
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_proposed_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, 4e14.5)') i_md, multipoles_trace(1,i_md,k_md,:)
+                end do
+                close(unit)
+             else
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_accepted_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, e14.5)') i_md, multipoles_trace(2,i_md,k_md,0)
+                end do
+                close(unit)
+                filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//&
+                     & trim(c_lnL%indlabel(id))//'_multipoles_MC_proposed_'//&
+                     & trim(postfix)//'_band'//pind_txt//'.dat'
+                open(unit,file=trim(filename))
+
+                do i_md = 1,min(j,N_theta_MC)
+                   write(unit,fmt='(i7, e14.5)') i_md, multipoles_trace(1,i_md,k_md,0)
+                end do
+                close(unit)
+             end if
+          end do
+          multipoles_trace=0.d0
+       end if
+
 
     end do !pr = 1,max_pr
 
@@ -2867,19 +3114,19 @@ contains
     c_lnL%theta_pixreg(0:npixreg,p,id)=old_thetas
 
     if (cpar%verbosity>2 .and. myid_pix==0 .and. npixreg > 1) then
-       write(*,*) "    Average values from pixel region sampling"
-       write(*,fmt='(a, i5)') "    Number of proposals (after tuning):  ", &
+       write(*,*) "|    Average values from pixel region sampling"
+       write(*,fmt='(a, i5)') " |   Number of proposals (after tuning):  ", &
             & sum(c_lnL%nprop_pixreg(1:npixreg,p,id))/npixreg
-       write(*,fmt='(a, e14.5)') "  --  Proposal length (after tuning): ", &
+       write(*,fmt='(a, e14.5)') " | --  Proposal length (after tuning): ", &
             & sum(c_lnL%proplen_pixreg(1:npixreg,p,id))/npixreg
-       write(*,fmt='(a, f10.5)') "    Final spec. ind. value:           ", sum(old_thetas(1:npixreg))/npixreg
-       write(*,fmt='(a, e14.5)') "    Difference in spec. ind., new - old: ", &
+       write(*,fmt='(a, f10.5)') " |   Final spec. ind. value:           ", sum(old_thetas(1:npixreg))/npixreg
+       write(*,fmt='(a, e14.5)') " |   Difference in spec. ind., new - old: ", &
             & sum(old_thetas(1:npixreg)-init_thetas(1:npixreg))/npixreg
-       write(*,fmt='(a, e14.5)') "    New Log-Likelihood:               ", &
+       write(*,fmt='(a, e14.5)') " |   New Log-Likelihood:               ", &
             & lnl_old
-       write(*,fmt='(a, e14.5)') "    Difference in Log-Likelihood (new - old): ", &
+       write(*,fmt='(a, e14.5)') " |   Difference in Log-Likelihood (new - old): ", &
             & lnl_old-lnl_total_init
-       write(*,*) ''
+       write(*,*) '|'
     end if
 
     call int2string(iter,         itext)
@@ -2924,18 +3171,17 @@ contains
     !print MC theta to file, (partially debug)
     if (.true. .and. cpar%cs_output_localsamp_maps .and. myid_pix==0) then
        unit = getlun()
-       filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
-            & '_theta_MC_'//trim(postfix)//'.dat'
-       open(unit,file=trim(filename))
-       !read(npixreg_txt,*) npixreg
-       !fmt_pix=trim(npixreg_txt)//'f12.6'
-       !write(*,*) fmt_pix
-       do i = 1,10000
-          !write(unit,'(i8,'//trim(fmt_pix)//')') i,theta_MC_arr(i,:)
-          !write(unit,'(i8,*(f14.8))') i,theta_MC_arr(i,:)
-          write(unit,*) i,theta_MC_arr(i,:)
+       do pr = 1,npixreg
+          call int2string(pr,         pind_txt)
+       
+          filename=trim(cpar%outdir)//'/'//trim(c_lnl%label)//'_'//trim(c_lnL%indlabel(id))//&
+               & '_theta_MC_'//trim(postfix)//'_pixreg'//pind_txt//'.dat'
+          open(unit,file=trim(filename))
+          do i = 1,min(max_prop,N_theta_MC)
+             write(unit,fmt='(i7, 2e14.5)') i,theta_MC_arr(i,pr,:)
+          end do
+          close(unit)
        end do
-       close(unit)
        deallocate(theta_MC_arr)
     end if
 
@@ -2948,8 +3194,8 @@ contains
 
        if (cpar%verbosity>2 .and. myid_pix==0) then
           !print info on the change in monopoles from initial monopoles 
-          write(*,*) '  Change in monopoles of active bands in sampling. In band units. '
-          write(*,*) '  band_label    mono_in        mono_out       prior_mean     prior_rms'
+          write(*,*) '|  Change in monopoles of active bands in sampling. In band units. '
+          write(*,*) '|  band_label    mono_in        mono_out       prior_mean     prior_rms'
           do i = 1,numband
              if (monopole_active(i)) write(*,fmt='(a15,e15.5,e15.5,e15.5,e15.5)') &
                   & trim(data(i)%label),monopole_val(i)*monopole_mixing(i), &
@@ -3100,7 +3346,11 @@ contains
     if (allocated(monopole_active)) deallocate(monopole_active)
     if (allocated(old_mono)) deallocate(old_mono)
     if (allocated(new_mono)) deallocate(new_mono)
+    if (allocated(harmonics)) deallocate(harmonics)
+    if (allocated(harmonics2)) deallocate(harmonics2)
+    if (allocated(multipoles_trace)) deallocate(multipoles_trace)
 
+    call update_status(status, "nonlin pixreg samling end " // trim(c_lnL%label)// ' ' // trim(c_lnL%indlabel(par_id)))
 
   end subroutine sampleDiffuseSpecIndPixReg_nonlin
 

@@ -1,0 +1,11 @@
+Below is the list of Intel Fotran and C/C++ options.
+
+The full alphabetical list of Intel Fortran Compiler options can be found here:
+https://software.intel.com/content/www/us/en/develop/documentation/fortran-compiler-oneapi-dev-guide-and-reference/top/compiler-reference/compiler-options/alphabetical-list-of-compiler-options.html
+
+The full alphabetical list for Intel C/C++ options can be found here:
+https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compiler-reference/compiler-options/alphabetical-list-of-compiler-options.html
+
+
+Useful options:
+

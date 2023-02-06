@@ -44,13 +44,16 @@
 #		-parallel, -prof-gen, -prof-use, -x<processor>.
 #
 # -Ofast -- sets compiler options -O3, -no-prec-div, and -fp-model fast=2.
-# -xhost -- 
+# -xHost -- 
 # -ip    -- Single file interprocedural optimizations, including selective inlining, within the current source file. 
 # -fast  -- maximizes speed across the entire program. Sets the following options:
 #		On macOS* systems: -ipo, -mdynamic-no-pic,-O3, -no-prec-div,-fp-model fast=2, and -xHost
 #		On Windows* systems: /O3, /Qipo, /Qprec-div-, /fp:fast=2, and /QxHost
 #		On Linux* systems: -ipo, -O3, -no-prec-div,-static, -fp-model fast=2, and -xHost
 # -q[no-]opt-matmul -- Enables or disables a compiler-generated Matrix Multiply (matmul) library call. This option is enabled by  default  at  setting  O2  and  above.
+# --fp-model=keyword:
+# Other options are here:
+# https://software.intel.com/content/www/us/en/develop/documentation/oneapi-dpcpp-cpp-compiler-dev-guide-and-reference/top/compiler-reference/compiler-options/compiler-option-details/floating-point-options/fp-model-fp.html
 #------------------------------------------------------------------------------
 # Specifying flags per Fortran compiler
 # Intel
@@ -67,15 +70,15 @@ if (COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-xHost" 
 		"-fpe0"
 		"-fPIC"
-		"-fp-model" "strict"
+		#"-fp-model=strict"
 		"-traceback" 
-		"-qopenmp" 
+		"-qopenmp" #<= we are not using it at all, it is redundant 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
 		#"-DNDEBUG"
 		#"-ipo" #  
 		#"-parallel" 
-		#"-heap-arrays" "16384"
+		"-heap-arrays" "16384"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
@@ -93,7 +96,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-qopenmp"
 		"-C" 
 		"-assume" "byterecl" 
-		#"-heap-arrays" "16384"
+		"-heap-arrays" "16384"
 		"-fpe0"
 		"-fPIC"
 		)
@@ -102,14 +105,15 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
 		"-O2"
 		"-xHost" 
+		"-g" 
 		"-fpe0"
 		"-fPIC"
-		"-fp-model" "strict"
+		#"-fp-model=strict"
 		"-qopenmp" 
 		"-assume" "byterecl" # for I/O operations 
 		#"-qopt-matmul" #<= increases linking time but doesn't increase performance 
-		"-g" 
 		"-traceback" 
+		"-heap-arrays" "16384"
 		#
 		#"-O2"  
 		#"-g" 
@@ -120,14 +124,13 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		#"-qopt-matmul"
 		#"-C"
 		#"-assume" "byterecl" 
-		#"-heap-arrays" "16384"
 		#"-fpe0"
 		#"-fPIC"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL 
-		"-Os"# -traceback -DNDEBUG -parallel -qopenmp -assume byterecl -heap-arrays 16384 -fpe0 -fPIC" 
+		"-Os"
 		"-traceback" 
 		"-DNDEBUG" 
 		"-parallel" 

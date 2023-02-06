@@ -99,17 +99,23 @@ ifndef LAPACK_LINK
 endif
 
 
-export F90COMP := $(F90FLAGS) $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE) $(HDF_INCLUDE)
-export FCOMP := $(FFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
-export CCOMP := $(CFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
-export LINK := -L. -lcommander $(SHARP_LINK) $(HEALPIX_LINK) $(CFITSIO_LINK) $(LAPACK_LINK) $(HDF_LINK) $(LDFLAGS) $(F90OMPFLAGS) 
+export F90COMP := $(F90FLAGS) $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE) $(HDF_INCLUDE) $(CAMB_INCLUDE) $(FFTW_INCLUDE)
+export FCOMP := $(FFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE) $(FFTW_INCLUDE)
+export CCOMP := $(CFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE) $(FFTW_INCLUDE)
+export LINK := -L. $(SHARP_LINK) $(HEALPIX_LINK) $(CFITSIO_LINK) $(LAPACK_LINK) $(HDF_LINK) $(LDFLAGS) $(F90OMPFLAGS) $(CAMB_LINK) $(FFTW_LINK)
 export TEMPITA := "$(TOPDIR)/commander3/python/tempita_proc.py"
 
 
-all : commander 
+all : commander
 
-commander : 
+commander :
 	@cd commander3/src; $(MAKE)
+
+sharp_test :
+	@cd commander3/src; $(MAKE) sharp_test
+
+sharp_test_minimal :
+	@cd commander3/src; $(MAKE) sharp_test_minimal
 
 clean :
 	@cd commander3/src; $(MAKE) clean

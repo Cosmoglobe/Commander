@@ -38,40 +38,43 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 		"-fexternal-blas"
 		"-ffpe-trap=zero"
 		"-fPIC"
-		"-C"
+		#"-C"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
 		"-O0"
-		"-g3" 
-		"-fno-strict-aliasing"
+		"-g" 
+		"-Wuninitialized" # catching uninitialized variables
 		"-fopenmp" 
 		"-fbacktrace" 
 		"-fexternal-blas"
-		"-C" 
-		"-Wall" 
-		"-Wextra" 
-		"-Warray-temporaries"
-		"-Wconversion-extra" 
-		"-pedantic" 
-		"-fcheck=all" 
-		"-ffpe-trap=invalid,zero,overflow,underflow" 
-		"-ffunction-sections" 
-		"-pipe"
-		"-ffpe-trap=zero"
 		"-fPIC"
+		#"-C" 
+		#"-fno-strict-aliasing"
+		#"-Wall" 
+		#"-Wextra" 
+		#"-Warray-temporaries"
+		#"-Wconversion-extra" 
+		#"-pedantic" 
+		#"-fcheck=all" 
+		#"-ffpe-trap=invalid,zero,overflow,underflow" 
+		#"-ffunction-sections" 
+		#"-pipe"
+		#"-ffpe-trap=zero"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO 
-		"-O2"# -g3 -fno-strict-aliasing -fopenmp -fbacktrace -fexternal-blas -C -Wall -Wextra -Warray-temporaries -Wconversion-extra -pedantic -fcheck=all -ffpe-trap=invalid,zero,overflow,underflow -ffunction-sections -pipe -ffpe-trap=zero -fPIC" 
+		"-O2" 
 		"-g" 
-		"-fno-strict-aliasing"
-		#"-DNDEBUG" 
+		"-Wuninitialized" # catching uninitialized variables
 		"-fopenmp" 
 		"-fbacktrace" 
 		"-fexternal-blas"
+		"-fPIC"
+		#"-fno-strict-aliasing"
+		#"-DNDEBUG" 
 		#"-C"
 		#"-Wall" 
 		#"-Wextra" 
@@ -83,7 +86,6 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
 		#"-ffunction-sections" 
 		#"-pipe"
 		#"-ffpe-trap=zero"
-		"-fPIC"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
@@ -101,7 +103,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_MINSIZEREL MATCHES "")
 endif()
 # adding different flags depending on the compiler version
 list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS 
-		"-Wfatal-errors"
+	  #"-Wfatal-errors"
 		"-ffree-line-length-none" 
 		"-fno-range-check"
 	)
