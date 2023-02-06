@@ -1,5 +1,0 @@
-# Quick Start
-
-Placeholder text
-
-

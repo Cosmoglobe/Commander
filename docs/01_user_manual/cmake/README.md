@@ -49,14 +49,8 @@ And the last one is building it inside current directory (`build`) and then inst
 the one you have defined by `CMAKE_INSTALL_PREFIX` variable.
 
 The installation process will take some time, depending on the network bandwidth, number 
-of missing dependencies, and available computing power. Once Commander is installed, there 
-are several things need to be added into the `.bashrc` (or other shell script):
-```
-export HEALPIX=$HOME/.local/commander/healpix
-export COMMANDER_PARAMS_DEFAULT="<path to commander root directory>/commander3/parameter_files/defaults/"
-```
-where `<path to commander root directory>` is essentially the path where you have cloned
-Commander repository.
+of missing dependencies, and available computing power. 
+
 
 <blockquote>
 <p align="justify">
@@ -465,8 +459,6 @@ Some specific systems are used by many Commander users, and we provide detailed 
 
 ## owl.uio.no -- CMB&CO cluster at the University of Oslo
 
-[**TODO**]: Update this subsection
-
 System information:
 - 4 x 72-core nodes with 1.5 TB RAM
 - 2 x 64-core nodes with 1.5 TB RAM
@@ -474,31 +466,43 @@ System information:
 - 5 x 64-core nodes with 256 GB RAM
 - For current load, see [owl.uio.no](http://owl.uio.no)
 
-Procedure:
-- BEFORE PROCEEDING PLEASE DISABLE `ANACONDA/MINICONDA`!
-- Note that there are two `cmake` versions installed on the Owl cluster, namely versions 2.8 and 3.17. To compile commander you need the latter, which has an alias of `cmake3`. Please check that the command `which cmake3` returns `/usr/bin/cmake3`, and that `cmake3 --version` returns `cmake3 version 3.17.2`.
-- Load the following modules:
+We have put up handy `install_ita.sh` script which will load all necessary modules, create 
+build directories and install commander inside of it. So, simply running:
 ```
-$ module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
-$ module load mkl/latest
+$ ./install_ita.sh
+```
+from within Commander root directory should suffice. 
+
+In case you don't want to use it, you can: 
+
+1. Clean your `PATH` (and other variables) by doing:
+```
+$ module purge
+```
+> **Note**: If you have a separate **Anaconda** installation, then **remove** or 
+> **comment** it out.
+2. Load necessary modules:
+```
 $ module load gnu git/2.30.1 cmake/3.21.1
+$ module load intel/oneapi mpi/latest icc/latest compiler-rt/latest mkl/latest
 ```
-- Run the CMake configuration process:
+3. Clone Commander and checkout the branch you want to work with:
 ```
 $ git clone https://github.com/Cosmoglobe/Commander.git
-$ cd Commander
-$ mkdir build && cd build
-$ cmake -DCMAKE_INSTALL_PREFIX=$HOME/local -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+$ cd Commander && git checkout <branch_name>
 ```
-- Wait for the configuration step to finish and then start the compilation process
+4. Create `build` directory and run CMake from it:
 ```
-$ cmake --build . --target install -j n
+$ mkdir build && cd build 
+$ cmake -DCMAKE_INSTALL_PREFIX=/path/to/Commander/root/build/install -DCOMM3_BACKEND=mkl -DCMAKE_C_COMPILER=icc -DCMAKE_CXX_COMPILER=icpc -DCMAKE_Fortran_COMPILER=ifort -DMPI_C_COMPILER=mpiicc -DMPI_CXX_COMPILER=mpiicpc -DMPI_Fortran_COMPILER=mpiifort ..
+$ cmake --build . --target install -j N
 ```
-where `n` is the number of processors to use.
-- Update your `.bashrc` file by adding the following variable:
-```
-export HEALPIX=$HOME/local/healpix
-```
+where `N` is the amount of processors you want to use.
+
+In the command above, we are using Intel OneAPI compilers and Intel MKL to istall it 
+inside `build/install` located inside Commander root directory. The `commander3` binary 
+will be located inside `build/install/bin`. 
+
 
 ## fram.uio.no and saga.uio.no -- National Norwegian HPC centers
 

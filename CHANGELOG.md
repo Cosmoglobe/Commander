@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Extending Commander 
 - Reformatted FAQ section
 - Reformatted README.md to point to GitHub pages instead of BeyondPlanck
+- Reformatted File Formats section
 
 ### Fixed
 

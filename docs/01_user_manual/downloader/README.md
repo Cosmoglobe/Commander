@@ -11,7 +11,7 @@ https://gitlab.com/BeyondPlanck/r13y-helper/-/releases
 
 We provide two statically compiled binaries, one for Linux/Mac (`bp`)
 and one for Windows (`bp.exe`), which we will be refering to as `bp`
-from now on.  Download what is appropriate for your OS.
+from now on. Download what is appropriate for your OS.
 
 ## Configuration
 
@@ -42,13 +42,13 @@ verbose=false
 The configuration file is heavily commented and provides some sane
 defaults.
 
-**IMPORTANT**:  Due to the large size of the files that the download
-tool downloads make sure you set a `download_path` that resides in a
-disk partition with enough disk space.
+> **Note**:  Due to the large size of the files that the download
+  tool downloads make sure you set a `download_path` that resides in a
+  disk partition with enough disk space.
 
 ## Usage
 
-Copy your `bp` executable (or `bp.exe`,  to your current folder or put
+Copy your `bp` executable (or `bp.exe`),  to your current folder or put
 it in a folder that is in your path.
 
 The `bp` tool allows you to download multiple filesets:
@@ -59,7 +59,7 @@ This command will show you all the available filesets to download and
 their download size, without actually downloading anything.
 
 You can select to download `all` files or a specifc list of filesets
-only.  For a successfull Commander execution the `auxcmd3` and `l2data`
+only. For a successfull Commander execution the `auxcmd3` and `l2data`
 are **required**.
 
 Run:
