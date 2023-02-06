@@ -966,7 +966,7 @@ subroutine tod2file_dp3(filename,d)
     !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
     lmax  = self%info%lmax; if (present(lmax_file)) lmax = lmax_file
-    nmaps = 1 
+    nmaps = 1
     nalm = (lmax+1)**2
     
     ! Only the root actually reads from disk; data are distributed via MPI

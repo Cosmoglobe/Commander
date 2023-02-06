@@ -36,7 +36,7 @@ hya6="$prefix+(6)+$suffix"
 hya79="$prefix+([7-9])+$suffix"
 hya1016="$prefix+(1[0-6])+$suffix"
 #------------------------------------------------------------------------------
-# Will compile commander only if on owl/beehive!
+# Will compile commander only if on owl/beehive/hyades!
 #------------------------------------------------------------------------------
 if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]]
 then
@@ -171,12 +171,14 @@ then
 		#source /opt/rh/devtoolset-9/enable
 		#export PATH="/usr/local/opt/openmpi-4.0.5/bin:$PATH"
 		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
+
     # Adding custom module files
     #module use --append /mn/stornext/u3/maksymb/modulefiles
 		module load gcc/11.2.1
     export PATH="/usr/local/opt/gcc11/openmpi-4.1.3/bin:$PATH"
     export LD_LIBRARY_PATH="/usr/local/opt/gcc11/openmpi-4.1.3/lib:$LD_LIBRARY_PATH"
 		#module load myopenmpi/4.1.4
+
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		printf "\n"
 		$mpifc --version

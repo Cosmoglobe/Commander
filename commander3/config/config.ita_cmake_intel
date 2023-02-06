@@ -146,5 +146,5 @@ export HDF_LINK_CPP := -L$(LOCAL)/lib -lhdf5_cpp -lhdf5 -laec -lsz
 export HDF_INCLUDE := -I$(LOCAL)/include/shared
 
 # =============== CAMB ============================                              
-#export CAMB_LINK := -L$(LOCAL)/local/lib -lcamb
-#export CAMB_INCLUDE := -I$(LOCAL)/mod
+export CAMB_LINK := -L$(LOCAL)/lib -lcamb
+export CAMB_INCLUDE := -I$(LOCAL)/mod

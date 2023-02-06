@@ -196,17 +196,22 @@ contains
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
     implicit none
 
-    type(comm_params), intent(in)    :: cpar
-    integer(i4b),      intent(in)    :: samp_group
-    type(planck_rng),  intent(inout) :: handle, handle_noise
+    type(comm_params), intent(in)           :: cpar
+    integer(i4b),      intent(in)           :: samp_group
+    type(planck_rng),  intent(inout)        :: handle, handle_noise
+    logical(lgt),      intent(in), optional :: include_mean, include_fluct
 
     integer(i4b) :: stat, i, l, m
     real(dp)     :: Nscale = 1.d-4
+    logical(lgt) :: inc_mean, inc_fluct
     class(comm_comp), pointer :: c => null()
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
+
+    inc_mean  = .true.; if (present(include_mean))  inc_mean  = include_mean
+    inc_fluct = .true.; if (present(include_fluct)) inc_fluct = include_fluct
 
     allocate(x(ncr), mask(ncr))
 
@@ -239,7 +244,7 @@ contains
     
     ! Solve the linear system
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
-         & handle, handle_noise, mask, samp_group, rhs)
+         & handle, handle_noise, mask, samp_group, rhs, include_mean=inc_mean, include_fluct=inc_fluct)
     call update_status(status, "init_precond1")
     call initPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
@@ -642,15 +647,8 @@ contains
     chisq_old = 0.d0
     do i = 1, numband
        res             => compute_residual(i)
-!!$       write(*,*) sum(abs(res%map))
-!!$       call mpi_finalize(ierr)
-!!$       stop
-
        data(i)%res%map =  res%map
        chisq_old       =  chisq_old + data(i)%chisq()
-!!$       write(*,*) chisq_old
-!!$       call mpi_finalize(ierr)
-!!$       stop
        call res%dealloc(); deallocate(res)
        nullify(res)
     end do
@@ -674,7 +672,6 @@ contains
              if (trim(c%Cl%bins2(bin)%stat) /= 'M') cycle
 
              n = c%Cl%bins2(bin)%ntot
-if (c%x%info%myid ==0) write(*,*) bin, n
              pos = 0
              allocate(Dl_old(n), Dl_prop(n), eta(n))
              call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .false.)

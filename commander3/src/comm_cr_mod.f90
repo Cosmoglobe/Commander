@@ -539,7 +539,7 @@ contains
   ! Definition of linear system
   ! ---------------------------
 
-  subroutine cr_computeRHS(operation, resamp_cmb, only_pol, handle, handle_noise, mask, samp_group, rhs)
+  subroutine cr_computeRHS(operation, resamp_cmb, only_pol, handle, handle_noise, mask, samp_group, rhs, include_mean, include_fluct)
     implicit none
     character(len=*),                            intent(in)             :: operation
     logical(lgt),                                intent(in)             :: resamp_cmb, only_pol
@@ -547,15 +547,20 @@ contains
     integer(i4b),                                intent(in)             :: samp_group
     real(dp),         allocatable, dimension(:), intent(in)             :: mask
     real(dp),         allocatable, dimension(:), intent(out)            :: rhs
+    logical(lgt),                                intent(in), optional   :: include_mean, include_fluct
 
     integer(i4b) :: i, j, l, m, k, n, ierr
     real(dp)     :: tmp
+    logical(lgt) :: inc_mean, inc_fluct
     class(comm_map),     pointer                 :: map  => null()
     class(comm_map),     pointer                 :: Tm   => null()
     class(comm_map),     pointer                 :: mu   => null()
     class(comm_comp),    pointer                 :: c    => null()
     class(comm_mapinfo), pointer                 :: info => null()
     real(dp),        allocatable, dimension(:,:) :: eta, Tp
+    
+    inc_mean  = .true.; if (present(include_mean))  inc_mean  = include_mean
+    inc_fluct = .true.; if (present(include_fluct)) inc_fluct = include_fluct
 
     ! Initialize output vector
     allocate(rhs(ncr))
@@ -565,7 +570,8 @@ contains
     do i = 1, numband
 
        ! Set up Wiener filter term
-       map => compute_residual(i, cg_samp_group=samp_group) 
+       map => compute_residual(i, cg_samp_group=samp_group)
+       if (.not. inc_mean) map%map = 0.d0
 
 !!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
@@ -597,7 +603,7 @@ contains
 !!$       call map%Y
 
        ! Add channel-dependent white noise fluctuation
-       if (trim(operation) == 'sample') then
+       if (trim(operation) == 'sample' .and. inc_fluct) then
           call data(i)%N%sqrtInvN(map, samp_group=samp_group)           ! Multiply with sqrt(invN)
           do k = 1, map%info%nmaps
              do j = 0, map%info%np-1
@@ -688,7 +694,7 @@ contains
 
     ! Add prior terms
     c => compList
-    do while (associated(c))
+    do while (associated(c) .and. inc_fluct)
        if (.not. c%active_samp_group(samp_group)) then
           c => c%next()
           cycle

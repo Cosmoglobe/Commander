@@ -280,7 +280,11 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     map%map = (self%siN_lowres%map)**2 * map%map
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+      if (samp_group .ne. 1) then
+        write(*,*) 'problem'
+        stop
+      end if
+      if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
   end subroutine matmulInvN_1map_lowres
 
