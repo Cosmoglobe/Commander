@@ -572,7 +572,7 @@ contains
               call update_status(status, "abscal")
               if (trim(self%freq) == '023-WMAP_K') then
                 if (self%myid == 0) then
-                  self%gain0(0) = 1.182 + 0.002 * rand_gauss(handle)
+                  self%gain0(0) = 1.1815 + 0.001 * rand_gauss(handle)
                   write(*,*) '|    Prior sampling abscal ', self%gain0(0)
                 end if
                 call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
