@@ -155,6 +155,7 @@ set(sources
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_curvature_comp_mod.f90
 	# CAMB
 	#${COMMANDER3_SOURCE_DIR}/comm_camb_mod.f90
 	)
@@ -211,7 +212,7 @@ target_link_options(${commander3}
 
 # LINKING ORDER IN LIBRARIES IS IMPORTANT!
 # Order is:
-# MPI => OpenMP => Blas => LAPACK => HEALPix => 
+# MPI => OpenMP => LAPACK => BLAS => HEALPix => 
 # CFITSIO => cURL => libm => dl => HDF5 => ZLib
 # => FFTW => comm_system_backend
 target_link_libraries(${commander3} 
@@ -222,10 +223,12 @@ target_link_libraries(${commander3}
 	OpenMP::OpenMP_Fortran
 	# including MKL
 	#-qopt-matmul
-	${BLAS_LINKER_FLAGS} 
-	${BLAS_LIBRARIES}
-	${LAPACK_LINKER_FLAGS} 
-	${LAPACK_LIBRARIES}
+  #${LAPACK_LINKER_FLAGS} 
+  #${LAPACK_LIBRARIES}
+  #${BLAS_LINKER_FLAGS} 
+	#${BLAS_LIBRARIES}
+  LAPACK::LAPACK
+  BLAS::BLAS
 	# including sharp2
 	#"/mn/stornext/u3/maksymb/cmake_tests/CommanderSuperbuild/build/install/lib/libsharp2.a"
 	#"${out_lib_dir}/libsharp2.a"
@@ -257,11 +260,13 @@ target_link_libraries(${commander3}
 	#-lssl
 	#CURL::libcurl
 	# Including FFTW3
-	${FFTW_LIBRARIES}
+  ${FFTW_LIBRARIES}
 	# Linking commander *.cpp file(s)
 	comm_system_backend
 	)
 
 # Installing Commander3 into appropriate folder
 #install(TARGETS ${commander3} RUNTIME DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${commander3} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+install(FILES ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${commander3} 
+  DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+  )

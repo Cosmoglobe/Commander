@@ -98,7 +98,10 @@ export OMPI_CC  := gcc
 # =========== Compiler Optimizations =============
 #main
 # This is for GNU v10+
-export F90FLAGS := -O2 -g -fcheck=all -fbounds-check -march=native -fbacktrace -finit-real=nan -fexternal-blas -fopenmp -ffree-line-length-none -fallow-argument-mismatch -cpp  
+#export F90FLAGS := -O2 -g -fcheck=all -fbounds-check -march=native -fbacktrace -finit-real=nan -fexternal-blas -fopenmp -ffree-line-length-none -fallow-argument-mismatch -cpp  
+# This is for GNU 9.3.0
+#export F90FLAGS := -cpp -O1 -g -fcheck=all -fbounds-check -march=native -fbacktrace -finit-real=nan -fexternal-blas -fopenmp -ffree-line-length-none -Wno-argument-mismatch #-fallow-argument-mismatch -cpp  
+export F90FLAGS := -cpp -O1 -g3 -fcheck=all -fbounds-check -march=native -fbacktrace -finit-real=nan -fexternal-blas -fopenmp -ffree-line-length-none -fallow-argument-mismatch
 
 # Fortran 77 compiler flags
 export FFLAGS := -O2
