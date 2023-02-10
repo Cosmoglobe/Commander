@@ -36,6 +36,8 @@ module comm_signal_mod
   use comm_md_comp_mod
   use comm_param_mod
   use comm_powlaw_comp_mod
+  use comm_exp_comp_mod
+  use comm_powlaw_break_comp_mod
   use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
@@ -71,7 +73,10 @@ contains
              c => comm_cmb_comp(cpar, ncomp, i)
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
-             call update_status(status, "init_done")
+          case ("exponential")
+             c => comm_exp_comp(cpar, ncomp, i)
+          case ("power_law_break")
+             c => comm_powlaw_break_comp(cpar, ncomp, i)
           case ("curvature") 
              c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")
@@ -137,6 +142,7 @@ contains
        
     ! go through compList and check if any diffuse component is using a band monopole
     ! as the zero-level prior
+
     c => compList
     do while (associated(c))
        select type (c)
@@ -169,8 +175,6 @@ contains
        end select
        c => c%next()
     end do
-
-
 
   end subroutine initialize_signal_mod
 
@@ -335,13 +339,18 @@ contains
        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
        initsamp = init_samp
-    else 
+    else
        call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
        if (present(init_samp)) initsamp = init_samp
     end if
     call int2string(initsamp, itext)
     call open_hdf_file(chainfile, file, 'r')
     
+    !TODO: I get a crash here when the init file is missing or doesn't have the
+    !required sample number, but it's some sort of MPI crash with no good
+    !explanation or description so we should check for that somehow and write a
+    !better error
+
     if (cpar%resamp_CMB .and. present(init_from_output)) then
        ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
@@ -442,7 +451,7 @@ contains
           if (trim(data(i)%tod%init_from_HDF) == 'none' .and. .not. present(init_from_output))     cycle
           if (cpar%myid == 0) write(*,*) '|  Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
-          rms => comm_map(data(i)%info)
+          rms => comm_map(data(i)%rmsinfo)
           select type (N)
           class is (comm_N_rms)
              if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
@@ -454,14 +463,26 @@ contains
                 call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
                 call close_hdf_file(file2)
              end if
+          class is (comm_N_rms_qucov)
+             if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
+                call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
+             else
+                call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
+                     & chainfile, initsamp2)
+                call open_hdf_file(chainfile, file2, 'r')
+                call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+                call close_hdf_file(file2)
+             end if
+          class default 
+             write(*,*) 'Noise type is not covered'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
           allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map0%map = data(i)%map%map
@@ -477,7 +498,7 @@ contains
           if (cpar%myid == 0) write(*,*) '|  Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
-          rms     => comm_map(data(i)%info)
+          rms     => comm_map(data(i)%rmsinfo)
           N       => data(i)%N
           !write(*,*) trim(file%filename), trim(adjustl(hdfpath))//'map'
           call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
@@ -487,11 +508,11 @@ contains
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          allocate(regnoise(0:data(i)%rmsinfo%np-1,data(i)%rmsinfo%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map%map = data(i)%map%map + regnoise

@@ -199,7 +199,6 @@ program commander
 
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
-  !write(*,*) 'first', first_sample
   !first_sample = 1
   if (first_sample == -1) then
      call output_FITS_sample(cpar, 0, .true.)  ! Output initial point to sample 0
@@ -256,7 +255,9 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+        ! First iteration should just be component separation, in case sky model
+        ! is off
         call timer%start(TOT_TODPROC)
         call process_TOD(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
@@ -330,7 +331,8 @@ program commander
      first = .false.
 
      call timer%stop(TOT_GIBBSSAMP)
-     call timer%incr_numsamp
+     call timer%incr_numsamp(0)
+     !write(*,*) timer%numsamp
      call timer%dumpASCII(cpar%ds_label, trim(cpar%outdir)//"/comm_timing.txt")
   end do
 
@@ -382,7 +384,7 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
-          if (trim(c%label) == 'cmb') then
+          if (trim(c%label) == 'cmb' .and. c%nmaps > 1) then
              rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
              cmbmap        => comm_map(c%x)
 !!$             call cmbmap%Y()
@@ -398,12 +400,21 @@ contains
        c => c%next()
     end do
 
+
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
 
+       if (iter .ne. 2 .and. mod(iter, data(i)%tod_freq) .ne. 0) then
+           if (cpar%myid == 0) then
+             write(*,fmt='(a,i1,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
+               & data(i)%tod_freq, ' Gibbs samples'
+           end if
+           cycle
+       end if
+
        if (cpar%myid == 0) then
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
-          write(*,*) '|  Processing TOD channel = ', trim(data(i)%tod_type) 
+          write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
        end if
 
        ! Compute current sky signal for default bandpass and MH proposal
@@ -486,16 +497,18 @@ contains
 
        !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
-       ! Process TOD, get new map. TODO: update RMS of smoothed maps as well. 
-       ! Needs in-code computation of smoothed RMS maps, so long-term..
-       rms => comm_map(data(i)%info)
+       rms => comm_map(data(i)%rmsinfo)
+
+       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+       call timer%incr_numsamp(data(i)%id_abs)
 
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
-         write(*,*) '|  Processing ', trim(data(i)%label)
-         write(*,*) '|'
+         write(*,*) '|  Finished processing ', trim(data(i)%label)
+         write(*,fmt='(a)') '---------------------------------------------------------------------'
+         !write(*,*) ''
        end if
-       call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
 
        N => data(i)%N
        select type (N)
@@ -509,19 +522,12 @@ contains
           call data(i)%map%writeFITS(trim(prefix)//'lcut'//trim(postfix))
        end select
 
-       if (cpar%myid_chain == 0) then
-         write(*,*) '|'
-         write(*,*) '|  Finished processing ', trim(data(i)%label)
-         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
-         !write(*,*) ''
-       end if
-
        ! Update rms and data maps
        allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
        if (associated(data(i)%procmask)) then
-          call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+          call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
        else
-          call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+          call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
        end if
        if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
        !copy data map without regnoise, to write to chain file

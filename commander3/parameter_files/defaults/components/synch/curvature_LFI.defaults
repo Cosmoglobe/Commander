@@ -54,8 +54,8 @@ COMP_C_S_POLTYPE&&           = 2 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_C_S_INPUT_MAP&&         = init_synch_c_s_0.000.fits
 COMP_C_S_SMOOTHING_SCALE&&   = 3
 COMP_C_S_DEFAULT&&           = 0.0
-COMP_C_S_PRIOR_UNI_LOW&&     = -0.1
-COMP_C_S_PRIOR_UNI_HIGH&&    = 0.1
+COMP_C_S_PRIOR_UNI_LOW&&     = -0.8
+COMP_C_S_PRIOR_UNI_HIGH&&    =  0.8
 COMP_C_S_PRIOR_GAUSS_MEAN&&  = 0.0
 COMP_C_S_PRIOR_GAUSS_RMS&&   = 0.01
 COMP_C_S_NU_MIN&&            = 0.        # Lowest frequency for index estimation in GHz

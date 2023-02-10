@@ -36,7 +36,7 @@ hya6="$prefix+(6)+$suffix"
 hya79="$prefix+([7-9])+$suffix"
 hya1016="$prefix+(1[0-6])+$suffix"
 #------------------------------------------------------------------------------
-# Will compile commander only if on owl/beehive!
+# Will compile commander only if on owl/beehive/hyades!
 #------------------------------------------------------------------------------
 if [[ "${HOSTNAME}" =~ "owl"* ]] || [[ "${HOSTNAME}" =~ "beehive"* ]] || [[ "${HOSTNAME}" =~ "hyades"* ]]
 then

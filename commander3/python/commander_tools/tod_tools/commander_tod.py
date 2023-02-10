@@ -38,6 +38,7 @@ class commander_tod:
         #TODO: something with the version number
         self.overwrite = overwrite
 
+
     #initilizes a file for a single od
     def init_file(self, freq, od, mode='r'):
         self.huffDict = {}
@@ -52,9 +53,16 @@ class commander_tod:
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
-        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
-
+        if not self.od:
+            if not self.name:
+                self.outName = os.path.join(self.outPath, sfreq + '.h5')
+            else:
+                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+        else:
+            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+        
         self.exists = False
+
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':

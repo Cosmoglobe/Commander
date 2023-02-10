@@ -28,15 +28,15 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
-  use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
+  !use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit, comp_sens
+     character(len=512)           :: label, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain, gain_prior(2)
@@ -44,9 +44,11 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
+     integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only
 
      class(comm_mapinfo), pointer :: info      => null()
+     class(comm_mapinfo), pointer :: rmsinfo   => null()
      class(comm_map),     pointer :: map       => null()
      class(comm_map),     pointer :: map0      => null() !for TOD data if outputing to HDF
      class(comm_map),     pointer :: res       => null()
@@ -54,7 +56,6 @@ module comm_data_mod
      class(comm_map),     pointer :: c_prop    => null()
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
-     class(comm_map),     pointer :: procmask2 => null()
      class(comm_map),     pointer :: gainmask  => null()
      class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
@@ -62,7 +63,7 @@ module comm_data_mod
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
-     type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
+     class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
      procedure :: chisq => get_chisq
@@ -87,12 +88,17 @@ contains
     integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
     class(comm_N), pointer  :: tmp => null()
+    class(comm_map), pointer  :: smoothed_rms => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
+    class(comm_mapinfo), pointer :: smoothed_rms_info => null()
     real(dp), allocatable, dimension(:)   :: nu
     real(dp), allocatable, dimension(:,:) :: regnoise, mask_misspix
 
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
+
+
+    character(len=1) :: j_str
 
     ! Read all data sets
     numband = count(cpar%ds_active)
@@ -114,6 +120,7 @@ contains
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
+       data(n)%noise_format   = cpar%ds_noise_format(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
@@ -124,11 +131,17 @@ contains
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
        call get_mapfile(cpar, i, mapfile)
-       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
+       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
+       if (trim(data(n)%noise_format) == 'rms_qucov') then 
+          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+                   & nmaps+1, cpar%ds_polarization(i))
+       else
+          data(n)%rmsinfo => data(n)%info
+       end if
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
-          data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+          data(n)%procmask => comm_map(data(n)%info, trim(cpar%ds_procmask), &
                & udgrade=.true.)
        end if
        data(n)%res  => comm_map(data(n)%map)
@@ -137,7 +150,7 @@ contains
        if (data(n)%sample_gain) then
           ! Read calibration mask
           if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
-             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_maskfile_calib(i)), &
+             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
                   & udgrade=.true.)
           end if
        end if
@@ -151,9 +164,6 @@ contains
           else if (trim(data(n)%tod_type) == 'WMAP') then
              data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
-          else if (trim(data(n)%tod_type) == 'DIRBE') then
-             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
-             data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
@@ -164,8 +174,13 @@ contains
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
             data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
+
+          !else if (trim(data(n)%tod_type) == 'HFI') then
+          !   data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+          !   data(n)%ndet = data(n)%tod%ndet
+
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
-             !write(*,*) 'Warning: TOD analysis enabled for TOD type "none"'
+            if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
@@ -173,6 +188,7 @@ contains
 
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
+             data(n)%tod_freq       = cpar%ds_tod_freq(i)
           end if
        end if
        call update_status(status, "data_tod")
@@ -193,7 +209,7 @@ contains
        call update_status(status, "data_beam")
  
        ! Read default gain from instrument parameter file
-       call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+       call read_instrument_file(trim(cpar%cs_inst_parfile), &
             & 'gain', cpar%ds_label(i), 1.d0, data(n)%gain)
 
        ! Initialize mask structures
@@ -201,7 +217,7 @@ contains
           data(n)%mask     => comm_map(data(n)%info)
           data(n)%mask%map =  1.d0
        else
-          data(n)%mask  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
+          data(n)%mask  => comm_map(data(n)%info, trim(cpar%ds_maskfile(i)))
           where (data(n)%mask%map > 0.5d0)
              data(n)%mask%map = 1.d0
           elsewhere
@@ -210,7 +226,7 @@ contains
        end if
        data(n)%mask%map = data(n)%mask%map * mask_misspix
        if (trim(cpar%ds_sourcemask) /= 'none') then
-          call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
+          call apply_source_mask(data(n)%mask, trim(cpar%ds_sourcemask), &
                & data(n)%B(0)%p%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
@@ -222,19 +238,32 @@ contains
        case ('rms') 
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
           else
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
+       case ('rms_qucov') 
+          call update_status(status, 'Initializing rms qucov')
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+          if (associated(data(n)%procmask)) then
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
+                  & data(n)%procmask)
+          else
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
+          end if
+          call update_status(status, 'set data(n)%N')
+          data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
+          call update_status(status, 'added regnoise')
+          deallocate(regnoise)
        case ('lcut') 
-          data(n)%N       => comm_N_lcut(cpar, data(n)%info, n, i, 0, data(n)%mask, handle)
+          data(n)%N       => comm_N_lcut(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)
           call data(n)%N%P(data(n)%map)
           call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
        case ('QUcov') 
-          data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+          data(n)%N       => comm_N_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
           data(n)%pol_only = .true.
        case default
@@ -251,7 +280,7 @@ contains
             data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
           else
             ! Check if bandpass already exists in detector list
-            call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
+            call read_bandpass(trim(cpar%ds_bpfile(i)), &
                               & data(n)%tod%label(j), &
                               & 0.d0, &
                               & n_dummy, &
@@ -269,28 +298,22 @@ contains
           end if
        end do
 
+       call update_status(status, "data_BP")
+
        if (trim(cpar%ds_tod_type(i)) == 'none') then
           data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
 
-!!$       if (trim(data(n)%label) == '070ds1' .or. trim(data(n)%label) == '070ds2' .or. trim(data(n)%label) == '070ds3') then
-!!$          write(*,*) 'Check bp'
-!!$          data(n)%bp(0)%p => comm_bp(cpar, n, i, '070')
-!!$       else
-!!$          
-!!$       end if
-       
-
-
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
        allocate(data(n)%B_postproc(cpar%num_smooth_scales))
        allocate(data(n)%N_smooth(cpar%num_smooth_scales))
        do j = 1, cpar%num_smooth_scales
+          ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+            info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
                   & data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
@@ -302,6 +325,7 @@ contains
           else
              nullify(data(n)%B_smooth(j)%p)
           end if
+          ! And postproc scales
           if (cpar%fwhm_postproc_smooth(j) > 0.d0) then
              info_postproc => comm_mapinfo(data(n)%info%comm, &
                   !& cpar%nside_smooth(j), cpar%lmax_smooth(j), &
@@ -315,20 +339,18 @@ contains
              nullify(data(n)%B_postproc(j)%p)
           end if
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
-             tmp => data(n)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                data(n)%N_smooth(j)%p => tmp
-             end select
+             data(n)%N_smooth(j)%p => data(n)%N
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
+             if (cpar%myid == 0 .and. j == 1) then
+               write(*,*) '|    Warning: smoothed rms map not being loaded'
+             end if
              nullify(data(n)%N_smooth(j)%p)
           end if
        end do
 
     end do
-    !numband = n
 
     ! Sort bands according to nominal frequency
     allocate(ind_ds(numband), nu(numband))
@@ -341,6 +363,7 @@ contains
 
     ! Dump unit conversion factors to file
     if (cpar%myid == 0) call dump_unit_conversion(cpar%outdir)
+
 
   end subroutine initialize_data_mod
 
@@ -469,40 +492,6 @@ contains
 
   end subroutine apply_source_mask
 
-!!$  subroutine smooth_inside_procmask(data, fwhm)
-!!$    implicit none
-!!$    class(comm_data_set), intent(in) :: data
-!!$    real(dp),             intent(in) :: fwhm
-!!$
-!!$    integer(i4b) :: i, j
-!!$    real(dp)     :: w
-!!$    class(comm_mapinfo), pointer :: info
-!!$    class(comm_map),     pointer :: map
-!!$
-!!$    map => comm_map(data%map)
-!!$    call map%smooth(fwhm)
-!!$    do j = 1, data%map%info%nmaps
-!!$       do i = 0, data%map%info%np-1
-!!$          w = data%procmask%map(i,j)
-!!$          data%map%map(i,j) = w * data%map%map(i,j) + (1.d0-w) * map%map(i,j)
-!!$       end do
-!!$    end do
-!!$    deallocate(map)
-!!$
-!!$  end subroutine smooth_inside_procmask
-
-!!$  subroutine apply_proc_mask(self, map)
-!!$    implicit none
-!!$    class(comm_data_set), intent(in)    :: self
-!!$    class(comm_map),      intent(inout) :: map
-!!$
-!!$    if (.not. associated(self%procmask)) return
-!!$    where (self%procmask%map < 1.d0)  ! Apply processing mask
-!!$       map%map = -1.6375d30
-!!$    end where
-!!$
-!!$  end subroutine apply_proc_mask
-
   subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out)
     implicit none
     class(comm_mapinfo),                      intent(in),   target :: info
@@ -546,6 +535,120 @@ contains
 
   end subroutine smooth_map
 
+  subroutine smooth_rms(cpar, info, handle, bl_in, map_in, bl_out, map_out)
+    ! 
+    ! Adoption of Kristians map_editor code which smooths rms maps. Hopefully with this addition,
+    ! smoothing of rms maps for component separation purposes is all done inside Commander itself.
+    ! The following block of text is what Kristian wrote in map_editor
+    !
+    ! Do one map at a time; has to be smoothed as spin-zero-maps (i.e. Temp maps)       
+    ! The smoothing has to be done on the variance map with the square beam,                 
+    ! i.e., a beam that is FWHM/sqrt(2),                              
+    ! where FWHM is the effective beam given by                      
+    ! FWHM = sqrt(1 - (FWHM_in/FWHM_out)**2) * FWHM_out              
+    ! The effective beam has the same beam weights (per l) as beam(FWHM_out)/beam(FWHM_in)      
+    ! so we do not need to calculate FWHM_effective, and it is not possible if we have beam files  
+    ! Further we use the fact that (in Stokes I, i.e. temperature)                      
+    ! beam(fwhm') = beam(fwhm)**[(fwhm' /fwhm)**2] for all l > 0                         
+    ! so that beam(fwhm/sqrt(2)) = beam(fwhm)**1/2 = sqrt(beam(fwhm))                 
+    !
+    !
+    implicit none
+    type(comm_params),                        intent(in)           :: cpar
+    class(comm_mapinfo),                      intent(in),   target :: info
+    type(planck_rng),                         intent(inout)        :: handle
+    real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
+    class(comm_N),                            intent(inout)        :: map_in
+    class(comm_map),                                       pointer :: map_in_buffer => null()
+    class(comm_map),                                       pointer :: map_middle_buffer => null()
+    class(comm_map),                                       pointer :: map_out_buffer => null()
+    class(comm_map),                          intent(out), pointer :: map_out 
+
+    integer(i4b) :: i, j, l, lmax, nmap_pixwin
+
+    real(dp), allocatable, dimension(:,:) :: pixwin_in, pixwin_out
+    character(len=4)         :: nside_in_str, nside_out_str
+    logical(lgt)             :: anynull
+    reaL(dp)                 :: nullval
+
+    ! Make a buffer for the variance map which we will operate on
+    ! Need to initialize comm_map objects in order to get access to 
+    ! the necessary alm/ud_grade routines
+    map_in_buffer  => comm_map(map_in%info)
+    map_out_buffer => comm_map(info)
+
+    ! Need to load in the pixel window information which doesn't seem to exist anywhere else
+    call int2string(map_in%info%nside,nside_in_str)
+    call int2string(info%nside,nside_out_str)
+
+    if (map_in%info%nmaps == 3) then
+       nmap_pixwin = 2
+    else
+       nmap_pixwin = 1
+    end if
+
+    allocate(pixwin_in(0:4*map_in%info%nside,map_in%info%nmaps))
+    allocate(pixwin_out(0:4*info%nside,info%nmaps))
+
+    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_in_str//'.fits', pixwin_in,4*map_in%info%nside+1, nmap_pixwin, nullval, anynull)
+    call read_dbintab(trim(cpar%datadir)//'/pixel_window_n'//nside_out_str//'.fits', pixwin_out,4*info%nside+1, nmap_pixwin, nullval, anynull)
+
+    if (map_in%info%nmaps == 3) pixwin_in(:,3) = pixwin_in(:,2)
+    if (info%nmaps == 3)        pixwin_out(:,3) = pixwin_out(:,2)
+
+    ! Need to make sure we smooth before we ud_grade
+    ! Move variance map to alms
+    ! Create said variance map
+    do i = 0, map_in%info%np-1
+       do j = 1, map_in%info%nmaps 
+          map_in_buffer%map(i,j) = map_in%rms_pix(i,j)**2
+       end do
+    end do
+    call map_in_buffer%YtW
+    
+    ! Deconvolve old beam, and convolve with new beam
+    lmax  = min(size(bl_in,1)-1, size(bl_out,1)-1)
+    do i = 0, map_in%info%nalm-1
+       l = map_in%info%lm(1,i)
+       if (l > lmax) then
+          map_in_buffer%alm(i,:) = 0.d0
+          cycle
+       end if
+       do j = 1, map_in_buffer%info%nmaps
+          if (bl_in(l,j) > 1.d-12) then
+             ! smooth with 1/sqrt(2) of effective beam as describe above
+             map_in_buffer%alm(i,j) = map_in_buffer%alm(i,j) *  &!pixwin_out(i,j) / pixwin_in(i,j)*
+                  & dsqrt(bl_out(l,j) / bl_in(l,j))
+          else
+             map_in_buffer%alm(i,j) = 0.d0
+          end if
+       end do
+    end do    
+
+    ! Recompose map
+    call map_in_buffer%Y
+
+    ! Take square-root of smoothed variance map to get new rms map
+    do i = 0, map_in_buffer%info%np-1
+       do j = 1, map_in_buffer%info%nmaps 
+          map_in_buffer%map(i,j)=dsqrt(abs(map_in_buffer%map(i,j)))
+       end do
+    end do
+
+    ! If nsides don't agree, rescale the smoothed RMS map to ensure equal chi-squared values
+    if ( map_in%info%nside /= info%nside ) then
+       call map_in_buffer%udgrade(map_out_buffer)
+       map_out_buffer%map = map_out_buffer%map*(info%nside*1.d0/map_in%info%nside)
+    else
+       map_out_buffer%map = map_in_buffer%map
+    end if
+    
+    map_out => map_out_buffer
+
+    deallocate(pixwin_in, pixwin_out)
+
+  end subroutine smooth_rms
+
   subroutine get_mapfile(cpar, band, mapfile)
     implicit none
     type(comm_params), intent(in)    :: cpar
@@ -563,7 +666,7 @@ contains
     else if (filename(n-2:n) == 'txt') then
        ! Assume filelist; pick the number given by mychain. 
        unit = getlun()
-       open(unit, file=trim(cpar%datadir)//'/'//trim(filename), recl=1024)
+       open(unit, file=trim(filename), recl=1024)
        do i = 1, cpar%mychain
           read(unit,'(a)') mapfile
        end do

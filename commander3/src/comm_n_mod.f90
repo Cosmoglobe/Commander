@@ -21,12 +21,13 @@
 module comm_N_mod
   use comm_param_mod
   use comm_map_mod
+  use comm_status_mod
   implicit none
 
   private
-  public comm_N, compute_invN_lm, uniformize_rms
+  public comm_N, compute_invN_lm, uniformize_rms, comm_N_ptr
   
-  type, abstract :: comm_N
+  type :: comm_N
      ! Data variables
      character(len=512)       :: type
      integer(i4b)             :: nside, nside_chisq_lowres, nmaps, np, npix, myid, comm, nprocs
@@ -41,20 +42,25 @@ module comm_N_mod
      class(map_ptr), allocatable, dimension(:) :: samp_group_mask
    contains
      ! Data procedures
-     procedure(matmulInvN),       deferred :: invN
-     procedure(matmulInvNlowres), deferred :: invN_lowres
-     procedure(matmulN),          deferred :: N
-     procedure(matmulSqrtInvN),   deferred :: sqrtInvN
-     procedure(returnRMS),        deferred :: rms
-     procedure(returnRMSpix),     deferred :: rms_pix
-     procedure(update_N),         deferred :: update_N
-     procedure                             :: P => apply_projection
+     procedure :: invN            => matmulInvN
+     procedure :: invN_lowres     => matmulInvNlowres
+     procedure :: N               => matmulN
+     procedure :: sqrtInvN        => matmulSqrtInvN
+     procedure :: rms             => returnRMS
+     procedure :: rms_pix         => returnRMSpix
+     procedure :: update_N        => update_N
+     procedure :: P               => apply_projection
   end type comm_N
+
+  type comm_N_ptr
+     class(comm_N), pointer :: p => null()
+  end type comm_N_ptr
   
-  abstract interface
+
+
+contains
      ! Return map_out = invN * map
      subroutine matmulInvN(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -63,7 +69,6 @@ module comm_N_mod
 
      ! Return map_out = invN * map
      subroutine matmulInvNlowres(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -72,7 +77,6 @@ module comm_N_mod
 
      ! Return map_out = N * map
      subroutine matmulN(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -81,7 +85,6 @@ module comm_N_mod
 
      ! Return map_out = sqrtInvN * map
      subroutine matmulSqrtInvN(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -90,7 +93,6 @@ module comm_N_mod
 
      ! Return rms map
      subroutine returnRMS(self, res, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: res
@@ -98,18 +100,18 @@ module comm_N_mod
      end subroutine returnRMS
 
      ! Return rms map
-     function returnRMSpix(self, pix, pol, samp_group)
-       import i4b, comm_N, dp, i4b
+     function returnRMSpix(self, pix, pol, samp_group, ret_invN)
        implicit none
        class(comm_N),   intent(in)             :: self
        integer(i4b),    intent(in)             :: pix, pol
        real(dp)                                :: returnRMSpix
        integer(i4b),    intent(in),   optional :: samp_group
+       logical(lgt),    intent(in),   optional :: ret_invN
+       returnRMSpix = infinity
      end function returnRMSpix
 
      ! Update noise model
      subroutine update_N(self, info, handle, mask, regnoise, procmask, noisefile, map)
-       import comm_N, comm_mapinfo, comm_map, dp, planck_rng
        implicit none
        class(comm_N),                      intent(inout)          :: self
        type(planck_rng),                   intent(inout)          :: handle
@@ -120,10 +122,6 @@ module comm_N_mod
        character(len=*),                   intent(in),   optional :: noisefile
        class(comm_map),                    intent(in),   optional :: map
      end subroutine update_N
-
-  end interface
-
-contains
 
   subroutine compute_invN_lm(invN_diag)
     implicit none
@@ -151,7 +149,9 @@ contains
     end if
     call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
 
-    call wall_time(t1)
+    call update_status(status, "compute_invN_lm 3j")
+
+    !call wall_time(t1)
     !!$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
     allocate(threej_symbols(twolmaxp2))
     allocate(threej_symbols_m0(twolmaxp2))
@@ -189,6 +189,8 @@ contains
     deallocate(threej_symbols, threej_symbols_m0)
     !!$OMP END PARALLEL
     call wall_time(t2)
+
+    call update_status(status, "compute_invN_lm done")
 
     invN_diag%alm = N_lm
     !write(*,*) sum(abs(invN_diag%alm))

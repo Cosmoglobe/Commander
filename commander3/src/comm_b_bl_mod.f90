@@ -89,8 +89,8 @@ contains
        end if
     else
        call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
-            & beamfile=trim(dir)//trim(cpar%ds_blfile(id_abs)), &
-            & pixwin=trim(dir)//trim(cpar%ds_pixwin(id_abs)))
+            & beamfile=trim(cpar%ds_blfile(id_abs)), &
+            & pixwin=trim(cpar%ds_pixwin(id_abs)))
     end if
 
     ! Multiply with main beam filling factor

@@ -281,6 +281,11 @@ contains
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
     real(sp),     allocatable, dimension(:,:)     :: s_bufA, s_bufB, s_buf2A, s_buf2B      ! Buffer
+    !
+    ! Note that procmask should be larger, cover the residuals in the galactic
+    ! plane, so that it is not used for calibration and correlated noise. 
+    ! procmask2 should be smaller and be used only for mapmaking.
+    !
 
     call timer%start(TOD_ALLOC, tod%band)
     if (tod%nhorn /= 2) then
@@ -391,7 +396,7 @@ contains
        do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), &
                & self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask, &
+               & procmask2, scan, s_bufA, s_bufB, self%mask2, &
                &  s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
@@ -404,7 +409,7 @@ contains
     else if (init_s_sky_prop_) then
        do k = 2, self%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), self%pix(:,1,:), self%psi(:,1,:), self%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, self%mask)
+               & procmask2, scan, s_bufA, s_bufB, self%mask2)
           do j = 1, self%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              self%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
@@ -635,14 +640,14 @@ contains
           if (trim(mode) == 'abscal' .and. tod%orb_abscal) then
              ! Calibrator = orbital dipole only
              call tod%downsample_tod(sd%s_orb(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. tod%orb_abscal .and. tod%nhorn == 2) then
-             ! Calibrator = common mode signal
-             ! Jarosik uses the orbital dipole for this.
-             s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
-             call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
-               & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
-             call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
-          else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal .and. tod%nhorn == 2) then
+          !else if (trim(mode) == 'imbal' .and. tod%orb_abscal .and. tod%nhorn == 2) then
+          !   ! Calibrator = common mode signal
+          !   ! Jarosik uses the orbital dipole for this.
+          !   s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_orbA(:,j) + sd%s_orbB(:,j))
+          !   call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
+          !     & real(tod%scans(i)%d(j)%N_psd%sigma0, sp), handle, tod%scans(i)%chunk_num)
+          !   call tod%downsample_tod(s_buf(:,j), ext, s_invsqrtN(:,j))
+          else if (trim(mode) == 'imbal' .and. tod%nhorn == 2) then
              ! Calibrator = common mode signal
              s_buf(:,j) = tod%scans(i)%d(j)%gain*(sd%s_totA(:,j) + sd%s_totB(:,j))
              call fill_all_masked(s_buf(:,j), sd%mask(:,j), sd%ntod, .false., &
@@ -669,13 +674,14 @@ contains
                 s_buf(:,j) = real(tod%gain0(j) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
              else if (trim(mode) == 'relcal') then
                 s_buf(:,j) = real(tod%gain0(0) + tod%scans(i)%d(j)%dgain,sp) * sd%s_tot(:,j)
-             else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
-                 s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
-             &   sd%s_totA(:,j) - sd%s_totB(:,j) + &
-             &   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j)   &
-             &                       -(sd%s_orbA(:,j) + sd%s_orbB(:,j))) &
-             &   )
-             else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
+             !else if (trim(mode) == 'imbal' .and. tod%orb_abscal) then
+             !    s_buf(:,j) = real(tod%scans(i)%d(j)%gain,sp) * (  &
+             !&   sd%s_totA(:,j) - sd%s_totB(:,j) + &
+             !&   real(tod%x_im(j),sp)*(sd%s_totA(:,j) + sd%s_totB(:,j)   &
+             !&                       -(sd%s_orbA(:,j) + sd%s_orbB(:,j))) &
+             !&   )
+             !else if (trim(mode) == 'imbal' .and. .not. tod%orb_abscal) then
+             else if (trim(mode) == 'imbal') then
                 s_buf(:,j) = tod%scans(i)%d(j)%gain * (sd%s_totA(:,j) - sd%s_totB(:,j))
              end if
           end do
@@ -767,7 +773,7 @@ contains
     end do
    !  if (any(.not. tod%scans(scan)%d%accept)) tod%scans(scan)%d%accept = .false. ! Do we actually want this..?
     do j = 1, ndet
-       if (.not. tod%scans(scan)%d(j)%accept) tod%scans(scan)%d(tod%partner(j))%accept = .false.
+        if (.not. tod%scans(scan)%d(j)%accept .and. tod%partner(j) >= 0) tod%scans(scan)%d(tod%partner(j))%accept = .false.
     end do
 
   end subroutine remove_bad_data
