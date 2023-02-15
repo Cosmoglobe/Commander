@@ -1,7 +1,7 @@
 # Hyper parameters for zodiacal emission modeling
 ZODI_GAUSS_QUAD_ORDER            = 100
 ZODI_LOS_CUT                     = 5.2d0
-ZODI_DELTA_T                     = 0.5d0
+ZODI_DELTA_T_RESET               = 1.d0
 
 ZODI_USE_UNIT_EMISSIVITY         = .false.
 ZODI_USE_UNIT_ALBEDO             = .false.

@@ -46,7 +46,7 @@ module comm_zodi_mod
     real(dp) :: min_ipd_temperature=40, max_ipd_temperature=550
 
     real(dp) :: EPS = 3.d-14
-    real(dp) :: R_cutoff
+    real(dp) :: R_cutoff, delta_t_reset
     real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), temperature_grid(:)
     real(dp), allocatable :: tabulated_earth_pos(:, :)
     type(spline_type) :: solar_irradiance_spline_obj
@@ -338,7 +338,7 @@ contains
         real(sp), intent(out) :: s_zodi(1:, 1:)
         
         integer(i4b) :: i, j, k, l, pix_idx, n_detectors, n_tods, npix
-        real(dp) :: earth_lon, R_obs, R_max, samp_rate, dt_tod, time_tod, delta_t_reset, SECOND_TO_DAY, current_time
+        real(dp) :: earth_lon, R_obs, R_max, samp_rate, dt_tod, time_tod, SECOND_TO_DAY, current_time
         real(dp) :: unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree), tod_obs_pos(3), tod_earth_pos(3)
         real(dp), allocatable :: tabulated_unit_vectors(:, :), cached_s_zodi(:)
 
@@ -370,7 +370,6 @@ contains
             tod_obs_pos(l) = splint_simple(spline_obs_pos_obj(l), current_time)
         end do        
         
-        delta_t_reset = 0.1 ! time before reseting cache
         tod_obs_pos = satpos
         R_obs = norm2(tod_obs_pos)
         earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
@@ -833,6 +832,7 @@ contains
         use_unit_emissivity = cpar%zs_use_unit_emissivity
         R_cutoff = cpar%zs_los_cut
         gauss_degree = cpar%zs_gauss_quad_order
+        delta_t_reset = cpar%zs_delta_t_reset
     end subroutine init_hyper_parameters
 
     subroutine init_source_parameters(cpar)
