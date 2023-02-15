@@ -46,6 +46,7 @@ module comm_tod_DIRBE_mod
   use comm_tod_driver_mod
   use comm_utils
   use comm_bp_mod
+  use comm_zodi_mod
 
   implicit none
 
@@ -161,6 +162,10 @@ contains
     ! Initialize bandpass mean and proposal matrix
     call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
+    ! Collect satellite position and times and init zodi spline objects
+    call constructor%collect_satpos()
+    call constructor%collect_mjds()
+
     ! Construct lookup tables
     call constructor%precompute_lookups()
 
@@ -235,7 +240,6 @@ contains
     class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
     type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
     real(dp)            :: t1, t2
-    real(dp)            :: iras_factor
     integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
     logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
     type(comm_binmap)   :: binmap
@@ -280,6 +284,11 @@ contains
     prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
     postfix = '_c' // ctext // '_k' // samptext // '.fits'
 
+    if (self%subtract_zodi) then
+       call init_zodi_spline_objects(self%mjds, self%satpos)
+    end if
+
+
    ! write(*, *) "nobs:", self%nobs
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
@@ -301,14 +310,20 @@ contains
     !------------------------------------
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-     if (sample_gain) then
-       ! 'abscal': the global constant gain factor
-       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-       ! 'relcal': the gain factor that is constant in time but varying between detectors
-       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-       ! 'deltaG': the time-variable and detector-variable gain
-       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-    end if
+   !   if (sample_gain) then
+   !     ! 'abscal': the global constant gain factor
+   !     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
+   !     ! 'relcal': the gain factor that is constant in time but varying between detectors
+   !     call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
+   !     ! 'deltaG': the time-variable and detector-variable gain
+   !     call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+   !   else 
+   !    do j = 1, self%nscan
+   !       do i = 1, self%ndet
+   !          self%scans(j)%d(i)%gain = iras_factors(i) !self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain
+   !       end do
+   !    end do
+   !  end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -339,13 +354,15 @@ contains
        else
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
+      !  sd%tod = sd%tod
        allocate(s_buf(sd%ntod,sd%ndet))
 
        ! Sample correlated noise, or call Simulation Routine
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+      !     call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          sd%n_corr = 0.d0
        end if
 
        ! Compute noise spectrum parameters
@@ -364,15 +381,11 @@ contains
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
 
-      ! write(*, *) "tods: max, min, ntods"
-      ! write(*, *) maxval(self%scans(1)%d(1)%tod), minval(self%scans(1)%d(1)%tod), shape(self%scans(1)%d(1)%tod)
-
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        d_calib = 0.d0
        d_calib(1, :, :) = sd%tod
        if (self%subtract_zodi) d_calib(7, :, :) = sd%s_zodi
-
       ! Remove iras convention from tods
       do j = 1, self%ndet
          d_calib(1, :, j) = d_calib(1, :, j) * iras_factors(j)

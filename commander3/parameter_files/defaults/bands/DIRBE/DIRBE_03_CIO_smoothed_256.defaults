@@ -5,7 +5,7 @@ BAND_LABEL&&&                  = 03_3.5um
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 256
-BAND_LMAX&&&                   = 350
+BAND_LMAX&&&                   = 767
 BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_mod and scale weights
 BAND_NOISE_FORMAT&&&           = rms
 BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
@@ -34,6 +34,7 @@ BAND_DEFAULT_BP_DELTA&&&       =   0.
 BAND_DEFAULT_NOISEAMP&&&       =   1.
 BAND_COMPONENT_SENSITIVITY&&&  = broadband
 
+
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_BP_INIT_PROP&&&       = bp_init_030_v1.dat
 BAND_TOD_HALFRING&&&           = 0
@@ -46,6 +47,7 @@ BAND_TOD_DETECTOR_LIST&&&      = 03_A
 BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_SUBTRACT_ZODI&&&      = true
+BAND_TOD_LEVEL&&&              = L2
 
 BAND_MAPFILE&&&                = DIRBE_03_256.fits
 BAND_NOISEFILE&&&              = DIRBE_03_SIGMA_final_1_256.fits

@@ -155,6 +155,8 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
+     real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
+     real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -219,6 +221,9 @@ module comm_tod_mod
      procedure                           :: precompute_lookups
      procedure                           :: read_jumplist
      procedure                           :: remove_fixed_scans
+     procedure                           :: collect_satpos
+     procedure                           :: collect_mjds
+
   end type comm_tod
 
   abstract interface
@@ -1296,13 +1301,28 @@ contains
                   read(infile(q-8:q-3),*) q
                   proc(i) = mod(q,np)
                end do
-            else
-               ! Sort according to scan id
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
+            else if ((index(filelist, '-WMAP_') .ne. 0) .or. (index(filelist, 'DIRBE_') .ne. 0)) then
+               pweight = 0d0
+               ! Greedy after sorting
+               ! Algorithm 2 of
+               ! http://web.stanford.edu/class/msande319/Approximation%20Algorithm/lec1.pdf
+               call QuickSort(id, weight)
+               do i = n_tot, 1, -1
+                 j = minloc(pweight, dim=1)
+                 pweight(j-1) = pweight(j-1) + weight(i)
+                 proc(id(i)) = j-1
+               end do
+            else 
+               ! Sort by spin axis (Planck)
                proc    = -1
                call QuickSort(id, sid)
                w_curr = 0.d0
                j     = 1
-               do i = np-1, 1, -1
+               do i = np-1, 0, -1
                   w = 0.d0
                   do k = 1, n_tot
                      if (proc(k) == i) w = w + weight(k) 
@@ -1322,12 +1342,12 @@ contains
                   proc(id(j)) = 0
                   j = j+1
                end do
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
             end if
             
-            pweight = 0.d0
-            do k = 1, n_tot
-               pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
-            end do
             write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
          end if
@@ -2527,4 +2547,36 @@ contains
     class(comm_tod),                     intent(inout)  :: self
   end subroutine remove_fixed_scans
 
+  subroutine collect_satpos(self)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+
+    integer(i4b) :: i, j, ierr
+
+    allocate(self%satpos(3, self%nscan_tot))
+
+    self%satpos = 0.d0
+    do i = 1, self%nscan
+       self%satpos(:, self%scanid(i)) = self%scans(i)%satpos
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, self%satpos, size(self%satpos), &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+  end subroutine collect_satpos
+
+  subroutine collect_mjds(self)
+    implicit none
+    class(comm_tod),   intent(inout) :: self
+
+    integer(i4b) :: i, j, ierr
+    allocate(self%mjds(self%nscan_tot))
+
+    self%mjds  = 0.d0
+    do i = 1, self%nscan
+       self%mjds(self%scanid(i)) = self%scans(i)%t0(1)
+    end do
+
+    call mpi_allreduce(MPI_IN_PLACE, self%mjds, size(self%mjds), &
+         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+  end subroutine collect_mjds
 end module comm_tod_mod

@@ -193,9 +193,8 @@ contains
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
-       if (tod%myid == 0) write(*, fmt='(a41, i4, a3, i4)') '    --> Simulating zodi... Current chunk: ', (scan - 1)*tod%numprocs + 1, 'of', tod%nscan*tod%numprocs
-       ! Need to pass bandpass object in here to bandpass integrate or color correct the Zodiacal emission
-       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), self%s_zodi)
+       if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
+       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -412,8 +411,8 @@ contains
     if (tod%subtract_zodi) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), s_bufA)
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%scans(scan)%t0(1), s_bufB)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufA)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufB)
           self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
@@ -829,21 +828,18 @@ contains
        else
         d_calib(1,:,j) = (tod%scans(scan)%d(j)%tod - sd%n_corr(:,j)) &
           & * inv_gain - sd%s_tot(:,j) + sd%s_sky(:,j) - sd%s_bp(:,j)
-        if (present(jump_template)) d_calib(1,:,j) = d_calib(1,:,j) - jump_template(:,j) * inv_gain
        end if
+
+       if (present(jump_template)) d_calib(1,:,j) = d_calib(1,:,j) - jump_template(:,j) * inv_gain
+       if (allocated(sd%s_zodi)) d_calib(1,:,j) = d_calib(1,:,j) - sd%s_zodi(:,j)
+
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(sd%n_corr(:,j)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
        if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
-       if (tod%output_n_maps > 6) then
-          if (allocated(sd%s_zodi)) then
-             d_calib(7,:,j) = sd%s_zodi(:,j)                                                     ! zodi
-          else
-             d_calib(7,:,j) = 0.
-          end if
-       end if
-       if (tod%output_n_maps > 7) d_calib(8,:,j) = sd%s_inst(:,j)                                               ! instrument specific
+       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j)                ! zodiacal light
+       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = sd%s_inst(:,j)                ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps

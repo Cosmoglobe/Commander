@@ -38,7 +38,7 @@ module comm_zodi_mod
     implicit none
 
     private
-    public :: initialize_zodi_mod, get_zodi_emission, update_zodi_spline_obj
+    public :: initialize_zodi_mod, get_zodi_emission, update_zodi_spline_obj, init_zodi_spline_objects
 
     ! Global parameters
     integer(i4b) :: gauss_degree
@@ -46,18 +46,18 @@ module comm_zodi_mod
     real(dp) :: min_ipd_temperature=40, max_ipd_temperature=550
 
     real(dp) :: EPS = 3.d-14
-    real(dp) :: R_cutoff, delta_t_reset_cash, previous_chunk_obs_time, phase_function_normalization
-    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), cached_s_zodi(:), temperature_grid(:)
+    real(dp) :: R_cutoff
+    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), temperature_grid(:)
     real(dp), allocatable :: tabulated_earth_pos(:, :)
     type(spline_type) :: solar_irradiance_spline_obj
-    type(spline_type) :: spline_earth_pos_obj(3)
+    type(spline_type) :: spline_earth_pos_obj(3), spline_obs_pos_obj(3)
     type(spline_type), allocatable :: emissivity_spline_obj(:), albedo_spline_obj(:), phase_coeff_spline_obj(:), b_nu_spline_obj(:)
 
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
                     apply_color_correction, use_unit_emissivity, use_unit_albedo, scattering
 
     ! Model parameters
-    real(dp) :: T_0, delta, splined_solar_irradiance
+    real(dp) :: T_0, delta
     real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
                 cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
     real(dp) :: band1_x_0, band1_y_0, band1_z_0, band1_incl, band1_Omega, band1_n_0, &
@@ -71,7 +71,7 @@ module comm_zodi_mod
     real(dp) :: feature_x_0, feature_y_0, feature_z_0, feature_incl, feature_Omega, feature_n_0, &
                 feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
     real(dp), allocatable :: emissivities(:, :), albedos(:, :), phase_coeffs(:, :)
-    real(dp), allocatable :: splined_emissivities(:), splined_albedos(:), splined_phase_coeffs(:), solar_irradiances(:)
+    real(dp), allocatable :: splined_emissivities(:, :), splined_albedos(:, :), splined_phase_coeffs(:, :), solar_irradiances(:), splined_solar_irradiance(:), phase_function_normalization(:)
 
 
 
@@ -279,9 +279,6 @@ contains
         allocate(emissivity_spline_obj(cpar%zs_ncomps))
         allocate(albedo_spline_obj(cpar%zs_ncomps))
         allocate(phase_coeff_spline_obj(3))
-        allocate(splined_emissivities(cpar%zs_ncomps))
-        allocate(splined_albedos(cpar%zs_ncomps))
-        allocate(splined_phase_coeffs(3))
 
         ! Earths position
         do i = 1, 3
@@ -297,8 +294,6 @@ contains
             call spline_simple(phase_coeff_spline_obj(i), cpar%zs_nu_ref, phase_coeffs(:, i), regular=.false.)
         end do
         call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, solar_irradiances, regular=.false.)
-
-        previous_chunk_obs_time = 0 ! Set initial previous chunk observation time to 0
         
         allocate(temperature_grid(n_interpolation_points))
 
@@ -306,7 +301,18 @@ contains
 
     end subroutine initialize_zodi_mod
 
-    subroutine get_zodi_emission(nside, pix, obs_pos, obs_time, s_zodi)
+    subroutine init_zodi_spline_objects(obs_time, obs_pos)
+        ! Initializes various spline objects for the zodi mod. This function is required to be called 
+        ! in the tod_x_mod for an experiment .
+        implicit none
+        real(dp), intent(in) :: obs_time(:), obs_pos(:, :)
+        integer(i4b) :: i
+        do i = 1, 3
+            call spline_simple(spline_obs_pos_obj(i), obs_time, obs_pos(i, :))
+        end do
+    end subroutine init_zodi_spline_objects
+
+    subroutine get_zodi_emission(nside, pix, obs_time_at_chunk_start, satpos, s_zodi)
         !   Compute simulated zodiacal emission.
         !
         !   Given a set of observations, the observer position and time of 
@@ -317,9 +323,7 @@ contains
         !       nside (int): HEALPix resolution parameter for pixels in `pix`.
         !       pix (1D array): Pixel indices representing observations in a chunk of time-ordered 
         !           data. Dimensions are (`n_tod`, `n_det`).
-        !       obs_pos (float): Heliocentric ecliptic cartesian position of the observer in AU.
-        !       obs_time (float): Time of observation in MJD. Assumes a fixed time of observeration
-        !           for the entire tod chunk.
+        !       obs_time_at_chunk_start (float): Time of the first observation in the chunk of
         !
         !   Returns:
         !       s_zodi (1D array): Simulated zodiacal emission over the chunk of time-ordered data
@@ -330,13 +334,13 @@ contains
         class(ZodiComponent), pointer :: comp
 
         integer(i4b), intent(in) :: nside, pix(1:, 1:)
-        real(dp), intent(in) :: obs_pos(3), obs_time
+        real(dp), intent(in) :: obs_time_at_chunk_start, satpos(3)
         real(sp), intent(out) :: s_zodi(1:, 1:)
         
-        integer(i4b) :: i, j, k, pix_idx, n_detectors, n_tods, npix
-        real(dp) :: earth_lon, R_obs, R_max
-        real(dp) :: earth_pos(3), unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree)
-        real(dp), allocatable :: tabulated_unit_vectors(:, :)
+        integer(i4b) :: i, j, k, l, pix_idx, n_detectors, n_tods, npix
+        real(dp) :: earth_lon, R_obs, R_max, samp_rate, dt_tod, time_tod, delta_t_reset, SECOND_TO_DAY, current_time
+        real(dp) :: unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree), tod_obs_pos(3), tod_earth_pos(3)
+        real(dp), allocatable :: tabulated_unit_vectors(:, :), cached_s_zodi(:)
 
         ! Line of sight arrays and quantities
         real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
@@ -346,93 +350,90 @@ contains
         npix = nside2npix(nside)
         s_zodi = 0.d0
 
+        ! HYPERPARAMETERS
+        samp_rate = 1.d0 / 8
+        SECOND_TO_DAY = 1.d0 / (60*60*24)
+        dt_tod = samp_rate * second_to_day ! dt between two samples in units of days
+        current_time = obs_time_at_chunk_start
+
+        allocate(cached_s_zodi(0:npix-1))
+        cached_s_zodi = 0.d0
+
         ! Get unit vectors corresponding to the observed pixels (only on first chunk)
         allocate(tabulated_unit_vectors(0:npix-1, 3))
         call get_tabulated_unit_vectors(npix, tabulated_unit_vectors)
 
-        if (.not. size(tabulated_unit_vectors, dim=1) == npix) stop "tabulated_unit_vectors not correctly allocated"
-
-        ! Allocate cached zodi array (only on first chunk)
-        if (.not. allocated(cached_s_zodi)) then
-            allocate(cached_s_zodi(0:npix-1))
-            cached_s_zodi = 0.d0
-        end if
-
-        ! If current band has a different resolution from the previous, reallocate and reset cache
-        if (.not. size(cached_s_zodi) == npix) then
-            if (allocated(cached_s_zodi)) deallocate(cached_s_zodi)
-            allocate(cached_s_zodi(0:npix-1))
-            cached_s_zodi = 0.d0
-        end if
-
-        ! Reset cached zodi if time since last chunk > DELTA_T_ZODI ~ 1day. 
-        if ((obs_time - previous_chunk_obs_time) > delta_t_reset_cash) cached_s_zodi = 0.d0
-
-        ! Interpolate the position of Earth
-        do i = 1, 3 
-            earth_pos(i) = splint_simple(spline_earth_pos_obj(i), obs_time)
-        end do
-        R_obs = norm2(obs_pos)
-        earth_lon = atan(earth_pos(2), earth_pos(1))
-
         if (.not. allocated(b_nu_spline_obj)) stop "b_nu_spline_obj not allocated"
+
+        do l = 1, 3 ! for x, y, z
+            tod_earth_pos(l) = splint_simple(spline_earth_pos_obj(l), current_time)
+            tod_obs_pos(l) = splint_simple(spline_obs_pos_obj(l), current_time)
+        end do        
+        
+        delta_t_reset = 0.1 ! time before reseting cache
+        tod_obs_pos = satpos
+        R_obs = norm2(tod_obs_pos)
+        earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
 
         ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
         ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
         ! San et al. 2022 (https://www.aanda.org/articles/aa/pdf/forth/aa44133-22.pdf).
-        do j = 1, n_detectors
-            do i = 1, n_tods
+        do i = 1, n_tods
+            ! After a time, delta_t_reset, update the earth and observer position and reset cached s_zodi.
+            time_tod = obs_time_at_chunk_start + (i - 1) * dt_tod
+            if ((time_tod - current_time) >= delta_t_reset) then
+                do l = 1, 3 
+                    tod_earth_pos(l) = splint_simple(spline_earth_pos_obj(l), time_tod)
+                    tod_obs_pos(l) = splint_simple(spline_obs_pos_obj(l), time_tod)
+                end do            
+                R_obs = norm2(tod_obs_pos)
+                earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
+                cached_s_zodi = 0.d0
+                current_time = time_tod
+            end if
+
+            do j = 1, n_detectors    
                 pix_idx = pix(i, j)
                 if (cached_s_zodi(pix_idx) /= 0.d0) then
                     s_zodi(i, j) = cached_s_zodi(pix_idx) ! Use cached value from previous chunk ordetector
-                else                        
-                    unit_vector = tabulated_unit_vectors(pix_idx, :)
-
-                    call get_R_max(unit_vector, obs_pos, R_obs, R_max)
-                    call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
-
-                    ! Compute points along a line of sight from the solar system origin 
-                    ! and from the observer towards a the pixel given by the unit vectors 
-                    ! with length R_max.
-                    ! - X_vec_LOS: line of sight towards pixel from solar system origin with shape (3, gauss_degree)
-                    ! - X_helio_vec_LOS: X_vec_LOS shifted to the position of the observer with shape (3, gauss_degree)
-                    do k = 1, 3
-                        X_vec_LOS(k, :) = gauss_nodes * unit_vector(k)
-                        X_helio_vec_LOS(k, :) = X_vec_LOS(k, :) + obs_pos(k)
-                    end do
-                    R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)           
-
-                    if (scattering) then
-                        solar_flux_LOS = splined_solar_irradiance / R_helio_LOS**2
-                        R_LOS = norm2(X_vec_LOS, dim=1)
-                        call get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
-                        call get_phase_function(scattering_angle, splined_phase_coeffs, phase_function_normalization, phase_function)
-                    end if
-
-                    call get_dust_grain_temperature(R_helio_LOS, T_LOS)
-
-                    do k = 1, gauss_degree
-                        b_nu_LOS(k) = splint_simple(b_nu_spline_obj(j), T_LOS(k))
-                    end do
-
-                    comp => comp_list
-                    k = 1
-                    do while (associated(comp))
-                        call comp%get_density(X_helio_vec_LOS, earth_lon, density_LOS)
-                        comp_emission_LOS = (1.d0 - splined_albedos(k)) * (splined_emissivities(k) * b_nu_LOS)
-                        if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(k) * solar_flux_LOS * phase_function)
-                        comp_emission_LOS = comp_emission_LOS * density_LOS
-
-                        s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
-                        comp => comp%next()
-                        k = k + 1
-                    end do
-                    cached_s_zodi(pix_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
+                    cycle
                 end if
+
+                unit_vector = tabulated_unit_vectors(pix_idx, :)
+                call get_R_max(unit_vector, tod_obs_pos, R_obs, R_max)
+                call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
+
+                do k = 1, 3 ! for x, y, z
+                    X_vec_LOS(k, :) = gauss_nodes * unit_vector(k)
+                    X_helio_vec_LOS(k, :) = X_vec_LOS(k, :) + tod_obs_pos(k)
+                end do
+                R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)           
+
+                if (scattering) then
+                    solar_flux_LOS = splined_solar_irradiance(j) / R_helio_LOS**2
+                    R_LOS = norm2(X_vec_LOS, dim=1)
+                    call get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
+                    call get_phase_function(scattering_angle, splined_phase_coeffs(j, :), phase_function_normalization(j), phase_function)
+                end if
+
+                call get_dust_grain_temperature(R_helio_LOS, T_LOS)
+                call splint_simple_multi(b_nu_spline_obj(j), T_LOS, b_nu_LOS)
+
+                comp => comp_list
+                k = 1
+                do while (associated(comp))
+                    call comp%get_density(X_helio_vec_LOS, earth_lon, density_LOS)
+                    comp_emission_LOS = (1.d0 - splined_albedos(j, k)) * (splined_emissivities(j, k) * b_nu_LOS)
+                    if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(j, k) * solar_flux_LOS * phase_function)
+                    comp_emission_LOS = comp_emission_LOS * density_LOS
+
+                    s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
+                    comp => comp%next()
+                    k = k + 1
+                end do
+                cached_s_zodi(pix_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
             end do
         end do
-
-        previous_chunk_obs_time = obs_time ! Store prevous chunks obs time
     end subroutine get_zodi_emission
 
 
@@ -459,23 +460,19 @@ contains
         implicit none
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T_out
-
         T_out = T_0 * R ** (-delta)
     end subroutine get_dust_grain_temperature
 
     subroutine get_blackbody_emission(nus, T, b_nu)
         implicit none
-        real(dp), dimension(:), intent(in) :: nus
-        real(dp), intent(in) :: T
+        real(dp), intent(in) :: nus(:), T
         real(dp), dimension(:), intent(out) :: b_nu
-
         b_nu = 1d20 * ((2 * h * nus**3) / (c*c)) / (exp((h * nus) / (k_B * T)) - 1.d0)
     end subroutine get_blackbody_emission
 
     subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
         implicit none
-        real(dp), dimension(:, :), intent(in) :: X_helio_vec_LOS, X_vec_LOS
-        real(dp), dimension(:), intent(in) :: R_helio_LOS, R_LOS
+        real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:), R_LOS(:)
         real(dp), dimension(:), intent(out) :: scattering_angle
         real(dp), dimension(gauss_degree) :: cos_theta
 
@@ -492,8 +489,7 @@ contains
 
     subroutine get_phase_function(scattering_angle, phase_coefficients, normalization_factor, phase_function)
         implicit none
-        real(dp), intent(in) :: scattering_angle(:), phase_coefficients(:)
-        real(dp), intent(in) :: normalization_factor
+        real(dp), intent(in) :: scattering_angle(:), phase_coefficients(:), normalization_factor
         real(dp), intent(out) :: phase_function(:)
 
         phase_function = normalization_factor * (phase_coefficients(1) + phase_coefficients(2) &
@@ -524,18 +520,23 @@ contains
         integer(i4b) :: i, j, k, n_det
 
         n_det = size(bandpass) - 1
+        ! Until the zodi stuff is moved into the tod class, we need to check if the spline object are allocated
+        ! which should be done the first time the mixing matrix is updated.
         if (.not. allocated(b_nu_spline_obj)) allocate(b_nu_spline_obj(n_det))
-        if (.not. allocated(temperature_grid)) stop "temperature grid not allocated"
+        if (.not. allocated(splined_emissivities)) allocate(splined_emissivities(n_det, size(emissivities, dim=2)))
+        if (.not. allocated(splined_albedos)) allocate(splined_albedos(n_det, size(albedos, dim=2)))
+        if (.not. allocated(splined_phase_coeffs)) allocate(splined_phase_coeffs(n_det, 3))
+        if (.not. allocated(splined_solar_irradiance)) allocate(splined_solar_irradiance(n_det))
+        if (.not. allocated(phase_function_normalization)) allocate(phase_function_normalization(n_det))
 
-        previous_chunk_obs_time = 0.d0
         splined_emissivities = 0.d0
         splined_albedos = 0.d0
         splined_phase_coeffs = 0.d0
         splined_solar_irradiance = 0.d0
         phase_function_normalization = 0.d0
         
-        allocate(b_nu(bandpass(j)%p%n))
         do j = 1, n_det
+            allocate(b_nu(bandpass(j)%p%n))
             do i = 1, n_interpolation_points    
                 call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
                 integrals(i) = bandpass(j)%p%SED2F(b_nu)
@@ -543,26 +544,25 @@ contains
             call spline_simple(b_nu_spline_obj(j), temperature_grid, integrals)
 
             do k = 1, size(splined_emissivities)
-                splined_emissivities(k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
+                splined_emissivities(j, k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
             end do
+
             do k = 1, size(splined_albedos)
-                splined_albedos(k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
+                splined_albedos(j, k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
             end do
             if (count(splined_albedos /= 0.d0) > 0) then
                 scattering = .true.
-                do k = 1, size(splined_phase_coeffs)
-                    splined_phase_coeffs(k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
+                do k = 1, size(splined_phase_coeffs, dim=2) 
+                    splined_phase_coeffs(j, k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
                 end do
-                splined_solar_irradiance = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
-                call get_phase_normalization(splined_phase_coeffs, phase_function_normalization)
+
+                splined_solar_irradiance(j) = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
+                call get_phase_normalization(splined_phase_coeffs(j, :), phase_function_normalization(j))
             else 
                 scattering = .false.
-                splined_phase_coeffs = 0.d0
-                splined_solar_irradiance = 0.d0
-                phase_function_normalization = 0.d0
             end if
+            deallocate(b_nu)
         end do
-        deallocate(b_nu)
 
     end subroutine update_zodi_spline_obj
 
@@ -833,7 +833,6 @@ contains
         use_unit_emissivity = cpar%zs_use_unit_emissivity
         R_cutoff = cpar%zs_los_cut
         gauss_degree = cpar%zs_gauss_quad_order
-        delta_t_reset_cash = cpar%zs_delta_t
     end subroutine init_hyper_parameters
 
     subroutine init_source_parameters(cpar)

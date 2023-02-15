@@ -153,6 +153,10 @@ contains
     beta    = theta(1)
     T       = theta(2)
     x       = h*nu               / (k_b*T)
+    if (x > EXP_OVERFLOW) then
+      evalSED = 0.d0
+      return
+    end if
     x_ref   = h*self%nu_ref(pol) / (k_b*T)
     evalSED = (nu/self%nu_ref(pol))**(beta+1.d0) * (exp(x_ref)-1.d0)/(exp(x)-1.d0)
 
