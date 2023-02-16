@@ -253,7 +253,7 @@ contains
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
     real(sp), allocatable, dimension(:,:,:,:) :: map_sky
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-    real(dp), allocatable :: iras_factors(:)
+
    type(hdf_file) :: tod_file
 
     call int2string(iter, ctext)
@@ -299,10 +299,6 @@ contains
     call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
     deallocate(m_buf)
 
-   allocate(iras_factors(self%ndet))
-   do j = 1, self%ndet
-      iras_factors(j) = self%bandpass(j)%p%SED2F(self%bandpass(j)%p%nu_c / self%bandpass(j)%p%nu)
-   end do
     call update_status(status, "tod_init")
 
     !------------------------------------
@@ -354,6 +350,7 @@ contains
        else
           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
+
       !  sd%tod = sd%tod
        allocate(s_buf(sd%ntod,sd%ndet))
 
@@ -367,6 +364,11 @@ contains
 
        ! Compute noise spectrum parameters
        ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+
+       ! Undo the IRAS color correction from tods
+       do j = 1, sd%ndet
+         sd%tod(:, j) = sd%tod(:, j) * self%bandpass(j)%p%SED2F(self%bandpass(j)%p%nu_c / self%bandpass(j)%p%nu)
+       end do
 
        ! Compute chisquare
        do j = 1, sd%ndet
@@ -384,15 +386,15 @@ contains
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        d_calib = 0.d0
-       d_calib(1, :, :) = sd%tod
-       if (self%subtract_zodi) d_calib(7, :, :) = sd%s_zodi
-      ! Remove iras convention from tods
-      do j = 1, self%ndet
-         d_calib(1, :, j) = d_calib(1, :, j) * iras_factors(j)
-      end do
+      !  d_calib(1, :, :) = sd%tod
+      !  if (self%subtract_zodi) d_calib(7, :, :) = sd%s_zodi
+      ! ! Remove iras convention from tods
+      ! do j = 1, self%ndet
+      !    d_calib(1, :, j) = d_calib(1, :, j) * iras_factors(j)
+      ! end do
 
-      !  call compute_calibrated_data(self, i, sd, d_calib)    
-      ! write(*,*)sd%tod
+       call compute_calibrated_data(self, i, sd, d_calib)    
+
       if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -470,9 +472,6 @@ contains
        self%bp_delta = delta(:,:,1)
     end if
 
-
-
-      
 
     ! Output maps to disk
     call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
