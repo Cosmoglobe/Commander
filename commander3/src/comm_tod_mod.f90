@@ -190,6 +190,7 @@ module comm_tod_mod
      real(dp) :: gain_sigma0_std ! std for metropolis-hastings sampling
      real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
+
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
