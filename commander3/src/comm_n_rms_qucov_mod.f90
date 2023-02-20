@@ -322,7 +322,7 @@ contains
           map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
        end do
     else
-       map%map = map%map * self%iN
+       map%map(:,1) = map%map(:,1) * self%iN(1,:)
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -347,7 +347,7 @@ contains
           map%map(i,3) = self%iN_low(4,i) * buff_Q + self%iN_low(3,i) * buff_U
        end do
    else
-       map%map = self%iN_low
+       map%map(:,1) = self%iN_low(1,:)
    end if
 !!$    if (present(samp_group)) then
 !!$       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
@@ -382,23 +382,20 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
-    integer(i4b) :: i
-
-    !write(*,*) 'matmul sqrtInvN * map'
-
-    if (self%pol) then
-       do i = 0, self%info%np-1
-          buff_Q = map%map(i,2)
-          buff_U = map%map(i,3)       
-          map%map(i,1) = self%siN(1,i) * map%map(i,1)
-          map%map(i,2) = self%siN(2,i) * buff_Q + self%siN(4,i) * buff_U
-          map%map(i,3) = self%siN(4,i) * buff_Q + self%siN(3,i) * buff_U
-       end do
-    else
-       map%map = self%siN * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
+    nmaps_band = size(self%siN, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    nmaps      = min(nmaps_inp,nmaps_band)
+    map%map(:,1) = self%siN(1,:) * map%map(:,1)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
     end if
+
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,1) = map%map(:,1) * self%samp_group_mask(samp_group)%p%map(:,1)
+          map%map(:,nmaps+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulSqrtInvN_1map
 
