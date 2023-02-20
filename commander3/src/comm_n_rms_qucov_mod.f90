@@ -386,13 +386,17 @@ contains
 
     !write(*,*) 'matmul sqrtInvN * map'
 
-    do i = 0, self%info%np-1
-       buff_Q = map%map(i,2)
-       buff_U = map%map(i,3)       
-       map%map(i,1) = self%siN(1,i) * map%map(i,1)
-       map%map(i,2) = self%siN(2,i) * buff_Q + self%siN(4,i) * buff_U
-       map%map(i,3) = self%siN(4,i) * buff_Q + self%siN(3,i) * buff_U
-    end do
+    if (self%pol) then
+       do i = 0, self%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,1) = self%siN(1,i) * map%map(i,1)
+          map%map(i,2) = self%siN(2,i) * buff_Q + self%siN(4,i) * buff_U
+          map%map(i,3) = self%siN(4,i) * buff_Q + self%siN(3,i) * buff_U
+       end do
+    else
+       map%map = self%siN * map%map
+    end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
