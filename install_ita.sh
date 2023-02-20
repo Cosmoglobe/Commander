@@ -31,6 +31,7 @@ bee46="$prefix+(46)+$suffix"
 bee47="$prefix+(47)+$suffix"
 prefix="hyades"
 hya13="$prefix+([1-3])+$suffix"
+hya4="$prefix+(4)+$suffix"
 hya5="$prefix+(5)+$suffix"
 hya6="$prefix+(6)+$suffix"
 hya79="$prefix+([7-9])+$suffix"
@@ -103,6 +104,8 @@ then
     build_dir="build_bee46_$toolchain"
   elif [[ "${HOSTNAME}" =~ $bee47 ]]; then
     build_dir="build_bee47_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya4 ]]; then
+    build_dir="build_hya4_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
     build_dir="build_hya5_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
