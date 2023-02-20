@@ -65,6 +65,8 @@ contains
     maxiter = cpar%cg_samp_group_maxiter(samp_group)
     eps     = cpar%cg_tol
     n       = size(x)
+    if (cpar%myid_chain == root) write(*,*) 'Maxiter is this value ', maxiter
+    if (cpar%myid_chain == root) write(*,*) 'Convergence criterion is ', trim(cpar%cg_conv_crit)
 
     ! Allocate temporary data vectors
     call update_status(status, "cr1")
