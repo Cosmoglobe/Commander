@@ -37,6 +37,7 @@ module comm_signal_mod
   use comm_param_mod
   use comm_powlaw_comp_mod
   use comm_exp_comp_mod
+  use comm_hensley_exp_comp_mod
   use comm_powlaw_break_comp_mod
   use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
@@ -75,6 +76,8 @@ contains
              c => comm_powlaw_comp(cpar, ncomp, i)
           case ("exponential")
              c => comm_exp_comp(cpar, ncomp, i)
+          case ("hensley_exponential")
+             c => comm_hensley_exp_comp(cpar, ncomp, i)
           case ("power_law_break")
              c => comm_powlaw_break_comp(cpar, ncomp, i)
           case ("curvature") 
