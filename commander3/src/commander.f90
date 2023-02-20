@@ -238,7 +238,7 @@ program commander
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
            curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
-           if (cpar%myid_chain == 0) write(*,*) 'Re-initializing on sample ', curr_samp
+           if (cpar%myid_chain == 0) write(*,*) '| Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
            call update_mixing_matrices(update_F_int=.true.)       
         end if
