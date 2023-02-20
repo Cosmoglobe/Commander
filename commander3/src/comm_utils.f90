@@ -936,13 +936,14 @@ contains
   !
   ! Written by Michael R. Greason, SSAI, 13 March 2006.
   ! ============================================================================
-  Subroutine WMAP_Read_NInv (File, Status, NInv, NElements, NPixels)
+  Subroutine WMAP_Read_NInv (File, Status, NInv, ordering, NElements, NPixels)
     !
     Implicit None
     !
     Character (*),                 Intent(In)            :: File
     Integer (Kind=4),              Intent(Out)           :: Status
     Real (Kind=4), Dimension(:,:), Pointer               :: NInv
+    Character (80),                Intent(Out), Optional :: ordering
     Integer (Kind=4),              Intent(Out), Optional :: NElements
     Integer (Kind=4),              Intent(Out), Optional :: NPixels
     !
@@ -967,6 +968,10 @@ contains
     !
     Call FTGISZ (unit, 2, naxes, Status)
     If ((naxes(1) .LE. 0) .OR. (naxes(1) .NE. naxes(2)) .OR. (Status .NE. 0)) Go To 99
+    !
+    ! Determine whether the maps are in nest ordering
+    !
+    Call FTGKEY (unit, 'ORDERING', ordering, comm, Status)
     !
     !  How many pixels are in the base map?  Start by looking
     !  at the NPIX keyword; if that isn't found, use LASTPIX.

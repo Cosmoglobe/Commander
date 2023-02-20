@@ -50,7 +50,7 @@ contains
     integer(i4b),            intent(in) :: id, id_abs
 
     character(len=512) :: filename
-    character(len=512) :: temp_filename
+    character(len=512) :: temp_filename, temp2
     character(len=512), dimension(1000) :: tokens
     integer(i4b) :: i, j, k, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior, param_dp
@@ -120,7 +120,7 @@ contains
        self%x => comm_map(info)
     else
        ! Read map from FITS file, and convert to alms
-       self%x => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_input_amp(id_abs)))
+       self%x => comm_map(info, trim(cpar%cs_input_amp(id_abs)))
        do i = 1, self%x%info%nmaps
           self%x%map(:,i) = self%x%map(:,i) / (self%RJ2unit_(i)*self%cg_scale(i))
        end do
@@ -139,19 +139,19 @@ contains
 
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
-       self%mask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_mask(id_abs)), &
+       self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
             & udgrade=.true.)
     end if
 
     ! Read processing mask
     if (trim(cpar%ds_procmask) /= 'none') then
-       self%procmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+       self%procmask => comm_map(self%x%info, trim(cpar%ds_procmask), &
             & udgrade=.true.)
     end if
 
     ! Read index sampling mask; downgrade to each channel; re-use for equal Nsides; skip for dense matrices
     if (trim(cpar%cs_indmask(id_abs)) /= 'fullsky') then
-       indmask => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(cpar%cs_indmask(id_abs)), &
+       indmask => comm_map(self%x%info, trim(cpar%cs_indmask(id_abs)), &
             & udgrade=.true.)
        allocate(self%indmask(numband))
        do i = 1, numband
@@ -190,7 +190,7 @@ contains
        self%nside_def     = 32
        self%fwhm_def      = 90.d0
        info_def => comm_mapinfo(self%comm, self%nside_def, self%lmax_def, 1, .false.)
-       self%defmask => comm_map(info_def, trim(cpar%datadir)//'/'//trim(cpar%cs_defmask(id_abs)), udgrade=.true.)
+       self%defmask => comm_map(info_def, trim(cpar%cs_defmask(id_abs)), udgrade=.true.)
        where (self%defmask%map < 0.5)
           self%defmask%map = 0.d0
        elsewhere
@@ -204,7 +204,7 @@ contains
 
     ! Initialize prior mean
     if (trim(cpar%cs_prior_amp(id_abs)) /= 'none') then
-       self%mu => comm_map(info, trim(cpar%datadir)//'/'//trim(cpar%cs_prior_amp(id_abs)))
+       self%mu => comm_map(info, trim(cpar%cs_prior_amp(id_abs)))
        call self%mu%YtW
     end if
 
@@ -250,8 +250,13 @@ contains
     if (trim(self%mono_prior_type) /= 'none') then
        self%cg_samp_group_md = cpar%cg_samp_group_md
        temp_filename = get_token(cpar%cs_mono_prior(id_abs), ":", 2)
+       if(temp2(1:1) /= '/') then
+          if(trim(self%mono_prior_type) /= 'bandmono') then
+            temp_filename = trim(cpar%datadir)// '/' // trim(temp_filename)
+          end if
+       end if
        call get_tokens(temp_filename, ",", tokens, i)
-       
+ 
        if (trim(self%mono_prior_type) == 'lower_value_prior') then
           if (i < 4) then
              call report_error('monopole lower_value_prior needs filename,mean,rms,fwhm as input. Not enough inputs found')
@@ -263,7 +268,7 @@ contains
           if (self%mono_prior_gaussian_rms < 0.d0) call report_error('Lower value monopole prior requires a non-negative prior RMS. component '//trim(self%label))
           read(tokens(4),*) self%mono_prior_fwhm
           if (self%mono_prior_fwhm <= 0.d0) call report_error('Lower value monopole prior requires a positive FWHM. component '//trim(self%label))
-          self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+          self%mono_prior_map => comm_map(self%x%info, trim(filename))
 
           !scale prior mean and rms by cg_scale to make sure units match during correction
           self%mono_prior_gaussian_mean = self%mono_prior_gaussian_mean/self%cg_scale(1)
@@ -291,7 +296,7 @@ contains
           !read crosscorr map
           info      => comm_mapinfo(cpar%comm_chain, self%mono_prior_nside, &
                & -1, self%x%info%nmaps, self%x%info%pol)
-          self%mono_prior_map => comm_map(info, trim(cpar%datadir)//'/'//trim(filename))
+          self%mono_prior_map => comm_map(info, trim(filename))
           !init smoothing beam for the component amplitude, to be used for monopole prior correction
           self%B_mono_prior => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=self%mono_prior_fwhm, nside=self%nside,&
                & init_realspace=.false.)
@@ -301,7 +306,7 @@ contains
           self%mono_prior_band=trim(filename)
        else          
           filename = get_token(temp_filename, ",", 1)
-          self%mono_prior_map => comm_map(self%x%info, trim(cpar%datadir)//'/'//trim(filename))
+          self%mono_prior_map => comm_map(self%x%info, trim(filename))
        end if
     end if
 
@@ -568,7 +573,7 @@ contains
 
                    ! Loop over priors on regions
                    if (.not. trim(cpar%cs_spec_pixreg_priors(j,i,id_abs)) == 'none') then
-                      if (self%npixreg(j,i) > 20) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)
+                      if (self%npixreg(j,i) > 32) write(*,*) "Max pixregs is 20 for this, you're trying",  self%npixreg(j,i)
                       call get_tokens(cpar%cs_spec_pixreg_priors(j,i,id_abs), ",", pixreg_prior, n)
                       if (n == self%npixreg(j,i)) then
                          do pr = 1,self%npixreg(j,i)
@@ -666,7 +671,7 @@ contains
              self%spec_mono_mask(i)%p => comm_map(info2)
              self%spec_mono_mask(i)%p%map = 1.d0
           else
-             self%spec_mono_mask(i)%p => comm_map(info2, trim(cpar%datadir)// '/' //trim(cpar%cs_spec_mono_mask(id_abs,i)))
+             self%spec_mono_mask(i)%p => comm_map(info2, trim(cpar%cs_spec_mono_mask(id_abs,i)))
 
              if (min(self%poltype(i),self%nmaps) > &
                   & self%spec_mono_mask(i)%p%info%nmaps) then
@@ -700,7 +705,7 @@ contains
              self%pol_ind_mask(i)%p%map = 1.d0
           else
              ! Read map from FITS file
-             self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_mask(i,id_abs)))
+             self%pol_ind_mask(i)%p => comm_map(info, trim(cpar%cs_spec_mask(i,id_abs)))
 
              if (min(self%poltype(i),self%nmaps) > &
                   & self%pol_ind_mask(i)%p%info%nmaps) then
@@ -724,7 +729,7 @@ contains
              self%pol_proplen(i)%p%map = 1.d0
           else
              ! Read map from FITS file
-             self%pol_proplen(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_proplen(i,id_abs)))
+             self%pol_proplen(i)%p => comm_map(info, trim(cpar%cs_spec_proplen(i,id_abs)))
              if (min(self%poltype(i),self%nmaps) > &
                   & self%pol_proplen(i)%p%info%nmaps) then
                 write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' proplen map has fewer maps (', & 
@@ -755,7 +760,7 @@ contains
              self%pol_nprop(i)%p%map = 1.d0
           else
              ! Read map from FITS file
-             self%pol_nprop(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_nprop(i,id_abs)))
+             self%pol_nprop(i)%p => comm_map(info, trim(cpar%cs_spec_nprop(i,id_abs)))
              if (min(self%poltype(i),self%nmaps) > &
                   & self%pol_nprop(i)%p%info%nmaps) then
                 write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' nprop map has fewer maps (', & 
@@ -824,7 +829,7 @@ contains
                 self%ind_pixreg_map(i)%p%map = 0.d0
              else
                 ! Read map from FITS file
-                self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_spec_pixreg_map(i,id_abs)))
+                self%ind_pixreg_map(i)%p => comm_map(info, trim(cpar%cs_spec_pixreg_map(i,id_abs)))
                 if (min(self%poltype(i),self%nmaps) > &
                      & self%ind_pixreg_map(i)%p%info%nmaps) then
                    write(*,fmt='(a,i2,a,i2,a,i2)') trim(self%indlabel(i))//' pixreg map has fewer maps (', & 
@@ -892,7 +897,7 @@ contains
              tp%map = self%theta(i)%p%map !take avrage from existing theta map
           else
              !read map from init map (non-smoothed theta map)
-             tp => comm_map(self%theta(i)%p%info, trim(cpar%datadir) // '/' // trim(cpar%cs_pixreg_init_theta(i,id_abs)))
+             tp => comm_map(self%theta(i)%p%info, trim(cpar%cs_pixreg_init_theta(i,id_abs)))
           end if
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
@@ -1206,7 +1211,7 @@ contains
           self%L_read(j) = .true.
           if ( self%myid == 0 ) write(*,*) "|    Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
           !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
-          open(unit=11, file=trim(cpar%datadir) // '/' // trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
+          open(unit=11, file=trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) corrlen_arr
           self%corrlen(j,:) = corrlen_arr
 
@@ -2810,248 +2815,6 @@ contains
 
   end subroutine sampleDiffuseSpecInd
 
-  module function lnL_diffuse_multi(p)
-    use healpix_types
-    implicit none
-    real(dp), dimension(:), intent(in), optional :: p
-    real(dp)                                     :: lnL_diffuse_multi
-    
-    integer(i4b) :: i, l, k, q, pix, ierr, flag, p_min, p_max
-    real(dp)     :: lnL, amp, s, a
-    real(dp), allocatable, dimension(:) :: theta
-
-    allocate(theta(c_lnL%npar))
-    theta         = theta_lnL
-    theta(id_lnL) = p(1)
-    
-    ! Check spectral index priors
-    do l = 1, c_lnL%npar
-       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
-          lnL_diffuse_multi = 1.d30
-          deallocate(theta)
-          return
-       end if
-    end do
-
-    ! Choose which polarization fields to include
-    if (c_lnL%poltype(id_lnL) == 1) then
-       p_min = 1; p_max = c_lnL%nmaps
-       if (only_pol) p_min = 2
-    else if (c_lnL%poltype(id_lnL) == 2) then
-       if (p_lnL == 1) then
-          p_min = 1; p_max = 1
-       else
-          p_min = 2; p_max = c_lnL%nmaps
-       end if
-    else if (c_lnL%poltype(id_lnL) == 3) then
-       p_min = p_lnL
-       p_max = p_lnL
-    else
-       write(*,*) 'Unsupported polarization type'
-       stop
-    end if
-
-    lnL = 0.d0
-    do k = p_min, p_max
-
-       do l = 1, numband
-       !if (c_lnL%x%info%myid == 0) write(*,*) l, numband
-          if (.not. associated(rms_smooth(l)%p)) cycle
-          if (k > data(l)%info%nmaps) cycle
-          
-       ! Compute predicted source amplitude for current band
-          s = a_lnL(k) * c_lnL%F_int(k,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(k)
-          
-          ! Compute likelihood 
-          lnL = lnL - 0.5d0 * (res_smooth(l)%p%map(k_lnL,k)-s)**2 * rms_smooth(l)%p%siN%map(k_lnL,k)**2
-
-!          if (c_lnL%x%info%myid == 0) write(*,fmt='(2i4,3f8.2,f12.2)') k, l, real(res_smooth(l)%p%map(k_lnL,k),sp), real(s,sp), real(1.d0/rms_smooth(l)%p%siN%map(k_lnL,k),sp), real(lnL,sp)
-       end do
-    end do
-
-!    if (c_lnL%x%info%myid == 0) write(*,*)
-!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
-
-    ! Apply index priors
-    do l = 1, c_lnL%npar
-       if (c_lnL%p_gauss(2,l) > 0.d0) then
-          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
-       end if
-    end do
-
-!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL
-    
-    ! Return chi-square
-    lnL_diffuse_multi = -2.d0*lnL
-
-!    if (c_lnL%x%info%myid == 0) write(*,fmt='(i4,f8.4,f12.2)') k_lnL, theta, lnL_diffuse_multi
-
-    deallocate(theta)
-
-  end function lnL_diffuse_multi
-
-
-
-
-!!$  ! Sample spectral parameters
-!!$  subroutine sampleDiffuseSpecInd(self, handle, id)
-!!$    implicit none
-!!$    class(comm_diffuse_comp),                intent(inout)        :: self
-!!$    type(planck_rng),                        intent(inout)        :: handle
-!!$    integer(i4b),                            intent(in)           :: id
-!!$
-!!$    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, i_min, i_max, status, n_gibbs, iter, n_pix, n_pix_tot, flag
-!!$    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold, mu, sigma, w, mu_p, sigma_p, a_old, chisq, chisq_tot, unitconv
-!!$    logical(lgt) :: ok
-!!$    logical(lgt), save :: first_call = .true.
-!!$    class(comm_comp), pointer :: c
-!!$    real(dp),     allocatable, dimension(:)   :: x, lnL, P_tot, F, theta, a_curr
-!!$    real(dp),     allocatable, dimension(:,:) :: amp
-!!$
-!!$    delta_lnL_threshold = 25.d0
-!!$    n                   = 101
-!!$    n_ok                = 50
-!!$    first_call          = .false.
-!!$
-!!$    if (trim(operation) == 'optimize') then
-!!$
-!!$       allocate(amps_lnL(0:data(6)%info%np-1,data(6)%info%nmaps,6:9))
-!!$       !allocate(amps_lnL(0:data(1)%info%np-1,data(1)%info%nmaps,numband))
-!!$       apply_mixmat = .false.
-!!$       do i = 6, 9
-!!$          amps_lnL(:,:,i) = self%getBand(i)
-!!$       end do
-!!$       apply_mixmat = .true.
-!!$
-!!$
-!!$       do p = 1, data(6)%info%nmaps
-!!$          do k = 0, data(6)%info%np-1
-!!$             p_lnL       = p
-!!$             k_lnL       = k
-!!$             c           => compList     ! Extremely ugly hack...
-!!$             do while (self%id /= c%id)
-!!$                c => c%next()
-!!$             end do
-!!$             select type (c)
-!!$             class is (comm_diffuse_comp)
-!!$                c_lnL => c
-!!$             end select
-!!$             
-!!$             ! Perform non-linear search
-!!$             if (self%p_gauss(2,1) == 0.d0 .and. self%p_gauss(2,2) > 0.d0) then
-!!$                ! Dust T
-!!$                allocate(x(1))
-!!$                x(1)         = self%theta(2)%p%map(k,p)
-!!$                a_old_lnL    = self%x%map(k,p)
-!!$                beta_old_lnL = self%theta(1)%p%map(k,p)
-!!$                call powell(x, lnL_diffuse_multi, ierr)
-!!$                self%theta(2)%p%map(k,p) = x(1)
-!!$                deallocate(x)
-!!$             end if
-!!$
-!!$             if (self%p_gauss(2,1) > 0.d0 .and. self%p_gauss(2,2) == 0.d0) then
-!!$                ! Dust T
-!!$                allocate(x(1))
-!!$                x(1)         = self%theta(1)%p%map(k,p)
-!!$                a_old_lnL    = self%x%map(k,p)
-!!$                T_old_lnL    = self%theta(2)%p%map(k,p)
-!!$                call powell(x, lnL_diffuse_multi, ierr)
-!!$                self%theta(1)%p%map(k,p) = x(1)
-!!$                deallocate(x)
-!!$             end if
-!!$
-!!$
-!!$             if (self%p_gauss(2,1) > 0.d0 .and. self%p_gauss(2,2) > 0.d0) then
-!!$                ! Dust beta and T
-!!$                allocate(x(2))
-!!$                x(1)         = self%theta(1)%p%map(k,p)
-!!$                x(2)         = self%theta(2)%p%map(k,p)
-!!$                a_old_lnL    = self%x%map(k,p)
-!!$                call powell(x, lnL_diffuse_multi, ierr)
-!!$                self%theta(1)%p%map(k,p) = x(1)
-!!$                self%theta(2)%p%map(k,p) = x(2)
-!!$                deallocate(x)
-!!$             end if
-!!$
-!!$
-!!$
-!!$
-!!$
-!!$          end do
-!!$       end do
-!!$
-!!$       ! Update mixing matrix
-!!$       call self%updateMixmat
-!!$       
-!!$       ! Ask for CG preconditioner update
-!!$       if (self%cg_unique_sampgroup > 0) recompute_diffuse_precond = .true.
-!!$
-!!$       deallocate(amps_lnL)
-!!$       return
-!!$    end if
-!!$
-!!$  end subroutine sampleDiffuseSpecInd
-!!$
-!!$
-!!$  function lnL_diffuse_multi(p)
-!!$    use healpix_types
-!!$    implicit none
-!!$    real(dp), dimension(:), intent(in), optional :: p
-!!$    real(dp)                                     :: lnL_diffuse_multi
-!!$    
-!!$    integer(i4b) :: i, l, k, q, pix, ierr, flag
-!!$    real(dp)     :: lnL, amp, s, a
-!!$    real(dp), allocatable, dimension(:) :: theta
-!!$    
-!!$    allocate(theta(c_lnL%npar))
-!!$    if (c_lnL%p_gauss(2,1) > 0.d0 .and. c_lnL%p_gauss(2,2) > 0.d0) then
-!!$       theta(1) = p(1)
-!!$       theta(2) = p(2)
-!!$    else if (c_lnL%p_gauss(2,1) > 0.d0 .and. c_lnL%p_gauss(2,2) == 0.d0) then
-!!$       theta(1) = p(1)
-!!$       theta(2) = T_old_lnL
-!!$    else if (c_lnL%p_gauss(2,1) == 0.d0 .and. c_lnL%p_gauss(2,2) > 0.d0) then
-!!$       theta(1) = beta_old_lnL
-!!$       theta(2) = p(1)
-!!$    end if
-!!$    
-!!$    ! Check spectral index priors
-!!$    do l = 1, c_lnL%npar
-!!$       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
-!!$          lnL_diffuse_multi = 1.d30
-!!$          deallocate(theta)
-!!$          return
-!!$       end if
-!!$    end do
-!!$    
-!!$    lnL = 0.d0
-!!$    do l = 6, 9
-!!$    !do l = 1, numband
-!!$       
-!!$       ! Compute mixing matrix
-!!$       s = c_lnL%F_int(l)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale(p_lnL) 
-!!$       
-!!$       ! Compute predicted source amplitude for current band
-!!$       a = s * amps_lnL(k_lnL,p_lnL,l)
-!!$       
-!!$       ! Compute likelihood 
-!!$       lnL = lnL - 0.5d0 * (data(l)%res%map(k_lnL,p_lnL)-a)**2 / data(l)%N%rms_pix(k_lnL,p_lnL)**2
-!!$
-!!$    end do
-!!$    
-!!$    ! Apply index priors
-!!$    do l = 1, c_lnL%npar
-!!$       if (c_lnL%p_gauss(2,l) > 0.d0) then
-!!$          lnL = lnL - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / c_lnL%p_gauss(2,l)**2 
-!!$       end if
-!!$    end do
-!!$    
-!!$    ! Return chi-square
-!!$    lnL_diffuse_multi = -2.d0*lnL
-!!$
-!!$    deallocate(theta)
-!!$
-!!$  end function lnL_diffuse_multi
 
   
   module subroutine print_precond_mat
@@ -3923,6 +3686,7 @@ contains
        ! real(dp) :: mu(0:3), a, b, Amat(0:3,0:3), bmat(0:3), v(0:3), corr_res(3)
        c => compList
        a=0.d0
+       b=0.d0
        prior_vals=0.d0
        do while (associated(c))
           select type (c)
@@ -3950,6 +3714,8 @@ contains
        call mpi_allreduce(MPI_IN_PLACE, a, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, b, 1, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
        call mpi_allreduce(MPI_IN_PLACE, prior_vals, 2, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+
+
 
        diff_mono = (b - a)/sqrt(4.d0*pi) !to get it in pixel space units
 

@@ -332,10 +332,12 @@ def make_od(comm_tod, freq, od, args):
                 sigma0 = rimo[1].data.field('net')[rimo_i][0] * math.sqrt(fsamp)
 
                 #make f_knee
-                fknee = rimo[1].data.field('f_knee')[rimo_i][0]
+                #fknee = rimo[1].data.field('f_knee')[rimo_i][0]
+		fknee = 0.5
 
                 #make 1/f noise exponent 
-                alpha = rimo[1].data.field('alpha')[rimo_i][0]
+                #alpha = rimo[1].data.field('alpha')[rimo_i][0]
+		alpha = -1		
 
                 #print(gain, sigma0, fknee, alpha)
                 comm_tod.add_field(prefix + '/scalars', np.array([gain, sigma0, fknee, alpha]).flatten())

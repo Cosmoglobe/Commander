@@ -73,7 +73,7 @@ contains
 
     ! Prepare CMB dipole prior
     if (trim(cpar%cmb_dipole_prior_mask) /= 'none') then
-       constructor%priormask        => comm_map(constructor%x%info, trim(cpar%datadir)//'/'//trim(cpar%cmb_dipole_prior_mask))
+       constructor%priormask        => comm_map(constructor%x%info, trim(cpar%cmb_dipole_prior_mask))
        constructor%cmb_dipole_prior =  constructor%cmb_dipole_prior / constructor%RJ2unit_(1)
     end if
 

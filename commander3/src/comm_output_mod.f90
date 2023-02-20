@@ -364,17 +364,15 @@ contains
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 N => data(i)%N
-                select type (N)
+                ! select type (N)
                 ! Defining chisq_eff = -2*log(L) such that
                 ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
                 ! log(det(Sigma)) -> 2*log(2*pi*sigma)
-
-
-                class is (comm_N_rms)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                class is (comm_N_lcut)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
-                end select
+                ! class is (comm_N_rms)
+                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                ! class is (comm_N_lcut)
+                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                ! end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
@@ -398,7 +396,7 @@ contains
     ! get chisq for fg_mean file 
     if (cpar%myid_chain == 0) then
        if (new_header) fg_header=trim(fg_header)//'          full_chisq           avg_chisq       chisq_highlat      avg_reduced_chisq'
-       write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(too be implemented)', '(too be implemented)'
+       write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(to be implemented)', '(to be implemented)'
        outline = trim(outline)//trim(temptxt)
        !need to find a nice way of only gathering high latitude chisq
 
@@ -440,6 +438,11 @@ contains
              class is (comm_N_lcut)
                 call data(i)%tod%dumpToHDF(file, iter, &
                      & data(i)%map0, N%rms0)
+             class is (comm_N_rms_qucov)
+                call data(i)%tod%dumpToHDF(file, iter, &
+                     & data(i)%map0, N%N_map)
+             class default
+               if (cpar%myid == 0) write(*,*) '| For some reason, your data was not written to hdf'
              end select
           end if
        end do

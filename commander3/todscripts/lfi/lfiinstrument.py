@@ -63,7 +63,7 @@ def main():
         #bandNo = rimo.index_of('BANDPASS_0' + str(freq))
         #inst_file.add_bandpass(freq, rimo[bandNo].data.field('wavenumber'), rimo[bandNo].data.field('transmission'))
         wavenumber, transmission = np.loadtxt(f'{bppath}/bp_corrected_{freq}.dat', unpack=True)
-        inst_file.add_bandpass(freq, wavenumber, transmission
+        inst_file.add_bandpass(freq, wavenumber, transmission)
 
         for horn in lfi.horns[freq]:
             for hornType in ['S', 'M']:
