@@ -505,6 +505,10 @@ contains
           select type (N)
           class is (comm_N_rms)
              call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class is (comm_N_rms_qucov)
+             call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class default
+             write(*,*) 'resamp_CMB noise class not defined'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk

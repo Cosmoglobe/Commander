@@ -196,6 +196,7 @@ contains
     end if
 
 
+
     ! Add regularization noise; rms_reg is N for this type, not RMS
 !!$    if (associated(self%rms_reg)) self%N_map = self%N_map + self%rms_reg 
 !!$    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
@@ -362,14 +363,19 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
-    write(*,*) 'N map'
-    do i = 0, self%info%np-1
-       buff_Q = map%map(i,2)
-       buff_U = map%map(i,3)       
-       map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
-       map%map(i,2) = self%N_map%map(i,2) * buff_Q + self%N_map%map(i,4) * buff_U
-       map%map(i,3) = self%N_map%map(i,4) * buff_Q + self%N_map%map(i,3) * buff_U
-    end do
+    if (self%pol) then
+       do i = 0, self%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
+          map%map(i,2) = self%N_map%map(i,2) * buff_Q + self%N_map%map(i,4) * buff_U
+          map%map(i,3) = self%N_map%map(i,4) * buff_Q + self%N_map%map(i,3) * buff_U
+       end do
+    else
+       do i = 0, self%info%np-1
+          map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
+       end do
+    end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
