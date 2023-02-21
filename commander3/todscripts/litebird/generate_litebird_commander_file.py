@@ -1,7 +1,21 @@
 import h5py
 import numpy as np
 import litebird_sim as lbs
-from commander_tools.tod_tools.litebird_imo import LitebirdImo
+import sys
+from pathlib import Path
+# TODO: In the future version you should use `cosmoglobe` and so eliminating
+# the need to do this workaround in the first place 
+# 
+# Getting full path to Mathew's library as an object
+commander_tools_path = Path(__file__).absolute().parents[2].joinpath(
+        'python','commander_tools').resolve()
+# Appending the path to `PYTHONPATH`, so no need to 
+# modify it externally (in your `.bashrc` etc.)
+sys.path.append(str(commander_tools_path))
+# Importing necessary modules from Mathew's library 
+#from tod_tools import commander_instrument as comm_inst
+
+from tod_tools.litebird_imo import LitebirdImo
 
 
 def write_chunk_to_file(f, chunk, num_specifier=None):

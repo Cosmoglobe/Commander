@@ -1,7 +1,27 @@
+import time
 import h5py
 import numpy as np
 import litebird_sim as lbs
-from commander_tools.tod_tools.litebird_imo import LitebirdImo
+
+import sys
+from pathlib import Path
+# TODO: In the future version you should use `cosmoglobe` and so eliminating
+# the need to do this workaround in the first place 
+# 
+# Getting full path to Mathew's library as an object
+commander_tools_path = Path(__file__).absolute().parents[2].joinpath(
+        'python','commander_tools').resolve()
+# Appending the path to `PYTHONPATH`, so no need to 
+# modify it externally (in your `.bashrc` etc.)
+sys.path.append(str(commander_tools_path))
+# Importing necessary modules from Mathew's library 
+#from tod_tools import commander_instrument as comm_inst
+
+from tod_tools.litebird_imo import LitebirdImo
+
+
+start_time = time.time()
+print("Started the script")
 
 fnames = {
     'LFT': 'LFT_instrument.h5',
@@ -11,7 +31,9 @@ fnames = {
 
 imo_version = 'v1.3'
 imo_db_interface = lbs.Imo()
+print("Starting the main loop")
 for instrument in ('LFT', 'MFT', 'HFT'):
+    print(f"Working with {instrument}") 
     imo = LitebirdImo(imo_db_interface, imo_version, instrument) 
     f = h5py.File(fnames[instrument], 'w')
     channels = imo.get_channel_names()
@@ -70,3 +92,8 @@ for instrument in ('LFT', 'MFT', 'HFT'):
             eff[0]=1.
 
     f.close()
+
+
+end_time = time.time()
+total_time = end_time - start_time
+print(f"Script run time is: {total_time:.2f}s")
