@@ -503,8 +503,8 @@ contains
   subroutine compute_marginal(mixing, data, invN, marg_map, marg_fullsky)
     implicit none
     
-    real(c_double),  intent(in),    dimension(:,:,:) :: mixing   !(nbands,ncomp,npix) mixing matrix
-    real(c_double),  intent(in),    dimension(:,:)   :: invN     !(nbands,npix) inverse noise matrix
+    real(c_double),  intent(in),    dimension(:,:,0:):: mixing   !(nbands,ncomp,npix) mixing matrix
+    real(c_double),  intent(in),    dimension(:,0:)  :: invN     !(nbands,npix) inverse noise matrix
     real(c_double),  intent(in),    dimension(:,:)   :: data     !(nbands,npix) data matrix
     class(comm_map), intent(inout), optional         :: marg_map
     real(dp),        intent(out),   optional         :: marg_fullsky

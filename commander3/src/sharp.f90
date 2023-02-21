@@ -41,6 +41,13 @@ module sharp
        type(c_ptr), intent(out)             :: alm_info
      end subroutine sharp_make_general_alm_info
 
+     subroutine sharp_make_triangular_alm_info( &
+         lmax, mmax, stride, alm_info) bind(c)
+       use iso_c_binding
+       integer(c_int), value, intent(in)    :: lmax, mmax, stride
+       type(c_ptr), intent(out)             :: alm_info
+     end subroutine sharp_make_triangular_alm_info
+
      subroutine c_sharp_make_mmajor_real_packed_alm_info( &
          lmax, stride, nm, ms, alm_info) bind(c, name='sharp_make_mmajor_real_packed_alm_info')
        use iso_c_binding

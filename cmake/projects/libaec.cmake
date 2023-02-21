@@ -48,7 +48,7 @@ if(COMPILE_LIBAEC)
 	# Getting LIBAEC from source.
 	#------------------------------------------------------------------------------
 	if(NOT EXISTS "${LIBAEC_SOURCE_DIR}/CMakeLists.txt")
-		message(STATUS "No LIBAEC sources were found; thus, will download it from source:\n${libaec_git_url}")
+    #message(STATUS "No LIBAEC sources were found; thus, will download it from source:\n${libaec_git_url}")
 		ExternalProject_Add(
 			libaec_src
 			GIT_REPOSITORY		"${libaec_git_url}"
@@ -63,7 +63,7 @@ if(COMPILE_LIBAEC)
 			INSTALL_COMMAND		""
 			)
 	else()
-		message(STATUS "Found an existing LIBAEC sources inside:\n${LIBAEC_SOURCE_DIR}")
+    #message(STATUS "Found an existing LIBAEC sources inside:\n${LIBAEC_SOURCE_DIR}")
 		add_custom_target(libaec_src
 			ALL ""
 			)
@@ -71,13 +71,21 @@ if(COMPILE_LIBAEC)
 	#------------------------------------------------------------------------------
 	# Compiling and Installing Static and Shared LibAEC
 	#------------------------------------------------------------------------------
+  # Note: To avoide errors associated with Libaec failed to symlink something 
+  # during installation phase, we build it sequentially, i.e. firt, static and 
+  # then shared version of the library.
+	#------------------------------------------------------------------------------
 	list(APPEND _AEC_LIB_TYPES_ static shared)
 	list(APPEND _AEC_LIB_BOOL_VALS_ -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_SHARED_LIBS:BOOL=ON)
-	foreach(_lib_type_ _bool_val_ IN ZIP_LISTS _AEC_LIB_TYPES_ _AEC_LIB_BOOL_VALS_)
+  list(APPEND _AEC_LIB_DEPENDENTS_ "" "libaec_static")
+	foreach(_lib_type_ _bool_val_ _dependents_ 
+      IN ZIP_LISTS 
+      _AEC_LIB_TYPES_ _AEC_LIB_BOOL_VALS_ _AEC_LIB_DEPENDENTS_)
 		ExternalProject_Add(
 			libaec_${_lib_type_}
 			DEPENDS						required_libraries 
 												libaec_src
+                        ${_dependents_}
 			PREFIX						"${LIBS_BUILD_DIR}"
 			SOURCE_DIR				"${LIBAEC_SOURCE_DIR}"
 			INSTALL_DIR				"${CMAKE_INSTALL_PREFIX}"
@@ -87,6 +95,7 @@ if(COMPILE_LIBAEC)
 			LOG_INSTALL				ON
 			# Disabling download
 			DOWNLOAD_COMMAND	""
+      #INSTALL_COMMAND "make" "install"
 			# commands how to build the project
 			CMAKE_ARGS
 				-DCMAKE_BUILD_TYPE=Release
@@ -96,7 +105,7 @@ if(COMPILE_LIBAEC)
 				-DCMAKE_INSTALL_INCLUDEDIR:PATH=include
 				# Specifying compilers
 				-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-				# Building only shared libraries
+				# Building both static and shared libraries
 				${_bool_val_}
 			)
 	endforeach()
@@ -114,19 +123,26 @@ if(COMPILE_LIBAEC)
 		"${CMAKE_INSTALL_PREFIX}/include"
 		)
 	include_directories(${LIBAEC_INCLUDE_DIRS}) 
+  #set(SZIP_LIBRARIES
+	#	"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}sz${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+	#	)
+	#set(LIBAEC_LIBRARIES
+	#	"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}aec${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+	#	"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}sz${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+	#	)
 	set(SZIP_LIBRARIES
-		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}sz${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+    "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}sz${CMAKE_STATIC_LIBRARY_SUFFIX}" 
 		)
 	set(LIBAEC_LIBRARIES
-		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}aec${CMAKE_SHARED_LIBRARY_SUFFIX}" 
-		"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_SHARED_LIBRARY_PREFIX}sz${CMAKE_SHARED_LIBRARY_SUFFIX}" 
+    "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}aec${CMAKE_STATIC_LIBRARY_SUFFIX}" 
+    "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${CMAKE_STATIC_LIBRARY_PREFIX}sz${CMAKE_STATIC_LIBRARY_SUFFIX}" 
 		)
 	#------------------------------------------------------------------------------
 	#message(STATUS "LIBAEC LIBRARIES will be: ${LIBAEC_LIBRARIES}")
 	#message(STATUS "LIBAEC INCLUDE DIRS will be: ${LIBAEC_INCLUDE_DIRS}")
 	#------------------------------------------------------------------------------
 else()
-	add_custom_target(${project} ALL "")
+	add_custom_target(libaec ALL "")
 	#------------------------------------------------------------------------------
 	#message(STATUS "LIBAEC LIBRARIES are: ${LIBAEC_LIBRARIES}")
 	#message(STATUS "LIBAEC INCLUDE DIRS are: ${LIBAEC_INCLUDE_DIRS}")
