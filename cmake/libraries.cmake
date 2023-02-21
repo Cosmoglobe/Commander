@@ -20,28 +20,35 @@
 #================================================================================
 # Author: Maksym Brilenkov
 #================================================================================
-# Description: This file determines the location of all required (the ones which 
-# will not be compiled by CMake script) and all dependent (the ones which will be
+# Description: This file determines the location of all `required` (the ones which 
+# will not be compiled by CMake script) and all `dependent` (the ones which will be
 # compiled via the CMake script) libraries. Below is the full list of both of them
 # reproduced here for convenience.
+#
 # Required:
+# - Linux Math Library
 # - Git
 # - MPI 
 # - OpenMP
+# 
 # Dependent:
-# - BLAS/LAPACK
-# - CFITSIO
+# - BLAS/LAPACK: MKL, AOCL or OpenBLAS
+# - CFITSIO + (if needed) cURL, MbedTLS, and SSH2 
 # - HEALPix + LIBSHARP2
 # - HDF5 
 # - FFTW
-# The search for the latter is performed depending on user preferences. If lib-
-# rary was not found, the special variable COMPILE_<LIBNAME> will be set to TRUE
-# and thus this library will be compiled from source. This is done to avoid com-
-# pilation of some libraries on which Commander3 doesn't depend on but its depen-
-# dencies do (e.g. ZLIB and LIBAEC which were compiled all the time before).
-# The search logic is performed (roughly) as follows:
-# - if not HDF5, CFITSIO => install ZLIB
-# - HDF5 => LIBAEC
+#
+# The below code defines boolean variables COMPILE_<LIBNAME> to identify which 
+# library should be compiled from source. Since the search order of the libraries 
+# matters and is reversed comparing to the compilation order, we first look for 
+# libs and then include all the subsequent project files at the bottom of this 
+# script (these describe how individual libraries should be build). For instance, 
+# HDF5 depends on ZLIB and LIBAEC, so the search needs to be done in the following
+# order: first HDF5 and then LIBAEC and ZLIB (if HDF5 wasn't found). However, when 
+# compiling, ZLIB goes first, then LIBAEC and only then HDF5. Thus, the search and  
+# install logic performed (roughly) as follows:
+# - if not HDF5, CFITSIO found => install ZLIB if needed => install HDF5, CFITSIO
+# - if not HDF5 found  => install LIBAEC if needed 
 # - if not CFITSIO => install CURL => install ZLIB, MbedTLS, LIBSSH2
 # - HEALPix
 # - BLAS/LAPACK;
@@ -52,9 +59,9 @@
 # Looking for Linux Math Library
 #------------------------------------------------------------------------------
 find_library(LIBM_LIBRARY m)
-message(STATUS "math (m) libraries are: ${LIBM_LIBRARY}")
+#message(STATUS "math (m) libraries are: ${LIBM_LIBRARY}")
 # Printing out the dl libs, which are also required on some unix systems
-message(STATUS "dl libs are: ${CMAKE_DL_LIBS}")
+#message(STATUS "dl libs are: ${CMAKE_DL_LIBS}")
 #------------------------------------------------------------------------------
 # Looking for Git.
 #------------------------------------------------------------------------------
@@ -62,13 +69,13 @@ find_package(Git REQUIRED)
 #------------------------------------------------------------------------------
 # Looking for MPI with C, CXX and Fortran components. 
 #------------------------------------------------------------------------------
-message(STATUS "---------------------------------------------------------------")
 find_package(MPI REQUIRED COMPONENTS Fortran C CXX)
 #find_package(Threads)
-message(STATUS "MPI Libs Path: ${MPI_Fortran_LIBRARIES}")
-message(STATUS "MPI Include Path: ${MPI_Fortran_INCLUDE_PATH}")
-message(STATUS "MPI Compile Options are: ${MPI_Fortran_COMPILE_OPTIONS}") 
-message(STATUS "MPI Link options are: ${MPI_Fortran_LINK_FLAGS}")
+#message("Threads_FOUND is ${Threads_FOUND}")
+#message(STATUS "MPI Libs Path: ${MPI_Fortran_LIBRARIES}")
+#message(STATUS "MPI Include Path: ${MPI_Fortran_INCLUDE_PATH}")
+#message(STATUS "MPI Compile Options are: ${MPI_Fortran_COMPILE_OPTIONS}") 
+#message(STATUS "MPI Link options are: ${MPI_Fortran_LINK_FLAGS}")
 # to avoid cmake errors we create and empty target
 add_custom_target(mpi ALL "")
 # setting compilation and linking flags
@@ -78,20 +85,20 @@ set(CMAKE_REQUIRED_LIBRARIES ${MPI_Fortran_LIBRARIES}) #Threads::Threads)
 #------------------------------------------------------------------------------
 # Looking for OpenMP. 
 #------------------------------------------------------------------------------
-message(STATUS "---------------------------------------------------------------")
+#message(STATUS "---------------------------------------------------------------")
 find_package(OpenMP REQUIRED)
 add_custom_target(openmp ALL "")
 # setting compilation and linking flags
 set(CMAKE_REQUIRED_FLAGS ${OpenMP_Fortran_COMPILE_OPTIONS})
 set(CMAKE_REQUIRED_INCLUDES ${OpenMP_Fortran_INCLUDE_DIRS})
 set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
-message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
+#message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
 #------------------------------------------------------------------------------
 # Creating comm_hdf_mod.f90 with Tempita language. Python is required. 
 #------------------------------------------------------------------------------
-add_custom_target(tempita ALL "")
-set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
-# running python command at configure time
+#add_custom_target(tempita ALL "")
+#set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
+## running python command at configure time
 #execute_process(
 #	COMMAND ${TEMPITA_DIR}/tempita_proc.py < $< > $@
 #	INPUT_FILE ${comm_hdf_mod}.in
@@ -101,49 +108,400 @@ set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
 # Creating a Unified target
 #------------------------------------------------------------------------------
 add_custom_target(required_libraries ALL "" 
-	DEPENDS tempita 
+	DEPENDS #tempita 
 					mpi
 					openmp
 					)
 #------------------------------------------------------------------------------
 # Dependent/Compiled libraries
 #------------------------------------------------------------------------------
+message(STATUS "COMM3_BACKEND was defined as '${COMM3_BACKEND}'")
+get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
 if(USE_SYSTEM_LIBS)
 	#------------------------------------------------------------------------------
 	# Performing search for BLAS and LAPACK
+	#------------------------------------------------------------------------------
+  # From docs: Note C, CXX or Fortran must be enabled to detect a BLAS/LAPACK 
+  # library. C or CXX must be enabled to use Intel Math Kernel Library (MKL).
+  # Note: Because native (shipped with Linux) BLAS/LAPACK implementations are not 
+  # optimized, we require usage of AOCL, MKL or OpenBLAS. 
+	#------------------------------------------------------------------------------
 	if(USE_SYSTEM_BLAS)
-		# TODO: Need to add FindMKL.cmake to separately search for MKL, which
-		# has both BLAS/LAPACK and FFTW3. If it exists will go with that, and
-		# if not then seacrh for OpenBLAS and FFTW3 and compile those (if necessary)
-		#
-		# Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
-		# for some weird reason. In this case it is a good idea to logout and login
-		# to refresh terminal.
-		set($ENV{BLA_VENDOR} 
-				OpenBLAS
-				Intel10_32
-				Intel10_64lp
-				Intel10_64lp_seq
-				Intel10_64ilp
-				Intel10_64ilp_seq
-				Intel10_64_dyn
-				)
-		find_package(BLAS)
-		find_package(LAPACK)
-		if(NOT (BLAS_FOUND OR LAPACK_FOUND))
-			set(COMPILE_BLAS TRUE)
-		endif()
+    if(COMM3_BACKEND MATCHES "any")
+
+      #get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+
+      if(CPU_VENDOR MATCHES "Intel")
+        message(STATUS "Looking for MKL...")
+        # Note: Sometimes this doesn't work, i.e. it cannot detect MKL/OpenBLAS 
+        # for some weird reason. In this case it is a good idea to logout and login
+        # to refresh terminal. In addition, defining two variables, since it may also
+        # affect finding MKL on some systems (sometimes it just ignores BLA_VENDOR & 
+        # sometimes it needs $ENV{BLA_VENDOR} for MKL)
+        #find_package(MKL)
+        find_package(MKL)
+        add_library(BLAS::BLAS INTERFACE IMPORTED)
+        set_target_properties(BLAS::BLAS PROPERTIES
+          INTERFACE_LINK_LIBRARIES "${MKL_LIBRARIES}"
+          )
+        add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+        set_target_properties(LAPACK::LAPACK PROPERTIES
+          INTERFACE_LINK_LIBRARIES ""
+          )
+          if(NOT MKL_FOUND)
+            message("Couldn't find MKL => Looking for OpenBLAS instead")
+            set(BLA_VENDOR
+                OpenBLAS
+              )
+            find_package(BLAS)
+            find_package(LAPACK)
+            if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+              message(STATUS "OpenBLAS is not found => will compile it from source")
+              set(COMPILE_OPENBLAS TRUE)
+            endif()
+          endif()
+
+          #set(BLA_VENDOR
+          #    Intel10_32
+          #    Intel10_64lp 
+          #    Intel10_64lp_seq
+          #    Intel10_64ilp
+          #    Intel10_64ilp_seq
+          #    Intel10_64_dyn
+          #  )
+          #set($ENV{BLA_VENDOR}
+          #    Intel10_32
+          #    Intel10_64lp 
+          #    Intel10_64lp_seq
+          #    Intel10_64ilp
+          #    Intel10_64ilp_seq
+          #    Intel10_64_dyn
+          #  )
+          #find_package(BLAS)
+          #find_package(LAPACK)
+          #if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          #  # MKL is shipped with MKLConfig.cmake variable which can be consumed by CMake
+          #  # project. Thus, we need to check for it as well, most probably it will find 
+          #  # MKL in this way. If it doesn't, then OpenBLAS will be compiled.
+          #  message(STATUS "Checking for $MKLROOT")
+          #  if(DEFINED ENV{MKLROOT})
+          #    message(STATUS "$MKLROOT exists")
+          #    set(MKL_ROOT $ENV{MKLROOT})
+          #    find_package(MKL  
+          #      HINTS ${MKL_ROOT}
+          #      )
+          #    if(MKL_FOUND)
+          #      add_library(BLAS::BLAS INTERFACE IMPORTED)
+          #      set_target_properties(BLAS::BLAS PROPERTIES
+          #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+          #        )
+          #      add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+          #      set_target_properties(LAPACK::LAPACK PROPERTIES
+          #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+          #        )
+          #      include_directories(${MKL_INCLUDE})
+          #    else()
+          #      message(STATUS "$MKLROOT does not exist => Looking for OpenBLAS instead")
+          #      set(BLA_VENDOR
+          #          OpenBLAS
+          #        )
+          #      find_package(BLAS)
+          #      find_package(LAPACK)
+          #      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          #        message(STATUS "OpenBLAS is not found => will compile it from source")
+          #        set(COMPILE_OPENBLAS TRUE)
+          #      endif()
+          #    endif()
+
+          #  endif()
+          #endif()
+
+      elseif(CPU_VENDOR MATCHES "AMD")
+        message(STATUS "Looking for AOCL...")
+        set(BLA_VENDOR
+            FLAME
+          )
+        # Finds both BLIS and FLAME
+        find_package(BLAS)
+        find_package(LAPACK)
+        if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          set(COMPILE_FLAME TRUE)
+        endif()
+
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        message(STATUS "Looking for OpenBLAS...")
+        set(BLA_VENDOR
+            OpenBLAS
+          )
+        find_package(BLAS)
+        find_package(LAPACK)
+        if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+          set(COMPILE_OPENBLAS TRUE)
+        endif()
+
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
+    
+    elseif(COMM3_BACKEND MATCHES "aocl")
+      message(STATUS "Looking for AOCL...")
+      set(BLA_VENDOR
+          FLAME
+        )
+      # Finds both BLIS and FLAME
+      find_package(BLAS)
+      find_package(LAPACK)
+      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+        message(STATUS "AOCL is not found => will compile it from source")
+        set(COMPILE_FLAME TRUE)
+      endif()
+
+    elseif(COMM3_BACKEND MATCHES "mkl")
+      message(STATUS "Looking for MKL...")
+      find_package(MKL)
+      add_library(BLAS::BLAS INTERFACE IMPORTED)
+      set_target_properties(BLAS::BLAS PROPERTIES
+        INTERFACE_LINK_LIBRARIES "${MKL_LIBRARIES}"
+        )
+      add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+      set_target_properties(LAPACK::LAPACK PROPERTIES
+        INTERFACE_LINK_LIBRARIES ""
+        )
+        if(NOT MKL_FOUND)
+          message("Couldn't find MKL => Looking for OpenBLAS instead")
+          set(BLA_VENDOR
+              OpenBLAS
+            )
+          find_package(BLAS)
+          find_package(LAPACK)
+          if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+            message(STATUS "OpenBLAS is not found => will compile it from source")
+            set(COMPILE_OPENBLAS TRUE)
+          endif()
+        endif()
+      #set(BLA_VENDOR
+      #    Intel10_32
+      #    Intel10_64lp 
+      #    Intel10_64lp_seq
+      #    Intel10_64ilp
+      #    Intel10_64ilp_seq
+      #    Intel10_64_dyn
+      #  )
+      #set($ENV{BLA_VENDOR}
+      #    Intel10_32
+      #    Intel10_64lp 
+      #    Intel10_64lp_seq
+      #    Intel10_64ilp
+      #    Intel10_64ilp_seq
+      #    Intel10_64_dyn
+      #  )
+      #find_package(BLAS)
+      #find_package(LAPACK)
+      #if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+      #  message(STATUS "Checking for $MKLROOT")
+      #  if(DEFINED ENV{MKLROOT})
+      #    message(STATUS "$MKLROOT exists")
+      #    set(MKL_ROOT $ENV{MKLROOT})
+      #    find_package(MKL  
+      #      HINTS ${MKL_ROOT}
+      #      )
+      #    if(MKL_FOUND)
+      #      add_library(BLAS::BLAS INTERFACE IMPORTED)
+      #      set_target_properties(BLAS::BLAS PROPERTIES
+      #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+      #        )
+      #      add_library(LAPACK::LAPACK INTERFACE IMPORTED)
+      #      set_target_properties(LAPACK::LAPACK PROPERTIES
+      #        INTERFACE_LINK_LIBRARIES MKL::MKL 
+      #        )
+      #      include_directories(${MKL_INCLUDE})
+      #    else()
+      #      message(STATUS "$MKLROOT does not exist => Looking for OpenBLAS instead")
+      #      set(BLA_VENDOR
+      #          OpenBLAS
+      #        )
+      #      find_package(BLAS)
+      #      find_package(LAPACK)
+      #      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+      #        message(STATUS "OpenBLAS is not found => will compile it from source")
+      #        set(COMPILE_OPENBLAS TRUE)
+      #      endif()
+      #    endif()
+      #  endif()
+      #endif()
+    
+    elseif(COMM3_BACKEND MATCHES "opensrc")
+      message(STATUS "Looking for OpenBLAS...")
+      set(BLA_VENDOR
+          OpenBLAS
+        )
+      find_package(BLAS)
+      find_package(LAPACK)
+      if(NOT (BLAS_FOUND OR LAPACK_FOUND))
+        message(STATUS "OpenBLAS is not found => will compile it from source")
+        set(COMPILE_OPENBLAS TRUE)
+      endif()
+
+    else()
+      message(FATAL_ERROR 
+        "COMM3_BACKEND was defined as ${COMM3_BACKEND}.\n"
+        "Possible values are: aocl, mkl, opensrc, any."
+        )
+    endif()
+  else()
+	  #------------------------------------------------------------------------------
+    # This part is used when -DUSE_SYSTEM_BLAS=OFF but -DUSE_SYSTEM_LIBS=ON
+    if(COMM3_BACKEND MATCHES "any")
+      #get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+
+      if(CPU_VENDOR MATCHES "Intel")
+        message(STATUS "Your CPU Vendor is Intel => Will compile OpenBLAS")
+        set(COMPILE_OPENBLAS TRUE)
+      elseif(CPU_VENDOR MATCHES "AMD")
+        message(STATUS "Your CPU Vendor is AMD => Will compile AOCL")
+        set(COMPILE_FLAME TRUE)
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        message(STATUS "Your CPU Vendor is Unknown => Will compile OpenBLAS")
+        set(COMPILE_OPENBLAS TRUE)
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
+    
+    elseif(COMM3_BACKEND MATCHES "aocl")
+      message(STATUS "Will compile AOCL")
+      set(COMPILE_FLAME TRUE)
+
+    elseif(COMM3_BACKEND MATCHES "mkl")
+      message(STATUS "Will compile OpenBLAS")
+      set(COMPILE_OPENBLAS TRUE)
+    
+    elseif(COMM3_BACKEND MATCHES "opensrc")
+      message(STATUS "Will compile OpenBLAS")
+      set(COMPILE_OPENBLAS TRUE)
+    endif()
+  endif()
+  # Since MKL and/or AOCL will be handled above this chunk will be simpler then the one 
+  # above (?). However, there is no FindFFTW for AMD FFT, so may need to write it myself,
+  # or do a workaround.
+	#------------------------------------------------------------------------------
+	# Performing search for FFTW
+	#------------------------------------------------------------------------------
+  # Note: Intel FFTW is an internal part of Intel MKL which is searched for during 
+  # BLAS/LAPACK stage above. Therefore, we need to install FFTW only if MKL is not 
+  # found. In this case, we first search for FFTW3 on the system and, if not avai-
+  # lable, then we install it from source.
+	#------------------------------------------------------------------------------
+	if(USE_SYSTEM_FFTW)
+    if(COMM3_BACKEND MATCHES "any")
+      # Compile based on the CPU
+      # TODO: write this part to perform the search
+      if(CPU_VENDOR MATCHES "Intel")
+        if(NOT MKL_FOUND)
+          message("MKL FFTW was not found => Looking for FFTW3 instead")
+          find_package(FFTW
+            COMPONENTS
+            DOUBLE
+            DOUBLE_THREADS
+            FLOAT
+            FLOAT_OPENMP
+            FLOAT_THREADS
+            )
+          # Compile FFTW
+          if(NOT FFTW_FOUND)
+            set(COMPILE_FFTW TRUE)
+          endif()
+        endif()
+      elseif(CPU_VENDOR MATCHES "AMD")
+        set(COMPILE_AMDFFTW TRUE)
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        # If CPU is not Intel or AMD then we will install FFTW3
+        find_package(FFTW
+          COMPONENTS
+          DOUBLE
+          DOUBLE_THREADS
+          FLOAT
+          FLOAT_OPENMP
+          FLOAT_THREADS
+          )
+        # Compile FFTW
+        if(NOT FFTW_FOUND)
+          set(COMPILE_FFTW TRUE)
+        endif()
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
+    elseif(COMM3_BACKEND MATCHES "mkl")
+      if(NOT MKL_FOUND)
+        message("MKL FFTW was not found => Looking for FFTW3 instead")
+        find_package(FFTW
+          COMPONENTS
+          DOUBLE
+          DOUBLE_THREADS
+          FLOAT
+          FLOAT_OPENMP
+          FLOAT_THREADS
+          )
+        # Compile FFTW
+        if(NOT FFTW_FOUND)
+          set(COMPILE_FFTW TRUE)
+        endif()
+      endif()
+    elseif(COMM3_BACKEND MATCHES "aocl")
+      # Compile AMD FFTW
+      set(COMPILE_AMDFFTW TRUE)
+    elseif(COMM3_BACKEND MATCHES "opensrc")
+      find_package(FFTW
+        COMPONENTS
+        DOUBLE
+        DOUBLE_THREADS
+        FLOAT
+        FLOAT_OPENMP
+        FLOAT_THREADS
+        )
+      if(NOT FFTW_FOUND)
+        set(COMPILE_FFTW TRUE)
+      endif()
+    endif()
 	else()
-		set(COMPILE_BLAS TRUE)
+    # Ignore search for FFTW
+    if(COMM3_BACKEND MATCHES "any")
+      # Compile based on CPU
+      if(CPU_VENDOR MATCHES "Intel")
+        set(COMPILE_FFTW TRUE)
+      elseif(CPU_VENDOR MATCHES "AMD")
+        set(COMPILE_AMDFFTW TRUE)
+      elseif(CPU_VENDOR MATCHES "Unknown")
+        set(COMPILE_FFTW TRUE)
+      else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+        message(FATAL_ERROR 
+          "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+          )
+      endif()
+    elseif(COMM3_BACKEND MATCHES "mkl")
+      # Compile FFTW
+      set(COMPILE_FFTW TRUE)
+    elseif(COMM3_BACKEND MATCHES "aocl")
+      # Compile AMD FFTW
+      set(COMPILE_AMDFFTW TRUE)
+    elseif(COMM3_BACKEND MATCHES "opensrc")
+      set(COMPILE_FFTW TRUE)
+    endif()
 	endif()
 	#------------------------------------------------------------------------------
 	# Performing search for HDF5 and its dependencies
+	#------------------------------------------------------------------------------
 	if(USE_SYSTEM_HDF5)
-		message(STATUS "---------------------------------------------------------------")
-		# Using static linking instead of dynamic
+    #message(STATUS "---------------------------------------------------------------")
+		# Using dynamic linking instead of static 
 		set(HDF5_USE_STATIC_LIBRARIES FALSE)
-		# Using parallel build instead of serial
-		set(HDF5_PREFER_PARALLEL TRUE)
+		# Using serial build instead of parallel
+    set(HDF5_PREFER_PARALLEL FALSE)
 		#find_package(HDF5 1.12.0 COMPONENTS Fortran Fortran_HL)
 		find_package(HDF5 1.10.5 COMPONENTS Fortran Fortran_HL)
 		if(NOT HDF5_FOUND)
@@ -154,8 +512,9 @@ if(USE_SYSTEM_LIBS)
 	endif()
 	#------------------------------------------------------------------------------
 	# Performing search for CFITSIO
+	#------------------------------------------------------------------------------
 	if(USE_SYSTEM_CFITSIO)
-		message(STATUS "---------------------------------------------------------------")
+    #message(STATUS "---------------------------------------------------------------")
 		find_package(CFITSIO 3.470)
 		if(NOT CFITSIO_FOUND)
 			set(COMPILE_CFITSIO TRUE)
@@ -165,9 +524,10 @@ if(USE_SYSTEM_LIBS)
 	endif()
 	#------------------------------------------------------------------------------
 	# Looking for HDF5 and CFITSIO mutual dependency -- ZLIB.
+	#------------------------------------------------------------------------------
 	if(COMPILE_HDF5 OR COMPILE_CFITSIO)
 		if(USE_SYSTEM_ZLIB)
-			message(STATUS "---------------------------------------------------------------")
+      #message(STATUS "---------------------------------------------------------------")
 			find_package(ZLIB 1.2.11)
 			if(NOT ZLIB_FOUND)
 				set(COMPILE_ZLIB TRUE)
@@ -179,9 +539,9 @@ if(USE_SYSTEM_LIBS)
 	# Other HDF5 dependencies
 	if(COMPILE_HDF5)	
 		if(USE_SYSTEM_LIBAEC)
-			message(STATUS "---------------------------------------------------------------")
+      #message(STATUS "---------------------------------------------------------------")
 			# Placeholder for FindLIBAEC.cmake
-			message(STATUS "No LibAEC, will compile from source.")
+      message(STATUS "No LibAEC, will compile from source.")
 			# find_package(LIBAEC)
 			if(NOT LIBAEC_FOUND)
 				set(COMPILE_LIBAEC TRUE)
@@ -192,7 +552,7 @@ if(USE_SYSTEM_LIBS)
 	endif()
 	# Other CFITSIO dependencies. Compile only if we want to have CURL support
 	if(COMPILE_CFITSIO AND CFITSIO_USE_CURL)
-		message(STATUS "---------------------------------------------------------------")
+    #message(STATUS "---------------------------------------------------------------")
 		if(USE_SYSTEM_CURL)
 			# CMake configure scripts (in versions 7.69-7.74) doesn't work properly,
 			# so we look for cURL in a standard manner.
@@ -228,8 +588,9 @@ if(USE_SYSTEM_LIBS)
 	endif()
 	#------------------------------------------------------------------------------
 	# Performing search for HEALPix
+	#------------------------------------------------------------------------------
 	if(USE_SYSTEM_HEALPIX)
-		message(STATUS "---------------------------------------------------------------")
+    #message(STATUS "---------------------------------------------------------------")
 		find_package(HEALPIX COMPONENTS SHARP Fortran)
 		if(NOT HEALPIX_FOUND)
 			set(COMPILE_HEALPIX TRUE)
@@ -237,29 +598,59 @@ if(USE_SYSTEM_LIBS)
 	else()
 		set(COMPILE_HEALPIX TRUE)
 	endif()
-	#------------------------------------------------------------------------------
-	# Performing search for FFTW
-	if(USE_SYSTEM_FFTW)
-		message(STATUS "---------------------------------------------------------------")
-		find_package(FFTW
-			COMPONENTS
-			DOUBLE
-			DOUBLE_THREADS
-			FLOAT
-			FLOAT_OPENMP
-			FLOAT_THREADS
-			)
-		if(NOT FFTW_FOUND)
+
+else()
+  # This part is when USE_SYSTEM_LIBS=OFF (no search performed)
+  # Identifying which BLAS  and FFTW to compile
+  if(COMM3_BACKEND MATCHES "any")
+    #get_cpu_vendor(${CPU_DESCRIPTION} CPU_VENDOR)
+    if(CPU_VENDOR MATCHES "Intel")
+      message(STATUS "Cannot compile MKL from source => will compile OpenBLAS & FFTW3 instead")
+      set(COMPILE_OPENBLAS TRUE)
 			set(COMPILE_FFTW TRUE)
-		endif()
-	else()
-		set(COMPILE_FFTW TRUE)
-	endif()
+    elseif(CPU_VENDOR MATCHES "AMD")
+      set(COMPILE_FLAME TRUE)
+      set(COMPILE_AMDFFTW TRUE)
+    elseif(CPU_VENDOR MATCHES "Unknown")
+      set(COMPILE_OPENBLAS TRUE)
+			set(COMPILE_FFTW TRUE)
+    else(CPU_VENDOR MATCHES "") #<= just a check, it should be 'Unknown' in this case
+      message(FATAL_ERROR 
+        "Something went terribly wrong while identifying CPU for BLAS & FFTW3..."
+        )
+    endif()
+  elseif(COMM3_BACKEND MATCHES "aocl")
+    set(COMPILE_FLAME TRUE)
+    set(COMPILE_AMDFFTW TRUE)
+  elseif(COMM3_BACKEND MATCHES "opensrc")
+    set(COMPILE_OPENBLAS TRUE)
+    set(COMPILE_FFTW TRUE)
+  elseif(COMM3_BACKEND MATCHES "mkl")
+    message(STATUS "Cannot compile MKL from source => will compile OpenBLAS & FFTW3 instead")
+    set(COMPILE_OPENBLAS TRUE)
+    set(COMPILE_FFTW TRUE)
+  else()
+    message(FATAL_ERROR 
+      "COMM3_BACKEND was defined as ${COMM3_BACKEND}.\n"
+      "Possible values are: aocl, mkl, opensrc, any."
+      )
+  endif()
+
+  set(COMPILE_HDF5 TRUE)
+  set(COMPILE_ZLIB TRUE)
+  set(COMPILE_LIBAEC TRUE)
+  set(COMPILE_CFITSIO TRUE)
+	if(CFITSIO_USE_CURL)
+    set(COMPILE_CURL TRUE)
+    set(COMPILE_MBEDTLS TRUE)
+    set(COMPILE_LIBSSH2 TRUE)
+  endif()
+  set(COMPILE_HEALPIX TRUE)
 endif()
 #------------------------------------------------------------------------------
 # Including the projects to compile 
 unset(projects)
-# project names <= order matters
+# project names <= order matters!!!!!
 list(APPEND projects 
 	zlib
 	libaec
@@ -279,3 +670,9 @@ list(APPEND projects
 foreach(project ${projects})
 	include("${project}")
 endforeach()
+
+#message("${MKL_LIBRARIES}")
+#message("${MKL_INTERFACE_LIBRARY}")
+
+
+message("Libs are ${MKL_LIBRARIES}")
