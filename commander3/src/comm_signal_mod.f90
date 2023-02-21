@@ -25,6 +25,7 @@ module comm_signal_mod
   use comm_cmb_comp_mod
   use comm_cmb_relquad_comp_mod
   use comm_powlaw_comp_mod
+  use comm_physdust_comp_mod
   use comm_pah_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod

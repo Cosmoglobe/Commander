@@ -23,7 +23,7 @@ module comm_pah_comp_mod
   use comm_comp_mod
   use comm_diffuse_comp_mod
   use comm_map_mod
-  use comm_F_int_2D_mod
+  use comm_F_int_0D_mod
   use comm_data_mod
   use spline_2D_mod
   implicit none
@@ -56,7 +56,7 @@ contains
     integer(i4b),        intent(in) :: id, id_abs
     class(comm_pah_comp), pointer   :: constructor
 
-    integer(i4b) :: ind(1)
+    integer(i4b) :: ind(1), i, j, k
     real(dp), allocatable, dimension(:,:) :: SED
 
 
@@ -82,7 +82,7 @@ contains
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+             constructor%F_int(k,i,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p, k)
           end do
        end do
     end do
@@ -103,7 +103,6 @@ contains
 
     evalSED = (splint(self%SED_spline, nu)) / &
             & (splint(self%SED_spline, self%nu_ref(pol)))! UNITS?? * (self%nu_ref(pol)/nu)**(2.d0)
-    end if
 
   end function evalSED
   
