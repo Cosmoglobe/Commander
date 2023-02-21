@@ -1,18 +1,44 @@
-from commander_tools.tod_tools.litebird import litebird
-from commander_tools.tod_tools.litebird_imo import LitebirdImo
-from commander_tools.tod_tools import commander_tod as tod
 import litebird_sim as lbs
-from commander_tools.tod_tools.litebird_native_tod_reader import LitebirdTodReader
 import argparse
 import multiprocessing as mp
 import os
 import numpy as np
 import h5py
 
+import sys
+from pathlib import Path
+# TODO: In the future version you should use `cosmoglobe` and so eliminating
+# the need to do this workaround in the first place 
+# 
+# Getting full path to Mathew's library as an object
+commander_tools_path = Path(__file__).absolute().parents[2].joinpath(
+        'python','commander_tools').resolve()
+# Appending the path to `PYTHONPATH`, so no need to 
+# modify it externally (in your `.bashrc` etc.)
+sys.path.append(str(commander_tools_path))
+# Importing necessary modules from Mathew's library 
+#from tod_tools import commander_instrument as comm_inst
+
+from tod_tools.litebird_imo import LitebirdImo
+from tod_tools.litebird import litebird
+from tod_tools import commander_tod as tod
+from tod_tools.litebird_native_tod_reader import LitebirdTodReader
+
+
+
+
+
+
 def main():
     parser = argparse.ArgumentParser()
 #    outpath = '/mn/stornext/u3/eirikgje/data/litebird_tods/'
-    outpath = '/home/eirik/data/litebird_sims/'
+    #outpath = '/home/eirik/data/litebird_sims/'
+    lbsims_dir = "test_litebird_sims"
+    outpath = Path(__file__).parent.joinpath(lbsims_dir).resolve()
+    #outpath = str(currpath) + '/test_litebird_sims/'
+    if not outpath.exists():
+        Path.mkdir(outpath)
+    outpath = str(outpath)
     name = 'litebird'
     version = '1.0'
     imo_version = 'v1.3'
@@ -25,7 +51,7 @@ def main():
 
 #    comm_tod = tod.commander_tod(outpath, name, version, manager_dicts, overwrite)
     comm_tod = tod.commander_tod(outpath, name, version, dicts, overwrite)
-    make_ods(comm_tod, 'L1-060', None, imo_version)
+    make_ods(comm_tod, 'L1-060', None, imo_version, outpath)
 
 
 def create_new_tod(comm_tod, od, freq, fsamps, nside, dets, polang):
