@@ -31,9 +31,9 @@ DIRBE_POS_FILES = [
         "dmr_anc_90326_90356.txt",
     ]
 
-DETECTORS = range(1,11)
+BANDS = range(1,11)
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
-BANDS_LABELS = ("A", "B", "C")
+DETECTOR_LABELS = ("A", "B", "C")
 WAVELENGHTS = (1.25, 2.2, 3.5, 4.9, 12, 25, 60, 100, 140, 240)
 
 
@@ -106,7 +106,7 @@ def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
     beams: dict[str, NDArray[np.floating]] = {}
     for detector in range(1,11):
         if detector <= 3:
-            for band in BANDS_LABELS:
+            for band in DETECTOR_LABELS:
                 beams[f"{detector:02}_{band}"] = DEFAULT_BEAM
         else:
             beams[f"{detector:02}_A"] = DEFAULT_BEAM
@@ -127,7 +127,7 @@ def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
     sidelobes: dict[str, NDArray[np.floating]] = {}
     for detector in range(1,11):
         if detector <= 3:
-            for band in BANDS_LABELS:
+            for band in DETECTOR_LABELS:
                 sidelobes[f"{detector:02}_{band}"] = DEFAULT_SIDELOBES
         else:
             sidelobes[f"{detector:02}_A"] = DEFAULT_SIDELOBES
@@ -181,9 +181,9 @@ def get_dmrfile_datetimes(filename: str) -> tuple[datetime, datetime]:
 def test_naming() -> None:
     import h5py
     with h5py.File("test.h5", "w") as file:
-        for detector in DETECTORS:
+        for detector in BANDS:
             file.create_group(f"{detector:02}_{WAVELENGHTS[detector - 1]}um")
-            for band in BANDS_LABELS:
+            for band in DETECTOR_LABELS:
                 file.create_group(f"{detector:02}_{band}")
                 if detector > 3:
                     break

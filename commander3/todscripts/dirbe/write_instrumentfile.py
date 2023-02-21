@@ -36,15 +36,15 @@ def write_dirbe_instrument_file(output_path: str, version: int) -> None:
     fwhms = dirbe_utils.get_dirbe_fwhm()
     beams = dirbe_utils.get_dirbe_beams()
     sidelobes = dirbe_utils.get_dirbe_sidelobes()
-    for idx, detector in enumerate(dirbe_utils.DETECTORS):
+    for idx, detector in enumerate(dirbe_utils.BANDS):
         wavelength = dirbe_utils.WAVELENGHTS[idx]
         detector_group_name = f"{detector:02}_{wavelength}um"
         instrument_file.add_bandpass(
             detector_group_name, wavelengths, bandpasses[idx]
         )
 
-        for band in dirbe_utils.BANDS_LABELS:
-            if idx > 2 and band in dirbe_utils.BANDS_LABELS[1:]:
+        for band in dirbe_utils.DETECTOR_LABELS:
+            if idx > 2 and band in dirbe_utils.DETECTOR_LABELS[1:]:
                 break
 
             band_group_name = f"{detector:02}_{band}"

@@ -58,6 +58,6 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0256.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0256.fits
 BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_240um_smoothed_nside256_V08.txt
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_240um_smoothed_nside256_V10.txt
 
 

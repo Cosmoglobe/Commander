@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import sys
 from scipy import interpolate
 from datetime import datetime, timedelta
-
+import matplotlib.pyplot as plt
 if TYPE_CHECKING:
     from ...python.commander_tools.tod_tools.commander_tod import (
         commander_tod,
@@ -71,6 +71,7 @@ BODIES = {
 def get_flag_sum(*flag_bits: int) -> int:
     return sum([2**bit for bit in flag_bits])
 
+
 flag_bit_sum = get_flag_sum(
     0,  # radiation zone
     3,  # oa
@@ -84,6 +85,7 @@ flag_bit_sum = get_flag_sum(
     20,  # uranus
     21,  # neptune
 )
+
 
 def write_dirbe_commmander_tods(
     output_path: str,
@@ -120,18 +122,18 @@ def write_dirbe_commmander_tods(
     x = [
         [
             pool.apply_async(
-                write_detector,
+                write_band,
                 args=[
                     comm_tod,
-                    detector,
+                    band,
                     nside_in,
                     nside_out,
                     smooth_pixels,
-                    filenames[detector - 1],
+                    filenames[band - 1],
                     planet_interps,
                 ],
             )
-            for detector in dirbe_utils.BANDS
+            for band in dirbe_utils.BANDS
         ]
     ]
 
@@ -145,9 +147,9 @@ def write_dirbe_commmander_tods(
     comm_tod.make_filelists()
 
 
-def write_detector(
+def write_band(
     comm_tod: commander_tod,
-    detector: int,
+    band: int,
     nside_in: int,
     nside_out: int,
     smooth: bool,
@@ -155,8 +157,7 @@ def write_detector(
     planet_interps: dict[str, dict[str, interp1d]],
 ) -> None:
     """Writes a single chunk of tod to file."""
-
-    hdf5_filename = PATH_TO_HDF5_FILES + f"Phot{detector:02}_{nside_in}.hdf5"
+    hdf5_filename = PATH_TO_HDF5_FILES + f"Phot{band:02}_{nside_in}.hdf5"
     COMMON_GROUP = "/common"
     HUFFMAN_COMPRESSION = ["huffman", {"dictNum": 1}]
 
@@ -168,69 +169,63 @@ def write_detector(
     comm_tod.add_field(COMMON_GROUP + "/nside", [nside_out])
 
     # make detector names lookup
-    if detector <= 3:
+    if band <= 3:
         detector_names = ",".join(
-            [f"{detector:02}_{band_label}" for band_label in dirbe_utils.DETECTOR_LABELS]
+            [f"{band:02}_{det_label}" for det_label in dirbe_utils.DETECTOR_LABELS]
         )
     else:
-        detector_names = f"{detector:02}_{dirbe_utils.DETECTOR_LABELS[0]},"
+        detector_names = f"{band:02}_{dirbe_utils.DETECTOR_LABELS[0]},"
     comm_tod.add_field(COMMON_GROUP + "/det", np.string_(detector_names))
 
-    common_polang = get_detector_polang(detector)
+    common_polang = get_band_polang(band)
     comm_tod.add_field(COMMON_GROUP + "/polang", common_polang)
     comm_tod.add_attribute(COMMON_GROUP + "/polang", "index", detector_names)
 
-    common_mbang = get_mbang(detector)
+    common_mbang = get_mbang(band)
     comm_tod.add_field(COMMON_GROUP + "/mbang", common_mbang)
     comm_tod.add_attribute(COMMON_GROUP + "/mbang", "index", detector_names)
 
     rotator = hp.Rotator(coord=["E", "G"])
+    pid = 0
 
     for chunk in range(1, NUM_CHUNKS_PER_BAND + 1):
         day = chunk
         print(f"processing chunk: {chunk:03}...")
         chunk_label = f"{chunk:06}"
 
-        chunk_common_group = chunk_label + "/common"
-
         mjd_times = get_chunk_mjd_times(chunk_label, hdf5_filename)
-        comm_tod.add_field(
-            chunk_common_group + "/time", [mjd_times[0], 0, 0]
-        )  # TODO: get SCET and OBT times
-        comm_tod.add_attribute(chunk_common_group + "/time", "index", "MJD, OBT, SCET")
-
-        ntod = get_ntods(chunk_label, hdf5_filename)
+        if mjd_times.size == 0:
+            continue
+        fsamp_in_days = 1 / FSAMP / 86400
         if smooth:
-            ntod -= int(2 * N_SMOOTHING_BOUNDARY)
-        comm_tod.add_field(chunk_common_group + "/ntod", [ntod])
+            inds = np.nonzero(
+                np.diff(mjd_times[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY])
+                > (2 * fsamp_in_days)
+            )[0]
+            mjd_times = mjd_times[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
+        else:
+            inds = np.nonzero(np.diff(mjd_times) > (2 * fsamp_in_days))[0]
 
-        sat_pos, earth_pos = get_sat_and_earth_pos(day, mjd_times)
-        comm_tod.add_field(chunk_common_group + "/satpos", sat_pos[0])
+        tods_det = []
+        pixels_det = []
+        flags_det = []
+        psi_det = []
+        scalars_det = []
+        out_ang_det = []
 
-        # Add earth position. Required for zodiacal light calculation.
-        comm_tod.add_field(chunk_common_group + "/earthpos", earth_pos[0])
-
-        # add metadata
-        comm_tod.add_attribute(chunk_common_group + "/satpos", "index", "X, Y, Z")
-        comm_tod.add_attribute(
-            chunk_common_group + "/satpos", "coords", "heliocentric-ecliptic"
-        )
-
-        for band in dirbe_utils.DETECTOR_LABELS:
-            band_chunk_group = f"{chunk_label}/{detector:02}_{band}/"
-
-            tods = get_chunk_band_tods(chunk_label, hdf5_filename, band)
+        for det in dirbe_utils.DETECTOR_LABELS:
+            tods = get_chunk_band_tods(chunk_label, hdf5_filename, det)
             pixels = get_chunk_band_pixels(
                 chunk_label,
                 hdf5_filename,
-                band,
+                det,
                 rotator,
                 nside_in=nside_in,
                 nside_out=nside_out,
                 smooth=smooth,
             )
-            gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, band)
-            gustav_time = get_gustav_time(chunk_label, hdf5_filename, band)
+            gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, det)
+            gustav_time = get_gustav_time(chunk_label, hdf5_filename, det)
             flags = get_chunk_band_flags(
                 nside_out,
                 planet_interps,
@@ -239,68 +234,115 @@ def write_detector(
                 gustav_flags,
                 gustav_time,
             )
-            psi = get_chunk_band_psi(chunk_label, hdf5_filename, band)
+            psi = get_chunk_band_psi(chunk_label, hdf5_filename, det)
 
             if smooth:  # smoothing currently requires removing boundaries
                 flags = flags[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
                 tods = tods[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
                 pixels = pixels[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
                 psi = psi[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
-            if flags.size > 0:
-                comm_tod.add_field(
-                    band_chunk_group + "/flag", flags, HUFFMAN_COMPRESSION
-                )
-
-            if tods.size > 0:
-                comm_tod.add_field(band_chunk_group + "/tod", tods)
-
-            if pixels.size > 0:
-                comm_tod.add_field(
-                    band_chunk_group + "/pix", pixels, HUFFMAN_COMPRESSION
-                )
-
-            psi_digitize_compression = [
-                "digitize",
-                {"min": 0, "max": 2 * np.pi, "nbins": NPSI},
-            ]
-            if psi.size > 0:
-                comm_tod.add_field(
-                    band_chunk_group + "/psi",
-                    psi,
-                    [psi_digitize_compression, HUFFMAN_COMPRESSION],
-                )
 
             out_ang = get_out_ang()
-            comm_tod.add_field(band_chunk_group + "/outP", out_ang)
-
             scalars = get_scalars(tods, flags)
-            comm_tod.add_field(band_chunk_group + "/scalars", scalars)
-            comm_tod.add_attribute(
-                band_chunk_group + "/scalars", "index", "gain, sigma0, fknee, alpha"
-            )
-
-            if detector > 3:
+            
+            tods_det.append(tods)
+            pixels_det.append(pixels)
+            flags_det.append(flags)
+            psi_det.append(psi)
+            scalars_det.append(scalars)
+            out_ang_det.append(out_ang)
+            if band > 3:
                 break
 
-        comm_tod.finalize_chunk(chunk)
+        for idx in range(len(inds) - 1):
+            pid += 1
+            pid_label = f"{pid:06}"
+            pid_common_group = pid_label + "/common"
+            start_idx = inds[idx] if idx != 0 else 0
+            stop_idx = inds[idx + 1]
+            if (stop_idx - start_idx) == 0:
+                continue
+            mjd_times_pid = mjd_times[start_idx:stop_idx]
+            comm_tod.add_field(
+                pid_common_group + "/time", [mjd_times_pid[0], 0, 0]
+            )  # TODO: get SCET and OBT times
+            comm_tod.add_attribute(
+                pid_common_group + "/time", "index", "MJD, OBT, SCET"
+            )
+            ntod = len(tods_det[0][start_idx:stop_idx])
+            comm_tod.add_field(pid_common_group + "/ntod", [ntod])
+    
+            sat_pos, earth_pos = get_sat_and_earth_pos(day, mjd_times_pid)
+            comm_tod.add_field(pid_common_group + "/satpos", sat_pos[0])
 
-        # if chunk > 1:
-        #     break
+            # Add earth position. Required for zodiacal light calculation.
+            comm_tod.add_field(pid_common_group + "/earthpos", earth_pos[0])
+
+            # add metadata
+            comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
+            comm_tod.add_attribute(
+                pid_common_group + "/satpos", "coords", "heliocentric-ecliptic"
+            )
+            for det_idx, det in enumerate(dirbe_utils.DETECTOR_LABELS):
+                pid_data_group = f"{pid_label}/{band:02}_{det}"
+                flags_pid = flags_det[det_idx][start_idx:stop_idx]
+                tods_pid = tods_det[det_idx][start_idx:stop_idx]
+                pixels_pid = pixels_det[det_idx][start_idx:stop_idx]
+                psi_pid = psi_det[det_idx][start_idx:stop_idx]
+                scalars_pid = scalars_det[det_idx]
+                out_ang_pid = out_ang_det[det_idx]
+
+                if flags_pid.size > 0:
+                    comm_tod.add_field(
+                        pid_data_group + "/flag", flags_pid, HUFFMAN_COMPRESSION
+                    )
+
+                if tods_pid.size > 0:
+                    comm_tod.add_field(pid_data_group + "/tod", tods_pid)
+
+                if pixels_pid.size > 0:
+                    comm_tod.add_field(
+                        pid_data_group + "/pix", pixels_pid, HUFFMAN_COMPRESSION
+                    )
+
+                psi_digitize_compression = [
+                    "digitize",
+                    {"min": 0, "max": 2 * np.pi, "nbins": NPSI},
+                ]
+                if psi_pid.size > 0:
+                    comm_tod.add_field(
+                        pid_data_group + "/psi",
+                        psi_pid,
+                        [psi_digitize_compression, HUFFMAN_COMPRESSION],
+                    )
+
+                comm_tod.add_field(pid_data_group + "/outP", out_ang_pid)
+
+                comm_tod.add_field(pid_data_group + "/scalars", scalars_pid)
+                comm_tod.add_attribute(
+                    pid_data_group + "/scalars", "index", "gain, sigma0, fknee, alpha"
+                )
+
+                if band > 3:
+                    break
+
+            comm_tod.finalize_chunk(pid)
+
     comm_tod.finalize_file()
 
 
-def get_detector_polang(detector: int) -> list[float]:
+def get_band_polang(band: int) -> list[float]:
     """TODO: get correct angles"""
 
-    if detector > 3:
+    if band > 3:
         return [0]
     return [0, 0, 0]
 
 
-def get_mbang(detector: int) -> list[float]:
+def get_mbang(band: int) -> list[float]:
     """TODO: get correct angles"""
 
-    if detector > 3:
+    if band > 3:
         return [0]
     return [0, 0, 0]
 
@@ -331,17 +373,17 @@ def get_planet_interps(astropy_times: Time) -> dict[str, dict[str, interp1d]]:
 
 
 def get_gustav_flags(
-    chunk_label: str, hdf5_filename: str, band: int
+    chunk_label: str, hdf5_filename: str, detector: str
 ) -> NDArray[np.integer]:
     with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{band}/flag"][()]
+        return file[f"{chunk_label}/{detector}/flag"][()]
 
 
 def get_gustav_time(
-    chunk_label: str, hdf5_filename: str, band: int
+    chunk_label: str, hdf5_filename: str, detector: str
 ) -> NDArray[np.integer]:
     with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{band}/time"][()]
+        return file[f"{chunk_label}/{detector}/time"][()]
 
 
 def get_chunk_band_flags(
@@ -387,12 +429,12 @@ def get_chunk_band_flags(
 
 
 def get_chunk_band_tods(
-    chunk_label: str, hdf5_filename: str, band: str
+    chunk_label: str, hdf5_filename: str, detector: str
 ) -> NDArray[np.floating]:
     """Gets dirbe tods from gustavs files."""
 
     with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{band}/tod"][()]
+        return file[f"{chunk_label}/{detector}/tod"][()]
 
 
 def get_ntods(chunk_label: str, hdf5_filename: str) -> int:
@@ -403,18 +445,18 @@ def get_ntods(chunk_label: str, hdf5_filename: str) -> int:
 
 
 def get_chunk_band_psi(
-    chunk_label: str, hdf5_filename: str, band: str
+    chunk_label: str, hdf5_filename: str, detector: str
 ) -> NDArray[np.floating]:
     """Gets dirbe polang from gustavs files. TODO: rotate to galactic."""
 
     with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{band}/polang"][()]
+        return file[f"{chunk_label}/{detector}/polang"][()]
 
 
 def get_chunk_band_pixels(
     chunk_label: str,
     hdf5_filename: str,
-    band: str,
+    detector: str,
     rotator: hp.Rotator,
     nside_in: int,
     nside_out: int,
@@ -423,7 +465,7 @@ def get_chunk_band_pixels(
     """Gets dirbe pixels from gustavs files."""
 
     with h5py.File(hdf5_filename, "r") as file:
-        pixels_ecl = file[f"{chunk_label}/{band}/pix"][()]
+        pixels_ecl = file[f"{chunk_label}/{detector}/pix"][()]
 
     unit_vectors_ecl = np.asarray(hp.pix2vec(nside_in, pixels_ecl))
     if smooth:
@@ -533,7 +575,9 @@ def main() -> None:
     version = 10
     smooth_pixels = True
     nside_out = 256
-    print(f"Writing tods: {smooth_pixels=}, {nside_out=}, {version=}, {TEMP_OUTPUT_PATH=}")
+    print(
+        f"Writing tods: {smooth_pixels=}, {nside_out=}, {version=}, {TEMP_OUTPUT_PATH=}"
+    )
     write_dirbe_commmander_tods(
         output_path=TEMP_OUTPUT_PATH,
         version=version,
