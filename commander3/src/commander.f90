@@ -62,9 +62,6 @@ program commander
         call print_help()
         call exit(0)
       case default
-        !print '(2a, /)', 'Unrecognised command-line option: ', arg
-        !call print_help()
-        !call exit(0)
         exit comm3_args
     end select
   end do comm3_args
