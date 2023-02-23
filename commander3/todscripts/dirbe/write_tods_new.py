@@ -206,6 +206,7 @@ def write_band(
         else:
             inds = np.nonzero(np.diff(mjd_times) > (2 * fsamp_in_days))[0]
 
+        inds = np.insert(inds, 0, 0)
         tods_det = []
         pixels_det = []
         flags_det = []
@@ -258,7 +259,7 @@ def write_band(
             pid += 1
             pid_label = f"{pid:06}"
             pid_common_group = pid_label + "/common"
-            start_idx = inds[idx] if idx != 0 else 0
+            start_idx = inds[idx]
             stop_idx = inds[idx + 1]
             if (stop_idx - start_idx) == 0:
                 continue
@@ -329,6 +330,13 @@ def write_band(
             comm_tod.finalize_chunk(pid)
 
     comm_tod.finalize_file()
+
+def print_default_file_info(file: str) -> None:
+    with h5py.File(file, "r") as f:
+        print()
+        for group in f["common"]:
+            print(f"Group: {f[group][()]}")
+
 
 
 def get_band_polang(band: int) -> list[float]:
