@@ -109,11 +109,13 @@ contains
     constructor%n_xi            = 3
     constructor%noise_psd_model = 'oof'
     allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+    allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
     
     constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
     if (.true.) then
-       constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
+       constructor%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
+       constructor%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
        constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
        constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
     else
@@ -158,7 +160,7 @@ contains
     call constructor%read_tod(constructor%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
@@ -166,18 +168,10 @@ contains
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-    do i=1, constructor%ndet
-      call init_noise_model(constructor, i)
-    end do
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
-
-    ! Initialize all baseline corrections to zero
-    do i = 1, constructor%nscan
-       constructor%scans(i)%d%baseline = 0.d0
-    end do
 
   end function constructor
 

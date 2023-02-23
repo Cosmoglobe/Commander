@@ -104,7 +104,7 @@ contains
     class(comm_bp),     pointer             :: constructor
 
     integer(i4b)       :: i, j, ndet
-    character(len=512) :: dir, label
+    character(len=512) :: label
     character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
     logical(lgt) :: is_wavelength = .false.
@@ -113,7 +113,6 @@ contains
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
 
     constructor%nu_c = cpar%ds_nu_c(id_abs)
     
@@ -194,7 +193,7 @@ contains
                end do
                constructor%tau0 = constructor%tau0 / ndet
           else
-               call read_bandpass_nonzero_threshold(trim(dir)//cpar%ds_bpfile(id_abs), dets, ndet, &
+               call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
                     & constructor%threshold, &
                     & constructor%n, constructor%nu0, constructor%tau0)
           end if
@@ -217,7 +216,7 @@ contains
     end if
 
     ! Read default delta from instrument parameter file
-    call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+    call read_instrument_file(trim(cpar%cs_inst_parfile), &
          & 'delta', cpar%ds_label(id_abs), 0.d0, constructor%delta(1))
 
     ! Initialize active bandpass 
@@ -246,7 +245,7 @@ contains
 
     select case (trim(self%model))
     case ('powlaw_tilt')
-       
+
        ! Power-law model, centered on nu_c
        self%nu = self%nu0
        do i = 1, n
@@ -260,7 +259,7 @@ contains
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
-         !  if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
+          !if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
        end do
        
     end select
@@ -293,8 +292,11 @@ contains
        self%f2t  = 1.d0 / bnu_prime(1) * 1.d-14
        
     case ('WMAP')
+
+       !write(*,*) self%nu
           
        ! See Appendix E of Bennett et al. (2013) for details
+       self%tau     = self%tau / sum(self%tau)
        self%a2t     = sum(self%tau) / sum(self%tau/a)
        self%a2sz    = sum(self%tau) / sum(self%tau/a * sz) * 1.d-6
        self%f2t     = sum(self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * &
@@ -329,7 +331,7 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
+ 
     case ('DIRBE') 
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &

@@ -28,17 +28,16 @@ module comm_data_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
   use comm_tod_WMAP_mod
-  use comm_tod_DIRBE_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
-  use comm_tod_HFI_mod
+  !use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   use comm_bp_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit, comp_sens
+     character(len=512)           :: label, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain, gain_prior(2)
@@ -49,6 +48,7 @@ module comm_data_mod
      logical(lgt)                 :: pol_only, subtract_zodi
 
      class(comm_mapinfo), pointer :: info      => null()
+     class(comm_mapinfo), pointer :: rmsinfo   => null()
      class(comm_map),     pointer :: map       => null()
      class(comm_map),     pointer :: map0      => null() !for TOD data if outputing to HDF
      class(comm_map),     pointer :: res       => null()
@@ -56,7 +56,6 @@ module comm_data_mod
      class(comm_map),     pointer :: c_prop    => null()
      class(comm_map),     pointer :: mask      => null()
      class(comm_map),     pointer :: procmask  => null()
-     class(comm_map),     pointer :: procmask2 => null()
      class(comm_map),     pointer :: gainmask  => null()
      class(comm_tod),     pointer :: tod       => null()
      class(comm_N),       pointer :: N         => null()
@@ -64,7 +63,7 @@ module comm_data_mod
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
-     type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
+     class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
      procedure :: chisq => get_chisq
@@ -124,6 +123,7 @@ contains
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
        data(n)%subtract_zodi  = cpar%ds_tod_subtract_zodi(i)
+       data(n)%noise_format   = cpar%ds_noise_format(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
@@ -134,11 +134,17 @@ contains
        data(n)%info => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
             & nmaps, cpar%ds_polarization(i))
        call get_mapfile(cpar, i, mapfile)
-       data(n)%map  => comm_map(data(n)%info, trim(dir)//trim(mapfile), mask_misspix=mask_misspix)
+       data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
+       if (trim(data(n)%noise_format) == 'rms_qucov') then 
+          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+                   & nmaps+1, cpar%ds_polarization(i))
+       else
+          data(n)%rmsinfo => data(n)%info
+       end if
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
-          data(n)%procmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_procmask), &
+          data(n)%procmask => comm_map(data(n)%info, trim(cpar%ds_procmask), &
                & udgrade=.true.)
        end if
        data(n)%res  => comm_map(data(n)%map)
@@ -147,61 +153,28 @@ contains
        if (data(n)%sample_gain) then
           ! Read calibration mask
           if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
-             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%datadir)//'/'//trim(cpar%ds_maskfile_calib(i)), &
+             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
                   & udgrade=.true.)
           end if
        end if
-
-       ! Initialize bandpass structures; 0 is full freq, j is detector       
-       call get_tokens(cpar%ds_tod_dets(i), ",", dets, num=data(n)%ndet)
-       allocate(data(n)%bp(0:data(n)%ndet))
-       do j = 1, data(n)%ndet
-          if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
-          else
-            ! Check if bandpass already exists in detector list
-            call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
-                              & dets(j), &
-                              & 0.d0, is_wavelength_dummy, &
-                              & n_dummy, &
-                              & nu_dummy, &
-                              & tau_dummy)
-            do k=1, j
-               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
-                  data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
-                  exit
-               else if (k==j-1) then
-                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
-               end if
-            end do
-            deallocate(nu_dummy, tau_dummy)
-          end if
-       end do
-
-       if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
-       else
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=cpar%ds_tod_dets(i))
-       end if
-
 
        ! Initialize TOD structures
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
-             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'DIRBE') then
-             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
-             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           ! Adding QUIET data into a loop
           else if (trim(data(n)%tod_type) == 'QUIET') then
@@ -219,6 +192,7 @@ contains
 
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
+             data(n)%tod_freq       = cpar%ds_tod_freq(i)
           end if
        end if
        call update_status(status, "data_tod")
@@ -239,7 +213,7 @@ contains
        call update_status(status, "data_beam")
  
        ! Read default gain from instrument parameter file
-       call read_instrument_file(trim(cpar%datadir)//'/'//trim(cpar%cs_inst_parfile), &
+       call read_instrument_file(trim(cpar%cs_inst_parfile), &
             & 'gain', cpar%ds_label(i), 1.d0, data(n)%gain)
 
        ! Initialize mask structures
@@ -247,7 +221,7 @@ contains
           data(n)%mask     => comm_map(data(n)%info)
           data(n)%mask%map =  1.d0
        else
-          data(n)%mask  => comm_map(data(n)%info, trim(dir)//trim(cpar%ds_maskfile(i)))
+          data(n)%mask  => comm_map(data(n)%info, trim(cpar%ds_maskfile(i)))
           where (data(n)%mask%map > 0.5d0)
              data(n)%mask%map = 1.d0
           elsewhere
@@ -256,7 +230,7 @@ contains
        end if
        data(n)%mask%map = data(n)%mask%map * mask_misspix
        if (trim(cpar%ds_sourcemask) /= 'none') then
-          call apply_source_mask(data(n)%mask, trim(cpar%datadir)//'/'//trim(cpar%ds_sourcemask), &
+          call apply_source_mask(data(n)%mask, trim(cpar%ds_sourcemask), &
                & data(n)%B(0)%p%r_max)
        end if
        if (cpar%only_pol) data(n)%mask%map(:,1) = 0.d0
@@ -268,19 +242,32 @@ contains
        case ('rms') 
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
           else
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
+       case ('rms_qucov') 
+          call update_status(status, 'Initializing rms qucov')
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+          if (associated(data(n)%procmask)) then
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
+                  & data(n)%procmask)
+          else
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
+          end if
+          call update_status(status, 'set data(n)%N')
+          data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
+          call update_status(status, 'added regnoise')
+          deallocate(regnoise)
        case ('lcut') 
-          data(n)%N       => comm_N_lcut(cpar, data(n)%info, n, i, 0, data(n)%mask, handle)
+          data(n)%N       => comm_N_lcut(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)
           call data(n)%N%P(data(n)%map)
           call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
        case ('QUcov') 
-          data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+          data(n)%N       => comm_N_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
           data(n)%pol_only = .true.
        case default
@@ -290,40 +277,38 @@ contains
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
 
+       ! Initialize bandpass structures; 0 is full freq, i is detector       
+       allocate(data(n)%bp(0:data(n)%ndet))
+       do j = 1, data(n)%ndet
+          if (j==1) then
+            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+          else
+            ! Check if bandpass already exists in detector list
+            call read_bandpass(trim(cpar%ds_bpfile(i)), &
+                              & data(n)%tod%label(j), &
+                              & 0.d0, &
+                              & n_dummy, &
+                              & nu_dummy, &
+                              & tau_dummy)
+            do k=1, j
+               if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
+                  data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
+                  exit
+               else if (k==j-1) then
+                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+               end if
+            end do
+            deallocate(nu_dummy, tau_dummy)
+          end if
+       end do
 
-      ! This code was moved above the TOD initialization so that we could feed it into the TOD objects
-      ! -------
-      !  ! Initialize bandpass structures; 0 is full freq, j is detector       
-      !  allocate(data(n)%bp(0:data(n)%ndet))
-      !  call get_tokens(cpar%ds_tod_dets(i), ",", dets)
-      !  do j = 1, data(n)%ndet
-      !     if (j==1) then
-      !       data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
-      !     else
-      !       ! Check if bandpass already exists in detector list
-      !       call read_bandpass(trim(cpar%datadir) // '/' // cpar%ds_bpfile(i), &
-      !                         & dets(j), &
-      !                         & 0.d0, &
-      !                         & n_dummy, &
-      !                         & nu_dummy, &
-      !                         & tau_dummy)
-      !       do k=1, j
-      !          if (all(tau_dummy==data(n)%bp(k)%p%tau0)) then
-      !             data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
-      !             exit
-      !          else if (k==j-1) then
-      !             data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=dets(j))
-      !          end if
-      !       end do
-      !       deallocate(nu_dummy, tau_dummy)
-      !     end if
-      !  end do
+       call update_status(status, "data_BP")
 
-      !  if (trim(cpar%ds_tod_type(i)) == 'none') then
-      !     data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
-      !  else
-      !     data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
-      !  end if
+       if (trim(cpar%ds_tod_type(i)) == 'none') then
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
+       else
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
+       end if
 
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
@@ -332,7 +317,7 @@ contains
        do j = 1, cpar%num_smooth_scales
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
+            info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
                   & data(n)%info%lmax, &
                   & data(n)%info%nmaps, data(n)%info%pol)
@@ -358,30 +343,7 @@ contains
              nullify(data(n)%B_postproc(j)%p)
           end if
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
-             tmp => data(n)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                data(n)%N_smooth(j)%p => tmp
-             end select
-          else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
-             ! Point to the regular old RMS map
-             tmp => data(n)%N
-             select type (tmp)
-             ! Now we smooth that RMS map to the new resolutions
-             class is (comm_N_rms)
-
-                ! Create map info for smoothed rms maps
-                smoothed_rms_info => comm_mapinfo(data(n)%info%comm, &
-                     & cpar%nside_smooth(j), cpar%lmax_smooth(j), &
-                     & data(n)%info%nmaps, data(n)%info%pol)
-
-                ! Smooth the rms map, make new comm_N_rms object for the result 
-                call smooth_rms(cpar, smoothed_rms_info, handle, &
-                     & data(n)%B(0)%p%b_l, tmp, &
-                     & data(n)%B_smooth(j)%p%b_l, smoothed_rms)
-
-                data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
-             end select
+             data(n)%N_smooth(j)%p => data(n)%N
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
@@ -405,6 +367,7 @@ contains
 
     ! Dump unit conversion factors to file
     if (cpar%myid == 0) call dump_unit_conversion(cpar%outdir)
+
 
   end subroutine initialize_data_mod
 
@@ -707,7 +670,7 @@ contains
     else if (filename(n-2:n) == 'txt') then
        ! Assume filelist; pick the number given by mychain. 
        unit = getlun()
-       open(unit, file=trim(cpar%datadir)//'/'//trim(filename), recl=1024)
+       open(unit, file=trim(filename), recl=1024)
        do i = 1, cpar%mychain
           read(unit,'(a)') mapfile
        end do

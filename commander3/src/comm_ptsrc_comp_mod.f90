@@ -605,7 +605,7 @@ contains
     allocate(amp(nmaps), amp_rms(nmaps), beta(npar,nmaps), beta_rms(npar,nmaps))
 
     ! Count number of valid sources
-    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
+    open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     self%nsrc    = 0
     self%ncr     = 0
     self%ncr_tot = 0
@@ -625,12 +625,12 @@ contains
 1   close(unit)
 
     if (self%nsrc == 0) call report_error('No valid sources in = ' // &
-         & trim(trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs))))
+         & trim(cpar%cs_catalog(id_abs)))
     
     ! Initialize point sources based on catalog information
     allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
     allocate(mask(self%nsrc,self%nmaps), mask2(self%nsrc,self%nmaps))
-    open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_catalog(id_abs)),recl=1024)
+    open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     i    = 0
     mask = 1
     do while (.true.)
@@ -703,7 +703,7 @@ contains
 
     ! Initialize parameter values on existing catalog if requested
     if (trim(cpar%cs_init_catalog(id_abs)) /= 'none') then
-       open(unit,file=trim(cpar%datadir) // '/' // trim(cpar%cs_init_catalog(id_abs)),recl=1024)
+       open(unit,file=trim(cpar%cs_init_catalog(id_abs)),recl=1024)
        i    = 0
        do while (.true.)
           read(unit,'(a)',end=4) line
@@ -738,11 +738,11 @@ contains
 
 
     ! Initialize beam templates
-    tempfile = trim(cpar%datadir)//'/'//trim(cpar%cs_ptsrc_template(id_abs))
+    tempfile = trim(cpar%cs_ptsrc_template(id_abs))
     do j = 1, self%nsrc
        if (mod(j,1000) == 0 .and. self%myid == 0) &
        !if (mod(j,100) == 0 .and. self%myid == 0) &
-            & write(*,fmt='(a,i6,a,i6)') '   Initializing src no. ', j, ' of ', self%nsrc
+            & write(*,fmt='(a,i6,a,i6)') ' |    Initializing src no. ', j, ' of ', self%nsrc
        do i = 1, numband
           self%src(j)%T(i)%nside   = data(i)%info%nside
           self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
@@ -756,7 +756,7 @@ contains
                   & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
           else
              !write(*,*) i, trim(data(i)%label), trim(cpar%ds_btheta_file(i))
-             filename = trim(cpar%datadir)//'/'//trim(cpar%ds_btheta_file(data(i)%id_abs))
+             filename = trim(cpar%ds_btheta_file(data(i)%id_abs))
              n        = len(trim(adjustl(filename)))
              if (filename(n-2:n) == '.h5') then
                 ! Read precomputed Febecop beam from HDF file
@@ -810,7 +810,7 @@ contains
     integer(i4b), allocatable, dimension(:,:) :: mypix
     real(dp),     allocatable, dimension(:)   :: b_in
     real(dp),     allocatable, dimension(:,:) :: b, mybeam
-    real(dp),     allocatable, dimension(:)   :: buffer
+    real(dp),     allocatable, dimension(:,:)   :: buffer
 
     if (myid_pre == 0) then
        ! Find center pixel number for current source
@@ -854,7 +854,7 @@ contains
        else if (T%nside < T%nside_febecop) then
           q = (T%nside_febecop/T%nside)**2
           n = 0
-          allocate(ind(m), b(m,T%nmaps), nsamp(m))
+          allocate(ind(m), b(m,T%nmaps), nsamp(m), buffer(m, T%nmaps))
           nsamp = 0
           b     = 0.d0
           do i = 1, m
@@ -894,10 +894,13 @@ contains
        call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
     else
        call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
-       allocate(ind(n), b(n,T%nmaps))
+       allocate(ind(n), b(n,T%nmaps), buffer(n, T%nmaps))
     end if
     call mpi_bcast(ind(1:n), n,         MPI_INTEGER,          0, comm_pre, ierr)
-    call mpi_bcast(b(1:n,:), n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+    buffer = b(1:n, :)
+    call mpi_bcast(buffer, n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+    b(1:n, :) = buffer
+    deallocate(buffer)
 
     ! Find number of pixels belonging to current processor
     allocate(mypix(n,2), mybeam(n,T%nmaps))
@@ -954,7 +957,7 @@ contains
     TYPE(h5o_info_t) :: object_info    
     character(len=128) :: itext
     integer(i4b), allocatable, dimension(:)   :: ind
-    real(dp),     allocatable, dimension(:,:) :: beam
+    real(dp),     allocatable, dimension(:,:) :: beam, buffer
     integer(i4b), dimension(MPI_STATUS_SIZE) :: status
 
     inquire(file=trim(filename), exist=exist)
@@ -991,8 +994,12 @@ contains
                 if (m > 0) then
                    call mpi_recv(ind(n+1:n+m), m, MPI_DOUBLE_PRECISION, j, &
                         & 61, comm_pre, status, ierr)
-                   call mpi_recv(beam(n+1:n+m,:), m*nmaps, MPI_DOUBLE_PRECISION, j, &
+                   allocate(buffer(m, nmaps))
+                   buffer = beam(n+1:n+m,:)
+                   call mpi_recv(buffer, m*nmaps, MPI_DOUBLE_PRECISION, j, &
                         & 61, comm_pre, status, ierr)
+                   beam(n+1:n+m,:) = buffer
+                   deallocate(buffer)
                 end if
                 n = n+m
              end do
@@ -1565,7 +1572,7 @@ contains
              do k = 1, self%nsrc             
                 p_lnL       = p
                 k_lnL       = k
-                c           => compList     ! Extremely ugly hack...
+                c           => compList     
                 do while (self%id /= c%id)
                    c => c%next()
                 end do
@@ -1728,11 +1735,13 @@ contains
 !!$    stop
 
 
-    if (self%myid == 0) open(68,file='ptsrc.dat', recl=1024)
+    if (self%myid == 0) open(68,file=trim(cpar%outdir)//'/ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
+    if (self%myid == 0) write(*,*) '| Gibbs sampling radio parameters'
+    if (self%myid == 0) write(*,*) '| Iteration, N_gibbs'
     do iter2 = 1, n_gibbs
 
-       if (self%myid == 0) write(*,*) iter2, n_gibbs
+       if (self%myid == 0) write(*,*) '| ', iter2, n_gibbs
 
        ! Sample spectral parameters
        do j = 1, self%npar

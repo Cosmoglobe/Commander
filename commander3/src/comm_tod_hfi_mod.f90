@@ -100,7 +100,7 @@ contains
     class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
     class(comm_HFI_tod),     pointer    :: constructor
 
-    integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
     ! Allocate object
@@ -116,7 +116,7 @@ contains
     ! just so that it actually runs
     constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
     constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    constructor%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
+    !constructor%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
 
     constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
 
@@ -165,7 +165,9 @@ contains
 
     ! Initialize all baseline corrections to zero
     do i = 1, constructor%nscan
-       constructor%scans(i)%d%baseline = 0.d0
+      do j = 1, constructor%ndet
+       constructor%scans(i)%d(j)%baseline = 0.d0
+      end do
     end do
 
   end function constructor

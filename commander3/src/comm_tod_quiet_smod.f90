@@ -33,16 +33,17 @@ contains
     ! oof -- one over f noise
     constructor%noise_psd_model = 'oof'
     allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
+    allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
 
     !
     constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
     if (trim(constructor%freq) == 'Q') then
-       constructor%xi_n_nu_fit = [0.0, 0.200]    
+       constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
        constructor%xi_n_P_uni(2,:)  = [0.00001, 0.005]  ! fknee
        constructor%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
     else if (trim(constructor%freq) == 'W') then
-       constructor%xi_n_nu_fit = [0.0, 0.200]    
+       constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
        constructor%xi_n_P_uni(2,:)  = [0.0001, 0.01]    ! fknee
        constructor%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
     else
@@ -102,7 +103,7 @@ contains
     call constructor%read_tod(constructor%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%datadir)//cpar%ds_tod_bp_init(id_abs))
+    call constructor%initialize_bp_covar(trim(cpar%ds_tod_bp_init(id_abs)))
 
     ! Construct lookup tables -- reads everything up from pointing information
     call constructor%precompute_lookups()
@@ -116,10 +117,6 @@ contains
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
-    ! Initialize all baseline corrections to zero
-    !do i = 1, constructor%nscan
-    !   constructor%scans(i)%d%baseline = 0.d0
-    !end do
 
   end procedure constructor
 
@@ -156,7 +153,6 @@ contains
     integer(i4b) :: num_cg_iters
     real(dp) ::  epsil(6)
     real(dp), allocatable, dimension(:, :, :) :: bicg_sol
-    real(dp), allocatable, dimension(:)       :: map_full
 
     ! Toggle optional operations
     sample_rel_bandpass   = size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -185,10 +181,8 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    allocate(map_full(0:npix-1))
-    map_full = 0.d0
     !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
-    call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
+    call distribute_sky_maps(self, map_in, 1., map_sky) ! K to K?
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -215,7 +209,6 @@ contains
     ! Perform main sampling steps
     !------------------------------------
     ! For QUIET we need to only sample for absolute calibration
-    !call sample_baseline(self, handle, map_sky, procmask, procmask2)
     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
     !call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
     !call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
@@ -295,24 +288,6 @@ contains
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)
-       if (.false. .and. i==1 .and. mod(iter,10) == 0) then
-          call int2string(self%scanid(i), scantext)
-          if (self%myid == 0 .and. self%verbosity > 0) write(*,*) 'Writing tod to txt'
-          do k = 1, self%ndet
-             open(78,file=trim(chaindir)//'/tod_'//trim(self%label(k))//'_pid'//scantext//'_samp'//samptext//'.dat', recl=1024)
-             write(78,*) "# Sample   uncal_TOD (mK)  n_corr (mK) cal_TOD (mK)  sky (mK)  "// &
-                  & " s_orb (mK),  mask, baseline, sl, bp, gain, sigma0"
-             do j = 1, sd%ntod
-                write(78,*) j, sd%tod(j, k), sd%n_corr(j, k), d_calib(1,j,k), &
-                 &  sd%s_totA(j,k), sd%s_orbA(j,k), &
-                 &  sd%s_totB(j,k), sd%s_orbB(j,k), &
-                 &  sd%mask(j, k), self%scans(i)%d(k)%baseline, &
-                 &  sd%s_sl(j,k),  sd%s_bp(j,k), real(self%scans(i)%d(k)%gain, sp), &
-                 &  real(self%scans(i)%d(k)%N_psd%sigma0, sp)
-             end do
-             close(78)
-          end do
-       end if
        
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
        ! if (self%output_4D_map > 0) then
@@ -401,9 +376,6 @@ contains
          if (self%verbosity > 0 .and. self%myid == 0) then
            write(*,*) '    Solving for ', trim(adjustl(self%labels(l)))
          end if
-         call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                        & epsil(l), procmask, map_full, M_diag, b_map, l, &
-                        & prefix, postfix)
       end do
       if (self%verbosity > 0 .and. self%myid == 0) write(*,*) '  Finished BiCG'
     !end if
@@ -439,7 +411,6 @@ contains
     ! Clean up temporary arrays
     deallocate(procmask, procmask2)
     deallocate(b_map, M_diag)
-    deallocate(map_full)
     if (allocated(chisq_S)) deallocate (chisq_S)
     if (allocated(b_mono)) deallocate (b_mono)
     if (allocated(sys_mono)) deallocate (sys_mono)

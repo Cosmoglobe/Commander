@@ -51,4 +51,5 @@ BAND_TOD_FLAG&&&               = 6111232
 BAND_TOD_ORBITAL_ONLY_ABSCAL&&& = .false.
 BAND_TOD_DETECTOR_LIST&&&      = 24M,24S,25M,25S,26M,26S
 BAND_TOD_INIT_FROM_HDF&&&      = default
+N_GIBBS_PER_TOD&&&             = 1
 

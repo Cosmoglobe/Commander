@@ -57,4 +57,5 @@ BAND_TOD_MAIN_PROCMASK&&&      = mask_proc_030_res_v5.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
 BAND_TOD_RIMO&&&               = LFI_instrument_v4.h5
 BAND_TOD_FILELIST&&&           = filelist_30_v17.txt
+N_GIBBS_PER_TOD&&&             = 1
 

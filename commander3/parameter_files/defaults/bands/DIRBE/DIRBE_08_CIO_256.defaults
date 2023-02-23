@@ -57,4 +57,5 @@ BAND_TOD_MAIN_PROCMASK&&&      = wmap_processing_mask_K_v6.fits   # What goes he
 BAND_TOD_SMALL_PROCMASK&&&     = mask_smap6.fits
 BAND_TOD_RIMO&&&               = DIRBE_instrument.h5
 BAND_TOD_FILELIST&&&           = filelists/filelist_06_256.txt
+N_GIBBS_PER_TOD&&&             = 1
 
