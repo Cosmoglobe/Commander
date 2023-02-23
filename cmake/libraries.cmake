@@ -90,13 +90,13 @@ message(STATUS "OPENMP Fortran LIBRARIES are: ${OpenMP_Fortran_LIBRARIES}")
 # Creating comm_hdf_mod.f90 with Tempita language. Python is required. 
 #------------------------------------------------------------------------------
 add_custom_target(tempita ALL "")
-#set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
-## running python command at configure time
-#execute_process(
-#	COMMAND ${TEMPITA_DIR}/tempita_proc.py < $< > $@
-#	INPUT_FILE ${comm_hdf_mod}.in
-#	OUTPUT_FILE ${comm_hdf_mod}
-#	)
+set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
+# running python command at configure time
+execute_process(
+	COMMAND ${TEMPITA_DIR}/tempita_proc.py < $< > $@
+	INPUT_FILE ${comm_hdf_mod}.in
+	OUTPUT_FILE ${comm_hdf_mod}
+	)
 #------------------------------------------------------------------------------
 # Creating a Unified target
 #------------------------------------------------------------------------------

@@ -212,8 +212,7 @@ then
 		mkdir $abs_path_to_build 
 	fi
 	#------------------------------------------------------------------------------
-	# Leaving cache to speed up the compilation
-  #rm -rf $abs_path_to_build/CMakeCache.txt
+	rm -rf $abs_path_to_build/CMakeCache.txt
 	#------------------------------------------------------------------------------
 	# Executing CMake commands for the first time
 	#------------------------------------------------------------------------------
