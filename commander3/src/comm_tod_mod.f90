@@ -266,7 +266,7 @@ contains
     if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end subroutine initialize_tod_mod
 
-  subroutine tod_constructor(self, cpar, id_abs, info, tod_type, bandpass)
+  subroutine tod_constructor(self, cpar, id_abs, info, tod_type)
     ! 
     ! Common constructor function for all TOD objects; allocatates and initializes general
     ! data structures. This routine is typically called from within an instrument-specific 
@@ -284,8 +284,6 @@ contains
     !           Information about the maps for this band, like how the maps are distributed in memory
     ! tod_type: string
     !           Instrument specific tod type
-    ! bandpass: list of comm_bp objects
-    !           bandpasses
     !
     ! Returns
     ! ----------
@@ -297,7 +295,6 @@ contains
     type(comm_params),              intent(in)     :: cpar
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
-    class(comm_bp_ptr), dimension(0:), intent(in)   :: bandpass
 
     integer(i4b) :: i, ndelta, ierr, unit
     character(len=512) :: datadir

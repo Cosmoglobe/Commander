@@ -176,17 +176,17 @@ contains
    !     allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
-          call read_bandpass(trim(dir)//trim(cpar%ds_bpfile(id_abs)), detlabel, &
+          call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
                & constructor%threshold, is_wavelength, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
           call get_tokens(subdets, ",", dets, ndet)
           if (constructor%threshold == 0.d0) then
-               call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(1), &
+               call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(1), &
                     & constructor%threshold, is_wavelength, &
                     & constructor%n, constructor%nu0, constructor%tau0)
                do i = 2, ndet
-                    call read_bandpass(trim(dir)//cpar%ds_bpfile(id_abs), dets(i), &
+                    call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(i), &
                         & constructor%threshold, is_wavelength, constructor%n, nu0, tau0)
                     constructor%tau0 = constructor%tau0 + tau0
                     deallocate(nu0, tau0)

@@ -27,10 +27,11 @@ module comm_data_mod
   use comm_tod_mod
   use comm_tod_LFI_mod
   use comm_tod_SPIDER_mod
+  use comm_tod_dirbe_mod
   use comm_tod_WMAP_mod
   use comm_tod_LB_mod
   use comm_tod_QUIET_mod
-  !use comm_tod_HFI_mod
+  use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
   use comm_bp_mod
@@ -45,6 +46,7 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
+     integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only, subtract_zodi
 
      class(comm_mapinfo), pointer :: info      => null()
@@ -179,9 +181,9 @@ contains
           ! Adding QUIET data into a loop
           else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
-            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
           else if (trim(data(n)%tod_type) == 'HFI') then
-             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type, data(n)%bp)
+             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
@@ -287,6 +289,7 @@ contains
             call read_bandpass(trim(cpar%ds_bpfile(i)), &
                               & data(n)%tod%label(j), &
                               & 0.d0, &
+                              & is_wavelength_dummy, &
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)

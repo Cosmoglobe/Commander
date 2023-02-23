@@ -508,8 +508,8 @@ contains
        call timer%start(TOD_ZODI, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call compute_zodi_template(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufA)
-          call compute_zodi_template(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%satpos, tod%nu_c(j:j), s_bufB)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufA)
+          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufB)
           self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
@@ -880,7 +880,7 @@ contains
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
        if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
        if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j)                ! zodiacal light
-       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific            ! instrument specific
+       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps

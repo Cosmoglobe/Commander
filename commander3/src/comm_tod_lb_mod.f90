@@ -66,7 +66,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info, tod_type, bandpass)
+  function constructor(cpar, id_abs, info, tod_type)
     ! 
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -82,8 +82,6 @@ contains
     ! tod_type: string
     !           Instrument specific tod type
     !
-    ! bandpass: list of comm_bp objects
-    !           bandpasses
     ! Returns
     ! ----------
     ! constructor: pointer
@@ -95,7 +93,6 @@ contains
     integer(i4b),            intent(in) :: id_abs        !index of the current band within the parameters 
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type      !
-    class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
     class(comm_LB_tod),      pointer    :: constructor
 
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
@@ -124,7 +121,7 @@ contains
     end if
 
     ! Initialize common parameters
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type, bandpass)
+    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz

@@ -96,7 +96,7 @@ interface
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type, bandpass) result(res)
+  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -127,7 +127,6 @@ interface
     integer(i4b),              intent(in)    :: id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
-    class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
     class(comm_lfi_tod),       pointer       :: res
   end function constructor
 

@@ -67,7 +67,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info, tod_type, bandpass)
+  function constructor(cpar, id_abs, info, tod_type)
     ! 
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -82,8 +82,6 @@ contains
     !           Information about the maps for this band, like how the maps are distributed in memory
     ! tod_type: string
     !           Instrument specific tod type
-    ! bandpass: list of comm_bp objects
-    !           bandpasses
     !
     ! Returns
     ! ----------
@@ -96,7 +94,6 @@ contains
     integer(i4b),            intent(in) :: id_abs        !index of the current band within the parameters 
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type      !
-    class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
     class(comm_dirbe_tod),      pointer    :: constructor
 
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
@@ -125,7 +122,7 @@ contains
     !end if
 
     ! Initialize common parameters
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type, bandpass)
+    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
     constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
@@ -367,9 +364,9 @@ contains
        ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Undo the IRAS color correction from tods
-       do j = 1, sd%ndet
-         sd%tod(:, j) = sd%tod(:, j) * self%bandpass(j)%p%SED2F(self%bandpass(j)%p%nu_c / self%bandpass(j)%p%nu)
-       end do
+      !  do j = 1, sd%ndet
+      !    sd%tod(:, j) = sd%tod(:, j) * self%bandpass(j)%p%SED2F(self%bandpass(j)%p%nu_c / self%bandpass(j)%p%nu)
+      !  end do
 
        ! Compute chisquare
        do j = 1, sd%ndet

@@ -54,7 +54,7 @@ module comm_tod_QUIET_mod
   ! make recompillation faster and code easier to maintain
   ! as we split one big module into separate instances.
   interface comm_QUIET_tod
-    module function constructor(cpar, id_abs, info, tod_type, bandpass)
+    module function constructor(cpar, id_abs, info, tod_type)
       !
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -71,8 +71,6 @@ module comm_tod_QUIET_mod
       ! tod_type: string
       !           Instrument specific tod type
       !
-      ! bandpass: list of comm_bp objects
-      !           bandpasses
       ! Returns
       ! ----------
       ! constructor: pointer
@@ -82,7 +80,6 @@ module comm_tod_QUIET_mod
       integer(i4b),           intent(in) :: id_abs
       class(comm_mapinfo),    target     :: info
       character(len=128),     intent(in) :: tod_type
-      class(comm_bp_ptr), dimension(:), intent(in) :: bandpass
       class(comm_QUIET_tod),  pointer    :: constructor
 
     end function constructor
