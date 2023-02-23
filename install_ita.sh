@@ -11,8 +11,6 @@ buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
 # buildtype="Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
-echo $HOSTNAME
-sdfoksd
 comm3_root_dir="$(pwd)"
 # Address
 suffix="\.uio\.no"
