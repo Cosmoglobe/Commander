@@ -45,6 +45,7 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
+     integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only
 
      class(comm_mapinfo), pointer :: info      => null()
@@ -134,7 +135,7 @@ contains
             & nmaps, cpar%ds_polarization(i))
        call get_mapfile(cpar, i, mapfile)
        data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
-       if (trim(data(n)%noise_format) == 'rms_qucov') then 
+       if (trim(data(n)%noise_format) == 'rms_qucov' .and. cpar%ds_polarization(i)) then 
           data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
                    & nmaps+1, cpar%ds_polarization(i))
        else
@@ -221,6 +222,7 @@ contains
 
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
+             data(n)%tod_freq       = cpar%ds_tod_freq(i)
           end if
        end if
        call update_status(status, "data_tod")

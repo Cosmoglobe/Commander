@@ -238,3 +238,4 @@ spline_1d_mod.o             : locate_mod.o math_tools.o
 spline_2d_mod.o             : spline_1d_mod.o math_tools.o comm_utils.o
 comm_hdf_mod.o              : comm_utils.o
 comm_timing_mod.o           : comm_utils.o 
+sharp_test_minimal.o        : sharp.o

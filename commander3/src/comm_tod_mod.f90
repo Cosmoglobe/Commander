@@ -114,7 +114,7 @@ module comm_tod_mod
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
-     logical(lgt) :: orb_abscal
+     character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
@@ -317,7 +317,7 @@ contains
     self%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     self%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     self%flag0         = cpar%ds_tod_flag(id_abs)
-    self%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
+    self%abscal_comps  = cpar%ds_tod_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
@@ -1542,12 +1542,8 @@ contains
 
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
-!       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
-!       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
-!       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,2))
        call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:2+self%n_xi))
-!       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
@@ -1555,19 +1551,9 @@ contains
        self%x_im(3) = self%x_im(2)
        self%x_im(4) = self%x_im(3)
        self%x_im(2) = self%x_im(1)
-!!$       if (trim(self%freq) .ne. '030') then
-!!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
-!!$       end if
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       !write(*,*) 'bp =', self%bp_delta
-       ! Redefine gains; should be removed when proper initfiles are available
-!!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
-!!$       !stop
-!!$       do i = 1, self%ndet
-!!$          self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
-!!$       end do
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
