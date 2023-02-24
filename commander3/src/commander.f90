@@ -62,6 +62,9 @@ program commander
         call print_help()
         call exit(0)
       case default
+        !print '(2a, /)', 'Unrecognised command-line option: ', arg
+        !call print_help()
+        !call exit(0)
         exit comm3_args
     end select
   end do comm3_args
@@ -235,7 +238,7 @@ program commander
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
            curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
-           if (cpar%myid_chain == 0) write(*,*) 'Re-initializing on sample ', curr_samp
+           if (cpar%myid_chain == 0) write(*,*) '|  Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
            call update_mixing_matrices(update_F_int=.true.)       
         end if
@@ -370,38 +373,17 @@ contains
     real(dp),      allocatable, dimension(:,:)   :: regnoise
     type(map_ptr), allocatable, dimension(:,:)   :: s_sky, s_gain
     class(comm_map),  pointer :: rms => null()
-    class(comm_map),  pointer :: cmbmap => null()
+    class(comm_map),  pointer :: gainmap => null()
     class(comm_comp), pointer :: c => null()
     class(comm_N),    pointer :: N
 
     ndelta      = cpar%num_bp_prop + 1
 
-    ! Set up EE l=2-subtracted CMB map for absolute gain calibration
-    c => compList
-    do while (associated(c))
-       select type (c)
-       class is (comm_diffuse_comp)
-          if (trim(c%label) == 'cmb' .and. c%nmaps > 1) then
-             rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
-             cmbmap        => comm_map(c%x)
-!!$             call cmbmap%Y()
-!!$             call cmbmap%writeFITS('cmb_before.fits')
-             ! call cmbmap%remove_EE_l2_alm(c%mono_prior_map)                  ! Remove intrinsic EE, ell=2...
-!!$             call cmbmap%Y()
-!!$             call cmbmap%writeFITS('cmb_middle.fits')
-             ! call cmbmap%add_random_fluctuation(2, 2, rms_EE2_prior, handle) ! ... and replace with random LCDM EE quadrupole
-!!$             call cmbmap%Y()
-!!$             call cmbmap%writeFITS('cmb_after.fits')
-          end if
-       end select
-       c => c%next()
-    end do
 
 
     do i = 1, numband  
        if (trim(data(i)%tod_type) == 'none') cycle
-
-       if (iter .ne. 2 .and. mod(iter, data(i)%tod_freq) .ne. 0) then
+       if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
            if (cpar%myid == 0) then
              write(*,fmt='(a,i1,a)') '|  Only processing '//trim(data(i)%label)//' every ',& 
                & data(i)%tod_freq, ' Gibbs samples'
@@ -413,6 +395,20 @@ contains
           write(*,*) '|  ++++++++++++++++++++++++++++++++++++++++++++'
           write(*,*) '|  Processing TOD channel ', trim(data(i)%label)
        end if
+
+       ! Set up EE l=2-subtracted CMB map for absolute gain calibration
+       c => compList
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             if (trim(c%label) == 'cmb' .and. c%nmaps > 1) then
+                rms_EE2_prior = sqrt(0.308827d-01 * 2*pi/(2.*3.)) / c%cg_scale(2) / c%RJ2unit(2) ! LCDM, Planck 2018 best-fit, uK_cmb^2
+                gainmap        => comm_map(c%x)
+             end if
+          end select
+          c => c%next()
+       end do
+
 
        ! Compute current sky signal for default bandpass and MH proposal
        npar = data(i)%bp(1)%p%npar
@@ -461,8 +457,7 @@ contains
              end do
           end if
 
-          ! Update mixing matrices
-          !if (k > 1 .or. iter == 1) then
+
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
@@ -474,7 +469,6 @@ contains
              else 
                 call update_mixing_matrices(i, update_F_int=.true.)
              end if
-          !end if
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
@@ -487,8 +481,9 @@ contains
           ! Evaluate sky for each detector for absolute gain calibration
           if (k == 1) then
              do j = 1, data(i)%tod%ndet
-                if (associated(cmbmap)) then
-                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., cmbmap=cmbmap) 
+                if (associated(gainmap)) then
+                   call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false., &
+                     & abscal_comps=data(i)%tod%abscal_comps, gainmap=gainmap) 
                 else
                    call get_sky_signal(i, j, s_gain(j,1)%p, mono=.false.) 
                 end if
@@ -564,7 +559,7 @@ contains
        call nullify_monopole_amp(data(i)%label)
        
     end do
-    if (associated(cmbmap)) call cmbmap%dealloc()
+    if (associated(gainmap)) call gainmap%dealloc()
 
   end subroutine process_TOD
 

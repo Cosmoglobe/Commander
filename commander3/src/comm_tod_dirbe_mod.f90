@@ -254,7 +254,7 @@ contains
     real(sp), allocatable, dimension(:)       :: procmask, procmask2
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
    type(hdf_file) :: tod_file
@@ -296,6 +296,8 @@ contains
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
     call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+    call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
 
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
     call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
@@ -309,20 +311,14 @@ contains
     !------------------------------------
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
-   !   if (sample_gain) then
-   !     ! 'abscal': the global constant gain factor
-   !     call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
-   !     ! 'relcal': the gain factor that is constant in time but varying between detectors
-   !     call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
-   !     ! 'deltaG': the time-variable and detector-variable gain
-   !     call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
-   !   else 
-   !    do j = 1, self%nscan
-   !       do i = 1, self%ndet
-   !          self%scans(j)%d(i)%gain = iras_factors(i) !self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain
-   !       end do
-   !    end do
-   !  end if
+     if (sample_gain) then
+       ! 'abscal': the global constant gain factor
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+       ! 'relcal': the gain factor that is constant in time but varying between detectors
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+       ! 'deltaG': the time-variable and detector-variable gain
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+    end if
 
     ! Prepare intermediate data structures
     call binmap%init(self, .true., sample_rel_bandpass)
@@ -353,11 +349,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
 
       !  sd%tod = sd%tod
