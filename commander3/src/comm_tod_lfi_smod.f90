@@ -674,9 +674,9 @@ contains
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
-
-    sample_rel_bandpass   = .false.
-    sample_abs_bandpass   = .false.
+    
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
     ndelta          = size(delta,3)
