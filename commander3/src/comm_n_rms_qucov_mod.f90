@@ -93,8 +93,8 @@ contains
 
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
-    constructor%nmaps             = 4
-    constructor%pol               = .true.
+    constructor%nmaps             = info%nmaps
+    constructor%pol               = info%nmaps == 3
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
@@ -196,14 +196,19 @@ contains
     end if
 
 
+
     ! Add regularization noise; rms_reg is N for this type, not RMS
 !!$    if (associated(self%rms_reg)) self%N_map = self%N_map + self%rms_reg 
 !!$    call uniformize_rms(handle, self%siN, self%uni_fsky, mask, regnoise)
 
     ! Apply mask
     if (present(mask)) then
-       self%N_map%map(:,1:3) = self%N_map%map(:,1:3) * mask%map
-       self%N_map%map(:,4)   = self%N_map%map(:,4)   * mask%map(:,2)*mask%map(:,3)
+       if (self%pol) then
+           self%N_map%map(:,1:3) = self%N_map%map(:,1:3) * mask%map
+           self%N_map%map(:,4)   = self%N_map%map(:,4)   * mask%map(:,2)*mask%map(:,3)
+       else
+           self%N_map%map = self%N_map%map * mask%map
+       end if
     end if
 
     ! Set N to its mean; useful for debugging purposes
@@ -309,13 +314,17 @@ contains
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
 
-    do i = 0, self%info%np-1
-       buff_Q = map%map(i,2)
-       buff_U = map%map(i,3)       
-       map%map(i,1) = self%iN(1,i) * map%map(i,1)
-       map%map(i,2) = self%iN(2,i) * buff_Q + self%iN(4,i) * buff_U
-       map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
-    end do
+    if (self%pol) then
+       do i = 0, self%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,1) = self%iN(1,i) * map%map(i,1)
+          map%map(i,2) = self%iN(2,i) * buff_Q + self%iN(4,i) * buff_U
+          map%map(i,3) = self%iN(4,i) * buff_Q + self%iN(3,i) * buff_U
+       end do
+    else
+       map%map(:,1) = map%map(:,1) * self%iN(1,:)
+    end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -330,13 +339,17 @@ contains
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
 
-    do i = 0, self%N_low%info%np-1
-       buff_Q = map%map(i,2)
-       buff_U = map%map(i,3)       
-       map%map(i,1) = self%iN_low(1,i) * map%map(i,1)
-       map%map(i,2) = self%iN_low(2,i) * buff_Q + self%iN_low(4,i) * buff_U
-       map%map(i,3) = self%iN_low(4,i) * buff_Q + self%iN_low(3,i) * buff_U
-    end do
+    if (self%pol) then
+       do i = 0, self%N_low%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,1) = self%iN_low(1,i) * map%map(i,1)
+          map%map(i,2) = self%iN_low(2,i) * buff_Q + self%iN_low(4,i) * buff_U
+          map%map(i,3) = self%iN_low(4,i) * buff_Q + self%iN_low(3,i) * buff_U
+       end do
+   else
+       map%map(:,1) = self%iN_low(1,:)
+   end if
 !!$    if (present(samp_group)) then
 !!$       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
 !!$    end if
@@ -350,14 +363,19 @@ contains
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
     integer(i4b) :: i
-    write(*,*) 'N map'
-    do i = 0, self%info%np-1
-       buff_Q = map%map(i,2)
-       buff_U = map%map(i,3)       
-       map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
-       map%map(i,2) = self%N_map%map(i,2) * buff_Q + self%N_map%map(i,4) * buff_U
-       map%map(i,3) = self%N_map%map(i,4) * buff_Q + self%N_map%map(i,3) * buff_U
-    end do
+    if (self%pol) then
+       do i = 0, self%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
+          map%map(i,2) = self%N_map%map(i,2) * buff_Q + self%N_map%map(i,4) * buff_U
+          map%map(i,3) = self%N_map%map(i,4) * buff_Q + self%N_map%map(i,3) * buff_U
+       end do
+    else
+       do i = 0, self%info%np-1
+          map%map(i,1) = self%N_map%map(i,1) * map%map(i,1)
+       end do
+    end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
     end if
@@ -370,19 +388,20 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
-    integer(i4b) :: i
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
+    nmaps_band = size(self%siN, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    nmaps      = min(nmaps_inp,nmaps_band)
+    map%map(:,1) = self%siN(1,:) * map%map(:,1)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
 
-    !write(*,*) 'matmul sqrtInvN * map'
-
-    do i = 0, self%info%np-1
-       buff_Q = map%map(i,2)
-       buff_U = map%map(i,3)       
-       map%map(i,1) = self%siN(1,i) * map%map(i,1)
-       map%map(i,2) = self%siN(2,i) * buff_Q + self%siN(4,i) * buff_U
-       map%map(i,3) = self%siN(4,i) * buff_Q + self%siN(3,i) * buff_U
-    end do
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,1) = map%map(:,1) * self%samp_group_mask(samp_group)%p%map(:,1)
+          map%map(:,nmaps+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulSqrtInvN_1map
 
@@ -459,6 +478,13 @@ contains
 
     integer(i4b) :: i
     real(dp) :: A(2,2)
+    logical(lgt)        :: pol
+
+    if (size(N%map, dim=2) .eq. 3) then
+      pol = .true.
+    else
+      pol = .false.
+    end if
 
     do i = 0, N%info%np-1
        ! T component
@@ -470,25 +496,27 @@ contains
           siN(1,i) = 0.d0
        end if
 
-       ! QU block; check for positive definite matrix
-       if (N%map(i,2)*N%map(i,3)-N%map(i,4)**2 > 0.) then
-          A(1,1)  = N%map(i,2) ! QQ
-          A(1,2)  = N%map(i,4) ! QU
-          A(2,1)  = N%map(i,4) ! UQ
-          A(2,2)  = N%map(i,3) ! UU
+       if (pol) then
+          ! QU block; check for positive definite matrix
+          if (N%map(i,2)*N%map(i,3)-N%map(i,4)**2 > 0.) then
+             A(1,1)  = N%map(i,2) ! QQ
+             A(1,2)  = N%map(i,4) ! QU
+             A(2,1)  = N%map(i,4) ! UQ
+             A(2,2)  = N%map(i,3) ! UU
 
-          call compute_hermitian_root(A, -1.d0)
-          iN(2,i)  = A(1,1)    ! QQ
-          iN(3,i)  = A(2,2)    ! UU
-          iN(4,i)  = A(1,2)    ! QU = UQ
+             call compute_hermitian_root(A, -1.d0)
+             iN(2,i)  = A(1,1)    ! QQ
+             iN(3,i)  = A(2,2)    ! UU
+             iN(4,i)  = A(1,2)    ! QU = UQ
 
-          call compute_hermitian_root(A, 0.5d0)
-          siN(2,i) = A(1,1)    ! QQ
-          siN(3,i) = A(2,2)    ! UU
-          siN(4,i) = A(1,2)    ! QU = UQ
-       else
-          iN(2:4,i)  = 0.d0
-          siN(2:4,i) = 0.d0
+             call compute_hermitian_root(A, 0.5d0)
+             siN(2,i) = A(1,1)    ! QQ
+             siN(3,i) = A(2,2)    ! UU
+             siN(4,i) = A(1,2)    ! QU = UQ
+          else
+             iN(2:4,i)  = 0.d0
+             siN(2:4,i) = 0.d0
+          end if
        end if
     end do
 
@@ -500,19 +528,21 @@ contains
           iN_low(1,i)  = 0.d0
        end if
 
-       ! QU block; check for positive definite matrix
-       if (N_low%map(i,2)*N_low%map(i,3)-N_low%map(i,4)**2 > 0.) then
-          A(1,1)  = N_low%map(i,2) ! QQ
-          A(1,2)  = N_low%map(i,4) ! QU
-          A(2,1)  = N_low%map(i,4) ! UQ
-          A(2,2)  = N_low%map(i,3) ! UU
+       if (pol) then
+          ! QU block; check for positive definite matrix
+          if (N_low%map(i,2)*N_low%map(i,3)-N_low%map(i,4)**2 > 0.) then
+             A(1,1)  = N_low%map(i,2) ! QQ
+             A(1,2)  = N_low%map(i,4) ! QU
+             A(2,1)  = N_low%map(i,4) ! UQ
+             A(2,2)  = N_low%map(i,3) ! UU
 
-          call compute_hermitian_root(A, -1.d0)
-          iN_low(2,i)  = A(1,1)    ! QQ
-          iN_low(3,i)  = A(2,2)    ! UU
-          iN_low(4,i)  = A(1,2)    ! QU = UQ
-       else
-          iN_low(2:4,i)  = 0.d0
+             call compute_hermitian_root(A, -1.d0)
+             iN_low(2,i)  = A(1,1)    ! QQ
+             iN_low(3,i)  = A(2,2)    ! UU
+             iN_low(4,i)  = A(1,2)    ! QU = UQ
+          else
+             iN_low(2:4,i)  = 0.d0
+          end if
        end if
     end do
 

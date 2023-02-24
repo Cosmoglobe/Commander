@@ -505,6 +505,10 @@ contains
           select type (N)
           class is (comm_N_rms)
              call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class is (comm_N_rms_qucov)
+             call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class default
+             write(*,*) 'resamp_CMB noise class not defined'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
@@ -695,7 +699,7 @@ contains
              if (trim(c%Cl%bins2(bin)%stat) /= 'M') cycle
 
              n = c%Cl%bins2(bin)%ntot
-if (c%x%info%myid ==0) write(*,*) bin, n
+             !if (c%x%info%myid ==0) write(*,*) bin, n
              pos = 0
              allocate(Dl_old(n), Dl_prop(n), eta(n))
              call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .false.)
@@ -707,7 +711,7 @@ if (c%x%info%myid ==0) write(*,*) bin, n
                 posdef = c%Cl%check_posdef(bin, Dl_prop)
              end if
              call mpi_bcast(posdef, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
-             if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
+             !if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
              if (posdef) then
                 call mpi_bcast(Dl_prop, n, MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
 

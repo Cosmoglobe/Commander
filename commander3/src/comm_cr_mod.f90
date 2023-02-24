@@ -572,21 +572,21 @@ contains
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
 
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'pre sqrtinvN'
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN'
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN2'
 !!$       call map%dealloc()
 !!$
 !!$       map => compute_residual(i, cg_samp_group=samp_group) 
 !!$
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'pre sqrtinvN'
 !!$       call data(i)%N%invN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post invN'
 !!$
 !!$       call data(i)%N%N(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post N (should b back to above)'
 !!$
 !!$
 !!$
