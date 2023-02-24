@@ -96,7 +96,7 @@ contains
     character(len=128),      intent(in) :: tod_type      !
     class(comm_dirbe_tod),      pointer    :: constructor
 
-    integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
+    integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr, SMALL_CHUNK_THRESHOLD
     logical(lgt) :: pol_beam
 
     call timer%start(TOD_INIT, id_abs)
@@ -111,15 +111,15 @@ contains
     allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
     
-    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
-    !if (.true.) then
-    !   constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
-    !   constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-    !   constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
-    !else
-    !   write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
-    !   stop
-    !end if
+    constructor%xi_n_P_rms      = [-1.0, 0.1, -0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
+    if (.true.) then
+      ! constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
+      constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
+      constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+    else
+      write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
+      stop
+    end if
 
     ! Initialize common parameters
     call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -136,11 +136,11 @@ contains
     constructor%nmaps           = info%nmaps
     constructor%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
 
-    nside_beam                  = 128
+    nside_beam                  = 256
     nmaps_beam                  = 1
     pol_beam                    = .false.
     constructor%nside_beam      = nside_beam
-
+   SMALL_CHUNK_THRESHOLD = 200
     ! Get detector labels
     call get_tokens(trim(cpar%ds_tod_dets(id_abs)), ",", constructor%label)
     ! Define detector partners
@@ -176,13 +176,18 @@ contains
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-   !  constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
 
     ! Initialize all baseline corrections to zero
     !do i = 1, constructor%nscan
     !   constructor%scans(i)%d%baseline = 0.d0
     !end do
 
+   do i = 1, constructor%nscan
+      do j = 1, constructor%ndet
+         if (constructor%scans(i)%ntod <= SMALL_CHUNK_THRESHOLD) constructor%scans(i)%d(j)%accept = .false.
+      end do
+   end do
     call timer%stop(TOD_INIT, id_abs)
 
   end function constructor
@@ -331,6 +336,7 @@ contains
     end if
    !  print *, "got here 3"
 
+
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
@@ -338,6 +344,11 @@ contains
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
+
+      !  ! manually remove data for supersmall chunks (why is data fl)
+      !  do j = 1, self%ndet
+      !     if (size(sd%ntod, 1) < 200) self%scans(i)%d(j)%accept = .false.
+      !  end do
 
        ! Prepare data
        if (sample_rel_bandpass) then
@@ -376,6 +387,9 @@ contains
 
        ! Select data
        ! if (select_data) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
+      
+
+
        if (.false.) call remove_bad_data(self, i, sd%flag)! # remember to comment back in
 
        ! Compute chisquare for bandpass fit

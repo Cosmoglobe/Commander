@@ -210,6 +210,7 @@ contains
 
     f      = 1.d0; if (present(factor)) f = factor
     ntod   = size(s_dip)
+    if ((ntod - 1) == 0) stop '!!!!!!!ntod = 1, orb dipole bug!!!!!!!'
     x      = h * nu/(k_B * T_CMB)
     q      = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
     vp_ref = v_ref; if (present(v_ref_next)) vp_ref = v_ref_next ! Velocity for next PID; for linear interpolation

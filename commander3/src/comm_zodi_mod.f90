@@ -180,8 +180,7 @@ contains
         character(len=1024) :: tabulated_earth_pos_filename
         real(dp) :: vec(3), ecliptic_to_galactic_matrix(3, 3)
         integer(i4b), allocatable :: sorted_unique_nsides(:)
-        real(dp), allocatable :: galactic_vec(:, :)
-
+        real(dp), allocatable :: galactic_vec(:, :), filtered_cpar_nsides(:)
         EPS = 3.d-14
 
         ! Initialize hyper, shape, and source parameters for ipd model from files
