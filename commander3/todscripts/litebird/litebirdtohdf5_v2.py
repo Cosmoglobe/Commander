@@ -47,7 +47,7 @@ suitable format
 
 def get_data(nside, k, dfile):
 
-    print(f"Test statement {k}")
+    #print(f"Test statement {k}")
     with h5py.File(dfile, 'r') as readin_file:
         tod_cmb  = np.array(readin_file.get("tod_cmb"))
         tod_dip  = np.array(readin_file.get("tod_dip")) 
@@ -72,7 +72,16 @@ def main():
     """
     Main method of the script 
     """
+    # These parameters are specified by the user (!)
     nprocs = 64 #joblib.cpu_count() - 28 #16
+    version = np.string_('0.0.1')
+    # To access the database etc.
+    freqs = ['L1-060']
+    # The size of one scan in a new file (to be created/output) 
+    scan_size = 2**16
+    # The amount of scans to have in a given (to be created/output) file
+    scan_num  = 20 
+
     #lbdata_dir = pathlib.Path("/Users/maksymb/Desktop/litebird_db/data") 
     lbdata_dir = pathlib.Path(
             "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/detectors_LFT_L1-060_T+B/tods"
@@ -96,11 +105,7 @@ def main():
 
     nfiles = len(lbdata_files)
 
-    # These parameters are specified by the user (!)
-    # The size of one scan in a new file (to be created/output) 
-    scan_size = 2**16
-    # The amount of scans to have in a given (to be created/output) file
-    scan_num  = 20 
+
     # The amount of time (in sec) the given scan will have 
     # (this value is unused and it just for us to see)
     scan_time = scan_size / 19.0
@@ -125,13 +130,16 @@ def main():
     print(f"The scan size in a new file: {scan_size} ({scan_time:.2f} s or {scan_time/3600:.2f} hrs)")
     print(f"Total Number of scans in a new file: {scan_num}")
     print(f"Number of scans to obtain from simulated input file: {N_scans_from_file:.2f}")
-    print(f"The number ratio of new scan to old scan: {scan_num // N_scans_from_file:.2f}")
+    print(f"The number ratio of new scan to old scan: {scan_num / N_scans_from_file:.2f}")
     print(f"Number of files to open (per CPU process): {nfiles_to_open:.2f}")
     print("#------------------")
 
 
     nfiles_to_open = int(nfiles_to_open)
-    # Splitting it the workload (number of files) into equal batches
+    # Splitting it the workload (number of files) into equal batches.
+    # So each processor of nprocs will work with nfiles_to_open in a 
+    # given batch. The more processors involved, the bigger one batch 
+    # and the smaller the end loop (the faster the calculations).
     batches = [ int(nfiles_to_open * nprocs)
             for i in range( nfiles // int(nfiles_to_open * nprocs) ) ]
     # Appending the remnant batch to the list of batches
@@ -147,9 +155,8 @@ def main():
     print(f"Batches are: {batches}")
     print(f"File ranges to process: {file_ranges}")
     print("#------------------")
-    exit()
 
-    #exit()
+
     # Adding unequal part
     #for i in range( nfiles % (nfiles_to_open * nprocs) ):
     #    workloads[i] += 1
@@ -159,17 +166,23 @@ def main():
 
     #print(88768128 / 192)
     #print(f"{lbdata_files}")
+    manager = mp.Manager()
+    dicts = {freqs[0]:manager.dict()}#, 44:manager.dict(), 70:manager.dict()}
+    ctod = comm_tod.commander_tod(output_dir, 'LB', version, dicts=dicts, overwrite=True)
 
     # TODO: do the loop in batches (just split the total data files into
     # batches nfiles_tot/4) and do the processing in batches
     #remnants = np.zeros((48, something here))
-    nside = 512
-    #print(len(lbdata_files[:batches[0]]))
+    nside = 512 
+    # The Operational Day in Full Analogy with Planck
+    od = 1 
+    # To trace the global scan in all files, i.e. each scan in each file will
+    # have unique identifier
+    global_scan_id = 0 
+
     for i in range(1, 2):#len(file_ranges)):
     #for i in tqdm(range(1, 2)):#len(batches)):
         print(f"Working with i = {i}:  {file_ranges[i-1]} -- {file_ranges[i]}")
-
-        #with joblib.parallel_backend(backend="multiprocessing", n_jobs=nprocs):
         # This will pass e.g. 192 files (1 batch) if scan_size = 2**16,
         # scan_num = 20, nprocs = 64. In such a way each core will get 3 files
         # to work with. The resulting array will be of size (192, 48, 462334) 
@@ -182,18 +195,197 @@ def main():
         superTOD = list(map(list, zip(*superTOD)))
         superPix = superTOD[1]
         superTOD = superTOD[0]
-        print(np.concatenate(superTOD, axis=1).shape)
+        #print(np.concatenate(superTOD, axis=1).shape)
         superTOD = np.concatenate(superTOD, axis=1)
         superPix = np.concatenate(superPix, axis=1)
         # TODO: Split these into chunks of equal length using the end number of scans
-        print(f"TOD[0]:\n{superTOD[0]}")
-        print(superTOD.shape)
-        print(f"Pix[0]:\n{superPix[0]}")
-        print(f"Pix[4]:\n{superPix[4]}")
-        print(superPix.shape)
+        #print(f"TOD[0]:\n{superTOD[0]}")
+        #print(superTOD.shape)
+        #print(f"Pix[0]:\n{superPix[0]}")
+        #print(f"Pix[4]:\n{superPix[4]}")
+        #print(superPix.shape)
+        # Number of scans from the combined TOD
+        nscansTOD = len(superTOD[0]) // scan_size + 1
+        print(nscansTOD) # 338.62353515625
+        #nscansTOD = len(superTOD[0]) % scan_size #+ 1
+        #print(nscansTOD) # 338.62353515625
 
-        # TODO: 
+        imo_db_interface = lbs.Imo()
+        imo_version = 'v1.3'
+        instrument = 'LFT'
+        imo_db_datapath = f"/releases/{imo_version}/satellite"
+        # Getting Data From LB Database
+        channel_info = imo_db_interface.query(
+                f"{imo_db_datapath}/{instrument}/{freqs[0]}/channel_info"
+                )
+        metadata = channel_info.metadata
+        #print(metadata)
+        # Number of Detectos for a given Channel
+        ndets      = metadata["number_of_detectors"]
+        # Detector Lables for a given Instrument 
+        det_labels = metadata["detector_names"]
+        # Sampling rate in Hz
+        fsamp      = metadata["sampling_rate_hz"]
+        # Knee frequency in MHz 
+        fknee      = metadata["fknee_mhz"]
+        # Alpha 
+        alpha      = metadata["alpha"]
+        # FWHM in arcmin 
+        fwhm       = metadata["fwhm_arcmin"]
+
+        #print(metadata["detector_names"])
+        #det_labels = ["1"]
+        remnant_tod = []
+
+        curr_chunk = 0 
+        # The scan id within this big array of TODs 
+        # (will be zero once getting new values in superTOD)
+        #local_scan_id = 0
+        # do until the Big TOD array is not looped over
+        #print(len(superTOD[0]))
+        #print(0%20)
+        #exit()
+        #while curr_chunk <= len( superTOD[0] ):
+        for local_scan_id in range(nscansTOD):
+            # Every specified scan (scan_num) open a new file
+            #if global_scan_id % scan_num == 0 or od == 1:
+            if (local_scan_id % scan_num == 0 or od == 1) and local_scan_id < nscansTOD-1:
+                ctod.init_file(freqs[0], od, mode='w')
+
+            #for scan_idx in range(scan_num):
+            for det_idx, det_label in enumerate(det_labels):
+                # Ensuring the name gets unique indentifier (scan id)
+                prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
+                # Saving the last part which will not go into a file
+                if local_scan_id == nscansTOD - 1:
+                    remnant_tod.append(
+                            superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+                            )
+                else:
+                    arr = superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+                    ctod.add_field(prefix + "/tod", arr)
+                
+            if local_scan_id < nscansTOD - 1:
+                ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
+
+            global_scan_id += 1 #scan_num 
+            curr_chunk += scan_size
+            #
+            # Every specified scan (scan_num) close the file
+            #if global_scan_id % scan_num == 0 or od == 1:
+            if (local_scan_id+1) % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
+                print(f"global_scan_id is {global_scan_id}")
+                # Do I need this?
+                ctod.finalize_file()
+                od += 1 
+
+        exit()
+
+        #    #
+        #    if global_scan_id % scan_num == 0 or od == 1:
+        #        # Working with a Single File
+        #        ctod.init_file(freqs[0], od, mode='w')
+        #    #
+        #    print("Entering loop")
+        #    for scan_idx in range(scan_num):
+        #        print(f"global_scan_id is {global_scan_id}")
+        #        # 
+        #        for det_idx, det_label in enumerate(det_labels):
+        #            # Ensuring the name gets unique indentifier (scan id)
+        #            prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
+
+        #            if local_scan_id == nscansTOD - 1:
+        #                remnant_tod.append(
+        #                        superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #                        )
+        #            else:
+        #                arr = superTOD[det_idx][local_scan_id * scan_size:(local_scan_id + 1) * scan_size]
+        #                
+        #                ctod.add_field(prefix + "/tod", arr)
+        #        local_scan_id  += 1
+        #        global_scan_id += 1 #scan_num 
+        #    print("--------")
+
+        #    curr_chunk += scan_size
+        #    # Every specified scan (e.g. 20) sclose the file
+        #    if global_scan_id % scan_num == 0 or od == 1:
+        #        ctod.finalize_chunk(f'{od}'.zfill(6))
+        #        ctod.finalize_file()
+        #        od += 1 
+
+        #exit()
+
+        #for det_idx, det_label in enumerate(det_labels):
+        #    # TODO split the array into subarrays of size nscansTOD
+        #    # This function doesn't want to work, it gives almost what I need
+        #    # but not quite
+        #    #myarr = np.array_split(superTOD[det_idx], nscansTOD)
+        #    curr_chunk = 0 
+        #    while curr_chunk <= len( superTOD[det_idx] ):
+        #        # Local scan id (from 0 to 20)
+        #        local_scan_id = 0 
+
+        #        for idx in range(scan_num):
+        #            if local_scan_id == nscansTOD - 1:
+        #                remnant_tod.append(superTOD[det_idx][local_scan_id * scan_size:(local_scan_id + 1) * scan_size])
+        #            else:
+        #                prefix = f"{local_scan_id}".zfill(6) + "/" + det_label
+        #                arr = superTOD[det_idx][local_scan_id * scan_size:(local_scan_id + 1) * scan_size]
+        #                ctod.add_field(prefix + "/tod", arr)
+        #        #print(f"Running finalize_chunk on file: {lbdata_files[k]}")
+        #        ctod.finalize_chunk(f'{od}'.zfill(6))
+        #        #print("finalize_chunk has finished")
+        #        ctod.finalize_file()
+
+        #        local_scan_id += 1
+        #        curr_chunk += scan_size
+        #od += 1
+
+        ## adding +20 after writing into 1 file
+        #global_scan_id += scan_num 
+        #print(f"Remnant tod shape is: {np.shape(remnant_tod)}")
+
+                
+
+
+            #for i in range(0,len(superTOD[det_idx],scan_size)):
+
+            #print( len(myarr) )
+            #print( len(myarr[0]) )
+            #print( len(myarr[-1]) )
+
+        #exit()
+
+        #for det_idx, det_label in enumerate(det_labels):
+        #    #myarr = np.array_split(superTOD[det_idx], scan_num)
+
+        #    myarr = np.array_split(superTOD[det_idx], scan_size)
+        #    #print(superTOD[det_idx].shape)
+        #    print( len(myarr) )
+        #    print( len(myarr[0]) )
+        #    exit()
+        #    #prefix = f'{d}'.zfill(6) + '/' + label 
+        #    prefix = f"{scan}".zfill(6) + "/" + det_label
+        #    #---------------------------------------------
+        #    # Adding fields
+        #    #---------------------------------------------
+        #    #ctod.add_field(f'{prefix}/theta', chunk[field_idx][i, :, 0])
+        #    #ctod.add_field(f'{prefix}/phi', chunk[field_idx][i, :, 1])
+        #    # TODO: To test mapmaking remove huffman compression
+        #    #ctod.add_field(prefix + "/pix", pixels[det_idx], huffman)
+        #    ctod.add_field(prefix + "/tod", tod_tot[det_idx])
+        #    #ctod.add_field(prefix + "/psi", psi[det_idx], huffman)
+        # Calculate the new number of files to have with given amount of data
+
         # Save the superTOD chunk into a file 
+        #for j in range(192): #<= perhaps the range is incorrect here since 192 is the old number of files?
+
+            # Open file, save there 20 tod scans of size scan_size 
+            # (The splitting was done above)
+
+            # Close the file
+
+        #break
 
         #make_od()
 
@@ -299,9 +491,6 @@ def main():
 
 
 
-    version = np.string_('0.0.1')
-    # To access the database etc.
-    freqs = ['L1-060']
 
     # 1296 files (rank: 0 - 1295), 1296/16 = 81
     # Test to see how to split into chunks
