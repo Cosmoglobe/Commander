@@ -70,7 +70,16 @@ def get_data(nside, k, dfile):
     #return {k: tod_cadd}
     return (tod_cadd, pixels, psi)
 
+def append_remnant(arr, remnant):
+    """
+    Method appends the remnant array to the list from the left 
+    """
 
+    arr = deque(arr)
+    arr.appendleft(remnant)
+    arr = list(arr)
+    
+    return arr
 
 
 def main():
@@ -220,7 +229,7 @@ def main():
 
     print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
 
-    for i in range(1, 2):#len(file_ranges)):
+    for i in range(1, len(file_ranges)):
     #for i in tqdm(range(1, 2)):#len(batches)):
         print(f"Working with i = {i}:  {file_ranges[i-1]} -- {file_ranges[i]}")
 
@@ -242,17 +251,20 @@ def main():
         # Adding the remnant array to the super array from the left
         # (supposed to be very fast)
         if i != 1:         
-            superTOD = deque(superTOD)
-            superTOD.appendleft(remnant_tod)
-            superTOD = list(superTOD)
+            superTOD = append_remnant(superTOD, remnant_tod)
+            superPix = append_remnant(superPix, remnant_pix)
+            superPsi = append_remnant(superPsi, remnant_psi)
+            #superTOD = deque(superTOD)
+            #superTOD.appendleft(remnant_tod)
+            #superTOD = list(superTOD)
 
-            superPix = deque(superPix)
-            superPix.appendleft(remnant_pix)
-            superPix = list(superPix)
+            #superPix = deque(superPix)
+            #superPix.appendleft(remnant_pix)
+            #superPix = list(superPix)
 
-            superPsi = deque(superPsi)
-            superPsi.appendleft(remnant_psi)
-            superPsi = list(superPsi)
+            #superPsi = deque(superPsi)
+            #superPsi.appendleft(remnant_psi)
+            #superPsi = list(superPsi)
 
         # Stitching subarrays together
         superTOD = np.concatenate(superTOD, axis=1)
@@ -321,6 +333,7 @@ def main():
                 
             if local_scan_id < nscansTOD - 1:
                 # TODO: Add more add fields here (which are common)
+                #prefix = f"{global_scan_id}".zfill(6) + "/common"
                 ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
 
             global_scan_id += 1 #scan_num 
@@ -350,7 +363,6 @@ def main():
                 ctod.add_field(prefix + '/mbang',    mbang)
                 # Sampling Rate
                 ctod.add_field(prefix + '/fsamp',    fsamp)
-
                 # 
                 ctod.finalize_file()
                 print(f"Finalised new file with OD: {od} and the last Global Scan Id: {global_scan_id-1}")
@@ -362,6 +374,8 @@ def main():
         print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
         print(f"The remnant pixs shape is: {remnant_pix.shape} and the values are:\n{remnant_pix}")
 
+        # Freeing memory up
+        del superPsi, superPix, superTOD
         # if we are on the last loop, we will finilize the last file 
         if i == len(file_ranges)-1:
             ctod.finalize_chunk(f"{global_scan_id}".zfill(6))
@@ -370,13 +384,6 @@ def main():
     # Making filelists.txt after working with all the data was finalized
     ctod.make_filelists()
 
-
-    # 1296 files (rank: 0 - 1295), 1296/16 = 81
-    # Test to see how to split into chunks
-    #testdata1 = [[1,2,3], [4,5,6]]
-    #testdata2 = [[7,8,9], [10,11,12]]
-    #points1  = [["meat1", "meat2", "meat3"], ["juice1", "juice2", "juice3"]]
-    # end result: det1: [1,2,3,7,8,9], det2: [4,5,6,10,11,12]
 
     # Initialising commander tod object
     #manager = mp.Manager()
