@@ -19,6 +19,8 @@ import joblib
 import matplotlib.pyplot as plt
 # to see progress bar
 from tqdm import tqdm
+#
+from collections import deque
 #---------------------------------------------
 # Local Development Libs
 #---------------------------------------------
@@ -72,21 +74,54 @@ def main():
     """
     Main method of the script 
     """
-    # These parameters are specified by the user (!)
+    # ----------------------------------
+    # User-Specified Parameters 
+    # ----------------------------------
+
     nprocs = 64 #joblib.cpu_count() - 28 #16
     version = np.string_('0.0.1')
-    # To access the database etc.
-    freqs = ['L1-060']
     # The size of one scan in a new file (to be created/output) 
     scan_size = 2**16
     # The amount of scans to have in a given (to be created/output) file
     scan_num  = 20 
+    
+    # ----------------------------------
+    # Retrieving Instrument Data
+    # ----------------------------------
 
-    #lbdata_dir = pathlib.Path("/Users/maksymb/Desktop/litebird_db/data") 
+    # To access the database etc.
+    freqs = ['L1-060']
+
+    imo_db_interface = lbs.Imo()
+    imo_version = 'v1.3'
+    instrument = 'LFT'
+    imo_db_datapath = f"/releases/{imo_version}/satellite"
+    # Getting Data From LB Database
+    channel_info = imo_db_interface.query(
+            f"{imo_db_datapath}/{instrument}/{freqs[0]}/channel_info"
+            )
+    metadata = channel_info.metadata
+    #print(metadata)
+    # Number of Detectos for a given Channel
+    ndets      = metadata["number_of_detectors"]
+    # Detector Lables for a given Instrument 
+    det_labels = metadata["detector_names"]
+    # Sampling rate in Hz
+    fsamp      = metadata["sampling_rate_hz"]
+    # Knee frequency in MHz 
+    fknee      = metadata["fknee_mhz"]
+    # Alpha 
+    alpha      = metadata["alpha"]
+    # FWHM in arcmin 
+    fwhm       = metadata["fwhm_arcmin"]
+
+    # ----------------------------------
+    # Retrieving Simulations' Data
+    # ----------------------------------
+
     lbdata_dir = pathlib.Path(
             "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/detectors_LFT_L1-060_T+B/tods"
             )
-    #output_dir = pathlib.Path(__file__).parent.joinpath("test_litebird_sims")
     output_dir = pathlib.Path(
             "/mn/stornext/d5/data/maksymb/litebird"
             )
@@ -100,11 +135,17 @@ def main():
     # Getting all the data sizes so later will split everything into chunks
     with h5py.File(lbdata_files[0], 'r') as readin_file:
         tod_cmb  = np.array(readin_file.get("tod_cmb"))
+        # The remaining TOD chunk to stitch to a new chunk  
+        remnant_tod = np.zeros_like(tod_cmb)
 
+    # Getting the length of the single tod to calculate minimnum number of
+    # files to open 
     todlen = len(tod_cmb[0])
 
     nfiles = len(lbdata_files)
-
+    
+    # Freeing up the memory by deleting unnecessary object
+    del tod_cmb
 
     # The amount of time (in sec) the given scan will have 
     # (this value is unused and it just for us to see)
@@ -135,6 +176,7 @@ def main():
     print("#------------------")
 
 
+    # Ensuring we get to open integer number of files
     nfiles_to_open = int(nfiles_to_open)
     # Splitting it the workload (number of files) into equal batches.
     # So each processor of nprocs will work with nfiles_to_open in a 
@@ -156,16 +198,10 @@ def main():
     print(f"File ranges to process: {file_ranges}")
     print("#------------------")
 
+    # ----------------------------------
+    # Starting Calculations/File Creations
+    # ----------------------------------
 
-    # Adding unequal part
-    #for i in range( nfiles % (nfiles_to_open * nprocs) ):
-    #    workloads[i] += 1
-    #print(workloads)
-    #print(len(workloads))
-    #print(np.sum(workloads))
-
-    #print(88768128 / 192)
-    #print(f"{lbdata_files}")
     manager = mp.Manager()
     dicts = {freqs[0]:manager.dict()}#, 44:manager.dict(), 70:manager.dict()}
     ctod = comm_tod.commander_tod(output_dir, 'LB', version, dicts=dicts, overwrite=True)
@@ -180,9 +216,13 @@ def main():
     # have unique identifier
     global_scan_id = 0 
 
-    for i in range(1, 2):#len(file_ranges)):
+    print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
+
+    for i in range(1, len(file_ranges)):
     #for i in tqdm(range(1, 2)):#len(batches)):
         print(f"Working with i = {i}:  {file_ranges[i-1]} -- {file_ranges[i]}")
+
+
         # This will pass e.g. 192 files (1 batch) if scan_size = 2**16,
         # scan_num = 20, nprocs = 64. In such a way each core will get 3 files
         # to work with. The resulting array will be of size (192, 48, 462334) 
@@ -195,61 +235,33 @@ def main():
         superTOD = list(map(list, zip(*superTOD)))
         superPix = superTOD[1]
         superTOD = superTOD[0]
-        #print(np.concatenate(superTOD, axis=1).shape)
+
+        # Adding the remnant array to the super array from the left
+        # (supposed to be very fast)
+        if i != 1:         
+            superTOD = deque(superTOD)
+            superTOD.appendleft(remnant_tod)
+            superTOD = list(superTOD)
+
+        # Stitching subarrays together
         superTOD = np.concatenate(superTOD, axis=1)
         superPix = np.concatenate(superPix, axis=1)
-        # TODO: Split these into chunks of equal length using the end number of scans
-        #print(f"TOD[0]:\n{superTOD[0]}")
-        #print(superTOD.shape)
-        #print(f"Pix[0]:\n{superPix[0]}")
-        #print(f"Pix[4]:\n{superPix[4]}")
-        #print(superPix.shape)
         # Number of scans from the combined TOD
         nscansTOD = len(superTOD[0]) // scan_size + 1
         print(nscansTOD) # 338.62353515625
         #nscansTOD = len(superTOD[0]) % scan_size #+ 1
         #print(nscansTOD) # 338.62353515625
 
-        imo_db_interface = lbs.Imo()
-        imo_version = 'v1.3'
-        instrument = 'LFT'
-        imo_db_datapath = f"/releases/{imo_version}/satellite"
-        # Getting Data From LB Database
-        channel_info = imo_db_interface.query(
-                f"{imo_db_datapath}/{instrument}/{freqs[0]}/channel_info"
-                )
-        metadata = channel_info.metadata
-        #print(metadata)
-        # Number of Detectos for a given Channel
-        ndets      = metadata["number_of_detectors"]
-        # Detector Lables for a given Instrument 
-        det_labels = metadata["detector_names"]
-        # Sampling rate in Hz
-        fsamp      = metadata["sampling_rate_hz"]
-        # Knee frequency in MHz 
-        fknee      = metadata["fknee_mhz"]
-        # Alpha 
-        alpha      = metadata["alpha"]
-        # FWHM in arcmin 
-        fwhm       = metadata["fwhm_arcmin"]
-
-        #print(metadata["detector_names"])
-        #det_labels = ["1"]
-        remnant_tod = []
-
         curr_chunk = 0 
-        # The scan id within this big array of TODs 
-        # (will be zero once getting new values in superTOD)
-        #local_scan_id = 0
-        # do until the Big TOD array is not looped over
-        #print(len(superTOD[0]))
-        #print(0%20)
-        #exit()
-        #while curr_chunk <= len( superTOD[0] ):
+
+        # TODO: Put this part into `make_od` method
+        remnant_tod = []
         for local_scan_id in range(nscansTOD):
             # Every specified scan (scan_num) open a new file
             #if global_scan_id % scan_num == 0 or od == 1:
-            if (local_scan_id % scan_num == 0 or od == 1) and local_scan_id < nscansTOD-1:
+            #if (global_scan_id % scan_num == 0 or od == 1) and local_scan_id < nscansTOD-1:
+            if global_scan_id % scan_num == 0 and local_scan_id < nscansTOD-1:
+                print(f"Initialising new file with OD: {od} and the first Global Scan Id: {global_scan_id}")
                 ctod.init_file(freqs[0], od, mode='w')
 
             #for scan_idx in range(scan_num):
@@ -261,11 +273,13 @@ def main():
                     remnant_tod.append(
                             superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
                             )
+                    #remnant_tod[det_idx] = superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
                 else:
                     arr = superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
                     ctod.add_field(prefix + "/tod", arr)
                 
             if local_scan_id < nscansTOD - 1:
+                #print(f"Debug statement {global_scan_id}")
                 ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
 
             global_scan_id += 1 #scan_num 
@@ -273,13 +287,25 @@ def main():
             #
             # Every specified scan (scan_num) close the file
             #if global_scan_id % scan_num == 0 or od == 1:
-            if (local_scan_id+1) % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
-                print(f"global_scan_id is {global_scan_id}")
+            #if (local_scan_id+1) % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
+            if global_scan_id % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
+                #ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
                 # Do I need this?
                 ctod.finalize_file()
+                print(f"Finalised new file with OD: {od} and the last Global Scan Id: {global_scan_id}")
                 od += 1 
 
-        exit()
+        remnant_tod = np.array(remnant_tod)
+        print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
+
+        # if we are on the last loop, we will finilize the last file 
+        if i == len(file_ranges)-1:
+            ctod.finalize_chunk(f"{global_scan_id}".zfill(6))
+            ctod.finalize_file()
+
+    # Making filelists.txt after working with all the data was finalized
+    ctod.make_filelists()
+        #exit()
 
         #    #
         #    if global_scan_id % scan_num == 0 or od == 1:
@@ -390,14 +416,14 @@ def main():
         #make_od()
 
 
-    exit()
+    #exit()
 
     #toddir = "/Users/maksymb/Desktop/litebird_db/maksymb_lb/commander3/todscripts/litebird/test_litebird_sims"
     #todfile = "LB_L1-060_000001.h5"
     #outtod = h5py.File(f"{toddir}/{todfile}")
-    nside = 512
-    outmap = np.zeros((48, 12 * nside ** 2))
-    nhits = np.zeros((48, 12 * nside ** 2))
+    #nside = 512
+    #outmap = np.zeros((48, 12 * nside ** 2))
+    #nhits = np.zeros((48, 12 * nside ** 2))
 
     #scans = [scan for scan in list(outtod) if scan != 'common']
 
@@ -408,29 +434,29 @@ def main():
     #print(scans)
     #for scan in scans:
     #    print(scan)
-    for i in range(48):
-        #currscan_pixs = outtod[scan][detector]['pix']
-        #print(currscan_pixs)
-        #currscan_tod  = outtod[scan][detector]['tod']
-        #print(currscan_tod)
-        #nhits[i, currscan_pixs] += 1
-        #outmap[i, currscan_pixs] += currscan_tod
-        nhits[i, superPix[i]] += 1
-        outmap[i, superPix[i]] += superTOD[i]
-    print("Test message")
-    outmap[np.where(nhits != 0)] /= nhits[np.where(nhits != 0)]
-    outmap[np.where(nhits == 0)] = hp.UNSEEN
+    #for i in range(48):
+    #    #currscan_pixs = outtod[scan][detector]['pix']
+    #    #print(currscan_pixs)
+    #    #currscan_tod  = outtod[scan][detector]['tod']
+    #    #print(currscan_tod)
+    #    #nhits[i, currscan_pixs] += 1
+    #    #outmap[i, currscan_pixs] += currscan_tod
+    #    nhits[i, superPix[i]] += 1
+    #    outmap[i, superPix[i]] += superTOD[i]
+    #print("Test message")
+    #outmap[np.where(nhits != 0)] /= nhits[np.where(nhits != 0)]
+    #outmap[np.where(nhits == 0)] = hp.UNSEEN
 
-    for i in range(48):
-        print(f"Working with sim_{i:03}.png")
-        hp.mollview(outmap[i])
-        plt.savefig(
-                #f"/Users/maksymb/Desktop/litebird_db/maksymb_lb/commander3/todscripts/litebird/test_litebird_sims/sim_{i:03}.png", dpi=800
-                f"/mn/stornext/u3/maksymb/commander/maksymb_lb/commander3/todscripts/litebird/test_litebird_sims/sim_{i:03}.png", dpi=800
-                )
-                #'/home/eirik/temp/sim_{i:03}.png', dpi=800)
-        plt.clf()
-    exit()
+    #for i in range(48):
+    #    print(f"Working with sim_{i:03}.png")
+    #    hp.mollview(outmap[i])
+    #    plt.savefig(
+    #            #f"/Users/maksymb/Desktop/litebird_db/maksymb_lb/commander3/todscripts/litebird/test_litebird_sims/sim_{i:03}.png", dpi=800
+    #            f"/mn/stornext/u3/maksymb/commander/maksymb_lb/commander3/todscripts/litebird/test_litebird_sims/sim_{i:03}.png", dpi=800
+    #            )
+    #            #'/home/eirik/temp/sim_{i:03}.png', dpi=800)
+    #    plt.clf()
+    #exit()
 
 
 
@@ -454,40 +480,40 @@ def main():
 
     #print(f"Number of files {len(lbdata_files)}")
     ##tod_tot = np.array(h5py.File(lbdata_dir/lbdata_files[0],"r").get)
-    for i, dfile in enumerate(lbdata_files):
-        with h5py.File(lbdata_dir / dfile, 'r') as readin_file:
-            tod_cmb  = np.array(readin_file.get("tod_cmb"))
-            tod_dip  = np.array(readin_file.get("tod_dip")) 
-            tod_fg   = np.array(readin_file.get("tod_fg")) 
-            tod_wn   = np.array(readin_file.get("tod_wn")) 
-            tod_cadd = tod_cmb + tod_dip + tod_fg + tod_wn
+    #for i, dfile in enumerate(lbdata_files):
+    #    with h5py.File(lbdata_dir / dfile, 'r') as readin_file:
+    #        tod_cmb  = np.array(readin_file.get("tod_cmb"))
+    #        tod_dip  = np.array(readin_file.get("tod_dip")) 
+    #        tod_fg   = np.array(readin_file.get("tod_fg")) 
+    #        tod_wn   = np.array(readin_file.get("tod_wn")) 
+    #        tod_cadd = tod_cmb + tod_dip + tod_fg + tod_wn
 
-            pointings = np.array(readin_file.get("pointings"))
-            theta     = pointings[:,:,0]
-            phi       = pointings[:,:,1]
-            pixels    = hp.ang2pix(nside, theta, phi)
-            if i == 0:
-                tod_tot = tod_cadd 
-                pix_tot = pixels
-            else: 
-                tod_tot = np.concatenate((tod_tot, tod_cadd),axis=1)
-                pix_tot = np.concatenate((pix_tot, pixels),axis=1)
-            #print(tod_tot.shape)
-            #print(tod_cadd.shape)
-        #print(dfile)
-    print("Test")
-    print(tod_tot[0])
-    print(tod_tot.shape)
-    print(pix_tot[0])
-    print(pix_tot[4])
-    print(pix_tot.shape)
-    #print(tod_tot[5])
-    #arrs = np.array_split(tod_tot, 2**15)
-    #for i in range(3):
-    #    print(arrs.shape)
+    #        pointings = np.array(readin_file.get("pointings"))
+    #        theta     = pointings[:,:,0]
+    #        phi       = pointings[:,:,1]
+    #        pixels    = hp.ang2pix(nside, theta, phi)
+    #        if i == 0:
+    #            tod_tot = tod_cadd 
+    #            pix_tot = pixels
+    #        else: 
+    #            tod_tot = np.concatenate((tod_tot, tod_cadd),axis=1)
+    #            pix_tot = np.concatenate((pix_tot, pixels),axis=1)
+    #        #print(tod_tot.shape)
+    #        #print(tod_cadd.shape)
+    #    #print(dfile)
+    #print("Test")
+    #print(tod_tot[0])
+    #print(tod_tot.shape)
+    #print(pix_tot[0])
+    #print(pix_tot[4])
+    #print(pix_tot.shape)
+    ##print(tod_tot[5])
+    ##arrs = np.array_split(tod_tot, 2**15)
+    ##for i in range(3):
+    ##    print(arrs.shape)
 
 
-    exit()
+    #exit()
 
 
 
@@ -500,15 +526,15 @@ def main():
     # end result: det1: [1,2,3,7,8,9], det2: [4,5,6,10,11,12]
 
     # Initialising commander tod object
-    manager = mp.Manager()
-    dicts = {freqs[0]:manager.dict()}#, 44:manager.dict(), 70:manager.dict()}
-    ctod = comm_tod.commander_tod(output_dir, 'LB', version, dicts=dicts, overwrite=True)
+    #manager = mp.Manager()
+    #dicts = {freqs[0]:manager.dict()}#, 44:manager.dict(), 70:manager.dict()}
+    #ctod = comm_tod.commander_tod(output_dir, 'LB', version, dicts=dicts, overwrite=True)
 
-    # TODO: extend this to the entire LFT L1-060 files 
-    # and add parallel implementation
-    make_od(lbdata_dir, lbdata_files, ctod, version, freqs)
+    ## TODO: extend this to the entire LFT L1-060 files 
+    ## and add parallel implementation
+    #make_od(lbdata_dir, lbdata_files, ctod, version, freqs)
     # Making filelists.txt after working with all the data was finalized
-    ctod.make_filelists()
+    #ctod.make_filelists()
 
 
 
