@@ -51,7 +51,7 @@ def main():
 
 #    comm_tod = tod.commander_tod(outpath, name, version, manager_dicts, overwrite)
     comm_tod = tod.commander_tod(outpath, name, version, dicts, overwrite)
-    make_ods(comm_tod, 'L1-060', None, imo_version, outpath)
+    make_ods(comm_tod, 'L1-060', None, imo_version)
 
 
 def create_new_tod(comm_tod, od, freq, fsamps, nside, dets, polang):
@@ -66,8 +66,8 @@ def create_new_tod(comm_tod, od, freq, fsamps, nside, dets, polang):
 
     
 def make_ods(comm_tod, freq, args, imo_version,
-#             simpath='/mn/stornext/d16/cmbco/bp/mathew/litebird/sim0000/LFT_L1-060/tods/'):
-             simpath='/home/eirik/data/litebird_sims/'):
+             simpath='/mn/stornext/d16/cmbco/bp/mathew/litebird/sim0000/LFT_L1-060/tods/'):
+#             simpath='/home/eirik/data/litebird_sims/'):
     if freq[0] == 'L':
         instrument = 'LFT'
     elif freq[0] == 'M':

@@ -199,7 +199,7 @@ with open('paramfile_LB_commander.txt', 'w') as f:
         for i, channel in enumerate(channels):
             k += 1
             create_band_chunk(f, instrument, channel, imo, k)
-    with open('param_LB_com2_d1s1_Unni_newbeams.txt') as infile:
+    with open('param_LB_com2_d1s1_Unni_newbeams.txt', 'w') as infile:
         copy_component_chunk(f, infile)
 
 

@@ -90,7 +90,7 @@ def main():
     # User-Specified Parameters 
     # ----------------------------------
 
-    nprocs = 64 #joblib.cpu_count() - 28 #16
+    nprocs = 32 #64 #joblib.cpu_count() - 28 #16
     version = np.string_('0.0.1')
     # The size of one scan in a new file (to be created/output) 
     scan_size = 2**16
@@ -136,7 +136,7 @@ def main():
             "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/detectors_LFT_L1-060_T+B/tods"
             )
     output_dir = pathlib.Path(
-            "/mn/stornext/d5/data/maksymb/litebird"
+            "/mn/stornext/d5/data/maksymb/litebird/sims_2"
             )
     if not pathlib.Path.is_dir(output_dir):
         pathlib.Path.mkdir(output_dir)
@@ -222,10 +222,13 @@ def main():
     ctod = comm_tod.commander_tod(output_dir, 'LB', version, dicts=dicts, overwrite=True)
 
     # The Operational Day in Full Analogy with Planck
-    od = 1 
+    #od = 1 
+    ods = [0]
     # To trace the global scan in all files, i.e. each scan in each file will
     # have unique identifier
-    global_scan_id = 0 
+    #global_scan_id = 0 
+
+    remnant_scans = 0
 
     print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
 
@@ -237,8 +240,7 @@ def main():
         # This will pass e.g. 192 files (1 batch) if scan_size = 2**16,
         # scan_num = 20, nprocs = 64. In such a way each core will get 3 files
         # to work with. The resulting array will be of size (192, 48, 462334) 
-        superTOD = joblib.Parallel(n_jobs=nprocs,
-                verbose=2)(joblib.delayed(get_data)
+        superTOD = joblib.Parallel(n_jobs=nprocs, verbose=2)(joblib.delayed(get_data)
                 (nside, k, dfile) 
                 for k, dfile in enumerate(lbdata_files[file_ranges[i-1]:file_ranges[i]])) 
                 #(nside, k, dfile) for k, dfile in enumerate(lbdata_files))
@@ -254,135 +256,190 @@ def main():
             superTOD = append_remnant(superTOD, remnant_tod)
             superPix = append_remnant(superPix, remnant_pix)
             superPsi = append_remnant(superPsi, remnant_psi)
-            #superTOD = deque(superTOD)
-            #superTOD.appendleft(remnant_tod)
-            #superTOD = list(superTOD)
+            # Freeing memory up 
+            del remnant_tod, remnant_psi, remnant_pix
 
-            #superPix = deque(superPix)
-            #superPix.appendleft(remnant_pix)
-            #superPix = list(superPix)
-
-            #superPsi = deque(superPsi)
-            #superPsi.appendleft(remnant_psi)
-            #superPsi = list(superPsi)
-
-        # Stitching subarrays together
+        ## Stitching subarrays together
         superTOD = np.concatenate(superTOD, axis=1)
+        print(len(superTOD[0]))
         superPix = np.concatenate(superPix, axis=1)
         superPsi = np.concatenate(superPsi, axis=1)
         # Number of scans from the combined TOD
-        nscansTOD = len(superTOD[0]) // scan_size + 1
-        #print(nscansTOD) # 338.62353515625
-        #nscansTOD = len(superTOD[0]) % scan_size #+ 1
-        #print(nscansTOD) # 338.62353515625
-
-        # Huffmann compression
-        huffman = ['huffman', {'dictNum':1}]
-
-        # TODO: Put this part into `make_od` method
+        nscansTOD = len(superTOD[0]) // scan_size + 1 
+        # Number of files (in current iteration, i) to open and write data into  
+        ods_shift = nscansTOD // scan_num
+        ods.append(ods[i-1] + ods_shift)
+        print(ods)
+        # Number of scans that will propagate to the next iteration
+        remnant_scans = nscansTOD - ods_shift * scan_num # <= do I need this one?
+        print(f"For i = {i}: scansTOD = {nscansTOD} => new files = {ods_shift}, remnant scans = {remnant_scans}")
+        
         remnant_tod = []
         remnant_pix = []
         remnant_psi = []
-        for local_scan_id in range(nscansTOD):
-            # Every specified scan (scan_num) open a new file
-            #if global_scan_id % scan_num == 0 or od == 1:
-            #if (global_scan_id % scan_num == 0 or od == 1) and local_scan_id < nscansTOD-1:
-            if global_scan_id % scan_num == 0 and local_scan_id < nscansTOD-1:
-                print(f"Initialising new file with OD: {od} and the first Global Scan Id: {global_scan_id}")
-                ctod.init_file(freqs[0], od, mode='w')
 
-            #for scan_idx in range(scan_num):
-            for det_idx, det_label in enumerate(det_labels):
-                # Ensuring the name gets unique indentifier (scan id)
-                prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
-                # Saving the last part which will not go into a file
-                if local_scan_id == nscansTOD - 1:
-                    remnant_tod.append(
-                            superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
-                            )
-                    remnant_pix.append(
-                            superPix[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
-                            )
-                    remnant_psi.append(
-                            superPsi[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
-                            )
-                else:
-                    arr = superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
-                    ctod.add_field(prefix + "/tod", arr)
-                    
-                    arr = superPix[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
-                    ctod.add_field(prefix + "/pix", arr)#, huffman)
+        # Method creates the ods number of files 
+        results = joblib.Parallel(n_jobs=nprocs, verbose=2)(joblib.delayed(make_ods)
+                (ctod, freqs[0], det_labels, scan_size, scan_num, od, superTOD) 
+                for od in range(ods[i-1], ods[i], 1)) 
 
-                    arr = superPsi[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
-                    ctod.add_field(prefix + "/psi", arr)#, huffman)
-                    # Getting Scalars, namely:
-                    # gain, sigma0, fknee, alpha
-                    detector_info = imo_db_interface.query(
-                            f"{imo_db_datapath}/{instrument}/{freqs[0]}/{det_label}/detector_info"
-                            )
-                    metadata = detector_info.metadata
-                    fknee    = metadata["fknee_mhz"]
-                    # Alpha 
-                    alpha    = metadata["alpha"]
-                    # Making up some values
-                    gain     = 1.0 
-                    sigma0   = 1.0
-                    scalars  = np.array([gain, sigma0, fknee, alpha])
-                    ctod.add_field(prefix + '/scalars', scalars)
+        # Getting the remainder to stitch to the left 
+        # 33 * 20  
+        remnant_scan_id = ods_shift * scan_num #+ scan_num
+        #print(remnant_scan_id)
+        #print(len(superTOD[0][remnant_scan_id*scan_size:]))
 
-                
-            if local_scan_id < nscansTOD - 1:
-                # TODO: Add more add fields here (which are common)
-                #prefix = f"{global_scan_id}".zfill(6) + "/common"
-                ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
-
-            global_scan_id += 1 #scan_num 
-
-            # Every specified scan (scan_num) close the file
-            #if (local_scan_id+1) % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
-            if global_scan_id % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
-                #ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
-                # Things common for each scan in a given file
-                prefix = 'common'
-                # Detector Labels
-                ctod.add_field(prefix + '/det',      np.string_(det_labels))
-                #ctod.add_field(prefix + '/datatype', np.string_(datatype))
-                #ctod.add_field(prefix + '/npsi',     npsi)
-                ctod.add_field(prefix + '/nside',    nside)
-                # Polarization angles
-                if instrument in ('LFT', 'HFT'):
-                    polang = [0 + 45 * int(it.split('_')[3][0] == 'U') + 90 *
-                            int(it.split('_')[3][1] == 'B') for it in det_labels] 
-                else:
-                    polang = [int(it.split('_')[3][:1]) + 90 *
-                            int(it.split('_')[3][2] == 'B') for it in det_labels]
-                #print(polang)
-                ctod.add_field(prefix + '/polang',   polang)
-                # Main Beam
-                mbang  = np.array([0.0] * ndets)
-                ctod.add_field(prefix + '/mbang',    mbang)
-                # Sampling Rate
-                ctod.add_field(prefix + '/fsamp',    fsamp)
-                # 
-                ctod.finalize_file()
-                print(f"Finalised new file with OD: {od} and the last Global Scan Id: {global_scan_id-1}")
-                od += 1 
-
-        remnant_tod = np.array(remnant_tod)
-        remnant_pix = np.array(remnant_pix)
-        remnant_psi = np.array(remnant_psi)
-        print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
-        print(f"The remnant pixs shape is: {remnant_pix.shape} and the values are:\n{remnant_pix}")
+        for det_idx, det_label in enumerate(det_labels):
+            remnant_tod.append(superTOD[det_idx][remnant_scan_id*scan_size:])
+            remnant_pix.append(superPix[det_idx][remnant_scan_id*scan_size:])
+            remnant_psi.append(superPsi[det_idx][remnant_scan_id*scan_size:])
 
         # Freeing memory up
         del superPsi, superPix, superTOD
-        # if we are on the last loop, we will finilize the last file 
-        if i == len(file_ranges)-1:
-            ctod.finalize_chunk(f"{global_scan_id}".zfill(6))
-            ctod.finalize_file()
+        
+        remnant_tod = np.array(remnant_tod)
+        remnant_pix = np.array(remnant_pix)
+        remnant_psi = np.array(remnant_psi)
+
+        # Huffmann compression
+        #huffman = ['huffman', {'dictNum':1}]
+    # TODO: Save the remaining chunks into another file
+
+
+def make_ods(ctod, freq, det_labels, scan_size, scan_num, od, superTOD): #remnant_arrs=[[],[],[]]):
+
+    # Initialising new file
+    ctod.init_file(freq, od, mode='w')
+
+    for local_scan_id in range(scan_num): 
+        
+        global_scan_id = od * scan_num + local_scan_id
+        
+        print(f"od = {od}: {global_scan_id}:{global_scan_id + 1}")
+        
+        for det_idx, det_label in enumerate(det_labels):
+            # Ensuring the name gets unique indentifier (scan id)
+            prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
+
+            arr = superTOD[det_idx][global_scan_id*scan_size:(global_scan_id+1)*scan_size]
+            ctod.add_field(prefix + "/tod", arr)
+
+            arr = superPix[det_idx][global_scan_id*scan_size:(global_scan_id+1)*scan_size]
+            ctod.add_field(prefix + "/pix", arr)#, huffman)
+
+            arr = superPsi[det_idx][global_scan_id*scan_size:(globa_scan_id+1)*scan_size]
+            ctod.add_field(prefix + "/psi", arr)#, huffman)
+
+        # Finilising Data for Each Scan
+        ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
+
+    # Closing the file
+    ctod.finalize_file()
+
+    return 0 
+    
+
+
+        #for local_scan_id in range(nscansTOD):
+        #    # Every specified scan (scan_num) open a new file
+        #    #if global_scan_id % scan_num == 0 or od == 1:
+        #    #if (global_scan_id % scan_num == 0 or od == 1) and local_scan_id < nscansTOD-1:
+        #    if global_scan_id % scan_num == 0 and local_scan_id < nscansTOD-1:
+        #        print(f"Initialising new file with OD: {od} and the first Global Scan Id: {global_scan_id}")
+        #        ctod.init_file(freqs[0], od, mode='w')
+
+        #    #for scan_idx in range(scan_num):
+        #    for det_idx, det_label in enumerate(det_labels):
+        #        # Ensuring the name gets unique indentifier (scan id)
+        #        prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
+        #        # Saving the last part which will not go into a file
+        #        if local_scan_id == nscansTOD - 1:
+        #            remnant_tod.append(
+        #                    superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #                    )
+        #            remnant_pix.append(
+        #                    superPix[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #                    )
+        #            remnant_psi.append(
+        #                    superPsi[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #                    )
+        #        else:
+        #            arr = superTOD[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #            ctod.add_field(prefix + "/tod", arr)
+        #            
+        #            arr = superPix[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #            ctod.add_field(prefix + "/pix", arr, huffman)
+
+        #            arr = superPsi[det_idx][local_scan_id*scan_size:(local_scan_id+1)*scan_size]
+        #            ctod.add_field(prefix + "/psi", arr, huffman)
+        #            # Getting Scalars, namely:
+        #            # gain, sigma0, fknee, alpha
+        #            detector_info = imo_db_interface.query(
+        #                    f"{imo_db_datapath}/{instrument}/{freqs[0]}/{det_label}/detector_info"
+        #                    )
+        #            metadata = detector_info.metadata
+        #            fknee    = metadata["fknee_mhz"]
+        #            # Alpha 
+        #            alpha    = metadata["alpha"]
+        #            # Making up some values
+        #            gain     = 1.0 
+        #            sigma0   = 1.0
+        #            scalars  = np.array([gain, sigma0, fknee, alpha])
+        #            ctod.add_field(prefix + '/scalars', scalars)
+
+        #        
+        #    if local_scan_id < nscansTOD - 1:
+        #        # TODO: Add more add fields here (which are common)
+        #        #prefix = f"{global_scan_id}".zfill(6) + "/common"
+        #        ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
+
+        #    global_scan_id += 1 #scan_num 
+
+        #    # Every specified scan (scan_num) close the file
+        #    #if (local_scan_id+1) % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
+        #    if global_scan_id % scan_num == 0 and local_scan_id < nscansTOD-1: #or od == 1:
+        #        #ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
+        #        # Things common for each scan in a given file
+        #        prefix = 'common'
+        #        # Detector Labels
+        #        ctod.add_field(prefix + '/det',      np.string_(det_labels))
+        #        #ctod.add_field(prefix + '/datatype', np.string_(datatype))
+        #        #ctod.add_field(prefix + '/npsi',     npsi)
+        #        ctod.add_field(prefix + '/nside',    nside)
+        #        # Polarization angles
+        #        if instrument in ('LFT', 'HFT'):
+        #            polang = [0 + 45 * int(it.split('_')[3][0] == 'U') + 90 *
+        #                    int(it.split('_')[3][1] == 'B') for it in det_labels] 
+        #        else:
+        #            polang = [int(it.split('_')[3][:1]) + 90 *
+        #                    int(it.split('_')[3][2] == 'B') for it in det_labels]
+        #        #print(polang)
+        #        ctod.add_field(prefix + '/polang',   polang)
+        #        # Main Beam
+        #        mbang  = np.array([0.0] * ndets)
+        #        ctod.add_field(prefix + '/mbang',    mbang)
+        #        # Sampling Rate
+        #        ctod.add_field(prefix + '/fsamp',    fsamp)
+        #        # 
+        #        ctod.finalize_file()
+        #        print(f"Finalised new file with OD: {od} and the last Global Scan Id: {global_scan_id-1}")
+        #        od += 1 
+
+        #remnant_tod = np.array(remnant_tod)
+        #remnant_pix = np.array(remnant_pix)
+        #remnant_psi = np.array(remnant_psi)
+        #print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
+        #print(f"The remnant pixs shape is: {remnant_pix.shape} and the values are:\n{remnant_pix}")
+
+        ## Freeing memory up
+        #del superPsi, superPix, superTOD
+        ## if we are on the last loop, we will finilize the last file 
+        #if i == len(file_ranges)-1:
+        #    ctod.finalize_chunk(f"{global_scan_id}".zfill(6))
+        #    ctod.finalize_file()
 
     # Making filelists.txt after working with all the data was finalized
-    ctod.make_filelists()
+    #ctod.make_filelists()
 
 
     # Initialising commander tod object
