@@ -234,6 +234,8 @@ def main():
     #global_scan_id = 0 
 
     #remnant_scans = 0
+    # Huffmann compression
+    huffman = ['huffman', {'dictNum':1}]
 
     print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
 
@@ -284,7 +286,7 @@ def main():
         results = joblib.Parallel(n_jobs=nprocs, backend="multiprocessing", verbose=2)(joblib.delayed(make_ods)
                 (ctod, imo_db_interface, imo_db_datapath, instrument, freqs[0], 
                     nside, fsamp, ndets, det_labels, scan_size, scan_num, ods[i-1], od, 
-                    superTOD, superPix, superPsi) 
+                    superTOD, superPix, superPsi, huffman) 
                 for od in range(ods_shift)) 
                 #for od in range(ods[i-1], ods[i], 1)) 
 
@@ -306,8 +308,6 @@ def main():
         remnant_pix = np.array(remnant_pix)
         remnant_psi = np.array(remnant_psi)
 
-        # Huffmann compression
-        #huffman = ['huffman', {'dictNum':1}]
 
 
     # Writing into last file whatever was left from the main loop (given that
@@ -322,12 +322,13 @@ def main():
         # include into a file
         results = make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, 
                 freqs[0], nside, fsamp, ndets, det_labels, scan_size, scan_num, #nscansRem+scan_num, 
-                ods[-1], 0, remnant_tod, remnant_pix, remnant_psi)
+                ods[-1], 0, remnant_tod, remnant_pix, remnant_psi, huffman)
     ctod.make_filelists()
 
 
 def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, fsamp, 
-        ndets, det_labels, scan_size, scan_num, ods, od, superTOD, superPix, superPsi): 
+        ndets, det_labels, scan_size, scan_num, ods, od, superTOD, superPix, superPsi, 
+        huffman): 
 
     # Initialising new file 
     ctod.init_file(freq, ods + od + 1, mode='w')
