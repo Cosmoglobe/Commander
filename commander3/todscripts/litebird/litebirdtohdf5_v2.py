@@ -313,6 +313,7 @@ def main():
     # Writing into last file whatever was left from the main loop (given that
     # it is of a power of two) 
     nscansRem = len(remnant_tod[0]) // scan_size
+    print(ods[-1])
     if nscansRem > 0:
         #nscansTOD = len(remnant_tod[0]) // scan_size + 1 
         remnant_scans = nscansTOD - ods_shift * scan_num # <= do I need this one?
@@ -320,7 +321,7 @@ def main():
         # Here, instead of scan_num, we should use whatever amount of scans we can
         # include into a file
         results = make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, 
-                freqs[0], nside, fsamp, ndets, det_labels, scan_size, nscansRem, 
+                freqs[0], nside, fsamp, ndets, det_labels, scan_size, scan_num, #nscansRem+scan_num, 
                 ods[-1], 0, remnant_tod, remnant_pix, remnant_psi)
     ctod.make_filelists()
 
@@ -344,13 +345,20 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
             prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
 
             arr = superTOD[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
+
+            # TODO: add this logic since otherwise the latest scans will
+            # otherwrite existing ones. 
+            # If array is empty (mainly viable for the end scans) or its length is less than
+            # acceptable chunk, we break the loop
+            if len(arr) != scan_size or np.all(arr==0): # <= if array is empty or all are zeros (the scan is non-existent)
+                break
             ctod.add_field(prefix + "/tod", arr)
 
             arr = superPix[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
-            ctod.add_field(prefix + "/pix", arr)#, huffman)
+            ctod.add_field(prefix + "/pix", arr, huffman)
 
             arr = superPsi[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
-            ctod.add_field(prefix + "/psi", arr)#, huffman)
+            ctod.add_field(prefix + "/psi", arr, huffman)
             # Getting Scalars, namely:
             # gain, sigma0, fknee, alpha
             detector_info = imo_db_interface.query(
@@ -365,6 +373,9 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
             sigma0   = 1.0
             scalars  = np.array([gain, sigma0, fknee, alpha])
             ctod.add_field(prefix + '/scalars', scalars)
+
+        if len(arr) != scan_size or np.all(arr==0): # <= if array is empty or all are zeros (the scan is non-existent)
+            break
 
         # Finilising Data for Each Scan
         ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
