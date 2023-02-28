@@ -29,6 +29,7 @@ program commander
   use comm_nonlin_mod
   use comm_tod_simulations_mod
   use comm_tod_gain_mod
+  use comm_zodi_mod
   implicit none
 
   integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
@@ -158,6 +159,7 @@ program commander
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
+  if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
 
 
 !write(*,*) 'Setting gain to 1'
@@ -463,12 +465,8 @@ contains
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
              end do
-
-             if (cpar%include_tod_zodi .and. data(i)%subtract_zodi) then
-                call update_mixing_matrices(i, update_F_int=.true., bandpass=data(i)%bp)       
-             else 
-                call update_mixing_matrices(i, update_F_int=.true.)
-             end if
+             call update_zodi_splines(data(i)%tod, data(i)%bp)
+             call update_mixing_matrices(i, update_F_int=.true.)
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
@@ -539,12 +537,8 @@ contains
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
        end do
-
-       if (cpar%include_tod_zodi .and. data(i)%subtract_zodi) then
-          call update_mixing_matrices(i, update_F_int=.true., bandpass=data(i)%bp)       
-       else 
-          call update_mixing_matrices(i, update_F_int=.true.)
-       end if
+       call update_zodi_splines(data(i)%tod, data(i)%bp)
+       call update_mixing_matrices(i, update_F_int=.true.)
 
        ! Clean up temporary data structures
        do j = 1, data(i)%tod%ndet

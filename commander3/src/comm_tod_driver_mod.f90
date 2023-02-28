@@ -46,6 +46,8 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
      integer(i4b) :: band                                        ! Band ID
+
+     real(sp),    allocatable, dimension(:,:)     :: s_zodi_cache ! Zodiacal light cache
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
      procedure  :: init_differential => init_scan_data_differential
@@ -81,9 +83,7 @@ contains
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
     end if
-    
-    print *, "GOT HERE"
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+        !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
@@ -117,7 +117,6 @@ contains
     if (init_s_bp_prop_)     allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
     if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
-   !  allocate(self%s_zodi(self%ntod, self%ndet)) ! fix this
     if (tod%subtract_zodi) allocate(self%s_zodi(self%ntod, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
@@ -212,7 +211,7 @@ contains
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
-       call get_zodi_emission(tod%nside, self%pix(:,:,1), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, self%s_zodi)
+       call get_zodi_emission(tod, self%pix(:,:,1), scan, self%s_zodi)
        call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -475,8 +474,8 @@ contains
     if (tod%subtract_zodi) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufA)
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufB)
+          call get_zodi_emission(tod, self%pix(:,1:1,1), scan, s_bufA)
+          call get_zodi_emission(tod, self%pix(:,1:1,2), scan, s_bufB)
           self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
@@ -533,8 +532,8 @@ contains
        call timer%start(TOD_ZODI, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,1), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufA)
-          call get_zodi_emission(tod%nside, self%pix(:,1:1,2), tod%scans(scan)%t0(1), tod%scans(scan)%satpos, s_bufB)
+          call get_zodi_emission(tod, self%pix(:,1:1,1), scan, s_bufA)
+          call get_zodi_emission(tod, self%pix(:,1:1,2), scan, s_bufB)
           self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
           self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)

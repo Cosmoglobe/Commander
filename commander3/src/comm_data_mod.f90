@@ -89,7 +89,6 @@ contains
 
     integer(i4b)       :: i, j, k, n, nmaps, numband_tot, ierr
     character(len=512) :: dir, mapfile
-    character(len=16)  :: dets(1500)
     class(comm_N), pointer  :: tmp => null()
     class(comm_map), pointer  :: smoothed_rms => null()
     class(comm_mapinfo), pointer :: info_smooth => null(), info_postproc => null()
@@ -281,13 +280,14 @@ contains
 
        ! Initialize bandpass structures; 0 is full freq, i is detector       
        allocate(data(n)%bp(0:data(n)%ndet))
+      
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
             ! Check if bandpass already exists in detector list
             call read_bandpass(trim(cpar%ds_bpfile(i)), &
-                              & data(n)%tod%label(j), &
+                              & trim(data(n)%tod%label(j)),&
                               & 0.d0, &
                               & is_wavelength_dummy, &
                               & n_dummy, &
@@ -298,7 +298,7 @@ contains
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
                else if (k==j-1) then
-                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
                end if
             end do
             deallocate(nu_dummy, tau_dummy)

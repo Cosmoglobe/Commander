@@ -34,29 +34,22 @@ module comm_zodi_mod
     use comm_param_mod
     use comm_bp_mod
     use spline_1D_mod
+    use comm_tod_mod
     
     implicit none
 
     private
-    public :: initialize_zodi_mod, get_zodi_emission, update_zodi_spline_obj, init_zodi_spline_objects
+    public :: initialize_zodi_mod, get_zodi_emission, update_zodi_splines
 
     ! Global parameters
-    integer(i4b) :: gauss_degree
-    integer(i4b) :: n_interpolation_points=100
-    real(dp) :: min_ipd_temperature=40, max_ipd_temperature=550
-
+    integer(i4b) :: gauss_degree, n_interp_points
     real(dp) :: EPS = 3.d-14
-    real(dp) :: R_cutoff, delta_t_reset
-    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), temperature_grid(:)
-    real(dp), allocatable :: tabulated_earth_pos(:, :)
-    type(spline_type) :: solar_irradiance_spline_obj
-    type(spline_type) :: spline_earth_pos_obj(3), spline_obs_pos_obj(3)
-    type(spline_type), allocatable :: emissivity_spline_obj(:), albedo_spline_obj(:), phase_coeff_spline_obj(:), b_nu_spline_obj(:)
-
+    real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp
+    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), tabulated_earth_pos(:, :), temperature_grid(:)
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
-                    apply_color_correction, use_unit_emissivity, use_unit_albedo, scattering
+                    apply_color_correction, use_unit_emissivity, use_unit_albedo
 
-    ! Model parameters
+    ! K98 Model parameters
     real(dp) :: T_0, delta
     real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
                 cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
@@ -70,14 +63,10 @@ module comm_zodi_mod
                 ring_R, ring_sigma_R, ring_sigma_z
     real(dp) :: feature_x_0, feature_y_0, feature_z_0, feature_incl, feature_Omega, feature_n_0, &
                 feature_R, feature_sigma_R, feature_sigma_z, feature_theta, feature_sigma_theta
-    real(dp), allocatable :: emissivities(:, :), albedos(:, :), phase_coeffs(:, :)
-    real(dp), allocatable :: splined_emissivities(:, :), splined_albedos(:, :), splined_phase_coeffs(:, :), solar_irradiances(:), splined_solar_irradiance(:), phase_function_normalization(:)
-
-
+    type(spline_type) :: earth_pos_spl_obj(3)
 
     type, abstract :: ZodiComponent
         ! Abstract base class for a zodiacal component.
-
 
         ! Pointers to the next/prev links in the linked list
         class(ZodiComponent), pointer :: next_link => null()
@@ -181,14 +170,13 @@ contains
         real(dp) :: vec(3), ecliptic_to_galactic_matrix(3, 3)
         integer(i4b), allocatable :: sorted_unique_nsides(:)
         real(dp), allocatable :: galactic_vec(:, :), filtered_cpar_nsides(:)
-        EPS = 3.d-14
 
-        ! Initialize hyper, shape, and source parameters for ipd model from files
+        ! Initialize zodi parameters from cpar
         call init_hyper_parameters(cpar)
         call init_source_parameters(cpar)
         call init_shape_parameters(cpar)
 
-        ! Initialize Zodi components
+        ! Initialize zodi components
         if (use_cloud) then
             cloud_comp = Cloud(x_0=cloud_x_0, y_0=cloud_y_0, z_0=cloud_z_0, incl=cloud_incl, &
                                Omega=cloud_Omega, n_0=cloud_n_0, alpha=cloud_alpha, &
@@ -242,6 +230,7 @@ contains
         ! Precompute unit vector coordinates for galactic to ecliptic coordinates
         call gal_to_ecl_conversion_matrix(ecliptic_to_galactic_matrix)
 
+        ! TODO: REWRITE THIS TO USE TOD MODULE?
         sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
         allocate(unit_vector_list%vectors(size(sorted_unique_nsides)))
         do i = 1, size(sorted_unique_nsides)
@@ -261,7 +250,7 @@ contains
             deallocate(galactic_vec)
         end do
 
-        ! Read in tabulated earth position
+        ! Read in tabulated earth position and prepare spline object
         unit = getlun()
         tabulated_earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
         open(unit, file=trim(tabulated_earth_pos_filename))
@@ -269,167 +258,171 @@ contains
         read(unit, *) ! skip header
         allocate(tabulated_earth_pos(3, n_earthpos))
         allocate(tabulated_earth_time(n_earthpos))
+
         do i = 1, n_earthpos
         read(unit,*) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
         end do
         close(unit)
-
-        ! Set up spline objects
-        allocate(emissivity_spline_obj(cpar%zs_ncomps))
-        allocate(albedo_spline_obj(cpar%zs_ncomps))
-        allocate(phase_coeff_spline_obj(3))
-
-        ! Earths position
         do i = 1, 3
-            call spline_simple(spline_earth_pos_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
+            call spline_simple(earth_pos_spl_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
         end do
 
-
-        do i = 1, cpar%zs_ncomps
-            call spline_simple(emissivity_spline_obj(i), cpar%zs_nu_ref, emissivities(:, i), regular=.false.)
-            call spline_simple(albedo_spline_obj(i), cpar%zs_nu_ref, albedos(:, i), regular=.false.)
-        end do
-        do i = 1, 3
-            call spline_simple(phase_coeff_spline_obj(i), cpar%zs_nu_ref, phase_coeffs(:, i), regular=.false.)
-        end do
-        call spline_simple(solar_irradiance_spline_obj, cpar%zs_nu_ref, solar_irradiances, regular=.false.)
-        
-        allocate(temperature_grid(n_interpolation_points))
-
-        call linspace(min_ipd_temperature, max_ipd_temperature, temperature_grid)
+        ! Set up interpolation grid for evaluating line of sight b_nu
+        allocate(temperature_grid(n_interp_points))
+        call linspace(min_ipd_temp, max_ipd_temp, temperature_grid)
 
     end subroutine initialize_zodi_mod
 
-    subroutine init_zodi_spline_objects(obs_time, obs_pos)
-        ! Initializes various spline objects for the zodi mod. This function is required to be called 
-        ! in the tod_x_mod for an experiment .
+    subroutine update_zodi_splines(tod, bandpass)
+        ! Updates the spline object which is used to evaluate b_nu over the bandpass
+
         implicit none
-        real(dp), intent(in) :: obs_time(:), obs_pos(:, :)
-        integer(i4b) :: i
-        do i = 1, 3
-            call spline_simple(spline_obs_pos_obj(i), obs_time, obs_pos(i, :))
+        class(comm_tod),   intent(inout) :: tod
+        class(comm_bp_ptr), intent(in) :: bandpass(:)
+
+        real(dp), allocatable :: b_nu(:), integrals(:)
+        integer(i4b) :: i, j, k, n_det
+
+        allocate(integrals(n_interp_points))
+
+        do j = 1, tod%ndet
+            allocate(b_nu(bandpass(j)%p%n))
+            do i = 1, n_interp_points    
+                call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
+                integrals(i) = bandpass(j)%p%SED2F(b_nu)
+            end do
+            call spline_simple(tod%zodi_b_nu_spl_obj(j), temperature_grid, integrals, regular=.true.)
+
+            do k = 1, size(tod%zodi_spl_emissivities, dim=2)
+                tod%zodi_spl_emissivities(j, k) = splint_simple(tod%zodi_emissivity_spl_obj(k), bandpass(j)%p%nu_c)
+            end do
+
+            do k = 1, size(tod%zodi_spl_albedos, dim=2)
+                tod%zodi_spl_albedos(j, k) = splint_simple(tod%zodi_albedo_spl_obj(k), bandpass(j)%p%nu_c)
+            end do
+            do k = 1, size(tod%zodi_spl_phase_coeffs, dim=2) 
+                tod%zodi_spl_phase_coeffs(j, k) = splint_simple(tod%zodi_phase_coeff_spl_obj(k), bandpass(j)%p%nu_c)
+            end do
+
+            tod%zodi_spl_solar_irradiance(j) = splint_simple(tod%zodi_solar_irradiance_spl_obj, bandpass(j)%p%nu_c)
+            call get_phase_normalization(tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j))
+            deallocate(b_nu)
         end do
-    end subroutine init_zodi_spline_objects
 
-    subroutine get_zodi_emission(nside, pix, obs_time_at_chunk_start, satpos, s_zodi)
-        !   Compute simulated zodiacal emission.
-        !
-        !   Given a set of observations, the observer position and time of 
-        !   observation is used to perform line-of-sight integrations through 
-        !   the interplanetary dust distribution in the solar system.
-        !
-        !   Args:
-        !       nside (int): HEALPix resolution parameter for pixels in `pix`.
-        !       pix (1D array): Pixel indices representing observations in a chunk of time-ordered 
-        !           data. Dimensions are (`n_tod`, `n_det`).
-        !       obs_time_at_chunk_start (float): Time of the first observation in the chunk of
-        !
-        !   Returns:
-        !       s_zodi (1D array): Simulated zodiacal emission over the chunk of time-ordered data
-        !           pixel pointing. Dimensions are (`n_tod`, `n_det`).
+    end subroutine update_zodi_splines
 
 
+    subroutine get_zodi_emission(tod, pix, scan, s_zodi)
         implicit none
         class(ZodiComponent), pointer :: comp
 
-        integer(i4b), intent(in) :: nside, pix(1:, 1:)
-        real(dp), intent(in) :: obs_time_at_chunk_start, satpos(3)
-        real(sp), intent(out) :: s_zodi(1:, 1:)
-        
-        integer(i4b) :: i, j, k, l, pix_idx, n_detectors, n_tods, npix
-        real(dp) :: earth_lon, R_obs, R_max, samp_rate, dt_tod, time_tod, SECOND_TO_DAY, current_time
-        real(dp) :: unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree), tod_obs_pos(3), tod_earth_pos(3)
-        real(dp), allocatable :: tabulated_unit_vectors(:, :), cached_s_zodi(:)
+        class(comm_tod), intent(inout) :: tod
+        integer(i4b), intent(in) :: pix(1:, 1:), scan
+        real(sp), intent(inout) :: s_zodi(1:, 1:)
 
-        ! Line of sight arrays and quantities
+        logical(lgt) :: scattering
+        integer(i4b) :: i, j, k, l, pixel, n_detectors, n_tods, npix
+        real(dp) :: earth_lon, R_obs, R_max, samp_rate, dt_tod, tod_time, SECOND_TO_DAY, current_time
+        real(dp) :: unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree), tod_obs_pos(3), tod_earth_pos(3)
+        real(dp), allocatable :: tabulated_unit_vectors(:, :)
         real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
                                              comp_emission_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+
+        if (.not. tod%zodi_tod_params_are_initialized) then 
+            print *, "Error: Zodi parameters have not been initialized."
+            print *, "make sure that `initialize_zodi_tod_parameters` is called in the constructor of `tod_your_experiment_mod`"
+            stop
+        end if 
+
         n_tods = size(pix, dim=1)
         n_detectors = size(pix, dim=2)
-        npix = nside2npix(nside)
+        npix = nside2npix(tod%nside)
         s_zodi = 0.d0
 
-        ! HYPERPARAMETERS
-        samp_rate = 1.d0 / 8
-        SECOND_TO_DAY = 1.d0 / (60*60*24)
-        dt_tod = samp_rate * second_to_day ! dt between two samples in units of days
-        current_time = obs_time_at_chunk_start
 
-        allocate(cached_s_zodi(0:npix-1))
-        cached_s_zodi = 0.d0
+        SECOND_TO_DAY = 1.d0 / (60*60*24)
+        dt_tod = tod%samprate * second_to_day ! dt between two samples in units of days
 
         ! Get unit vectors corresponding to the observed pixels (only on first chunk)
         allocate(tabulated_unit_vectors(0:npix-1, 3))
         call get_tabulated_unit_vectors(npix, tabulated_unit_vectors)
 
-        if (.not. allocated(b_nu_spline_obj)) stop "b_nu_spline_obj not allocated"
-
         do l = 1, 3 ! for x, y, z
-            tod_earth_pos(l) = splint_simple(spline_earth_pos_obj(l), current_time)
-            tod_obs_pos(l) = splint_simple(spline_obs_pos_obj(l), current_time)
+            tod_earth_pos(l) = splint_simple(earth_pos_spl_obj(l), tod%scans(scan)%t0(1))
+            tod_obs_pos(l) = splint_simple(tod%zodi_obs_pos_spl_obj(l), tod%scans(scan)%t0(1))
         end do        
         
-        tod_obs_pos = satpos
+        tod_obs_pos = tod%scans(scan)%satpos
         R_obs = norm2(tod_obs_pos)
         earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
+
+        if (count(tod%zodi_spl_albedos /= 0.d0) > 0) then
+            scattering = .true.
+        else
+            scattering = .false.
+        end if
 
         ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
         ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
         ! San et al. 2022 (https://www.aanda.org/articles/aa/pdf/forth/aa44133-22.pdf).
         do i = 1, n_tods
             ! After a time, delta_t_reset, update the earth and observer position and reset cached s_zodi.
-            time_tod = obs_time_at_chunk_start + (i - 1) * dt_tod
-            if ((time_tod - current_time) >= delta_t_reset) then
+            tod_time = tod%scans(scan)%t0(1) + (i - 1) * dt_tod
+            if (&
+                (tod_time - tod%zodi_cache_time) >= delta_t_reset &
+                .and. &
+                (tod_time > tod%zodi_min_obs_time .and. tod_time < tod%zodi_max_obs_time) &
+                ) then 
                 do l = 1, 3 
-                    tod_earth_pos(l) = splint_simple(spline_earth_pos_obj(l), time_tod)
-                    tod_obs_pos(l) = splint_simple(spline_obs_pos_obj(l), time_tod)
+                    tod_earth_pos(l) = splint_simple(earth_pos_spl_obj(l), tod_time)
+                    tod_obs_pos(l) = splint_simple(tod%zodi_obs_pos_spl_obj(l), tod_time)
                 end do            
                 R_obs = norm2(tod_obs_pos)
                 earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
-                cached_s_zodi = 0.d0
-                current_time = time_tod
+                tod%zodi_cache = 0.d0
+                tod%zodi_cache_time = tod_time
             end if
 
-            do j = 1, n_detectors    
-                pix_idx = pix(i, j)
-                if (cached_s_zodi(pix_idx) /= 0.d0) then
-                    s_zodi(i, j) = cached_s_zodi(pix_idx) ! Use cached value from previous chunk ordetector
+            do j = 1, n_detectors   
+                pixel = pix(i, j) 
+
+                if (tod%zodi_cache(pixel, j) /= 0.d0) then
+                    s_zodi(i, j) = tod%zodi_cache(pixel, j)
                     cycle
                 end if
 
-                unit_vector = tabulated_unit_vectors(pix_idx, :)
+                unit_vector = tabulated_unit_vectors(pixel, :)
                 call get_R_max(unit_vector, tod_obs_pos, R_obs, R_max)
                 call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
 
-                do k = 1, 3 ! for x, y, z
+                do k = 1, 3 ! x, y, z
                     X_vec_LOS(k, :) = gauss_nodes * unit_vector(k)
                     X_helio_vec_LOS(k, :) = X_vec_LOS(k, :) + tod_obs_pos(k)
                 end do
                 R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)           
 
                 if (scattering) then
-                    solar_flux_LOS = splined_solar_irradiance(j) / R_helio_LOS**2
-                    R_LOS = norm2(X_vec_LOS, dim=1)
-                    call get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
-                    call get_phase_function(scattering_angle, splined_phase_coeffs(j, :), phase_function_normalization(j), phase_function)
+                    solar_flux_LOS = tod%zodi_spl_solar_irradiance(j) / R_helio_LOS**2
+                    call get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
+                    call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j), phase_function)
                 end if
 
                 call get_dust_grain_temperature(R_helio_LOS, T_LOS)
-                call splint_simple_multi(b_nu_spline_obj(j), T_LOS, b_nu_LOS)
+                call splint_simple_multi(tod%zodi_b_nu_spl_obj(j), T_LOS, b_nu_LOS)
 
                 comp => comp_list
                 k = 1
                 do while (associated(comp))
                     call comp%get_density(X_helio_vec_LOS, earth_lon, density_LOS)
-                    comp_emission_LOS = (1.d0 - splined_albedos(j, k)) * (splined_emissivities(j, k) * b_nu_LOS)
-                    if (scattering) comp_emission_LOS = comp_emission_LOS + (splined_albedos(j, k) * solar_flux_LOS * phase_function)
+                    comp_emission_LOS = (1.d0 - tod%zodi_spl_albedos(j, k)) * (tod%zodi_spl_emissivities(j, k) * b_nu_LOS)
+                    if (scattering) comp_emission_LOS = comp_emission_LOS + (tod%zodi_spl_albedos(j, k) * solar_flux_LOS * phase_function)
                     comp_emission_LOS = comp_emission_LOS * density_LOS
 
                     s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
                     comp => comp%next()
                     k = k + 1
                 end do
-                cached_s_zodi(pix_idx) = s_zodi(i, j) ! Update cache with newly computed LOS emission
+                tod%zodi_cache(pixel, j) = s_zodi(i, j) ! Update cache with newly computed LOS emission
             end do
         end do
     end subroutine get_zodi_emission
@@ -468,12 +461,13 @@ contains
         b_nu = 1d20 * ((2 * h * nus**3) / (c*c)) / (exp((h * nus) / (k_B * T)) - 1.d0)
     end subroutine get_blackbody_emission
 
-    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, R_LOS, scattering_angle)
+    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
         implicit none
-        real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:), R_LOS(:)
+        real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
         real(dp), dimension(:), intent(out) :: scattering_angle
-        real(dp), dimension(gauss_degree) :: cos_theta
-
+        real(dp), dimension(gauss_degree) :: cos_theta, R_LOS
+        
+        R_LOS = norm2(X_vec_LOS, dim=1)
         cos_theta = sum(X_helio_vec_LOS * X_vec_LOS, dim=1) / (R_LOS * R_helio_LOS)
         ! clip cos(theta) to [-1, 1]
         where (cos_theta > 1)
@@ -506,63 +500,6 @@ contains
         term4 = (exp(phase_coefficients(3) * pi) + 1.d0) / (phase_coefficients(3)**2 + 1.d0)
         normalization_factor = 1.d0 / (term1 * (term2 + term3 + term4))
     end subroutine
-
-    subroutine update_zodi_spline_obj(bandpass)
-        ! Updates the spline object which is used to evaluate b_nu over the bandpass
-
-        implicit none
-        class(comm_bp_ptr), intent(in) :: bandpass(:)
-
-        real(dp), allocatable :: b_nu(:)
-        real(dp) :: integrals(size(temperature_grid))
-        integer(i4b) :: i, j, k, n_det
-
-        n_det = size(bandpass) - 1
-        ! Until the zodi stuff is moved into the tod class, we need to check if the spline object are allocated
-        ! which should be done the first time the mixing matrix is updated.
-        if (.not. allocated(b_nu_spline_obj)) allocate(b_nu_spline_obj(n_det))
-        if (.not. allocated(splined_emissivities)) allocate(splined_emissivities(n_det, size(emissivities, dim=2)))
-        if (.not. allocated(splined_albedos)) allocate(splined_albedos(n_det, size(albedos, dim=2)))
-        if (.not. allocated(splined_phase_coeffs)) allocate(splined_phase_coeffs(n_det, 3))
-        if (.not. allocated(splined_solar_irradiance)) allocate(splined_solar_irradiance(n_det))
-        if (.not. allocated(phase_function_normalization)) allocate(phase_function_normalization(n_det))
-
-        splined_emissivities = 0.d0
-        splined_albedos = 0.d0
-        splined_phase_coeffs = 0.d0
-        splined_solar_irradiance = 0.d0
-        phase_function_normalization = 0.d0
-        
-        do j = 1, n_det
-            allocate(b_nu(bandpass(j)%p%n))
-            do i = 1, n_interpolation_points    
-                call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
-                integrals(i) = bandpass(j)%p%SED2F(b_nu)
-            end do
-            call spline_simple(b_nu_spline_obj(j), temperature_grid, integrals)
-
-            do k = 1, size(splined_emissivities)
-                splined_emissivities(j, k) = splint_simple(emissivity_spline_obj(k), bandpass(j)%p%nu_c)
-            end do
-
-            do k = 1, size(splined_albedos)
-                splined_albedos(j, k) = splint_simple(albedo_spline_obj(k), bandpass(j)%p%nu_c)
-            end do
-            if (count(splined_albedos /= 0.d0) > 0) then
-                scattering = .true.
-                do k = 1, size(splined_phase_coeffs, dim=2) 
-                    splined_phase_coeffs(j, k) = splint_simple(phase_coeff_spline_obj(k), bandpass(j)%p%nu_c)
-                end do
-
-                splined_solar_irradiance(j) = splint_simple(solar_irradiance_spline_obj, bandpass(j)%p%nu_c)
-                call get_phase_normalization(splined_phase_coeffs(j, :), phase_function_normalization(j))
-            else 
-                scattering = .false.
-            end if
-            deallocate(b_nu)
-        end do
-
-    end subroutine update_zodi_spline_obj
 
     ! Methods initizializing the zodiacal components
     ! ----------------------------------------------
@@ -832,6 +769,9 @@ contains
         R_cutoff = cpar%zs_los_cut
         gauss_degree = cpar%zs_gauss_quad_order
         delta_t_reset = cpar%zs_delta_t_reset
+        min_ipd_temp = cpar%zs_min_ipd_temp
+        max_ipd_temp = cpar%zs_max_ipd_temp
+        n_interp_points = cpar%zs_n_interp_points
     end subroutine init_hyper_parameters
 
     subroutine init_source_parameters(cpar)
@@ -841,14 +781,6 @@ contains
 
         T_0 = cpar%zs_t_0
         delta = cpar%zs_delta
-        allocate(emissivities(cpar%zs_nbands, cpar%zs_ncomps))
-        allocate(albedos(cpar%zs_nbands, cpar%zs_ncomps))
-        allocate(phase_coeffs(cpar%zs_nbands, 3))
-        allocate(solar_irradiances(cpar%zs_nbands))
-        emissivities = cpar%zs_emissivity
-        albedos = cpar%zs_albedo
-        phase_coeffs = cpar%zs_phase_coeff
-        solar_irradiances = cpar%zs_solar_irradiance
     end subroutine init_source_parameters
 
     subroutine init_shape_parameters(cpar)
