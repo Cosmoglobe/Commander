@@ -11,8 +11,8 @@ import h5py
 
 def main():
     parser = argparse.ArgumentParser()
-#    outpath = '/mn/stornext/u3/eirikgje/data/litebird_tods/'
-    outpath = '/home/eirik/data/litebird_sims/'
+    outpath = '/mn/stornext/u3/eirikgje/data/litebird_tods/'
+#    outpath = '/home/eirik/data/litebird_sims/'
     name = 'litebird'
     version = '1.0'
     imo_version = 'v1.3'
@@ -40,8 +40,8 @@ def create_new_tod(comm_tod, od, freq, fsamps, nside, dets, polang):
 
     
 def make_ods(comm_tod, freq, args, imo_version,
-#             simpath='/mn/stornext/d16/cmbco/bp/mathew/litebird/sim0000/LFT_L1-060/tods/'):
-             simpath='/home/eirik/data/litebird_sims/'):
+             simpath='/mn/stornext/d16/cmbco/bp/mathew/litebird/sim0000/LFT_L1-060/tods/'):
+#             simpath='/home/eirik/data/litebird_sims/'):
     if freq[0] == 'L':
         instrument = 'LFT'
     elif freq[0] == 'M':
@@ -69,9 +69,12 @@ def make_ods(comm_tod, freq, args, imo_version,
 
     with LitebirdTodReader(simpath,
                            ['LFT_L1-060_obs_cmb',
-                            'LFT_L1-060_obs_1_over_f_noise_pessimistic'],
-                           start_day=100,
-                           end_day=105, 
+                            'LFT_L1-060_obs_1_over_f_noise_realistic',
+                            'LFT_L1-060_obs_dipole_total',
+                            'LFT_L1-060_obs_fg',
+                            'LFT_L1-060_obs_w_noise'],
+                           start_day=0,
+                           end_day=364, 
                            fields=['tod', 'pointings', 'psi']) as reader:
         for curr_scan_id, chunk in enumerate(reader.iterate_chunks(chunk_size)):
             print(f"Curr scan id: {curr_scan_id}")
