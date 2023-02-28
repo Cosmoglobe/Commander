@@ -3554,8 +3554,11 @@ contains
 
        ! calculate mean and std of intersect values from regression 
        if (lr_map%info%myid == 0) then
-          if (m <= 0) call report_error("No intersection value found from crosscorrelation, monopole prior component "//trim(self%label))
-          if (m == 1) then
+          if (m <= 0) then 
+             call report_error("No intersection value found from crosscorrelation, monopole prior component "//trim(self%label))
+             call mpi_finalize()
+             stop
+          else if (m == 1) then
              mu(0) = intersect(1)
              mean_intersect = intersect(1)
              std_intersect = 0.d0

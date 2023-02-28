@@ -2225,7 +2225,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_W_AME_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,2,i))
        call get_parameter_hashtable(htbl, 'COMP_W_AME_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_W_AME_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
        call get_parameter_hashtable(htbl, 'COMP_W_AME_PROPLEN'//itext, &
