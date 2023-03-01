@@ -464,8 +464,10 @@ contains
                 data(i)%bp(j)%p%delta = delta(j,:,k)
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+                if (j > 0) then
+                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j)
+                end if 
              end do
-             call update_zodi_splines(data(i)%tod, data(i)%bp)
              call update_mixing_matrices(i, update_F_int=.true.)
 
           ! Evaluate sky for each detector given current bandpass
@@ -536,8 +538,10 @@ contains
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+          if (j > 0) then
+             call update_zodi_splines(data(i)%tod, data(i)%bp(j), j)
+          end if 
        end do
-       call update_zodi_splines(data(i)%tod, data(i)%bp)
        call update_mixing_matrices(i, update_F_int=.true.)
 
        ! Clean up temporary data structures

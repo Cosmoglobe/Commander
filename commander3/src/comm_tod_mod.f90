@@ -438,7 +438,7 @@ contains
     else if (trim(cpar%ds_bpmodel(id_abs)) == 'powlaw_tilt') then
        ndelta = 1
     else
-       write(*,*) 'Unknown bandpass model'
+       write(*,*) 'Unknown bandpass model:', trim(cpar%ds_bpmodel(id_abs))
        stop
     end if
     allocate(self%bp_delta(0:self%ndet,ndelta))

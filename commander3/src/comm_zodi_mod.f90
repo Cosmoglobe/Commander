@@ -273,42 +273,38 @@ contains
 
     end subroutine initialize_zodi_mod
 
-    subroutine update_zodi_splines(tod, bandpass)
+    subroutine update_zodi_splines(tod, bandpass, det)
         ! Updates the spline object which is used to evaluate b_nu over the bandpass
 
         implicit none
         class(comm_tod),   intent(inout) :: tod
-        class(comm_bp_ptr), intent(in) :: bandpass(:)
+        class(comm_bp_ptr), intent(in) :: bandpass
+        integer(i4b), intent(in) :: det
 
         real(dp), allocatable :: b_nu(:), integrals(:)
-        integer(i4b) :: i, j, k, n_det
+        integer(i4b) :: i, j
 
         allocate(integrals(n_interp_points))
+        allocate(b_nu(bandpass%p%n))
+        do i = 1, n_interp_points    
+            call get_blackbody_emission(bandpass%p%nu, temperature_grid(i), b_nu)
+            integrals(i) = bandpass%p%SED2F(b_nu)
+        end do
+        call spline_simple(tod%zodi_b_nu_spl_obj(det), temperature_grid, integrals, regular=.true.)
 
-        do j = 1, tod%ndet
-            allocate(b_nu(bandpass(j)%p%n))
-            do i = 1, n_interp_points    
-                call get_blackbody_emission(bandpass(j)%p%nu, temperature_grid(i), b_nu)
-                integrals(i) = bandpass(j)%p%SED2F(b_nu)
-            end do
-            call spline_simple(tod%zodi_b_nu_spl_obj(j), temperature_grid, integrals, regular=.true.)
-
-            do k = 1, size(tod%zodi_spl_emissivities, dim=2)
-                tod%zodi_spl_emissivities(j, k) = splint_simple(tod%zodi_emissivity_spl_obj(k), bandpass(j)%p%nu_c)
-            end do
-
-            do k = 1, size(tod%zodi_spl_albedos, dim=2)
-                tod%zodi_spl_albedos(j, k) = splint_simple(tod%zodi_albedo_spl_obj(k), bandpass(j)%p%nu_c)
-            end do
-            do k = 1, size(tod%zodi_spl_phase_coeffs, dim=2) 
-                tod%zodi_spl_phase_coeffs(j, k) = splint_simple(tod%zodi_phase_coeff_spl_obj(k), bandpass(j)%p%nu_c)
-            end do
-
-            tod%zodi_spl_solar_irradiance(j) = splint_simple(tod%zodi_solar_irradiance_spl_obj, bandpass(j)%p%nu_c)
-            call get_phase_normalization(tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j))
-            deallocate(b_nu)
+        do j = 1, size(tod%zodi_spl_emissivities, dim=2)
+            tod%zodi_spl_emissivities(det, j) = splint_simple(tod%zodi_emissivity_spl_obj(j), bandpass%p%nu_c)
         end do
 
+        do j = 1, size(tod%zodi_spl_albedos, dim=2)
+            tod%zodi_spl_albedos(det, j) = splint_simple(tod%zodi_albedo_spl_obj(j), bandpass%p%nu_c)
+        end do
+        do j = 1, size(tod%zodi_spl_phase_coeffs, dim=2) 
+            tod%zodi_spl_phase_coeffs(det, j) = splint_simple(tod%zodi_phase_coeff_spl_obj(j), bandpass%p%nu_c)
+        end do
+
+        tod%zodi_spl_solar_irradiance = splint_simple(tod%zodi_solar_irradiance_spl_obj, bandpass%p%nu_c)
+        call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
 
@@ -333,6 +329,10 @@ contains
             print *, "make sure that `initialize_zodi_tod_parameters` is called in the constructor of `tod_your_experiment_mod`"
             stop
         end if 
+        if (.not. allocated(tod%zodi_b_nu_spl_obj)) then
+            print *, "Error: Zodi splines have not been initialized."
+            stop
+        end if
 
         n_tods = size(pix, dim=1)
         n_detectors = size(pix, dim=2)

@@ -224,8 +224,6 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
-    
-
   end function constructor
   
 
@@ -261,7 +259,8 @@ contains
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
           !if (abs(self%nu(i))>1e15) write(*,*) "i, nu, nu0, delta: ", i, self%nu(i), self%nu0(i), 1d9*delta(1)
        end do
-       
+    case default
+       call report_error('Error -- unsupported bandpass model = ' // trim(self%model))
     end select
 
     ! Compute unit conversion factors
