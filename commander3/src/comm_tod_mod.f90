@@ -153,6 +153,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi)
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
      real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
+     real(dp),           allocatable, dimension(:,:)   :: pix2vec_ecl  ! Lookup table of pix2vec in ecliptic coordinates
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
@@ -341,11 +342,9 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
-    if (cpar%include_tod_zodi) then
-       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
-    else if (cpar%ds_tod_subtract_zodi(self%band) .and. self%myid == 0) then
-         write(*, *) "BAND_TOD_SUBTRACT_ZODI set to false for band ", trim(cpar%ds_label(self%band))
-    endif
+    if (cpar%include_tod_zodi) then 
+      self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
+    end if
    
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -479,10 +478,9 @@ contains
     implicit none
     class(comm_tod),                intent(inout)  :: self
 
-    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
+    real(dp)     :: f_fill, f_fill_lim(3), theta, phi, rotation_matrix(3, 3)
     integer(i4b) :: i, j, k, l, np_vec, ierr
     integer(i4b), allocatable, dimension(:) :: pix
-
 
     ! Lastly, create a vector pointing table for fast look-up for orbital dipole
     np_vec = 12*self%nside**2 !npix
@@ -525,6 +523,15 @@ contains
     allocate(self%ind2pix(self%nobs))
     allocate(self%ind2sl(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
+    if (self%subtract_zodi) then
+       allocate(self%zodi_cache(self%nobs, self%ndet))
+       self%zodi_cache = -1.d0
+       allocate(self%pix2vec_ecl(3,0:np_vec-1))
+       call ecl_to_gal_rot_mat(rotation_matrix)
+       do i = 0, np_vec-1
+          self%pix2vec_ecl(:,i) = matmul(self%pix2vec(:,i), rotation_matrix)
+       end do
+    end if
     j = 1
     do i = 0, 12*self%nside**2-1
        if (self%pix2ind(i) == 1) then
@@ -2772,7 +2779,6 @@ contains
 
       ! Allocate zodi cache
       ! TODO: make this scan number based instead of of npix
-      allocate(self%zodi_cache(0:nside2npix(self%nside)-1, self%ndet))
       self%zodi_cache = 0.d0
 
       ! Inform `get_zodi_emission` that the relevant tod zodi parameters have been sucessfully initialized

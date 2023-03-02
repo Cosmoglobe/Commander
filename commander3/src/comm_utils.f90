@@ -1402,5 +1402,19 @@ contains
       enddo 
 
    end subroutine gauss_legendre_quadrature
-  
+
+   subroutine ecl_to_gal_rot_mat(m)
+      implicit none
+      real(dp), dimension(3,3) :: m
+
+      m(1,1) =  -0.054882486d0
+      m(1,2) =  -0.993821033d0
+      m(1,3) =  -0.096476249d0
+      m(2,1) =   0.494116468d0
+      m(2,2) =  -0.110993846d0
+      m(2,3) =   0.862281440d0
+      m(3,1) =  -0.867661702d0
+      m(3,2) =  -0.000346354d0
+      m(3,3) =   0.497154957d0
+   end subroutine ecl_to_gal_rot_mat
 end module comm_utils

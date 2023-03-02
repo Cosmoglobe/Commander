@@ -19,17 +19,7 @@
 !
 !================================================================================
 
-module comm_zodi_mod
-    !   The zodi module handles simulating and fitting zodiacal emission at tod level.
-    !
-    !   Methods
-    !   -------
-    !   initialize_zodi_mod
-    !       Initializes the zodi_mod.
-
-    !   get_zodi_emission
-    !       Method that simulates the zodiacal emission observed by the instrument for
-    !       a given pixel.
+module comm_zodi_mod    
     use comm_utils
     use comm_param_mod
     use comm_bp_mod
@@ -44,12 +34,13 @@ module comm_zodi_mod
     ! Global parameters
     integer(i4b) :: gauss_degree, n_interp_points
     real(dp) :: EPS = 3.d-14
-    real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp
-    real(dp), allocatable :: unique_nsides(:), tabulated_earth_time(:), tabulated_earth_pos(:, :), temperature_grid(:)
+    real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp, SECOND_TO_DAY
+
+    real(dp), allocatable :: tabulated_earth_time(:), tabulated_earth_pos(:, :), temperature_grid(:)
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature, &
                     apply_color_correction, use_unit_emissivity, use_unit_albedo
 
-    ! K98 Model parameters
+    ! K98 Model parameter variables
     real(dp) :: T_0, delta
     real(dp) :: cloud_x_0, cloud_y_0, cloud_z_0, cloud_incl, cloud_Omega, cloud_n_0, &
                 cloud_alpha, cloud_beta, cloud_gamma, cloud_mu
@@ -138,44 +129,31 @@ module comm_zodi_mod
     type(Cloud), target :: cloud_comp
     type(Band), target :: band1_comp, band2_comp, band3_comp
     type(Ring), target :: ring_comp
-    type(Feature), target  :: feature_comp
-
-    ! Initializing container for precomputed pixel to unit vectors for each unique 
-    ! nside in the Commander run.
-    type UnitVector
-        real(dp), allocatable :: elements(:, :)
-    end type UnitVector
-
-    type UnitVectorList
-        type(UnitVector), allocatable :: vectors(:)
-    end type UnitVectorList
-    type(UnitVectorList) :: unit_vector_list
-
+    type(Feature), target :: feature_comp
 
 contains
     subroutine initialize_zodi_mod(cpar)
-        !   Initialize `comm_zodi_mod` specific quantities and zodiacal components.
+        ! Initialize the zodi module.
         !
-        !   Parameters
-        !   ----------
-        !   cpar: comm_params
-        !      Parameter file variables.
+        ! Parameters
+        ! ----------
+        ! cpar: comm_params
+        !    Parameter file variables.
+
         implicit none
 
         type(comm_params), intent(in) :: cpar
         class(ZodiComponent), pointer :: comp
 
-        integer(i4b) :: i, j, npix, nside, unit, n_earthpos
-        character(len=1024) :: tabulated_earth_pos_filename
-        real(dp) :: vec(3), ecliptic_to_galactic_matrix(3, 3)
-        integer(i4b), allocatable :: sorted_unique_nsides(:)
-        real(dp), allocatable :: galactic_vec(:, :), filtered_cpar_nsides(:)
+        SECOND_TO_DAY = 1.d0 / (60*60*24)
 
-        ! Initialize zodi parameters from cpar
-        call init_hyper_parameters(cpar)
-        call init_source_parameters(cpar)
-        call init_shape_parameters(cpar)
+        call initialize_zodi_parameters_from_cpar(cpar)
+        call initialize_earth_pos_spline_object(cpar, earth_pos_spl_obj)
 
+        ! Set up interpolation grid for evaluating line of sight b_nu
+        allocate(temperature_grid(n_interp_points))
+        call linspace(min_ipd_temp, max_ipd_temp, temperature_grid)
+        
         ! Initialize zodi components
         if (use_cloud) then
             cloud_comp = Cloud(x_0=cloud_x_0, y_0=cloud_y_0, z_0=cloud_z_0, incl=cloud_incl, &
@@ -221,60 +199,153 @@ contains
             call add_component_to_list(comp)
         end if
 
+        ! Add components to list for easy iteration
         comp => comp_list
         do while (associated(comp))
             call comp%initialize()
             comp => comp%next()
         end do
 
-        ! Precompute unit vector coordinates for galactic to ecliptic coordinates
-        call gal_to_ecl_conversion_matrix(ecliptic_to_galactic_matrix)
-
-        ! TODO: REWRITE THIS TO USE TOD MODULE?
-        sorted_unique_nsides = unique_sort(pack(cpar%ds_nside, cpar%ds_nside /= 0))
-        allocate(unit_vector_list%vectors(size(sorted_unique_nsides)))
-        do i = 1, size(sorted_unique_nsides)
-            nside = sorted_unique_nsides(i)
-            npix = nside2npix(nside)
-            allocate(unit_vector_list%vectors(i)%elements(0:npix-1, 3))
-            allocate(galactic_vec(0:npix-1, 3))
-        
-            do j = 0, npix - 1
-                call pix2vec_ring(nside, j, vec)
-                galactic_vec(j, 1) = vec(1)
-                galactic_vec(j, 2) = vec(2)
-                galactic_vec(j, 3) = vec(3)
-            end do
-        
-            unit_vector_list%vectors(i)%elements = matmul(galactic_vec, ecliptic_to_galactic_matrix)
-            deallocate(galactic_vec)
-        end do
-
-        ! Read in tabulated earth position and prepare spline object
-        unit = getlun()
-        tabulated_earth_pos_filename = trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")
-        open(unit, file=trim(tabulated_earth_pos_filename))
-        read(unit, *) n_earthpos
-        read(unit, *) ! skip header
-        allocate(tabulated_earth_pos(3, n_earthpos))
-        allocate(tabulated_earth_time(n_earthpos))
-
-        do i = 1, n_earthpos
-        read(unit,*) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
-        end do
-        close(unit)
-        do i = 1, 3
-            call spline_simple(earth_pos_spl_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
-        end do
-
-        ! Set up interpolation grid for evaluating line of sight b_nu
-        allocate(temperature_grid(n_interp_points))
-        call linspace(min_ipd_temp, max_ipd_temp, temperature_grid)
-
     end subroutine initialize_zodi_mod
 
+    subroutine get_zodi_emission(tod, pix, scan, s_zodi)
+        ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
+        !
+        ! Parameters
+        ! ----------
+        ! tod : class(comm_tod)
+        !     The TOD object holding the spline objects to update.
+        ! pix : integer(i4b), dimension(ntod, ndet, nhorns)
+        !     The pixel indices of each time-ordered observation.
+        ! scan : integer(i4b)
+        !     The scan number.
+        !
+        ! Returns
+        ! -------
+        ! s_zodi : real(sp), dimension(ntod, ndet)
+        !     The predicted zodiacal emission for each time-ordered observation.
+
+        implicit none
+        class(ZodiComponent), pointer :: comp
+
+        class(comm_tod), intent(inout) :: tod
+        integer(i4b), intent(in) :: pix(:, :), scan
+        real(sp), intent(inout) :: s_zodi(:, :)
+
+        logical(lgt) :: scattering
+        integer(i4b) :: i, j, k, pixel, cache_idx, n_detectors, n_tods
+        real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
+        real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
+        real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
+                                             comp_emission_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+
+        if (.not. tod%zodi_tod_params_are_initialized) then 
+            print *, "Error: Zodi parameters have not been initialized."
+            print *, "make sure that `initialize_zodi_tod_parameters` is called in the constructor of `tod_your_experiment_mod`"
+            stop
+        else if (.not. allocated(tod%zodi_b_nu_spl_obj)) then
+            print *, "Error: Zodi splines have not been initialized."
+            print *, "make sure that `initialize_zodi_splines` is called at least once before this function is ran, and then again everytime the bandpasses are updated."
+            stop
+        end if
+
+        n_tods = size(pix, dim=1)
+        n_detectors = size(pix, dim=2)
+        s_zodi = 0.d0
+
+        dt_tod = tod%samprate * SECOND_TO_DAY ! dt between two samples in units of days
+        obs_pos = tod%scans(scan)%satpos
+        R_obs = norm2(obs_pos)
+
+        do i = 1, 3
+            earth_pos(i) = splint_simple(earth_pos_spl_obj(i), tod%scans(scan)%t0(1))
+        end do        
+        earth_lon = atan(earth_pos(2), earth_pos(1))
+
+        if (count(tod%zodi_spl_albedos /= 0.d0) > 0) then
+            scattering = .true.
+        else
+            scattering = .false.
+        end if
+
+        do i = 1, n_tods
+            ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
+            ! NOTE: this cache only makes sense if the chunks a core handles are in chronological order.
+            obs_time = tod%scans(scan)%t0(1) + (i - 1) * dt_tod
+            if (((obs_time - tod%zodi_cache_time) >= delta_t_reset) &
+                .and. &
+                (obs_time > tod%zodi_min_obs_time .and. obs_time < tod%zodi_max_obs_time) &
+            ) then 
+                do j = 1, 3 
+                    earth_pos(j) = splint_simple(earth_pos_spl_obj(j), obs_time)
+                    obs_pos(j) = splint_simple(tod%zodi_obs_pos_spl_obj(j), obs_time)
+                end do            
+                R_obs = norm2(obs_pos)
+                earth_lon = atan(earth_pos(2), earth_pos(1))
+                tod%zodi_cache = -1.d0
+                tod%zodi_cache_time = obs_time
+            end if
+
+            do j = 1, n_detectors   
+                pixel = pix(i, j) 
+                cache_idx = tod%pix2ind(pixel)
+                if (tod%zodi_cache(cache_idx, j) >= 0.0d0) then
+                    s_zodi(i, j) = tod%zodi_cache(cache_idx, j)
+                    cycle
+                end if
+
+                unit_vector = tod%pix2vec_ecl(:, pixel)
+                call get_R_max(unit_vector, obs_pos, R_obs, R_max)
+                call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
+
+                do k = 1, 3
+                    X_unit_LOS(k, :) = gauss_nodes * unit_vector(k)
+                    X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
+                end do
+                R_LOS = norm2(X_LOS, dim=1)           
+
+                if (scattering) then
+                    solar_flux_LOS = tod%zodi_spl_solar_irradiance(j) / R_LOS**2
+                    call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
+                    call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j), phase_function)
+                end if
+
+                call get_dust_grain_temperature(R_LOS, T_LOS)
+                call splint_simple_multi(tod%zodi_b_nu_spl_obj(j), T_LOS, b_nu_LOS)
+
+                comp => comp_list
+                k = 1
+                do while (associated(comp))
+                    call comp%get_density(X_LOS, earth_lon, density_LOS)
+                    comp_emission_LOS = (1.d0 - tod%zodi_spl_albedos(j, k)) * (tod%zodi_spl_emissivities(j, k) * b_nu_LOS)
+                    if (scattering) comp_emission_LOS = comp_emission_LOS + (tod%zodi_spl_albedos(j, k) * solar_flux_LOS * phase_function)
+                    comp_emission_LOS = comp_emission_LOS * density_LOS
+
+                    s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
+                    comp => comp%next()
+                    k = k + 1
+                end do
+                tod%zodi_cache(cache_idx, j) = s_zodi(i, j)
+            end do
+        end do
+    end subroutine get_zodi_emission
+
     subroutine update_zodi_splines(tod, bandpass, det)
-        ! Updates the spline object which is used to evaluate b_nu over the bandpass
+        ! Updates the spectral spline objects in the TOD object.
+        !
+        ! In the K98 model, several spectral parameters are tabulated at individual frequencies, 
+        ! which we need to evaluate over the bandpass. In a future version, we may want to fit 
+        ! a modified blackbody which would allow us to drop using some of these spline objects.
+        !
+        ! Parameters
+        ! ----------
+        ! tod : class(comm_tod)
+        !     The TOD object holding the spline objects to update.
+        ! bandpass : class(comm_bp_ptr)
+        !   The bandpass object holding the bandpass frequencies, and the SED2F function 
+        !   (bandpass integration).
+        ! det : integer(i4b)
+        !   The detector to update the spline objects for.
 
         implicit none
         class(comm_tod),   intent(inout) :: tod
@@ -307,131 +378,11 @@ contains
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
-
-    subroutine get_zodi_emission(tod, pix, scan, s_zodi)
-        implicit none
-        class(ZodiComponent), pointer :: comp
-
-        class(comm_tod), intent(inout) :: tod
-        integer(i4b), intent(in) :: pix(1:, 1:), scan
-        real(sp), intent(inout) :: s_zodi(1:, 1:)
-
-        logical(lgt) :: scattering
-        integer(i4b) :: i, j, k, l, pixel, n_detectors, n_tods, npix
-        real(dp) :: earth_lon, R_obs, R_max, samp_rate, dt_tod, tod_time, SECOND_TO_DAY, current_time
-        real(dp) :: unit_vector(3), X_vec_LOS(3, gauss_degree), X_helio_vec_LOS(3, gauss_degree), tod_obs_pos(3), tod_earth_pos(3)
-        real(dp), allocatable :: tabulated_unit_vectors(:, :)
-        real(dp), dimension(gauss_degree) :: R_helio_LOS, R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
-                                             comp_emission_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
-
-        if (.not. tod%zodi_tod_params_are_initialized) then 
-            print *, "Error: Zodi parameters have not been initialized."
-            print *, "make sure that `initialize_zodi_tod_parameters` is called in the constructor of `tod_your_experiment_mod`"
-            stop
-        end if 
-        if (.not. allocated(tod%zodi_b_nu_spl_obj)) then
-            print *, "Error: Zodi splines have not been initialized."
-            stop
-        end if
-
-        n_tods = size(pix, dim=1)
-        n_detectors = size(pix, dim=2)
-        npix = nside2npix(tod%nside)
-        s_zodi = 0.d0
-
-
-        SECOND_TO_DAY = 1.d0 / (60*60*24)
-        dt_tod = tod%samprate * second_to_day ! dt between two samples in units of days
-
-        ! Get unit vectors corresponding to the observed pixels (only on first chunk)
-        allocate(tabulated_unit_vectors(0:npix-1, 3))
-        call get_tabulated_unit_vectors(npix, tabulated_unit_vectors)
-
-        do l = 1, 3 ! for x, y, z
-            tod_earth_pos(l) = splint_simple(earth_pos_spl_obj(l), tod%scans(scan)%t0(1))
-            tod_obs_pos(l) = splint_simple(tod%zodi_obs_pos_spl_obj(l), tod%scans(scan)%t0(1))
-        end do        
-        
-        tod_obs_pos = tod%scans(scan)%satpos
-        R_obs = norm2(tod_obs_pos)
-        earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
-
-        if (count(tod%zodi_spl_albedos /= 0.d0) > 0) then
-            scattering = .true.
-        else
-            scattering = .false.
-        end if
-
-        ! Loop over each detectors time-ordered pointing chunks. For each unique pixel
-        ! observed (cross dectors) perform a line of sight integral solving Eq. (20) in 
-        ! San et al. 2022 (https://www.aanda.org/articles/aa/pdf/forth/aa44133-22.pdf).
-        do i = 1, n_tods
-            ! After a time, delta_t_reset, update the earth and observer position and reset cached s_zodi.
-            tod_time = tod%scans(scan)%t0(1) + (i - 1) * dt_tod
-            if (&
-                (tod_time - tod%zodi_cache_time) >= delta_t_reset &
-                .and. &
-                (tod_time > tod%zodi_min_obs_time .and. tod_time < tod%zodi_max_obs_time) &
-                ) then 
-                do l = 1, 3 
-                    tod_earth_pos(l) = splint_simple(earth_pos_spl_obj(l), tod_time)
-                    tod_obs_pos(l) = splint_simple(tod%zodi_obs_pos_spl_obj(l), tod_time)
-                end do            
-                R_obs = norm2(tod_obs_pos)
-                earth_lon = atan(tod_earth_pos(2), tod_earth_pos(1))
-                tod%zodi_cache = 0.d0
-                tod%zodi_cache_time = tod_time
-            end if
-
-            do j = 1, n_detectors   
-                pixel = pix(i, j) 
-
-                if (tod%zodi_cache(pixel, j) /= 0.d0) then
-                    s_zodi(i, j) = tod%zodi_cache(pixel, j)
-                    cycle
-                end if
-
-                unit_vector = tabulated_unit_vectors(pixel, :)
-                call get_R_max(unit_vector, tod_obs_pos, R_obs, R_max)
-                call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
-
-                do k = 1, 3 ! x, y, z
-                    X_vec_LOS(k, :) = gauss_nodes * unit_vector(k)
-                    X_helio_vec_LOS(k, :) = X_vec_LOS(k, :) + tod_obs_pos(k)
-                end do
-                R_helio_LOS = norm2(X_helio_vec_LOS, dim=1)           
-
-                if (scattering) then
-                    solar_flux_LOS = tod%zodi_spl_solar_irradiance(j) / R_helio_LOS**2
-                    call get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
-                    call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j), phase_function)
-                end if
-
-                call get_dust_grain_temperature(R_helio_LOS, T_LOS)
-                call splint_simple_multi(tod%zodi_b_nu_spl_obj(j), T_LOS, b_nu_LOS)
-
-                comp => comp_list
-                k = 1
-                do while (associated(comp))
-                    call comp%get_density(X_helio_vec_LOS, earth_lon, density_LOS)
-                    comp_emission_LOS = (1.d0 - tod%zodi_spl_albedos(j, k)) * (tod%zodi_spl_emissivities(j, k) * b_nu_LOS)
-                    if (scattering) comp_emission_LOS = comp_emission_LOS + (tod%zodi_spl_albedos(j, k) * solar_flux_LOS * phase_function)
-                    comp_emission_LOS = comp_emission_LOS * density_LOS
-
-                    s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
-                    comp => comp%next()
-                    k = k + 1
-                end do
-                tod%zodi_cache(pixel, j) = s_zodi(i, j) ! Update cache with newly computed LOS emission
-            end do
-        end do
-    end subroutine get_zodi_emission
-
-
-    ! Functions used in `get_zodi_emission`
-    ! -------------------------------------
+    ! Functions for evaluating the zodiacal emission
+    ! -----------------------------------------------------------------------------------
     subroutine get_R_max(unit_vector, obs_pos, R_obs, R_max)
         ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
+
         implicit none
         real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
         real(dp), intent(in) :: R_obs
@@ -501,8 +452,8 @@ contains
         normalization_factor = 1.d0 / (term1 * (term2 + term3 + term4))
     end subroutine
 
-    ! Methods initizializing the zodiacal components
-    ! ----------------------------------------------
+    ! Methods for initizializing the zodiacal components
+    ! -----------------------------------------------------------------------------------
     subroutine initialize_cloud(self)
         implicit none
         class(Cloud) :: self
@@ -543,9 +494,8 @@ contains
     end subroutine initialize_feature
 
 
-    ! Methods describing the three dimensional parametric density distribution of 
-    ! the zodiacal components.
-    ! ---------------------------------------------------------------------------
+    ! Methods describing the densitry distribution of the zodiacal components
+    ! -----------------------------------------------------------------------------------
     subroutine get_density_cloud(self, X_vec, theta, n_out)
         implicit none
         class(Cloud) :: self
@@ -662,8 +612,8 @@ contains
     end subroutine get_density_feature
 
 
-    ! Methods for constructing and iterating the linked list of zodiacal components
-    ! -----------------------------------------------------------------------------
+    ! Functions for constructing and iterating the linked list of zodiacal components
+    ! -----------------------------------------------------------------------------------
     function next(self)
         class(ZodiComponent) :: self
         class(ZodiComponent), pointer :: next
@@ -694,71 +644,38 @@ contains
         end if
     end subroutine add_component_to_list
 
+    ! Functions for initializing zodi_mod
+    ! -----------------------------------------------------------------------------------
+    subroutine initialize_earth_pos_spline_object(cpar, earth_spl_obj)
+        ! Returns the spline object which is used to evaluate the earth position
 
-    ! Utility functions
-    ! ------------------
-    function unique_sort(array) result(unique_sorted_array)
         implicit none
-        integer :: idx, min_val, max_val
-        integer, intent(in), dimension(:) :: array
-        integer, dimension(size(array)) :: unique
-        integer, dimension(:), allocatable :: unique_sorted_array
+        type(comm_params), intent(in) :: cpar
+        type(spline_type), intent(inout) :: earth_spl_obj(3)
+        integer :: i, n_earthpos, unit
 
-        idx = 0
-        min_val = minval(array) - 1
-        max_val = maxval(array)
-        do while (min_val < max_val)
-            idx = idx + 1
-            min_val = minval(array, mask=array > min_val)
-            unique(idx) = min_val
-        enddo
+        unit = getlun()
+        open(unit, file=trim(trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")))
+        read(unit, *) n_earthpos
+        read(unit, *) ! skip header
 
-        allocate(unique_sorted_array(idx), source=unique(1:idx))
-    end function unique_sort
-
-    subroutine gal_to_ecl_conversion_matrix(matrix)
-        ! Ecliptic to galactic rotation matrix
-        implicit none
-        real(dp), dimension(3,3) :: matrix
-
-        matrix(1,1) =  -0.054882486d0
-        matrix(1,2) =  -0.993821033d0
-        matrix(1,3) =  -0.096476249d0
-        matrix(2,1) =   0.494116468d0
-        matrix(2,2) =  -0.110993846d0
-        matrix(2,3) =   0.862281440d0
-        matrix(3,1) =  -0.867661702d0
-        matrix(3,2) =  -0.000346354d0
-        matrix(3,3) =   0.497154957d0
-
-        ! call invert_matrix_dp(matrix)
-    end subroutine gal_to_ecl_conversion_matrix
-
-    subroutine get_tabulated_unit_vectors(npix, unit_vectors)
-        ! Routine which selects coordinate transformation map based on resolution
-        implicit none
-        integer(i4b), intent(in) :: npix
-        real(dp), dimension(:,:), intent(inout) :: unit_vectors
-
-        integer(i4b) :: i
-
-        do i = 1, size(unit_vector_list%vectors)
-            if (size(unit_vector_list%vectors(i)%elements(:, 1)) == npix) then
-                unit_vectors = unit_vector_list%vectors(i)%elements
-                exit
-            end if
+        allocate(tabulated_earth_pos(3, n_earthpos))
+        allocate(tabulated_earth_time(n_earthpos))
+        do i = 1, n_earthpos
+        read(unit,*) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
         end do
-    end subroutine get_tabulated_unit_vectors
+        close(unit)
+        do i = 1, 3
+            call spline_simple(earth_spl_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
+        end do
+    end subroutine initialize_earth_pos_spline_object
 
-
-
-    ! Functions for initializing zodi parameters from cpar
-    ! ----------------------------------------------------
-    subroutine init_hyper_parameters(cpar)
+    subroutine initialize_zodi_parameters_from_cpar(cpar)
         ! Initialize hyper parameters for commander run
         implicit none 
         type(comm_params), intent(in) :: cpar
-        
+
+        ! Hypper parameters
         use_cloud = cpar%zs_use_cloud
         use_band1 = cpar%zs_use_band1
         use_band2 = cpar%zs_use_band2
@@ -772,22 +689,12 @@ contains
         min_ipd_temp = cpar%zs_min_ipd_temp
         max_ipd_temp = cpar%zs_max_ipd_temp
         n_interp_points = cpar%zs_n_interp_points
-    end subroutine init_hyper_parameters
 
-    subroutine init_source_parameters(cpar)
-        ! Initialize source parameters given interplanetary dust model
-        implicit none 
-        type(comm_params), intent(in) :: cpar
-
+        ! Source parameters
         T_0 = cpar%zs_t_0
         delta = cpar%zs_delta
-    end subroutine init_source_parameters
 
-    subroutine init_shape_parameters(cpar)
-        ! Initialize interplanetary dust shape parameters
-        implicit none 
-        type(comm_params), intent(in) :: cpar
-
+        ! Shape parameters
         cloud_x_0 = cpar%zs_common(1, 1)
         cloud_y_0 = cpar%zs_common(1, 2)
         cloud_z_0 = cpar%zs_common(1, 3)
@@ -853,5 +760,5 @@ contains
         feature_sigma_z = cpar%zs_feature_sigma_z
         feature_theta = cpar%zs_feature_theta
         feature_sigma_theta = cpar%zs_feature_sigma_theta
-    end subroutine init_shape_parameters
+    end subroutine initialize_zodi_parameters_from_cpar
 end module comm_zodi_mod

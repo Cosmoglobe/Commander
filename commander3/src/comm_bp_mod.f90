@@ -160,20 +160,6 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
-       !------------------
-       ! Daniels code (below) is commented out  due to crashing when working with tod analysis
-       !------------------
-   !  else if (trim(constructor%type) == 'DIRBE') then
-   !     if (index(subdets, '.txt') /=0) then
-   !        ndet = count_detectors(subdets, cpar%datadir)
-   !        call get_detectors(subdets, cpar%datadir, dets, ndet)
-   !     else
-   !        call get_tokens(subdets, ",", dets, ndet)
-   !     end if
-   !     call read_bandpass_dirbe(trim(dir)//trim(cpar%ds_bpfile(id_abs)), dets(1), &
-   !             & constructor%threshold, &
-   !             & constructor%n, constructor%nu0, constructor%tau0)
-   !     allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     else
        if (present(detlabel)) then
           call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
@@ -337,6 +323,7 @@ contains
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
+      !self%f2a                        
       !  self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
        self%tau     = self%tau / tsum(self%nu, self%tau)
 

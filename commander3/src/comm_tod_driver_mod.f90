@@ -46,8 +46,6 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
      real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
      integer(i4b) :: band                                        ! Band ID
-
-     real(sp),    allocatable, dimension(:,:)     :: s_zodi_cache ! Zodiacal light cache
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
      procedure  :: init_differential => init_scan_data_differential
