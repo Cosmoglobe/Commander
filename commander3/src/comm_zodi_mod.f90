@@ -31,6 +31,8 @@ module comm_zodi_mod
     private
     public :: initialize_zodi_mod, get_zodi_emission, update_zodi_splines
 
+    ! TODO: probably stick this into an object, for instance comm_zodi_params
+    ! which will make it easier to pass around for parameter estimation.
     ! Global parameters
     integer(i4b) :: gauss_degree, n_interp_points
     real(dp) :: EPS = 3.d-14
@@ -140,8 +142,6 @@ contains
         ! cpar: comm_params
         !    Parameter file variables.
 
-        implicit none
-
         type(comm_params), intent(in) :: cpar
         class(ZodiComponent), pointer :: comp
 
@@ -225,7 +225,6 @@ contains
         ! s_zodi : real(sp), dimension(ntod, ndet)
         !     The predicted zodiacal emission for each time-ordered observation.
 
-        implicit none
         class(ZodiComponent), pointer :: comp
 
         class(comm_tod), intent(inout) :: tod
@@ -233,7 +232,7 @@ contains
         real(sp), intent(inout) :: s_zodi(:, :)
 
         logical(lgt) :: scattering
-        integer(i4b) :: i, j, k, pixel, cache_idx, n_detectors, n_tods
+        integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
@@ -249,11 +248,11 @@ contains
             stop
         end if
 
-        n_tods = size(pix, dim=1)
-        n_detectors = size(pix, dim=2)
         s_zodi = 0.d0
+        n_tod = size(pix, dim=1)
+        n_det = size(pix, dim=2)
 
-        dt_tod = tod%samprate * SECOND_TO_DAY ! dt between two samples in units of days
+        dt_tod = tod%samprate * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
         obs_pos = tod%scans(scan)%satpos
         R_obs = norm2(obs_pos)
 
@@ -268,9 +267,9 @@ contains
             scattering = .false.
         end if
 
-        do i = 1, n_tods
+        do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
-            ! NOTE: this cache only makes sense if the chunks a core handles are in chronological order.
+            ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
             obs_time = tod%scans(scan)%t0(1) + (i - 1) * dt_tod
             if (((obs_time - tod%zodi_cache_time) >= delta_t_reset) &
                 .and. &
@@ -286,15 +285,14 @@ contains
                 tod%zodi_cache_time = obs_time
             end if
 
-            do j = 1, n_detectors   
-                pixel = pix(i, j) 
-                cache_idx = tod%pix2ind(pixel)
-                if (tod%zodi_cache(cache_idx, j) >= 0.0d0) then
-                    s_zodi(i, j) = tod%zodi_cache(cache_idx, j)
+            do j = 1, n_det   
+                lookup_idx = tod%pix2ind(pix(i, j))
+                if (tod%zodi_cache(lookup_idx, j) >= 0.d0) then
+                    s_zodi(i, j) = tod%zodi_cache(lookup_idx, j)
                     cycle
                 end if
 
-                unit_vector = tod%pix2vec_ecl(:, pixel)
+                unit_vector = tod%ind2vec_ecl(:, lookup_idx)
                 call get_R_max(unit_vector, obs_pos, R_obs, R_max)
                 call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
 
@@ -325,7 +323,7 @@ contains
                     comp => comp%next()
                     k = k + 1
                 end do
-                tod%zodi_cache(cache_idx, j) = s_zodi(i, j)
+                tod%zodi_cache(lookup_idx, j) = s_zodi(i, j)
             end do
         end do
     end subroutine get_zodi_emission
@@ -347,7 +345,6 @@ contains
         ! det : integer(i4b)
         !   The detector to update the spline objects for.
 
-        implicit none
         class(comm_tod),   intent(inout) :: tod
         class(comm_bp_ptr), intent(in) :: bandpass
         integer(i4b), intent(in) :: det
@@ -383,7 +380,6 @@ contains
     subroutine get_R_max(unit_vector, obs_pos, R_obs, R_max)
         ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
 
-        implicit none
         real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
         real(dp), intent(in) :: R_obs
         real(dp), intent(out) :: R_max
@@ -399,21 +395,18 @@ contains
     end subroutine get_R_max
 
     subroutine get_dust_grain_temperature(R, T_out)
-        implicit none
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T_out
         T_out = T_0 * R ** (-delta)
     end subroutine get_dust_grain_temperature
 
     subroutine get_blackbody_emission(nus, T, b_nu)
-        implicit none
         real(dp), intent(in) :: nus(:), T
         real(dp), dimension(:), intent(out) :: b_nu
         b_nu = 1d20 * ((2 * h * nus**3) / (c*c)) / (exp((h * nus) / (k_B * T)) - 1.d0)
     end subroutine get_blackbody_emission
 
     subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
-        implicit none
         real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
         real(dp), dimension(:), intent(out) :: scattering_angle
         real(dp), dimension(gauss_degree) :: cos_theta, R_LOS
@@ -431,7 +424,6 @@ contains
     end subroutine get_scattering_angle
 
     subroutine get_phase_function(scattering_angle, phase_coefficients, normalization_factor, phase_function)
-        implicit none
         real(dp), intent(in) :: scattering_angle(:), phase_coefficients(:), normalization_factor
         real(dp), intent(out) :: phase_function(:)
 
@@ -440,7 +432,6 @@ contains
     end subroutine
 
     subroutine get_phase_normalization(phase_coefficients, normalization_factor)
-        implicit none
         real(dp), intent(in) :: phase_coefficients(:)
         real(dp), intent(out) :: normalization_factor
         real(dp) :: term1, term2, term3, term4
@@ -455,7 +446,6 @@ contains
     ! Methods for initizializing the zodiacal components
     ! -----------------------------------------------------------------------------------
     subroutine initialize_cloud(self)
-        implicit none
         class(Cloud) :: self
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
@@ -464,7 +454,6 @@ contains
     end subroutine initialize_cloud
 
     subroutine initialize_band(self)
-        implicit none
         class(Band) :: self
         self%delta_zeta = self%delta_zeta * deg2rad
         self%sin_omega = sin(self%Omega * deg2rad)
@@ -474,7 +463,6 @@ contains
     end subroutine initialize_band
 
     subroutine initialize_ring(self)
-        implicit none
         class(Ring) :: self
         self%sin_omega = sin(self%Omega * deg2rad)
         self%cos_omega = cos(self%Omega * deg2rad)
@@ -483,7 +471,6 @@ contains
     end subroutine initialize_ring
 
     subroutine initialize_feature(self)
-        implicit none
         class(Feature) :: self
         self%theta_0 = self%theta_0 * deg2rad
         self%sigma_theta = self%sigma_theta * deg2rad
@@ -497,7 +484,6 @@ contains
     ! Methods describing the densitry distribution of the zodiacal components
     ! -----------------------------------------------------------------------------------
     subroutine get_density_cloud(self, X_vec, theta, n_out)
-        implicit none
         class(Cloud) :: self
         real(dp), dimension(:, :), intent(in) :: X_vec
         real(dp), intent(in) :: theta
@@ -525,7 +511,6 @@ contains
     end subroutine get_density_cloud
 
     subroutine get_density_band(self, X_vec, theta, n_out)
-        implicit none
         class(Band) :: self
         real(dp), dimension(:, :), intent(in)  :: X_vec
         real(dp), intent(in) :: theta
@@ -556,7 +541,6 @@ contains
     end subroutine get_density_band
 
     subroutine get_density_ring(self, X_vec, theta, n_out)
-        implicit none
         class(Ring) :: self
         real(dp), dimension(:, :), intent(in)  :: X_vec
         real(dp), intent(in) :: theta
@@ -580,7 +564,6 @@ contains
     end subroutine get_density_ring
 
     subroutine get_density_feature(self, X_vec, theta, n_out)
-        implicit none
         class(Feature) :: self
         real(dp), dimension(:, :), intent(in) :: X_vec
         real(dp), intent(in) :: theta
@@ -634,7 +617,6 @@ contains
     end subroutine add
 
     subroutine add_component_to_list(comp)
-        implicit none
         class(ZodiComponent), pointer :: comp
 
         if (.not. associated(comp_list)) then
@@ -649,7 +631,6 @@ contains
     subroutine initialize_earth_pos_spline_object(cpar, earth_spl_obj)
         ! Returns the spline object which is used to evaluate the earth position
 
-        implicit none
         type(comm_params), intent(in) :: cpar
         type(spline_type), intent(inout) :: earth_spl_obj(3)
         integer :: i, n_earthpos, unit
@@ -672,7 +653,6 @@ contains
 
     subroutine initialize_zodi_parameters_from_cpar(cpar)
         ! Initialize hyper parameters for commander run
-        implicit none 
         type(comm_params), intent(in) :: cpar
 
         ! Hypper parameters
