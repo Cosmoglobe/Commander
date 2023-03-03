@@ -31,7 +31,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, f2a
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -318,12 +318,14 @@ contains
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
  
     case ('DIRBE') 
+
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
-      !self%f2a                        
+      ! self%f2a      = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2) / &
+      !                  & tsum(self%nu, self%tau / (2.d0*k_B*self%nu**2/c**2))
       !  self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
        self%tau     = self%tau / tsum(self%nu, self%tau)
 
@@ -384,7 +386,6 @@ contains
     case ('DIRBE') 
       !  SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
        SED2F = tsum(self%nu, self%tau * f)
-
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW

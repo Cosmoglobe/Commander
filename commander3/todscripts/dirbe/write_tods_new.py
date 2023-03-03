@@ -8,6 +8,7 @@ version 7: redo planet flags
 version 8: redo planet flags better
 version 9: fix scalars, try smaller flagging radius
 version 10: gapfilling so that all tods are equispaced
+version 11: change smoothing to using gaussian filter and remove iras convention color correction from the tods
 """
 
 from __future__ import annotations
@@ -20,6 +21,9 @@ import sys
 from scipy import interpolate
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
+from scipy.ndimage import gaussian_filter1d
+from pathlib import Path
+
 if TYPE_CHECKING:
     from ...python.commander_tools.tod_tools.commander_tod import (
         commander_tod,
@@ -45,6 +49,7 @@ from astropy.time import Time
 
 TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/metins/dirbe/data/"
 PATH_TO_HDF5_FILES = "/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/"
+BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 
 NUM_PROCS = 10
 NUM_CHUNKS_PER_BAND = 285
@@ -52,9 +57,21 @@ DEFAULT_NSIDE = 128
 NPSI = 2048
 FSAMP = 8
 BAD_DATA_SENTINEL = -16375
-N_SMOOTHING_BOUNDARY = 100
 N_CONV_BOX_POINTS = 30
 NSIDE = 128
+
+BAND_TO_WAVELENGTH: dict[int, float] = {
+    1: 1.25,
+    2: 2.2,
+    3: 3.5,
+    4: 4.9,
+    5: 12,
+    6: 25,
+    7: 60,
+    8: 100,
+    9: 140,
+    10: 240,
+}
 
 BODIES = {
     "moon": 1,
@@ -187,7 +204,7 @@ def write_band(
 
     rotator = hp.Rotator(coord=["E", "G"])
     pid = 0
-
+    iras_factor = get_iras_factor(band)
     for chunk in range(1, NUM_CHUNKS_PER_BAND + 1):
         day = chunk
         print(f"processing chunk: {chunk:03}...")
@@ -197,16 +214,7 @@ def write_band(
         if mjd_times.size == 0:
             continue
         fsamp_in_days = 1 / FSAMP / 86400
-        if smooth:
-            inds = np.nonzero(
-                np.diff(mjd_times[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY])
-                > (2 * fsamp_in_days)
-            )[0]
-            mjd_times = mjd_times[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
-        else:
-            inds = np.nonzero(np.diff(mjd_times) > (2 * fsamp_in_days))[0]
-
-        inds = np.insert(inds, 0, 0)
+        inds = np.nonzero(np.diff(mjd_times) > (2 * fsamp_in_days))[0] + 1
         tods_det = []
         pixels_det = []
         flags_det = []
@@ -216,15 +224,8 @@ def write_band(
 
         for det in dirbe_utils.DETECTOR_LABELS:
             tods = get_chunk_band_tods(chunk_label, hdf5_filename, det)
-            pixels = get_chunk_band_pixels(
-                chunk_label,
-                hdf5_filename,
-                det,
-                rotator,
-                nside_in=nside_in,
-                nside_out=nside_out,
-                smooth=smooth,
-            )
+            tods *= iras_factor
+            pixels = get_chunk_band_pixels(chunk_label, hdf5_filename, det)
             gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, det)
             gustav_time = get_gustav_time(chunk_label, hdf5_filename, det)
             flags = get_chunk_band_flags(
@@ -236,16 +237,9 @@ def write_band(
                 gustav_time,
             )
             psi = get_chunk_band_psi(chunk_label, hdf5_filename, det)
-
-            if smooth:  # smoothing currently requires removing boundaries
-                flags = flags[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
-                tods = tods[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
-                pixels = pixels[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
-                psi = psi[N_SMOOTHING_BOUNDARY:-N_SMOOTHING_BOUNDARY]
-
             out_ang = get_out_ang()
             scalars = get_scalars(tods, flags)
-            
+
             tods_det.append(tods)
             pixels_det.append(pixels)
             flags_det.append(flags)
@@ -255,12 +249,13 @@ def write_band(
             if band > 3:
                 break
 
-        for idx in range(len(inds) - 1):
+        start_idx = 0
+        for idx in range(len(inds)):
             pid += 1
             pid_label = f"{pid:06}"
             pid_common_group = pid_label + "/common"
-            start_idx = inds[idx]
-            stop_idx = inds[idx + 1]
+            stop_idx = inds[idx]
+
             if (stop_idx - start_idx) == 0:
                 continue
             mjd_times_pid = mjd_times[start_idx:stop_idx]
@@ -272,7 +267,7 @@ def write_band(
             )
             ntod = len(tods_det[0][start_idx:stop_idx])
             comm_tod.add_field(pid_common_group + "/ntod", [ntod])
-    
+
             sat_pos, earth_pos = get_sat_and_earth_pos(day, mjd_times_pid)
             comm_tod.add_field(pid_common_group + "/satpos", sat_pos[0])
 
@@ -292,6 +287,10 @@ def write_band(
                 psi_pid = psi_det[det_idx][start_idx:stop_idx]
                 scalars_pid = scalars_det[det_idx]
                 out_ang_pid = out_ang_det[det_idx]
+
+                pixels_pid = smooth_and_udgrade_and_rotate_pixels(
+                    pixels_pid, nside_in, nside_out, rotator, smooth
+                )
 
                 if flags_pid.size > 0:
                     comm_tod.add_field(
@@ -328,15 +327,25 @@ def write_band(
                     break
 
             comm_tod.finalize_chunk(pid)
+            start_idx = stop_idx
 
     comm_tod.finalize_file()
 
-def print_default_file_info(file: str) -> None:
-    with h5py.File(file, "r") as f:
-        print()
-        for group in f["common"]:
-            print(f"Group: {f[group][()]}")
 
+def smooth_and_udgrade_and_rotate_pixels(
+    pixels: NDArray[np.int64], nside_in: int, nside_out: int, rotator: hp.Rotator, smooth: bool
+) -> NDArray[np.int64]:
+    """Smooth pixels and then udgrade them to the desired nside."""
+    unit_vectors = np.asarray(hp.pix2vec(nside_in, pixels))
+    if smooth: 
+        unit_vectors = np.array(
+            [
+                gaussian_filter1d(unit_vector, sigma=5, mode="nearest")
+                for unit_vector in unit_vectors
+            ]
+        )
+    unit_vectors_gal = rotator(unit_vectors)
+    return hp.vec2pix(nside_out, *unit_vectors_gal)
 
 
 def get_band_polang(band: int) -> list[float]:
@@ -462,34 +471,14 @@ def get_chunk_band_psi(
 
 
 def get_chunk_band_pixels(
-    chunk_label: str,
-    hdf5_filename: str,
-    detector: str,
-    rotator: hp.Rotator,
-    nside_in: int,
-    nside_out: int,
-    smooth: bool = False,
+    chunk_label: str, hdf5_filename: str, detector: str
 ) -> NDArray[np.integer]:
     """Gets dirbe pixels from gustavs files."""
 
     with h5py.File(hdf5_filename, "r") as file:
         pixels_ecl = file[f"{chunk_label}/{detector}/pix"][()]
 
-    unit_vectors_ecl = np.asarray(hp.pix2vec(nside_in, pixels_ecl))
-    if smooth:
-        unit_vectors_ecl = np.array(
-            [
-                np.convolve(
-                    unit_vector,
-                    np.ones(N_CONV_BOX_POINTS) / N_CONV_BOX_POINTS,
-                    mode="same",
-                )
-                for unit_vector in unit_vectors_ecl
-            ]
-        )
-
-    unit_vectors_gal = rotator(unit_vectors_ecl)
-    return hp.vec2pix(nside_out, *unit_vectors_gal)
+    return pixels_ecl
 
 
 def get_out_ang() -> NDArray[np.floating]:
@@ -579,8 +568,33 @@ def get_sat_and_earth_pos(
     return ecl_sat_pos.value, earth_helio_pos.value
 
 
+def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
+    bandpass_file = BANDPASS_PATH / f"DIRBE_{band:02}_bandpass.dat"
+    bandpass = np.loadtxt(bandpass_file, unpack=True)
+
+    non_zero = np.nonzero(bandpass[1])
+    bandpass = bandpass[:, non_zero[0]]
+    freqs, weights = bandpass
+    freqs *= u.micron
+
+    return freqs, weights
+
+
+def get_iras_factor(band: int) -> float:
+    freqs, weights = get_bandpass(band)
+    freq_ref = BAND_TO_WAVELENGTH[band]
+    freqs = freqs.to(u.Hz, u.spectral())
+    freqs = np.flip(freqs)
+    weights = np.flip(weights)
+    weights /= np.trapz(weights, freqs.value)
+    return np.trapz(
+        weights * ((freq_ref * u.micron).to(u.Hz, u.spectral()).value / freqs.value),
+        freqs.value,
+    )
+
+
 def main() -> None:
-    version = 10
+    version = 11
     smooth_pixels = True
     nside_out = 256
     print(

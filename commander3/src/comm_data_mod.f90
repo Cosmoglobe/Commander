@@ -410,6 +410,7 @@ contains
     case ('K_cmb') 
        RJ2data = self%bp(d)%p%a2t * 1d-6
     case ('MJy/sr') 
+       ! TODO: this should be factor that converts from RJ to MJy/sr (without using and x2t or t2x)
        RJ2data = self%bp(d)%p%a2t / self%bp(d)%p%f2t
     case ('y_SZ') 
        RJ2data = self%bp(d)%p%a2sz
