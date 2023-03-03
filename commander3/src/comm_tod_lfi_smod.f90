@@ -627,6 +627,9 @@ contains
     !           Array of bandpass corrections with dimensions (0:ndet,npar,ndelta)
     !           where ndet is number of detectors, npar is number of parameters
     !           and ndelta is the number of bandpass deltas being considered
+    ! map_gain: same type as map_in
+    !           map of custom known component that will be used for absolute
+    !           calibration
     !
     ! Returns:
     ! ----------
@@ -671,9 +674,9 @@ contains
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
-
-    sample_rel_bandpass   = .false.
-    sample_abs_bandpass   = .false.
+    
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -754,14 +757,14 @@ contains
 
     ! Sample 1Hz spikes
 !    if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
+      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
 !    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
        !call sample_gain_psd(self, handle)
     end if
 
@@ -789,11 +792,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
 
        ! Make simulations, or draw correlated noise
@@ -1584,7 +1587,7 @@ contains
 
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1599,6 +1602,7 @@ contains
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin
@@ -1627,7 +1631,7 @@ contains
 
        ! Prepare data
        tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
-       call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+       call sd%init_singlehorn(tod, i, map_sky, m_gain, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)

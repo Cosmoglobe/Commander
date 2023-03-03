@@ -104,6 +104,9 @@ set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
 #	INPUT_FILE ${comm_hdf_mod}.in
 #	OUTPUT_FILE ${comm_hdf_mod}
 #	)
+=======
+add_custom_target(tempita ALL "")
+set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
 #------------------------------------------------------------------------------
 # Creating a Unified target
 #------------------------------------------------------------------------------

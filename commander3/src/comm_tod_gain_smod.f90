@@ -428,6 +428,7 @@ contains
        else 
           A_abs(j) = A_abs(j) + dA
           b_abs(j) = b_abs(j) + db
+          !write(*,*) scan, j, db/dA
        end if
 
        !if (tod%scanid(scan) == 30 .and. out) then
