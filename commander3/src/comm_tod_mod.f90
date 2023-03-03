@@ -152,8 +152,6 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)     :: sin2psi  ! Lookup table of sin(2psi)
      real(sp),           allocatable, dimension(:)     :: cos2psi  ! Lookup table of cos(2psi)
      real(sp),           allocatable, dimension(:)     :: psi      ! Lookup table of psi
-     real(dp),           allocatable, dimension(:,:)   :: pix2vec  ! Lookup table of pix2vec
-     real(dp),           allocatable, dimension(:,:)   :: pix2vec_ecl  ! Lookup table of pix2vec in ecliptic coordinates
      real(dp),           allocatable, dimension(:,:)   :: L_prop_mono  ! Proposal matrix for monopole sampling
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
@@ -176,8 +174,10 @@ module comm_tod_mod
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
-     integer(i4b),       allocatable, dimension(:)     :: pix2ind, ind2pix, ind2sl
-     real(sp),           allocatable, dimension(:,:)   :: ind2ang
+     integer(i4b),       allocatable, dimension(:)     :: pix2ind ! Array mapping all npix pixels to the uniquely observed pixels in the tod object for saving memory
+     integer(i4b),       allocatable, dimension(:)     :: ind2pix, ind2sl ! Lookup tables used with pix2ind 
+     real(sp),           allocatable, dimension(:,:)   :: ind2ang ! Lookup tables used with pix2ind for pixel angles
+     real(dp),           allocatable, dimension(:,:)   :: ind2vec, ind2vec_ecl ! Lookup tables used with pix2ind for pixel unit vectors
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
@@ -482,13 +482,6 @@ contains
     integer(i4b) :: i, j, k, l, np_vec, ierr
     integer(i4b), allocatable, dimension(:) :: pix
 
-    ! Lastly, create a vector pointing table for fast look-up for orbital dipole
-    np_vec = 12*self%nside**2 !npix
-    allocate(self%pix2vec(3,0:np_vec-1))
-    do i = 0, np_vec-1
-       call pix2vec_ring(self%nside, i, self%pix2vec(:,i))
-    end do
-
     ! Construct observed pixel array
     allocate(self%pix2ind(0:12*self%nside**2-1))
     self%pix2ind = -1
@@ -523,26 +516,28 @@ contains
     allocate(self%ind2pix(self%nobs))
     allocate(self%ind2sl(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
-    if (self%subtract_zodi) then
-       allocate(self%zodi_cache(self%nobs, self%ndet))
-       self%zodi_cache = -1.d0
-       allocate(self%pix2vec_ecl(3,0:np_vec-1))
-       call ecl_to_gal_rot_mat(rotation_matrix)
-       do i = 0, np_vec-1
-          self%pix2vec_ecl(:,i) = matmul(self%pix2vec(:,i), rotation_matrix)
-       end do
-    end if
+    allocate(self%ind2vec(3,self%nobs))
     j = 1
     do i = 0, 12*self%nside**2-1
        if (self%pix2ind(i) == 1) then
           self%ind2pix(j) = i
           self%pix2ind(i) = j
           call pix2ang_ring(self%nside, i, theta, phi)
+          call pix2vec_ring(self%nside, i, self%ind2vec(:,j))
           call ang2pix_ring(self%nside_beam, theta, phi, self%ind2sl(j))
           self%ind2ang(:,j) = [theta,phi]
           j = j+1
        end if
     end do
+    if (self%subtract_zodi) then
+       allocate(self%zodi_cache(self%nobs, self%ndet))
+       self%zodi_cache = -1.d0
+       allocate(self%ind2vec_ecl(3,self%nobs))
+       call ecl_to_gal_rot_mat(rotation_matrix)
+       do i = 1, self%nobs
+          self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
+       end do
+    end if
     f_fill = self%nobs/(12.*self%nside**2)
     call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
     call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)
@@ -1875,7 +1870,7 @@ contains
           v_ref = v_solar
          !  v_ref = self%scans(scan)%v_sun !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
           do i = 1, ntod
-             P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
+             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
           end do
        end if
 
@@ -1949,7 +1944,7 @@ contains
        end do
     else
        do i = 1, ntod
-          P(:,i) =  self%pix2vec(:,pix(i,j)) ! [v_x, v_y, v_z]
+          P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
        end do
     end if
 
