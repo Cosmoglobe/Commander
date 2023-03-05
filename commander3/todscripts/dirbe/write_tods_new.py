@@ -219,32 +219,19 @@ def write_band(
         pixels_det = []
         flags_det = []
         psi_det = []
-        scalars_det = []
         out_ang_det = []
 
         for det in dirbe_utils.DETECTOR_LABELS:
             tods = get_chunk_band_tods(chunk_label, hdf5_filename, det)
-            tods *= iras_factor
             pixels = get_chunk_band_pixels(chunk_label, hdf5_filename, det)
             gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, det)
-            gustav_time = get_gustav_time(chunk_label, hdf5_filename, det)
-            flags = get_chunk_band_flags(
-                nside_out,
-                planet_interps,
-                pixels,
-                tods,
-                gustav_flags,
-                gustav_time,
-            )
             psi = get_chunk_band_psi(chunk_label, hdf5_filename, det)
             out_ang = get_out_ang()
-            scalars = get_scalars(tods, flags)
 
             tods_det.append(tods)
             pixels_det.append(pixels)
-            flags_det.append(flags)
+            flags_det.append(gustav_flags)
             psi_det.append(psi)
-            scalars_det.append(scalars)
             out_ang_det.append(out_ang)
             if band > 3:
                 break
@@ -285,13 +272,21 @@ def write_band(
                 tods_pid = tods_det[det_idx][start_idx:stop_idx]
                 pixels_pid = pixels_det[det_idx][start_idx:stop_idx]
                 psi_pid = psi_det[det_idx][start_idx:stop_idx]
-                scalars_pid = scalars_det[det_idx]
                 out_ang_pid = out_ang_det[det_idx]
-
                 pixels_pid = smooth_and_udgrade_and_rotate_pixels(
                     pixels_pid, nside_in, nside_out, rotator, smooth
                 )
+                flags_pid = get_chunk_band_flags(
+                    nside_out,
+                    planet_interps,
+                    pixels_pid,
+                    tods_pid,
+                    flags_pid,
+                    mjd_times_pid,
+                )
+                scalars_pid = get_scalars(tods_pid, flags_pid)
 
+                tods_pid *= iras_factor
                 if flags_pid.size > 0:
                     comm_tod.add_field(
                         pid_data_group + "/flag", flags_pid, HUFFMAN_COMPRESSION
@@ -496,6 +491,9 @@ def get_scalars(tods: NDArray[np.floating], flags) -> NDArray[np.floating]:
 
     condition = np.bitwise_and(flags, flag_bit_sum) == 0
     filtered_tods = tods[condition]
+
+    if len(filtered_tods) == 0:
+        return np.array([TEMP_GAIN, 0, fknee, TEMP_ALPHA]).flatten()
     sigma0 = np.diff(filtered_tods).std() / (2**0.5)
 
     return np.array([TEMP_GAIN, sigma0, fknee, TEMP_ALPHA]).flatten()
