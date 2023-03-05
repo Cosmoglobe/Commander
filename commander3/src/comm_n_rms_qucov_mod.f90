@@ -94,7 +94,7 @@ contains
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
     constructor%nmaps             = info%nmaps
-    constructor%pol               = info%nmaps == 3
+    constructor%pol               = (info%nmaps == 3 .or. info%nmaps == 4)
     constructor%uni_fsky          = cpar%ds_noise_uni_fsky(id_abs)
     constructor%set_noise_to_mean = cpar%set_noise_to_mean
     constructor%cg_precond        = cpar%cg_precond
