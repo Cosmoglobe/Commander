@@ -9,19 +9,22 @@ version 8: redo planet flags better
 version 9: fix scalars, try smaller flagging radius
 version 10: gapfilling so that all tods are equispaced
 version 11: change smoothing to using gaussian filter and remove iras convention color correction from the tods
+version 12: try to further remove pixelization with more smothing
+version 13: stable version with double smoothed unit vectors and iras convention removed
 """
 
 from __future__ import annotations
 from multiprocessing.managers import DictProxy
 import os
 import random
-
+import itertools
 from typing import TYPE_CHECKING
+from functools import cache
 import sys
 from scipy import interpolate
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter1d
+from scipy.ndimage import gaussian_filter1d, uniform_filter1d
 from pathlib import Path
 
 if TYPE_CHECKING:
@@ -57,8 +60,10 @@ DEFAULT_NSIDE = 128
 NPSI = 2048
 FSAMP = 8
 BAD_DATA_SENTINEL = -16375
-N_CONV_BOX_POINTS = 30
 NSIDE = 128
+SMALL_CHUNK_THRESHOLD = 50
+SMOOTHING_WINDOW = 5
+
 
 BAND_TO_WAVELENGTH: dict[int, float] = {
     1: 1.25,
@@ -74,11 +79,11 @@ BAND_TO_WAVELENGTH: dict[int, float] = {
 }
 
 BODIES = {
-    "moon": 1,
+    "moon": 2,
     "mercury": 1,
-    "venus": 1,
-    "mars": 1,
-    "jupiter": 1,
+    "venus": 2,
+    "mars": 2,
+    "jupiter": 2,
     "saturn": 1,
     "uranus": 1,
     "neptune": 1,
@@ -102,6 +107,23 @@ flag_bit_sum = get_flag_sum(
     20,  # uranus
     21,  # neptune
 )
+
+
+def get_rot_mat() -> np.ndarray:
+    matrix = np.zeros((3, 3))
+    matrix[0, 0] = -0.054882486
+    matrix[0, 1] = -0.993821033
+    matrix[0, 2] = -0.096476249
+    matrix[1, 0] = 0.494116468
+    matrix[1, 1] = -0.110993846
+    matrix[1, 2] = 0.862281440
+    matrix[2, 0] = -0.867661702
+    matrix[2, 1] = -0.000346354
+    matrix[2, 2] = 0.497154957
+    return matrix
+
+
+rot_mat = get_rot_mat()
 
 
 def write_dirbe_commmander_tods(
@@ -150,6 +172,7 @@ def write_dirbe_commmander_tods(
                     planet_interps,
                 ],
             )
+            # for band in range(6,7)
             for band in dirbe_utils.BANDS
         ]
     ]
@@ -202,12 +225,14 @@ def write_band(
     comm_tod.add_field(COMMON_GROUP + "/mbang", common_mbang)
     comm_tod.add_attribute(COMMON_GROUP + "/mbang", "index", detector_names)
 
+    out_ang_pid = get_out_ang()
+
     rotator = hp.Rotator(coord=["E", "G"])
     pid = 0
     iras_factor = get_iras_factor(band)
     for chunk in range(1, NUM_CHUNKS_PER_BAND + 1):
         day = chunk
-        print(f"processing chunk: {chunk:03}...")
+        print(f"Band:{band} - processing chunk: {chunk:03}...")
         chunk_label = f"{chunk:06}"
 
         mjd_times = get_chunk_mjd_times(chunk_label, hdf5_filename)
@@ -219,47 +244,51 @@ def write_band(
         pixels_det = []
         flags_det = []
         psi_det = []
-        out_ang_det = []
 
-        for det in dirbe_utils.DETECTOR_LABELS:
-            tods = get_chunk_band_tods(chunk_label, hdf5_filename, det)
-            pixels = get_chunk_band_pixels(chunk_label, hdf5_filename, det)
-            gustav_flags = get_gustav_flags(chunk_label, hdf5_filename, det)
-            psi = get_chunk_band_psi(chunk_label, hdf5_filename, det)
-            out_ang = get_out_ang()
+        with h5py.File(hdf5_filename, "r") as file:
+            for det in dirbe_utils.DETECTOR_LABELS:
+                pixels = file[f"{chunk_label}/{det}/pix"][()]
+                tods = file[f"{chunk_label}/{det}/tod"][()]
+                flags = file[f"{chunk_label}/{det}/flag"][()]
+                psi = file[f"{chunk_label}/{det}/polang"][()]
 
-            tods_det.append(tods)
-            pixels_det.append(pixels)
-            flags_det.append(gustav_flags)
-            psi_det.append(psi)
-            out_ang_det.append(out_ang)
-            if band > 3:
-                break
+                tods_det.append(tods)
+                pixels_det.append(pixels)
+                flags_det.append(flags)
+                psi_det.append(psi)
+                if band > 3:
+                    break
+        inds = np.insert(inds, 0, 0)
+        for start, stop in itertools.pairwise(inds):
+            if start == stop:
+                continue
+            ntod = tods_det[0][start:stop].size
+            if smooth:
+                ntod -= int(2 * SMOOTHING_WINDOW)
 
-        start_idx = 0
-        for idx in range(len(inds)):
+            if ntod < SMALL_CHUNK_THRESHOLD or np.all(np.isclose(tods[0], BAD_DATA_SENTINEL)):
+                continue
             pid += 1
             pid_label = f"{pid:06}"
             pid_common_group = pid_label + "/common"
-            stop_idx = inds[idx]
 
-            if (stop_idx - start_idx) == 0:
-                continue
-            mjd_times_pid = mjd_times[start_idx:stop_idx]
+            mjd_times_pid = mjd_times[start:stop]
+            if smooth:
+                mjd_times_pid = mjd_times_pid[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
             comm_tod.add_field(
                 pid_common_group + "/time", [mjd_times_pid[0], 0, 0]
             )  # TODO: get SCET and OBT times
             comm_tod.add_attribute(
                 pid_common_group + "/time", "index", "MJD, OBT, SCET"
             )
-            ntod = len(tods_det[0][start_idx:stop_idx])
+
             comm_tod.add_field(pid_common_group + "/ntod", [ntod])
 
-            sat_pos, earth_pos = get_sat_and_earth_pos(day, mjd_times_pid)
-            comm_tod.add_field(pid_common_group + "/satpos", sat_pos[0])
+            sat_pos, earth_pos = get_sat_and_earth_pos(day, mjd_times_pid[0])
+            comm_tod.add_field(pid_common_group + "/satpos", sat_pos)
 
             # Add earth position. Required for zodiacal light calculation.
-            comm_tod.add_field(pid_common_group + "/earthpos", earth_pos[0])
+            comm_tod.add_field(pid_common_group + "/earthpos", earth_pos)
 
             # add metadata
             comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
@@ -268,15 +297,25 @@ def write_band(
             )
             for det_idx, det in enumerate(dirbe_utils.DETECTOR_LABELS):
                 pid_data_group = f"{pid_label}/{band:02}_{det}"
-                flags_pid = flags_det[det_idx][start_idx:stop_idx]
-                tods_pid = tods_det[det_idx][start_idx:stop_idx]
-                pixels_pid = pixels_det[det_idx][start_idx:stop_idx]
-                psi_pid = psi_det[det_idx][start_idx:stop_idx]
-                out_ang_pid = out_ang_det[det_idx]
+                flags_pid = flags_det[det_idx][start:stop]
+                tods_pid = tods_det[det_idx][start:stop]
+                pixels_pid = pixels_det[det_idx][start:stop]
+                psi_pid = psi_det[det_idx][start:stop]
+
                 pixels_pid = smooth_and_udgrade_and_rotate_pixels(
-                    pixels_pid, nside_in, nside_out, rotator, smooth
+                    pixels_pid,
+                    nside_in=nside_in,
+                    nside_out=nside_out,
+                    rotator=rotator,
+                    smooth=smooth,
                 )
-                flags_pid = get_chunk_band_flags(
+
+                if smooth:
+                    flags_pid = flags_pid[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
+                    tods_pid = tods_pid[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
+                    psi_pid = psi_pid[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
+
+                flags_pid = remake_flags(
                     nside_out,
                     planet_interps,
                     pixels_pid,
@@ -284,32 +323,27 @@ def write_band(
                     flags_pid,
                     mjd_times_pid,
                 )
+
+                tods_pid *= iras_factor  # Remove iras factor from tods
                 scalars_pid = get_scalars(tods_pid, flags_pid)
 
-                tods_pid *= iras_factor
-                if flags_pid.size > 0:
-                    comm_tod.add_field(
-                        pid_data_group + "/flag", flags_pid, HUFFMAN_COMPRESSION
-                    )
-
-                if tods_pid.size > 0:
-                    comm_tod.add_field(pid_data_group + "/tod", tods_pid)
-
-                if pixels_pid.size > 0:
-                    comm_tod.add_field(
-                        pid_data_group + "/pix", pixels_pid, HUFFMAN_COMPRESSION
-                    )
+                comm_tod.add_field(
+                    pid_data_group + "/flag", flags_pid, HUFFMAN_COMPRESSION
+                )
+                comm_tod.add_field(pid_data_group + "/tod", tods_pid)
+                comm_tod.add_field(
+                    pid_data_group + "/pix", pixels_pid, HUFFMAN_COMPRESSION
+                )
 
                 psi_digitize_compression = [
                     "digitize",
                     {"min": 0, "max": 2 * np.pi, "nbins": NPSI},
                 ]
-                if psi_pid.size > 0:
-                    comm_tod.add_field(
-                        pid_data_group + "/psi",
-                        psi_pid,
-                        [psi_digitize_compression, HUFFMAN_COMPRESSION],
-                    )
+                comm_tod.add_field(
+                    pid_data_group + "/psi",
+                    psi_pid,
+                    [psi_digitize_compression, HUFFMAN_COMPRESSION],
+                )
 
                 comm_tod.add_field(pid_data_group + "/outP", out_ang_pid)
 
@@ -322,27 +356,32 @@ def write_band(
                     break
 
             comm_tod.finalize_chunk(pid)
-            start_idx = stop_idx
 
     comm_tod.finalize_file()
 
 
 def smooth_and_udgrade_and_rotate_pixels(
-    pixels: NDArray[np.int64], nside_in: int, nside_out: int, rotator: hp.Rotator, smooth: bool
+    pixels: NDArray[np.int64],
+    nside_in: int,
+    nside_out: int,
+    rotator: hp.Rotator,
+    smooth: bool,
 ) -> NDArray[np.int64]:
     """Smooth pixels and then udgrade them to the desired nside."""
     unit_vectors = np.asarray(hp.pix2vec(nside_in, pixels))
     if smooth: 
         unit_vectors = np.array(
             [
-                gaussian_filter1d(unit_vector, sigma=5, mode="nearest")
+                gaussian_filter1d(unit_vector, SMOOTHING_WINDOW)[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
                 for unit_vector in unit_vectors
             ]
         )
+
     unit_vectors_gal = rotator(unit_vectors)
     return hp.vec2pix(nside_out, *unit_vectors_gal)
 
 
+@cache
 def get_band_polang(band: int) -> list[float]:
     """TODO: get correct angles"""
 
@@ -351,6 +390,7 @@ def get_band_polang(band: int) -> list[float]:
     return [0, 0, 0]
 
 
+@cache
 def get_mbang(band: int) -> list[float]:
     """TODO: get correct angles"""
 
@@ -384,21 +424,7 @@ def get_planet_interps(astropy_times: Time) -> dict[str, dict[str, interp1d]]:
     return interpolaters
 
 
-def get_gustav_flags(
-    chunk_label: str, hdf5_filename: str, detector: str
-) -> NDArray[np.integer]:
-    with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{detector}/flag"][()]
-
-
-def get_gustav_time(
-    chunk_label: str, hdf5_filename: str, detector: str
-) -> NDArray[np.integer]:
-    with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{detector}/time"][()]
-
-
-def get_chunk_band_flags(
+def remake_flags(
     nside_out: int,
     planet_interpolaters: dict[str, dict[str, interp1d]],
     pixels: NDArray[np.integer],
@@ -428,9 +454,10 @@ def get_chunk_band_flags(
         lon, lat = hp.pix2ang(nside_out, pixels, lonlat=True)
         planet_lon = planet_interpolaters[body]["lon"](time)
         planet_lat = planet_interpolaters[body]["lat"](time)
+
         ang_dist = hp.rotator.angdist(
-            np.asarray([lon, lat]),
-            np.asarray([planet_lon, planet_lat]),
+            np.array([lon, lat]),
+            np.array([planet_lon, planet_lat]),
             lonlat=True,
         )
 
@@ -440,42 +467,7 @@ def get_chunk_band_flags(
     return flags
 
 
-def get_chunk_band_tods(
-    chunk_label: str, hdf5_filename: str, detector: str
-) -> NDArray[np.floating]:
-    """Gets dirbe tods from gustavs files."""
-
-    with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{detector}/tod"][()]
-
-
-def get_ntods(chunk_label: str, hdf5_filename: str) -> int:
-    """Gets dirbe tods from gustavs files."""
-
-    with h5py.File(hdf5_filename, "r") as file:
-        return len(file[f"{chunk_label}/A/tod"])
-
-
-def get_chunk_band_psi(
-    chunk_label: str, hdf5_filename: str, detector: str
-) -> NDArray[np.floating]:
-    """Gets dirbe polang from gustavs files. TODO: rotate to galactic."""
-
-    with h5py.File(hdf5_filename, "r") as file:
-        return file[f"{chunk_label}/{detector}/polang"][()]
-
-
-def get_chunk_band_pixels(
-    chunk_label: str, hdf5_filename: str, detector: str
-) -> NDArray[np.integer]:
-    """Gets dirbe pixels from gustavs files."""
-
-    with h5py.File(hdf5_filename, "r") as file:
-        pixels_ecl = file[f"{chunk_label}/{detector}/pix"][()]
-
-    return pixels_ecl
-
-
+@cache
 def get_out_ang() -> NDArray[np.floating]:
     """TODO: get correct out ang maybe..?"""
 
@@ -500,11 +492,9 @@ def get_scalars(tods: NDArray[np.floating], flags) -> NDArray[np.floating]:
 
 
 def get_sat_and_earth_pos(
-    day: int, dirbe_times: NDArray[np.floating]
+    day: int, dirbe_time: float
 ) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
     """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
-
-    N_EARTH_INTERP_STEPS = 100
 
     dmr_day = dirbe_utils.dirbe_day_to_dmr_day(day)
 
@@ -531,41 +521,26 @@ def get_sat_and_earth_pos(
         dmr_times, dmr_positions[:, 2], fill_value="extrapolate"
     )
 
-    pos_x = interpolator_sat_x(dirbe_times)
-    pos_y = interpolator_sat_y(dirbe_times)
-    pos_z = interpolator_sat_z(dirbe_times)
+    pos_x = interpolator_sat_x(dirbe_time)
+    pos_y = interpolator_sat_y(dirbe_time)
+    pos_z = interpolator_sat_z(dirbe_time)
 
     celestial_sat_pos = u.Quantity([pos_x, pos_y, pos_z], u.m).to(u.AU).value
 
     rotator = hp.Rotator(coord=["C", "E"])
     geocentric_ecl_sat_pos = u.Quantity(rotator(celestial_sat_pos), u.AU).transpose()
 
-    interp_time_range = np.linspace(
-        dirbe_times[0], dirbe_times[-1], N_EARTH_INTERP_STEPS
-    )
-
-    earth_pos = get_body("earth", Time(interp_time_range, format="mjd")).transform_to(
+    earth_pos = get_body("earth", Time(dirbe_time, format="mjd")).transform_to(
         HeliocentricMeanEcliptic
     )
     earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
 
-    interpolator_earth_x = interpolate.interp1d(interp_time_range, earth_pos[:, 0])
-    interpolator_earth_y = interpolate.interp1d(interp_time_range, earth_pos[:, 1])
-    interpolator_earth_z = interpolate.interp1d(interp_time_range, earth_pos[:, 2])
+    ecl_sat_pos = earth_pos + geocentric_ecl_sat_pos
 
-    earth_pos_x = interpolator_earth_x(dirbe_times)
-    earth_pos_y = interpolator_earth_y(dirbe_times)
-    earth_pos_z = interpolator_earth_z(dirbe_times)
-
-    earth_helio_pos = u.Quantity(
-        [earth_pos_x, earth_pos_y, earth_pos_z], u.AU
-    ).transpose()
-
-    ecl_sat_pos = earth_helio_pos + geocentric_ecl_sat_pos
-
-    return ecl_sat_pos.value, earth_helio_pos.value
+    return ecl_sat_pos.value, earth_pos.value
 
 
+@cache
 def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
     bandpass_file = BANDPASS_PATH / f"DIRBE_{band:02}_bandpass.dat"
     bandpass = np.loadtxt(bandpass_file, unpack=True)
@@ -578,6 +553,7 @@ def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
     return freqs, weights
 
 
+@cache
 def get_iras_factor(band: int) -> float:
     freqs, weights = get_bandpass(band)
     freq_ref = BAND_TO_WAVELENGTH[band]
@@ -592,7 +568,7 @@ def get_iras_factor(band: int) -> float:
 
 
 def main() -> None:
-    version = 11
+    version = 13
     smooth_pixels = True
     nside_out = 256
     print(

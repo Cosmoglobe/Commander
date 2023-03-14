@@ -139,7 +139,7 @@ contains
       nmaps_beam                  = 1
       pol_beam                    = .false.
       constructor%nside_beam      = nside_beam
-      SMALL_CHUNK_THRESHOLD = 200
+      SMALL_CHUNK_THRESHOLD = 1000
 
       ! Get detector labels
       call get_tokens(trim(cpar%ds_tod_dets(id_abs)), ",", constructor%label)
@@ -174,11 +174,11 @@ contains
       !   constructor%scans(i)%d%baseline = 0.d0
       !end do
 
-      do i = 1, constructor%nscan
-         do j = 1, constructor%ndet
-            if (constructor%scans(i)%ntod <= SMALL_CHUNK_THRESHOLD) constructor%scans(i)%d(j)%accept = .false.
-         end do
-      end do
+      ! do i = 1, constructor%nscan
+      !    do j = 1, constructor%ndet
+      !       if (constructor%scans(i)%ntod <= SMALL_CHUNK_THRESHOLD) constructor%scans(i)%d(j)%accept = .false.
+      !    end do
+      ! end do
       call timer%stop(TOD_INIT, id_abs)
    end function constructor
 
@@ -362,12 +362,6 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          d_calib = 0.d0
-         !  d_calib(1, :, :) = sd%tod
-         !  if (self%subtract_zodi) d_calib(7, :, :) = sd%s_zodi
-         ! ! Remove iras convention from tods
-         ! do j = 1, self%ndet
-         !    d_calib(1, :, j) = d_calib(1, :, j) * iras_factors(j)
-         ! end do
 
          call compute_calibrated_data(self, i, sd, d_calib)    
 

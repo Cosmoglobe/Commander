@@ -351,12 +351,13 @@ contains
 
         real(dp), allocatable :: b_nu(:), integrals(:)
         integer(i4b) :: i, j
-
+    
         allocate(integrals(n_interp_points))
         allocate(b_nu(bandpass%p%n))
         do i = 1, n_interp_points    
             call get_blackbody_emission(bandpass%p%nu, temperature_grid(i), b_nu)
-            integrals(i) = bandpass%p%SED2F(b_nu)
+            ! integrals(i) = bandpass%p%SED2F(b_nu) ! Cant use SED2f since it assumes f is in K_RJ
+            integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau * b_nu)
         end do
         call spline_simple(tod%zodi_b_nu_spl_obj(det), temperature_grid, integrals, regular=.true.)
 

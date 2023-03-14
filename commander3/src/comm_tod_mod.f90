@@ -2744,6 +2744,8 @@ contains
          call spline_simple(self%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
       end do
 
+
+      self%zodi_cache_time = self%scans(1)%t0(1)
       self%zodi_min_obs_time = minval(obs_time)
       self%zodi_max_obs_time = maxval(obs_time)
 
@@ -2771,10 +2773,6 @@ contains
          call spline_simple(self%zodi_phase_coeff_spl_obj(i), cpar%zs_nu_ref, cpar%zs_phase_coeff(:, i), regular=.false.)
       end do
       call spline_simple(self%zodi_solar_irradiance_spl_obj, cpar%zs_nu_ref, cpar%zs_solar_irradiance, regular=.false.)
-
-      ! Allocate zodi cache
-      ! TODO: make this scan number based instead of of npix
-      self%zodi_cache = 0.d0
 
       ! Inform `get_zodi_emission` that the relevant tod zodi parameters have been sucessfully initialized
       self%zodi_tod_params_are_initialized = .true.

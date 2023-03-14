@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import Sequence
 
+from functools import cache
+
 from astropy.io import fits
 import astropy.units as u
 from astropy.time import Time, TimeDelta
@@ -51,7 +53,7 @@ def pix_to_lonlat(
 
     return np.column_stack((latitudes, longitudes))
 
-
+@cache
 def normalize_dirbe_bandpasses(
     bandpasses: NDArray[np.floating],
 ) -> NDArray[np.floating]:
@@ -59,7 +61,7 @@ def normalize_dirbe_bandpasses(
 
     return bandpasses / np.expand_dims(bandpasses.sum(axis=1), axis=1)
 
-
+@cache
 def get_dirbe_bandpass(normalized: bool = True) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
     """Returns the DIRBE bandpasses."""
 
@@ -73,6 +75,7 @@ def get_dirbe_bandpass(normalized: bool = True) -> tuple[NDArray[np.floating], N
 
     return wavelengths, bandpasses
 
+@cache
 def get_dirbe_fwhm() -> dict[str, float]:
     """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
 
@@ -92,7 +95,7 @@ def get_dirbe_fwhm() -> dict[str, float]:
 
     return fwhms
 
-
+@cache
 def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to beams.
@@ -113,7 +116,7 @@ def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
 
     return beams
 
-
+@cache
 def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to sidelobes.
@@ -134,7 +137,7 @@ def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
 
     return sidelobes
 
-
+@cache
 def get_dmrfile_mjd_times(filename: str) -> NDArray[np.floating]:
     """Duncans script dont really know what goes on here."""
 
@@ -151,10 +154,11 @@ def get_dmrfile_mjd_times(filename: str) -> NDArray[np.floating]:
 
     return t_adt_d
 
+@cache
 def get_dmrfile_positions(filename: str) -> NDArray[np.floating]:
     return np.loadtxt(DIRBE_POS_PATH + filename, usecols=[5,6,7])
 
-
+@cache
 def dirbe_day_to_dmr_day(days: int) -> datetime:
     """Returns the dmr_day from dirbe_day"""
 
@@ -165,7 +169,7 @@ def dirbe_day_to_dmr_day(days: int) -> datetime:
 
     return datetime.strptime(dirbe_date_iso, "%Y-%m-%d %H:%M")
 
-
+@cache
 def get_dmrfile_datetimes(filename: str) -> tuple[datetime, datetime]:
     """Returns datetime objects for the start and stop days in the dmr files."""
 

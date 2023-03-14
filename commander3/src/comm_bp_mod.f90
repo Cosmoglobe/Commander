@@ -31,7 +31,7 @@ module comm_bp_mod
      character(len=512) :: type, model
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
-     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, f2a
+     real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
      real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
    contains
      ! Data procedures
@@ -226,7 +226,7 @@ contains
     self%delta = delta
     
     n = self%n
-
+    
     select case (trim(self%model))
     case ('powlaw_tilt')
 
@@ -237,7 +237,7 @@ contains
        end do
        
     case ('additive_shift') 
-       
+
        ! Additive frequency shift
        self%tau = self%tau0
        do i = 1, n
@@ -253,8 +253,9 @@ contains
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
        if (trim(self%type) == 'DIRBE') then
+          bnu_prime_RJ(i) = comp_bnu_prime_RJ(self%nu(i))
+          ! These overflow in exp(x) due to large x
           bnu_prime(i)    = 1.d0 !comp_bnu_prime(self%nu(i))
-          bnu_prime_RJ(i) = 1.d0 !comp_bnu_prime_RJ(self%nu(i))
           sz(i)           = 1.d0 !comp_sz_thermo(self%nu(i))
        else if (trim(self%type) == 'HFI_submm') then
           bnu_prime(i)    = comp_bnu_prime(self%nu(i))
@@ -318,15 +319,16 @@ contains
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
  
     case ('DIRBE') 
-
+      ! a = brightness temperature (antenenna temperature) [K_RJ]
+      ! t = thermodynamic temperature [K_CMB]
+      ! f = flux intensity [MJy/sr]
+      ! sz = ?
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
-      ! self%f2a      = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2) / &
-      !                  & tsum(self%nu, self%tau / (2.d0*k_B*self%nu**2/c**2))
-      !  self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+       self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu))
        self%tau     = self%tau / tsum(self%nu, self%tau)
 
     ! NEW !
@@ -365,7 +367,10 @@ contains
 
   function SED2F(self, f)
     ! Routine to perform bandpass integration and unit conversion given a 
-    ! frequency scaling f (see equation 43 in BP1).
+    ! frequency scaling f (see equation 37 in BP1).
+
+    ! Assumes that f is in units of K_RJ and converts it to MJy/sr. The different
+    ! cases are for bandpasses in different units.
     implicit none
 
     class(comm_bp),               intent(in) :: self
@@ -384,7 +389,6 @@ contains
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
-      !  SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
        SED2F = tsum(self%nu, self%tau * f)
     case ('WMAP')
        SED2F = sum(self%tau * f)

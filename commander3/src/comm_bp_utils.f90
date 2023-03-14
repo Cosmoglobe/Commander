@@ -278,12 +278,18 @@ contains
     nu  = x(first:last)
     tau = y(first:last)
 
-   if (is_wavelength) then ! Convert from micron to Hz
+   if (is_wavelength) then ! Assumes bandpassx is given in microns
       allocate(um(n), tau_um(n))
       do i = 1, n ! reverse tau and nu arrays
-         um(i)  = 2.99792458d14/nu(n-i+1) ! Convert from micron to Hz
-         tau_um(i) = tau(n-i+1)! * ((um(i)**2)/c) ! scale weights by factor (nu**2/c) if weights are in lambda units
+         um(i)  = nu(n-i+1)
+         ! tau_um(i) = tau(n-i+1)! * ((um(i)**2)/c) ! scale weights by factor (nu**2/c) if weights are in lambda units ! TODO: check if this factor is needed
+         tau_um(i) = tau(n-i+1)
       end do
+
+      do i = 1, n
+         um(i) = c / (um(i) * 1.d-6) ! Convert from microns to Hz
+         ! tau_um(i) = (tau_um(i) * c**2) / (2.d0 * k_b * um(i)**2) ! Convert MJy/sr to K_RJ
+      end do 
 
       ! renormalize weights to sum to 1 under trapezoidal integration
       tau_um = tau_um / tsum(um, tau_um)
