@@ -462,11 +462,11 @@ contains
 
              do j = 0, ndet
                 data(i)%bp(j)%p%delta = delta(j,:,k)
+                print *, "got here 11"
+                stop
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. data(i)%tod%subtract_zodi) then
-                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j)
-                end if 
+                if (j > 0 .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)
 
@@ -537,10 +537,8 @@ contains
        ! Update mixing matrices based on new bandpasses
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
-          call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-          if (j > 0 .and. data(i)%tod%subtract_zodi) then
-             call update_zodi_splines(data(i)%tod, data(i)%bp(j), j)
-          end if 
+          if (data(i)%tod%sample_bandpass) call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+          if (j > 0 .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)
 

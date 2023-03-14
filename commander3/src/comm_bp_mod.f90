@@ -29,6 +29,7 @@ module comm_bp_mod
   type :: comm_bp
      ! Data variables
      character(len=512) :: type, model
+     logical(lgt)       :: sample_bandpass
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
      real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
@@ -36,6 +37,7 @@ module comm_bp_mod
    contains
      ! Data procedures
      procedure     :: update_tau
+     procedure     :: update_unit_conversions
      procedure     :: SED2F
      procedure     :: lineAmp_RJ
   end type comm_bp
@@ -114,8 +116,9 @@ contains
     ! General parameters
     allocate(constructor)
 
-    constructor%nu_c = cpar%ds_nu_c(id_abs)
+    constructor%sample_bandpass = cpar%ds_bpsamp(id_abs)
     
+    constructor%nu_c = cpar%ds_nu_c(id_abs)
     ! Define special case parameters
     constructor%type = cpar%ds_bptype(id_abs)
     select case (trim(constructor%type))
@@ -221,10 +224,9 @@ contains
     real(dp),       dimension(self%npar), intent(in)    :: delta
 
     integer(i4b) :: i, n
-    real(dp), allocatable, dimension(:)  :: a, bnu_prime, bnu_prime_RJ, sz
 
     self%delta = delta
-    
+
     n = self%n
     
     select case (trim(self%model))
@@ -249,6 +251,20 @@ contains
        call report_error('Error -- unsupported bandpass model = ' // trim(self%model))
     end select
 
+    call update_unit_conversions(self)
+
+  end subroutine update_tau
+
+  subroutine update_unit_conversions(self)
+    implicit none
+
+    class(comm_bp),                       intent(inout) :: self
+
+    integer(i4b) :: i, n
+    real(dp), allocatable, dimension(:)  :: a, bnu_prime, bnu_prime_RJ, sz
+    
+    n = self%n
+    
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
@@ -363,7 +379,7 @@ contains
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)
 
-  end subroutine update_tau
+  end subroutine update_unit_conversions
 
   function SED2F(self, f)
     ! Routine to perform bandpass integration and unit conversion given a 

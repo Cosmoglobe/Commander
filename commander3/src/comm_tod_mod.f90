@@ -144,6 +144,7 @@ module comm_tod_mod
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
+     logical(lgt) :: sample_bandpass                              ! Sample bandpass
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
@@ -341,6 +342,7 @@ contains
     self%accept_threshold = 0.9d0 ! default
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
+    self%sample_bandpass = cpar%ds_bpsamp(id_abs)
 
     if (cpar%include_tod_zodi) then 
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
