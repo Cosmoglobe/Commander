@@ -255,7 +255,7 @@ contains
        case ('K_cmb')
           self%RJ2unit_(i) = comp_a2t(self%nu_ref(i)) * 1d-6
        case ('MJy/sr') 
-          self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1e14
+          self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1d14
        case ('K km/s') 
           self%RJ2unit_(i) = 1.d0 !-1.d30
        case ('y_SZ') 

@@ -112,12 +112,12 @@ contains
       
       constructor%xi_n_P_rms      = [-1.0, 0.1, -0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
       if (.true.) then
-      ! constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
-      constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-      constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
-      else
-      write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
-      stop
+         ! constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
+         constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
+         constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+         else
+         write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
+         stop
       end if
 
       ! Initialize common parameters
@@ -135,7 +135,7 @@ contains
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
 
-      nside_beam                  = 256
+      nside_beam                  = 128
       nmaps_beam                  = 1
       pol_beam                    = .false.
       constructor%nside_beam      = nside_beam
@@ -150,8 +150,6 @@ contains
       ! Initialize bandpass mean and proposal matrix
       call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
-      ! Zodi evaluation is closely tied to the tods and require knowing some of their details
-      ! before being useable.
       if (constructor%subtract_zodi) call constructor%initialize_zodi_tod_parameters(cpar)
 
       ! Construct lookup tables
@@ -168,7 +166,6 @@ contains
       ! Allocate sidelobe convolution data structures
       allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
       constructor%orb_dp => comm_orbdipole(constructor%mbeam)
-
       ! Initialize all baseline corrections to zero
       !do i = 1, constructor%nscan
       !   constructor%scans(i)%d%baseline = 0.d0

@@ -293,16 +293,14 @@ contains
 
       ! renormalize weights to sum to 1 under trapezoidal integration
       tau_um = tau_um / tsum(um, tau_um)
-
+      
       nu = um
       tau = tau_um
 
    else
       nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
    end if
-      ! print *, "is_wavelength = ", is_wavelength
-      ! print *, "nu = ", nu
-      ! stop
+
     deallocate(x, y)
   end subroutine read_bandpass
 

@@ -154,7 +154,7 @@ contains
        case ('K_cmb')
           constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-6
        case ('MJy/sr') 
-          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1e14
+          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1d14
        case ('K km/s') 
           constructor%RJ2unit(l) = 1.d0
        case ('y_SZ') 

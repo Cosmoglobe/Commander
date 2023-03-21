@@ -410,7 +410,7 @@ contains
     case ('K_cmb') 
        RJ2data = self%bp(d)%p%a2t * 1d-6
     case ('MJy/sr') 
-       RJ2data = self%bp(d)%p%a2f * 1d26
+       RJ2data = self%bp(d)%p%a2f * 1d14
     case ('y_SZ') 
        RJ2data = self%bp(d)%p%a2sz
     case ('uK_RJ') 

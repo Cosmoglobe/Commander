@@ -37,7 +37,6 @@ module comm_bp_mod
    contains
      ! Data procedures
      procedure     :: update_tau
-     procedure     :: update_unit_conversions
      procedure     :: SED2F
      procedure     :: lineAmp_RJ
   end type comm_bp
@@ -115,8 +114,6 @@ contains
     
     ! General parameters
     allocate(constructor)
-
-    constructor%sample_bandpass = cpar%ds_bpsamp(id_abs)
     
     constructor%nu_c = cpar%ds_nu_c(id_abs)
     ! Define special case parameters
@@ -222,13 +219,14 @@ contains
 
     class(comm_bp),                       intent(inout) :: self
     real(dp),       dimension(self%npar), intent(in)    :: delta
+    real(dp), allocatable, dimension(:)  :: a, bnu_prime, bnu_prime_RJ, sz
 
     integer(i4b) :: i, n
 
     self%delta = delta
 
     n = self%n
-    
+
     select case (trim(self%model))
     case ('powlaw_tilt')
 
@@ -239,9 +237,7 @@ contains
        end do
        
     case ('additive_shift') 
-
        ! Additive frequency shift
-       self%tau = self%tau0
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
@@ -250,21 +246,13 @@ contains
     case default
        call report_error('Error -- unsupported bandpass model = ' // trim(self%model))
     end select
-
-    call update_unit_conversions(self)
-
-  end subroutine update_tau
-
-  subroutine update_unit_conversions(self)
-    implicit none
-
-    class(comm_bp),                       intent(inout) :: self
-
-    integer(i4b) :: i, n
-    real(dp), allocatable, dimension(:)  :: a, bnu_prime, bnu_prime_RJ, sz
     
-    n = self%n
-    
+    ! No bandpass sampling, just use the original bandpass
+    if (all(delta == 0.d0)) then
+         self%tau = self%tau0
+         self%nu  = self%nu0  
+    end if
+
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
     do i = 1, n
@@ -339,6 +327,7 @@ contains
       ! t = thermodynamic temperature [K_CMB]
       ! f = flux intensity [MJy/sr]
       ! sz = ?
+
        self%a2t     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau*bnu_prime)
        self%a2sz    = tsum(self%nu, self%tau * bnu_prime_RJ) / &
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
@@ -379,14 +368,9 @@ contains
     end select
     deallocate(a, bnu_prime, bnu_prime_RJ, sz)
 
-  end subroutine update_unit_conversions
+  end subroutine update_tau
 
   function SED2F(self, f)
-    ! Routine to perform bandpass integration and unit conversion given a 
-    ! frequency scaling f (see equation 37 in BP1).
-
-    ! Assumes that f is in units of K_RJ and converts it to MJy/sr. The different
-    ! cases are for bandpasses in different units.
     implicit none
 
     class(comm_bp),               intent(in) :: self
@@ -405,7 +389,8 @@ contains
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
-       SED2F = tsum(self%nu, self%tau * f)
+      !  SED2F = tsum(self%nu, self%tau * f)
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW

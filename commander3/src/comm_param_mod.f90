@@ -119,7 +119,6 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_btheta_file
      character(len=512), allocatable, dimension(:)   :: ds_pixwin
      logical(lgt),       allocatable, dimension(:)   :: ds_samp_noiseamp
-     logical(lgt),       allocatable, dimension(:)   :: ds_bpsamp
      character(len=512), allocatable, dimension(:)   :: ds_bptype
      character(len=512), allocatable, dimension(:)   :: ds_bpfile
      character(len=512), allocatable, dimension(:)   :: ds_bpmodel
@@ -539,7 +538,7 @@ contains
     allocate(cpar%ds_regnoise(n), cpar%ds_noise_lcut(n))
     allocate(cpar%ds_noise_rms_smooth(n,cpar%num_smooth_scales))
     allocate(cpar%ds_samp_noiseamp(n), cpar%ds_noise_uni_fsky(n))
-    allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n), cpar%ds_bpsamp(n))
+    allocate(cpar%ds_bptype(n), cpar%ds_nu_c(n), cpar%ds_bpfile(n), cpar%ds_bpmodel(n))
     allocate(cpar%ds_period(n), cpar%ds_beamtype(n), cpar%ds_blfile(n))
     allocate(cpar%ds_pixwin(n), cpar%ds_btheta_file(n))
     allocate(cpar%ds_sample_gain(n), cpar%ds_gain_prior(n,2), cpar%ds_gain_calib_comp(n), cpar%ds_gain_lmax(n))
@@ -579,7 +578,6 @@ contains
        call get_parameter_hashtable(htbl, 'BAND_BEAM_B_PTSRC_FILE'//itext, len_itext=len_itext, par_string=cpar%ds_btheta_file(i), path=.true.)
        call get_parameter_hashtable(htbl, 'BAND_PIXEL_WINDOW'//itext, len_itext=len_itext,    par_string=cpar%ds_pixwin(i), path=.true.)
        call get_parameter_hashtable(htbl, 'BAND_SAMP_NOISE_AMP'//itext, len_itext=len_itext,  par_lgt=cpar%ds_samp_noiseamp(i))
-       call get_parameter_hashtable(htbl, 'BAND_SAMP_BANDPASS'//itext, len_itext=len_itext,   par_lgt=cpar%ds_bpsamp(i))
        call get_parameter_hashtable(htbl, 'BAND_BANDPASS_TYPE'//itext, len_itext=len_itext,   par_string=cpar%ds_bptype(i))
        call get_parameter_hashtable(htbl, 'BAND_NOMINAL_FREQ'//itext, len_itext=len_itext,    par_dp=cpar%ds_nu_c(i))
        call get_parameter_hashtable(htbl, 'BAND_BANDPASSFILE'//itext, len_itext=len_itext,    par_string=cpar%ds_bpfile(i), path=.true.)
