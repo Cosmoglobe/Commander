@@ -21,12 +21,13 @@
 module comm_N_mod
   use comm_param_mod
   use comm_map_mod
+  use comm_status_mod
   implicit none
 
   private
-  public comm_N, compute_invN_lm
+  public comm_N, compute_invN_lm, uniformize_rms, comm_N_ptr
   
-  type, abstract :: comm_N
+  type :: comm_N
      ! Data variables
      character(len=512)       :: type
      integer(i4b)             :: nside, nside_chisq_lowres, nmaps, np, npix, myid, comm, nprocs
@@ -41,19 +42,25 @@ module comm_N_mod
      class(map_ptr), allocatable, dimension(:) :: samp_group_mask
    contains
      ! Data procedures
-     procedure(matmulInvN),       deferred :: invN
-     procedure(matmulInvNlowres), deferred :: invN_lowres
-     procedure(matmulN),          deferred :: N
-     procedure(matmulSqrtInvN),   deferred :: sqrtInvN
-     procedure(returnRMS),        deferred :: rms
-     procedure(returnRMSpix),     deferred :: rms_pix
-     procedure(update_N),         deferred :: update_N
+     procedure :: invN            => matmulInvN
+     procedure :: invN_lowres     => matmulInvNlowres
+     procedure :: N               => matmulN
+     procedure :: sqrtInvN        => matmulSqrtInvN
+     procedure :: rms             => returnRMS
+     procedure :: rms_pix         => returnRMSpix
+     procedure :: update_N        => update_N
+     procedure :: P               => apply_projection
   end type comm_N
 
-  abstract interface
+  type comm_N_ptr
+     class(comm_N), pointer :: p => null()
+  end type comm_N_ptr
+  
+
+
+contains
      ! Return map_out = invN * map
      subroutine matmulInvN(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -62,7 +69,6 @@ module comm_N_mod
 
      ! Return map_out = invN * map
      subroutine matmulInvNlowres(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -71,7 +77,6 @@ module comm_N_mod
 
      ! Return map_out = N * map
      subroutine matmulN(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -80,7 +85,6 @@ module comm_N_mod
 
      ! Return map_out = sqrtInvN * map
      subroutine matmulSqrtInvN(self, map, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: map
@@ -89,7 +93,6 @@ module comm_N_mod
 
      ! Return rms map
      subroutine returnRMS(self, res, samp_group)
-       import comm_map, comm_N, dp, i4b
        implicit none
        class(comm_N),   intent(in)             :: self
        class(comm_map), intent(inout)          :: res
@@ -97,18 +100,18 @@ module comm_N_mod
      end subroutine returnRMS
 
      ! Return rms map
-     function returnRMSpix(self, pix, pol, samp_group)
-       import i4b, comm_N, dp, i4b
+     function returnRMSpix(self, pix, pol, samp_group, ret_invN)
        implicit none
        class(comm_N),   intent(in)             :: self
        integer(i4b),    intent(in)             :: pix, pol
        real(dp)                                :: returnRMSpix
        integer(i4b),    intent(in),   optional :: samp_group
+       logical(lgt),    intent(in),   optional :: ret_invN
+       returnRMSpix = infinity
      end function returnRMSpix
 
      ! Update noise model
      subroutine update_N(self, info, handle, mask, regnoise, procmask, noisefile, map)
-       import comm_N, comm_mapinfo, comm_map, dp, planck_rng
        implicit none
        class(comm_N),                      intent(inout)          :: self
        type(planck_rng),                   intent(inout)          :: handle
@@ -119,10 +122,6 @@ module comm_N_mod
        character(len=*),                   intent(in),   optional :: noisefile
        class(comm_map),                    intent(in),   optional :: map
      end subroutine update_N
-
-  end interface
-
-contains
 
   subroutine compute_invN_lm(invN_diag)
     implicit none
@@ -150,11 +149,13 @@ contains
     end if
     call mpi_bcast(a_l0, size(a_l0), MPI_DOUBLE_PRECISION, 0, invN_diag%info%comm, ier)
 
-    call wall_time(t1)
-    !$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
+    call update_status(status, "compute_invN_lm 3j")
+
+    !call wall_time(t1)
+    !!$OMP PARALLEL PRIVATE(pos,j,m,l,threej_symbols_m0,threej_symbols,ier,val,l2,lp,l0min,l0max,l1min,l1max)
     allocate(threej_symbols(twolmaxp2))
     allocate(threej_symbols_m0(twolmaxp2))
-    !$OMP DO SCHEDULE(guided)
+    !!$OMP DO SCHEDULE(guided)
     do j = 1, invN_diag%info%nm
        m = invN_diag%info%ms(j)
        do l = m, lmax
@@ -184,10 +185,12 @@ contains
           end if
        end do
     end do
-    !$OMP END DO
+    !!$OMP END DO
     deallocate(threej_symbols, threej_symbols_m0)
-    !$OMP END PARALLEL
+    !!$OMP END PARALLEL
     call wall_time(t2)
+
+    call update_status(status, "compute_invN_lm done")
 
     invN_diag%alm = N_lm
     !write(*,*) sum(abs(invN_diag%alm))
@@ -195,5 +198,79 @@ contains
     deallocate(N_lm, a_l0)
     
   end subroutine compute_invN_lm
+
+  subroutine uniformize_rms(handle, rms, fsky, mask, regnoise)
+    implicit none
+    type(planck_rng),                   intent(inout) :: handle
+    class(comm_map),                    intent(inout) :: rms
+    real(dp),                           intent(in)    :: fsky
+    class(comm_map),                    intent(in)    :: mask
+    real(dp),         dimension(0:,1:), intent(out), optional   :: regnoise
+
+    integer(i4b) :: i, j, nbin=1000, ierr, b
+    real(dp)     :: limits(2), dx, threshold, sigma
+    real(dp), allocatable, dimension(:) :: F
+
+    if (fsky <= 0.d0) then
+       if (present(regnoise)) regnoise = 0.d0
+       return
+    end if
+
+    allocate(F(nbin))
+    do j = 1, rms%info%nmaps
+       if (all(mask%map(:,j) < 0.5d0)) cycle
+       ! Find pixel histogram across cores
+       limits(1) = minval(rms%map(:,j), mask%map(:,j) > 0.5d0)
+       limits(2) = maxval(rms%map(:,j), mask%map(:,j) > 0.5d0)
+       call mpi_allreduce(MPI_IN_PLACE, limits(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, rms%info%comm, ierr)       
+       call mpi_allreduce(MPI_IN_PLACE, limits(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, rms%info%comm, ierr)       
+       dx = (limits(2)-limits(1))/nbin
+       if (dx == 0.d0) then
+          if (present(regnoise)) regnoise(:,j) = 0.d0
+          cycle
+       end if
+       F = 0.d0
+       do i = 0, rms%info%np-1
+          if (mask%map(i,j) <= 0.5d0) cycle
+          b    = max(min(int((rms%map(i,j)-limits(1))/dx),nbin),1)
+          F(b) = F(b) + 1.d0
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, F, nbin, MPI_DOUBLE_PRECISION, MPI_SUM, rms%info%comm, ierr)
+
+       ! Compute cumulative distribution
+       do i = 2, nbin
+          F(i) = F(i-1) + F(i)
+       end do
+       F = F / maxval(F)
+
+       ! Find threshold
+       i = 1
+       do while (F(i) < fsky)
+          i = i+1
+       end do
+       threshold = limits(1) + dx*(i-1)
+
+       ! Update RMS map, and draw corresponding noise realization
+       do i = 0, rms%info%np-1
+          if (rms%map(i,j) < threshold .and. mask%map(i,j) > 0.5d0) then
+             sigma         = sqrt(threshold**2 - rms%map(i,j)**2)
+             rms%map(i,j)  = threshold                  ! Update RMS map to requested limit
+             if (present(regnoise)) regnoise(i,j) = sigma * rand_gauss(handle) ! Draw corresponding noise realization
+          else
+             if (present(regnoise)) regnoise(i,j) = 0.d0
+          end if
+       end do
+    end do
+    deallocate(F)
+
+  end subroutine uniformize_rms
+
+
+  subroutine apply_projection(self, map)
+    implicit none
+    class(comm_N), intent(in)              :: self
+    class(comm_map),    intent(inout)           :: map
+
+  end subroutine apply_projection
   
 end module comm_N_mod

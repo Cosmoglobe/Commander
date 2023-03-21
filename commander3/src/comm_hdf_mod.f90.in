@@ -213,6 +213,10 @@ contains
     allocate(ext_hdf(rank), mext_hdf(rank))
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
+    if (file%status == -1) then
+       write(*,*) 'Error reading file ', trim(file%filename), trim(setname)
+       stop
+    end if 
     n = min(size(ext),rank)
     ext(:n) = int(ext_hdf(:n),i4b)
     deallocate(ext_hdf, mext_hdf)
@@ -390,7 +394,6 @@ contains
     type(hdf_file) :: file
     character(len=*),                intent(in)  :: setname
     byte,     allocatable, dimension(:), target, intent(out) :: val
-    !byte,     dimension(:), pointer, intent(out) :: val
 
     integer(hid_t)  :: dtype
     integer(size_t) :: len, numint
@@ -404,6 +407,26 @@ contains
     call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
     call h5tclose_f(dtype, file%status)
   end subroutine read_hdf_opaque
+
+
+  subroutine write_hdf_opaque(file, setname, val)
+    implicit none
+    type(hdf_file) :: file
+    character(len=*),                intent(in)  :: setname
+    byte,       dimension(:), target, intent(in) :: val
+
+    integer(hid_t)  :: dtype
+    integer(size_t) :: len, numint
+    type(c_ptr)     :: f_ptr
+    !call open_hdf_set(file, setname)
+    !call h5dget_type_f(file%sethandle, dtype, file%status)
+    !call h5tget_size_f(dtype, len, file%status)
+    !numint = len
+    !allocate(val(numint))
+    !f_ptr = c_loc(val)
+    !call h5dread_f(file%sethandle, dtype, f_ptr, file%status)
+    !call h5tclose_f(dtype, file%status)
+  end subroutine write_hdf_opaque
 
   subroutine read_hdf_vlen(file, setname, val)
     implicit none

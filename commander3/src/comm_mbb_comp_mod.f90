@@ -110,12 +110,12 @@ contains
 
     allocate(constructor%theta(constructor%npar))
     do i = 1, constructor%npar
-       if (trim(cpar%cs_input_ind(i,id_abs)) == 'default') then
+       if (trim(cpar%cs_input_ind(i,id_abs)) == 'default' .or. trim(cpar%cs_input_ind(i,id_abs)) == 'none') then
           constructor%theta(i)%p => comm_map(info)
           constructor%theta(i)%p%map = constructor%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
+          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0

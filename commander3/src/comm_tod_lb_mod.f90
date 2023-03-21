@@ -155,7 +155,7 @@ contains
     call constructor%read_tod(constructor%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call constructor%precompute_lookups()
@@ -163,18 +163,10 @@ contains
     ! Load the instrument file
     call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-    do i=1, constructor%ndet
-      call init_noise_model(constructor, i)
-    end do
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
     constructor%orb_dp => comm_orbdipole(constructor%mbeam)
-
-    ! Initialize all baseline corrections to zero
-    do i = 1, constructor%nscan
-       constructor%scans(i)%d%baseline = 0.d0
-    end do
 
   end function constructor
 
@@ -240,7 +232,7 @@ contains
     real(sp), allocatable, dimension(:)       :: procmask, procmask2
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
     call int2string(iter, ctext)
@@ -272,7 +264,9 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
     call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -306,11 +300,11 @@ contains
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
      if (sample_gain) then
        ! 'abscal': the global constant gain factor
-       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
        ! 'relcal': the gain factor that is constant in time but varying between detectors
-       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
        ! 'deltaG': the time-variable and detector-variable gain
-       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
     end if
 
     ! Prepare intermediate data structures
@@ -335,11 +329,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
 
@@ -408,9 +402,9 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0)
+       call finalize_binned_map(self, binmap, rms_out, 1.d0)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 

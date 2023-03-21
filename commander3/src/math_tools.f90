@@ -20,7 +20,7 @@
 !================================================================================
 module math_tools
   use healpix_types
-  USE OMP_LIB
+  !USE OMP_LIB
 
 
   interface invert_matrix
@@ -1610,6 +1610,8 @@ contains
   end subroutine compute_covariance_matrix
 
   subroutine fit_polynomial(x, y, a)
+    ! Normal equations for polynomial fitting assuming constant noise.
+    ! See Numerical Recipes S15.4.1
     implicit none
 
     real(dp), dimension(1:),  intent(in) :: x, y

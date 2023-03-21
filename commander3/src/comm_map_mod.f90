@@ -30,6 +30,8 @@ module comm_map_mod
   use extension
   use comm_param_mod
   use comm_hdf_mod
+  use comm_status_mod
+  use comm_timing_mod
   implicit none
 
 !  include "mpif.h"
@@ -82,7 +84,7 @@ module comm_map_mod
      procedure     :: Yt_scalar   => exec_sharp_Yt_scalar
      procedure     :: YtW_scalar  => exec_sharp_YtW_scalar
      procedure     :: writeFITS
-     procedure     :: writeMaptoHDF
+     procedure     :: writeMapToHDF
      procedure     :: readMapFromHDF
      procedure     :: readFITS
      procedure     :: readHDF
@@ -129,6 +131,26 @@ module comm_map_mod
   class(comm_mapinfo), pointer, private :: mapinfos => null()
 
 contains
+
+subroutine tod2file_dp3(filename,d)
+   implicit none
+   character(len=*),                 intent(in)            :: filename
+   real(dp),           dimension(:), intent(in)            :: d
+
+   integer(i4b)                                            :: unit, io_error, length, i
+
+   write(*,*) "Writing TOD to file - ", trim(filename)
+   unit = 22
+
+   length = size(d)
+
+   open(unit,file=trim(filename),status='replace',action='write',iostat=io_error)
+   do i = 1, length
+     write(unit,*) d(i)
+   end do
+
+   close(unit)
+ end subroutine tod2file_dp3
 
   !**************************************************
   !             Constructors
@@ -316,6 +338,7 @@ contains
 
     allocate(constructor_map)
     constructor_map%info => info
+    ! Maybe make this an extra parameter of some sort?
     allocate(constructor_map%map(0:info%np-1,info%nmaps))
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
 
@@ -369,8 +392,10 @@ contains
 !!$      info%lmax = lmax
 !!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
+      if (info%nmaps == 3) then
+         call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
+         call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
+      end if
     else 
       constructor_alms%alm = 0.d0
 
@@ -440,6 +465,7 @@ contains
 
     class(comm_map), intent(inout)          :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -452,6 +478,7 @@ contains
        call sharp_execute(SHARP_Y, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y
 
@@ -460,6 +487,7 @@ contains
 
     class(comm_map), intent(inout)          :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_WY, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -472,6 +500,7 @@ contains
        call sharp_execute(SHARP_WY, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_WY
 
@@ -481,11 +510,13 @@ contains
     class(comm_map), intent(inout)          :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Y_scalar
   
@@ -497,6 +528,7 @@ contains
     integer(i4b) :: i
     type(comm_mapinfo), pointer :: info => null()
     
+    call timer%start(TOT_SHT)
     info => comm_mapinfo(self%info%comm, self%info%nside, self%info%lmax, self%info%nmaps, .false.)
 
     if (.not. allocated(self%map)) allocate(self%map(0:self%info%np-1,self%info%nmaps))
@@ -504,9 +536,9 @@ contains
        call sharp_execute(SHARP_Y, 0, 1, self%alm(:,i:i), info%alm_info, &
             & self%map(:,i:i), info%geom_info_T, comm=info%comm)
     end do
-
     deallocate(info)
-    
+    call timer%stop(TOT_SHT)
+
   end subroutine exec_sharp_Y_EB
 
   subroutine exec_sharp_Yt(self)
@@ -514,6 +546,7 @@ contains
 
     class(comm_map), intent(inout) :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -527,6 +560,7 @@ contains
        call sharp_execute(SHARP_Yt, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)       
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt
 
@@ -536,11 +570,13 @@ contains
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_Yt, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_Yt_scalar
 
@@ -549,6 +585,7 @@ contains
 
     class(comm_map), intent(inout) :: self
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     if (self%info%pol) then
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,1:1), self%info%alm_info, &
@@ -561,6 +598,7 @@ contains
        call sharp_execute(SHARP_YtW, 0, self%info%nmaps, self%alm, self%info%alm_info, &
             & self%map, self%info%geom_info_T, comm=self%info%comm)
     end if
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW
 
@@ -571,11 +609,13 @@ contains
     class(comm_map), intent(inout) :: self
     integer(i4b) :: i
 
+    call timer%start(TOT_SHT)
     if (.not. allocated(self%alm)) allocate(self%alm(0:self%info%nalm-1,self%info%nmaps))
     do i = 1, self%info%nmaps
        call sharp_execute(SHARP_YtW, 0, 1, self%alm(:,i:i), self%info%alm_info, &
             & self%map(:,i:i), self%info%geom_info_T, comm=self%info%comm)
     end do
+    call timer%stop(TOT_SHT)
     
   end subroutine exec_sharp_YtW_scalar
   
@@ -583,7 +623,7 @@ contains
   !                   IO routines
   !**************************************************
 
-  subroutine writeMaptoHDF(self, hdffile, hdfpath, label)
+  subroutine writeMapToHDF(self, hdffile, hdfpath, label)
     implicit none
 
     class(comm_map),  intent(in) :: self
@@ -619,7 +659,7 @@ contains
             & self%info%comm, ierr)
     end if
     
-  end subroutine writeMaptoHDF
+  end subroutine writeMapToHDF
 
   subroutine readMapFromHDF(self, hdffile, hdfpath)
     implicit none
@@ -628,23 +668,42 @@ contains
     type(hdf_file),   intent(in)    :: hdffile
     character(len=*), intent(in)    :: hdfpath
 
-    integer(i4b) :: i, nmaps, npix, np, ierr
+    integer(i4b) :: i, nmaps, npix, np, ierr, ext(2)
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    logical(lgt)                              :: rms_exception
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
+       rms_exception = .false.
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+       if (self%info%nmaps == 4 .and. ext(2) == 3) then
+          !write(*,*) '| WARNING - nmaps = 4 but expecting 3'
+          !write(*,*) '| If this is not a new rms file, you have a problem'
+          rms_exception = .true.
+       else if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
+          write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
+          stop
+       end if
        npix  = self%info%npix
-       nmaps = self%info%nmaps
-       allocate(p(npix), map(0:npix-1,nmaps))
-       call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
-       self%map = map(self%info%pix,:)
+       map = 0d0
+       if (rms_exception) then
+          allocate(p(npix), map(0:npix-1,self%info%nmaps))
+          call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map(:,1:ext(2)))
+          nmaps = self%info%nmaps
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)**2
+       else
+          allocate(p(npix), map(0:npix-1,ext(2)))
+          call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
+          nmaps = min(self%info%nmaps,ext(2))
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+       end if
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           allocate(buffer(np,nmaps))
-          buffer = map(p(1:np),:) 
+          buffer(:,1:nmaps) = map(p(1:np),1:nmaps) 
           call mpi_send(buffer,      size(buffer), MPI_DOUBLE_PRECISION, i, 98, &
             & self%info%comm, ierr)
           deallocate(buffer)
@@ -678,12 +737,14 @@ contains
     integer(i4b), allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
 
+
     output_fits_    = .true.; if (present(output_fits))    output_fits_    = output_fits
     output_hdf_map_ = .true.; if (present(output_hdf_map)) output_hdf_map_ = output_hdf_map
 
     ! Only the root actually writes to disk; data are distributed via MPI
     npix  = self%info%npix
     nmaps = self%info%nmaps
+
     if (self%info%myid == 0) then
 
        ! Distribute to other nodes
@@ -866,7 +927,7 @@ contains
     character(len=*),       intent(in)    :: hdfpath
     logical(lgt),           intent(in)    :: read_map
 
-    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix
+    integer(i4b) :: i, l, m, j, lmax, nmaps, ierr, nalm, npix, ext(2)
     real(dp),     allocatable, dimension(:,:) :: alms, map
     !integer(i4b), allocatable, dimension(:)   :: p
     !integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
@@ -879,18 +940,20 @@ contains
     if (.not. read_map) then
        if (lmax < 0) return
       ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(alms(0:nalm-1,nmaps))
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+      allocate(alms(0:nalm-1,ext(2)))
       if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), alms)
       call mpi_bcast(alms, size(alms),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
       do i = 0, self%info%nalm-1
         call self%info%i2lm(i, l, m)
         j = l**2 + l + m
-        self%alm(i,:) = alms(j,:)
+        self%alm(i,1:nmaps) = alms(j,1:nmaps)
       end do
       deallocate(alms)
     else
       ! Only the root actually reads from disk; data are distributed via MPI
-      allocate(map(0:npix-1,nmaps))
+       call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
+      allocate(map(0:npix-1,ext(2)))
       if (self%info%myid == 0) call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
       call mpi_bcast(map, size(map),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 !!$      if (self%info%myid == 0) then
@@ -959,7 +1022,7 @@ contains
     logical(lgt),                       intent(in), optional :: nest
 
     integer(i4b)   :: npix, nlheader, nmaps, i, nside
-    logical(lgt)   :: polarization
+    logical(lgt)   :: polarization, rms_cov
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -968,6 +1031,7 @@ contains
     nside        = nint(sqrt(real(npix,sp)/12.))
     nmaps        = size(map(0,:))
     polarization = (nmaps == 3)
+    rms_cov      = (nmaps == 4)
     unit_        = '';       if (present(unit)) unit_  = unit
     ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
 
@@ -1010,20 +1074,40 @@ contains
     call add_card(header) ! blank line
     call add_card(header,"POLAR",polarization," Polarisation included (True/False)")
 
-    call add_card(header) ! blank line
-    call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
-    call add_card(header,"TUNIT1", unit_,"Map unit")
-    call add_card(header)
+    if (rms_cov) then
+        call add_card(header) ! blank line
+        call add_card(header,"TTYPE1", "II_"//ttype_,"Stokes I")
+        call add_card(header,"TUNIT1", unit_//'^2',"Map unit")
+        call add_card(header)
 
-    if (polarization) then
-       call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
-       call add_card(header,"TUNIT2", unit_,"Map unit")
-       call add_card(header)
-       
-       call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
-       call add_card(header,"TUNIT3", unit_,"Map unit")
-       call add_card(header)
-    endif
+        call add_card(header,"TTYPE2", "QQ_"//ttype_,"Stokes Q")
+        call add_card(header,"TUNIT2", unit_//'^2',"Map unit")
+        call add_card(header)
+        
+        call add_card(header,"TTYPE3", "UU_"//ttype_,"Stokes U")
+        call add_card(header,"TUNIT3", unit_//'^2',"Map unit")
+        call add_card(header)
+
+        call add_card(header,"TTYPE4", "QU_"//ttype_,"Stokes QU")
+        call add_card(header,"TUNIT4", unit_//'^2',"Map unit")
+        call add_card(header)
+
+    else
+        call add_card(header) ! blank line
+        call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
+        call add_card(header,"TUNIT1", unit_,"Map unit")
+        call add_card(header)
+
+        if (polarization) then
+           call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
+           call add_card(header,"TUNIT2", unit_,"Map unit")
+           call add_card(header)
+           
+           call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
+           call add_card(header,"TUNIT3", unit_,"Map unit")
+           call add_card(header)
+        endif
+    end if
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
     call add_card(header,"COMMENT","-----------------------------------------------")
@@ -1047,7 +1131,7 @@ contains
     class(comm_map), intent(in)    :: self
     class(comm_map), intent(inout) :: map_out
 
-    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last
+    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last, nmaps
     real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer, tmp
 
     if (self%info%nside == map_out%info%nside) then
@@ -1081,10 +1165,11 @@ contains
 !!$       stop
 !!$    end if
 
+    nmaps = size(self%map, dim=2)
     bsize = 1000
-    allocate(m_in(0:self%info%npix-1,self%info%nmaps))
-    allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
-    allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
+    allocate(m_in(0:self%info%npix-1,nmaps))
+    allocate(m_out(0:map_out%info%npix-1,nmaps))
+    allocate(buffer(0:map_out%info%npix-1,nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
 !    write(*,*) 'a', self%info%myid, sum(abs(m_in))

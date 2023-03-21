@@ -175,7 +175,7 @@ contains
     if (trim(constructor%type) == 'binned') then
        !call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
        call constructor%read_binfile2(datadir, cpar%cs_binfile(id_abs))
-       call read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)), &
+       call read_Cl_file(trim(cpar%cs_clfile(id_abs)), &
             & constructor%Dl, 0, constructor%lmax, 'TT_TE_EE_BB')
        call constructor%binCls2
        if (cpar%only_pol) then
@@ -492,7 +492,7 @@ contains
 
     unit    = getlun()
     nspline = 100
-    open(unit,file=trim(datadir)//'/'//trim(binfile))
+    open(unit,file=trim(binfile))
 
     ! Check for parameter lookup table
     read(unit,'(a)') line
@@ -1040,7 +1040,7 @@ contains
 
        do i = 1, self%nbin2
           call sample_Dl_bin(self%bins2(i), handle, ok)
-!          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
+          write(*,*) i, self%bins2(i)%lmin, self%Dl(self%bins2(i)%lmin,1)
        end do
     end if
 
@@ -1111,7 +1111,6 @@ contains
          ok = .false.
          return
       end if
-
 !      write(*,*) 'lnL = ', lnL 
 
       ! Compute probabilities for each model spectrum
@@ -1121,7 +1120,6 @@ contains
          lnL = 0.d0
       end where
       lnL = lnL / sum(lnL)
-
       !write(*,*) 'P = ', lnL 
 
       ! Draw random model given respective probability
@@ -1153,34 +1151,44 @@ contains
     
       integer(i4b) :: i, j, k, l, status
       real(dp)     :: Dl_prop, Dl_in(3)
-      real(dp)     :: prior(2)
+      real(dp)     :: prior(2), eps
       
       !write(*,*) bin%lmin, bin%lmax, bin%spec
+
+      eps = 1.d-9
 
       if (.not. ok) return
       if (bin%stat == 'S') then
          ! Set up prior = positive definite Dl; thus is not exact for TEB
          if (self%nspec == 1) then
-            prior    = [0.d0, 1.d5]
+            prior    = [1.d-12, 1.d5]
          else
             prior    = [-1.d5, 1.d5]
             do l = bin%lmin, bin%lmax
                select case (bin%spec)
                case (1)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+                  if (self%Dl(l,4) > 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+                  else
+                     prior(1) = max(prior(1), eps)
+                  end if
                case (2)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4))-eps)
                case (3)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6))-eps)
                case (4)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  if (self%Dl(l,1) > 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  else
+                     prior(1) = max(prior(1), eps)
+                  end if
                case (5)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6))-eps)
                case (6)
-                  prior(1) = max(prior(1), 0.d0)
+                  prior(1) = max(prior(1), eps)
                end select
             end do
          end if
@@ -1191,9 +1199,7 @@ contains
          ! Draw sample
          lmin=bin%lmin; lmax=bin%lmax; spec=bin%spec; p1=bin%p1; p2=bin%p2
          Dl_prop = sample_InvSamp(handle, Dl_in, lnL_invWishart, prior, status)
-      
          ! Update
-         write(*,*) lmin, lmax, Dl_prop, status
          !stop
          if (status == 0) then
             self%Dl(bin%lmin:bin%lmax,bin%spec) = Dl_prop

@@ -35,7 +35,9 @@ module comm_md_comp_mod
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_md_comp
      !integer(i4b)                            :: ref_band
-     logical(lgt) :: mono_from_prior
+     logical(lgt) :: mono_from_prior  ! true if the band used as zero-level prior
+     real(dp)     :: mono_alm         ! alm value of monopole for when we CG-sample,
+                                      ! can revert to pre CG sampling value afterwards
    contains
      procedure :: S    => evalSED
   end type comm_md_comp
@@ -252,15 +254,10 @@ contains
        end do
     end do
 
-    ! Set up sampling from prior
+
+    ! Set up default values for prior sampling (to be potentially changed at end of init)  
     constructor%mono_from_prior=.false.
-    call get_tokens(cpar%cs_samp_mono_from_prior(id_abs), ",", comp_label, n)
-    do j = 1, n
-       if (trim(constructor%label) == trim(comp_label(j))) then
-          constructor%mono_from_prior=.true.
-          exit
-       end if
-    end do
+    constructor%mono_alm = 0.d0
     
   end function constructor
 
@@ -290,14 +287,12 @@ contains
     integer(i4b)        :: i, unit
     real(dp)            :: mu(4), rms(2), def(4)
     character(len=1024) :: line, label
-    character(len=256)  :: dir
     class(comm_comp), pointer :: c => null()
 
     unit  = getlun()
-    dir = trim(cpar%datadir)//'/'
     ! Find number of lines
     n = 0
-    open(unit, file=trim(dir)//trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
+    open(unit, file=trim(cpar%cs_SED_template(1,id_abs)), recl=1024)
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
@@ -319,7 +314,7 @@ contains
 1   close(unit)
   
     if (n < numband .and. cpar%myid == 0) then
-       write(*,'(a,i6)') '  Warning: Number of channels without a monopole/dipole definition = ', numband-n
+       write(*,'(a,i6)') ' | Warning: Number of channels without a monopole/dipole definition = ', numband-n
     end if
   
   end function initialize_md_comps

@@ -19,27 +19,30 @@
 !
 !================================================================================
 module comm_signal_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
+  use comm_ame_lognormal_mod
+  use comm_chisq_mod
   use comm_cmb_comp_mod
   use comm_cmb_relquad_comp_mod
+  use comm_comp_mod
+  use comm_cr_mod
+  use comm_cr_utils
+  use comm_curvature_comp_mod
+  use comm_data_mod
+  use comm_diffuse_comp_mod
+  use comm_freefree_comp_mod
+  use comm_hdf_mod
+  use comm_line_comp_mod
+  use comm_MBB_comp_mod
+  use comm_md_comp_mod
+  use comm_param_mod
   use comm_powlaw_comp_mod
+  use comm_exp_comp_mod
+  use comm_powlaw_break_comp_mod
+  use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
-  use comm_ame_lognormal_mod
-  use comm_MBB_comp_mod
-  use comm_freefree_comp_mod
-  use comm_line_comp_mod
-  use comm_md_comp_mod
   use comm_template_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_cr_mod
-  use comm_cr_utils
-  use comm_hdf_mod
-  use comm_data_mod
-  use comm_chisq_mod
   implicit none
 
 contains
@@ -50,7 +53,9 @@ contains
 
     integer(i4b) :: i, n
     class(comm_comp), pointer :: c => null()
-    
+    class(comm_comp), pointer :: c_two => null()
+    logical(lgt) :: prior_exists
+
     ncomp = 0
     do i = 1, cpar%cs_ncomp_tot
        if (.not. cpar%cs_include(i)) cycle
@@ -68,13 +73,20 @@ contains
              c => comm_cmb_comp(cpar, ncomp, i)
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
-             call update_status(status, "init_done")
+          case ("exponential")
+             c => comm_exp_comp(cpar, ncomp, i)
+          case ("power_law_break")
+             c => comm_powlaw_break_comp(cpar, ncomp, i)
+          case ("curvature") 
+             c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")
              c => comm_physdust_comp(cpar, ncomp, i)
           case ("spindust")
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("spindust2")
              c => comm_spindust2_comp(cpar, ncomp, i)
+          case ("lognormal")
+             c => comm_ame_lognormal_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
           case ("freefree")
@@ -128,6 +140,42 @@ contains
 !    call mpi_finalize(i)
 !    stop
        
+    ! go through compList and check if any diffuse component is using a band monopole
+    ! as the zero-level prior
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%mono_prior_type) == 'bandmono') then
+             prior_exists=.false.
+             c_two => compList
+             do while (associated(c_two))
+                select type (c_two)
+                class is (comm_md_comp)
+                   if (trim(c%mono_prior_band)==trim(c_two%label)) then
+                      if (c_two%mono_from_prior) then
+                         !Error, band already prior for another component
+                         call report_error("Component '"//trim(c%label)//"'. Band monopole '"//trim(c_two%label)//"' already in use as a zero-level prior of another component")
+                      end if
+                      c_two%mono_from_prior = .true.
+                      prior_exists = .true.
+                   end if
+                end select
+                c_two => c_two%next()
+             end do
+
+             if (.not. prior_exists) then
+                !Error, could not find band monopole used as prior
+                call report_error("Could not find band monopole '"//trim(c%mono_prior_band)//"' for zero-level prior of component "//trim(c%label))
+
+             end if
+
+          end if
+       end select
+       c => c%next()
+    end do
+
   end subroutine initialize_signal_mod
 
   subroutine dump_components(filename)
@@ -172,6 +220,26 @@ contains
        call c%CG_mask(samp_group, mask)
        c => c%next()
     end do
+
+    ! If mono-/dipole are sampled, check if they are priors for a component zero-level
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_md_comp)
+          if (c%active_samp_group(samp_group)) then
+             if (c%mono_from_prior) then
+                do i = 0, c%x%info%nalm-1
+                   call c%x%info%i2lm(i,l,m)
+                   if (l == 0) then ! save the monopole value
+                      c%mono_alm = c%x%alm(i,1)
+                   end if
+                end do
+             end if
+          end if
+       end select
+       c => c%next()
+    end do
+
     
     ! Solve the linear system
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
@@ -194,7 +262,7 @@ contains
        c => c%next()
     end do
 
-    ! If mono-/dipole components have been sampled, check if any are to be marginalized/sampled from prior
+    ! If mono-/dipole components is a zero-level prior, revert back to pre-sampling value if it has been sampled in the current CG group
     c => compList
     do while (associated(c))
        select type (c)
@@ -203,9 +271,19 @@ contains
              if (c%mono_from_prior) then
                 do i = 0, c%x%info%nalm-1
                    call c%x%info%i2lm(i,l,m)
-                   if (l == 0) then ! Monopole
+                   if (l == 0) then ! monopole
+
+                      write(*,fmt='(a)') " |  Band monopole of '"//&
+                           & trim(c%label)//"' used as zero-level prior"
+                      write(*,fmt='(a,f14.3)') " |     Revert back to pre-CG value: ",&
+                           & c%mono_alm/sqrt(4.d0*pi)
+                      write(*,fmt='(a,f14.3,a)') " |     (Sampled value in CG: ",&
+                           & c%x%alm(i,1)/sqrt(4.d0*pi)," )"
+
+                      c%x%alm(i,1) = c%mono_alm  ! revert to pre-CG search value 
                       !monopole in alm_uKRJ = mu_in_alm_uK_RJ + rms_in_alm_uKRJ * rand_gauss
-                      c%x%alm(i,1)  = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+                      !c%x%alm(i,1) = c%mu%alm(i,1) + sqrt(c%Cl%Dl(0,1))*rand_gauss(handle) 
+
                    end if
                 end do
              end if
@@ -261,18 +339,23 @@ contains
        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
             & '_c' // trim(adjustl(ctext)) // '.h5'
        initsamp = init_samp
-    else 
+    else
        call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
        if (present(init_samp)) initsamp = init_samp
     end if
     call int2string(initsamp, itext)
     call open_hdf_file(chainfile, file, 'r')
     
+    !TODO: I get a crash here when the init file is missing or doesn't have the
+    !required sample number, but it's some sort of MPI crash with no good
+    !explanation or description so we should check for that somehow and write a
+    !better error
+
     if (cpar%resamp_CMB .and. present(init_from_output)) then
        ! Initialize CMB component parameters; only once before starting Gibbs
        c   => compList
        do while (associated(c))
-          if (trim(c%type) /= 'cmb') then
+          if (.not. c%output) then
              c => c%next()
              cycle
           end if
@@ -368,7 +451,7 @@ contains
           if (trim(data(i)%tod%init_from_HDF) == 'none' .and. .not. present(init_from_output))     cycle
           if (cpar%myid == 0) write(*,*) '|  Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
-          rms => comm_map(data(i)%info)
+          rms => comm_map(data(i)%rmsinfo)
           select type (N)
           class is (comm_N_rms)
              if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
@@ -380,14 +463,26 @@ contains
                 call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
                 call close_hdf_file(file2)
              end if
+          class is (comm_N_rms_qucov)
+             if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
+                call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
+             else
+                call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
+                     & chainfile, initsamp2)
+                call open_hdf_file(chainfile, file2, 'r')
+                call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+                call close_hdf_file(file2)
+             end if
+          class default 
+             write(*,*) 'Noise type is not covered'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
           allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map0%map = data(i)%map%map
@@ -403,21 +498,25 @@ contains
           if (cpar%myid == 0) write(*,*) '|  Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
-          rms     => comm_map(data(i)%info)
+          rms     => comm_map(data(i)%rmsinfo)
           N       => data(i)%N
           !write(*,*) trim(file%filename), trim(adjustl(hdfpath))//'map'
           call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
           select type (N)
           class is (comm_N_rms)
              call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class is (comm_N_rms_qucov)
+             call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class default
+             write(*,*) 'resamp_CMB noise class not defined'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          allocate(regnoise(0:data(i)%rmsinfo%np-1,data(i)%rmsinfo%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map%map = data(i)%map%map + regnoise
@@ -600,7 +699,7 @@ contains
              if (trim(c%Cl%bins2(bin)%stat) /= 'M') cycle
 
              n = c%Cl%bins2(bin)%ntot
-if (c%x%info%myid ==0) write(*,*) bin, n
+             !if (c%x%info%myid ==0) write(*,*) bin, n
              pos = 0
              allocate(Dl_old(n), Dl_prop(n), eta(n))
              call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .false.)
@@ -612,7 +711,7 @@ if (c%x%info%myid ==0) write(*,*) bin, n
                 posdef = c%Cl%check_posdef(bin, Dl_prop)
              end if
              call mpi_bcast(posdef, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
-             if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
+             !if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
              if (posdef) then
                 call mpi_bcast(Dl_prop, n, MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
 

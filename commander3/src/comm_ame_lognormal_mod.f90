@@ -77,7 +77,7 @@ contains
        constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
        constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
     end do
-    constructor%indlabel = ['nu_peak', 'W_AME  ']
+    constructor%indlabel = ['nu_p', 'W_AME']
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
@@ -90,10 +90,10 @@ contains
           constructor%theta(i)%p%map = constructor%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%datadir) // '/' // trim(cpar%cs_input_ind(i,id_abs)))
+          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
-       ! convert spec. ind. pixel map to alsm if lmax_ind >= 0
+       ! convert spec. ind. pixel map to alms if lmax_ind >= 0
        if (constructor%lmax_ind >= 0) then
           call constructor%theta(i)%p%YtW_scalar
        end if

@@ -51,9 +51,11 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/ars_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_fft_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_qucov_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_n_lcut_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_4d_map_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_int_0d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_n_rms_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_n_rms_qucov_mod.f90
 	# TOD processing modules
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_psd_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mod.f90
@@ -61,18 +63,21 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_mapmaking_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_smod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_hfi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_orbdipole_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_wmap_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_dirbe_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_smod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
-  ${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_smod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
@@ -86,7 +91,9 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_physdust_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_b_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_line_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_exp_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_powlaw_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_powlaw_break_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
@@ -114,6 +121,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/invsamp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_line_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_timing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_status_mod.f90
 	${COMMANDER3_SOURCE_DIR}/locate_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_conviqt_mod.f90
@@ -140,6 +148,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_noise_mod.f90
 	${COMMANDER3_SOURCE_DIR}/spline_1d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/spline_2d_mod.f90
+  ${COMMANDER3_SOURCE_DIR}/comm_curvature_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90

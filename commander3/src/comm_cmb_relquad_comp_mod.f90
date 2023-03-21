@@ -48,7 +48,8 @@ module comm_cmb_relquad_comp_mod
      procedure :: projectBand   => projectRelquadBand
      procedure :: update_template
      procedure :: read_definition_file
-     procedure :: update_F_int => updateIntF
+     procedure :: update_F_int  => updateIntF
+     procedure :: initHDF       => initTemplateRelQuadHDF
   end type comm_cmb_relquad_comp
 
   interface comm_cmb_relquad_comp
@@ -87,6 +88,7 @@ contains
     constructor%nmaps         = 1    ! Only used for CR book-keeping; must be 1 for templates
     constructor%outprefix     = trim(cpar%cs_label(id_abs))
     constructor%cg_scale      = 1.d0
+    constructor%band          = 0
     constructor%myid          = cpar%myid_chain
     constructor%comm          = cpar%comm_chain
     constructor%numprocs      = cpar%numprocs_chain
@@ -118,7 +120,7 @@ contains
 
     ! Read band definition file
     allocate(constructor%band_active(numband))
-    call constructor%read_definition_file(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)))
+    call constructor%read_definition_file(trim(cpar%cs_SED_template(1,id_abs)))
 
     ! Precompute mixmat for each band; temperature only
     allocate(constructor%F_int(numband,0:constructor%ndet))
@@ -447,12 +449,22 @@ contains
 1   close(unit)
     
     if (any(.not. ok)) then
-       write(*,*) 'ERROR -- all bands are defined in CMB relativistic quadrupole file = ', trim(filename)
+       write(*,*) 'ERROR -- all bands must be defined in CMB relativistic quadrupole file = ', trim(filename)
        stop
     end if
 
     deallocate(ok)
 
   end subroutine read_definition_file
+
+  ! Dump current sample to HEALPix FITS file
+  subroutine initTemplateRelQuadHDF(self, cpar, hdffile, hdfpath)
+    implicit none
+    class(comm_cmb_relquad_comp), intent(inout) :: self
+    type(comm_params),            intent(in)    :: cpar    
+    type(hdf_file),               intent(in)    :: hdffile
+    character(len=*),             intent(in)    :: hdfpath
+  end subroutine initTemplateRelQuadHDF
+
 
 end module comm_cmb_relquad_comp_mod

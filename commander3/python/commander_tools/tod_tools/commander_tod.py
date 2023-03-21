@@ -38,6 +38,7 @@ class commander_tod:
         #TODO: something with the version number
         self.overwrite = overwrite
 
+
     #initilizes a file for a single od
     def init_file(self, freq, od, mode='r'):
         self.huffDict = {}
@@ -52,21 +53,28 @@ class commander_tod:
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
-        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
-
+        if not self.od:
+            if not self.name:
+                self.outName = os.path.join(self.outPath, sfreq + '.h5')
+            else:
+                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+        else:
+            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+        
         self.exists = False
+
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
-            if self.exists and self.overwrite:
-                os.remove(self.outName)
+            #if self.exists and self.overwrite:
+            #    os.remove(self.outName)
             try:
                 self.outFile = h5py.File(self.outName, 'a')
 
-                if self.exists and not self.overwrite:
-                    for pid in self.load_field('/common/pids'):
-                        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
-                        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+                #if self.exists and not self.overwrite:
+                #    for pid in self.load_field('/common/pids'):
+                #        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
+                #        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
             except (KeyError, OSError):
                 if(hasattr(self, 'outFile')):
                     self.outFile.close()
@@ -112,6 +120,10 @@ class commander_tod:
 
     #Single field write
     def add_field(self, fieldName, data, compression=None):
+          
+        if self.overwrite:
+            if fieldName in self.outFile.keys():
+                del self.outFile[fieldName]
         data = np.nan_to_num(data)
         writeField = True
         if(compression is not None and compression is not []):
@@ -178,11 +190,7 @@ class commander_tod:
             try:
                 self.outFile.create_dataset(fieldName, data=data)
             except OSError as e:
-                if self.overwrite:
-                    del self.outFile[fieldName]
-                    self.outFile.create_dataset(fieldName, data=data)
-                else:
-                    raise OSError(e)
+                raise OSError(e)
             for attr in self.attrDict.copy().keys():
                 fName, attrName = attr.split('@')
                 if fName == fieldName:
@@ -213,7 +221,19 @@ class commander_tod:
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
             self.add_field('/common/version', self.version)
-            self.add_field('/common/pids', list(self.pids.keys()))
+            # [Maksym]: was getting the error:
+            # ...
+            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
+            # self.add_field('/common/pids', list(self.pids.keys()))
+            # File ".../python/commander_tools/tod_tools/commander_tod.py", line 179, in add_fie    ld
+            # self.outFile.create_dataset(fieldName, data=data)
+            # ...
+            # File "h5py/h5t.pyx", line 1629, in h5py.h5t.py_create
+            # File "h5py/h5t.pyx", line 1653, in h5py.h5t.py_create
+            # File "h5py/h5t.pyx", line 1719, in h5py.h5t.py_create
+            # TypeError: No conversion path for dtype: dtype('<U6')
+            # So needed to add `np.string_()`
+            self.add_field('/common/pids', np.string_(list(self.pids.keys())))
 
         if self.filelists is not None:
             for pid in self.pids.keys():
@@ -361,7 +381,7 @@ class commander_tod:
                     nmax = self.outFile[field].attrs['max']
 
                     bins = np.linspace(nmin, nmax, num = nbins)
-                    dataBuf = bins[dataBuf]
+                    dataBuf = bins[dataBuf.astype('int')]
 
                 elif comp == 'huffman':
                     pid = field.split('/')[1]

@@ -94,7 +94,7 @@ module comm_diffuse_comp_mod
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_pp_fr
      class(comm_B_bl_ptr), allocatable, dimension(:)   :: B_smooth_amp, B_smooth_specpar
 
-     character(len=512) :: mono_prior_type
+     character(len=512) :: mono_prior_type, mono_prior_band
      real(dp)           :: mono_prior_gaussian_mean, mono_prior_gaussian_rms, mono_prior_fwhm
      integer(i4b)       :: mono_prior_nside, mono_prior_Nthresh
      real(dp), allocatable, dimension(:) :: mono_prior_threshold
@@ -164,8 +164,8 @@ module comm_diffuse_comp_mod
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
   real(dp), allocatable, dimension(:,:),   private :: buffer_lnL        
   logical(lgt),                            private :: apply_mixmat = .true.
-  type(map_ptr),        allocatable, dimension(:) :: res_smooth
-  type(comm_N_rms_ptr), allocatable, dimension(:) :: rms_smooth
+  type(map_ptr),               allocatable, dimension(:) :: res_smooth
+  class(comm_N_ptr),           allocatable, dimension(:) :: rms_smooth
   
 interface
 
