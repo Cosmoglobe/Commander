@@ -388,7 +388,7 @@ contains
       character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
       real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
-      real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
+      real(sp),  allocatable, dimension(:, :, :, :) :: map_sky, m_gain
       class(map_ptr),     allocatable, dimension(:) :: outmaps
 
       ! biconjugate gradient-stab parameters
@@ -407,11 +407,6 @@ contains
 
       type(hdf_file) :: tod_file
       real(sp) :: pow2  ! log2(ntod)
-
-
-
-      ! Parameters used for testing
-      real(dp) :: polang = 0d0
 
 
 
@@ -444,7 +439,7 @@ contains
       self%output_n_maps = 1
       split = .false.
       if (self%output_aux_maps > 0) then
-         if (iter .eq. 2) then
+         if (self%first_call) then
            self%output_n_maps = 3
            split = .false.
          else
@@ -466,8 +461,10 @@ contains
       ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
       allocate(map_full(nmaps, 0:npix-1))
+      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
+      call distribute_sky_maps(self, map_gain, 1., m_gain) ! uK to K
 
 
 
@@ -560,7 +557,7 @@ contains
               call update_status(status, "baseline")
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
-                 call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
+                 call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
                  call timer%start(TOD_BASELINE, self%band)
                  call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
                  call timer%stop(TOD_BASELINE, self%band)
@@ -573,11 +570,25 @@ contains
               call timer%stop(TOD_WAIT, self%band)
 
               call update_status(status, "abscal")
-              call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+              if (trim(self%freq) == '023-WMAP_K') then
+                if (self%myid == 0) then
+                  self%gain0(0) = 1.1815 + 0.001 * rand_gauss(handle)
+                  write(*,*) '|    Prior sampling abscal ', self%gain0(0)
+                end if
+                call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
+                     & self%info%comm, ierr)
+                do j = 1, self%nscan
+                   do i = 1, self%ndet
+                      self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
+                   end do
+                end do
+              else
+                call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+              end if
               call update_status(status, "relcal")
-              call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
               call update_status(status, "deltaG")
-              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.true.)
+              call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2, smooth=.true.)
            else
               self%correct_sl      = .false.
               do j = 1, self%nscan
@@ -589,7 +600,7 @@ contains
               self%gain0(1:) = 0
               self%x_im = 0
            end if
-           call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+           call sample_calibration(self, 'imbal',  handle, map_sky, m_gain, procmask, procmask2)
       end if
 
 
@@ -615,8 +626,8 @@ contains
                     & real(self%spinaxis(i,:),sp)
             end if
             if (select_data) then 
-               call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-                 & init_s_bp=bp_corr, polang=polang)
+               call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+                 & init_s_bp=bp_corr)
                n_tot = n_tot + sd%ntod/1000
                n_flag = n_flag + sd%ntod/1000
                call sd%dealloc
@@ -627,14 +638,14 @@ contains
 
          ! Prepare data
          if (sample_rel_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true., init_s_bp_prop=.true., polang=polang)
+            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=.true., init_s_bp_prop=.true.)
          else if (sample_abs_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true., init_s_sky_prop=.true., polang=polang)
+            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=.true., init_s_sky_prop=.true.)
          else
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=bp_corr, polang=polang)
+            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=bp_corr)
          end if
 
          call timer%start(TOD_ALLOC, self%band)

@@ -105,7 +105,7 @@ then
     build_dir="build_bee47_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
     build_dir="build_hya5_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
+  elif [[ "${HOSTNAME}" =~ $hya6 ]]; then
     build_dir="build_hya6_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya79 ]]; then
     build_dir="build_hya716_$toolchain"

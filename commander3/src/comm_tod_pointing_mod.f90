@@ -49,8 +49,8 @@ contains
       nmap = SIZE(map, 1)
       do det = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(det)%accept) then
-            s_sky(:, det) = 0.d0
-            tmask(:, det) = 0.d0
+            s_sky(:, det) = 0.
+            tmask(:, det) = 0.
             cycle
          end if
          do i = 1, tod%scans(scan_id)%ntod
@@ -75,7 +75,7 @@ contains
       if (present(s_bp)) then
          do det = 1, tod%ndet
             if (.not. tod%scans(scan_id)%d(det)%accept) then
-               s_bp(:,det) = 0.d0
+               s_bp(:,det) = 0.
                cycle
             end if
             do i = 1, tod%scans(scan_id)%ntod
@@ -150,12 +150,10 @@ contains
                        &  map(2, rpoint, i)*tod%cos2psi(psi(j, 2)) + &
                        &  map(3, rpoint, i)*tod%sin2psi(psi(j, 2)))
                     
-            if (i == 1) then
-               if (iand(flag(j), tod%flag0) .ne. 0) then
-                  tmask(j, :) = 0.
-               else
-                  tmask(j, :) = pmask(pix(j, 1))*pmask(pix(j,2))
-               end if
+            if (iand(flag(j), tod%flag0) .ne. 0) then
+               tmask(j, i) = 0.
+            else
+               tmask(j, i) = pmask(pix(j, 1))*pmask(pix(j,2))
             end if
          end do
       end do

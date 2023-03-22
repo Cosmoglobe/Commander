@@ -399,26 +399,25 @@ contains
 
   end subroutine output_signals_per_band
 
-  subroutine get_sky_signal(band, det, map_out, mono, cmbmap)
+  subroutine get_sky_signal(band, det, map_out, mono, cmbmap, abscal_comps, gainmap)
     implicit none
     integer(i4b),    intent(in)     :: band, det
     class(comm_map), pointer        :: map_out
     logical(lgt),    optional       :: mono 
     class(comm_map), optional       :: cmbmap
+    character(len=512), intent(in), optional :: abscal_comps
+    class(comm_map), pointer, intent(inout), optional    :: gainmap
 
-    integer(i4b) :: i, j, k
-    logical(lgt) :: skip, mono_
+    integer(i4b) :: i, j, k, n
+    logical(lgt) :: skip, mono_, calmap
     real(dp)     :: rms_EE2_prior
-    class(comm_map),  pointer :: map_diff, cmbmap_band
+    class(comm_map),  pointer :: map_diff, cmbmap_band, gaindiff
     class(comm_comp), pointer :: c
     real(dp),     allocatable, dimension(:,:) :: map, alm
     real(dp),                  dimension(5)   :: P_quad
+    character(len=16),         dimension(100) :: abscal_labels
     
     mono_ = .true.; if (present(mono)) mono_=mono 
-
-    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]
-    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! NPIPE
-    !P_quad = [0.d0, 0.d0, 0.d0, 0.d0, 0.d0]  ! SROLL2
 
     ! Allocate map
     map_out  => comm_map(data(band)%info)  
@@ -427,6 +426,24 @@ contains
     if (present(cmbmap)) then
        cmbmap_band => comm_map(data(band)%info)
        call cmbmap%alm_equal(cmbmap_band)
+    end if
+    if (present(abscal_comps)) then
+       abscal_labels = ''
+       call get_tokens(abscal_comps, ",", abscal_labels, n)
+       !write(*,*) abscal_labels
+       if (trim(abscal_labels(1)) .ne. 'full' .and. trim(abscal_labels(1)) .ne. 'orbital') then
+         calmap = .true.
+         gainmap => comm_map(data(band)%info)
+         gainmap%alm = 0.d0
+         gainmap%map = 0.d0
+         gaindiff => comm_map(data(band)%info)
+         gaindiff%alm = 0.d0
+         gaindiff%map = 0.d0
+       else
+         calmap = .false.
+       end if
+    else
+       calmap = .false.
     end if
 
     ! Compute predicted signal for this band
@@ -447,39 +464,38 @@ contains
           else
              alm     = c%getBand(band, alm_out=.true., det=det)
           end if
-!!$          if (c%x%info%myid == 0) then
-!!$             write(*,*) c%label
-!!$             write(*,*) shape(alm)
-!!$             write(*,*) shape(map_out%alm)
-!!$          end if
-          !write(*,*) c%x%info%nalm, map_diff%info%nalm, c%x%info%nmaps, map_diff%info%nmaps
-!          call map_diff%add_alm(alm, c%x%info)
-!!$          if (present(cmb_pol) .and. trim(c%label) == 'cmb') then
-!!$             !map_diff%alm(:,1) = map_diff%alm(:,1) + alm(:,1)
-!!$             do j = 1, data(band)%info%nmaps
-!!$                do i = 0, data(band)%info%nalm-1
-!!$                   if (j == 1 .or. data(band)%info%lm(1,i) > 2) then
-!!$                      map_diff%alm(i,j) = map_diff%alm(i,j) + alm(i+1,j)
-!!$                   else if (j == 2 .and. data(band)%info%lm(1,i) == 2) then
-!!$                      ! Apply external E quadrupole prior
-!!$                      k = 3+data(band)%info%lm(2,i)
-!!$                      map_diff%alm(i,j) = map_diff%alm(i,j) + P_quad(k)
-!!$                   end if
-!!$                end do
-!!$             end do
-!!$          else
-             map_diff%alm = map_diff%alm + alm
-!!$          end if
+          map_diff%alm = map_diff%alm + alm
+          if (calmap) then
+            do i = 1, n
+              if (trim(c%label) == trim(abscal_labels(i))) then
+                gaindiff%alm = gaindiff%alm + alm
+              end if
+            end do
+          end if
           deallocate(alm)
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
           map_out%map = map_out%map + map
+          if (calmap) then
+            do i = 1, n
+              if (trim(c%label) == trim(abscal_labels(i))) then
+                gainmap%map = gainmap%map + map
+              end if
+            end do
+          end if
           deallocate(map)
        class is (comm_template_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map         = c%getBand(band, det=det)
           map_out%map = map_out%map + map
+          if (calmap) then
+            do i = 1, n
+              if (trim(c%label) == trim(abscal_labels(i))) then
+                gainmap%map = gainmap%map + map
+              end if
+            end do
+          end if
           deallocate(map)
        end select
        c => c%next()
@@ -489,6 +505,12 @@ contains
 
     ! Compute residual map
     map_out%map = map_out%map + map_diff%map
+    if (calmap) then
+      call gaindiff%Y()
+      gainmap%map = gainmap%map + gaindiff%map
+      map_out%alm = gainmap%alm
+      map_out%map = gainmap%map
+    end if
 
     ! Clean up
     nullify(c)
@@ -503,8 +525,8 @@ contains
   subroutine compute_marginal(mixing, data, invN, marg_map, marg_fullsky)
     implicit none
     
-    real(c_double),  intent(in),    dimension(:,:,:) :: mixing   !(nbands,ncomp,npix) mixing matrix
-    real(c_double),  intent(in),    dimension(:,:)   :: invN     !(nbands,npix) inverse noise matrix
+    real(c_double),  intent(in),    dimension(:,:,0:):: mixing   !(nbands,ncomp,npix) mixing matrix
+    real(c_double),  intent(in),    dimension(:,0:)  :: invN     !(nbands,npix) inverse noise matrix
     real(c_double),  intent(in),    dimension(:,:)   :: data     !(nbands,npix) data matrix
     class(comm_map), intent(inout), optional         :: marg_map
     real(dp),        intent(out),   optional         :: marg_fullsky
