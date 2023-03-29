@@ -286,7 +286,7 @@ contains
 
     if (.not. self%output) return
 
-    if (self%myid == 0) write(*,*) '     Temp amp ', trim(adjustl(data(self%band)%label)), ' = ', self%x
+    if (self%myid == 0) write(*,*) '|    Temp amp ', trim(adjustl(data(self%band)%label)), ' = ', self%x
 
     if (output_hdf .and. self%myid == 0) then
        call int2string(iter, itext)
