@@ -1,4 +1,4 @@
-#DIRBE 25 micron CIO default parameters
+#DIRBE 240 micron CIO default parameters
 # NOTE: data dir in parameter file
 
 BAND_LABEL&&&                  = 10_240um

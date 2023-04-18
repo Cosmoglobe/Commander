@@ -53,7 +53,6 @@ def pix_to_lonlat(
 
     return np.column_stack((latitudes, longitudes))
 
-@cache
 def normalize_dirbe_bandpasses(
     bandpasses: NDArray[np.floating],
 ) -> NDArray[np.floating]:

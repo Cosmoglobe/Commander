@@ -578,6 +578,10 @@ contains
     integer(i4b) :: i
 
     tsum = 0.d0
+    if (size(x) == 1) then ! Added to handle delta bandpasses.
+       tsum = y(1)
+       return
+    end if
     do i = 1, size(x)-1
        tsum = tsum + 0.5d0 * (y(i)+y(i+1)) * (x(i+1)-x(i))
     end do

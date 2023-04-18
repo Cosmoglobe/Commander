@@ -126,7 +126,8 @@ contains
     case ('WMAP') 
        constructor%threshold = 0.d0
     case ('DIRBE') 
-       constructor%threshold = 1.d-5
+       constructor%threshold = 0.d0
+      !  constructor%threshold = 1.d-5
        is_wavelength = .true.
     case ('HFI_cmb') 
        constructor%threshold = 1.d-7
@@ -179,6 +180,8 @@ contains
                end do
                constructor%tau0 = constructor%tau0 / ndet
           else
+               print *, "got to nonzero threshold, aborting"
+               stop
                call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
                     & constructor%threshold, &
                     & constructor%n, constructor%nu0, constructor%tau0)
@@ -186,7 +189,6 @@ contains
        end if
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
     end if
-
     ! Initialize fitting model
     constructor%model = cpar%ds_bpmodel(id_abs)
     if (trim(constructor%model) == 'additive_shift') then
@@ -210,6 +212,7 @@ contains
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
     constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
+    
   end function constructor
   
 
@@ -238,6 +241,7 @@ contains
        
     case ('additive_shift') 
        ! Additive frequency shift
+       self%tau = self%tau0
        do i = 1, n
           self%nu(i) = self%nu0(i) + 1d9*delta(1)
           if (self%nu(i) <= 0.d0) self%tau(i) = 0.d0
@@ -246,12 +250,6 @@ contains
     case default
        call report_error('Error -- unsupported bandpass model = ' // trim(self%model))
     end select
-    
-    ! No bandpass sampling, just use the original bandpass
-    if (all(delta == 0.d0)) then
-         self%tau = self%tau0
-         self%nu  = self%nu0  
-    end if
 
     ! Compute unit conversion factors
     allocate(a(n), bnu_prime(n), bnu_prime_RJ(n), sz(n))
@@ -333,8 +331,10 @@ contains
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
-       self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu))
-       self%tau     = self%tau / tsum(self%nu, self%tau)
+       self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)) * 1d14
+      !  self%tau     = self%tau / tsum(self%nu, self%tau)
+       self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+
 
     ! NEW !
     case ('dame')
@@ -373,6 +373,10 @@ contains
   function SED2F(self, f)
     implicit none
 
+    ! Implementation of the mixing matrix (SED2F = M, f = frequency scaling of a component).
+    ! Depending on the units of the bandpass a different function which converts from K_RJ sed to DATA units bandpass integrated.
+    ! See BP1 footnote 7 for K_RJ -> MJy/sr (additional factor of 2.d0*k_B*self%nu**2/c**2).
+
     class(comm_bp),               intent(in) :: self
     real(dp),       dimension(:), intent(in) :: f
     real(dp)                                 :: SED2F
@@ -390,7 +394,7 @@ contains
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
       !  SED2F = tsum(self%nu, self%tau * f)
-       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)! * 1d14
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW

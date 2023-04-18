@@ -296,9 +296,11 @@ contains
          ! 'abscal': the global constant gain factor
          call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-         call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+         ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
          call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+      else
+         
       end if
 
       ! Prepare intermediate data structures
@@ -407,7 +409,6 @@ contains
          deallocate(s_buf, d_calib)
 
       end do
-      !  print *, "got here 5"
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
