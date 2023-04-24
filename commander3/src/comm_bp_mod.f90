@@ -105,7 +105,7 @@ contains
 
     integer(i4b)       :: i, j, ndet
     character(len=512) :: label
-    character(len=16)  :: dets(1500)
+    character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
     
     label = cpar%ds_label(id_abs)
