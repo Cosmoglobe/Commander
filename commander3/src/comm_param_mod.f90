@@ -2846,7 +2846,7 @@ contains
 
     character(len=500)           :: detector_list_file
     integer(i4b)                 :: unit,io_error,counter, ndet, i
-    character(len=8)             :: line
+    character(len=30)             :: line
 
     if (present(num_dets)) then
        ndet = num_dets
