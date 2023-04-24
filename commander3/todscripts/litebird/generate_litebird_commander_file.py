@@ -50,6 +50,11 @@ def copy_component_chunk(f, infile):
     lines_to_copy.insert(0, 'CMB_DIPOLE_PRIOR = none\n')
     lines_to_copy.insert(0, 'INIT_INSTRUMENT_FROM_HDF = default\n')
     lines_to_copy.insert(0, 'INSTRUMENT_PARAM_FILE = instrument_params_LB.dat\n')
+    lines_to_copy.insert(0, 'OUTPUT_COMPS_TO_CHAINDIR = all\n')
+    lines_to_copy.insert(0, 'NUM_CG_SAMPLING_GROUPS = 1\n')
+    lines_to_copy.insert(0, 'CG_SAMPLING_GROUP01 = cmb,dust,synch\n')
+    lines_to_copy.insert(0, 'CG_SAMPLING_GROUP_MASK01 = fullsky\n')
+    lines_to_copy.insert(0, 'CG_SAMPLING_GROUP_MAXITER01  = 40\n')
     f.writelines(lines_to_copy)
 
 
@@ -72,8 +77,8 @@ def create_band_chunk(f, instrument, band_name, imo, band_num):
         'BAND_LMAX': '1000',
         'BAND_UNIT': 'uK_cmb',
         'BAND_NOISE_FORMAT': 'rms',
-        'BAND_MAPFILE': 'sim_LBUF_imov1_cmb_d1s1_noise_0000_LFT_60_n512_51arcmin.fits',
-        'BAND_NOISEFILE': 'LBUF_imov1_rmsnoiseLFT_60_n512.fits',
+        'BAND_MAPFILE': 'tod_060_map_c0001_k000044.fits',
+        'BAND_NOISEFILE': 'LB_IMoV1_noise_512_060.fits',
         'BAND_REG_NOISEFILE': 'none',
         'BAND_NOISE_RMS@_SMOOTH01': 'none',
         'BAND_NOISE_UNIFORMIZE_FSKY': '0.00',
@@ -85,10 +90,13 @@ def create_band_chunk(f, instrument, band_name, imo, band_num):
         'BAND_PIXEL_WINDOW': 'pixel_window_n0512.fits',
         'BAND_SAMP_NOISE_AMP': '.false.',
         'BAND_BANDPASS_TYPE': 'delta',
+        'BAND_BANDPASS_MODEL': 'additive_shift',
         'BAND_NOMINAL_FREQ': f'{center_freq:.1f}',
         'BAND_SAMP_BANDPASS': '.false.',
         'BAND_BANDPASSFILE': instrument_files[instrument],
         'BAND_SAMP_GAIN': '.false.',
+        'BAND_GAIN_PRIOR_MEAN': '1.',
+        'BAND_GAIN_PRIOR_RMS': '0.1',
         'BAND_GAIN_CALIB_COMP': 'cmb',
         'BAND_GAIN_LMIN': '25',
         'BAND_GAIN_LMAX': '100',
@@ -97,42 +105,52 @@ def create_band_chunk(f, instrument, band_name, imo, band_num):
         'BAND_DEFAULT_GAIN': '1.',
         'BAND_DEFAULT_BP_DELTA': '0.',
         'BAND_DEFAULT_NOISEAMP': '1.',
-        'BAND_COMPONENT_SENSITIVIY': 'broadband',
+        'BAND_COMPONENT_SENSITIVITY': 'broadband',
         'BAND_TOD_MAIN_PROCMASK': 'mask_fullsky_n0512.fits',
         'BAND_TOD_SMALL_PROCMASK': 'mask_fullsky_n0512.fits',
         'BAND_TOD_BP_INIT_PROP': f'bp_init_{band_name}.dat',
         'BAND_TOD_RIMO': instrument_files[instrument],
         'BAND_TOD_FILELIST': f'filelist_LB_sims_coadded_{band_name}.txt',
+        'BAND_TOD_JUMPLIST': 'gain_jumps_LFI_1hour_v1.dat',
+        'BAND_TOD_HALFRING': '0',
         'BAND_TOD_START_SCANID': '1',
         'BAND_TOD_END_SCANID': f'{numscans}',
         'BAND_TOD_TOT_NUMSCAN': f'{numscans}',
         'BAND_TOD_FLAG': '0',
         'BAND_TOD_ORBITAL_ONLY_ABSCAL': '.false.',
         'BAND_TOD_DETECTOR_LIST': ','.join(detlist),
-        'BAND_TOD_INIT_FROM_HDF': 'default'
+        'BAND_TOD_INIT_FROM_HDF': 'default',
+        'BAND_TOD_LEVEL': 'L1'
     }
 
     write_chunk_to_file(f, params, band_num)
 
 def create_algorithm_param_chunk(f):
-    output_dir = '/mn/stornext/u3/eirikgje/data/litebird_sim/chains/'
+    output_dir = '/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/1st-test_60GHz'
     params = {
+        'OPERATION': 'sample' 
+        'VERBOSITY': ' 3'     
         'NUMCHAIN': '1',
         'NUM_GIBBS_ITER': '100',
         'NUM_ITER_WITH_ML_SEARCH': '0',
         'BASE_SEED': '2938109',
         'CHAIN_STATUS': 'append',
         'INIT_CHAIN': 'none',
+        'NUM_INIT_CHAINS': '1'
+        'INIT_CHAIN01': 'none',
         'INIT_SAMPLE_NUMBER': '1',
         'NUM_GIBBS_STEPS_PER_TOD_SAMPLE': '1',
         'SAMPLE_ONLY_POLARIZATION': '.true.',
-        'SAMPLE_SIGNAL_AMPLITUDES': '.true.',
-        'SAMPLE_SPECTRAL_INDICES': '.true.',
-        'ENABLE_TOD_ANALYSIS': '.false.',
+        'SAMPLE_SIGNAL_AMPLITUDES': '.false.',
+        'SAMPLE_SPECTRAL_INDICES': '.false.',
+        'SAMPLE_POWSPEC': '.false.',
+        'ENABLE_TOD_ANALYSIS': '.true.',
         'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER': '0',
+        'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER': '10',
         'TOD_INCLUDE_ZODI': '.false.',
         'FFTW3_MAGIC_NUMBERS': 'data_LB/fft3_magic_numbers_230810.txt',
         'NSKIP_FILELIST': 0,
+        'ENABLE_TOD_SIMULATIONS': '.false.',
         'RESAMPLE_CMB': '.false.',
         'FIRST_SAMPLE_FOR_CMB_RESAMP': '1',
         'LAST_SAMPLE_FOR_CMB_RESAMP': '15',
@@ -160,11 +178,24 @@ def create_algorithm_param_chunk(f):
         'OUTPUT_INPUT_MODEL': '.false.',
         'OUTPUT_DEBUG_SEDS': '.false.',
         'OUTPUT_SIGNALS_PER_BAND': '.false.',
+        'SIMS_OUTPUT_DIRECTORY': 'chains_LB_test',
+        'MJYSR_CONVENTION': 'IRAS',
+        'T_CMB': '2.7255d0'
+        'ALMSAMP_NSAMP_ALM': '100',
+        'ALMSAMP_BURN_IN': '2',
+        'ALMSAMP_NSIDE_CHISQ_LOWRES': '16',
+        'ALMSAMP_PRIOR_FWHM': '0',
+        'ALMSAMP_OPTIMIZE_ALM': '.false.',
+        'ALMSAMP_APPLY_PRIOR': '.true.',
+        'ALMSAMP_PIXREG': '.true.',
+        'ALMSAMP_PRIORSAMP_FROZEN_REGIONS': '.true.',
+        'LOCALSAMP_BURN_IN': '2',
+        'LOCALSAMP_OUTPUT_MAPS': '.false.'
     }
     write_chunk_to_file(f, params)
 
 def create_dataset_chunk(f, total_num_channels):
-    data_dir = '/mn/stornext/u3/hke/xsan/commander3/BP9/data'
+    data_dir = '/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS'
     params = {
         'DATA_DIRECTORY': f'{data_dir}',
         'NUMBAND': f'{total_num_channels}',
@@ -173,7 +204,8 @@ def create_dataset_chunk(f, total_num_channels):
         'PROCESSING_MASKFILE2': 'none',
         'PROC_SMOOTH_SCALE': '30.',
         'NUM_SMOOTHING_SCALES': '0',
-        'TOD_NUM_BP_PROPOSALS_PER_ITER': '0'
+        'TOD_NUM_BP_PROPOSALS_PER_ITER': '0',
+        'NUMITER_RESAMPLE_HARD_GAIN_PRIORS': '3'
     }
     for i in range(1, total_num_channels+1):
         params[f'INCLUDE_BAND{i:03}'] = '.true.'
@@ -199,7 +231,7 @@ with open('paramfile_LB_commander.txt', 'w') as f:
         for i, channel in enumerate(channels):
             k += 1
             create_band_chunk(f, instrument, channel, imo, k)
-    with open('param_LB_com2_d1s1_Unni_newbeams.txt', 'w') as infile:
+    with open('param_LB_com2_d1s1_Unni_newbeams.txt', 'r') as infile:
         copy_component_chunk(f, infile)
 
 
