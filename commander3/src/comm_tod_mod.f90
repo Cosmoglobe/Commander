@@ -38,7 +38,7 @@ module comm_tod_mod
 
   ! Structure for individual detectors
   type :: comm_detscan
-     character(len=10) :: label                             ! Detector label
+     character(len=30) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma        ! Gain; assumed constant over scan
      real(dp)          :: gain_def                          ! Default parameters
      real(dp)          :: chisq
@@ -160,7 +160,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
      real(dp),           dimension(4)                  :: x_im    ! feedhorn imbalance parameters, with duplicates
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
-     character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
+     character(len=2048), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
@@ -398,7 +398,6 @@ contains
       self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if
 
-
     ! Initialize jumplist
     call self%read_jumplist(cpar%ds_tod_jumplist(id_abs))
 
@@ -616,7 +615,6 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       
        if (index(det_buf(1:n), '.txt') /= 0) then
          ndet_tot = count_detectors(det_buf(1:n))
        else
@@ -634,7 +632,7 @@ contains
        else
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
-
+      
 
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
@@ -1622,6 +1620,8 @@ contains
     integer(i4b) :: i
 
     do i = 1, self%ndet
+       !write(*,*) "From get_det_id:", trim(adjustl(label)), trim(adjustl(self%label(i)))
+       !write(*,*) self%ndet
        if (trim(adjustl(label)) == trim(adjustl(self%label(i)))) then
           get_det_id = i
           return
@@ -1639,7 +1639,7 @@ contains
 
     integer(i4b) :: j, k, ndet, npar, unit, par, ios
     real(dp)     :: val
-    character(len=16)   :: label, det1, det2
+    character(len=20)   :: label, det1, det2
     character(len=1024) :: line
 
     unit = getlun()
@@ -1695,10 +1695,10 @@ contains
     end do
 34  close(unit)
 
-    if (maxval(abs(self%prop_bp)) == 0) then
-        write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
-        stop
-    end if
+!    if (maxval(abs(self%prop_bp)) == 0) then
+!       write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
+!       stop
+!    end if
 
 
 

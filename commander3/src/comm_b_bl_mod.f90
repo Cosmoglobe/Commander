@@ -80,7 +80,7 @@ contains
        if (present(nside)) then
           call int2string(nside, nside_text)
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(dir)//'/pixel_window_n'//nside_text//'.fits')
+               & pixwin=trim(dir)//'pixel_window_n'//nside_text//'.fits')
        else if (present(pixwin)) then
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
                & pixwin=trim(dir)//'/'//trim(pixwin))
