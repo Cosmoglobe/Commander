@@ -107,12 +107,12 @@ contains
     allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
     
-    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
+    constructor%xi_n_P_rms      = [-1.0, 0.02, 1.0] ! [sigma0, fknee, alpha]; sigma0 is not used
     if (.true.) then
        constructor%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
        constructor%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
        constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+       constructor%xi_n_P_uni(3,:) = [0.0, 2.0]   ! alpha
     else
        write(*,*) 'Invalid LiteBIRD frequency label = ', trim(constructor%freq)
        stop
@@ -131,16 +131,23 @@ contains
     constructor%symm_flags      = .true.
     constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+       constructor%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
+    else
+       constructor%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    end if
     nside_beam                  = 512
     nmaps_beam                  = 3
     pol_beam                    = .true.
     constructor%nside_beam      = nside_beam
 
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
-
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+        call get_detectors(cpar%ds_tod_dets(id_abs), constructor%label)
+    else
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label)
+    end if
+    
     ! Define detector partners
     do i = 1, constructor%ndet
        if (mod(i,2) == 1) then
@@ -284,7 +291,7 @@ contains
        end do
     end if
 
-!    write(*,*) 'qqq', self%myid
+!    (*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
 !!$    call mpi_finalize(ierr)
 !!$    stop
@@ -360,7 +367,6 @@ contains
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
-
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
 !!$       if (self%output_4D_map > 0) then
 !!$          if (mod(iter-1,self%output_4D_map) == 0) then
@@ -375,7 +381,7 @@ contains
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-
+       
        ! Update scan list
        call wall_time(t2)
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
