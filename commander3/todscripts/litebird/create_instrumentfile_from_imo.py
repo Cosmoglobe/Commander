@@ -61,11 +61,11 @@ for instrument in ('LFT', 'MFT', 'HFT'):
                                 center_freq,
                                 center_freq + bandwidth / 2])
             b = grp.create_group("beam")
-            bT = b.create_dataset("T", (1,), dtype="f")
+            bT = b.create_dataset("T", (5764801,), dtype="f")
             bT[:] = 0.
-            bB = b.create_dataset("B", (1,), dtype="f")
+            bB = b.create_dataset("B", (5764801,), dtype="f")
             bB[:] = 0
-            bE = b.create_dataset("E", (1,), dtype="f")
+            bE = b.create_dataset("E", (5764801,), dtype="f")
             bE[:] = 0
             blmax = grp.create_dataset("beamlmax", (1,), dtype='f')
             blmax[0] = 2400
@@ -78,11 +78,11 @@ for instrument in ('LFT', 'MFT', 'HFT'):
             psi = grp.create_dataset("psi_ell", (1,), dtype='f')
             psi[0] = 1.
             sl = grp.create_group("sl")
-            slT = sl.create_dataset("T", (1,), dtype="f")
+            slT = sl.create_dataset("T", (5764801,), dtype="f")
             slT[:] = 0
-            slB = sl.create_dataset("B", (1,), dtype="f")
+            slB = sl.create_dataset("B", (5764801,), dtype="f")
             slB[:] = 0
-            slE = sl.create_dataset("E", (1,), dtype="f")
+            slE = sl.create_dataset("E", (5764801,), dtype="f")
             slE[:] = 0
             sll= grp.create_dataset("sllmax", (1,), dtype='f')
             sll[0]=512
@@ -90,6 +90,9 @@ for instrument in ('LFT', 'MFT', 'HFT'):
             slm[0]=100
             eff= grp.create_dataset("mbeam_eff", (1,), dtype='f')
             eff[0]=1.
+            eff= grp.create_dataset("centFreq", (1,), dtype='f')
+            eff[0]=center_freq
+
 
     f.close()
 
