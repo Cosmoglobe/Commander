@@ -2287,16 +2287,17 @@ contains
     do i=1, self%nhorn
       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
-      if (self%polang(det) /= 0.) then
-         do j = 1, size(psi,1)
+
+      do j = 1, size(psi,1)
+         if (self%polang(det) /= 0.) then
             psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
-            if (psi(j,i) < 1) then
-               psi(j,i) = psi(j,i) + self%npsi
-            else if (psi(j,i) > self%npsi) then
-               psi(j,i) = psi(j,i) - self%npsi
-            end if
-         end do
-      end if
+         end if
+         if (psi(j,i) < 1) then
+            psi(j,i) = psi(j,i) + self%npsi
+         else if (psi(j,i) > self%npsi) then
+            psi(j,i) = psi(j,i) - self%npsi
+         end if
+      end do
     end do
     call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
 
