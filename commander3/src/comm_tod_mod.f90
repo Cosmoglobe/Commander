@@ -1315,7 +1315,7 @@ contains
                do k = 1, n_tot
                   pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
                end do
-            else if (index(filelist, '-WMAP_') .ne. 0) then
+            else if ((index(filelist, '-WMAP_') .ne. 0) .or. (index(filelist, '_DIRBE_') .ne. 0)) then
                pweight = 0d0
                ! Greedy after sorting
                ! Algorithm 2 of
@@ -2743,7 +2743,6 @@ contains
       do i = 1, 3
          call spline_simple(self%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
       end do
-
 
       self%zodi_cache_time = self%scans(1)%t0(1)
       self%zodi_min_obs_time = minval(obs_time)

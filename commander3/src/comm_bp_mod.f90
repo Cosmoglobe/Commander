@@ -333,7 +333,8 @@ contains
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)) * 1d14
       !  self%tau     = self%tau / tsum(self%nu, self%tau)
-       self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
+       self%tau     = self%tau / tsum(self%nu, self%tau)
+
 
 
     ! NEW !
@@ -393,8 +394,7 @@ contains
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
-      !  SED2F = tsum(self%nu, self%tau * f)
-       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)! * 1d14
+       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f) * 1d14
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW

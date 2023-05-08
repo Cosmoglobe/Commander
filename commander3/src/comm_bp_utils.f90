@@ -292,6 +292,8 @@ contains
       nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
    end if
 
+   tau = tau / tsum(nu, tau)
+
     deallocate(x, y)
   end subroutine read_bandpass
 
