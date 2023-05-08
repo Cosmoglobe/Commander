@@ -256,7 +256,10 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+   !   if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+
+     if (iter == 1) then ! For faster component separation since we dont sample the cios
+
         ! First iteration should just be component separation, in case sky model
         ! is off
         call timer%start(TOT_TODPROC)

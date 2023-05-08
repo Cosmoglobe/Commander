@@ -796,6 +796,8 @@ contains
              call read_mbb_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('freefree')
              call read_freefree_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)             
+          case ('pah')
+             call read_pah_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)         
           case ('line')
              call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext, len_itext=len_itext,  &
                   & par_string=cpar%cs_SED_template(1,i))
@@ -2085,6 +2087,21 @@ contains
 
   end subroutine read_spindust2_params_hash
 
+  subroutine read_pah_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+    type(hash_tbl_sll), intent(in) :: htbl
+    type(comm_params),  intent(inout) :: cpar
+
+    logical(lgt),       intent(inout) :: bool_flag
+    character(len=512), intent(in) :: pol_labels(3)
+    character(len=2),   intent(in) :: itext
+    integer(i4b),       intent(in) :: len_itext, i
+    integer(i4b)                   :: j, k
+
+    call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
+         & par_string=cpar%cs_SED_template(1,i), path=.true.)
+
+  end subroutine read_pah_params_hash
+
   subroutine read_lognormal_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
     implicit none
 
@@ -3335,6 +3352,8 @@ end subroutine read_zodi_params_hash
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
           case ('line')
+             call validate_file(trim(cpar%cs_SED_template(1,i)))
+          case ('pah')
              call validate_file(trim(cpar%cs_SED_template(1,i)))
           end select
 

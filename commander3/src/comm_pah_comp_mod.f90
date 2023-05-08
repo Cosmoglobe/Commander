@@ -66,7 +66,7 @@ contains
     call constructor%initDiffuse(cpar, id, id_abs)
 
     ! Initialize spectral template
-    call read_spectrum(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), SED)
+    call read_spectrum(trim(cpar%cs_SED_template(1,id_abs)), SED)
     call spline(constructor%SED_spline, SED(:,1), SED(:,2))
     deallocate(SED)
 
@@ -100,10 +100,8 @@ contains
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
-
-    evalSED = (splint(self%SED_spline, nu)) / &
-            & (splint(self%SED_spline, self%nu_ref(pol)))! UNITS?? * (self%nu_ref(pol)/nu)**(2.d0)
-
+    
+    evalSED = (splint(self%SED_spline, nu)) / (splint(self%SED_spline, self%nu_ref(1))) !* (self%nu_ref(1)/nu)**(2.d0)
   end function evalSED
   
 end module comm_pah_comp_mod

@@ -3,24 +3,25 @@ COMP_LABEL&&                  = pah
 COMP_TYPE&&                   = pah
 COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
 COMP_POLARIZATION&&           = .false.
-COMP_UNIT&&                   = uK_RJ
+COMP_UNIT&&                   = MJy/sr
 COMP_CG_SCALE_T&& = 1.d0
 COMP_CG_SCALE_P&& = 1.d0
 COMP_CG_SAMP_GROUP_MAXITER&& = 100
 COMP_NSIDE&& = 256
-COMP_LMIN_AMP&& = 0
-COMP_LMAX_AMP&& = 767
-COMP_L_APOD&& = 1000
-COMP_UNIT&& = MJ/sr
-COMP_NU_REF_T&& = 
-COMP_NU_REF_P&& = 20000000000000.0
+COMP_AMP_LMIN&& = 0
+COMP_AMP_LMAX&& = 1500
+COMP_L_APOD&& = 1500
+COMP_UNIT&& = MJy/sr
+COMP_NU_REF_T&& = 30000.d0
+COMP_NU_REF_P&& = 30000.d0
 COMP_CL_TYPE&& = none
-COMP_INPUT_AMP_MAP&& = none
-COMP_PRIOR_AMP_MAP&& = none
-COMP_PRIOR_AMP_LMAX&& = none
-COMP_OUTPUT_FWHM&& = none
+COMP_AMP_INPUT_MAP&& = none
+COMP_AMP_PRIOR_MAP&& = none
+COMP_OUTPUT_FWHM&& = 20
+
 COMP_MONOPOLE_PRIOR&& = none
-COMP_MASK&& = none
+COMP_MASK&& = fullsky
+
 COMP_INIT_FROM_HDF&& = .false.
 
 #custom 

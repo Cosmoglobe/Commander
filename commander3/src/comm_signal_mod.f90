@@ -97,6 +97,8 @@ contains
           case ("md")
              c => initialize_md_comps(cpar, ncomp, i, n)
              ncomp = ncomp + n - 1
+          case ("pah")
+             c => comm_pah_comp(cpar, ncomp, i)
           case default
              call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
           end select
