@@ -145,7 +145,7 @@ contains
         type(comm_params), intent(in) :: cpar
         class(ZodiComponent), pointer :: comp
 
-        SECOND_TO_DAY = 1.d0 / (60*60*24)
+        SECOND_TO_DAY = 1.d0 / (3600*24)
 
         call initialize_zodi_parameters_from_cpar(cpar)
         call initialize_earth_pos_spline_object(cpar, earth_pos_spl_obj)
@@ -232,7 +232,7 @@ contains
         real(sp), intent(inout) :: s_zodi(:, :)
 
         logical(lgt) :: scattering
-        integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod
+        integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
@@ -252,13 +252,14 @@ contains
         n_tod = size(pix, dim=1)
         n_det = size(pix, dim=2)
 
-        dt_tod = tod%samprate * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+        dt_tod = (1.d0/tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
         obs_pos = tod%scans(scan)%satpos
         R_obs = norm2(obs_pos)
-
+        obs_time = tod%scans(scan)%t0(1)
         do i = 1, 3
             earth_pos(i) = splint_simple(earth_pos_spl_obj(i), tod%scans(scan)%t0(1))
         end do        
+
         earth_lon = atan(earth_pos(2), earth_pos(1))
 
         if (count(tod%zodi_spl_albedos /= 0.d0) > 0) then
@@ -270,11 +271,13 @@ contains
         do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
             ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
-            obs_time = tod%scans(scan)%t0(1) + (i - 1) * dt_tod
+            obs_time = obs_time + dt_tod
+
             if (((obs_time - tod%zodi_cache_time) >= delta_t_reset) &
                 .and. &
                 (obs_time > tod%zodi_min_obs_time .and. obs_time < tod%zodi_max_obs_time) &
             ) then 
+
                 do j = 1, 3 
                     earth_pos(j) = splint_simple(earth_pos_spl_obj(j), obs_time)
                     obs_pos(j) = splint_simple(tod%zodi_obs_pos_spl_obj(j), obs_time)
@@ -354,6 +357,7 @@ contains
     
         allocate(integrals(n_interp_points))
         allocate(b_nu(bandpass%p%n))
+
         do i = 1, n_interp_points    
             call get_blackbody_emission(bandpass%p%nu, temperature_grid(i), b_nu)
             ! integrals(i) = bandpass%p%SED2F(b_nu) ! Cant use SED2f since it assumes f is in K_RJ

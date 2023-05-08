@@ -7,4 +7,13 @@ module comm_zodi_mod
     
     implicit none
 
+
+
+    subroutine update_zodi_parameters()
+
+
+    end subroutine update_zodi_parameters
+
+
+
 end module comm_zodi_mod
