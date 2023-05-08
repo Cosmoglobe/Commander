@@ -11,6 +11,9 @@ version 10: gapfilling so that all tods are equispaced
 version 11: change smoothing to using gaussian filter and remove iras convention color correction from the tods
 version 12: try to further remove pixelization with more smothing
 version 13: stable version with double smoothed unit vectors and iras convention removed
+version 14: add constant sigma0 from table 2 in https://ui.adsabs.harvard.edu/abs/1998ApJ...508...25H/abstract
+version 15: use actual res15 pixels instead of hacky unit vector smoothing and increase moon flaggin radius to 10 deg (recommended by dirbe team). Use bandwidht instead of center frequency in sigma0 numbers.
+version 16: add small calibration correction to attack vectors (create fils for all bands)
 """
 
 from __future__ import annotations
@@ -18,13 +21,16 @@ from multiprocessing.managers import DictProxy
 import os
 import random
 import itertools
+import quadcube
+from dataclasses import dataclass
+from astropy.io import fits
+
 from typing import TYPE_CHECKING
 from functools import cache
 import sys
 from scipy import interpolate
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-from scipy.ndimage import gaussian_filter1d, uniform_filter1d
 from pathlib import Path
 
 if TYPE_CHECKING:
@@ -53,6 +59,18 @@ from astropy.time import Time
 TEMP_OUTPUT_PATH = "/mn/stornext/d5/data/metins/dirbe/data/"
 PATH_TO_HDF5_FILES = "/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/"
 BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
+CIO_PATH = Path("/mn/stornext/d16/cmbco/ola/dirbe/cio")
+BEAM_FILE = Path("/mn/stornext/d16/cmbco/ola/dirbe/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC")
+
+ROWS_IN_BEAM_FILE_TO_SKIP = 19
+MIN_OBS_DAY = 89345
+MAX_OBS_DAY = 90264
+YDAYS = np.concatenate([np.arange(89345, 89366), np.arange(90001, 90265)])
+TIME_DELTA = timedelta(hours=1)
+# TIME_DELTA = timedelta(hours=10)
+
+BANDS_TO_WRITE = dirbe_utils.BANDS
+# BANDS_TO_WRITE = [8, 9, 10]
 
 NUM_PROCS = 10
 NUM_CHUNKS_PER_BAND = 285
@@ -78,8 +96,10 @@ BAND_TO_WAVELENGTH: dict[int, float] = {
     10: 240,
 }
 
+ROTATOR = hp.Rotator(coord=["E", "G"])
+
 BODIES = {
-    "moon": 2,
+    "moon": 10,
     "mercury": 1,
     "venus": 2,
     "mars": 2,
@@ -126,6 +146,76 @@ def get_rot_mat() -> np.ndarray:
 rot_mat = get_rot_mat()
 
 
+@dataclass
+class DetectorBeamData:
+    solid_angle: float
+    solid_angle_error: float
+    beam: dict[range, tuple[float, float]]
+
+def get_cio_data(yday: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    file = CIO_PATH / f"DIRBE_CIO_P3B_{yday:5}.FITS"
+    if not file.exists():
+        raise FileNotFoundError(f"File not found: {file}")
+
+    with fits.open(file) as hdul:
+        data = hdul[1].data
+
+        pix9 = data["Pixel_no"].astype(np.int64)
+        pix9_sub = data["PSubPos"].astype(np.int64)
+        pix9_sub_sub = data["PSbSbPos"].astype(np.int64)
+        pix15 = 4096 * pix9 + 16 * pix9_sub + pix9_sub_sub
+
+        attack_vecs = data["AttackV"].astype(np.float64)
+        TSCAL = 2e-15
+        attack_vecs[attack_vecs*TSCAL >= TSCAL] += 0.5 * TSCAL
+        attack_vecs[attack_vecs*TSCAL <= -TSCAL] -= 0.5 * TSCAL
+
+        natv = attack_vecs / np.expand_dims(np.linalg.norm(attack_vecs, axis=1), axis=1)
+
+        time = data["Time"].astype(np.float64)
+
+    return pix15, natv, time
+
+@cache
+def get_beam_data() -> dict[str, DetectorBeamData]:
+    data: dict[str, DetectorBeamData] = {}
+    visited = set()
+    current_det_data = {}
+    with open(BEAM_FILE, "r") as f:
+        lines = iter(f.readlines()[ROWS_IN_BEAM_FILE_TO_SKIP:])
+        while True:
+            try:
+                line = next(lines)
+            except StopIteration:
+                data[split[0]] = DetectorBeamData(**current_det_data)
+                break
+            split = line.split()
+            current_det = split[0]
+            if current_det not in visited:
+                visited.add(current_det)
+                current_det_data = {
+                    "solid_angle": float(split[4]),
+                    "solid_angle_error": float(split[5]),
+                    "beam": {},
+                }
+                if visited != set():
+                    data[split[0]] = DetectorBeamData(**current_det_data)
+            if current_det in visited:
+                start, stop = split[1].split("-")
+                if current_det in {"9", "10"}:
+                    start, stop = "89345", "90260"
+                # Hack to invlude final 5 days fo data...
+                if stop == "90260":
+                    stop = "90266"
+                current_det_data["beam"][range(int(start), int(stop))] = (
+                    u.Quantity(float(split[2]), u.arcmin).to_value(u.rad),
+                    u.Quantity(float(split[3]), u.arcmin).to_value(u.rad),
+                )
+
+    return data
+
+BEAM_DATA = get_beam_data()
+
 def write_dirbe_commmander_tods(
     output_path: str,
     version: int,
@@ -141,7 +231,7 @@ def write_dirbe_commmander_tods(
     manager = multiprocessing.Manager()
 
     times = np.arange(
-        datetime(1989, 6, 1), datetime(1991, 1, 1), timedelta(hours=1)
+        datetime(1989, 6, 1), datetime(1991, 1, 1), TIME_DELTA
     ).astype(datetime)
     astropy_times = Time(times, format="datetime", scale="utc")
     planet_interps = get_planet_interps(astropy_times)
@@ -173,7 +263,7 @@ def write_dirbe_commmander_tods(
                 ],
             )
             # for band in range(6,7)
-            for band in dirbe_utils.BANDS
+            for band in BANDS_TO_WRITE
         ]
     ]
 
@@ -227,7 +317,6 @@ def write_band(
 
     out_ang_pid = get_out_ang()
 
-    rotator = hp.Rotator(coord=["E", "G"])
     pid = 0
     iras_factor = get_iras_factor(band)
     for chunk in range(1, NUM_CHUNKS_PER_BAND + 1):
@@ -247,7 +336,7 @@ def write_band(
 
         with h5py.File(hdf5_filename, "r") as file:
             for det in dirbe_utils.DETECTOR_LABELS:
-                pixels = file[f"{chunk_label}/{det}/pix"][()]
+                pixels = get_res_15_pix(YDAYS[day - 1], band, det, nside_out)
                 tods = file[f"{chunk_label}/{det}/tod"][()]
                 flags = file[f"{chunk_label}/{det}/flag"][()]
                 psi = file[f"{chunk_label}/{det}/polang"][()]
@@ -266,7 +355,9 @@ def write_band(
             if smooth:
                 ntod -= int(2 * SMOOTHING_WINDOW)
 
-            if ntod < SMALL_CHUNK_THRESHOLD or np.all(np.isclose(tods[0], BAD_DATA_SENTINEL)):
+            if ntod < SMALL_CHUNK_THRESHOLD or np.all(
+                np.isclose(tods[0], BAD_DATA_SENTINEL)
+            ):
                 continue
             pid += 1
             pid_label = f"{pid:06}"
@@ -302,13 +393,17 @@ def write_band(
                 pixels_pid = pixels_det[det_idx][start:stop]
                 psi_pid = psi_det[det_idx][start:stop]
 
-                pixels_pid = smooth_and_udgrade_and_rotate_pixels(
-                    pixels_pid,
-                    nside_in=nside_in,
-                    nside_out=nside_out,
-                    rotator=rotator,
-                    smooth=smooth,
-                )
+                # pixels_pid = smooth_and_udgrade_and_rotate_pixels(
+                #     pixels_pid,
+                #     nside_in=nside_in,
+                #     nside_out=nside_out,
+                #     rotator=rotator,
+                #     smooth=smooth,
+                # )
+                
+                
+
+                # pixels_pid = get_res_15_pix(YDAYS[day - 1], band, det, nside_out)
 
                 if smooth:
                     flags_pid = flags_pid[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
@@ -325,8 +420,8 @@ def write_band(
                 )
 
                 tods_pid *= iras_factor  # Remove iras factor from tods
-                scalars_pid = get_scalars(tods_pid, flags_pid)
-
+                # scalars_pid = get_scalars(tods_pid, flags_pid)
+                scalars_pid = get_const_scalars(band)
                 comm_tod.add_field(
                     pid_data_group + "/flag", flags_pid, HUFFMAN_COMPRESSION
                 )
@@ -360,24 +455,63 @@ def write_band(
     comm_tod.finalize_file()
 
 
-def smooth_and_udgrade_and_rotate_pixels(
-    pixels: NDArray[np.int64],
-    nside_in: int,
-    nside_out: int,
-    rotator: hp.Rotator,
-    smooth: bool,
-) -> NDArray[np.int64]:
-    """Smooth pixels and then udgrade them to the desired nside."""
-    unit_vectors = np.asarray(hp.pix2vec(nside_in, pixels))
-    if smooth: 
-        unit_vectors = np.array(
-            [
-                gaussian_filter1d(unit_vector, SMOOTHING_WINDOW)[SMOOTHING_WINDOW:-SMOOTHING_WINDOW]
-                for unit_vector in unit_vectors
-            ]
-        )
+# def smooth_and_udgrade_and_rotate_pixels(
+#     pixels: NDArray[np.int64],
+#     nside_in: int,
+#     nside_out: int,
+#     rotator: hp.Rotator,
+#     smooth: bool,
+# ) -> NDArray[np.int64]:
+#     """Smooth pixels and then udgrade them to the desired nside."""
+#     unit_vectors = np.asarray(hp.pix2vec(nside_in, pixels))
+#     if smooth:
+#         unit_vectors = np.array(
+#             [
+#                 gaussian_filter1d(unit_vector, SMOOTHING_WINDOW)[
+#                     SMOOTHING_WINDOW:-SMOOTHING_WINDOW
+#                 ]
+#                 for unit_vector in unit_vectors
+#             ]
+#         )
 
-    unit_vectors_gal = rotator(unit_vectors)
+#     unit_vectors_gal = rotator(unit_vectors)
+#     return hp.vec2pix(nside_out, *unit_vectors_gal)
+
+
+@cache
+def get_res_15_pix(yday: int, band: int, det: str, nside_out: int) -> NDArray[np.int64]:
+    pix, natv, time = get_cio_data(yday)
+    los = quadcube.pix2vec(pix)
+    beam_data = get_beam_data()
+    if band <= 3:
+        band_det = f"{band:01}{det}"
+    else:
+        band_det = f"{band:01}"
+    for r in beam_data[band_det].beam:
+        if yday in r:
+            isco, xsco = beam_data[band_det].beam[r]
+            break
+    else: 
+        raise ValueError(f"No beam data for {yday} and {band_det}")
+
+
+
+    new_los = np.zeros_like(los)
+    new_los[0] = los[0] + isco * natv[:, 0] + xsco * (los[1] * natv[:, 2] - los[2] * natv[:, 1])
+    new_los[1] = los[1] + isco * natv[:, 1] + xsco * (los[2] * natv[:, 0] - los[0] * natv[:, 2])
+    new_los[2] = los[2] + isco * natv[:, 2] + xsco * (los[0] * natv[:, 1] - los[1] * natv[:, 0])
+
+    inds = np.argsort(time)
+    unit_vectors = los[:, inds]
+    unit_vectors_gal = ROTATOR(unit_vectors)
+    # pix = hp.vec2pix(nside_out, *unit_vectors)
+    # m = np.zeros(hp.nside2npix(nside_out))
+    # unique, counts = np.unique(pix, return_counts=True)
+    # m[unique] = counts
+    # hp.mollview(m, norm="hist")
+    # plt.show()
+    # exit()
+    # return hp.vec2pix(nside_out, *unit_vectors)
     return hp.vec2pix(nside_out, *unit_vectors_gal)
 
 
@@ -474,6 +608,20 @@ def get_out_ang() -> NDArray[np.floating]:
     return np.zeros((2, 1))
 
 
+@cache
+def get_const_scalars(band: int) -> NDArray[np.floating]:
+    """Used in V14 -> and out"""
+    SIGMA0 = u.Quantity([2.4, 1.6, 0.9, 0.8, 0.9, 0.9, 0.9, 0.5, 32.8, 10.7], "nW/(m^2 sr)")
+    SIGMA0 *= 20
+    SIGMA0 /= [59.5, 22.4, 22.0, 8.19, 13.3, 4.13, 2.32, 0.974, 0.605, 0.495]*u.THz
+    SIGMA0 = SIGMA0.to_value("MJy/sr")
+
+    TEMP_GAIN = 1
+    TEMP_ALPHA = -1
+    fknee = 1 / (10 * 60)
+
+    return np.array([TEMP_GAIN, SIGMA0[band - 1], fknee, TEMP_ALPHA]).flatten()
+
 def get_scalars(tods: NDArray[np.floating], flags) -> NDArray[np.floating]:
     """TODO: get correct gain, sigma0, fknee and alpha."""
 
@@ -568,8 +716,8 @@ def get_iras_factor(band: int) -> float:
 
 
 def main() -> None:
-    version = 13
-    smooth_pixels = True
+    version = 16
+    smooth_pixels = False
     nside_out = 256
     print(
         f"Writing tods: {smooth_pixels=}, {nside_out=}, {version=}, {TEMP_OUTPUT_PATH=}"

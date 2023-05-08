@@ -9,7 +9,11 @@ from astropy.time import Time, TimeDelta
 from datetime import datetime
 import numpy as np
 from numpy.typing import NDArray
-import re 
+import re
+
+import healpy as hp
+from astropy.coordinates import get_body, HeliocentricMeanEcliptic
+from scipy import interpolate 
 
 
 DIRBE_SKYMAP_INFO = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/DIRBE_SKYMAP_INFO.FITS"
@@ -37,6 +41,52 @@ BANDS = range(1,11)
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
 DETECTOR_LABELS = ("A", "B", "C")
 WAVELENGHTS = (1.25, 2.2, 3.5, 4.9, 12, 25, 60, 100, 140, 240)
+DETECTORS = [
+    "1A",
+    "1B",
+    "1C",
+    "2A",
+    "2B",
+    "2C",
+    "3A",
+    "3B",
+    "3C",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+]
+
+BAND_TO_WAVELENGTH: dict[int, float] = {
+    1: 1.25,
+    2: 2.2,
+    3: 3.5,
+    4: 4.9,
+    5: 12,
+    6: 25,
+    7: 60,
+    8: 100,
+    9: 140,
+    10: 240,
+}
+
+BODIES = {
+    "moon": 10,
+    "mercury": 1,
+    "venus": 2,
+    "mars": 2,
+    "jupiter": 2,
+    "saturn": 1,
+    "uranus": 1,
+    "neptune": 1,
+}
+
+
+def get_flag_sum(*flag_bits: int) -> int:
+    return sum([2**bit for bit in flag_bits])
 
 
 def pix_to_lonlat(
@@ -179,6 +229,80 @@ def get_dmrfile_datetimes(filename: str) -> tuple[datetime, datetime]:
     stop_date = datetime.strptime(f'19{year_two} {yday_two}', '%Y %j')
     
     return start_date, stop_date
+
+def get_sat_and_earth_pos(
+    day: int, dirbe_time: float
+) -> tuple[NDArray[np.floating], NDArray[np.floating]]:
+    """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
+
+    dmr_day = dirbe_day_to_dmr_day(day)
+
+    for file in DIRBE_POS_FILES:
+        start_date, stop_date = get_dmrfile_datetimes(file)
+        if start_date <= dmr_day <= stop_date:
+            dmr_file = file
+            break
+    else:
+        raise FileNotFoundError(
+            f"could not find file containing sat pos for {dmr_day=}"
+        )
+
+    dmr_times = get_dmrfile_mjd_times(dmr_file)
+    dmr_positions = get_dmrfile_positions(dmr_file)
+
+    interpolator_sat_x = interpolate.interp1d(
+        dmr_times, dmr_positions[:, 0], fill_value="extrapolate"
+    )
+    interpolator_sat_y = interpolate.interp1d(
+        dmr_times, dmr_positions[:, 1], fill_value="extrapolate"
+    )
+    interpolator_sat_z = interpolate.interp1d(
+        dmr_times, dmr_positions[:, 2], fill_value="extrapolate"
+    )
+
+    pos_x = interpolator_sat_x(dirbe_time)
+    pos_y = interpolator_sat_y(dirbe_time)
+    pos_z = interpolator_sat_z(dirbe_time)
+
+    celestial_sat_pos = u.Quantity([pos_x, pos_y, pos_z], u.m).to(u.AU).value
+
+    rotator = hp.Rotator(coord=["C", "E"])
+    geocentric_ecl_sat_pos = u.Quantity(rotator(celestial_sat_pos), u.AU).transpose()
+
+    earth_pos = get_body("earth", Time(dirbe_time, format="mjd")).transform_to(
+        HeliocentricMeanEcliptic
+    )
+    earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
+
+    ecl_sat_pos = earth_pos + geocentric_ecl_sat_pos
+
+    return ecl_sat_pos.value, earth_pos.value
+
+@cache
+def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
+    bandpass_file = BANDPASS_PATH / f"DIRBE_{band:02}_bandpass.dat"
+    bandpass = np.loadtxt(bandpass_file, unpack=True)
+
+    non_zero = np.nonzero(bandpass[1])
+    bandpass = bandpass[:, non_zero[0]]
+    freqs, weights = bandpass
+    freqs *= u.micron
+
+    return freqs, weights
+
+
+@cache
+def get_iras_factor(band: int) -> float:
+    freqs, weights = get_bandpass(band)
+    freq_ref = BAND_TO_WAVELENGTH[band]
+    freqs = freqs.to(u.Hz, u.spectral())
+    freqs = np.flip(freqs)
+    weights = np.flip(weights)
+    weights /= np.trapz(weights, freqs.value)
+    return np.trapz(
+        weights * ((freq_ref * u.micron).to(u.Hz, u.spectral()).value / freqs.value),
+        freqs.value,
+    )
 
 
 def test_naming() -> None:
