@@ -70,7 +70,7 @@ module comm_camb_mod
      procedure acceptance
      procedure get_hat_s_lm
      procedure get_hat_f_lm
-     procedure get_s_lm_hmc
+     !procedure get_s_lm_hmc
      procedure get_scaled_hat_f_lm
      procedure compute_fluctuation_acceptance
      procedure format_theta_and_get_c_l_from_camb
