@@ -552,6 +552,7 @@ contains
     integer(i4b) :: i, j, l, m, k, n, ierr
     real(dp)     :: tmp
     logical(lgt) :: inc_mean, inc_fluct
+    class(comm_map),     pointer                 :: omega_1  => null()
     class(comm_map),     pointer                 :: map  => null()
     class(comm_map),     pointer                 :: Tm   => null()
     class(comm_map),     pointer                 :: mu   => null()
@@ -604,17 +605,40 @@ contains
 
        ! Add channel-dependent white noise fluctuation
        if (trim(operation) == 'sample' .and. inc_fluct) then
-          call data(i)%N%sqrtInvN(map, samp_group=samp_group)           ! Multiply with sqrt(invN)
+          ! Multiply with sqrt(invN)
+          call data(i)%N%sqrtInvN(map, samp_group=samp_group)
+
+          info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, data(i)%info%lmax, map%info%nmaps, map%info%nmaps==3)
+          omega_1     => comm_map(info)
+          omega_1%map = 0d0
           do k = 1, map%info%nmaps
              do j = 0, map%info%np-1
-                map%map(j,k) = map%map(j,k) + rand_gauss(handle)
-                !tmp          = rand_gauss(handle)
-                !map%map(j,k) = map%map(j,k) + rand_gauss(handle_noise)
+                omega_1%map(j, k) = rand_gauss(handle)
+                !map%map(j,k) = map%map(j,k) + rand_gauss(handle)
              end do
           end do
+
+          ! Remove dipole and monopole
+          call omega_1%YtW()
+          do j = 0, omega_1%info%nalm-1
+            call omega_1%info%i2lm(j,l,m)
+
+            if (l <= 1) then
+              omega_1%alm(j, :) = 0.d0
+            end if
+          end do
+          call omega_1%Y()
+
+          ! Remove the dipole and monopole from the fluctuations.
+          !call omega_1%remove_MDpoles()
+
+          map%map = map%map + omega_1%map
           call data(i)%N%sqrtInvN(map, samp_group=samp_group)          ! Multiply with sqrt(invN)
+
+          deallocate(omega_1)
+          nullify(info)
        else
-          call data(i)%N%invN(map, samp_group=samp_group)          ! Multiply with sqrt(invN)
+          call data(i)%N%invN(map, samp_group=samp_group)          ! Multiply with invN
        end if
 
        ! Convolve with transpose beam

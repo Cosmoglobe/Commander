@@ -70,6 +70,7 @@ module comm_camb_mod
      procedure acceptance
      procedure get_hat_s_lm
      procedure get_hat_f_lm
+     procedure get_s_lm_hmc
      procedure get_scaled_hat_f_lm
      procedure compute_fluctuation_acceptance
      procedure format_theta_and_get_c_l_from_camb
@@ -469,7 +470,7 @@ contains
     new_sample%theta = new_theta_proposal
     new_sample%c_l = new_sample_c_l
 
-    ! Find s_lm
+    ! Find hat s_lm
     call self%get_hat_s_lm(cpar, samp_group, handle, handle_noise, new_sample, old_sample)
 
     ! Get scaled f_lm from previous sample.
@@ -587,10 +588,13 @@ contains
     real(dp),                                 intent(out)   :: res
     class(comm_map), pointer                                :: f_lm_map
 
-    integer(i4b)                                            :: i, ierr, nmaps
+    real(dp) :: res2
+
+    integer(i4b)                                            :: i, ierr, nmaps, l, m, j
     class(comm_mapinfo), pointer                            :: info 
 
     res = 0d0
+    res2 = 0d0
     do i = 1, numband
       nmaps =  min(data(i)%info%nmaps, c%nmaps)
       info  => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, data(i)%info%lmax, nmaps, nmaps==3)
@@ -600,20 +604,33 @@ contains
       ! Beam convolution
       call data(i)%B(0)%p%conv(trans=.false., map=f_lm_map)
       call f_lm_map%Y()
-      !call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A_' // filename // ".fits")
+      
+      call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A.fits')
 
       ! Divide by sqrt(N_ell)
       call data(i)%N%sqrtInvN(f_lm_map)
-      !call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A_sqrt_N_inv' // filename // ".fits")
+      call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A_sqrt_N_inv.fits')
+
+      ! Remove dipole and monopole
+      call f_lm_map%YtW()
+      do j = 0, f_lm_map%info%nalm-1
+        call f_lm_map%info%i2lm(j,l,m)
+
+        res = res + dot_product(f_lm_map%alm(j, :), f_lm_map%alm(j, :)) * f_lm_map%info%npix/(4.0 * pi)
+      end do
+      call f_lm_map%Y()
+      call f_lm_map%writeFITS(trim(cpar%outdir) // '/f_hat_A_sqrt_N_inv_no_dipole.fits')
 
       ! Take the square
-      res = res + sum(f_lm_map%map**2)
+      !res = res + sum(f_lm_map%map**2)
 
       call f_lm_map%dealloc(); deallocate(f_lm_map)
     end do
 
     call mpi_allreduce(MPI_IN_PLACE, res, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
+    !call mpi_allreduce(MPI_IN_PLACE, res2, 1, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr)
 
+    !write(*, *) 'res, res2', res, res2
   end subroutine compute_fluctuation_acceptance
 
 
@@ -845,7 +862,7 @@ contains
     include_mean = .true.
     include_fluct = .false.
     call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
-
+    
     c => compList
     do while (associated(c))
       select type (c)
@@ -863,6 +880,70 @@ contains
       c => c%next()
     end do
   end subroutine get_hat_s_lm
+
+  !subroutine get_s_lm_hmc(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample)
+    ! 
+    ! Calculates mean field s_lm from c_l from new_sample
+    !
+    ! Arguments
+    ! ---------
+    ! self: derived type (comm_camb)
+    !    CAMB object
+    ! samp_group: int
+    ! handle: derived type (planck_rng)
+    !    Random number handle
+    ! handle_noise: derived type (planck_rng)
+    !    Random number noise handle
+    ! new_sample: derived type (comm_camb_sample)
+    ! old_sample: derived type (comm_camb_sample)
+    ! 
+    ! Returns
+    ! -------
+    ! new_sample: derived type (comm_camb_sample)
+    !    Returns s_lm in new_sample
+    !
+
+    !implicit none
+    !class(comm_camb),                     intent(inout) :: self
+    !type(comm_camb_sample),               intent(inout) :: new_sample
+    !type(comm_camb_sample),               intent(inout) :: old_sample
+    !type(comm_params)                                   :: cpar
+    !type(planck_rng)                                    :: handle, handle_noise
+    !integer(i4b)                                        :: samp_group, i, l, m, ierr
+    !logical(lgt)                                        :: include_mean, include_fluct
+    !class(comm_comp), pointer                           :: c => null()
+
+    ! Solve for mean-field map
+    !include_mean = .true.
+    !include_fluct = .false.
+    !call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, include_mean, include_fluct)
+    
+    !call sayans_sample(c_ell_from_camb, d_lm, noise)
+    !call sayans_sample(cpar, samp_group, handle, handle_noise, constructor%sample_old, constructor%sample_old)
+    
+    !c => compList
+    !do while (associated(c))
+    !  select type (c)
+    !  class is (comm_cmb_comp)
+    !      allocate(new_sample%s_lm(0:c%x%info%nalm-1, 3))
+    !      new_sample%s_lm = c%x%alm
+    !  end select
+    !  c => c%next()
+    !end do
+  !end subroutine get_s_lm_hmc
+
+  !subroutine sayans_sample(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample)
+    !
+    !c => compList
+    !do while (associated(c))
+      !select type (c)
+      !class is (comm_cmb_comp)
+        !C_ell fromm camb c%Cl%Dl(l, 1)
+        !Noise for band i is in data(i)%N
+        !Data for band i is in data(i)
+      ! end select
+    ! end do
+  !end subroutine
 
   subroutine get_hat_f_lm(self, cpar, samp_group, handle, handle_noise, new_sample, old_sample)
     ! 
