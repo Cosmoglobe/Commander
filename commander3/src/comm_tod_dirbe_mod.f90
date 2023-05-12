@@ -46,7 +46,6 @@ module comm_tod_DIRBE_mod
    use comm_tod_driver_mod
    use comm_utils
    use comm_bp_mod
-   use comm_zodi_mod
 
    implicit none
 
@@ -150,7 +149,7 @@ contains
       ! Initialize bandpass mean and proposal matrix
       call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
-      if (constructor%subtract_zodi) call constructor%initialize_zodi_tod_parameters(cpar)
+      if (constructor%subtract_zodi) call initialize_tod_zodi_mod(cpar, constructor)
 
       ! Construct lookup tables
       call constructor%precompute_lookups()
@@ -299,8 +298,10 @@ contains
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
          call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
-      else
-         
+      end if
+
+      if (.true.) then
+         call sample_linear_zodi_parameters()
       end if
 
       ! Prepare intermediate data structures

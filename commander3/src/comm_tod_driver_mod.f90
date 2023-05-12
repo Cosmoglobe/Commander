@@ -7,7 +7,7 @@ module comm_tod_driver_mod
   use comm_tod_orbdipole_mod
   use comm_tod_simulations_mod
   use comm_tod_mapmaking_mod
-  use comm_zodi_mod
+  use comm_tod_zodi_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
   use omp_lib

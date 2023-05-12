@@ -29,6 +29,7 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_bp_mod
+  use comm_zodi_mod
   use spline_1D_mod
 
   USE ISO_C_BINDING
@@ -76,6 +77,7 @@ module comm_tod_mod
      integer(i4b),        allocatable, dimension(:,:)   :: zext    ! Extension of compressed diode arrays
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
+
 
   type, abstract :: comm_tod
      character(len=512) :: freq
@@ -194,14 +196,15 @@ module comm_tod_mod
      real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
      integer(i4b), allocatable, dimension(:) :: split
+
      ! Zodi parameters and spline objects
      real(sp), allocatable, dimension(:, :) :: zodi_cache ! Cached s_zodi array for a given processor
      real(dp)                               :: zodi_cache_time! Time of cached zodi array
      real(dp)                               :: zodi_min_obs_time, zodi_max_obs_time
      real(dp), allocatable, dimension(:, :) :: zodi_spl_emissivities, zodi_spl_albedos, zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)    :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
-     type(spline_type), allocatable         :: zodi_emissivity_spl_obj(:), zodi_albedo_spl_obj(:), zodi_phase_coeff_spl_obj(:), zodi_b_nu_spl_obj(:)
-     type(spline_type)                      :: zodi_solar_irradiance_spl_obj, zodi_obs_pos_spl_obj(3)
+     type(spline_type), allocatable         :: zodi_b_nu_spl_obj(:)
+     type(spline_type)                      :: zodi_obs_pos_spl_obj(3)
      logical(lgt)                           :: zodi_tod_params_are_initialized
    contains
      procedure                           :: read_tod
@@ -238,7 +241,7 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: collect_satpos
      procedure                           :: collect_mjds
-     procedure                           :: initialize_zodi_tod_parameters
+     procedure                           :: clear_zodi_cache
 
   end type comm_tod
 
@@ -344,6 +347,7 @@ contains
 
     if (cpar%include_tod_zodi) then 
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
+      
     end if
    
     if (trim(self%tod_type)=='SPIDER') then
@@ -531,7 +535,7 @@ contains
     end do
     if (self%subtract_zodi) then
        allocate(self%zodi_cache(self%nobs, self%ndet))
-       self%zodi_cache = -1.d0
+       self%zodi_cache = 0.d0
        allocate(self%ind2vec_ecl(3,self%nobs))
        call ecl_to_gal_rot_mat(rotation_matrix)
        do i = 1, self%nobs
@@ -2713,67 +2717,9 @@ contains
 
   end subroutine collect_v_sun
 
-   subroutine initialize_zodi_tod_parameters(self, cpar)
-      ! Call this function in your tod_your_experiment_mods constructor if your doing zodi subtraction
-      implicit none
-      class(comm_tod), intent(inout) :: self
-      type(comm_params), intent(in) :: cpar
+   subroutine clear_zodi_cache(self)
+      class(comm_tod),   intent(inout) :: self
+      self%zodi_cache = 0.d0
+   end subroutine clear_zodi_cache
 
-      integer(i4b) :: i, ierr
-      real(dp), allocatable :: obs_time(:), obs_pos(:, :), r
-
-      allocate(obs_time(self%nscan_tot))
-      allocate(obs_pos(3, self%nscan_tot))
-
-      ! Set up spline objects for observer position (requires knowing the full scan list ahead of time)
-      obs_time = 0.d0
-      obs_pos = 0.d0
-      do i = 1, self%nscan
-         obs_time(self%scanid(i)) = self%scans(i)%t0(1)
-      end do
-      call mpi_allreduce(MPI_IN_PLACE, obs_time, size(obs_time), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-
-      do i = 1, self%nscan
-         obs_pos(:, self%scanid(i)) = self%scans(i)%satpos
-      end do
-      call mpi_allreduce(MPI_IN_PLACE, obs_pos, size(obs_pos), &
-            & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      
-      do i = 1, 3
-         call spline_simple(self%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
-      end do
-
-      self%zodi_cache_time = self%scans(1)%t0(1)
-      self%zodi_min_obs_time = minval(obs_time)
-      self%zodi_max_obs_time = maxval(obs_time)
-
-      !allocate spectral spline objects
-      allocate(self%zodi_emissivity_spl_obj(cpar%zs_ncomps))
-      allocate(self%zodi_albedo_spl_obj(cpar%zs_ncomps))
-      allocate(self%zodi_phase_coeff_spl_obj(3))
-
-      !allocate spectral quantities
-      allocate(self%zodi_spl_emissivities(self%ndet, cpar%zs_ncomps))
-      allocate(self%zodi_spl_albedos(self%ndet, cpar%zs_ncomps))
-      allocate(self%zodi_spl_phase_coeffs(self%ndet, 3))
-
-      allocate(self%zodi_spl_solar_irradiance(self%ndet))
-      allocate(self%zodi_phase_func_normalization(self%ndet))
-
-      allocate(self%zodi_b_nu_spl_obj(self%ndet))
-
-      ! Set up spline objects for spectral parameters in the K98 zodi model.
-      do i = 1, cpar%zs_ncomps
-         call spline_simple(self%zodi_emissivity_spl_obj(i), cpar%zs_nu_ref, cpar%zs_emissivity(:, i), regular=.false.)
-         call spline_simple(self%zodi_albedo_spl_obj(i), cpar%zs_nu_ref, cpar%zs_albedo(:, i), regular=.false.)
-      end do
-      do i = 1, 3
-         call spline_simple(self%zodi_phase_coeff_spl_obj(i), cpar%zs_nu_ref, cpar%zs_phase_coeff(:, i), regular=.false.)
-      end do
-      call spline_simple(self%zodi_solar_irradiance_spl_obj, cpar%zs_nu_ref, cpar%zs_solar_irradiance, regular=.false.)
-
-      ! Inform `get_zodi_emission` that the relevant tod zodi parameters have been sucessfully initialized
-      self%zodi_tod_params_are_initialized = .true.
-   end subroutine initialize_zodi_tod_parameters
 end module comm_tod_mod

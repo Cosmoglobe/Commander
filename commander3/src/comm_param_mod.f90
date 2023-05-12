@@ -243,8 +243,7 @@ module comm_param_mod
      ! Zodi parameters
      integer(i4b)       :: zs_gauss_quad_order, zs_nbands, zs_ncomps, zs_n_interp_points
      real(dp)           :: zs_los_cut, zs_delta_t_reset, zs_min_ipd_temp, zs_max_ipd_temp
-     logical(lgt)       :: zs_use_cloud, zs_use_band1, zs_use_band2, zs_use_band3, zs_use_ring, &
-                           zs_use_feature, zs_use_unit_emissivity
+     logical(lgt)       :: zs_use_cloud, zs_use_band1, zs_use_band2, zs_use_band3, zs_use_ring, zs_use_feature
      real(dp), allocatable, dimension(:, :) :: zs_common ! shape: (n_comps, 6)
      real(dp)                               :: zs_cloud_alpha, zs_cloud_beta, zs_cloud_gamma, zs_cloud_mu
      real(dp), allocatable, dimension(:)    :: zs_bands_delta_zeta, zs_bands_v, zs_bands_p, zs_bands_delta_r !(n_dust_bands)
@@ -2714,7 +2713,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_hashtable(htbl, 'ZODI_GAUSS_QUAD_ORDER', par_int=cpar%zs_gauss_quad_order)
      call get_parameter_hashtable(htbl, 'ZODI_LOS_CUT', par_dp=cpar%zs_los_cut)
      call get_parameter_hashtable(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
-     call get_parameter_hashtable(htbl, 'ZODI_USE_UNIT_EMISSIVITY', par_lgt=cpar%zs_use_unit_emissivity)
      call get_parameter_hashtable(htbl, 'ZODI_N_INTERP_POINTS', par_int=cpar%zs_n_interp_points)
      call get_parameter_hashtable(htbl, 'ZODI_MIN_IPD_TEMPERATURE', par_dp=cpar%zs_min_ipd_temp)
      call get_parameter_hashtable(htbl, 'ZODI_MAX_IPD_TEMPERATURE', par_dp=cpar%zs_max_ipd_temp)

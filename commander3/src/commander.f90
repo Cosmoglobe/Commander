@@ -30,6 +30,7 @@ program commander
   use comm_tod_simulations_mod
   use comm_tod_gain_mod
   use comm_zodi_mod
+  use comm_tod_zodi_mod
   implicit none
 
   integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
@@ -145,6 +146,7 @@ program commander
   if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
+  if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call define_cg_samp_groups(cpar)
   ! Initialising Bandpass
@@ -158,7 +160,6 @@ program commander
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
-  if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
 
 
 !write(*,*) 'Setting gain to 1'
@@ -256,9 +257,9 @@ program commander
      !----------------------------------------------------------------------------------
      ! Process TOD structures
 
-   !   if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
-     if (iter == 1) then ! For faster component separation since we dont sample the cios
+   !   if (iter == 1) then ! For faster component separation since we dont sample the cios
 
         ! First iteration should just be component separation, in case sky model
         ! is off
@@ -498,7 +499,7 @@ contains
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        call timer%incr_numsamp(data(i)%id_abs)
-
+       call data(i)%tod%clear_zodi_cache()
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
          write(*,*) '|  Finished processing ', trim(data(i)%label)

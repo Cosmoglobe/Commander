@@ -1,13 +1,10 @@
 # Hyper parameters for zodiacal emission modeling
-ZODI_GAUSS_QUAD_ORDER            = 100
+ZODI_GAUSS_QUAD_ORDER            = 50
 ZODI_LOS_CUT                     = 5.2d0
 ZODI_DELTA_T_RESET               = 1.d0
 ZODI_N_INTERP_POINTS             = 100
 ZODI_MIN_IPD_TEMPERATURE         = 40.d0
 ZODI_MAX_IPD_TEMPERATURE         = 550.d0
-
-ZODI_USE_UNIT_EMISSIVITY         = .false.
-ZODI_USE_UNIT_ALBEDO             = .false.
 
 # Enable components
 ZODI_USE_CLOUD                   = .true.
