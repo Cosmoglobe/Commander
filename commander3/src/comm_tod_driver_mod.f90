@@ -1172,94 +1172,67 @@ contains
   end subroutine simulate_tod
 
    subroutine sample_linear_zodi_parameters(tod, sd, handle)
+      ! Sample the linear zodi parameters
+
       class(comm_tod), intent(inout) :: tod
       type(comm_scandata), intent(in) :: sd
       type(planck_rng), intent(inout)  :: handle
       integer(i4b) :: i, j, k, ierr, N_COMPS
 
-      ! real(sp), allocatable, dimension(:, :) :: residual, A, A_T
-      ! real(sp), allocatable, dimension(:) :: Y
-      real(dp), dimension(3) :: X, rand, rand_term
-      real(dp), dimension(3, 3) :: A_transpose_A, A_transpose_A_reduced, A_transpose_A_reduced_inv, L
+      real(dp), dimension(3) :: X, eta
+      real(dp), dimension(3, 3) :: A_T_A, A_T_A_reduced, A_T_A_inv, A_T_A_inv_sqrt
       real(dp), dimension(3) :: AY, AY_reduced
       real(dp) :: dummy1, dummy2
 
       N_COMPS = 3
       AY = 0.d0
-      A_transpose_A = 0.d0
-      ! allocate(residual, mold=sd%tod)
-      ! allocate(X, mold=sd%tod)
-      ! allocate(A(size(sd%tod, dim=1), 3))
-      ! allocate(Y(size(sd%tod, dim=1)))
+      A_T_A = 0.d0
 
-      ! A = 0.d0
-      ! Y = sd%tod(:, 1)
       do i = 1, size(sd%tod, dim=1)
-         if (iand(sd%flag(i, 1),tod%flag0) .ne. 0) cycle
-         ! residual(i, j) = sd%tod(i, j) - sd%s_tot(i, j) + sd%s_sky(i, j) - sd%s_zodi(i, j)
-         AY(1) = AY(1) + sd%tod(i, 1) 
-         AY(2) = AY(2) + sd%tod(i, 1) * sd%s_zodi(i, 1)
-         AY(3) = AY(3) + sd%tod(i, 1) * sd%s_sky(i, 1)
-
-         ! j,k:
+         if (iand(sd%flag(i, 1),tod%flag0) .ne. 0) cycle ! skip flagged samples
+         ! indices j,k represent:
          !     1) baseline
          !     2) zodi
          !     3) sky model 
-         ! do j = 1, N_COMPS
-         !    dummy1 = 1.d0
-         !    if (j == 2)dummy1 = sd%s_zodi(i, 1)
-         !    if (j == 3) dummy1 = sd%s_sky(i, 1)
-         !    do k = j, N_COMPS
-         !       dummy2 = 1.d0
-         !       if (k == 2) dummy2 = sd%s_zodi(i, 1)
-         !       if (k == 3) dummy2 = sd%s_sky(i, 1)
-         !       A_transpose_A(j, k) = A_transpose_A(j, k) + dummy1 * dummy2
-         !    end do
-         ! end do
-         A_transpose_A(1, 1) = A_transpose_A(1, 1) + 1.d0 * 1.d0
-         A_transpose_A(1, 2) = A_transpose_A(1, 2) + 1.d0 * sd%s_zodi(i, 1)
-         A_transpose_A(1, 3) = A_transpose_A(1, 3) + 1.d0 * sd%s_sky(i, 1)
-         A_transpose_A(2, 1) = A_transpose_A(2, 1) + sd%s_zodi(i, 1) * 1.d0
-         A_transpose_A(2, 2) = A_transpose_A(2, 2) + sd%s_zodi(i, 1) * sd%s_zodi(i, 1)
-         A_transpose_A(2, 3) = A_transpose_A(2, 3) + sd%s_zodi(i, 1) * sd%s_sky(i, 1)
-         A_transpose_A(3, 1) = A_transpose_A(3, 1) + sd%s_sky(i, 1) * 1.d0
-         A_transpose_A(3, 2) = A_transpose_A(3, 2) + sd%s_zodi(i, 1) * sd%s_sky(i, 1)
-         A_transpose_A(3, 3) = A_transpose_A(3, 3) + sd%s_sky(i, 1) * sd%s_sky(i, 1)
-
+         do j = 1, N_COMPS
+            dummy1 = 1.d0
+            if (j == 1) AY(j) = AY(j) + sd%tod(i, 1)
+            if (j == 2) then 
+               dummy1 = sd%s_zodi(i, 1)
+               AY(j) = AY(j) + sd%tod(i, 1) * sd%s_zodi(i, 1)
+            end if
+            if (j == 3) then 
+               dummy1 = sd%s_sky(i, 1)
+               AY(j) = AY(j) + sd%tod(i, 1) * sd%s_sky(i, 1)
+            end if
+            do k = j, N_COMPS
+               dummy2 = 1.d0
+               if (k == 2) dummy2 = sd%s_zodi(i, 1)
+               if (k == 3) dummy2 = sd%s_sky(i, 1)
+               A_T_A(j, k) = A_T_A(j, k) + dummy1 * dummy2
+            end do
+         end do
       end do
 
-      ! A_transpose_A_inv = A_transpose_A
-      ! call invert_matrix(A_transpose_A_inv)
-
-      ! X = matmul(A_transpose_A_inv, AY)
-      ! print *, "X:", X
-      ! call mpi_barrier(mpi_comm_world, ierr)
-      ! stop
-
-      ! AY = matmul(A_T, Y)
       call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
             & tod%info%comm, ierr)
 
-      call mpi_reduce(A_transpose_A, A_transpose_A_reduced, size(A_transpose_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
+      call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
             & tod%info%comm, ierr)
       
       if (tod%myid == 0) then
-         A_transpose_A_reduced_inv = A_transpose_A_reduced
-         call invert_matrix(A_transpose_A_reduced_inv)
-
-         call cholesky_decompose(A_transpose_A_reduced_inv, L)
-         do i = 1, size(A_transpose_A_reduced_inv, dim=1)
-            rand(i) = rand_gauss(handle)
+         A_T_A_inv = A_T_A_reduced
+         call invert_matrix(A_T_A_inv)
+         call cholesky_decompose(A_T_A_inv, A_T_A_inv_sqrt)
+         do i = 1, size(A_T_A_inv, dim=1)
+            eta(i) = rand_gauss(handle)
          end do
-         X = matmul(A_transpose_A_reduced_inv, AY_reduced)  + matmul(L, rand)
-         print *, "X:", X
-         stop
+         X = matmul(A_T_A_inv, AY_reduced)  + matmul(A_T_A_inv_sqrt, eta)
+         print *, "Sampled emissivity:", X(2)
+
+         zodi%emissivities = zodi%emissivities * X(2)
+         call zodi%build_splines()
       end if
-      ! print *, shape(A_INV), shape(AY)
-      ! stop
-      ! X = matmul(A_INV, AY)
-      ! print *, "X:", X
-      ! stop
 
     ! Collect contributions from all cores
       ! call mpi_reduce(residual, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
