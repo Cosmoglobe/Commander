@@ -36,6 +36,7 @@ module comm_signal_mod
   use comm_md_comp_mod
   use comm_param_mod
   use comm_powlaw_comp_mod
+  use comm_exp_comp_mod
   use comm_powlaw_break_comp_mod
   use comm_ptsrc_comp_mod
   use comm_physdust_comp_mod
@@ -72,7 +73,8 @@ contains
              c => comm_cmb_comp(cpar, ncomp, i)
           case ("power_law")
              c => comm_powlaw_comp(cpar, ncomp, i)
-             call update_status(status, "init_done")
+          case ("exponential")
+             c => comm_exp_comp(cpar, ncomp, i)
           case ("power_law_break")
              c => comm_powlaw_break_comp(cpar, ncomp, i)
           case ("curvature") 
@@ -449,7 +451,7 @@ contains
           if (trim(data(i)%tod%init_from_HDF) == 'none' .and. .not. present(init_from_output))     cycle
           if (cpar%myid == 0) write(*,*) '|  Initializing TOD par from chain = ', trim(data(i)%tod%freq)
           N => data(i)%N
-          rms => comm_map(data(i)%info)
+          rms => comm_map(data(i)%rmsinfo)
           select type (N)
           class is (comm_N_rms)
              if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
@@ -461,14 +463,26 @@ contains
                 call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
                 call close_hdf_file(file2)
              end if
+          class is (comm_N_rms_qucov)
+             if (trim(data(i)%tod%init_from_HDF) == 'default' .or. present(init_from_output)) then
+                call data(i)%tod%initHDF(file, initsamp, data(i)%map, rms)
+             else
+                call get_chainfile_and_samp(data(i)%tod%init_from_HDF, &
+                     & chainfile, initsamp2)
+                call open_hdf_file(chainfile, file2, 'r')
+                call data(i)%tod%initHDF(file2, initsamp2, data(i)%map, rms)
+                call close_hdf_file(file2)
+             end if
+          class default 
+             write(*,*) 'Noise type is not covered'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
           allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map0%map = data(i)%map%map
@@ -484,21 +498,25 @@ contains
           if (cpar%myid == 0) write(*,*) '|  Initializing map and rms from chain = ', trim(data(i)%label), trim(data(i)%tod_type)
 
           hdfpath =  trim(adjustl(itext))//'/tod/'//trim(adjustl(data(i)%label))//'/'
-          rms     => comm_map(data(i)%info)
+          rms     => comm_map(data(i)%rmsinfo)
           N       => data(i)%N
           !write(*,*) trim(file%filename), trim(adjustl(hdfpath))//'map'
           call data(i)%map%readMapFromHDF(file, trim(adjustl(hdfpath))//'map')
           select type (N)
           class is (comm_N_rms)
              call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class is (comm_N_rms_qucov)
+             call rms%readMapFromHDF(file, trim(adjustl(hdfpath))//'rms')
+          class default
+             write(*,*) 'resamp_CMB noise class not defined'
           end select
 
           ! Update rms and data maps; add regularization noise if needed, no longer already included in the sample on disk
-          allocate(regnoise(0:data(i)%info%np-1,data(i)%info%nmaps))
+          allocate(regnoise(0:data(i)%rmsinfo%np-1,data(i)%rmsinfo%nmaps))
           if (associated(data(i)%procmask)) then
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, procmask=data(i)%procmask, map=rms)
           else
-             call data(i)%N%update_N(data(i)%info, handle, data(i)%mask, regnoise, map=rms)
+             call data(i)%N%update_N(data(i)%rmsinfo, handle, data(i)%mask, regnoise, map=rms)
           end if
           if (cpar%only_pol) data(i)%map%map(:,1) = 0.d0
           data(i)%map%map = data(i)%map%map + regnoise
@@ -681,7 +699,7 @@ contains
              if (trim(c%Cl%bins2(bin)%stat) /= 'M') cycle
 
              n = c%Cl%bins2(bin)%ntot
-if (c%x%info%myid ==0) write(*,*) bin, n
+             !if (c%x%info%myid ==0) write(*,*) bin, n
              pos = 0
              allocate(Dl_old(n), Dl_prop(n), eta(n))
              call c%Cl%set_Dl_bin(c%Cl%bins2(bin), Dl_old, pos, .false.)
@@ -693,7 +711,7 @@ if (c%x%info%myid ==0) write(*,*) bin, n
                 posdef = c%Cl%check_posdef(bin, Dl_prop)
              end if
              call mpi_bcast(posdef, 1, MPI_LOGICAL, 0, c%x%info%comm, ierr)
-             if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
+             !if (c%x%info%myid ==0) write(*,*) 'posdef', bin, c%Cl%bins2(bin)%lmin, posdef
              if (posdef) then
                 call mpi_bcast(Dl_prop, n, MPI_DOUBLE_PRECISION, 0, c%x%info%comm, ierr)
 

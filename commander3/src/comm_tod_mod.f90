@@ -112,7 +112,7 @@ module comm_tod_mod
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
-     logical(lgt) :: orb_abscal
+     character(len=512) :: abscal_comps            ! List of components to calibrate against
      logical(lgt) :: compressed_tod               
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
@@ -165,6 +165,7 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
+     class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
@@ -187,6 +188,7 @@ module comm_tod_mod
      real(dp) :: gain_sigma0_std ! std for metropolis-hastings sampling
      real(dp) :: gain_fknee_std ! std for metropolis-hastings sampling
      real(dp) :: gain_alpha_std ! std for metropolis-hastings sampling
+     integer(i4b), allocatable, dimension(:) :: split
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -308,7 +310,7 @@ contains
     self%first_scan    = cpar%ds_tod_scanrange(id_abs,1)
     self%last_scan     = cpar%ds_tod_scanrange(id_abs,2)
     self%flag0         = cpar%ds_tod_flag(id_abs)
-    self%orb_abscal    = cpar%ds_tod_orb_abscal(id_abs)
+    self%abscal_comps  = cpar%ds_tod_abscal(id_abs)
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
@@ -551,9 +553,10 @@ contains
     allocate(self%mbeam(self%ndet))
     call open_hdf_file(self%instfile, h5_file, 'r')
 
-    !call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_beam)
+    call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'sllmax', lmax_sl)
     call read_hdf(h5_file, trim(adjustl(self%label(1)))//'/'//'beamlmax', lmax_beam)
-    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
+    self%slinfo => comm_mapinfo(comm_chain, nside_beam, lmax_sl, nmaps_beam, pol_beam)
+    self%mbinfo => comm_mapinfo(comm_chain, nside_beam, lmax_beam, nmaps_beam, pol_beam)
 
     do i = 1, self%ndet
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'fwhm', self%fwhm(i))
@@ -561,7 +564,7 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
        self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       self%mbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "beam", trim(self%label(i)))
+       self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
        call self%mbeam(i)%p%Y()
     end do
 
@@ -1277,18 +1280,6 @@ contains
                sid(i) = acos(max(min(sum(spinaxis(i,:)*spinaxis(1,:)),1.d0),-1.d0))
                if (sum(v*v0) < 0.d0) sid(i) = -sid(i) ! Flip sign 
             end do
-
-       ! Sort according to weight
-!!$       pweight = 0.d0
-!!$       w_tot = sum(weight)
-!!$       call QuickSort(id, weight)
-!!$       do i = n_tot, 1, -1
-!!$          ind             = minloc(pweight)-1
-!!$          proc(id(i))     = ind(1)
-!!$          pweight(ind(1)) = pweight(ind(1)) + weight(i)
-!!$       end do
-!!$       deallocate(id, pweight, weight)
-
             
             w_tot = sum(weight)
             if (self%enable_tod_simulations) then
@@ -1298,47 +1289,53 @@ contains
                   read(infile(q-8:q-3),*) q
                   proc(i) = mod(q,np)
                end do
-            else
-               ! Sort according to scan id
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
+            else if (index(filelist, '-WMAP_') .ne. 0) then
+               pweight = 0d0
+               ! Greedy after sorting
+               ! Algorithm 2 of
+               ! http://web.stanford.edu/class/msande319/Approximation%20Algorithm/lec1.pdf
+               call QuickSort(id, weight)
+               do i = n_tot, 1, -1
+                 j = minloc(pweight, dim=1)
+                 pweight(j-1) = pweight(j-1) + weight(i)
+                 proc(id(i)) = j-1
+               end do
+            else 
+               ! Sort by spin axis (Planck)
                proc    = -1
                call QuickSort(id, sid)
                w_curr = 0.d0
                j     = 1
-               if (n_tot < 10*np) then
-                  do while (j <= n_tot)
-                      do i = np-1, 0, -1
-                          if (j <= n_tot) proc(id(j)) = i
-                          j = j + 1
-                      end do
+               do i = np-1, 0, -1
+                  w = 0.d0
+                  do k = 1, n_tot
+                     if (proc(k) == i) w = w + weight(k) 
                   end do
-               else
-                  do i = np-1, 0, -1
-                     w = 0.d0
-                     do k = 1, n_tot
-                        if (proc(k) == i) w = w + weight(k) 
-                     end do
-                     do while (w < w_tot/np .and. j <= n_tot)
-                        proc(id(j)) = i
-                        w           = w + weight(id(j))
-                        if (w > 1.2d0*w_tot/np) then
-                           ! Assign large scans to next core
-                           proc(id(j)) = i-1
-                           w           = w - weight(id(j))
-                        end if
-                        j           = j+1
-                     end do
-                   end do
-                   do while (j <= n_tot)
-                      proc(id(j)) = 0
-                      j = j+1
-                   end do
-               end if
+                  do while (w < w_tot/np .and. j <= n_tot)
+                     proc(id(j)) = i
+                     w           = w + weight(id(j))
+                     if (w > 1.2d0*w_tot/np) then
+                        ! Assign large scans to next core
+                        proc(id(j)) = i-1
+                        w           = w - weight(id(j))
+                     end if
+                     j           = j+1
+                  end do
+               end do
+               do while (j <= n_tot)
+                  proc(id(j)) = 0
+                  j = j+1
+               end do
+               pweight = 0.d0
+               do k = 1, n_tot
+                  pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
+               end do
             end if
             
-            pweight = 0.d0
-            do k = 1, n_tot
-               pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
-            end do
             write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
          end if
@@ -1525,12 +1522,8 @@ contains
 
     if (self%myid == 0) then
        call read_hdf(chainfile, trim(adjustl(path))//'gain',     output(:,:,1))
-!       call read_hdf(chainfile, trim(adjustl(path))//'sigma0',   output(:,:,2))
-!       call read_hdf(chainfile, trim(adjustl(path))//'alpha',    output(:,:,4))
-!       call read_hdf(chainfile, trim(adjustl(path))//'fknee',    output(:,:,3))
        call read_hdf(chainfile, trim(adjustl(path))//'accept',   output(:,:,2))
        call read_hdf(chainfile, trim(adjustl(path))//'xi_n',     output(:,:,3:2+self%n_xi))
-!       call read_hdf(chainfile, trim(adjustl(path))//'polang',   self%polang)
        call read_hdf(chainfile, trim(adjustl(path))//'mono',     self%mono)
        call read_hdf(chainfile, trim(adjustl(path))//'bp_delta', self%bp_delta)
        call read_hdf(chainfile, trim(adjustl(path))//'gain0',    self%gain0)
@@ -1538,19 +1531,9 @@ contains
        self%x_im(3) = self%x_im(2)
        self%x_im(4) = self%x_im(3)
        self%x_im(2) = self%x_im(1)
-!!$       if (trim(self%freq) .ne. '030') then
-!!$          self%bp_delta = self%bp_delta - self%bp_delta(0,1)
-!!$       end if
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
-       !write(*,*) 'bp =', self%bp_delta
-       ! Redefine gains; should be removed when proper initfiles are available
-!!$       self%gain0(0) = sum(output(:,:,1))/count(output(:,:,1)>0.d0)
-!!$       !stop
-!!$       do i = 1, self%ndet
-!!$          self%gain0(i) = sum(output(:,i,1))/count(output(:,i,1)>0.d0) - self%gain0(0)
-!!$       end do
     end if
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &

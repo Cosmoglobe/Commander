@@ -365,12 +365,13 @@ contains
   end subroutine returnRMS
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group)
+  function returnRMSpix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_lcut),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
     real(dp)                                     :: returnRMSpix
     integer(i4b),        intent(in),   optional  :: samp_group
+    logical(lgt),        intent(in),   optional  :: ret_invN
     if (self%siN%map(pix,pol) > 0.d0) then
        returnRMSpix = 1.d0/self%siN%map(pix,pol)
     else
@@ -382,6 +383,9 @@ contains
              returnRMSpix = infinity
           end if
        end if
+    end if
+    if (present(ret_invN)) then
+       if (ret_invN) returnRMSpix = 1/returnRMSpix**2
     end if
   end function returnRMSpix
 

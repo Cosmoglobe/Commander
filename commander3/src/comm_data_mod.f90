@@ -36,7 +36,7 @@ module comm_data_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit, comp_sens
+     character(len=512)           :: label, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain, gain_prior(2)
@@ -44,9 +44,11 @@ module comm_data_mod
      integer(i4b)                 :: gain_lmin, gain_lmax
      integer(i4b)                 :: ndet
      character(len=128)           :: tod_type
+     integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only
 
      class(comm_mapinfo), pointer :: info      => null()
+     class(comm_mapinfo), pointer :: rmsinfo   => null()
      class(comm_map),     pointer :: map       => null()
      class(comm_map),     pointer :: map0      => null() !for TOD data if outputing to HDF
      class(comm_map),     pointer :: res       => null()
@@ -61,7 +63,7 @@ module comm_data_mod
      class(comm_bp_ptr),   allocatable, dimension(:) :: bp
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_smooth
      type(comm_B_bl_ptr),  allocatable, dimension(:) :: B_postproc
-     type(comm_N_rms_ptr), allocatable, dimension(:) :: N_smooth
+     class(comm_N_ptr),     allocatable, dimension(:) :: N_smooth
    contains
      procedure :: RJ2data
      procedure :: chisq => get_chisq
@@ -118,6 +120,7 @@ contains
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
+       data(n)%noise_format   = cpar%ds_noise_format(i)
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
@@ -129,6 +132,12 @@ contains
             & nmaps, cpar%ds_polarization(i))
        call get_mapfile(cpar, i, mapfile)
        data(n)%map  => comm_map(data(n)%info, trim(mapfile), mask_misspix=mask_misspix)
+       if (trim(data(n)%noise_format) == 'rms_qucov' .and. cpar%ds_polarization(i)) then 
+          data(n)%rmsinfo => comm_mapinfo(cpar%comm_chain, cpar%ds_nside(i), cpar%ds_lmax(i), &
+                   & nmaps+1, cpar%ds_polarization(i))
+       else
+          data(n)%rmsinfo => data(n)%info
+       end if
        if (cpar%only_pol) data(n)%map%map(:,1) = 0.d0
        ! Read processing mask
        if (trim(cpar%ds_procmask) /= 'none') then
@@ -179,6 +188,7 @@ contains
 
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              data(n)%map0 => comm_map(data(n)%map) !copy the input map that has no added regnoise, for output to HDF
+             data(n)%tod_freq       = cpar%ds_tod_freq(i)
           end if
        end if
        call update_status(status, "data_tod")
@@ -228,19 +238,32 @@ contains
        case ('rms') 
           allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
           if (associated(data(n)%procmask)) then
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                   & data(n)%procmask)
           else
-             data(n)%N       => comm_N_rms(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise)
+             data(n)%N       => comm_N_rms(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
           end if
           data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
           deallocate(regnoise)
+       case ('rms_qucov') 
+          call update_status(status, 'Initializing rms qucov')
+          allocate(regnoise(0:data(n)%info%np-1,data(n)%info%nmaps))
+          if (associated(data(n)%procmask)) then
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
+                  & data(n)%procmask)
+          else
+             data(n)%N       => comm_N_rms_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise)
+          end if
+          call update_status(status, 'set data(n)%N')
+          data(n)%map%map = data(n)%map%map + regnoise  ! Add regularization noise
+          call update_status(status, 'added regnoise')
+          deallocate(regnoise)
        case ('lcut') 
-          data(n)%N       => comm_N_lcut(cpar, data(n)%info, n, i, 0, data(n)%mask, handle)
+          data(n)%N       => comm_N_lcut(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle)
           call data(n)%N%P(data(n)%map)
           call data(n)%map%writeFITS(trim(cpar%outdir)//'/data_'//trim(data(n)%label)//'.fits')
        case ('QUcov') 
-          data(n)%N       => comm_N_QUcov(cpar, data(n)%info, n, i, 0, data(n)%mask, handle, regnoise, &
+          data(n)%N       => comm_N_QUcov(cpar, data(n)%rmsinfo, n, i, 0, data(n)%mask, handle, regnoise, &
                & data(n)%procmask)
           data(n)%pol_only = .true.
        case default
@@ -290,9 +313,6 @@ contains
        do j = 1, cpar%num_smooth_scales
           ! Create new beam structures for all of the smoothing scales
           if (cpar%fwhm_smooth(j) > 0.d0) then
-             if(cpar%myid == 0) then
-               write(*,*) "Creating filtered noise maps at ", cpar%fwhm_smooth(j), " arcmins"
-             end if 
             info_smooth => comm_mapinfo(data(n)%info%comm, data(n)%info%nside, &
                   !& cpar%lmax_smooth(j), &
                   & data(n)%info%lmax, &
@@ -319,30 +339,7 @@ contains
              nullify(data(n)%B_postproc(j)%p)
           end if
           if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'native') then
-             tmp => data(n)%N
-             select type (tmp)
-             class is (comm_N_rms)
-                data(n)%N_smooth(j)%p => tmp
-             end select
-          else if (trim(cpar%ds_noise_rms_smooth(i,j)) == 'none') then
-             ! Point to the regular old RMS map
-             tmp => data(n)%N
-             select type (tmp)
-             ! Now we smooth that RMS map to the new resolutions
-             class is (comm_N_rms)
-
-                ! Create map info for smoothed rms maps
-                smoothed_rms_info => comm_mapinfo(data(n)%info%comm, &
-                     & cpar%nside_smooth(j), cpar%lmax_smooth(j), &
-                     & data(n)%info%nmaps, data(n)%info%pol)
-
-                ! Smooth the rms map, make new comm_N_rms object for the result 
-                call smooth_rms(cpar, smoothed_rms_info, handle, &
-                     & data(n)%B(0)%p%b_l, tmp, &
-                     & data(n)%B_smooth(j)%p%b_l, smoothed_rms)
-
-                data(n)%N_smooth(j)%p => comm_N_rms(cpar, smoothed_rms_info, n, i, j, data(n)%mask, handle, map=smoothed_rms)
-             end select
+             data(n)%N_smooth(j)%p => data(n)%N
           else if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
              data(n)%N_smooth(j)%p => comm_N_rms(cpar, data(n)%info, n, i, j, data(n)%mask, handle)
           else
@@ -366,6 +363,7 @@ contains
 
     ! Dump unit conversion factors to file
     if (cpar%myid == 0) call dump_unit_conversion(cpar%outdir)
+
 
   end subroutine initialize_data_mod
 
