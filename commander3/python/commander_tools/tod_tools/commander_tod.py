@@ -217,7 +217,6 @@ class commander_tod:
 
     def finalize_file(self):
 
-        print('hey')
         if(not self.exists or self.overwrite):
             for encoding in self.encodings.keys():
                 self.add_field(encoding, [self.encodings[encoding]])
