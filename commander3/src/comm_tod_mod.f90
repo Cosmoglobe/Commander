@@ -160,7 +160,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:)     :: horn_id  ! Internal horn number per detector
      real(dp),           dimension(4)                  :: x_im    ! feedhorn imbalance parameters, with duplicates
      character(len=512), allocatable, dimension(:)     :: hdfname  ! List of HDF filenames for each ID
-     character(len=2048), allocatable, dimension(:)     :: label    ! Detector labels
+     character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
@@ -1639,7 +1639,7 @@ contains
 
     integer(i4b) :: j, k, ndet, npar, unit, par, ios
     real(dp)     :: val
-    character(len=20)   :: label, det1, det2
+    character(len=25)   :: label, det1, det2
     character(len=1024) :: line
 
     unit = getlun()
