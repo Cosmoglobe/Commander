@@ -51,49 +51,105 @@ import litebird_sim as lbs
 """
 This script converts LiteBIRD sims produced by Giuseppe at el into Commander3
 suitable format 
+Need to start server for litebird instrument and activate litebird IMO database to run the code
+
+The script needs specification of 
+- LiteBIRD TOD simulation files directory
+- List of detectors to save the data from from each frequency band
+- location to output new Commander3 formated simulations
+
+Script can be parallellized (nprocs != 1 in main), but then some 
+files gets corrupted and some others will be missing certain fields
+Please fix it if you can or just run with one processor
 """
 
+def get_detectors(det_file, detector_list):
+    # Takes inn a list of all detectors in the LB TOD simulations and
+    # a file where list of detectors that will be used
+    # Returns array of detector number (detectors) and new list of detector labels
+    detectors = []
+    det_labels = []
+    file = open(det_file, 'r')
+    while True:
+        line = file.readline()
+        if not line:
+            break
+        det_labels.append(str.strip(line))
+        i = 0
+        for l in detector_list: 
+            if str.strip(line) == str.strip(l):
+                detectors.append(i)
+            i += 1
+    return (detectors, det_labels)
 
-def get_data(nside, k, dfile, scale_loss):
 
-    #print(f"Test statement {k}")
+def get_data(nside, k, dfile, scale_loss, dets_nr):
+    """
+    In: 
+    nside      : nside of map
+    k          : ? Not used
+    dfile      : date file containing TODS to be read in
+                 In baryonic mean ecliptic coordinates
+    scale_loss : Data loss due to cosmic ray etc... 
+                 Not taken into account by LB sim team
+    dets_nr    : list of detector numbers of which to keep data from
+                 Used to reduce the data volume to fewer detectors
+
+    Out:
+    tod_cadd   : Coadded TOD containing time stream for for instance 
+                 cmb, white noise and foregrounds
+                 In galactic coordinates
+    pixels     : List of pixels corresponding to each tod sample in tod_coadd 
+    psi_gal    : Polarization angle (theta, phi) for each sample in tod_coadd
+    """
+    #Reading from data file:
     with h5py.File(dfile, 'r') as readin_file:
-        psi       = np.array(readin_file.get("psi"))
-        # working with tods 
+        #Polarization angle in ecliptic coordinates
+        psi_all   = np.array(readin_file.get("psi"))
+        #Pointings in ecliptic
+        pointings_ecl_all = np.array(readin_file.get("pointings"))
+        #TODS:
         tod_cmb   = np.array(readin_file.get("tod_cmb"))
-        tod_dip   = np.array(readin_file.get("tod_dip")) 
-        tod_fg    = np.array(readin_file.get("tod_fg")) 
-        tod_wn    = np.array(readin_file.get("tod_wn")) 
+        #tod_dip   = np.array(readin_file.get("tod_dip"))
+        tod_fg    = np.array(readin_file.get("tod_fg"))
+        tod_wn    = np.array(readin_file.get("tod_wn"))
         #tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"))
+ 
+    # Number of samples in one TOD
+    tod_len      = psi_all.shape[1]
+    #Scale noise to number of detectors
+    nr_det_out   = len(dets_nr) #Nr of detectors in output
+    nr_det       = tod_cmb.shape[0]
+    # Scale white noise level to reduced nr of detectors
+    scale_nrdet  = np.sqrt(nr_det_out/nr_det)
+    # Scale white noise level due to data loss (not done in LB TOD sims)
+    tod_wn       = tod_wn * scale_nrdet * scale_loss
+    # Add TODS
+    tod_cadd_all = tod_cmb + tod_wn + tod_fg
 
-        #Scale noise to number of detectors
-        nr_det_out= 4 #Nr of detectors in output
-        nr_det    = tod_cmb.shape[0]
-        
-        # Scale white noise level to reduced nr of detectors
-        scale_nrdet = np.sqrt(nr_det_out/nr_det)
-        # Scale white noise level due to data loss (not done in LB TOD sims)
-        tod_wn    = tod_wn * scale_nrdet * scale_loss
-        # Add TODS
-        tod_cadd  = tod_cmb + tod_wn + tod_fg
+    #Reduce number of detectors: 
+    psi_ecl      = np.zeros(shape=(nr_det_out,tod_len))
+    tod_cadd     = np.zeros(shape=(nr_det_out,tod_len))
+    pointings_ecl= np.zeros(shape=(nr_det_out,tod_len,2))
+    # Keep only detectors from input list
+    for d in range(0,nr_det_out):
+        psi_ecl[d,:]       = psi_all[int(dets_nr[d]), :]
+        tod_cadd[d,:]      = tod_cadd_all[int(dets_nr[d]), :]
+        pointings_ecl[d,:,:] = pointings_ecl_all[int(dets_nr[d]),:,:]
 
-        #Read in pointings and change from barycentricmeanecliptic --> galactic
-        pointings = np.array(readin_file.get("pointings"))
-        coalt     = pointings[:,:,0]
-        lat       = coalt - np.pi/2
-        lon       = pointings[:,:,1]
-        c_ecl     = SkyCoord(lon=lon, lat=lat, unit='rad', frame='barycentricmeanecliptic')
-        c_gal     = c_ecl.transform_to('galactic')
-        theta     = c_gal.l.deg
-        phi       = c_gal.b.deg
-        #theta     = pointings[:,:,1]
-        #phi       = pointings[:,:,0]
-        pixels    = hp.ang2pix(nside, theta, phi, lonlat=True)
-
+    #change from barycentricmeanecliptic --> galactic
+    psi_gal   = np.zeros_like(psi_ecl)
+    pointings_gal = np.zeros_like(pointings_ecl)
+    for d in range(0,nr_det_out):
+        pointings_gal[d,:,:], psi_gal[d,:] = lbs.coordinates.rotate_coordinates_e2g(pointings_ecl[d,:,:], pol_angle_ecl=psi_ecl[d,:])
+    theta     = pointings_gal[:,:,0]
+    phi       = pointings_gal[:,:,1]
+    pixels    = hp.ang2pix(nside, theta, phi)#, lonlat=True)
 
     # Keeping track of current index
     #return {k: tod_cadd}
-    return (tod_cadd, pixels, psi)
+    return (tod_cadd, pixels, psi_gal)
+
 
 def append_remnant(arr, remnant):
     """
@@ -103,7 +159,7 @@ def append_remnant(arr, remnant):
     arr = deque(arr)
     arr.appendleft(remnant)
     arr = list(arr)
-    
+
     return arr
 
 
@@ -115,7 +171,7 @@ def main():
     # User-Specified Parameters 
     # ----------------------------------
 
-    nprocs = 64 #128 #64 #48 #64 #joblib.cpu_count() - 28 #16
+    nprocs = 64  #128 #64 #48 #64 #joblib.cpu_count() - 28 #16
     version = np.string_('0.0.1')
     # The size of one scan in a new file (to be created/output) 
     scan_size = 2**16 #~1 hr
@@ -127,11 +183,11 @@ def main():
     start_time = '2030-04-01T00:00:00'
     nside = 512
     output_dir = pathlib.Path(
-        "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS_test/"
-        )
+         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS_test/"
+         )
     lbdata_dir = pathlib.Path(
-        "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
-        )
+         "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
+         )
 
 
     # ----------------------------------
@@ -149,11 +205,11 @@ def main():
     # ----------------------------------    
     imo_db_interface = lbs.Imo()
     imo_version = 'v1.3'
-    
+
     # Get parameters for data loss (not taken into account in LB TOD sims)
     scan_params = imo_db_interface.query(
-                "/releases/v1.3/satellite/scanning_parameters"
-                )
+        "/releases/v1.3/satellite/scanning_parameters"
+        )
     metadata = scan_params.metadata
     margin    = metadata["margin"]
     det_yield = metadata["detector_yield"]     # detector yield
@@ -167,14 +223,13 @@ def main():
     imo_db_datapath = f"/releases/{imo_version}/satellite"
     for inst in instrument:
         print("Working with detectors on ", inst)
-        
+
         # Getting Data From LB Database
         #instrument_info = imo_db_interface.query(
         #    f"{imo_db_datapath}/{inst}/instrument_info"
         #    )
         #freqs = instrument_info.metadata['channel_names']
-        #print(freqs)
-        # Or specify detectors manually:
+        # or specify detectors manually:
         freqs = ['L1-060']
 
         for freq in freqs:
@@ -187,11 +242,18 @@ def main():
             ndets      = metadata["number_of_detectors"]
             # Detector Lables for a given Instrument 
             det_labels = metadata["detector_names"]
+            #Get detector numbers for detectors used in current setup
+            det_file   = pathlib.Path(
+                "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/data_LB/detectors_060_4.txt"
+                )
+            det_nr_used, det_labels= get_detectors(det_file, det_labels)
+            dets_nr    = len(det_nr_used)
+            ndets = 4
             # Sampling rate in Hz
             fsamp      = metadata["sampling_rate_hz"]
             # FWHM in arcmin 
             fwhm       = metadata["fwhm_arcmin"]
-    
+            
             # ----------------------------------
             # Retrieving Simulations' Data
             # ----------------------------------
@@ -204,24 +266,22 @@ def main():
 
             # Getting file names inside specified directory and removing the path component
             lbdata_files = sorted(lbfreq_dir.rglob('*_rank????.hdf5')) 
-            #lbdata_files = [data_file.name for data_file in lbdata_files]
-
+            
             # Getting all the data sizes so later will split everything into chunks
             with h5py.File(lbdata_files[0], 'r') as readin_file:
                 tod_cmb  = np.array(readin_file.get("tod_cmb"))
+            
             # The remaining TOD chunk to stitch to a new chunk  
-            remnant_tod = np.zeros_like(tod_cmb)
-            remnant_pix = np.zeros_like(tod_cmb)
-            remnant_psi = np.zeros_like(tod_cmb)
+            remnant_tod = np.zeros(shape=(dets_nr,tod_cmb.shape[1]))
+            remnant_pix = np.zeros(shape=(dets_nr,tod_cmb.shape[1]))
+            remnant_psi = np.zeros(shape=(dets_nr,tod_cmb.shape[1]))
 
-            # Getting the length of the single tod to calculate minimnum number of
-            # files to open 
+            # Getting the length of the single tod to calculate minimnum number of files
             todlen = len(tod_cmb[0])
-
             nfiles = len(lbdata_files)
     
             # Freeing up the memory by deleting unnecessary object(s)
-            del tod_cmb#, tod_pix, tod_psi
+            del tod_cmb
 
             # The amount of time (in sec) the given scan will have 
             # (this value is unused and it just for us to see)
@@ -230,27 +290,11 @@ def main():
             # Number of scans of length scan_size (out of the entire length todlen) to
             # obtain from a given simulation file 
             N_scans_from_file = todlen / scan_size 
-            # If this number is less then scan_num, then we open additional file
-            # and to do that we need to know a number of files to open 
-            #if N_scans_from_file < scan_num:
             # Minimum number of files to open to get a single output file (with a
             # specified number of scans and length of a single scan). Getting int
             # number and adding one to ensure that we do not go less then 1 file. 
             # [**NOTE**]: Each processor will get this value to work with in parallel. 
             nfiles_to_open = scan_num // N_scans_from_file + 1
-            #elif N_scans_from_file >= scan_num:
-            #    nfiles_to_open = 1
-            # 
-            print("#------------------")
-            print(f"Total number of simulated files to work with: {nfiles}")
-            print(f"The length of a single TOD: {todlen}")
-            print(f"The scan size in a new file: {scan_size} ({scan_time:.2f} s or {scan_time/3600:.2f} hrs)")
-            print(f"Total Number of scans in a new file: {scan_num}")
-            print(f"Number of scans to obtain from simulated input file: {N_scans_from_file:.2f}")
-            print(f"The number ratio of new scan to old scan: {scan_num / N_scans_from_file:.2f}")
-            print(f"Number of files to open (per CPU process): {nfiles_to_open:.2f}")
-            print("#------------------")
-
 
             # Ensuring we get to open integer number of files
             nfiles_to_open = int(nfiles_to_open)
@@ -262,9 +306,8 @@ def main():
                         for i in range( nfiles // int(nfiles_to_open * nprocs) ) ]
 
             # Appending the remnant batch to the list of batches
-            # [**NOTE**]: To avoid situation when the split was done equally and so wew
+            # [**NOTE**]: To avoid situation when the split was done equally and so we
             # have 0 in the end, we do the if statement, i.e.
-            # Batches are: [144, 144, 144,144, 144, 144, 144, 144, 144, 0]
             if nfiles > np.sum(batches):
                 batches.append(nfiles - np.sum(batches))
 
@@ -274,7 +317,15 @@ def main():
                     file_ranges.append(nfiles)
                 else:
                     file_ranges.append((i+1)*batches[i])
-
+            print("#------------------")
+            print(f"Total number of simulated files to work with: {nfiles}")
+            print(f"The length of a single TOD: {todlen}")
+            print(f"The scan size in a new file: {scan_size} ({scan_time:.2f} s or {scan_time/3600:.2f} hrs)")
+            print(f"Total Number of scans in a new file: {scan_num}")
+            print(f"Number of scans to obtain from simulated input file: {N_scans_from_file:.2f}")
+            print(f"The number ratio of new scan to old scan: {scan_num / N_scans_from_file:.2f}")
+            print(f"Number of files to open (per CPU process): {nfiles_to_open:.2f}")
+            print(f"Number of detectors to save: {dets_nr}")
             print(f"Batches are: {batches}")
             print(f"File ranges to process: {file_ranges}")
             print("#------------------")
@@ -284,17 +335,14 @@ def main():
             # ----------------------------------
 
             manager = mp.Manager()
-            dicts = {freq:manager.dict()}#, 44:manager.dict(), 70:manager.dict()}
+            dicts = {freq:manager.dict()}
             ctod = comm_tod.commander_tod(det_dir_out, 'LB', version, dicts=dicts, overwrite=True)
 
             # The Operational Day in Full Analogy with Planck
             ods = [0]
             # To trace the global scan in all files, i.e. each scan in each file will
             # have unique identifier
-            #global_scan_id = 0 
-
-            #remnant_scans = 0
-
+            
             print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
 
             for i in range(1, len(file_ranges)):
@@ -304,7 +352,7 @@ def main():
                 # scan_num = 20, nprocs = 64. In such a way each core will get 3 files
                 # to work with. The resulting array will be of size (192, 48, 462334) 
                 superTOD = joblib.Parallel(n_jobs=nprocs, backend="multiprocessing", verbose=2)(joblib.delayed(get_data)
-                               (nside, k, dfile, scale_loss) 
+                                (nside, k, dfile, scale_loss, det_nr_used) 
                                 for k, dfile in enumerate(lbdata_files[file_ranges[i-1]:file_ranges[i]])) 
 
                 superTOD = list(map(list, zip(*superTOD)))
@@ -313,7 +361,6 @@ def main():
                 superTOD = superTOD[0]
 
                 # Adding the remnant array to the super array from the left
-                # (supposed to be very fast)
                 if i != 1:         
                     superTOD = append_remnant(superTOD, remnant_tod)
                     superPix = append_remnant(superPix, remnant_pix)
@@ -331,12 +378,10 @@ def main():
                 ods_shift = nscansTOD // scan_num
                 ods.append(ods[i-1] + ods_shift) 
                 print(ods)
-        
+
                 remnant_tod = []
                 remnant_pix = []
                 remnant_psi = []
-
-                #print(len(superTOD[0]))
                 print(f"For i = {i}: scansTOD = {nscansTOD} => new files = {ods_shift}")
                 # Method creates the ods number of files 
                 results = joblib.Parallel(n_jobs=nprocs, backend="multiprocessing", verbose=2)(joblib.delayed(make_ods)
@@ -346,10 +391,7 @@ def main():
                                  for od in range(ods_shift)) 
                                 
                 # Getting the remainder to stitch to the left 
-                remnant_scan_id = ods_shift * scan_num #+ scan_num
-                print("remnant_scan_id", remnant_scan_id)
-                #print(len(superTOD[0][remnant_scan_id*scan_size:]))
-
+                remnant_scan_id = ods_shift * scan_num 
                 for det_idx, det_label in enumerate(det_labels):
                     remnant_tod.append(superTOD[det_idx][remnant_scan_id*scan_size:])
                     remnant_pix.append(superPix[det_idx][remnant_scan_id*scan_size:])
@@ -367,7 +409,6 @@ def main():
             nscansRem = len(remnant_tod[0]) // scan_size
             print(ods[-1])
             if nscansRem > 0:
-                #nscansTOD = len(remnant_tod[0]) // scan_size + 1 
                 remnant_scans = nscansTOD - ods_shift * scan_num # <= do I need this one?
                 print(f"For i = {i}: scansRem = {nscansRem} => new files = {1}")
                 # Here, instead of scan_num, we should use whatever amount of scans we can
@@ -382,7 +423,31 @@ def main():
 def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, fsamp, 
         ndets, det_labels, scan_size, scan_num, ods, od, superTOD, superPix, superPsi, 
              compArray, start_time, npsi): 
-
+    """
+    In: 
+    ctod
+    imo_db_interface
+    imo_db_datapath
+    instrument
+    freq
+    nside
+    fsamp
+    ndets            : REMOVE, can use len(det_labels)
+    det_labels
+    scan_size
+    scan_num
+    ods
+    od
+    superTOD
+    superPix
+    superPsi
+    compArray
+    start_time
+    npsi
+    
+    Out: 
+    """
+    
     # Initialising new file 
     ctod.init_file(freq, ods + od + 1, mode='w')
 
@@ -443,10 +508,12 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
             ctod.add_field(prefix + "/tod", arr)
 
             arr = superPix[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
-            ctod.add_field(prefix + "/pix", arr)#, [lfi.huffman])
+            ctod.add_field(prefix + "/pix", arr, [lfi.huffman])
 
+            # Huffman compression
+            compArray = [lfi.psiDigitize, lfi.huffman]
             arr = superPsi[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
-            ctod.add_field(prefix + "/psi", arr)#, compArray)
+            ctod.add_field(prefix + "/psi", arr, compArray)
             # Getting Scalars, namely:
             # gain, sigma0, fknee, alpha
             detector_info = imo_db_interface.query(
