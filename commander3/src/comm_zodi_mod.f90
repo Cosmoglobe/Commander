@@ -107,7 +107,6 @@ module comm_zodi_mod
     ! Global zodi parameter object
     type(zodi_params_k98), target :: zodi
 
-
 contains
     subroutine initialize_zodi_mod(cpar)
         ! Initialize the zodi module.

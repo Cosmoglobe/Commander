@@ -8,13 +8,13 @@ module comm_tod_zodi_mod
     implicit none
 
     private
-    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_linear_zodi_parameters
+    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_dynamic_zodi_parameters
 
     ! Constants
     real(dp) :: EPS = 3.d-14
     real(dp) :: SECOND_TO_DAY = 1.1574074074074073e-05
 
-    ! Parameters
+    ! Shared global parameters
     type(spline_type) :: earth_pos_spl_obj(3)
     real(dp), allocatable :: temperature_grid(:)
     real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp
@@ -357,11 +357,9 @@ contains
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
-    subroutine sample_linear_zodi_parameters()
+    subroutine sample_dynamic_zodi_parameters(tod)
+        class(comm_tod), intent(inout) :: tod
         integer(i4b) :: i, ierr
-        zodi%emissivities = 0.d0
-        call mpi_barrier(mpi_comm_world, ierr)
-        call zodi%build_splines()
-    end subroutine sample_linear_zodi_parameters
+    end subroutine sample_dynamic_zodi_parameters
 
 end module comm_tod_zodi_mod

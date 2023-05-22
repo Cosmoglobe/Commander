@@ -46,6 +46,7 @@ module comm_tod_DIRBE_mod
    use comm_tod_driver_mod
    use comm_utils
    use comm_bp_mod
+   use comm_tod_zodi_mod
 
    implicit none
 
@@ -230,7 +231,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -250,6 +251,7 @@ contains
       call timer%start(TOD_TOT, self%band)
 
       ! Toggle optional operations
+      sample_zodi           = .true. ! Sample zodi parameters
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
@@ -300,9 +302,8 @@ contains
          call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
 
-      if (.true.) then
-         call sample_linear_zodi_parameters()
-      end if
+      ! Sample dynamic (before computing zodi)
+      if (sample_zodi) call sample_dynamic_zodi_parameters(self)
 
       ! Prepare intermediate data structures
       call binmap%init(self, .true., sample_rel_bandpass)
@@ -323,26 +324,15 @@ contains
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
 
-         ! Prepare data
-         if (sample_rel_bandpass) then
-   !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
-         else if (sample_abs_bandpass) then
-            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
-         else
-            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
-         end if
+         ! Prepare data and generate zodi timestreams
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
 
          !  sd%tod = sd%tod
          allocate(s_buf(sd%ntod,sd%ndet))
 
-         ! Sample correlated noise, or call Simulation Routine
-         if (self%enable_tod_simulations) then
-            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-         else
-         !     call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-            sd%n_corr = 0.d0
-         end if
+         ! Sample correlated noise
+         !  call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+         sd%n_corr = 0.d0
 
          ! Compute noise spectrum parameters
          ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
@@ -358,11 +348,13 @@ contains
 
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
+         
+         ! Sample linear zodi parameters (after computing zodi)
+         if (sample_zodi) call sample_linear_zodi_parameters(self, sd, handle)
 
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          d_calib = 0.d0
-
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          if (.false.) then
@@ -391,7 +383,6 @@ contains
             call close_hdf_file(tod_file)
          end if
 
-
          ! Bin TOD
          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
 
@@ -412,6 +403,8 @@ contains
       end do
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
+
+
 
       ! Output latest scan list with new timing information
       if (output_scanlist) call self%output_scan_list(slist)
@@ -468,7 +461,6 @@ contains
       call update_status(status, "tod_end"//ctext)
       
       call timer%stop(TOD_TOT, self%band)
-
    end subroutine process_DIRBE_tod   
 
 

@@ -487,7 +487,6 @@ contains
   end subroutine sample_abscal_from_orbital
 
   ! Sample absolute gain from orbital dipole alone 
-  ! Eirik: Change this routine to sample the constant offset per radiometer; put the result in tod%gain0(i)
   module subroutine sample_relcal(tod, handle, A_abs, b_abs)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod
