@@ -243,7 +243,8 @@ contains
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
       real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-
+      real(dp), allocatable, dimension(:, :) :: A_T_A, A_T_A_reduced
+      real(dp), allocatable, dimension(:) :: AY, AY_reduced
       type(hdf_file) :: tod_file
 
       call int2string(iter, ctext)
@@ -350,7 +351,16 @@ contains
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
          
          ! Sample linear zodi parameters (after computing zodi)
-         if (sample_zodi) call sample_linear_zodi_parameters(self, sd, handle)
+         if (sample_zodi) then 
+            call accumulate_zodi_linear_params(self, sd, handle, A_T_A, AY)
+            if (self%myid == 0) then
+               allocate(A_T_A_reduced, mold=A_T_A)
+               allocate(AY_reduced, mold=AY)
+               call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+               call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
+               call sample_linear_zodi_params(A_T_A_reduced, AY_reduced, handle)
+            end if
+         end if
 
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))

@@ -199,7 +199,7 @@ module comm_tod_mod
 
      ! Zodi parameters and spline objects
      real(sp), allocatable, dimension(:, :) :: zodi_cache ! Cached s_zodi array for a given processor
-     real(dp)                               :: zodi_cache_time! Time of cached zodi array
+     real(dp)                               :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
      real(dp)                               :: zodi_min_obs_time, zodi_max_obs_time
      real(dp), allocatable, dimension(:, :) :: zodi_spl_emissivities, zodi_spl_albedos, zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)    :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
@@ -241,7 +241,7 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: collect_satpos
      procedure                           :: collect_mjds
-     procedure                           :: clear_zodi_cache
+     procedure                           :: reset_zodi_cache
 
   end type comm_tod
 
@@ -535,7 +535,7 @@ contains
     end do
     if (self%subtract_zodi) then
        allocate(self%zodi_cache(self%nobs, self%ndet))
-       self%zodi_cache = 0.d0
+       self%zodi_cache = -1.d0
        allocate(self%ind2vec_ecl(3,self%nobs))
        call ecl_to_gal_rot_mat(rotation_matrix)
        do i = 1, self%nobs
@@ -2717,9 +2717,21 @@ contains
 
   end subroutine collect_v_sun
 
-   subroutine clear_zodi_cache(self)
+   subroutine reset_zodi_cache(self, obs_time)
+      ! Resets the zodi tod cache used to look up already computed zodi values. 
+      !
+      ! This cache has an associate time of observation since the cache is only valid
+      ! if the time between the observations are small enough for the observer to not 
+      ! have moved significantly.
       class(comm_tod),   intent(inout) :: self
-      self%zodi_cache = 0.d0
-   end subroutine clear_zodi_cache
+      real(dp), intent(in), optional :: obs_time
+
+      self%zodi_cache = -1.d0
+      if (present(obs_time)) then
+         self%zodi_cache_time = obs_time
+      else 
+         self%zodi_cache_time = self%zodi_init_cache_time
+      end if
+   end subroutine reset_zodi_cache
 
 end module comm_tod_mod

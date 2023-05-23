@@ -1171,20 +1171,28 @@ contains
 
   end subroutine simulate_tod
 
-   subroutine sample_linear_zodi_parameters(tod, sd, handle)
-      ! Sample the linear zodi parameters
+   subroutine accumulate_zodi_linear_params(tod, sd, handle, A_T_A_reduced, AY_reduced)
+      ! Accumulate parameters associated with linear zodi model to be used for sampling.
 
       class(comm_tod), intent(inout) :: tod
-      type(comm_scandata), intent(in) :: sd
+      type(comm_scandata), intent(inout) :: sd
       type(planck_rng), intent(inout)  :: handle
-      integer(i4b) :: i, j, k, ierr, N_COMPS
+      real(dp), allocatable, intent(out) :: A_T_A_reduced(:, :), AY_reduced(:)
 
-      real(dp), dimension(3) :: X, eta
-      real(dp), dimension(3, 3) :: A_T_A, A_T_A_reduced, A_T_A_inv, A_T_A_inv_sqrt
-      real(dp), dimension(3) :: AY, AY_reduced
+      integer(i4b) :: i, j, k, ierr, N_COMPS
+      real(dp), allocatable, dimension(:) :: AY, X, eta
+      real(dp), allocatable, dimension(:, :) :: A_T_A
       real(dp) :: dummy1, dummy2
 
+      ! Modify this parameter when adding more linear parameters to sample
       N_COMPS = 3
+      allocate(A_T_A(N_COMPS, N_COMPS))
+      allocate(AY(N_COMPS))
+      allocate(X(N_COMPS))
+      allocate(eta(N_COMPS))
+      allocate(A_T_A_reduced, mold=A_T_A)
+      allocate(AY_reduced, mold=AY)
+
       AY = 0.d0
       A_T_A = 0.d0
 
@@ -1219,29 +1227,6 @@ contains
 
       call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
             & tod%info%comm, ierr)
-      
-      if (tod%myid == 0) then
-         A_T_A_inv = A_T_A_reduced
-         call invert_matrix(A_T_A_inv)
-         call cholesky_decompose(A_T_A_inv, A_T_A_inv_sqrt)
-         do i = 1, size(A_T_A_inv, dim=1)
-            eta(i) = rand_gauss(handle)
-         end do
-         X = matmul(A_T_A_inv, AY_reduced)  + matmul(A_T_A_inv_sqrt, eta)
-         print *, "Sampled emissivity:", X(2)
-
-         zodi%emissivities = zodi%emissivities * X(2)
-         call zodi%build_splines()
-      end if
-
-    ! Collect contributions from all cores
-      ! call mpi_reduce(residual, A, tod%ndet, MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
-      !       & tod%info%comm, ierr)
-      ! call mpi_barrier(mpi_comm_world, ierr)
-      ! if (tod%myid == 0) print *, "A:", A
-      ! stop
-      ! zodi%emissivities = 0.d0
-      ! call zodi%build_splines()
-   end subroutine sample_linear_zodi_parameters
+   end subroutine accumulate_zodi_linear_params
 
 end module comm_tod_driver_mod

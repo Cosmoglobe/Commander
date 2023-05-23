@@ -8,7 +8,7 @@ module comm_tod_zodi_mod
     implicit none
 
     private
-    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_dynamic_zodi_parameters
+    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_linear_zodi_params, sample_dynamic_zodi_parameters
 
     ! Constants
     real(dp) :: EPS = 3.d-14
@@ -69,8 +69,8 @@ contains
         do i = 1, 3
             call spline_simple(tod%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
         end do
-
-        tod%zodi_cache_time = tod%scans(1)%t0(1)
+        tod%zodi_init_cache_time = tod%scans(1)%t0(1)
+        call tod%reset_zodi_cache()
         tod%zodi_min_obs_time = minval(obs_time)
         tod%zodi_max_obs_time = maxval(obs_time)
         
@@ -164,13 +164,12 @@ contains
                 end do            
                 R_obs = norm2(obs_pos)
                 earth_lon = atan(earth_pos(2), earth_pos(1))
-                tod%zodi_cache = 0.d0
-                tod%zodi_cache_time = obs_time
+                call tod%reset_zodi_cache(obs_time)
             end if
 
             do j = 1, n_det   
                 lookup_idx = tod%pix2ind(pix(i, j))
-                if (tod%zodi_cache(lookup_idx, j) /= 0.d0) then
+                if (tod%zodi_cache(lookup_idx, j) > 0.d0) then
                     s_zodi(i, j) = tod%zodi_cache(lookup_idx, j)
                     cycle
                 end if
@@ -335,7 +334,6 @@ contains
     
         allocate(integrals(n_interp_points))
         allocate(b_nu(bandpass%p%n))
-
         do i = 1, n_interp_points    
             call get_blackbody_emission(bandpass%p%nu, temperature_grid(i), b_nu)
             integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau * b_nu)
@@ -356,6 +354,45 @@ contains
         tod%zodi_spl_solar_irradiance = splint_simple(zodi%solar_irradiance_spl, bandpass%p%nu_c)
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
+
+    subroutine sample_linear_zodi_params(A_T_A, AY, handle)
+        ! Solve the normal equations and sample linear zodi parameters.
+        ! X = (A^T A)^{-1} (A Y)
+        !
+        ! Parameters
+        ! ----------
+        ! A_T_A:
+        !   (A^T A) matrix.
+        ! AY:
+        !   (A Y) vector.
+        ! handle:
+        !   The random number generator handle.
+
+        real(dp), dimension(:, :), intent(in):: A_T_A
+        real(dp), dimension(:), intent(in) :: AY
+        type(planck_rng), intent(inout) :: handle
+
+        real(dp), allocatable, dimension(:, :) :: A_T_A_inv, A_T_A_inv_sqrt
+        real(dp), allocatable, dimension(:) :: eta, X
+        integer(i4b) :: i
+
+        allocate(A_T_A_inv, mold=A_T_A)
+        allocate(A_T_A_inv_sqrt, mold=A_T_A)
+        allocate(eta(size(A_T_A, dim=1)))
+        allocate(X, mold=eta)
+        A_T_A_inv = A_T_A
+
+        call invert_matrix(A_T_A_inv)
+        call cholesky_decompose(A_T_A_inv, A_T_A_inv_sqrt)
+        do i = 1, size(A_T_A, dim=1)
+            eta(i) = rand_gauss(handle)
+        end do
+        X = matmul(A_T_A_inv, AY)  + matmul(A_T_A_inv_sqrt, eta)
+        print *, "Sampled emissivity:", X(2)
+
+        zodi%emissivities = zodi%emissivities * X(2)
+        call zodi%build_splines()
+    end subroutine sample_linear_zodi_params
 
     subroutine sample_dynamic_zodi_parameters(tod)
         class(comm_tod), intent(inout) :: tod
