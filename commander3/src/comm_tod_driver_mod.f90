@@ -1171,38 +1171,29 @@ contains
 
   end subroutine simulate_tod
 
-   subroutine accumulate_zodi_linear_params(tod, sd, handle, A_T_A_reduced, AY_reduced)
+   subroutine accumulate_zodi_linear_params(tod, sd, handle, A_T_A, AY)
       ! Accumulate parameters associated with linear zodi model to be used for sampling.
 
       class(comm_tod), intent(inout) :: tod
       type(comm_scandata), intent(inout) :: sd
       type(planck_rng), intent(inout)  :: handle
-      real(dp), allocatable, intent(out) :: A_T_A_reduced(:, :), AY_reduced(:)
+      real(dp), intent(inout) :: A_T_A(:, :), AY(:)
 
-      integer(i4b) :: i, j, k, ierr, N_COMPS
-      real(dp), allocatable, dimension(:) :: AY, X, eta
-      real(dp), allocatable, dimension(:, :) :: A_T_A
+      integer(i4b) :: i, j, k, ierr
       real(dp) :: dummy1, dummy2
+      real(dp), allocatable, dimension(:) :: X, eta
 
-      ! Modify this parameter when adding more linear parameters to sample
-      N_COMPS = 3
-      allocate(A_T_A(N_COMPS, N_COMPS))
-      allocate(AY(N_COMPS))
-      allocate(X(N_COMPS))
-      allocate(eta(N_COMPS))
-      allocate(A_T_A_reduced, mold=A_T_A)
-      allocate(AY_reduced, mold=AY)
-
-      AY = 0.d0
-      A_T_A = 0.d0
+      allocate(X, mold=AY)
+      allocate(eta, mold=AY)
 
       do i = 1, size(sd%tod, dim=1)
          if (iand(sd%flag(i, 1),tod%flag0) .ne. 0) cycle ! skip flagged samples
+         if (sd%mask(i, 1) .eq. 0) cycle ! skip masked samples
          ! indices j,k represent:
          !     1) baseline
          !     2) zodi
          !     3) sky model 
-         do j = 1, N_COMPS
+         do j = 1, size(AY)
             dummy1 = 1.d0
             if (j == 1) AY(j) = AY(j) + sd%tod(i, 1)
             if (j == 2) then 
@@ -1213,7 +1204,7 @@ contains
                dummy1 = sd%s_sky(i, 1)
                AY(j) = AY(j) + sd%tod(i, 1) * sd%s_sky(i, 1)
             end if
-            do k = j, N_COMPS
+            do k = j, size(AY)
                dummy2 = 1.d0
                if (k == 2) dummy2 = sd%s_zodi(i, 1)
                if (k == 3) dummy2 = sd%s_sky(i, 1)
@@ -1221,12 +1212,6 @@ contains
             end do
          end do
       end do
-
-      call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
-            & tod%info%comm, ierr)
-
-      call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0,&
-            & tod%info%comm, ierr)
    end subroutine accumulate_zodi_linear_params
 
 end module comm_tod_driver_mod

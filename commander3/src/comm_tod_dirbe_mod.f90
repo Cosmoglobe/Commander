@@ -230,7 +230,7 @@ contains
       class(comm_map),                          intent(inout) :: rms_out      ! Combined output rms
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
-      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps
+      integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, N_LINEAR_SAMP_COMPS
       logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
@@ -269,6 +269,13 @@ contains
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
       end if
+
+      ! Sampling parameters
+      N_LINEAR_SAMP_COMPS = 3
+      allocate(A_T_A(N_LINEAR_SAMP_COMPS, N_LINEAR_SAMP_COMPS))
+      allocate(AY(N_LINEAR_SAMP_COMPS))
+      A_T_A = 0.d0
+      AY = 0.d0
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -351,22 +358,14 @@ contains
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
          
          ! Sample linear zodi parameters (after computing zodi)
-         if (sample_zodi) then 
-            call accumulate_zodi_linear_params(self, sd, handle, A_T_A, AY)
-            if (self%myid == 0) then
-               allocate(A_T_A_reduced, mold=A_T_A)
-               allocate(AY_reduced, mold=AY)
-               call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-               call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-               call sample_linear_zodi_params(A_T_A_reduced, AY_reduced, handle)
-            end if
-         end if
+         if (sample_zodi) call accumulate_zodi_linear_params(self, sd, handle, A_T_A, AY)
 
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
          d_calib = 0.d0
          call compute_calibrated_data(self, i, sd, d_calib)    
 
+         
          if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -375,9 +374,11 @@ contains
             !call write_hdf(tod_file, '/bpcorr', sd%s_bp)
             !call write_hdf(tod_file, '/s_tot', sd%s_tot)
             !call write_hdf(tod_file, '/s_sky', sd%s_sky)
-            call write_hdf(tod_file, '/tod',   sd%tod)
-            call write_hdf(tod_file, '/flag', sd%flag)
-            call write_hdf(tod_file, '/pix', sd%pix)
+            ! call write_hdf(tod_file, '/tod',   sd%tod)
+            ! call write_hdf(tod_file, '/flag', sd%flag)
+            ! call write_hdf(tod_file, '/pix', sd%pix)
+            call write_hdf(tod_file, '/mask1', procmask)
+            call write_hdf(tod_file, '/mask2', procmask2)
             !call write_hdf(tod_file, '/pixA', sd%pix(:,1,1))
             !call write_hdf(tod_file, '/pixB', sd%pix(:,1,2))
             !call write_hdf(tod_file, '/psiA', sd%psi(:,1,1))
@@ -391,8 +392,9 @@ contains
             !end do
 
             call close_hdf_file(tod_file)
+            print *, "printed mask.", trim(chaindir)//'/tod_'//scantext//'_samp'//samptext//'.h5'
+            stop
          end if
-
          ! Bin TOD
          call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
 
@@ -412,6 +414,16 @@ contains
 
       end do
 
+      ! Reduce the A_T_A and AY matrices from each tod object and solve the normal equations to find emissivity
+      if (sample_zodi) then
+         allocate(A_T_A_reduced, mold=A_T_A)
+         allocate(AY_reduced, mold=AY)
+         call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+         call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+         if (self%myid == 0) call sample_linear_zodi_params(A_T_A_reduced, AY_reduced, handle)
+         call mpi_bcast(zodi%emissivities, size(zodi%emissivities), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+         call zodi%build_splines()
+      end if
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
 

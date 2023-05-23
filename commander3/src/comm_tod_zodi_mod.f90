@@ -367,14 +367,13 @@ contains
         !   (A Y) vector.
         ! handle:
         !   The random number generator handle.
-
         real(dp), dimension(:, :), intent(in):: A_T_A
         real(dp), dimension(:), intent(in) :: AY
         type(planck_rng), intent(inout) :: handle
 
         real(dp), allocatable, dimension(:, :) :: A_T_A_inv, A_T_A_inv_sqrt
         real(dp), allocatable, dimension(:) :: eta, X
-        integer(i4b) :: i
+        integer(i4b) :: i, ierr
 
         allocate(A_T_A_inv, mold=A_T_A)
         allocate(A_T_A_inv_sqrt, mold=A_T_A)
@@ -391,7 +390,6 @@ contains
         print *, "Sampled emissivity:", X(2)
 
         zodi%emissivities = zodi%emissivities * X(2)
-        call zodi%build_splines()
     end subroutine sample_linear_zodi_params
 
     subroutine sample_dynamic_zodi_parameters(tod)
