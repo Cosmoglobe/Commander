@@ -198,14 +198,14 @@ module comm_tod_mod
      integer(i4b), allocatable, dimension(:) :: split
 
      ! Zodi parameters and spline objects
-     real(sp), allocatable, dimension(:, :) :: zodi_cache ! Cached s_zodi array for a given processor
-     real(dp)                               :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
-     real(dp)                               :: zodi_min_obs_time, zodi_max_obs_time
-     real(dp), allocatable, dimension(:, :) :: zodi_spl_emissivities, zodi_spl_albedos, zodi_spl_phase_coeffs
-     real(dp), allocatable, dimension(:)    :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
-     type(spline_type), allocatable         :: zodi_b_nu_spl_obj(:)
-     type(spline_type)                      :: zodi_obs_pos_spl_obj(3)
-     logical(lgt)                           :: zodi_tod_params_are_initialized
+     real(sp), allocatable, dimension(:, :, :) :: zodi_cache ! Cached s_zodi array for a given processor
+     real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
+     real(dp)                                  :: zodi_min_obs_time, zodi_max_obs_time
+     real(dp), allocatable, dimension(:, :)    :: zodi_spl_emissivities, zodi_spl_albedos, zodi_spl_phase_coeffs
+     real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
+     type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
+     type(spline_type)                         :: zodi_obs_pos_spl_obj(3)
+     logical(lgt)                              :: zodi_tod_params_are_initialized
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -534,7 +534,7 @@ contains
        end if
     end do
     if (self%subtract_zodi) then
-       allocate(self%zodi_cache(self%nobs, self%ndet))
+       allocate(self%zodi_cache(self%nobs, zodi%n_comps, self%ndet))
        self%zodi_cache = -1.d0
        allocate(self%ind2vec_ecl(3,self%nobs))
        call ecl_to_gal_rot_mat(rotation_matrix)

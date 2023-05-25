@@ -330,6 +330,7 @@ contains
         self%phase_coeffs = cpar%zs_phase_coeff
         self%solar_irradiance = cpar%zs_solar_irradiance
 
+        ! self%emissivities = 1.d0
         allocate(self%emissivity_spl(self%n_comps))
         allocate(self%albedo_spl(self%n_comps))
         allocate(self%phase_coeff_spl(3))

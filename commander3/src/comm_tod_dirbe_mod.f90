@@ -231,7 +231,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, N_LINEAR_SAMP_COMPS
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, output_zodi_comps
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -246,6 +246,10 @@ contains
       real(dp), allocatable, dimension(:, :) :: A_T_A, A_T_A_reduced
       real(dp), allocatable, dimension(:) :: AY, AY_reduced
       type(hdf_file) :: tod_file
+      character(len=10), allocatable, dimension(:) :: zodi_comp_names
+
+      allocate(zodi_comp_names(zodi%n_comps))
+      zodi_comp_names = [character(len=10) :: "cloud", "band1", "band2", "band3", "ring", "feature"]
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -253,6 +257,7 @@ contains
 
       ! Toggle optional operations
       sample_zodi           = .true. ! Sample zodi parameters
+      output_zodi_comps     = .true. ! Output zodi components
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
@@ -266,12 +271,13 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 8
+      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi%n_comps
       if (self%output_aux_maps > 0) then
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
       end if
 
       ! Sampling parameters
-      N_LINEAR_SAMP_COMPS = 3
+      N_LINEAR_SAMP_COMPS = zodi%n_comps
       allocate(A_T_A(N_LINEAR_SAMP_COMPS, N_LINEAR_SAMP_COMPS))
       allocate(AY(N_LINEAR_SAMP_COMPS))
       A_T_A = 0.d0
@@ -460,12 +466,17 @@ contains
       call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
       if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
       if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+      
       !  if (self%output_n_maps > 2) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'hitmap'//trim(postfix))
       !  if (self%output_n_maps > 4) call binmap%outmaps(4)%p%writeFITS(trim(prefix)//'bpcorr'//trim(postfix))
       !  if (self%output_n_maps > 5) call binmap%outmaps(5)%p%writeFITS(trim(prefix)//'orb'//trim(postfix))
       !  if (self%output_n_maps > 6) call binmap%outmaps(6)%p%writeFITS(trim(prefix)//'sl'//trim(postfix))
       if (self%output_n_maps > 7 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-
+      if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+         do i = 1, zodi%n_comps
+            call binmap%outmaps(7+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_comp_names(i))//trim(postfix))
+         end do
+      endif
 
       ! Clean up
       call binmap%dealloc()

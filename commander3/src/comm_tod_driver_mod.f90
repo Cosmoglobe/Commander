@@ -30,7 +30,7 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_calibB   ! Custom calibrator
      real(sp),     allocatable, dimension(:,:)     :: s_bp       ! Bandpass correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop  ! Bandpass correction proposal     
-     real(sp),     allocatable, dimension(:,:)     :: s_zodi     ! Zodiacal light
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi     ! Zodiacal light
      real(sp),     allocatable, dimension(:,:)     :: s_inst     ! Instrument-specific correction template
      real(sp),     allocatable, dimension(:,:)     :: s_tot      ! Total signal
      real(sp),     allocatable, dimension(:,:)     :: s_gain     ! Absolute calibrator
@@ -116,7 +116,7 @@ contains
     if (init_s_bp_prop_)     allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
     if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
-    if (tod%subtract_zodi) allocate(self%s_zodi(self%ntod, self%ndet))
+    if (tod%subtract_zodi)   allocate(self%s_zodi(self%ntod, zodi%n_comps, self%ndet))
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
     call timer%stop(TOD_ALLOC, tod%band)
@@ -269,6 +269,7 @@ contains
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
+       if (allocated(self%s_zodi)) self%s_tot(:,j) = self%s_tot(:,j) + sum(self%s_zodi(:,:,j), dim=2)
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
        if (tod%apply_inst_corr) self%s_tot(:,j) = self%s_tot(:,j) + self%s_inst(:,j)
     end do
@@ -345,7 +346,7 @@ contains
     if (init_s_bp_prop_)    allocate(self%s_bp_prop(self%ntod, self%ndet, 2:self%ndelta))
     if (init_s_sky_prop_)   allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)    allocate(self%s_mono(self%ntod, self%ndet))
-    if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, self%ndet))
+    if (tod%subtract_zodi)  allocate(self%s_zodi(self%ntod, zodi%n_comps, self%ndet))
     self%s_tot   = 0.
     self%s_totA  = 0.
     self%s_totB  = 0.
@@ -473,10 +474,10 @@ contains
     if (tod%subtract_zodi) then
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod, self%pix(:,1:1,1), scan, s_bufA)
-          call get_zodi_emission(tod, self%pix(:,1:1,2), scan, s_bufB)
-          self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
-          self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
+         !  call get_zodi_emission(tod, self%pix(:,1:1,1), scan, s_bufA)
+         !  call get_zodi_emission(tod, self%pix(:,1:1,2), scan, s_bufB)
+         !  self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
+          self%s_tot(:,j)  = self%s_tot(:,j)! + self%s_zodi(:,:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
           self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
@@ -531,10 +532,10 @@ contains
        call timer%start(TOD_ZODI, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          call get_zodi_emission(tod, self%pix(:,1:1,1), scan, s_bufA)
-          call get_zodi_emission(tod, self%pix(:,1:1,2), scan, s_bufB)
-          self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
-          self%s_tot(:,j)  = self%s_tot(:,j) + self%s_zodi(:,j)
+         !  call get_zodi_emission(tod, self%pix(:,1:1,1), scan, s_bufA)
+         !  call get_zodi_emission(tod, self%pix(:,1:1,2), scan, s_bufB)
+         !  self%s_zodi(:,j) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
+          self%s_tot(:,j)  = self%s_tot(:,j)! + self%s_zodi(:,j)
           self%s_totA(:,j) = self%s_totA(:,j) + s_bufA(:,j)
           self%s_totB(:,j) = self%s_totB(:,j) + s_bufB(:,j)
        end do
@@ -878,7 +879,13 @@ contains
     !  d_calib(5,:,:) - orbital dipole
     !  d_calib(6,:,:) - sidelobe
     !  d_calib(7,:,:) - zodiacal light emission
-    !  d_calib(8,:,:) - instrument correction
+    !  d_calib(8,:,:) - zodiacal light - cloud
+    !  d_calib(9,:,:) - zodiacal light - band 1
+    !  d_calib(10,:,:) - zodiacal light - band 2
+    !  d_calib(11,:,:) - zodiacal light - band 3
+    !  d_calib(12,:,:) - zodiacal light - ring
+    !  d_calib(13,:,:) - zodiacal light - feature
+    !  d_calib(14,:,:) - instrument correction
     !
     implicit none
     class(comm_tod),                       intent(in)   :: tod
@@ -887,7 +894,7 @@ contains
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
     real(sp), dimension(:,:), intent(in), optional      :: jump_template
 
-    integer(i4b) :: i, j, nout
+    integer(i4b) :: i, j, k, nout
     real(dp)     :: inv_gain
    !  write(*, *) "s_bp:", sd%s_sky(:,1)
     call timer%start(TOD_MAPBIN, tod%band)
@@ -904,19 +911,23 @@ contains
        end if
 
        if (present(jump_template)) d_calib(1,:,j) = d_calib(1,:,j) - jump_template(:,j) * inv_gain
-       if (allocated(sd%s_zodi)) d_calib(1,:,j) = d_calib(1,:,j) - sd%s_zodi(:,j)
-
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
        if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
-       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j)                ! zodiacal light
-       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
+       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sum(sd%s_zodi(:,:,j), dim=2)  ! zodiacal light
+
+       if ((tod%output_n_maps > 7) .and. allocated(sd%s_zodi)) then
+         do k = 1, zodi%n_comps
+            d_calib(7+k,:,j) = sd%s_zodi(:,k,j) ! compwise
+         end do
+       end if
+       if ((tod%output_n_maps > 13) .and. allocated(sd%s_inst)) d_calib(14,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        
        !Bandpass proposals
        do i = 1, nout-tod%output_n_maps
-          d_calib(tod%output_n_maps+i,:,j) = d_calib(1,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
+          d_calib(tod%output_n_maps+i,:,j) = d_calib(15,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
        end do
 
     end do
@@ -1180,35 +1191,23 @@ contains
       real(dp), intent(inout) :: A_T_A(:, :), AY(:)
 
       integer(i4b) :: i, j, k, ierr
-      real(dp) :: dummy1, dummy2
-      real(dp), allocatable, dimension(:) :: X, eta
-
-      allocate(X, mold=AY)
-      allocate(eta, mold=AY)
+      real(dp) :: term1, term2
 
       do i = 1, size(sd%tod, dim=1)
-         if (iand(sd%flag(i, 1),tod%flag0) .ne. 0) cycle ! skip flagged samples
-         if (sd%mask(i, 1) .eq. 0) cycle ! skip masked samples
+         if ((iand(sd%flag(i, 1),tod%flag0) .ne. 0) .or. sd%mask(i, 1) .eq. 0) cycle ! skip flagged and masked samples
          ! indices j,k represent:
-         !     1) baseline
-         !     2) zodi
-         !     3) sky model 
+         !     1) cloud
+         !     2) band1
+         !     3) band2
+         !     4) band3
+         !     5) ring
+         !     6) feature
          do j = 1, size(AY)
-            dummy1 = 1.d0
-            if (j == 1) AY(j) = AY(j) + sd%tod(i, 1)
-            if (j == 2) then 
-               dummy1 = sd%s_zodi(i, 1)
-               AY(j) = AY(j) + sd%tod(i, 1) * sd%s_zodi(i, 1)
-            end if
-            if (j == 3) then 
-               dummy1 = sd%s_sky(i, 1)
-               AY(j) = AY(j) + sd%tod(i, 1) * sd%s_sky(i, 1)
-            end if
-            do k = j, size(AY)
-               dummy2 = 1.d0
-               if (k == 2) dummy2 = sd%s_zodi(i, 1)
-               if (k == 3) dummy2 = sd%s_sky(i, 1)
-               A_T_A(j, k) = A_T_A(j, k) + dummy1 * dummy2
+            term1 = sd%s_zodi(i, j, 1)! / zodi%emissivities(j)
+            AY(j) = AY(j) + ((sd%tod(i, 1) - sd%s_tot(i, 1) + sum(sd%s_zodi(i,:,1), dim=2)) * term1)
+            do k = 1, size(AY)
+               term2 = sd%s_zodi(i, k, 1)! / zodi%emissivities(k)
+               A_T_A(j, k) = A_T_A(j, k) + term1 * term2
             end do
          end do
       end do

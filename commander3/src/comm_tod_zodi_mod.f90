@@ -103,14 +103,14 @@ contains
         !
         ! Returns
         ! -------
-        ! s_zodi : real(sp), dimension(ntod, ndet)
+        ! s_zodi : real(sp), dimension(ntod, ncomps, ndet)
         !     The predicted zodiacal emission for each time-ordered observation.
 
         class(ZodiComponent), pointer :: comp
 
         class(comm_tod), intent(inout) :: tod
         integer(i4b), intent(in) :: pix(:, :), scan
-        real(sp), intent(inout) :: s_zodi(:, :)
+        real(sp), intent(inout) :: s_zodi(:, :, :)
 
         logical(lgt) :: scattering
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod, ierr
@@ -169,8 +169,8 @@ contains
 
             do j = 1, n_det   
                 lookup_idx = tod%pix2ind(pix(i, j))
-                if (tod%zodi_cache(lookup_idx, j) > 0.d0) then
-                    s_zodi(i, j) = tod%zodi_cache(lookup_idx, j)
+                if (tod%zodi_cache(lookup_idx, 1, j) > 0.d0) then
+                    s_zodi(i, :, j) = tod%zodi_cache(lookup_idx, :, j)
                     cycle
                 end if
 
@@ -201,11 +201,11 @@ contains
                     if (scattering) comp_emission_LOS = comp_emission_LOS + (tod%zodi_spl_albedos(j, k) * solar_flux_LOS * phase_function)
                     comp_emission_LOS = comp_emission_LOS * density_LOS
 
-                    s_zodi(i, j) = s_zodi(i, j) + sum(comp_emission_LOS * gauss_weights)
+                    s_zodi(i, k, j) = sum(comp_emission_LOS * gauss_weights)
+                    tod%zodi_cache(lookup_idx, k, j) = s_zodi(i, k, j)
                     comp => comp%next()
                     k = k + 1
                 end do
-                tod%zodi_cache(lookup_idx, j) = s_zodi(i, j)
             end do
         end do
     end subroutine get_zodi_emission
@@ -377,19 +377,20 @@ contains
 
         allocate(A_T_A_inv, mold=A_T_A)
         allocate(A_T_A_inv_sqrt, mold=A_T_A)
-        allocate(eta(size(A_T_A, dim=1)))
-        allocate(X, mold=eta)
+        allocate(eta, mold=AY)
+        allocate(X, mold=AY)
         A_T_A_inv = A_T_A
 
         call invert_matrix(A_T_A_inv)
         call cholesky_decompose(A_T_A_inv, A_T_A_inv_sqrt)
-        do i = 1, size(A_T_A, dim=1)
+        do i = 1, size(AY)
             eta(i) = rand_gauss(handle)
         end do
-        X = matmul(A_T_A_inv, AY)  + matmul(A_T_A_inv_sqrt, eta)
-        print *, "Sampled emissivity:", X(2)
-
-        zodi%emissivities = zodi%emissivities * X(2)
+        X = matmul(A_T_A_inv, AY) + matmul(A_T_A_inv_sqrt, eta)
+        print *, "Sampled emissivities:", X
+        do i = 1, zodi%n_comps
+            zodi%emissivities(:, i) = zodi%emissivities(:, i) * X(i)
+        end do
     end subroutine sample_linear_zodi_params
 
     subroutine sample_dynamic_zodi_parameters(tod)
