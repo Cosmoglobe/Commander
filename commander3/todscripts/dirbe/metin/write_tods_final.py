@@ -23,6 +23,7 @@ import multiprocessing
 
 import time
 from astropy.io import fits
+import astropy.units as u
 import healpy as hp
 from matplotlib import pyplot as plt
 import quadcube
@@ -31,7 +32,9 @@ import dirbe_utils
 from scipy.interpolate import interp1d
 from astropy.time import Time, TimeDelta
 from cosmoglobe.tod_tools import TODLoader
+import zodipy
 
+zodi_model = zodipy.Zodipy(extrapolate=True)
 # Path objects
 DIRBE_DATA_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 HDF5_PATH = Path("/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/")
@@ -291,10 +294,23 @@ def get_yday_cio_data(
         pixels[band_label] = padd_array_gaps(
             np.split(pix, split_inds), padding=pix_padding
         )
-        tods[band_label] = padd_array_gaps(
-            np.split(tod * iras_color_corr_factor if color_corr else tod, split_inds),
-            padding=bad_data_padding,
+        nus, weights = dirbe_utils.get_bandpass(band)
+        zodi_tods = zodi_model.get_emission_pix(
+            freq=nus,
+            weights=weights,
+            pixels=pixels[band_label],
+            obs_time=Time(time[0], format="mjd"),
+            obs_pos=sat_pos * u.au,
+            nside=nside_out,
+            coord_in="G",
         )
+
+        tods[band_label] = zodi_tods.value
+        # tods[band_label] = padd_array_gaps(
+        #     np.split(tod * iras_color_corr_factor if color_corr else tod, split_inds),
+        #     padding=bad_data_padding,
+        # )
+
         flags[band_label] = padd_array_gaps(
             np.split(flag, split_inds), padding=flag_padding
         )
@@ -312,20 +328,21 @@ def padd_vals(
     return [np.full_like(padding, val, dtype=dtype) for padding in base_padding]
 
 
-def get_oa_flags(oa_flags: np.ndarray, yday:int) -> np.ndarray:
-    new_bits = iter([
-        bit for bit in FLAG_BITS.values() if bit >= FLAG_BITS["non_definitive_attitude"]
-    ])
+def get_oa_flags(oa_flags: np.ndarray, yday: int) -> np.ndarray:
+    new_bits = iter(
+        [
+            bit
+            for bit in FLAG_BITS.values()
+            if bit >= FLAG_BITS["non_definitive_attitude"]
+        ]
+    )
     flags = np.zeros_like(oa_flags)
     for cio_bit, bit1 in zip(range(7), new_bits):
         bit2 = next(new_bits)
         inds = (oa_flags & 2**cio_bit) > 0
-        if cio_bit == 0:
-            print(sum(inds), yday)
         flags[inds] += 2**bit1
         flags[~inds] += 2**bit2
 
-    exit()
     return flags
 
 
@@ -374,6 +391,7 @@ def write_band(
         )
 
         comm_tod.add_field(pid_det_group + "/flag", cio.flags[pid], HUFFMAN_COMPRESSION)
+
         comm_tod.add_field(pid_det_group + "/tod", cio.tods[pid])
         comm_tod.add_field(pid_det_group + "/pix", cio.pixels[pid], HUFFMAN_COMPRESSION)
 
@@ -413,7 +431,7 @@ def write_to_commander_tods(
 
     multiprocessor_manager_dicts = {}
     for band in dirbe_utils.BANDS:
-        name = f"DIRBE_{band:02}_nside{nside_out:03}_test"
+        name = f"DIRBE_{band:02}_nside{nside_out:03}_zodi_only"
         multiprocessor_manager_dicts[name] = manager.dict()
 
     filenames = list(multiprocessor_manager_dicts.keys())
@@ -427,8 +445,6 @@ def write_to_commander_tods(
         break
     if n_pids == 0:
         raise ValueError("No CIOs found")
-
-    comm_tod.make_filelists()
 
     # Currently, writing commander h5 files uses a pretty unoptimal interface which is difficult to
     # parallelize without corrupting the written files. This is the go to way to concurrently write files
@@ -467,7 +483,7 @@ def main() -> None:
     nside_out = 256
     start_time = time.perf_counter()
     color_corr = True
-    version = 3
+    version = 69
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"reading and processing cios for {len(files)} ydays...")
@@ -481,20 +497,20 @@ def main() -> None:
         f"time spent reading in and preprocessing cios: {(cio_time/60):2.2f} minutes\n"
     )
 
-    # print("writing cios to h5 files...")
-    # write_to_commander_tods(
-    #     cios,
-    #     nside_out=nside_out,
-    #     version=version,
-    #     out_path=DIRBE_DATA_PATH,
-    #     overwrite=True,
-    # )
-    # h5_time = time.perf_counter() - start_time
-    # print("done")
-    # print(f"time spent writing to h5: {(h5_time/60):2.2f} minutes\n")
-    # print(f"total time: {((h5_time + cio_time)/60):2.2f} minutes")
-    # print(f"{'':=^50}")
-
+    print("writing cios to h5 files...")
+    write_to_commander_tods(
+        cios,
+        nside_out=nside_out,
+        version=version,
+        out_path=DIRBE_DATA_PATH,
+        overwrite=True,
+    )
+    h5_time = time.perf_counter() - start_time
+    print("done")
+    print(f"time spent writing to h5: {(h5_time/60):2.2f} minutes\n")
+    print(f"total time: {((h5_time + cio_time)/60):2.2f} minutes")
+    print(f"{'':=^50}")
+    exit()
     # print(cio.time.shape)
     # print(cio.tod["04"].shape)
     # import matplotlib.pyplot as plt
@@ -514,10 +530,8 @@ def main() -> None:
             "north_van_allen_belt",
             "south_van_allen_belt",
             "south_atlantic_anomaly",
-
             "excess_noise",
             "bad_data",
-
             "moon",
             "mercury",
             "venus",
@@ -526,7 +540,6 @@ def main() -> None:
             "saturn",
             "uranus",
             "neptune",
-
             "non_definitive_attitude",
             # "definite_attitude",
             "course_attitude",

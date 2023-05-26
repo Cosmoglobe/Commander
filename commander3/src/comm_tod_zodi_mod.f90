@@ -8,7 +8,7 @@ module comm_tod_zodi_mod
     implicit none
 
     private
-    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_linear_zodi_params, sample_dynamic_zodi_parameters
+    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_linear_parameter, sample_dynamic_zodi_parameters
 
     ! Constants
     real(dp) :: EPS = 3.d-14
@@ -43,7 +43,7 @@ contains
         R_cutoff = cpar%zs_los_cut
 
         ! Set up interpolation grid for evaluating line of sight b_nu
-        allocate(temperature_grid(n_interp_points))
+        if (.not. allocated(temperature_grid)) allocate(temperature_grid(n_interp_points))
         call linspace(min_ipd_temp, max_ipd_temp, temperature_grid)
 
         call initialize_earth_pos_spline(cpar)
@@ -74,14 +74,15 @@ contains
         tod%zodi_min_obs_time = minval(obs_time)
         tod%zodi_max_obs_time = maxval(obs_time)
         
-        !allocate spectral quantities
-        allocate(tod%zodi_spl_emissivities(tod%ndet, zodi%n_comps))
-        allocate(tod%zodi_spl_albedos(tod%ndet, zodi%n_comps))
-        allocate(tod%zodi_spl_phase_coeffs(tod%ndet, 3))
+        allocate(tod%zodi_emissivity(zodi%n_comps))
+        allocate(tod%zodi_albedo(zodi%n_comps))
+        tod%zodi_emissivity(:) = cpar%ds_zodi_emissivity(tod%band, :)
+        tod%zodi_albedo(:) = cpar%ds_zodi_albedo(tod%band, :)
 
+        !allocate spectral quantities
+        allocate(tod%zodi_spl_phase_coeffs(tod%ndet, 3))
         allocate(tod%zodi_spl_solar_irradiance(tod%ndet))
         allocate(tod%zodi_phase_func_normalization(tod%ndet))
-
         allocate(tod%zodi_b_nu_spl_obj(tod%ndet))
 
         ! Inform `get_zodi_emission` that the relevant tod zodi parameters have been sucessfully initialized
@@ -89,7 +90,7 @@ contains
     end subroutine initialize_tod_zodi_mod
 
 
-    subroutine get_zodi_emission(tod, pix, scan, s_zodi)
+    subroutine get_zodi_emission(tod, pix, scan, s_zodi_scat, s_zodi_therm)
         ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
         !
         ! Parameters
@@ -103,21 +104,22 @@ contains
         !
         ! Returns
         ! -------
-        ! s_zodi : real(sp), dimension(ntod, ncomps, ndet)
-        !     The predicted zodiacal emission for each time-ordered observation.
-
+        ! s_zodi_scat : real(sp), dimension(ntod, ncomps, ndet)
+        !     Contribution from scattered sunlight light.
+        ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
+        !     Contribution from thermal interplanetary dust emission.
         class(ZodiComponent), pointer :: comp
 
         class(comm_tod), intent(inout) :: tod
         integer(i4b), intent(in) :: pix(:, :), scan
-        real(sp), intent(inout) :: s_zodi(:, :, :)
+        real(sp), dimension(:, :, :), intent(inout) :: s_zodi_scat, s_zodi_therm
 
         logical(lgt) :: scattering
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
-                                            comp_emission_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+                                            solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
         if (.not. tod%zodi_tod_params_are_initialized) then 
             print *, "Error: Zodi parameters have not been initialized."
@@ -129,7 +131,8 @@ contains
             stop
         end if
 
-        s_zodi = 0.d0
+        s_zodi_scat = 0.d0
+        s_zodi_therm = 0.d0
         n_tod = size(pix, dim=1)
         n_det = size(pix, dim=2)
 
@@ -143,7 +146,7 @@ contains
 
         earth_lon = atan(earth_pos(2), earth_pos(1))
 
-        if (count(tod%zodi_spl_albedos /= 0.d0) > 0) then
+        if (count(tod%zodi_albedo /= 0.d0) > 0) then
             scattering = .true.
         else
             scattering = .false.
@@ -169,8 +172,9 @@ contains
 
             do j = 1, n_det   
                 lookup_idx = tod%pix2ind(pix(i, j))
-                if (tod%zodi_cache(lookup_idx, 1, j) > 0.d0) then
-                    s_zodi(i, :, j) = tod%zodi_cache(lookup_idx, :, j)
+                if (tod%zodi_therm_cache(lookup_idx, 1, j) > 0.d0) then
+                    s_zodi_scat(i, :, j) = tod%zodi_scat_cache(lookup_idx, :, j)
+                    s_zodi_therm(i, :, j) = tod%zodi_therm_cache(lookup_idx, :, j)
                     cycle
                 end if
 
@@ -197,12 +201,12 @@ contains
                 k = 1
                 do while (associated(comp))
                     call comp%get_density(X_LOS, earth_lon, density_LOS)
-                    comp_emission_LOS = (1.d0 - tod%zodi_spl_albedos(j, k)) * (tod%zodi_spl_emissivities(j, k) * b_nu_LOS)
-                    if (scattering) comp_emission_LOS = comp_emission_LOS + (tod%zodi_spl_albedos(j, k) * solar_flux_LOS * phase_function)
-                    comp_emission_LOS = comp_emission_LOS * density_LOS
-
-                    s_zodi(i, k, j) = sum(comp_emission_LOS * gauss_weights)
-                    tod%zodi_cache(lookup_idx, k, j) = s_zodi(i, k, j)
+                    if (scattering) then 
+                        s_zodi_scat(i, k, j) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
+                        tod%zodi_scat_cache(lookup_idx, k, j) = s_zodi_scat(i, k, j)
+                    end if
+                    s_zodi_therm(i, k, j) = sum(density_LOS * b_nu_LOS * gauss_weights)
+                    tod%zodi_therm_cache(lookup_idx, k, j) = s_zodi_therm(i, k, j)
                     comp => comp%next()
                     k = k + 1
                 end do
@@ -339,14 +343,6 @@ contains
             integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau * b_nu)
         end do
         call spline_simple(tod%zodi_b_nu_spl_obj(det), temperature_grid, integrals, regular=.true.)
-
-        do j = 1, size(tod%zodi_spl_emissivities, dim=2)
-            tod%zodi_spl_emissivities(det, j) = splint_simple(zodi%emissivity_spl(j), bandpass%p%nu_c)
-        end do
-
-        do j = 1, size(tod%zodi_spl_albedos, dim=2)
-            tod%zodi_spl_albedos(det, j) = splint_simple(zodi%albedo_spl(j), bandpass%p%nu_c)
-        end do
         do j = 1, size(tod%zodi_spl_phase_coeffs, dim=2) 
             tod%zodi_spl_phase_coeffs(det, j) = splint_simple(zodi%phase_coeff_spl(j), bandpass%p%nu_c)
         end do
@@ -355,7 +351,7 @@ contains
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
-    subroutine sample_linear_zodi_params(A_T_A, AY, handle)
+    subroutine sample_linear_parameter(A_T_A, AY, handle, X)
         ! Solve the normal equations and sample linear zodi parameters.
         ! X = (A^T A)^{-1} (A Y)
         !
@@ -370,15 +366,15 @@ contains
         real(dp), dimension(:, :), intent(in):: A_T_A
         real(dp), dimension(:), intent(in) :: AY
         type(planck_rng), intent(inout) :: handle
+        real(dp), dimension(:), intent(inout) :: X
 
         real(dp), allocatable, dimension(:, :) :: A_T_A_inv, A_T_A_inv_sqrt
-        real(dp), allocatable, dimension(:) :: eta, X
+        real(dp), allocatable, dimension(:) :: eta
         integer(i4b) :: i, ierr
 
         allocate(A_T_A_inv, mold=A_T_A)
         allocate(A_T_A_inv_sqrt, mold=A_T_A)
         allocate(eta, mold=AY)
-        allocate(X, mold=AY)
         A_T_A_inv = A_T_A
 
         call invert_matrix(A_T_A_inv)
@@ -387,11 +383,7 @@ contains
             eta(i) = rand_gauss(handle)
         end do
         X = matmul(A_T_A_inv, AY) + matmul(A_T_A_inv_sqrt, eta)
-        print *, "Sampled emissivities:", X
-        do i = 1, zodi%n_comps
-            zodi%emissivities(:, i) = zodi%emissivities(:, i) * X(i)
-        end do
-    end subroutine sample_linear_zodi_params
+    end subroutine sample_linear_parameter
 
     subroutine sample_dynamic_zodi_parameters(tod)
         class(comm_tod), intent(inout) :: tod

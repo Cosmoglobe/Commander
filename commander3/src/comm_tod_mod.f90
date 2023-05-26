@@ -198,10 +198,11 @@ module comm_tod_mod
      integer(i4b), allocatable, dimension(:) :: split
 
      ! Zodi parameters and spline objects
-     real(sp), allocatable, dimension(:, :, :) :: zodi_cache ! Cached s_zodi array for a given processor
+     real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
      real(dp)                                  :: zodi_min_obs_time, zodi_max_obs_time
-     real(dp), allocatable, dimension(:, :)    :: zodi_spl_emissivities, zodi_spl_albedos, zodi_spl_phase_coeffs
+     real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
+     real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
      type(spline_type)                         :: zodi_obs_pos_spl_obj(3)
@@ -345,11 +346,9 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
-    if (cpar%include_tod_zodi) then 
-      self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
-      
-    end if
+    if (cpar%include_tod_zodi) self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
    
+
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
     else
@@ -534,8 +533,10 @@ contains
        end if
     end do
     if (self%subtract_zodi) then
-       allocate(self%zodi_cache(self%nobs, zodi%n_comps, self%ndet))
-       self%zodi_cache = -1.d0
+       allocate(self%zodi_scat_cache(self%nobs, zodi%n_comps, self%ndet))
+       allocate(self%zodi_therm_cache(self%nobs, zodi%n_comps, self%ndet))
+       self%zodi_scat_cache = -1.d0
+       self%zodi_therm_cache = -1.d0
        allocate(self%ind2vec_ecl(3,self%nobs))
        call ecl_to_gal_rot_mat(rotation_matrix)
        do i = 1, self%nobs
@@ -2726,7 +2727,8 @@ contains
       class(comm_tod),   intent(inout) :: self
       real(dp), intent(in), optional :: obs_time
 
-      self%zodi_cache = -1.d0
+      self%zodi_scat_cache = -1.d0
+      self%zodi_therm_cache = -1.d0
       if (present(obs_time)) then
          self%zodi_cache_time = obs_time
       else 

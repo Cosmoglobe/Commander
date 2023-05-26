@@ -243,8 +243,8 @@ contains
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
       real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
-      real(dp), allocatable, dimension(:, :) :: A_T_A, A_T_A_reduced
-      real(dp), allocatable, dimension(:) :: AY, AY_reduced
+      real(dp), allocatable, dimension(:, :)    :: A_T_A_emiss, A_T_A_albedo, A_T_A_reduced
+      real(dp), allocatable, dimension(:)       :: AY_emiss , AY_albedo, AY_reduced, X
       type(hdf_file) :: tod_file
       character(len=10), allocatable, dimension(:) :: zodi_comp_names
 
@@ -278,10 +278,22 @@ contains
 
       ! Sampling parameters
       N_LINEAR_SAMP_COMPS = zodi%n_comps
-      allocate(A_T_A(N_LINEAR_SAMP_COMPS, N_LINEAR_SAMP_COMPS))
-      allocate(AY(N_LINEAR_SAMP_COMPS))
-      A_T_A = 0.d0
-      AY = 0.d0
+      if (sample_zodi) then
+         allocate(A_T_A_emiss(N_LINEAR_SAMP_COMPS, N_LINEAR_SAMP_COMPS))
+         allocate(A_T_A_albedo, mold=A_T_A_emiss)
+         allocate(AY_emiss(N_LINEAR_SAMP_COMPS))
+         allocate(AY_albedo, mold=AY_emiss)
+         allocate(A_T_A_reduced, mold=A_T_A_emiss)
+         allocate(AY_reduced, mold=AY_emiss)
+         allocate(X, mold=AY_emiss)
+         A_T_A_emiss = 0.d0
+         A_T_A_albedo = 0.d0
+         A_T_A_reduced = 0.d0
+         AY_emiss = 0.d0
+         AY_albedo = 0.d0
+         AY_reduced = 0.d0
+         X = 0.d0
+      end if
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -364,7 +376,10 @@ contains
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
          
          ! Sample linear zodi parameters (after computing zodi)
-         if (sample_zodi) call accumulate_zodi_linear_params(self, sd, handle, A_T_A, AY)
+         if (sample_zodi) then
+            call accumulate_zodi_emissivities(self, sd, handle, A_T_A_emiss, AY_emiss)
+            call accumulate_zodi_albedos(self, sd, handle, A_T_A_albedo, AY_albedo)
+         end if
 
          ! Compute binned map
          allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
@@ -422,13 +437,29 @@ contains
 
       ! Reduce the A_T_A and AY matrices from each tod object and solve the normal equations to find emissivity
       if (sample_zodi) then
-         allocate(A_T_A_reduced, mold=A_T_A)
-         allocate(AY_reduced, mold=AY)
-         call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-         call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-         if (self%myid == 0) call sample_linear_zodi_params(A_T_A_reduced, AY_reduced, handle)
-         call mpi_bcast(zodi%emissivities, size(zodi%emissivities), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-         call zodi%build_splines()
+         ! Sample emissivities
+         call mpi_reduce(A_T_A_emiss, A_T_A_reduced, size(A_T_A_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+         call mpi_reduce(AY_emiss, AY_reduced, size(AY_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+         if (self%myid == 0) then
+            call sample_linear_parameter(A_T_A_reduced, AY_reduced, handle, X)
+            print *, "Sampled emissivity: ", X
+            self%zodi_emissivity = X
+         end if
+         call mpi_bcast(self%zodi_emissivity, size(self%zodi_emissivity), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
+         ! Sample albedo
+         A_T_A_reduced = 0.d0
+         AY_reduced = 0.d0
+         X = 0.d0
+         call mpi_reduce(A_T_A_albedo, A_T_A_reduced, size(A_T_A_albedo), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+         call mpi_reduce(AY_albedo, AY_reduced, size(AY_albedo), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+         if (self%myid == 0) then
+            call sample_linear_parameter(A_T_A_reduced, AY_reduced, handle, X)
+            print *, "Sampled albedo: ", X
+            self%zodi_albedo = X
+         end if
+         call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+
       end if
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 

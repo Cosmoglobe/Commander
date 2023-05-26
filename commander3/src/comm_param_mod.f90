@@ -132,6 +132,8 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_gain_fwhm
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
      character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
+     real(dp),           allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
+
      !TOD data parameters
      character(len=512), allocatable, dimension(:)   :: ds_tod_type
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
@@ -245,13 +247,13 @@ module comm_param_mod
      real(dp)           :: zs_los_cut, zs_delta_t_reset, zs_min_ipd_temp, zs_max_ipd_temp
      logical(lgt)       :: zs_use_cloud, zs_use_band1, zs_use_band2, zs_use_band3, zs_use_ring, zs_use_feature
      real(dp), allocatable, dimension(:, :) :: zs_common ! shape: (n_comps, 6)
+     real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo ! shape: (n_comps, 6)
      real(dp)                               :: zs_cloud_alpha, zs_cloud_beta, zs_cloud_gamma, zs_cloud_mu
      real(dp), allocatable, dimension(:)    :: zs_bands_delta_zeta, zs_bands_v, zs_bands_p, zs_bands_delta_r !(n_dust_bands)
      real(dp)                               :: zs_ring_r, zs_ring_sigma_r, zs_ring_sigma_z
      real(dp)                               :: zs_feature_r, zs_feature_sigma_r, zs_feature_sigma_z, &
                                                zs_feature_theta, zs_feature_sigma_theta
      real(dp)                               :: zs_t_0, zs_delta
-     real(dp), allocatable, dimension(:, :) :: zs_emissivity, zs_albedo! (n_band, n_comp)
      real(dp), allocatable, dimension(:, :) :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)    :: zs_nu_ref, zs_solar_irradiance ! (n_band)
 
@@ -548,7 +550,6 @@ contains
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
-
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -2693,15 +2694,21 @@ subroutine read_zodi_params_hash(htbl, cpar)
      type(hash_tbl_sll), intent(in) :: htbl
      type(comm_params),  intent(inout) :: cpar
 
-     integer(i4b) :: i, j
+     integer(i4b) :: i, j, n, len_itext
+     character(len=3) :: itext
+
      integer(i4b), parameter :: n_common_params = 6
      integer(i4b), parameter :: n_dust_bands = 3
      character(len=128), dimension(6) :: comp_labels
      character(len=1) :: dust_band_label
      character(len=2) :: obs_band_label
      character(len=512) :: temp_emissivity, temp_albedo, temp_phase_function
+     character(len=512) :: temp_emissivity1, temp_albedo1
      character(len=128), allocatable, dimension(:) :: emissivity_string, albedo_string, phase_function_string
+     character(len=128), allocatable, dimension(:) :: emissivity_string1, albedo_string1
 
+     len_itext=len(trim(itext)) !! FIXME
+     n = cpar%numband
      allocate(cpar%zs_bands_delta_r(n_dust_bands))
      allocate(cpar%zs_bands_delta_zeta(n_dust_bands))
      allocate(cpar%zs_bands_p(n_dust_bands))
@@ -2733,8 +2740,11 @@ subroutine read_zodi_params_hash(htbl, cpar)
      allocate(cpar%zs_solar_irradiance(cpar%zs_nbands))
      allocate(cpar%zs_nu_ref(cpar%zs_nbands))
      allocate(emissivity_string(cpar%zs_ncomps))
+     allocate(emissivity_string1(cpar%zs_ncomps))
      allocate(albedo_string(cpar%zs_ncomps))
+     allocate(albedo_string1(cpar%zs_ncomps))
      allocate(phase_function_string(cpar%zs_ncomps))
+     allocate(cpar%ds_zodi_emissivity(n, cpar%zs_ncomps), cpar%ds_zodi_albedo(n, cpar%zs_ncomps))
 
      ! Common parameters for all components
      allocate(cpar%zs_common(cpar%zs_ncomps, n_common_params))
@@ -2793,10 +2803,23 @@ subroutine read_zodi_params_hash(htbl, cpar)
                if (j <= 3) read(phase_function_string(j), *) cpar%zs_phase_coeff(i, j)
           end do
      end do
-
+     
      ! Convert from GHz to Hz
      cpar%zs_nu_ref = cpar%zs_nu_ref * 1d9
-
+     
+     ! tod parameters
+     do i = 1, n
+          if (.not. cpar%ds_tod_subtract_zodi(i)) cycle
+          call int2string(i, itext)
+          call get_parameter_hashtable(htbl, 'BAND_ZODI_EMISSIVITY'//itext, len_itext=len_itext, par_string=temp_emissivity1)
+          call get_parameter_hashtable(htbl, 'BAND_ZODI_ALBEDO'//itext, len_itext=len_itext, par_string=temp_albedo1)
+          call get_tokens(temp_emissivity1, ',', emissivity_string1)
+          call get_tokens(temp_albedo1, ',', albedo_string1)
+          do j = 1, cpar%zs_ncomps
+               read(emissivity_string1(j), *) cpar%ds_zodi_emissivity(i, j)
+               read(albedo_string1(j), *) cpar%ds_zodi_albedo(i, j)
+          end do
+     end do
 end subroutine read_zodi_params_hash
 
   ! ********************************************************

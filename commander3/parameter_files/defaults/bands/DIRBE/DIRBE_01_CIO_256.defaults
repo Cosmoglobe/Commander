@@ -45,7 +45,6 @@ BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
 BAND_TOD_DETECTOR_LIST&&&      = 01_A
 BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
-BAND_TOD_SUBTRACT_ZODI&&&      = .true.
 BAND_TOD_LEVEL&&&              = L2
 
 BAND_MAPFILE&&&                = DIRBE_01_256_v3.fits
@@ -61,3 +60,8 @@ BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside256_test.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1
+
+# Zodi parameters
+BAND_TOD_SUBTRACT_ZODI&&&   = .true. # if true, the following parameters must be set
+BAND_ZODI_EMISSIVITY&&&     = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
+BAND_ZODI_ALBEDO&&&         = 0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0,0.20411939612669797d0

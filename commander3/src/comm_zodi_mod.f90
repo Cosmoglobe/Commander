@@ -93,13 +93,13 @@ module comm_zodi_mod
         integer(i4b) :: n_comps, n_bands
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
-        real(dp), allocatable, dimension(:, :) :: emissivities, albedos, phase_coeffs ! spectral parameters
+        real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
         type(ZodiCloud) :: cloud ! Zodiacal components
         type(ZodiBand) :: band1, band2, band3
         type(ZodiRing) :: ring
         type(ZodiFeature) :: feature
         type(spline_type) :: solar_irradiance_spl! spline interpolators
-        type(spline_type), allocatable, dimension(:) :: emissivity_spl, albedo_spl, phase_coeff_spl
+        type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
         procedure :: initialize_k98_model, build_splines
     end type zodi_params_k98
@@ -320,19 +320,12 @@ contains
 
         ! Spectral parameters and splines
         allocate(self%nu_ref, mold=cpar%zs_nu_ref)
-        allocate(self%emissivities, mold=cpar%zs_emissivity)
-        allocate(self%albedos, mold=cpar%zs_albedo)
         allocate(self%phase_coeffs, mold=cpar%zs_phase_coeff)
         allocate(self%solar_irradiance, mold=cpar%zs_solar_irradiance)
         self%nu_ref = cpar%zs_nu_ref
-        self%emissivities = cpar%zs_emissivity
-        self%albedos = cpar%zs_albedo
         self%phase_coeffs = cpar%zs_phase_coeff
         self%solar_irradiance = cpar%zs_solar_irradiance
 
-        ! self%emissivities = 1.d0
-        allocate(self%emissivity_spl(self%n_comps))
-        allocate(self%albedo_spl(self%n_comps))
         allocate(self%phase_coeff_spl(3))
         call self%build_splines()
 
@@ -394,21 +387,15 @@ contains
     end subroutine initialize_k98_model
 
     subroutine build_splines(self)
-        ! Build splines for emissivity, albedo, phase function, and solar irradiance
+        ! Build splines for the phase function, and solar irradiance
         ! for each component in the model
-
         class(zodi_params_k98), intent(inout) :: self
         integer(i4b) :: i
 
-        do i = 1, self%n_comps
-            call spline_simple(self%emissivity_spl(i), self%nu_ref, self%emissivities(:, i), regular=.false.)
-            call spline_simple(self%albedo_spl(i), self%nu_ref, self%albedos(:, i), regular=.false.)
-        end do
         do i = 1, 3
             call spline_simple(self%phase_coeff_spl(i), self%nu_ref, self%phase_coeffs(:, i), regular=.false.)
         end do
         call spline_simple(self%solar_irradiance_spl, self%nu_ref, self%solar_irradiance, regular=.false.)
-
     end subroutine build_splines
 
     ! Functions for constructing and iterating the linked list of zodiacal components
