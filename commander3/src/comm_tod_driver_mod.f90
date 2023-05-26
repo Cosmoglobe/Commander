@@ -1218,9 +1218,9 @@ contains
             !     6) emissivity - feature
             do j = 1, size(AY)
                term1 = sd%s_zodi_therm(i, j, det) * (1.d0 - tod%zodi_albedo(j))
-               residual = sd%tod(i, det) - sd%s_tot(i, det)
+               residual = sd%tod(i, det) - sd%s_sky(i, det)
                ! Add back in zodi signal
-               residual = residual + sum(sd%s_zodi_scat(i, :, det) * tod%zodi_albedo(:), dim=1) + sum(sd%s_zodi_therm(i, :, det), dim=1)
+               residual = residual - sum(sd%s_zodi_scat(i, :, det) * tod%zodi_albedo(:), dim=1)
                AY(j) = AY(j) + residual * term1
                do k = 1, size(AY)
                   term2 = sd%s_zodi_therm(i, k, det) * (1.d0 - tod%zodi_albedo(k))
@@ -1255,10 +1255,7 @@ contains
             !     6) albedo - feature
             do j = 1, size(AY)
                term1 = sd%s_zodi_scat(i, j, det) - (tod%zodi_emissivity(j) * sd%s_zodi_therm(i, j, det))
-               residual = sd%tod(i, det) - sd%s_tot(i, det)
-               ! Add back in zodi signal
-               residual = residual + sum(sd%s_zodi_scat(i, :, det), dim=1)
-               residual = residual - sum(sd%s_zodi_therm(i, :, det) * tod%zodi_emissivity(:), dim=1) 
+               residual = sd%tod(i, det) - sd%s_sky(i, det) - sum(sd%s_zodi_therm(i, :, det) * tod%zodi_emissivity(:), dim=1) 
                AY(j) = AY(j) + residual * term1
                do k = 1, size(AY)
                   term2 = sd%s_zodi_scat(i, k, det) - (tod%zodi_emissivity(k) * sd%s_zodi_therm(i, k, det))
