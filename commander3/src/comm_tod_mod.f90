@@ -491,7 +491,8 @@ contains
             do k = 2, self%scans(i)%ntod
                pix(k)  = pix(k-1)  + pix(k)
                if (pix(k) > 12*self%nside**2-1) then
-                   write(*,*) pix(k), k, pix(1), l, self%label(j),self%scans(i)%chunk_num
+                   write(*,*) "Error: pixel number out of range for:"
+                   write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
                end if
                self%pix2ind(pix(k)) = 1
             end do
