@@ -8,7 +8,7 @@ module comm_tod_zodi_mod
     implicit none
 
     private
-    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, sample_linear_parameter, sample_dynamic_zodi_parameters
+    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, solve_Ax_zodi, sample_dynamic_zodi_parameters
 
     ! Constants
     real(dp) :: EPS = 3.d-14
@@ -351,7 +351,7 @@ contains
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
-    subroutine sample_linear_parameter(A_T_A, AY, handle, X)
+    subroutine solve_Ax_zodi(A_T_A, AY, handle, X)
         ! Solve the normal equations and sample linear zodi parameters.
         ! X = (A^T A)^{-1} (A Y)
         !
@@ -383,7 +383,7 @@ contains
             eta(i) = rand_gauss(handle)
         end do
         X = matmul(A_T_A_inv, AY) + matmul(A_T_A_inv_sqrt, eta)
-    end subroutine sample_linear_parameter
+    end subroutine solve_Ax_zodi
 
     subroutine sample_dynamic_zodi_parameters(tod)
         class(comm_tod), intent(inout) :: tod
