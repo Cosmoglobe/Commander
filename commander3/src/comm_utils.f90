@@ -1421,4 +1421,10 @@ contains
       m(3,2) =  -0.000346354d0
       m(3,3) =   0.497154957d0
    end subroutine ecl_to_gal_rot_mat
+
+   real(dp) elemental function freq2wavelength(nu) result(lambda)
+      ! Convert frequency in [Hz] to wavelength [micron (um)]
+      real(dp), intent(in) :: nu
+      lambda = c / nu * 1.d-6
+   end function
 end module comm_utils

@@ -137,7 +137,7 @@ module comm_tod_mod
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
      real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
-     integer(i4b)      :: nobs                            ! Number of observed pixeld for this core
+     integer(i4b)      :: nobs                            ! Number of observed pixels for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file

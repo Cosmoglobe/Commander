@@ -934,8 +934,8 @@ contains
        end if
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_zodi_therm) .and. allocated(sd%s_zodi_scat)) then
          do k = 1, zodi%n_comps
-            ! d_calib(7+k,:,j) = (sd%s_zodi_scat(:,k,j) * tod%zodi_albedo(k)) + (sd%s_zodi_therm(:,k,j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))) ! compwise
-            d_calib(7+k,:,j) = sd%s_zodi_therm(:,k,j) ! compwise
+            d_calib(7+k,:,j) = (sd%s_zodi_scat(:,k,j) * tod%zodi_albedo(k)) + (sd%s_zodi_therm(:,k,j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))) ! compwise
+            ! d_calib(7+k,:,j) = sd%s_zodi_therm(:,k,j) ! compwise
          end do
        end if
        if ((tod%output_n_maps > 13) .and. allocated(sd%s_inst)) d_calib(14,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
@@ -1213,7 +1213,6 @@ contains
                mask(tod_idx) = 0          
                cycle ! skip flagged and masked samples
             end if
-
             res(tod_idx, det) = sd%tod(i, det) - sd%s_sky(i, det)
             do j = 1, zodi%n_comps
                s_therm(tod_idx, j, det) = sd%s_zodi_therm(i, j, det)
@@ -1222,147 +1221,6 @@ contains
          end do
       end do
    end subroutine collect_sd_integrals_and_residual
-
-   subroutine accumulate_zodi_emissivities(tod, s_therm, s_scat, res, mask, A_T_A, AY)
-      class(comm_tod), intent(in) :: tod
-      real(dp), intent(in) :: s_therm(:, :, :), s_scat(:, :, :), res(:, :), mask(:)
-      real(dp), intent(inout) :: A_T_A(:, :), AY(:)
-      integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
-      real(dp) :: term1, term2, residual
-      
-      ntod = size(s_therm, dim=1)
-      ncomp = size(s_therm, dim=2)
-      ndet = size(s_therm, dim=3)
-
-      do det = 1, ndet
-         do i = 1, ntod
-            if (mask(i) .eq. 0) cycle ! skip flagged and masked samples
-            ! indices j,k represent:
-            !     1) emissivity - cloud
-            !     2) emissivity - band1
-            !     3) emissivity - band2
-            !     4) emissivity - band3
-            !     5) emissivity - ring
-            !     6) emissivity - feature
-            do j = 1, ncomp
-               term1 = s_therm(i, j, det) * (1.d0 - tod%zodi_albedo(j))
-               residual = res(i, det) - sum(s_scat(i, :, det) * tod%zodi_albedo(:), dim=1)
-               AY(j) = AY(j) + residual * term1
-               do k = 1, ncomp
-                  term2 = s_therm(i, k, det) * (1.d0 - tod%zodi_albedo(k))
-                  A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-               end do
-            end do
-         end do
-      end do
-      AY = AY / tod%ndet
-      A_T_A = A_T_A / tod%ndet
-   end subroutine accumulate_zodi_emissivities
-
-   subroutine accumulate_zodi_albedos(tod, s_therm, s_scat, res, mask, A_T_A, AY)
-      class(comm_tod), intent(in) :: tod
-      real(dp), intent(in):: s_therm(:, :, :), s_scat(:, :, :), res(:, :), mask(:)
-      real(dp), intent(inout) :: A_T_A(:, :), AY(:)
-      integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
-      real(dp) :: term1, term2, residual
-      
-      ntod = size(s_scat, dim=1)
-      ncomp = size(s_scat, dim=2)
-      ndet = size(s_scat, dim=3)
-
-      do det = 1, ndet
-         do i = 1, ntod
-            if (mask(i) .eq. 0) cycle ! skip flagged and masked samples
-            ! indices j,k represent:
-            !     1) albedo - cloud
-            !     2) albedo - band1
-            !     3) albedo - band2
-            !     4) albedo - band3
-            !     5) albedo - ring
-            !     6) albedo - feature
-            do j = 1, ncomp
-               term1 = s_scat(i, j, det) - (tod%zodi_emissivity(j) * s_therm(i, j, det))
-               residual = res(i, det) - sum(s_therm(i, :, det) * tod%zodi_emissivity(:), dim=1) 
-               AY(j) = AY(j) + residual * term1
-               do k = 1, ncomp
-                  term2 = s_scat(i, k, det) - (tod%zodi_emissivity(k) * s_therm(i, k, det))
-                  A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-               end do
-            end do
-         end do
-      end do
-      AY = AY / tod%ndet
-      A_T_A = A_T_A / tod%ndet
-   end subroutine accumulate_zodi_albedos
-
-   ! subroutine accumulate_zodi_emissivities(tod, sd, handle, A_T_A, AY)
-   !    ! Accumulate parameters associated with linear zodi model to be used for sampling.
-
-   !    class(comm_tod), intent(in) :: tod
-   !    type(comm_scandata), intent(in) :: sd
-   !    type(planck_rng), intent(inout)  :: handle
-   !    real(dp), intent(inout) :: A_T_A(:, :), AY(:)
-   !    integer(i4b) :: i, j, k, det, ierr
-   !    real(dp) :: term1, term2, residual
-   !    do det = 1, tod%ndet
-   !       do i = 1, size(sd%tod, dim=1)
-   !          if ((iand(sd%flag(i, det),tod%flag0) .ne. 0) .or. sd%mask(i, 1) .eq. 0) cycle ! skip flagged and masked samples
-   !          ! indices j,k represent:
-   !          !     1) emissivity - cloud
-   !          !     2) emissivity - band1
-   !          !     3) emissivity - band2
-   !          !     4) emissivity - band3
-   !          !     5) emissivity - ring
-   !          !     6) emissivity - feature
-   !          do j = 1, size(AY)
-   !             term1 = sd%s_zodi_therm(i, j, det) * (1.d0 - tod%zodi_albedo(j))
-   !             residual = sd%tod(i, det) - sd%s_sky(i, det) - sum(sd%s_zodi_scat(i, :, det) * tod%zodi_albedo(:), dim=1)
-   !             AY(j) = AY(j) + residual * term1
-   !             do k = 1, size(AY)
-   !                term2 = sd%s_zodi_therm(i, k, det) * (1.d0 - tod%zodi_albedo(k))
-   !                A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-   !             end do
-   !          end do
-   !       end do
-   !    end do
-   !    AY = AY / tod%ndet
-   !    A_T_A = A_T_A / tod%ndet
-   ! end subroutine accumulate_zodi_emissivities
-
-   ! subroutine accumulate_zodi_albedos(tod, sd, handle, A_T_A, AY)
-   !    ! Accumulate parameters associated with linear zodi model to be used for sampling.
-
-   !    class(comm_tod), intent(in) :: tod
-   !    type(comm_scandata), intent(in) :: sd
-   !    type(planck_rng), intent(inout)  :: handle
-   !    real(dp), intent(inout) :: A_T_A(:, :), AY(:)
-
-   !    integer(i4b) :: i, j, k, det, ierr
-   !    real(dp) :: term1, term2, residual
-   !    do det = 1, tod%ndet
-   !       do i = 1, size(sd%tod, dim=1)
-   !          if ((iand(sd%flag(i, det),tod%flag0) .ne. 0) .or. sd%mask(i, 1) .eq. 0) cycle ! skip flagged and masked samples
-   !          ! indices j,k represent:
-   !          !     1) albedo - cloud
-   !          !     2) albedo - band1
-   !          !     3) albedo - band2
-   !          !     4) albedo - band3
-   !          !     5) albedo - ring
-   !          !     6) albedo - feature
-   !          do j = 1, size(AY)
-   !             term1 = sd%s_zodi_scat(i, j, det) - (tod%zodi_emissivity(j) * sd%s_zodi_therm(i, j, det))
-   !             residual = sd%tod(i, det) - sd%s_sky(i, det) - sum(sd%s_zodi_therm(i, :, det) * tod%zodi_emissivity(:), dim=1) 
-   !             AY(j) = AY(j) + residual * term1
-   !             do k = 1, size(AY)
-   !                term2 = sd%s_zodi_scat(i, k, det) - (tod%zodi_emissivity(k) * sd%s_zodi_therm(i, k, det))
-   !                A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-   !             end do
-   !          end do
-   !       end do
-   !    end do
-   !    AY = AY / tod%ndet
-   !    A_T_A = A_T_A / tod%ndet
-   ! end subroutine accumulate_zodi_albedos
 
    subroutine get_s_zodi(tod, sd, s_zodi)
       class(comm_tod), intent(in) :: tod
@@ -1377,8 +1235,8 @@ contains
          do k = 1, zodi%n_comps
             ! Add scattered sun light contribution
             s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_scat(:, k, j) * tod%zodi_albedo(k)
-            ! Add thermal interplanetary dust emission contribution
-            s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_therm(:,k,j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))
+            ! Add thermal interplanetary dust emission contribution and remove thermal emission scattered away from the LOS
+            s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_therm(:, k, j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))
          end do
       end do
    end subroutine get_s_zodi

@@ -8,7 +8,7 @@ module comm_tod_zodi_mod
     implicit none
 
     private
-    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, solve_Ax_zodi, sample_dynamic_zodi_parameters
+    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, solve_Ax_zodi, sample_dynamic_zodi_parameters, accumulate_zodi_emissivities, accumulate_zodi_albedos
 
     ! Constants
     real(dp) :: EPS = 3.d-14
@@ -351,9 +351,149 @@ contains
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
+    subroutine accumulate_zodi_emissivities(tod, s_therm, s_scat, res, mask, A_T_A, AY, group_comps)
+        ! Returns the A^T A and A Y matrices when solving the normal equations 
+        ! (AX = Y, where X is the emissivity vector).
+        !
+        ! TODO: Add the covariance matrix
+        !
+        ! Parameters
+        ! ----------
+        ! tod :
+        !     The TOD object holding the component emissivities and albedos.
+        ! s_therm :
+        !     The thermal zodiacal emission integral (without being scaled by emissivities).
+        ! s_scat :
+        !     The scattered zodiacal light integral (without being scaled by albedos).
+        ! res :
+        !     The residual (data - sky model).
+        ! mask :
+        !     The mask indicating which samples to use (we want to mask the galaxy).
+        ! A_T_A :
+        !     The A^T A matrix.
+        ! AY :
+        !     The A Y matrix.
+        ! group_comps :
+        !     Whether to group the components (bands into one group, and feature + ring into another).
+        class(comm_tod), intent(in) :: tod
+        real(dp), intent(in) :: s_therm(:, :, :), s_scat(:, :, :), res(:, :), mask(:)
+        real(dp), intent(inout) :: A_T_A(:, :), AY(:)
+        logical(lgt), intent(in) :: group_comps
+        integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
+        real(dp) :: term1, term2, residual
+        
+        ntod = size(s_therm, dim=1)
+        if (group_comps) then
+            ncomp = 3
+        else 
+            ncomp = size(s_therm, dim=2)
+        end if
+        ndet = size(s_therm, dim=3)
+
+        do det = 1, ndet
+            do i = 1, ntod
+                if (mask(i) .eq. 0) cycle ! skip flagged and masked samples
+                do j = 1, ncomp
+                    if (group_comps .and. j == 2) then
+                        term1 = sum(s_therm(i, 2:4, det), dim=1) * (1.d0 - tod%zodi_albedo(2))
+                    else if (group_comps .and. j == 3) then
+                        term1 = sum(s_therm(i, 5:6, det), dim=1) * (1.d0 - tod%zodi_albedo(5))
+                    else
+                        term1 = s_therm(i, j, det) * (1.d0 - tod%zodi_albedo(j))
+                    end if
+                    residual = res(i, det) - sum(s_scat(i, :, det) * tod%zodi_albedo(:), dim=1)
+                    AY(j) = AY(j) + residual * term1
+                    do k = 1, ncomp
+                        if (group_comps .and. k == 2) then
+                            term2 = sum(s_therm(i, 2:4, det), dim=1) * (1.d0 - tod%zodi_albedo(2))
+                        else if (group_comps .and. k == 3) then
+                            term2 = sum(s_therm(i, 5:6, det), dim=1) * (1.d0 - tod%zodi_albedo(5))
+                        else
+                            term2 = s_therm(i, k, det) * (1.d0 - tod%zodi_albedo(k))
+                        end if
+                        A_T_A(j, k) = A_T_A(j, k) + term1 * term2
+                    end do
+                end do
+            end do
+        end do
+        AY = AY / tod%ndet
+        A_T_A = A_T_A / tod%ndet
+    end subroutine accumulate_zodi_emissivities
+
+    subroutine accumulate_zodi_albedos(tod, s_therm, s_scat, res, mask, A_T_A, AY, group_comps)
+        ! Returns the A^T A and A Y matrices when solving the normal equations 
+        ! (AX = Y, where X is the albedo vector).
+        !
+        ! TODO: Add the covariance matrix
+        !
+        ! Parameters
+        ! ----------
+        ! tod :
+        !     The TOD object holding the component emissivities and albedos.
+        ! s_therm :
+        !     The thermal zodiacal emission integral (without being scaled by emissivities).
+        ! s_scat :
+        !     The scattered zodiacal light integral (without being scaled by albedos).
+        ! res :
+        !     The residual (data - sky model).
+        ! mask :
+        !     The mask indicating which samples to use (we want to mask the galaxy).
+        ! A_T_A :
+        !     The A^T A matrix.
+        ! AY :
+        !     The A Y matrix.
+        ! group_comps :
+        !     Whether to group the components (bands into one group, and feature + ring into another).
+        class(comm_tod), intent(in) :: tod
+        real(dp), intent(in):: s_therm(:, :, :), s_scat(:, :, :), res(:, :), mask(:)
+        real(dp), intent(inout) :: A_T_A(:, :), AY(:)
+        logical(lgt), intent(in) :: group_comps
+        integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
+        real(dp) :: term1, term2, residual
+        
+        ntod = size(s_scat, dim=1)
+        if (group_comps) then
+            ncomp = 3
+        else 
+            ncomp = size(s_scat, dim=2)
+        end if
+        ndet = size(s_scat, dim=3)
+
+        do det = 1, ndet
+            do i = 1, ntod
+                if (mask(i) .eq. 0) cycle ! skip flagged and masked samples
+                do j = 1, ncomp
+                    if (group_comps .and. j == 2) then
+                        term1 = sum(s_scat(i, 2:4, det), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4, det), dim=1))
+                    else if (group_comps .and. j == 3) then
+                        term1 = sum(s_scat(i, 5:6, det), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6, det), dim=1))
+                    else
+                        term1 = s_scat(i, j, det) - (tod%zodi_emissivity(j) * s_therm(i, j, det))
+                    end if
+                    residual = res(i, det) - sum(s_therm(i, :, det) * tod%zodi_emissivity(:), dim=1) 
+                    AY(j) = AY(j) + residual * term1
+                    do k = 1, ncomp
+                        if (group_comps .and. k == 2) then
+                            term2 = sum(s_scat(i, 2:4, det), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4, det), dim=1))
+                        else if (group_comps .and. k == 3) then
+                            term2 = sum(s_scat(i, 5:6, det), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6, det), dim=1))
+                        else
+                            term2 = s_scat(i, k, det) - (tod%zodi_emissivity(k) * s_therm(i, k, det))
+                        end if
+                        A_T_A(j, k) = A_T_A(j, k) + term1 * term2
+                    end do
+                end do
+            end do
+        end do
+        AY = AY / tod%ndet
+        A_T_A = A_T_A / tod%ndet
+    end subroutine accumulate_zodi_albedos
+
     subroutine solve_Ax_zodi(A_T_A, AY, handle, X)
-        ! Solve the normal equations and sample linear zodi parameters.
+        ! Solve the normal equations and return the parameter vector X (albedos or emissivities).
         ! X = (A^T A)^{-1} (A Y)
+        !
+        ! TODO: Add the covariance matrix
         !
         ! Parameters
         ! ----------
