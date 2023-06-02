@@ -20,7 +20,7 @@ BAND_BANDPASS_TYPE&&&          = DIRBE
 BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
 BAND_NOMINAL_FREQ&&&           = 2997.92458
 BAND_SAMP_BANDPASS&&&          = .false.
-BAND_BANDPASSFILE&&&           = DIRBE_instrument_01.h5
+BAND_BANDPASSFILE&&&           = DIRBE_instrument_02.h5
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
 BAND_GAIN_PRIOR_RMS&&&          = 0
@@ -56,7 +56,7 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0256.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0256.fits
-BAND_TOD_RIMO&&&               = DIRBE_instrument_01.h5
+BAND_TOD_RIMO&&&               = DIRBE_instrument_02.h5
 BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_nside256_test.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1

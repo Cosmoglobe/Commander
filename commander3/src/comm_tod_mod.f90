@@ -598,7 +598,7 @@ contains
 
     call close_hdf_file(h5_file)
 
-    self%nu_c   = self%nu_c * 1d9
+    self%nu_c   = self%nu_c * 1d9 ! Convert from Hz to GHz 
   end subroutine load_instrument_file
 
 

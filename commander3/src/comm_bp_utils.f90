@@ -181,13 +181,12 @@ contains
   end function dB_rj_dnu
 
   ! Routine for reading bandpass files for one detecor with threshold
-  subroutine read_bandpass(filename, label, threshold, is_wavelength, n, nu, tau)
+  subroutine read_bandpass(filename, label, threshold, n, nu, tau)
     implicit none
 
     character(len=*),                            intent(in)  :: filename
     character(len=*),                            intent(in)  :: label
     real(dp),                                    intent(in)  :: threshold
-    logical(lgt),                                intent(in)  :: is_wavelength ! If true then bandpassx is assumed to be given in microns
     integer(i4b),                                intent(out) :: n
     real(dp),         allocatable, dimension(:), intent(out) :: nu, tau
 
@@ -277,39 +276,11 @@ contains
     nu  = x(first:last)
     tau = y(first:last)
 
-   ! if bandpass is given in wavelength (assumes microns) we need to convert to frequency and reverse
-   if (is_wavelength) then
-      allocate(um(n), tau_um(n))
-      do i = 1, n ! reverse tau and nu arrays
-         um(i)  = c / (nu(n-i+1) * 1.d-6)
-         ! tau_um(i) = tau(n-i+1)! * ((um(i)**2)/c) ! scale weights by factor (nu**2/c) if weights are in lambda units ! TODO: check if this factor is needed
-         tau_um(i) = tau(n-i+1)
-      end do
-
-      nu = um
-      tau = tau_um
-   else
-      nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
-   end if
-
-   tau = tau / tsum(nu, tau)
+    nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
+    tau = tau / tsum(nu, tau) ! normalize bandpass to unity under tsum
 
     deallocate(x, y)
   end subroutine read_bandpass
-
-  function micron_to_GHz(um)
-    implicit none
-
-    real(dp), intent(in) :: um
-    real(dp) :: c_um_GHz
-    real(dp) :: micron_to_GHz
-
-    c_um_GHz = 2.99792458d5
-
-    micron_to_GHz = um**2/c_um_GHz
-
-  end function micron_to_GHz
-
 
   ! Routine for reading bandpass files all detectors at the same time
   subroutine read_bandpass_nonzero_threshold(filename, label, ndet, threshold, n, nu, tau)

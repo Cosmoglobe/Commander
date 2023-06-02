@@ -281,8 +281,6 @@ contains
          if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
       end if
 
-      print *, self%nu_c, freq2wavelength(self%nu_c)
-      stop
       ! Sampling parameters
       if (sample_zodi) then
 

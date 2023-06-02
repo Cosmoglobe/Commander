@@ -98,8 +98,6 @@ contains
 
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
-    logical(lgt)                        :: is_wavelength_dummy = .false.
-
 
     character(len=1) :: j_str
 
@@ -289,7 +287,6 @@ contains
             call read_bandpass(trim(cpar%ds_bpfile(i)), &
                               & trim(data(n)%tod%label(j)),&
                               & 0.d0, &
-                              & is_wavelength_dummy, &
                               & n_dummy, &
                               & nu_dummy, &
                               & tau_dummy)

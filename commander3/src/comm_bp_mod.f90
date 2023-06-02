@@ -108,7 +108,6 @@ contains
     character(len=512) :: label
     character(len=16)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
-    logical(lgt) :: is_wavelength = .false.
     
     label = cpar%ds_label(id_abs)
     
@@ -127,8 +126,6 @@ contains
        constructor%threshold = 0.d0
     case ('DIRBE') 
        constructor%threshold = 0.d0
-      !  constructor%threshold = 1.d-5
-       is_wavelength = .true.
     case ('HFI_cmb') 
        constructor%threshold = 1.d-7
     case ('PSM_LFI') 
@@ -164,17 +161,17 @@ contains
     else
        if (present(detlabel)) then
           call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
-               & constructor%threshold, is_wavelength, &
+               & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
           call get_tokens(subdets, ",", dets, ndet)
           if (constructor%threshold == 0.d0) then
                call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(1), &
-                    & constructor%threshold, is_wavelength, &
+                    & constructor%threshold, &
                     & constructor%n, constructor%nu0, constructor%tau0)
                do i = 2, ndet
                     call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(i), &
-                        & constructor%threshold, is_wavelength, constructor%n, nu0, tau0)
+                        & constructor%threshold, constructor%n, nu0, tau0)
                     constructor%tau0 = constructor%tau0 + tau0
                     deallocate(nu0, tau0)
                end do
