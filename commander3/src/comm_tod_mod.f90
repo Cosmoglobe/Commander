@@ -147,6 +147,7 @@ module comm_tod_mod
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
+     logical(lgt) :: cmb_dipole                                   ! Construct and remove CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
@@ -206,7 +207,7 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
      type(spline_type)                         :: zodi_obs_pos_spl_obj(3)
-     logical(lgt)                              :: zodi_tod_params_are_initialized
+     logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -1878,7 +1879,8 @@ contains
              P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
           end do
        end if
-
+       print *, self%nu_c(j), (c / self%nu_c(j)) * 1d6
+       stop
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
             & self%orbital, self%orb_4pi_beam, P, s_dip(:,j))
     end do

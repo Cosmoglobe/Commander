@@ -205,9 +205,13 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
-    call timer%start(TOD_ORBITAL, tod%band)
-    call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
-    call timer%stop(TOD_ORBITAL, tod%band)
+    if (tod%cmb_dipole) then
+       print *, "GOT HERE"
+       stop
+       call timer%start(TOD_ORBITAL, tod%band)
+       call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
+       call timer%stop(TOD_ORBITAL, tod%band)
+    end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template

@@ -78,7 +78,12 @@ contains
         allocate(tod%zodi_albedo(zodi%n_comps))
         tod%zodi_emissivity(:) = cpar%ds_zodi_emissivity(tod%band, :)
         tod%zodi_albedo(:) = cpar%ds_zodi_albedo(tod%band, :)
-
+        
+        if (count(tod%zodi_albedo /= 0.d0) > 0) then
+            tod%zodi_scattering = .true.
+        else
+            tod%zodi_scattering = .false.
+        end if
         !allocate spectral quantities
         allocate(tod%zodi_spl_phase_coeffs(tod%ndet, 3))
         allocate(tod%zodi_spl_solar_irradiance(tod%ndet))
@@ -114,7 +119,6 @@ contains
         integer(i4b), intent(in) :: pix(:, :), scan
         real(sp), dimension(:, :, :), intent(inout) :: s_zodi_scat, s_zodi_therm
 
-        logical(lgt) :: scattering
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
@@ -145,12 +149,6 @@ contains
         end do        
 
         earth_lon = atan(earth_pos(2), earth_pos(1))
-
-        if (count(tod%zodi_albedo /= 0.d0) > 0) then
-            scattering = .true.
-        else
-            scattering = .false.
-        end if
 
         do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
@@ -188,7 +186,7 @@ contains
                 end do
                 R_LOS = norm2(X_LOS, dim=1)           
 
-                if (scattering) then
+                if (tod%zodi_scattering) then
                     solar_flux_LOS = tod%zodi_spl_solar_irradiance(j) / R_LOS**2
                     call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
                     call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j), phase_function)
@@ -201,7 +199,7 @@ contains
                 k = 1
                 do while (associated(comp))
                     call comp%get_density(X_LOS, earth_lon, density_LOS)
-                    if (scattering) then 
+                    if (tod%zodi_scattering) then 
                         s_zodi_scat(i, k, j) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
                         tod%zodi_scat_cache(lookup_idx, k, j) = s_zodi_scat(i, k, j)
                     end if

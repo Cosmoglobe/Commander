@@ -129,6 +129,7 @@ contains
       constructor%ndiode          = 1
       constructor%compressed_tod  = .false.
       constructor%correct_sl      = .false.
+      constructor%cmb_dipole      = .false.
       constructor%orb_4pi_beam    = .false.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
@@ -482,33 +483,35 @@ contains
             print *, "Sampled emissivity: ", X
          end if
          call mpi_bcast(self%zodi_emissivity, size(self%zodi_emissivity), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-
-         A_T_A = 0.d0
-         AY = 0.d0
-         A_T_A_reduced = 0.d0
-         AY_reduced = 0.d0
-         X = 0.d0
-         call accumulate_zodi_albedos(self, s_therm_tot, s_scat_tot, res_tot, mask_tot, A_T_A, AY, use_k98_samp_groups)
-         call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-         call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-         if (self%myid == 0) then
-            call solve_Ax_zodi(A_T_A_reduced, AY_reduced, handle, X)
-            ! Prior on albedo (A in [0, 1])
-            ! where (X < 0)
-            !    X = 0
-            ! elsewhere (X > 1)
-            !    X = 1
-            ! endwhere        
-            if (use_k98_samp_groups) then
-               self%zodi_albedo(1) = X(1)
-               self%zodi_albedo(2:4) = X(2)
-               self%zodi_albedo(5:6) = X(3)
-            else 
-               self%zodi_albedo = X
+      
+         if (self%zodi_scattering) then
+            A_T_A = 0.d0
+            AY = 0.d0
+            A_T_A_reduced = 0.d0
+            AY_reduced = 0.d0
+            X = 0.d0
+            call accumulate_zodi_albedos(self, s_therm_tot, s_scat_tot, res_tot, mask_tot, A_T_A, AY, use_k98_samp_groups)
+            call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            if (self%myid == 0) then
+               call solve_Ax_zodi(A_T_A_reduced, AY_reduced, handle, X)
+               ! Prior on albedo (A in [0, 1])
+               ! where (X < 0)
+               !    X = 0
+               ! elsewhere (X > 1)
+               !    X = 1
+               ! endwhere        
+               if (use_k98_samp_groups) then
+                  self%zodi_albedo(1) = X(1)
+                  self%zodi_albedo(2:4) = X(2)
+                  self%zodi_albedo(5:6) = X(3)
+               else 
+                  self%zodi_albedo = X
+               end if
+               print *, "Sampled albedo: ", X
             end if
-            print *, "Sampled albedo: ", X
+            call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
          end if
-         call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
       end if
 
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
