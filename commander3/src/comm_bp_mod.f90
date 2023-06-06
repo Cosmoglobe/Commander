@@ -171,13 +171,19 @@ contains
    !             & constructor%threshold, &
    !             & constructor%n, constructor%nu0, constructor%tau0)
    !     allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
-    else
+    else       
        if (present(detlabel)) then
           call read_bandpass(cpar%ds_bpfile(id_abs), detlabel, &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
-          call get_tokens(subdets, ",", dets, ndet)
+          if (index(subdets, '.txt') /=0) then
+               ndet = count_detectors(subdets)
+               call get_detectors(subdets, dets, ndet)
+          else
+               ndet = num_tokens(subdets, ",")
+               call get_tokens(subdets, ",", dets, ndet)
+          end if
           if (constructor%threshold == 0.d0) then
                call read_bandpass(cpar%ds_bpfile(id_abs), dets(1), &
                     & constructor%threshold, &
