@@ -61,37 +61,37 @@ for instrument in ('LFT', 'MFT', 'HFT'):
                                 center_freq,
                                 center_freq + bandwidth / 2])
             b = grp.create_group("beam")
-            bT = b.create_dataset("T", (5764801,), dtype="f")
+            bT = b.create_dataset("T", (9,), dtype="f")
             bT[:] = 0.
-            bB = b.create_dataset("B", (5764801,), dtype="f")
+            bB = b.create_dataset("B", (9,), dtype="f")
             bB[:] = 0
-            bE = b.create_dataset("E", (5764801,), dtype="f")
+            bE = b.create_dataset("E", (9,), dtype="f")
             bE[:] = 0
             blmax = grp.create_dataset("beamlmax", (1,), dtype='f')
-            blmax[0] = 2400
+            blmax[0] = 2
             bmmax = grp.create_dataset('beammax', (1,), dtype='f')
-            bmmax[0] = 100
+            bmmax[0] = 2
             el = grp.create_dataset("elip", (1,), dtype='f')
             el[0] = 1.
             fw = grp.create_dataset("fwhm", (1,), dtype='f')
             fw[0] = fwhm
             psi = grp.create_dataset("psi_ell", (1,), dtype='f')
-            psi[0] = 1.
+            psi[0] = 0.
             sl = grp.create_group("sl")
-            slT = sl.create_dataset("T", (5764801,), dtype="f")
+            slT = sl.create_dataset("T", (9,), dtype="f")
             slT[:] = 0
-            slB = sl.create_dataset("B", (5764801,), dtype="f")
+            slB = sl.create_dataset("B", (9,), dtype="f")
             slB[:] = 0
-            slE = sl.create_dataset("E", (5764801,), dtype="f")
+            slE = sl.create_dataset("E", (9,), dtype="f")
             slE[:] = 0
             sll= grp.create_dataset("sllmax", (1,), dtype='f')
-            sll[0]=512
+            sll[0] = 2
             slm= grp.create_dataset("slmmax", (1,), dtype='f')
-            slm[0]=100
+            slm[0] = 2 
             eff= grp.create_dataset("mbeam_eff", (1,), dtype='f')
-            eff[0]=1.
+            eff[0] = 1.
             eff= grp.create_dataset("centFreq", (1,), dtype='f')
-            eff[0]=center_freq
+            eff[0] = center_freq
 
 
     f.close()
