@@ -18,6 +18,7 @@ import litebird_sim as lbs
 import joblib
 import matplotlib.pyplot as plt
 from astropy.time import Time
+from astropy.time import TimeDelta
 from astropy.coordinates import SkyCoord
 from astropy import units
 from astropy.coordinates import BarycentricMeanEcliptic
@@ -80,6 +81,7 @@ def get_detectors(det_file, detector_list):
             if str.strip(line) == str.strip(l):
                 detectors.append(i)
             i += 1
+    file.close()
     return (detectors, det_labels)
 
 
@@ -103,17 +105,18 @@ def get_data(nside, k, dfile, scale_loss, dets_nr):
     psi_gal    : Polarization angle (theta, phi) for each sample in tod_coadd
     """
     #Reading from data file:
+    dt = np.dtype('f8')
     with h5py.File(dfile, 'r') as readin_file:
         #Polarization angle in ecliptic coordinates
         psi_all   = np.array(readin_file.get("psi"))
         #Pointings in ecliptic
         pointings_ecl_all = np.array(readin_file.get("pointings"))
         #TODS:
-        tod_cmb   = np.array(readin_file.get("tod_cmb"))
-        #tod_dip   = np.array(readin_file.get("tod_dip"))
-        tod_fg    = np.array(readin_file.get("tod_fg"))
-        tod_wn    = np.array(readin_file.get("tod_wn"))
-        #tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"))
+        tod_cmb   = np.array(readin_file.get("tod_cmb"), dtype=dt)
+        #tod_dip   = np.array(readin_file.get("tod_dip"), dtype=dt)
+        tod_fg    = np.array(readin_file.get("tod_fg"), dtype=dt)
+        #tod_wn    = np.array(readin_file.get("tod_wn"), dtype=dt)
+        tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"), dtype=dt)
  
     # Number of samples in one TOD
     tod_len      = psi_all.shape[1]
@@ -124,9 +127,14 @@ def get_data(nside, k, dfile, scale_loss, dets_nr):
     scale_nrdet  = np.sqrt(nr_det_out/nr_det)
     # Scale white noise level due to data loss (not done in LB TOD sims)
     tod_wn       = tod_wn * scale_nrdet * scale_loss
-    # Add TODS
-    tod_cadd_all = tod_cmb + tod_wn + tod_fg
+    # Scalw wn and 1/f noise
+    
 
+    # Add TODS
+    tod_cadd_all = tod_cmb + tod_wn_1f_30mHz + tod_fg
+    
+    sigma_0 = np.diff(tod_wn).std() / 2**0.5  # Using Eqn 20 of BP06
+        
     #Reduce number of detectors: 
     psi_ecl      = np.zeros(shape=(nr_det_out,tod_len))
     tod_cadd     = np.zeros(shape=(nr_det_out,tod_len))
@@ -145,7 +153,6 @@ def get_data(nside, k, dfile, scale_loss, dets_nr):
     theta     = pointings_gal[:,:,0]
     phi       = pointings_gal[:,:,1]
     pixels    = hp.ang2pix(nside, theta, phi)#, lonlat=True)
-
     # Keeping track of current index
     #return {k: tod_cadd}
     return (tod_cadd, pixels, psi_gal)
@@ -171,7 +178,7 @@ def main():
     # User-Specified Parameters 
     # ----------------------------------
 
-    nprocs = 64  #128 #64 #48 #64 #joblib.cpu_count() - 28 #16
+    nprocs = 128 #joblib.cpu_count() - 28 #16
     version = np.string_('0.0.1')
     # The size of one scan in a new file (to be created/output) 
     scan_size = 2**16 #~1 hr
@@ -183,12 +190,14 @@ def main():
     start_time = '2030-04-01T00:00:00'
     nside = 512
     output_dir = pathlib.Path(
-         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS_test/"
+         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS_cmb_fg_wn_ncorr30/"
          )
     lbdata_dir = pathlib.Path(
          "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
          )
-
+    det_dir   = pathlib.Path(
+        "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/data_LB/"
+    )
 
     # ----------------------------------
     # Initializing common to all files
@@ -218,19 +227,19 @@ def main():
     # Scale white noise level due to data loss (not done in LB TOD sims)
     scale_loss = 1/np.sqrt(det_yield*margin*cos_ray*duty_cycl)
 
-    #instrument = ['LFT', 'MFT', 'HFT']
-    instrument = ['LFT']
+    instrument = ['LFT', 'MFT', 'HFT']
+    #instrument = ['MFT']
     imo_db_datapath = f"/releases/{imo_version}/satellite"
     for inst in instrument:
         print("Working with detectors on ", inst)
 
         # Getting Data From LB Database
-        #instrument_info = imo_db_interface.query(
-        #    f"{imo_db_datapath}/{inst}/instrument_info"
-        #    )
-        #freqs = instrument_info.metadata['channel_names']
+        instrument_info = imo_db_interface.query(
+            f"{imo_db_datapath}/{inst}/instrument_info"
+            )
+        freqs = instrument_info.metadata['channel_names']
         # or specify detectors manually:
-        freqs = ['L1-060']
+        #freqs = ['M2-119', 'M1-140', 'M2-166', 'M1-195']
 
         for freq in freqs:
             print("Working with frequency band ", freq)
@@ -239,16 +248,24 @@ def main():
                 )
             metadata = channel_info.metadata
             # Number of Detectos for a given Channel
-            ndets      = metadata["number_of_detectors"]
+            #ndets      = metadata["number_of_detectors"]
             # Detector Lables for a given Instrument 
-            det_labels = metadata["detector_names"]
+            #det_labels = metadata["detector_names"]
+            #Read detector labels from file from e2e sim team
+            det_labels = []
+            all_dets   = "detectors_" + inst + "_" + freq + "_T+B.txt"
+            file = open(det_dir / all_dets, 'r')
+            while True:
+                line = file.readline()
+                if not line:
+                    break
+                det_labels.append(str.strip(line))
+            file.close()
             #Get detector numbers for detectors used in current setup
-            det_file   = pathlib.Path(
-                "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/data_LB/detectors_060_4.txt"
-                )
+            det_name   = "detectors_" + inst + "_" + freq + "_T+B_4.txt"
+            det_file   = det_dir / det_name
             det_nr_used, det_labels= get_detectors(det_file, det_labels)
             dets_nr    = len(det_nr_used)
-            ndets = 4
             # Sampling rate in Hz
             fsamp      = metadata["sampling_rate_hz"]
             # FWHM in arcmin 
@@ -269,19 +286,26 @@ def main():
             
             # Getting all the data sizes so later will split everything into chunks
             with h5py.File(lbdata_files[0], 'r') as readin_file:
-                tod_cmb  = np.array(readin_file.get("tod_cmb"))
+                tod_wn  = np.array(readin_file.get("tod_wn"))
             
             # The remaining TOD chunk to stitch to a new chunk  
-            remnant_tod = np.zeros(shape=(dets_nr,tod_cmb.shape[1]))
-            remnant_pix = np.zeros(shape=(dets_nr,tod_cmb.shape[1]))
-            remnant_psi = np.zeros(shape=(dets_nr,tod_cmb.shape[1]))
+            remnant_tod = np.zeros(shape=(dets_nr,tod_wn.shape[1]))
+            remnant_pix = np.zeros(shape=(dets_nr,tod_wn.shape[1]))
+            remnant_psi = np.zeros(shape=(dets_nr,tod_wn.shape[1]))
 
             # Getting the length of the single tod to calculate minimnum number of files
-            todlen = len(tod_cmb[0])
+            todlen = len(tod_wn[0])
             nfiles = len(lbdata_files)
+
+            # Calculating sigma0
+            scale_nrdet  = np.sqrt(len(tod_wn[:,0])/dets_nr)
+            print("Total det nr:", len(tod_wn[:,0]), "det nr used", dets_nr)
+            # Scale white noise level due to data loss (not done in LB TOD sims)
+            tod_wn       = tod_wn * scale_nrdet * scale_loss
+            sigma0       = np.diff(tod_wn).std() / 2**0.5  # Using Eqn 20 of BP06
     
             # Freeing up the memory by deleting unnecessary object(s)
-            del tod_cmb
+            del tod_wn
 
             # The amount of time (in sec) the given scan will have 
             # (this value is unused and it just for us to see)
@@ -386,8 +410,8 @@ def main():
                 # Method creates the ods number of files 
                 results = joblib.Parallel(n_jobs=nprocs, backend="multiprocessing", verbose=2)(joblib.delayed(make_ods)
                                  (ctod, imo_db_interface, imo_db_datapath, inst, freq, 
-                                 nside, fsamp, ndets, det_labels, scan_size, scan_num, ods[i-1], od, 
-                                 superTOD, superPix, superPsi, compArray, start_time, npsi) 
+                                 nside, fsamp, det_labels, scan_size, scan_num, ods[i-1], od, 
+                                 superTOD, superPix, superPsi, compArray, start_time, npsi, sigma0) 
                                  for od in range(ods_shift)) 
                                 
                 # Getting the remainder to stitch to the left 
@@ -414,15 +438,16 @@ def main():
                 # Here, instead of scan_num, we should use whatever amount of scans we can
                 # include into a file
                 results = make_ods(ctod, imo_db_interface, imo_db_datapath, inst, 
-                                   freq, nside, fsamp, ndets, det_labels, scan_size, scan_num,
-                                   ods[-1], 0, remnant_tod, remnant_pix, remnant_psi, compArray, start_time, npsi)
+                                   freq, nside, fsamp, det_labels, scan_size, scan_num,
+                                   ods[-1], 0, remnant_tod, remnant_pix, remnant_psi, compArray, 
+                                   start_time, npsi, sigma0)
             ctod.make_filelists()
         del remnant_tod, remnant_pix, remnant_psi
 
 
 def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, fsamp, 
-        ndets, det_labels, scan_size, scan_num, ods, od, superTOD, superPix, superPsi, 
-             compArray, start_time, npsi): 
+        det_labels, scan_size, scan_num, ods, od, superTOD, superPix, superPsi, 
+             compArray, start_time, npsi, sigma0): 
     """
     In: 
     ctod
@@ -432,7 +457,6 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
     freq
     nside
     fsamp
-    ndets            : REMOVE, can use len(det_labels)
     det_labels
     scan_size
     scan_num
@@ -444,20 +468,21 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
     compArray
     start_time
     npsi
+    sigma0
     
     Out: 
     """
     
     # Initialising new file 
     ctod.init_file(freq, ods + od + 1, mode='w')
-
+    ndets = len(det_labels)
+    
     for local_scan_id in range(scan_num): 
         scan_id = od * scan_num + local_scan_id
         #print(f"od = {od}: {global_scan_id}:{global_scan_id + 1}")
         global_scan_id = (ods + od) * scan_num + local_scan_id +1
         #print("global_scan_id", global_scan_id)
         #Add fields common for each scan
-        #Size of scan
         ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/ntod", scan_size)
         
         #Time is given by file number being read in; one file is one day
@@ -465,7 +490,8 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
         #with warnings.catch_warnings(): #Ignore warnings of dubious year
         #warnings.simplefilter('ignore', AstropyWarning)
         warnings.filterwarnings('ignore', category=UserWarning, append=True)
-        time_now = (global_scan_id-1) * scan_size/86400/fsamp + Time(start_time, format="isot")
+        time_passed = TimeDelta((global_scan_id-1) * scan_size/86400/fsamp, format='sec')
+        time_now = time_passed + Time(start_time, format="isot")
         #print("time: ", time_now, "scan ID: ", global_scan_id, "mjd: ", time_now.mjd)
         ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/time", [time_now.mjd,0,0])
         
@@ -497,57 +523,64 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
             #prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
             prefix = f"{global_scan_id}".zfill(6) + "/" + det_label
 
-            arr = superTOD[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
+            tod_arr   = superTOD[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
 
-            # TODO: add this logic since otherwise the latest scans will
-            # otherwrite existing ones. 
             # If array is empty (mainly viable for the end scans) or its length is less than
             # acceptable chunk, we break the loop
-            if len(arr) != scan_size or np.all(arr==0): # <= if array is empty or all are zeros (the scan is non-existent)
+            if len(tod_arr) != scan_size or np.all(tod_arr==0): 
                 break
-            ctod.add_field(prefix + "/tod", arr)
+            ctod.add_field(prefix + "/tod", tod_arr)
 
-            arr = superPix[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
-            ctod.add_field(prefix + "/pix", arr, [lfi.huffman])
+            pix_arr   = superPix[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
+            ctod.add_field(prefix + "/pix", pix_arr, [lfi.huffman])
 
-            # Huffman compression
             compArray = [lfi.psiDigitize, lfi.huffman]
-            arr = superPsi[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
-            ctod.add_field(prefix + "/psi", arr, compArray)
-            # Getting Scalars, namely:
-            # gain, sigma0, fknee, alpha
+            psi_arr   = superPsi[det_idx][scan_id*scan_size:(scan_id+1)*scan_size]
+            ctod.add_field(prefix + "/psi", psi_arr, compArray)
+            
+            flag_arr = np.zeros(shape=pix_arr.shape)
+            ctod.add_field(prefix + '/flag', flag_arr, [lfi.huffman])
+
+            # Getting Scalars: gain, sigma0, fknee, alpha
             detector_info = imo_db_interface.query(
                     f"{imo_db_datapath}/{instrument}/{freq}/{det_label}/detector_info"
                     )
-            metadata = detector_info.metadata
-            fknee    = metadata["fknee_mhz"]
+            metadata  = detector_info.metadata
+            # fknee in Hz
+            fknee     = metadata["fknee_mhz"] /1000 #from mHz -> Hz
             # Alpha 
-            alpha    = metadata["alpha"]
-            # Making up some values
-            gain     = 1.0 
-            sigma0   = 1.0
-            scalars  = np.array([gain, sigma0, fknee, alpha])
+            alpha     = metadata["alpha"]*-1
+            # Ideal gain
+            gain      = 1.0 
+            scalars   = np.array([gain, sigma0, fknee, alpha])
             ctod.add_field(prefix + '/scalars', scalars)
+            
+            # average outer product - estimate of sattellite spinn axis
+            # used for load balancing. Set to zero for now
+            # outAng   = lfi.ring_outer_product(Theta, Phi)
+            outAng    = np.array([0,0])
+            ctod.add_field(prefix + '/outP', outAng)
 
-        if len(arr) != scan_size or np.all(arr==0): # <= if array is empty or all are zeros (the scan is non-existent)
+        if len(tod_arr) != scan_size or np.all(tod_arr==0):
             break
-
         # Finilising Data for Each Scan
         ctod.finalize_chunk(f'{global_scan_id}'.zfill(6))
 
     # Things common for each scan in a given file
     prefix = 'common'
     #print(det_labels)
-    # Detector Labels
+    # Detector Labels - det_labels can be given as .txt 
     ctod.add_field(prefix + '/det',      np.string_(', '.join(det_labels)))
     #ctod.add_field(prefix + '/det',      np.string_(det_labels))
     #ctod.add_field(prefix + '/datatype', np.string_(datatype))
     ctod.add_field(prefix + '/npsi',     npsi)
     ctod.add_field(prefix + '/nside',    nside)
     # Polarization angles
-    if instrument in ('LFT', 'HFT'):
+    if instrument in ('LFT'):
         polang = [0 + np.pi/4 * int(it.split('_')[3][0] == 'U') + np.pi/2 *
                 int(it.split('_')[3][1] == 'B') for it in det_labels]
+    elif instrument in ('HFT'):
+        polang = [0 + np.pi/4 * int(it.split('_')[3][0] == 'U') for it in det_labels]
     else:
         polang = [int(it.split('_')[3][:1])*np.pi/180 + np.pi/2 *
                 int(it.split('_')[3][2] == 'B') for it in det_labels]
@@ -561,7 +594,7 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
 
     # Closing the file
     ctod.finalize_file()
-
+    ctod.outFile.close()
     return 0 
     
 
