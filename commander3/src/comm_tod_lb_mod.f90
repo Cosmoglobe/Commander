@@ -147,7 +147,7 @@ contains
     else
         call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label)
     end if
-    
+        
     ! Define detector partners
     do i = 1, constructor%ndet
        if (mod(i,2) == 1) then
@@ -173,7 +173,8 @@ contains
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    !constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    constructor%orb_dp => comm_orbdipole(comm=info%comm)
 
   end function constructor
 
@@ -329,8 +330,7 @@ contains
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
-       write(*,*) "Scan number", i
-       ! Skip scan if no accepted data
+        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
@@ -349,7 +349,8 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          sd%n_corr = 0.
        end if
        
        ! Compute noise spectrum parameters
