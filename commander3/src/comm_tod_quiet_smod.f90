@@ -61,6 +61,7 @@ contains
     constructor%n_xi            = 3 ! number of power spectrum density parameters (sigma0, fknee, alpha ?)
     constructor%compressed_tod  = .false.
     constructor%correct_sl      = .false.    ! sidelobes to be removed
+    constructor%correct_orb     = .true.     ! removes the cmb orbital dipole
     constructor%orb_4pi_beam    = .false.    ! full beam convolution
     constructor%symm_flags      = .false.
     constructor%chisq_threshold = 400.d0     ! throwing away the tod above thhat value

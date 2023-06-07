@@ -58,6 +58,8 @@ module comm_tod_mod
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
+     real(sp),           allocatable, dimension(:)    :: downsamp_res         ! Downsampled residual for s_tod - s_tot (ntod_downsamped)
+     integer(i4b),       allocatable, dimension(:, :) :: downsamp_pointing    ! downsampled pointing associated with res_zodi (ntod_downsamped, nhorn)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
      real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
   end type comm_detscan
@@ -145,9 +147,9 @@ module comm_tod_mod
      integer(i4b) :: output_4D_map                                ! Output 4D maps
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
-     logical(lgt) :: subtract_zodi                                ! Subtract zodical light
+     logical(lgt) :: subtract_zodi                                ! Subtract zodical light (defined in the parameter file)
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
-     logical(lgt) :: cmb_dipole                                   ! Construct and remove CMB dipole
+     logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
      logical(lgt) :: orb_4pi_beam                                 ! Perform 4pi beam convolution for orbital CMB dipole 
      integer(i4b),       allocatable, dimension(:)     :: stokes  ! List of Stokes parameters
@@ -1879,8 +1881,6 @@ contains
              P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
           end do
        end if
-       print *, self%nu_c(j), (c / self%nu_c(j)) * 1d6
-       stop
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
             & self%orbital, self%orb_4pi_beam, P, s_dip(:,j))
     end do

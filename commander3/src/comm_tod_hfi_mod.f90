@@ -125,6 +125,7 @@ contains
     constructor%nhorn           = 1
     constructor%compressed_tod  = .true.
     constructor%correct_sl      = .false.
+    constructor%correct_orb     = .true.
     constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .false.
     constructor%chisq_threshold = 1000.d0 !20.d0 ! 9.d0

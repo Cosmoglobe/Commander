@@ -8,7 +8,7 @@ module comm_tod_zodi_mod
     implicit none
 
     private
-    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, solve_Ax_zodi, sample_dynamic_zodi_parameters, accumulate_zodi_emissivities, accumulate_zodi_albedos
+    public get_zodi_emission, update_zodi_splines, initialize_tod_zodi_mod, solve_Ax_zodi, sample_dynamic_zodi_parameters, accumulate_zodi_emissivities, accumulate_zodi_albedos, downsample_zodi_res_and_pointing, sample_zodi_params
 
     ! Constants
     real(dp) :: EPS = 3.d-14
@@ -349,7 +349,7 @@ contains
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 
-    subroutine accumulate_zodi_emissivities(tod, s_therm, s_scat, res, mask, A_T_A, AY, group_comps)
+    subroutine accumulate_zodi_emissivities(tod, s_therm, s_scat, res, A_T_A, AY, group_comps)
         ! Returns the A^T A and A Y matrices when solving the normal equations 
         ! (AX = Y, where X is the emissivity vector).
         !
@@ -365,8 +365,6 @@ contains
         !     The scattered zodiacal light integral (without being scaled by albedos).
         ! res :
         !     The residual (data - sky model).
-        ! mask :
-        !     The mask indicating which samples to use (we want to mask the galaxy).
         ! A_T_A :
         !     The A^T A matrix.
         ! AY :
@@ -374,7 +372,7 @@ contains
         ! group_comps :
         !     Whether to group the components (bands into one group, and feature + ring into another).
         class(comm_tod), intent(in) :: tod
-        real(dp), intent(in) :: s_therm(:, :, :), s_scat(:, :, :), res(:, :), mask(:)
+        real(dp), intent(in) :: s_therm(:, :, :), s_scat(:, :, :), res(:, :)
         real(dp), intent(inout) :: A_T_A(:, :), AY(:)
         logical(lgt), intent(in) :: group_comps
         integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
@@ -390,7 +388,6 @@ contains
 
         do det = 1, ndet
             do i = 1, ntod
-                if (mask(i) .eq. 0) cycle ! skip flagged and masked samples
                 do j = 1, ncomp
                     if (group_comps .and. j == 2) then
                         term1 = sum(s_therm(i, 2:4, det), dim=1) * (1.d0 - tod%zodi_albedo(2))
@@ -418,7 +415,7 @@ contains
         A_T_A = A_T_A / tod%ndet
     end subroutine accumulate_zodi_emissivities
 
-    subroutine accumulate_zodi_albedos(tod, s_therm, s_scat, res, mask, A_T_A, AY, group_comps)
+    subroutine accumulate_zodi_albedos(tod, s_therm, s_scat, res, A_T_A, AY, group_comps)
         ! Returns the A^T A and A Y matrices when solving the normal equations 
         ! (AX = Y, where X is the albedo vector).
         !
@@ -434,8 +431,6 @@ contains
         !     The scattered zodiacal light integral (without being scaled by albedos).
         ! res :
         !     The residual (data - sky model).
-        ! mask :
-        !     The mask indicating which samples to use (we want to mask the galaxy).
         ! A_T_A :
         !     The A^T A matrix.
         ! AY :
@@ -443,7 +438,7 @@ contains
         ! group_comps :
         !     Whether to group the components (bands into one group, and feature + ring into another).
         class(comm_tod), intent(in) :: tod
-        real(dp), intent(in):: s_therm(:, :, :), s_scat(:, :, :), res(:, :), mask(:)
+        real(dp), intent(in):: s_therm(:, :, :), s_scat(:, :, :), res(:, :)
         real(dp), intent(inout) :: A_T_A(:, :), AY(:)
         logical(lgt), intent(in) :: group_comps
         integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
@@ -459,7 +454,6 @@ contains
 
         do det = 1, ndet
             do i = 1, ntod
-                if (mask(i) .eq. 0) cycle ! skip flagged and masked samples
                 do j = 1, ncomp
                     if (group_comps .and. j == 2) then
                         term1 = sum(s_scat(i, 2:4, det), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4, det), dim=1))
@@ -527,5 +521,106 @@ contains
         class(comm_tod), intent(inout) :: tod
         integer(i4b) :: i, ierr
     end subroutine sample_dynamic_zodi_parameters
+
+    subroutine downsample_zodi_res_and_pointing(tod, scan_id, s_tod, s_tot, s_zodi, pix, flag, mask)
+        class(comm_tod), intent(inout) :: tod
+        integer(i4b), intent(in):: scan_id
+        real(sp), dimension(:, :), intent(in) :: s_tod, s_tot, s_zodi
+        integer(i4b), dimension(:, :, :), intent(in) :: pix
+        integer(i4b), dimension(:, :), intent(in) :: flag
+        real(sp), dimension(:), intent(in) :: mask
+
+        real(sp), allocatable, dimension(:) :: res, res_truncated
+        logical(lgt), allocatable, dimension(:) :: indices
+        integer(i4b) :: i, j, ext(2), ndet, ntod, nhorn
+
+        ndet = tod%ndet
+        ntod = size(s_tot, dim=1)
+        nhorn = size(pix, dim=3)
+
+        allocate(res(ntod), indices(ntod))
+        do j = 1, ndet
+            res = s_tod(:, j) - s_tot(:,j) + s_zodi(:, j)
+
+            ! Remove flagged data and mask the galaxy
+            indices = .true.
+            where ((iand(flag(:, j), tod%flag0) .ne. 0.) .or. (mask .eq. 0.)) indices = .false.
+            res_truncated = pack(res, indices)
+
+            ! Get downsampled shape (ext), and allocate the downsampled arrays
+            call tod%downsample_tod(res_truncated, ext)  
+            allocate(tod%scans(scan_id)%d(j)%downsamp_res(ext(1):ext(2)))
+            allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2), nhorn))
+
+            ! Skip if detector if scan is not accepted
+            if (.not. tod%scans(scan_id)%d(j)%accept) then
+                tod%scans(scan_id)%d(j)%downsamp_res = 0.
+                tod%scans(scan_id)%d(j)%downsamp_pointing = 0.
+                cycle
+            end if
+
+            ! Set downsampled pointing
+            do i = 1, nhorn
+                tod%scans(scan_id)%d(j)%downsamp_pointing(:, i) = pack(pix(:, j, i), indices)
+            end do
+
+            call tod%downsample_tod(res_truncated, ext, tod%scans(scan_id)%d(j)%downsamp_res)
+        end do
+    end subroutine
+
+    subroutine sample_zodi_params(tod, handle)
+        class(comm_tod), intent(inout) :: tod
+        type(planck_rng), intent(inout) :: handle
+        real(sp), allocatable, dimension(:, :, :) :: s_scat, s_therm
+        integer(i4b), allocatable, dimension(:, :) :: pix, res
+        integer(i4b) :: i, j, ierr, scan, ndet, nhorn, nscan, ntod
+        real(dp), allocatable, dimension(:, :)    :: A_T_A, A_T_A_reduced
+        real(dp), allocatable, dimension(:)       :: AY, AY_reduced, X
+
+        ndet = tod%ndet
+        nscan = tod%nscan
+
+        allocate(A_T_A(zodi%n_comps, zodi%n_comps))
+        allocate(AY(zodi%n_comps))
+        allocate(A_T_A_reduced, mold=A_T_A)
+        allocate(AY_reduced, mold=AY)
+        allocate(X, mold=AY)
+        A_T_A = 0.
+        AY = 0.
+        A_T_A_reduced = 0.
+        AY_reduced = 0.
+        X = 0.
+        do scan = 1, nscan
+            ntod = size(tod%scans(scan)%d(1)%downsamp_res)
+            allocate(s_scat(ntod, zodi%n_comps, ndet), s_therm(ntod, zodi%n_comps, ndet), pix(ntod, ndet), res(ntod, ndet))
+            ! do j = 1, ndet
+            !     pix(:, j) = tod%scans(scan)%d(j)%downsamp_pointing(:, 1)
+            !     res(:, j) = tod%scans(scan)%d(j)%downsamp_res
+            ! end do
+            call get_zodi_emission(tod, pix(:,:,j), scan, s_scat, s_therm)
+
+            call accumulate_zodi_emissivities(tod, real(s_therm, dp), real(s_scat, dp), real(res, dp), A_T_A, AY, .false.)
+
+            deallocate(s_scat, s_therm, pix, res)
+        end do
+        call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (tod%myid == 0) then
+            call solve_Ax_zodi(A_T_A_reduced, AY_reduced, handle, X)
+            ! Prior on emissivity (eps > 0)
+            ! where (X < 0)
+            !    X = 0
+            ! endwhere
+            if (.false.) then
+               tod%zodi_emissivity(1) = X(1)
+               tod%zodi_emissivity(2:4) = X(2)
+               tod%zodi_emissivity(5:6) = X(3)
+            else 
+               tod%zodi_emissivity = X
+            end if
+            print *, "Sampled emissivity: ", X
+        end if
+        stop
+    end subroutine
 
 end module comm_tod_zodi_mod

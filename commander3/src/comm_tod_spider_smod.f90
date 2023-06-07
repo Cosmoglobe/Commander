@@ -99,6 +99,7 @@ contains
      constructor%ndiode          = 1
      constructor%compressed_tod  = .false.
      constructor%correct_sl      = .false.
+     constructor%correct_orb     = .true.
      constructor%orb_4pi_beam    = .false.
      constructor%symm_flags      = .false.
 

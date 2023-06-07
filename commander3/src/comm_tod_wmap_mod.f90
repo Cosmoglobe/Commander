@@ -229,6 +229,7 @@ contains
           constructor%compressed_tod  = .false.
       end if
       constructor%correct_sl      = .true.
+      constructor%correct_orb     = .true.
       constructor%orb_4pi_beam    = .true.
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 1000

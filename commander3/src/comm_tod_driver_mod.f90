@@ -30,8 +30,7 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: s_calibB   ! Custom calibrator
      real(sp),     allocatable, dimension(:,:)     :: s_bp       ! Bandpass correction
      real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop  ! Bandpass correction proposal     
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat     ! Scattered zodiacal light
-     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm    ! Thermal zodiacal emission
+     real(sp),     allocatable, dimension(:,:)     :: s_zodi     ! Thermal zodiacal emission
      real(sp),     allocatable, dimension(:,:)     :: s_inst     ! Instrument-specific correction template
      real(sp),     allocatable, dimension(:,:)     :: s_tot      ! Total signal
      real(sp),     allocatable, dimension(:,:)     :: s_gain     ! Absolute calibrator
@@ -74,7 +73,8 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
-
+    real(sp),     allocatable, dimension(:,:,:)                       :: s_zodi_scat
+    real(sp),     allocatable, dimension(:,:,:)                       :: s_zodi_therm
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
  
@@ -118,8 +118,10 @@ contains
     if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi) then
-      allocate(self%s_zodi_scat(self%ntod, zodi%n_comps, self%ndet))
-      allocate(self%s_zodi_therm(self%ntod, zodi%n_comps, self%ndet))
+      allocate(self%s_zodi(self%ntod, self%ndet))
+      self%s_zodi = 0.
+      allocate(s_zodi_scat(self%ntod, zodi%n_comps, self%ndet))
+      allocate(s_zodi_therm(self%ntod, zodi%n_comps, self%ndet))
     endif
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
@@ -205,12 +207,12 @@ contains
     !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
-    if (tod%cmb_dipole) then
-       print *, "GOT HERE"
-       stop
+    if (tod%correct_orb) then
        call timer%start(TOD_ORBITAL, tod%band)
        call tod%construct_dipole_template(scan, self%pix(:,:,1), self%psi(:,:,1), self%s_orb)
        call timer%stop(TOD_ORBITAL, tod%band)
+    else
+       self%s_orb = 0.
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
@@ -218,7 +220,11 @@ contains
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
-       call get_zodi_emission(tod, self%pix(:,:,1), scan, self%s_zodi_scat, self%s_zodi_therm)
+       call get_zodi_emission(tod, self%pix(:, :, 1), scan, s_zodi_scat, s_zodi_therm)
+       do k = 1, zodi%n_comps
+          self%s_zodi = self%s_zodi + tod%zodi_albedo(k) * s_zodi_scat(:, k, :) + (tod%zodi_emissivity(k) * s_zodi_therm(:, k, :)) * (1. - tod%zodi_albedo(k))
+       end do
+       deallocate(s_zodi_scat, s_zodi_therm)
        call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -276,15 +282,7 @@ contains
     ! Construct total sky signal
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
-       if (allocated(self%s_zodi_scat) .and. allocated(self%s_zodi_therm)) then
-         do k = 1, zodi%n_comps
-            ! Add scattered sun light contribution
-            self%s_tot(:,j) = self%s_tot(:,j) + self%s_zodi_scat(:,k,j) * tod%zodi_albedo(k)
-            ! Add thermal interplanetary dust emission contribution
-            self%s_tot(:,j) = self%s_tot(:,j) + self%s_zodi_therm(:,k,j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))
-         end do
-       end if
+       self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j) + self%s_zodi(:,j)
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
        if (tod%apply_inst_corr) self%s_tot(:,j) = self%s_tot(:,j) + self%s_inst(:,j)
     end do
@@ -584,8 +582,7 @@ contains
     if (allocated(self%s_bp))        deallocate(self%s_bp)
     if (allocated(self%s_mono))      deallocate(self%s_mono)
     if (allocated(self%mask2))       deallocate(self%mask2)
-    if (allocated(self%s_zodi_scat))      deallocate(self%s_zodi_scat)
-    if (allocated(self%s_zodi_therm))      deallocate(self%s_zodi_therm)
+    if (allocated(self%s_zodi))      deallocate(self%s_zodi)
     if (allocated(self%s_totA))      deallocate(self%s_totA)
     if (allocated(self%s_totB))      deallocate(self%s_totB)
     if (allocated(self%s_gainA))      deallocate(self%s_gainA)
@@ -895,21 +892,13 @@ contains
     !  d_calib(5,:,:) - orbital dipole
     !  d_calib(6,:,:) - sidelobe
     !  d_calib(7,:,:) - zodiacal light emission
-    !  d_calib(8,:,:) - zodiacal light - cloud
-    !  d_calib(9,:,:) - zodiacal light - band 1
-    !  d_calib(10,:,:) - zodiacal light - band 2
-    !  d_calib(11,:,:) - zodiacal light - band 3
-    !  d_calib(12,:,:) - zodiacal light - ring
-    !  d_calib(13,:,:) - zodiacal light - feature
-    !  d_calib(14,:,:) - instrument correction
-    !
+    !  d_calib(8,:,:) - instrument correction
     implicit none
     class(comm_tod),                       intent(in)   :: tod
     integer(i4b),                          intent(in)   :: scan
     type(comm_scandata),                   intent(in)   :: sd
     real(sp),            dimension(:,:,:), intent(out)  :: d_calib
     real(sp), dimension(:,:), intent(in), optional      :: jump_template
-    real(dp), allocatable :: s_zodi(:, :)
     integer(i4b) :: i, j, k, nout
     real(dp)     :: inv_gain
    !  write(*, *) "s_bp:", sd%s_sky(:,1)
@@ -931,22 +920,13 @@ contains
        if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
        if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
        if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
-       if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)                                               ! sidelobes
-       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi_therm) .and. allocated(sd%s_zodi_scat)) then
-         call get_s_zodi(tod, sd, s_zodi)
-         d_calib(7, :, j) = s_zodi(:, j)
-       end if
-       if ((tod%output_n_maps > 7) .and. allocated(sd%s_zodi_therm) .and. allocated(sd%s_zodi_scat)) then
-         do k = 1, zodi%n_comps
-            d_calib(7+k,:,j) = (sd%s_zodi_scat(:,k,j) * tod%zodi_albedo(k)) + (sd%s_zodi_therm(:,k,j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))) ! compwise
-            ! d_calib(7+k,:,j) = sd%s_zodi_therm(:,k,j) ! compwise
-         end do
-       end if
-       if ((tod%output_n_maps > 13) .and. allocated(sd%s_inst)) d_calib(14,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
+       if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)          
+       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j) ! zodi
+       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        
-       !Bandpass proposals
+      !  Bandpass proposals
        do i = 1, nout-tod%output_n_maps
-          d_calib(tod%output_n_maps+i,:,j) = d_calib(15,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
+          d_calib(tod%output_n_maps+i,:,j) = d_calib(1,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)
        end do
 
     end do
@@ -1201,47 +1181,47 @@ contains
 
   end subroutine simulate_tod
 
-   subroutine collect_sd_integrals_and_residual(tod, sd, tod_start_idx, s_therm, s_scat, res, mask)
-      class(comm_tod), intent(in) :: tod
-      type(comm_scandata), intent(in) :: sd
-      integer(i4b), intent(in) :: tod_start_idx
-      real(dp), dimension(:, :, :) , intent(inout) :: s_therm, s_scat ! (ntod_tot, ncomps, ndet)
-      real(dp), dimension(:, :) , intent(inout) :: res ! (ntod_tot, ndet)
-      real(dp), dimension(:) , intent(inout) :: mask ! (ntod_tot)
-      integer(i4b) :: tod_idx, det, i, j
+   ! subroutine collect_sd_integrals_and_residual(tod, sd, tod_start_idx, s_therm, s_scat, res, mask)
+   !    class(comm_tod), intent(in) :: tod
+   !    type(comm_scandata), intent(in) :: sd
+   !    integer(i4b), intent(in) :: tod_start_idx
+   !    real(dp), dimension(:, :, :) , intent(inout) :: s_therm, s_scat ! (ntod_tot, ncomps, ndet)
+   !    real(dp), dimension(:, :) , intent(inout) :: res ! (ntod_tot, ndet)
+   !    real(dp), dimension(:) , intent(inout) :: mask ! (ntod_tot)
+   !    integer(i4b) :: tod_idx, det, i, j
 
-      do det = 1, tod%ndet
-         do i = 1, size(sd%tod, dim=1)
-            tod_idx = tod_start_idx + i
-            if ((iand(sd%flag(i, det),tod%flag0) .ne. 0) .or. sd%mask(i, 1) .eq. 0) then
-               mask(tod_idx) = 0          
-               cycle ! skip flagged and masked samples
-            end if
-            res(tod_idx, det) = sd%tod(i, det) - sd%s_sky(i, det)
-            do j = 1, zodi%n_comps
-               s_therm(tod_idx, j, det) = sd%s_zodi_therm(i, j, det)
-               s_scat(tod_idx, j, det) = sd%s_zodi_scat(i, j, det)
-            end do
-         end do
-      end do
-   end subroutine collect_sd_integrals_and_residual
+   !    do det = 1, tod%ndet
+   !       do i = 1, size(sd%tod, dim=1)
+   !          tod_idx = tod_start_idx + i
+   !          if ((iand(sd%flag(i, det),tod%flag0) .ne. 0) .or. sd%mask(i, 1) .eq. 0) then
+   !             mask(tod_idx) = 0          
+   !             cycle ! skip flagged and masked samples
+   !          end if
+   !          res(tod_idx, det) = sd%tod(i, det) - sd%s_sky(i, det)
+   !          do j = 1, zodi%n_comps
+   !             s_therm(tod_idx, j, det) = sd%s_zodi_therm(i, j, det)
+   !             s_scat(tod_idx, j, det) = sd%s_zodi_scat(i, j, det)
+   !          end do
+   !       end do
+   !    end do
+   ! end subroutine collect_sd_integrals_and_residual
 
-   subroutine get_s_zodi(tod, sd, s_zodi)
-      class(comm_tod), intent(in) :: tod
-      type(comm_scandata), intent(in) :: sd
-      real(dp), allocatable, dimension(:, :), intent(inout) :: s_zodi
+   ! subroutine get_s_zodi(tod, sd, s_zodi)
+   !    class(comm_tod), intent(in) :: tod
+   !    type(comm_scandata), intent(in) :: sd
+   !    real(dp), allocatable, dimension(:, :), intent(inout) :: s_zodi
 
-      integer(i4b) :: j, k
-      allocate(s_zodi(sd%ntod, tod%ndet))
+   !    integer(i4b) :: j, k
+   !    allocate(s_zodi(sd%ntod, tod%ndet))
 
-      s_zodi = 0.d0
-      do j = 1, tod%ndet
-         do k = 1, zodi%n_comps
-            ! Add scattered sun light contribution
-            s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_scat(:, k, j) * tod%zodi_albedo(k)
-            ! Add thermal interplanetary dust emission contribution and remove thermal emission scattered away from the LOS
-            s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_therm(:, k, j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))
-         end do
-      end do
-   end subroutine get_s_zodi
+   !    s_zodi = 0.d0
+   !    do j = 1, tod%ndet
+   !       do k = 1, zodi%n_comps
+   !          ! Add scattered sun light contribution
+   !          s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_scat(:, k, j) * tod%zodi_albedo(k)
+   !          ! Add thermal interplanetary dust emission contribution and remove thermal emission scattered away from the LOS
+   !          s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_therm(:, k, j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))
+   !       end do
+   !    end do
+   ! end subroutine get_s_zodi
 end module comm_tod_driver_mod

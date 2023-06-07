@@ -144,6 +144,7 @@ contains
       res%ndiode          = 1
     end if    
     res%correct_sl              = .true.
+    res%correct_orb             = .true.
     res%apply_inst_corr         = .true.
     res%orb_4pi_beam            = .true.
     res%use_dpc_adc             = .false.
