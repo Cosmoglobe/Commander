@@ -124,7 +124,7 @@ contains
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
       ! Initialize instrument-specific parameters
-      constructor%samprate_lowres = 8./5.  ! Lowres samprate in Hz
+      constructor%samprate_lowres = 1.  ! Lowres samprate in Hz
       constructor%nhorn           = 1
       constructor%ndiode          = 1
       constructor%compressed_tod  = .false.
@@ -255,7 +255,7 @@ contains
       ! Toggle optional operations
       sample_zodi           = .false. .and. self%subtract_zodi ! Sample zodi parameters
       output_zodi_comps     = .false. .and. self%subtract_zodi ! Output zodi components
-      use_k98_samp_groups   = .false.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
+      use_k98_samp_groups   = .true.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
@@ -421,65 +421,7 @@ contains
          deallocate(d_calib)
       end do
 
-      call sample_zodi_params(self, handle)
-      print *, "got here"
-      stop
-      ! ! Sample emissivities and albedos
-      ! if (sample_zodi) then
-      !    A_T_A = 0.d0
-      !    AY = 0.d0
-      !    A_T_A_reduced = 0.d0
-      !    AY_reduced = 0.d0
-      !    X = 0.d0
-      !    call accumulate_zodi_emissivities(self, s_therm_tot, s_scat_tot, res_tot, mask_tot, A_T_A, AY, use_k98_samp_groups)
-      !    call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-      !    call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-      !    if (self%myid == 0) then
-      !       call solve_Ax_zodi(A_T_A_reduced, AY_reduced, handle, X)
-      !       ! Prior on emissivity (eps > 0)
-      !       ! where (X < 0)
-      !       !    X = 0
-      !       ! endwhere
-      !       if (use_k98_samp_groups) then
-      !          self%zodi_emissivity(1) = X(1)
-      !          self%zodi_emissivity(2:4) = X(2)
-      !          self%zodi_emissivity(5:6) = X(3)
-      !       else 
-      !          self%zodi_emissivity = X
-      !       end if
-      !       print *, "Sampled emissivity: ", X
-      !    end if
-      !    call mpi_bcast(self%zodi_emissivity, size(self%zodi_emissivity), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-      
-      !    if (self%zodi_scattering) then
-      !       A_T_A = 0.d0
-      !       AY = 0.d0
-      !       A_T_A_reduced = 0.d0
-      !       AY_reduced = 0.d0
-      !       X = 0.d0
-      !       call accumulate_zodi_albedos(self, s_therm_tot, s_scat_tot, res_tot, mask_tot, A_T_A, AY, use_k98_samp_groups)
-      !       call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-      !       call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-      !       if (self%myid == 0) then
-      !          call solve_Ax_zodi(A_T_A_reduced, AY_reduced, handle, X)
-      !          ! Prior on albedo (A in [0, 1])
-      !          ! where (X < 0)
-      !          !    X = 0
-      !          ! elsewhere (X > 1)
-      !          !    X = 1
-      !          ! endwhere        
-      !          if (use_k98_samp_groups) then
-      !             self%zodi_albedo(1) = X(1)
-      !             self%zodi_albedo(2:4) = X(2)
-      !             self%zodi_albedo(5:6) = X(3)
-      !          else 
-      !             self%zodi_albedo = X
-      !          end if
-      !          print *, "Sampled albedo: ", X
-      !       end if
-      !       call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
-      !    end if
-      ! end if
+      call sample_zodi_params(self, handle, use_k98_samp_groups)
   
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 

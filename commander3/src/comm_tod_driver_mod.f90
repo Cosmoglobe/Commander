@@ -73,8 +73,8 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
-    real(sp),     allocatable, dimension(:,:,:)                       :: s_zodi_scat
-    real(sp),     allocatable, dimension(:,:,:)                       :: s_zodi_therm
+    real(sp),     allocatable, dimension(:,:)                         :: s_zodi_scat
+    real(sp),     allocatable, dimension(:,:)                         :: s_zodi_therm
     integer(i4b) :: j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
  
@@ -120,8 +120,8 @@ contains
     if (tod%subtract_zodi) then
       allocate(self%s_zodi(self%ntod, self%ndet))
       self%s_zodi = 0.
-      allocate(s_zodi_scat(self%ntod, zodi%n_comps, self%ndet))
-      allocate(s_zodi_therm(self%ntod, zodi%n_comps, self%ndet))
+      allocate(s_zodi_scat(self%ntod, zodi%n_comps))
+      allocate(s_zodi_therm(self%ntod, zodi%n_comps))
     endif
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
@@ -220,9 +220,11 @@ contains
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
-       call get_zodi_emission(tod, self%pix(:, :, 1), scan, s_zodi_scat, s_zodi_therm)
-       do k = 1, zodi%n_comps
-          self%s_zodi = self%s_zodi + tod%zodi_albedo(k) * s_zodi_scat(:, k, :) + (tod%zodi_emissivity(k) * s_zodi_therm(:, k, :)) * (1. - tod%zodi_albedo(k))
+       do j = 1, self%ndet
+          call get_zodi_emission(tod, self%pix(:, j, 1), scan, j, s_zodi_scat, s_zodi_therm)
+          do k = 1, zodi%n_comps
+             self%s_zodi(:, j) = self%s_zodi(:, j) + tod%zodi_albedo(k) * s_zodi_scat(:, k) + (tod%zodi_emissivity(k) * s_zodi_therm(:, k)) * (1. - tod%zodi_albedo(k))
+          end do
        end do
        deallocate(s_zodi_scat, s_zodi_therm)
        call timer%stop(TOD_ZODI, tod%band)

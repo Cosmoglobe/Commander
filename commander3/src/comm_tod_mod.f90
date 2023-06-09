@@ -59,7 +59,7 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
      real(sp),           allocatable, dimension(:)    :: downsamp_res         ! Downsampled residual for s_tod - s_tot (ntod_downsamped)
-     integer(i4b),       allocatable, dimension(:, :) :: downsamp_pointing    ! downsampled pointing associated with res_zodi (ntod_downsamped, nhorn)
+     integer(i4b),       allocatable, dimension(:)    :: downsamp_pointing    ! downsampled pointing associated with res_zodi (ntod_downsamped, nhorn)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
      real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
   end type comm_detscan
@@ -2022,7 +2022,7 @@ contains
 
 
 
-  subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold)
+  subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold, step)
     implicit none
     class(comm_tod),                    intent(in)     :: self
     real(sp), dimension(:),             intent(in)     :: tod_in
@@ -2030,23 +2030,28 @@ contains
     real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
     real(sp), dimension(:),             intent(in),  optional :: mask
     real(sp),                           intent(in),  optional :: threshold
+    real(dp),                           intent(in),  optional :: step
 
     integer(i4b) :: i, j, k, m, n, ntod, w, npad
-    real(dp) :: step
+    real(dp) :: astep
 
     ntod = size(tod_in)
     npad = 5
-    step = self%samprate / self%samprate_lowres
-    w    = step/2    ! Boxcar window width
-    n    = int(ntod / step) + 1
+    if (present(step)) then
+       astep = step
+    else
+       astep = self%samprate / self%samprate_lowres
+    end if
+    w    = astep/2    ! Boxcar window width
+    n    = int(ntod / astep) + 1
     if (.not. present(tod_out)) then
        ext = [-npad, n+npad]
        return
     end if
 
     do i = 1, n-1
-      j = floor(max(i*step - w + 1, 1.d0))
-      k = floor(min(i*step + w, real(ntod, dp)))
+      j = floor(max(i*astep - w + 1, 1.d0))
+      k = floor(min(i*astep + w, real(ntod, dp)))
 
       if (present(mask)) then
          tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
@@ -2088,7 +2093,7 @@ contains
 !!$       end do
 !!$       write(58,*)
 !!$       do i = -npad, n+npad
-!!$          write(58,*) i*step, tod_out(i)
+!!$          write(58,*) i*astep, tod_out(i)
 !!$       end do
 !!$       close(58)
 !!$    end if

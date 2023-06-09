@@ -5,6 +5,7 @@ module comm_tod_zodi_mod
     use comm_zodi_mod
     use spline_1D_mod
     use comm_bp_mod
+
     implicit none
 
     private
@@ -95,17 +96,23 @@ contains
     end subroutine initialize_tod_zodi_mod
 
 
-    subroutine get_zodi_emission(tod, pix, scan, s_zodi_scat, s_zodi_therm)
+    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm)
         ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
         !
         ! Parameters
         ! ----------
         ! tod : class(comm_tod)
         !     The TOD object holding the spline objects to update.
-        ! pix : integer(i4b), dimension(ntod, ndet, nhorns)
+        ! pix : integer(i4b), dimension(ntod)
         !     The pixel indices of each time-ordered observation.
+        ! det : integer(i4b)
+        !     The detector index.
         ! scan : integer(i4b)
         !     The scan number.
+        ! s_zodi_scat : real(sp), dimension(ntod, ncomps)
+        !     Contribution from scattered sunlight light.
+        ! s_zodi_therm : real(sp), dimension(ntod, ncomps)
+        !     Contribution from thermal interplanetary dust emission.
         !
         ! Returns
         ! -------
@@ -113,17 +120,16 @@ contains
         !     Contribution from scattered sunlight light.
         ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
         !     Contribution from thermal interplanetary dust emission.
-        class(ZodiComponent), pointer :: comp
-
+        !
         class(comm_tod), intent(inout) :: tod
-        integer(i4b), intent(in) :: pix(:, :), scan
-        real(sp), dimension(:, :, :), intent(inout) :: s_zodi_scat, s_zodi_therm
-
-        integer(i4b) :: i, j, k, pixel, lookup_idx, n_det, n_tod, ierr
+        integer(i4b), intent(in) :: pix(:), scan, det
+        real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
+        integer(i4b) :: i, j, k, pixel, lookup_idx, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
                                             solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+        class(ZodiComponent), pointer :: comp
 
         if (.not. tod%zodi_tod_params_are_initialized) then 
             print *, "Error: Zodi parameters have not been initialized."
@@ -138,7 +144,6 @@ contains
         s_zodi_scat = 0.d0
         s_zodi_therm = 0.d0
         n_tod = size(pix, dim=1)
-        n_det = size(pix, dim=2)
 
         dt_tod = (1.d0/tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
         obs_pos = tod%scans(scan)%satpos
@@ -168,46 +173,44 @@ contains
                 call tod%reset_zodi_cache(obs_time)
             end if
 
-            do j = 1, n_det   
-                lookup_idx = tod%pix2ind(pix(i, j))
-                if (tod%zodi_therm_cache(lookup_idx, 1, j) > 0.d0) then
-                    s_zodi_scat(i, :, j) = tod%zodi_scat_cache(lookup_idx, :, j)
-                    s_zodi_therm(i, :, j) = tod%zodi_therm_cache(lookup_idx, :, j)
-                    cycle
+            lookup_idx = tod%pix2ind(pix(i))
+            if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
+                s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
+                s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
+                cycle
+            end if
+
+            unit_vector = tod%ind2vec_ecl(:, lookup_idx)
+            call get_R_max(unit_vector, obs_pos, R_obs, R_max)
+            call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
+
+            do k = 1, 3
+                X_unit_LOS(k, :) = gauss_nodes * unit_vector(k)
+                X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
+            end do
+            R_LOS = norm2(X_LOS, dim=1)           
+
+            if (tod%zodi_scattering) then
+                solar_flux_LOS = tod%zodi_spl_solar_irradiance(det) / R_LOS**2
+                call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
+                call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det), phase_function)
+            end if
+
+            call get_dust_grain_temperature(R_LOS, T_LOS)
+            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), T_LOS, b_nu_LOS)
+
+            comp => comp_list
+            k = 1
+            do while (associated(comp))
+                call comp%get_density(X_LOS, earth_lon, density_LOS)
+                if (tod%zodi_scattering) then 
+                    s_zodi_scat(i, k) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
+                    tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                 end if
-
-                unit_vector = tod%ind2vec_ecl(:, lookup_idx)
-                call get_R_max(unit_vector, obs_pos, R_obs, R_max)
-                call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
-
-                do k = 1, 3
-                    X_unit_LOS(k, :) = gauss_nodes * unit_vector(k)
-                    X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
-                end do
-                R_LOS = norm2(X_LOS, dim=1)           
-
-                if (tod%zodi_scattering) then
-                    solar_flux_LOS = tod%zodi_spl_solar_irradiance(j) / R_LOS**2
-                    call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
-                    call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(j, :), tod%zodi_phase_func_normalization(j), phase_function)
-                end if
-
-                call get_dust_grain_temperature(R_LOS, T_LOS)
-                call splint_simple_multi(tod%zodi_b_nu_spl_obj(j), T_LOS, b_nu_LOS)
-
-                comp => comp_list
-                k = 1
-                do while (associated(comp))
-                    call comp%get_density(X_LOS, earth_lon, density_LOS)
-                    if (tod%zodi_scattering) then 
-                        s_zodi_scat(i, k, j) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
-                        tod%zodi_scat_cache(lookup_idx, k, j) = s_zodi_scat(i, k, j)
-                    end if
-                    s_zodi_therm(i, k, j) = sum(density_LOS * b_nu_LOS * gauss_weights)
-                    tod%zodi_therm_cache(lookup_idx, k, j) = s_zodi_therm(i, k, j)
-                    comp => comp%next()
-                    k = k + 1
-                end do
+                s_zodi_therm(i, k) = sum(density_LOS * b_nu_LOS * gauss_weights)
+                tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
+                comp => comp%next()
+                k = k + 1
             end do
         end do
     end subroutine get_zodi_emission
@@ -359,20 +362,20 @@ contains
         ! ----------
         ! tod :
         !     The TOD object holding the component emissivities and albedos.
-        ! s_therm :
+        ! s_therm : (ntod, ncomps)
         !     The thermal zodiacal emission integral (without being scaled by emissivities).
-        ! s_scat :
+        ! s_scat : (ntod, ncomps)
         !     The scattered zodiacal light integral (without being scaled by albedos).
-        ! res :
+        ! res : (ntod)
         !     The residual (data - sky model).
-        ! A_T_A :
+        ! A_T_A : (ncomps, ncomps)
         !     The A^T A matrix.
-        ! AY :
+        ! AY : (ncomps)
         !     The A Y matrix.
         ! group_comps :
         !     Whether to group the components (bands into one group, and feature + ring into another).
         class(comm_tod), intent(in) :: tod
-        real(dp), intent(in) :: s_therm(:, :, :), s_scat(:, :, :), res(:, :)
+        real(dp), intent(in) :: s_therm(:, :), s_scat(:, :), res(:)
         real(dp), intent(inout) :: A_T_A(:, :), AY(:)
         logical(lgt), intent(in) :: group_comps
         integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
@@ -384,35 +387,29 @@ contains
         else 
             ncomp = size(s_therm, dim=2)
         end if
-        ndet = size(s_therm, dim=3)
-
-        do det = 1, ndet
-            do i = 1, ntod
-                do j = 1, ncomp
-                    if (group_comps .and. j == 2) then
-                        term1 = sum(s_therm(i, 2:4, det), dim=1) * (1.d0 - tod%zodi_albedo(2))
-                    else if (group_comps .and. j == 3) then
-                        term1 = sum(s_therm(i, 5:6, det), dim=1) * (1.d0 - tod%zodi_albedo(5))
+        do i = 1, ntod
+            do j = 1, ncomp
+                if (group_comps .and. j == 2) then
+                    term1 = sum(s_therm(i, 2:4), dim=1) * (1.d0 - tod%zodi_albedo(2))
+                else if (group_comps .and. j == 3) then
+                    term1 = sum(s_therm(i, 5:6), dim=1) * (1.d0 - tod%zodi_albedo(5))
+                else
+                    term1 = s_therm(i, j) * (1.d0 - tod%zodi_albedo(j))
+                end if
+                residual = res(i) - sum(s_scat(i, :) * tod%zodi_albedo(:), dim=1)
+                AY(j) = AY(j) + residual * term1
+                do k = 1, ncomp
+                    if (group_comps .and. k == 2) then
+                        term2 = sum(s_therm(i, 2:4), dim=1) * (1.d0 - tod%zodi_albedo(2))
+                    else if (group_comps .and. k == 3) then
+                        term2 = sum(s_therm(i, 5:6), dim=1) * (1.d0 - tod%zodi_albedo(5))
                     else
-                        term1 = s_therm(i, j, det) * (1.d0 - tod%zodi_albedo(j))
+                        term2 = s_therm(i, k) * (1.d0 - tod%zodi_albedo(k))
                     end if
-                    residual = res(i, det) - sum(s_scat(i, :, det) * tod%zodi_albedo(:), dim=1)
-                    AY(j) = AY(j) + residual * term1
-                    do k = 1, ncomp
-                        if (group_comps .and. k == 2) then
-                            term2 = sum(s_therm(i, 2:4, det), dim=1) * (1.d0 - tod%zodi_albedo(2))
-                        else if (group_comps .and. k == 3) then
-                            term2 = sum(s_therm(i, 5:6, det), dim=1) * (1.d0 - tod%zodi_albedo(5))
-                        else
-                            term2 = s_therm(i, k, det) * (1.d0 - tod%zodi_albedo(k))
-                        end if
-                        A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-                    end do
+                    A_T_A(j, k) = A_T_A(j, k) + term1 * term2
                 end do
             end do
         end do
-        AY = AY / tod%ndet
-        A_T_A = A_T_A / tod%ndet
     end subroutine accumulate_zodi_emissivities
 
     subroutine accumulate_zodi_albedos(tod, s_therm, s_scat, res, A_T_A, AY, group_comps)
@@ -425,20 +422,20 @@ contains
         ! ----------
         ! tod :
         !     The TOD object holding the component emissivities and albedos.
-        ! s_therm :
+        ! s_therm : (ntod, ncomps)
         !     The thermal zodiacal emission integral (without being scaled by emissivities).
-        ! s_scat :
+        ! s_scat : (ntod, ncomps)
         !     The scattered zodiacal light integral (without being scaled by albedos).
-        ! res :
+        ! res : (ntod)
         !     The residual (data - sky model).
-        ! A_T_A :
+        ! A_T_A : (ncomps, ncomps)
         !     The A^T A matrix.
-        ! AY :
+        ! AY : (ncomps)
         !     The A Y matrix.
         ! group_comps :
         !     Whether to group the components (bands into one group, and feature + ring into another).
         class(comm_tod), intent(in) :: tod
-        real(dp), intent(in):: s_therm(:, :, :), s_scat(:, :, :), res(:, :)
+        real(dp), intent(in):: s_therm(:, :), s_scat(:, :), res(:)
         real(dp), intent(inout) :: A_T_A(:, :), AY(:)
         logical(lgt), intent(in) :: group_comps
         integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
@@ -450,35 +447,30 @@ contains
         else 
             ncomp = size(s_scat, dim=2)
         end if
-        ndet = size(s_scat, dim=3)
 
-        do det = 1, ndet
-            do i = 1, ntod
-                do j = 1, ncomp
-                    if (group_comps .and. j == 2) then
-                        term1 = sum(s_scat(i, 2:4, det), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4, det), dim=1))
-                    else if (group_comps .and. j == 3) then
-                        term1 = sum(s_scat(i, 5:6, det), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6, det), dim=1))
+        do i = 1, ntod
+            do j = 1, ncomp
+                if (group_comps .and. j == 2) then
+                    term1 = sum(s_scat(i, 2:4), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4), dim=1))
+                else if (group_comps .and. j == 3) then
+                    term1 = sum(s_scat(i, 5:6), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6), dim=1))
+                else
+                    term1 = s_scat(i, j) - (tod%zodi_emissivity(j) * s_therm(i, j))
+                end if
+                residual = res(i) - sum(s_therm(i, :) * tod%zodi_emissivity(:), dim=1) 
+                AY(j) = AY(j) + residual * term1
+                do k = 1, ncomp
+                    if (group_comps .and. k == 2) then
+                        term2 = sum(s_scat(i, 2:4), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4), dim=1))
+                    else if (group_comps .and. k == 3) then
+                        term2 = sum(s_scat(i, 5:6), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6), dim=1))
                     else
-                        term1 = s_scat(i, j, det) - (tod%zodi_emissivity(j) * s_therm(i, j, det))
+                        term2 = s_scat(i, k) - (tod%zodi_emissivity(k) * s_therm(i, k))
                     end if
-                    residual = res(i, det) - sum(s_therm(i, :, det) * tod%zodi_emissivity(:), dim=1) 
-                    AY(j) = AY(j) + residual * term1
-                    do k = 1, ncomp
-                        if (group_comps .and. k == 2) then
-                            term2 = sum(s_scat(i, 2:4, det), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4, det), dim=1))
-                        else if (group_comps .and. k == 3) then
-                            term2 = sum(s_scat(i, 5:6, det), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6, det), dim=1))
-                        else
-                            term2 = s_scat(i, k, det) - (tod%zodi_emissivity(k) * s_therm(i, k, det))
-                        end if
-                        A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-                    end do
+                    A_T_A(j, k) = A_T_A(j, k) + term1 * term2
                 end do
             end do
         end do
-        AY = AY / tod%ndet
-        A_T_A = A_T_A / tod%ndet
     end subroutine accumulate_zodi_albedos
 
     subroutine solve_Ax_zodi(A_T_A, AY, handle, X)
@@ -523,104 +515,162 @@ contains
     end subroutine sample_dynamic_zodi_parameters
 
     subroutine downsample_zodi_res_and_pointing(tod, scan_id, s_tod, s_tot, s_zodi, pix, flag, mask)
+        ! Downsamples the residual and pointing to allow for fast zodi parameter estimation.
+        ! The downsampled arrays are stored in the detscan object (e.g tod%scans(scan_id)%d(j)%downsamp_res)
+        !
+        ! Parameters
+        ! ----------
+        ! tod:
+        !     The TOD object.
+        ! scan_id:
+        !     The current scan to process.
+        ! s_tod:
+        !     The TOD signal.
+        ! s_tot:
+        !     The total sky signal.
+        ! s_zodi:
+        !     The zodi signal.
+        ! pix:
+        !     The pixel indices.
+        ! flag:
+        !     Flagged tods.
+        ! mask:
+        !     Galaxy mask.
+        !
         class(comm_tod), intent(inout) :: tod
-        integer(i4b), intent(in):: scan_id
-        real(sp), dimension(:, :), intent(in) :: s_tod, s_tot, s_zodi
-        integer(i4b), dimension(:, :, :), intent(in) :: pix
-        integer(i4b), dimension(:, :), intent(in) :: flag
-        real(sp), dimension(:), intent(in) :: mask
+        integer(i4b), intent(in):: scan_id, pix(:, :, :), flag(:, :)
+        real(sp), intent(in) :: s_tod(:, :), s_tot(:, :), s_zodi(:, :), mask(:)
 
+        real(dp) :: box_width
         real(sp), allocatable, dimension(:) :: res, res_truncated
+        integer(i4b), allocatable, dimension(:) :: pix_truncated
         logical(lgt), allocatable, dimension(:) :: indices
-        integer(i4b) :: i, j, ext(2), ndet, ntod, nhorn
+        integer(i4b) :: i, j, ext(2), ndet, ntod, box_halfwidth, upper_bound
 
         ndet = tod%ndet
         ntod = size(s_tot, dim=1)
-        nhorn = size(pix, dim=3)
+
+        ! Get box car size and make sure it has odd numbers so that we can pick out a center pixel.
+        box_width = tod%samprate / tod%samprate_lowres
+        if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
+        box_halfwidth = box_width / 2
+        if (mod(box_halfwidth, 2) == 0) box_width = box_width + 1.
 
         allocate(res(ntod), indices(ntod))
         do j = 1, ndet
+            ! Add zodi back to the residual
             res = s_tod(:, j) - s_tot(:,j) + s_zodi(:, j)
 
-            ! Remove flagged data and mask the galaxy
+            ! Get indices of flagged data + masked pixels and remove these from the fitted values
             indices = .true.
             where ((iand(flag(:, j), tod%flag0) .ne. 0.) .or. (mask .eq. 0.)) indices = .false.
             res_truncated = pack(res, indices)
+            pix_truncated = pack(pix(:, j, 1), indices)
 
             ! Get downsampled shape (ext), and allocate the downsampled arrays
-            call tod%downsample_tod(res_truncated, ext)  
+            call tod%downsample_tod(res_truncated, ext, step=box_width)
             allocate(tod%scans(scan_id)%d(j)%downsamp_res(ext(1):ext(2)))
-            allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2), nhorn))
+            allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2)))
+            tod%scans(scan_id)%d(j)%downsamp_res = 0.
 
-            ! Skip if detector if scan is not accepted
-            if (.not. tod%scans(scan_id)%d(j)%accept) then
-                tod%scans(scan_id)%d(j)%downsamp_res = 0.
-                tod%scans(scan_id)%d(j)%downsamp_pointing = 0.
-                cycle
-            end if
+            ! Downsample the residual
+            call tod%downsample_tod(res_truncated, ext, tod%scans(scan_id)%d(j)%downsamp_res, step=box_width)
 
-            ! Set downsampled pointing
-            do i = 1, nhorn
-                tod%scans(scan_id)%d(j)%downsamp_pointing(:, i) = pack(pix(:, j, i), indices)
+            ! Construct the downsampled pointing array (pick central pixel in each box)
+            ! This is a bit cluncky, but we have essentially copied the code in downsample_tod and 
+            ! picked out the center pixel
+            tod%scans(scan_id)%d(j)%downsamp_pointing = 0
+            do i = 1, int(size(res_truncated) / box_width)
+                tod%scans(scan_id)%d(j)%downsamp_pointing(i) = pix_truncated(floor(i * box_width))
             end do
 
-            call tod%downsample_tod(res_truncated, ext, tod%scans(scan_id)%d(j)%downsamp_res)
+            ! Remove padded data (including the first and last sample as these might have boundary effects)
+            upper_bound = ubound(tod%scans(scan_id)%d(j)%downsamp_res, dim=1) + ext(1) - 1 
+            tod%scans(scan_id)%d(j)%downsamp_pointing = tod%scans(scan_id)%d(j)%downsamp_pointing(1:upper_bound)
+            tod%scans(scan_id)%d(j)%downsamp_res = tod%scans(scan_id)%d(j)%downsamp_res(1:upper_bound)
+
         end do
     end subroutine
 
-    subroutine sample_zodi_params(tod, handle)
+    subroutine sample_zodi_params(tod, handle, group_comps)
         class(comm_tod), intent(inout) :: tod
         type(planck_rng), intent(inout) :: handle
-        real(sp), allocatable, dimension(:, :, :) :: s_scat, s_therm
-        integer(i4b), allocatable, dimension(:, :) :: pix, res
-        integer(i4b) :: i, j, ierr, scan, ndet, nhorn, nscan, ntod
-        real(dp), allocatable, dimension(:, :)    :: A_T_A, A_T_A_reduced
-        real(dp), allocatable, dimension(:)       :: AY, AY_reduced, X
+        logical(lgt), intent(in) :: group_comps
+        real(sp), allocatable, dimension(:, :) :: s_scat, s_therm
+        integer(i4b) :: i, j, ierr, scan, ndet, nhorn, nscan, ntod, n_comps_to_fit
+        real(dp), allocatable, dimension(:, :) :: A_T_A_emiss, A_T_A_albedo, A_T_A_emiss_reduced, A_T_A_albedo_reduced
+        real(dp), allocatable, dimension(:) :: AY_emiss, AY_albedo, AY_emiss_reduced, AY_albedo_reduced, emissivities, albedos
 
         ndet = tod%ndet
         nscan = tod%nscan
 
-        allocate(A_T_A(zodi%n_comps, zodi%n_comps))
-        allocate(AY(zodi%n_comps))
-        allocate(A_T_A_reduced, mold=A_T_A)
-        allocate(AY_reduced, mold=AY)
-        allocate(X, mold=AY)
-        A_T_A = 0.
-        AY = 0.
-        A_T_A_reduced = 0.
-        AY_reduced = 0.
-        X = 0.
+        ! Get the number of components to fit (depends on if we want to sample the k98 groups or all components individually)
+        ! and initialize Ax = Y matrices
+        n_comps_to_fit = zodi%n_comps
+        if (group_comps) n_comps_to_fit = 3
+        allocate(A_T_A_emiss(n_comps_to_fit, n_comps_to_fit), A_T_A_albedo(n_comps_to_fit, n_comps_to_fit))
+        allocate(A_T_A_emiss_reduced(n_comps_to_fit, n_comps_to_fit), A_T_A_albedo_reduced(n_comps_to_fit, n_comps_to_fit))
+        allocate(AY_emiss(n_comps_to_fit), AY_albedo(n_comps_to_fit), AY_emiss_reduced(n_comps_to_fit), AY_albedo_reduced(n_comps_to_fit))
+        allocate(emissivities(n_comps_to_fit), albedos((n_comps_to_fit)))
+        A_T_A_emiss = 0.
+        A_T_A_albedo = 0.
+        A_T_A_albedo_reduced = 0.
+        A_T_A_emiss_reduced = 0.
+        AY_emiss = 0.
+        AY_albedo = 0.
+        AY_emiss_reduced = 0.
+        AY_albedo_reduced = 0.
+
+        ! Loop over downsampled data, and evaluate emissivity
         do scan = 1, nscan
-            ntod = size(tod%scans(scan)%d(1)%downsamp_res)
-            allocate(s_scat(ntod, zodi%n_comps, ndet), s_therm(ntod, zodi%n_comps, ndet), pix(ntod, ndet), res(ntod, ndet))
-            ! do j = 1, ndet
-            !     pix(:, j) = tod%scans(scan)%d(j)%downsamp_pointing(:, 1)
-            !     res(:, j) = tod%scans(scan)%d(j)%downsamp_res
-            ! end do
-            call get_zodi_emission(tod, pix(:,:,j), scan, s_scat, s_therm)
-
-            call accumulate_zodi_emissivities(tod, real(s_therm, dp), real(s_scat, dp), real(res, dp), A_T_A, AY, .false.)
-
-            deallocate(s_scat, s_therm, pix, res)
+            do j = 1, tod%ndet
+                ntod = size(tod%scans(scan)%d(j)%downsamp_res)
+                allocate(s_scat(ntod, zodi%n_comps), s_therm(ntod, zodi%n_comps))
+                call get_zodi_emission(tod, tod%scans(scan)%d(j)%downsamp_pointing, scan, j, s_scat, s_therm)
+                call accumulate_zodi_emissivities(tod, real(s_therm, dp), real(s_scat, dp), real(tod%scans(scan)%d(j)%downsamp_res, dp), A_T_A_emiss, AY_emiss, group_comps)
+                deallocate(s_scat, s_therm)
+            end do
         end do
-        call mpi_reduce(A_T_A, A_T_A_reduced, size(A_T_A), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-        call mpi_reduce(AY, AY_reduced, size(AY), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call mpi_reduce(A_T_A_emiss, A_T_A_emiss_reduced, size(A_T_A_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call mpi_reduce(AY_emiss, AY_emiss_reduced, size(AY_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (tod%myid == 0) then
-            call solve_Ax_zodi(A_T_A_reduced, AY_reduced, handle, X)
+            call solve_Ax_zodi(A_T_A_emiss_reduced, AY_emiss_reduced, handle, emissivities)
             ! Prior on emissivity (eps > 0)
             ! where (X < 0)
             !    X = 0
             ! endwhere
-            if (.false.) then
-               tod%zodi_emissivity(1) = X(1)
-               tod%zodi_emissivity(2:4) = X(2)
-               tod%zodi_emissivity(5:6) = X(3)
+            if (group_comps) then
+               tod%zodi_emissivity(1) = emissivities(1)
+               tod%zodi_emissivity(2:4) = emissivities(2)
+               tod%zodi_emissivity(5:6) = emissivities(3)
             else 
-               tod%zodi_emissivity = X
+               tod%zodi_emissivity = emissivities
             end if
-            print *, "Sampled emissivity: ", X
+            print *, "Sampled emissivity: ", emissivities
         end if
-        stop
+        ! Loop over downsampled data, and evaluate albedo
+        do scan = 1, nscan
+            do j = 1, tod%ndet
+                ntod = size(tod%scans(scan)%d(j)%downsamp_res)
+                allocate(s_scat(ntod, zodi%n_comps), s_therm(ntod, zodi%n_comps))
+                call get_zodi_emission(tod, tod%scans(scan)%d(j)%downsamp_pointing, scan, j, s_scat, s_therm)
+                call accumulate_zodi_albedos(tod, real(s_therm, dp), real(s_scat, dp), real(tod%scans(scan)%d(j)%downsamp_res, dp), A_T_A_albedo, AY_albedo, group_comps)
+                deallocate(s_scat, s_therm)
+            end do
+        end do
+        call mpi_reduce(A_T_A_albedo, A_T_A_albedo_reduced, size(A_T_A_albedo), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call mpi_reduce(AY_albedo, AY_albedo_reduced, size(AY_albedo), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (tod%myid == 0) then
+            call solve_Ax_zodi(A_T_A_albedo_reduced, AY_albedo_reduced, handle, albedos)
+            if (group_comps) then
+               tod%zodi_albedo(1) = albedos(1)
+               tod%zodi_albedo(2:4) = albedos(2)
+               tod%zodi_albedo(5:6) = albedos(3)
+            else 
+               tod%zodi_albedo = albedos
+            end if
+            print *, "Sampled albedo: ", albedos
+        end if
     end subroutine
 
 end module comm_tod_zodi_mod
