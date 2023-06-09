@@ -569,8 +569,12 @@ contains
 
             ! Get downsampled shape (ext), and allocate the downsampled arrays
             call tod%downsample_tod(res_truncated, ext, step=box_width)
-            allocate(tod%scans(scan_id)%d(j)%downsamp_res(ext(1):ext(2)))
-            allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2)))
+
+            ! Allocate these the first gibbs iter
+            if (.not. allocated(tod%scans(scan_id)%d(j)%downsamp_res)) then
+                allocate(tod%scans(scan_id)%d(j)%downsamp_res(ext(1):ext(2)))
+                allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2)))
+            end if
             tod%scans(scan_id)%d(j)%downsamp_res = 0.
 
             ! Downsample the residual
@@ -635,10 +639,6 @@ contains
         call mpi_reduce(AY_emiss, AY_emiss_reduced, size(AY_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (tod%myid == 0) then
             call solve_Ax_zodi(A_T_A_emiss_reduced, AY_emiss_reduced, handle, emissivities)
-            ! Prior on emissivity (eps > 0)
-            ! where (X < 0)
-            !    X = 0
-            ! endwhere
             if (group_comps) then
                tod%zodi_emissivity(1) = emissivities(1)
                tod%zodi_emissivity(2:4) = emissivities(2)
@@ -648,6 +648,7 @@ contains
             end if
             print *, "Sampled emissivity: ", emissivities
         end if
+
         ! Loop over downsampled data, and evaluate albedo
         do scan = 1, nscan
             do j = 1, tod%ndet
