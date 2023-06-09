@@ -589,10 +589,9 @@ contains
             end do
 
             ! Remove padded data (including the first and last sample as these might have boundary effects)
-            upper_bound = ubound(tod%scans(scan_id)%d(j)%downsamp_res, dim=1) + ext(1) - 1 
-            tod%scans(scan_id)%d(j)%downsamp_pointing = tod%scans(scan_id)%d(j)%downsamp_pointing(1:upper_bound)
-            tod%scans(scan_id)%d(j)%downsamp_res = tod%scans(scan_id)%d(j)%downsamp_res(1:upper_bound)
-
+            ! upper_bound = ubound(tod%scans(scan_id)%d(j)%downsamp_res, dim=1) + ext(1) - 1 
+            ! tod%scans(scan_id)%d(j)%downsamp_pointing = tod%scans(scan_id)%d(j)%downsamp_pointing(1:upper_bound)
+            ! tod%scans(scan_id)%d(j)%downsamp_res = tod%scans(scan_id)%d(j)%downsamp_res(1:upper_bound)
         end do
     end subroutine
 
@@ -611,19 +610,18 @@ contains
         ! Get the number of components to fit (depends on if we want to sample the k98 groups or all components individually)
         ! and initialize Ax = Y matrices
         n_comps_to_fit = zodi%n_comps
-        if (group_comps) n_comps_to_fit = 3
-        allocate(A_T_A_emiss(n_comps_to_fit, n_comps_to_fit), A_T_A_albedo(n_comps_to_fit, n_comps_to_fit))
-        allocate(A_T_A_emiss_reduced(n_comps_to_fit, n_comps_to_fit), A_T_A_albedo_reduced(n_comps_to_fit, n_comps_to_fit))
-        allocate(AY_emiss(n_comps_to_fit), AY_albedo(n_comps_to_fit), AY_emiss_reduced(n_comps_to_fit), AY_albedo_reduced(n_comps_to_fit))
-        allocate(emissivities(n_comps_to_fit), albedos((n_comps_to_fit)))
+        if (group_comps) then
+            n_comps_to_fit = 3
+        end if
+        allocate(A_T_A_emiss(n_comps_to_fit, n_comps_to_fit))
+        allocate(A_T_A_emiss_reduced(n_comps_to_fit, n_comps_to_fit))
+        allocate(AY_emiss(n_comps_to_fit))
+        allocate(AY_emiss_reduced(n_comps_to_fit))
+        allocate(emissivities(n_comps_to_fit))
         A_T_A_emiss = 0.
-        A_T_A_albedo = 0.
-        A_T_A_albedo_reduced = 0.
         A_T_A_emiss_reduced = 0.
         AY_emiss = 0.
-        AY_albedo = 0.
         AY_emiss_reduced = 0.
-        AY_albedo_reduced = 0.
 
         ! Loop over downsampled data, and evaluate emissivity
         do scan = 1, nscan
@@ -649,7 +647,17 @@ contains
             print *, "Sampled emissivity: ", emissivities
         end if
 
-        ! Loop over downsampled data, and evaluate albedo
+        ! ! Loop over downsampled data, and evaluate albedo
+        allocate(A_T_A_albedo(n_comps_to_fit, n_comps_to_fit))
+        allocate(A_T_A_albedo_reduced(n_comps_to_fit, n_comps_to_fit))
+        allocate(AY_albedo(n_comps_to_fit))
+        allocate(AY_albedo_reduced(n_comps_to_fit))
+        A_T_A_albedo = 0.
+        A_T_A_albedo_reduced = 0.
+        AY_albedo = 0.
+        AY_albedo_reduced = 0.
+        allocate(albedos(n_comps_to_fit))
+
         do scan = 1, nscan
             do j = 1, tod%ndet
                 ntod = size(tod%scans(scan)%d(j)%downsamp_res)
