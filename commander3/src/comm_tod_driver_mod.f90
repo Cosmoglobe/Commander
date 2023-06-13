@@ -1183,47 +1183,78 @@ contains
 
   end subroutine simulate_tod
 
-   ! subroutine collect_sd_integrals_and_residual(tod, sd, tod_start_idx, s_therm, s_scat, res, mask)
-   !    class(comm_tod), intent(in) :: tod
-   !    type(comm_scandata), intent(in) :: sd
-   !    integer(i4b), intent(in) :: tod_start_idx
-   !    real(dp), dimension(:, :, :) , intent(inout) :: s_therm, s_scat ! (ntod_tot, ncomps, ndet)
-   !    real(dp), dimension(:, :) , intent(inout) :: res ! (ntod_tot, ndet)
-   !    real(dp), dimension(:) , intent(inout) :: mask ! (ntod_tot)
-   !    integer(i4b) :: tod_idx, det, i, j
+  subroutine downsample_zodi_res_and_pointing(tod, scan_id, s_tod, s_tot, s_zodi, pix, flag, mask)
+        ! Downsamples the residual and pointing to allow for fast zodi parameter estimation.
+        ! The downsampled arrays are stored in the detscan object (e.g tod%scans(scan_id)%d(j)%downsamp_res)
+        !
+        ! Parameters
+        ! ----------
+        ! tod:
+        !     The TOD object.
+        ! scan_id:
+        !     The current scan to process.
+        ! s_tod:
+        !     The TOD signal.
+        ! s_tot:
+        !     The total sky signal.
+        ! s_zodi:
+        !     The zodi signal.
+        ! pix:
+        !     The pixel indices.
+        ! flag:
+        !     Flagged tods.
+        ! mask:
+        !     Galaxy mask.
+        !
+        class(comm_tod), intent(inout) :: tod
+        integer(i4b), intent(in):: scan_id, pix(:, :, :), flag(:, :)
+        real(sp), intent(in) :: s_tod(:, :), s_tot(:, :), s_zodi(:, :), mask(:)
 
-   !    do det = 1, tod%ndet
-   !       do i = 1, size(sd%tod, dim=1)
-   !          tod_idx = tod_start_idx + i
-   !          if ((iand(sd%flag(i, det),tod%flag0) .ne. 0) .or. sd%mask(i, 1) .eq. 0) then
-   !             mask(tod_idx) = 0          
-   !             cycle ! skip flagged and masked samples
-   !          end if
-   !          res(tod_idx, det) = sd%tod(i, det) - sd%s_sky(i, det)
-   !          do j = 1, zodi%n_comps
-   !             s_therm(tod_idx, j, det) = sd%s_zodi_therm(i, j, det)
-   !             s_scat(tod_idx, j, det) = sd%s_zodi_scat(i, j, det)
-   !          end do
-   !       end do
-   !    end do
-   ! end subroutine collect_sd_integrals_and_residual
+        real(dp) :: box_width
+        real(sp), allocatable, dimension(:) :: res, res_truncated
+        integer(i4b), allocatable, dimension(:) :: pix_truncated
+        logical(lgt), allocatable, dimension(:) :: indices
+        integer(i4b) :: i, j, ext(2), ndet, ntod, box_halfwidth, upper_bound
 
-   ! subroutine get_s_zodi(tod, sd, s_zodi)
-   !    class(comm_tod), intent(in) :: tod
-   !    type(comm_scandata), intent(in) :: sd
-   !    real(dp), allocatable, dimension(:, :), intent(inout) :: s_zodi
+        ndet = tod%ndet
+        ntod = size(s_tot, dim=1)
 
-   !    integer(i4b) :: j, k
-   !    allocate(s_zodi(sd%ntod, tod%ndet))
+        ! Get box car size and make sure it has odd numbers so that we can pick out a center pixel.
+        box_width = tod%samprate / tod%samprate_lowres
+        if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
+        box_halfwidth = box_width / 2
+        if (mod(box_halfwidth, 2) == 0) box_width = box_width + 1.
 
-   !    s_zodi = 0.d0
-   !    do j = 1, tod%ndet
-   !       do k = 1, zodi%n_comps
-   !          ! Add scattered sun light contribution
-   !          s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_scat(:, k, j) * tod%zodi_albedo(k)
-   !          ! Add thermal interplanetary dust emission contribution and remove thermal emission scattered away from the LOS
-   !          s_zodi(:, j) = s_zodi(:, j) + sd%s_zodi_therm(:, k, j) * tod%zodi_emissivity(k) * (1.d0 - tod%zodi_albedo(k))
-   !       end do
-   !    end do
-   ! end subroutine get_s_zodi
+        allocate(res(ntod), indices(ntod))
+        do j = 1, ndet
+            ! Add zodi back to the residual
+            res = s_tod(:, j) - s_tot(:,j) + s_zodi(:, j)
+
+            indices = .true.
+            where ((iand(flag(:, j), tod%flag0) .ne. 0.)) indices = .false. ! mask flagged tods
+            where (mask == 0.) indices = .false. ! mask galaxy
+            res_truncated = pack(res, indices)
+            pix_truncated = pack(pix(:, j, 1), indices)
+
+            ! Get downsampled shape (ext), and allocate the downsampled arrays
+            call tod%downsample_tod(res_truncated, ext, step=box_width)
+
+            ! Allocate these the first gibbs iter
+            allocate(tod%scans(scan_id)%d(j)%downsamp_res(ext(1):ext(2)))
+            allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2)))
+            tod%scans(scan_id)%d(j)%downsamp_res = 0.
+            tod%scans(scan_id)%d(j)%downsamp_pointing = 0
+
+            ! Downsample the residual
+            call tod%downsample_tod(res_truncated, ext, tod%scans(scan_id)%d(j)%downsamp_res, step=box_width)
+
+            ! Construct the downsampled pointing array (pick central pixel in each box)
+            ! This is a bit cluncky, but we have essentially copied the code in downsample_tod and 
+            ! picked out the center pixel
+            do i = 1, int(size(res_truncated) / box_width)
+                tod%scans(scan_id)%d(j)%downsamp_pointing(i) = pix_truncated(floor(i * box_width))
+            end do
+        end do
+
+    end subroutine
 end module comm_tod_driver_mod

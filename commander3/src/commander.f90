@@ -30,6 +30,7 @@ program commander
   use comm_tod_simulations_mod
   use comm_tod_gain_mod
   use comm_zodi_mod
+  use comm_zodi_samp_mod
   use comm_tod_zodi_mod
   implicit none
 
@@ -268,9 +269,17 @@ program commander
         call timer%stop(TOT_TODPROC)
      end if
 
+
      if (cpar%enable_tod_simulations) then
         ! Skip other steps if TOD simulations
         exit
+     end if
+
+     ! Sample zodiacal emission parameters
+     if (iter > 1 .and. cpar%sample_zodi) then
+        call timer%start(TOT_ZODI_SAMP)
+        call sample_zodi_model()
+        call timer%stop(TOT_ZODI_SAMP)
      end if
 
      ! Sample non-linear parameters
@@ -500,6 +509,7 @@ contains
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        call timer%incr_numsamp(data(i)%id_abs)
        call data(i)%tod%reset_zodi_cache()
+       
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
          write(*,*) '|  Finished processing ', trim(data(i)%label)

@@ -34,7 +34,6 @@ module comm_data_mod
   use comm_tod_HFI_mod
   use locate_mod
   use comm_bp_utils
-  use comm_bp_mod
   implicit none
 
   type comm_data_set

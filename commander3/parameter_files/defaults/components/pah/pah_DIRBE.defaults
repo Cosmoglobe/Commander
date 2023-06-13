@@ -25,4 +25,4 @@ COMP_MASK&& = fullsky
 COMP_INIT_FROM_HDF&& = .false.
 
 #custom 
-COMP_SED_TEMPLATE&&           = PAH_astrodust.dat
+COMP_SED_TEMPLATE&&           = PAH_3e-3micron.dat

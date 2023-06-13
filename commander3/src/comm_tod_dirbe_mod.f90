@@ -125,7 +125,7 @@ contains
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
       ! Initialize instrument-specific parameters
-      constructor%samprate_lowres = 1.  ! Lowres samprate in Hz
+      constructor%samprate_lowres = 4.  ! Lowres samprate in Hz
       constructor%nhorn           = 1
       constructor%ndiode          = 1
       constructor%compressed_tod  = .false.
@@ -252,9 +252,9 @@ contains
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
-
+      
       ! Toggle optional operations
-      sample_zodi           = .true. .and. self%subtract_zodi ! Sample zodi parameters
+      sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
       output_zodi_comps     = .false. .and. self%subtract_zodi ! Output zodi components
       use_k98_samp_groups   = .true.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -271,40 +271,6 @@ contains
       npix            = 12*nside**2
       self%output_n_maps = 8
       if (output_zodi_comps) self%output_n_maps = self%output_n_maps + (2 * zodi%n_comps)
-      ! if (self%output_aux_maps > 0) then
-      !    if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 8
-      ! end if
-
-      ! Sampling parameters
-      ! if (sample_zodi) then
-
-      !    tod_start_idx = 0
-      !    n_tod_tot = 0 
-      !    if (use_k98_samp_groups) then
-      !       n_comps_to_fit =  3
-      !    else
-      !       n_comps_to_fit =  zodi%n_comps
-      !    end if
-
-      !    do i = 1, self%nscan
-      !       n_tod_tot = n_tod_tot + self%scans(i)%ntod
-      !    end do
-
-      !    allocate(s_therm_tot(n_tod_tot, zodi%n_comps, self%ndet))
-      !    allocate(s_scat_tot(n_tod_tot, zodi%n_comps, self%ndet))
-      !    allocate(res_tot(n_tod_tot, self%ndet))
-      !    allocate(mask_tot(n_tod_tot))
-      !    s_therm_tot = 0.d0
-      !    s_scat_tot = 0.d0
-      !    res_tot = 0.d0
-      !    mask_tot = 1.d0
-
-      !    allocate(A_T_A(n_comps_to_fit, n_comps_to_fit))
-      !    allocate(AY(n_comps_to_fit))
-      !    allocate(A_T_A_reduced, mold=A_T_A)
-      !    allocate(AY_reduced, mold=AY)
-      !    allocate(X, mold=AY)
-      ! end if
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)
@@ -339,9 +305,6 @@ contains
          call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
 
-      ! Sample dynamic (before computing zodi)
-      ! if (sample_zodi) call sample_dynamic_zodi_parameters(self)
-
       ! Prepare intermediate data structures
       call binmap%init(self, .true., sample_rel_bandpass)
       if (sample_abs_bandpass .or. sample_rel_bandpass) then
@@ -356,7 +319,6 @@ contains
       ! Perform loop over scans
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
       ! call open_hdf_file(trim(chaindir)//'/zodi_06.h5', tod_file, 'w')
-
       do i = 1, self%nscan
 
          ! Skip scan if no accepted data
@@ -365,7 +327,8 @@ contains
 
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
 
-         call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, procmask)
+         ! Populate downsampled residual and pointing to be used for zodi sampling
+         if (self%sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, procmask)
 
          ! Sample correlated noise
          !  call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
@@ -386,12 +349,6 @@ contains
          ! Compute chisquare for bandpass fit
          if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
          
-         ! Sample linear zodi parameters (after computing zodi)
-         ! if (sample_zodi) then
-         !    call collect_sd_integrals_and_residual(self, sd, tod_start_idx, s_therm=s_therm_tot, s_scat=s_scat_tot, res=res_tot, mask=mask_tot)
-         !    tod_start_idx = tod_start_idx + sd%ntod
-         ! end if
-
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
@@ -422,13 +379,6 @@ contains
          deallocate(d_calib)
       end do
 
-      call sample_zodi_params(self, handle, use_k98_samp_groups)
-      ! do i = 1, self%nscan
-      !    do j = 1, self%ndet
-      !          deallocate(self%scans(i)%d(j)%downsamp_res)
-      !          deallocate(self%scans(i)%d(j)%downsamp_pointing)
-      !    end do
-      ! end do
       if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
       ! Output latest scan list with new timing information

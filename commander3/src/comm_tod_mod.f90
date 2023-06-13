@@ -148,6 +148,7 @@ module comm_tod_mod
      integer(i4b) :: output_aux_maps                              ! Output auxiliary maps
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light (defined in the parameter file)
+     logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
@@ -246,6 +247,7 @@ module comm_tod_mod
      procedure                           :: collect_satpos
      procedure                           :: collect_mjds
      procedure                           :: reset_zodi_cache
+     procedure                           :: deallocate_downsampled_zodi
 
   end type comm_tod
 
@@ -349,8 +351,14 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
 
-    if (cpar%include_tod_zodi) self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
-   
+    if (cpar%include_tod_zodi) then
+      self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
+      if (self%subtract_zodi) then
+         self%sample_zodi = .true.
+      else
+         self%sample_zodi = .false.
+      end if
+    end if
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -2022,85 +2030,110 @@ contains
 
 
 
-  subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold, step)
-    implicit none
-    class(comm_tod),                    intent(in)     :: self
-    real(sp), dimension(:),             intent(in)     :: tod_in
-    integer(i4b),                       intent(inout)  :: ext(2)
-    real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
-    real(sp), dimension(:),             intent(in),  optional :: mask
-    real(sp),                           intent(in),  optional :: threshold
-    real(dp),                           intent(in),  optional :: step
+   subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold, step)
+      ! Downsamples a time-ordered signal by a moving average filter.
+      !
+      ! This function is used by calling it twice. In the first call, we providing it with only the 
+      ! `tod_in` and `ext` arguments:  `call tod%downsample_tod(tod_in, ext)`. This populates the `ext` 
+      ! list with the upper and lower bounds of the downsampled TOD. We then allocate the downsampled 
+      ! `tod_out` as `allocate(downsampled_array(ext(1):ext(2)))`. Finally, we call the function again
+      ! to get the downsampled tods: `tod%downsample_tod(tod_in, ext, downsampled_array)`.
+      ! 
+      ! Parameters
+      ! ----------
+      ! tod_in:
+      !     The input TOD to be downsampled.
+      ! ext:
+      !     An integer array of length 2. The first element is the lower bound of the downsampled TOD,
+      !     and the second element is the upper bound of the downsampled TOD.
+      ! tod_out: optional
+      !     The downsampled TOD. If not provided, the function will only populate the `ext` array.
+      ! mask: optional
+      !     A mask to apply to the TOD before downsampling. If not provided, no mask is applied.
+      ! threshold: optional
+      !     Sets all values in the downsampled tod to under the threshold to zero.
+      ! step: optional
+      !     The step size of the downsampled TOD. If not provided, the step size is determined by the
+      !     ratio between the input TOD samplerate and the instrument lower resolution samplerate.
+      !
+      implicit none
+      class(comm_tod),                    intent(in)     :: self
+      real(sp), dimension(:),             intent(in)     :: tod_in
+      integer(i4b),                       intent(inout)  :: ext(2)
+      real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
+      real(sp), dimension(:),             intent(in),  optional :: mask
+      real(sp),                           intent(in),  optional :: threshold
+      real(dp),                           intent(in),  optional :: step
 
-    integer(i4b) :: i, j, k, m, n, ntod, w, npad
-    real(dp) :: astep
+      integer(i4b) :: i, j, k, m, n, ntod, w, npad
+      real(dp) :: astep
 
-    ntod = size(tod_in)
-    npad = 5
-    if (present(step)) then
-       astep = step
-    else
-       astep = self%samprate / self%samprate_lowres
-    end if
-    w    = astep/2    ! Boxcar window width
-    n    = int(ntod / astep) + 1
-    if (.not. present(tod_out)) then
-       ext = [-npad, n+npad]
-       return
-    end if
-
-    do i = 1, n-1
-      j = floor(max(i*astep - w + 1, 1.d0))
-      k = floor(min(i*astep + w, real(ntod, dp)))
-
-      if (present(mask)) then
-         tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
+      ntod = size(tod_in)
+      npad = 5
+      if (present(step)) then
+         astep = step
       else
-         tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
+         astep = self%samprate / self%samprate_lowres
       end if
-      if (present(threshold)) then
-         if (tod_out(i) <= threshold) then
-            tod_out(i) = 0.
+      w    = astep/2    ! Boxcar window width
+      n    = int(ntod / astep) + 1
+      if (.not. present(tod_out)) then
+         ext = [-npad, n+npad]
+         return
+      end if
+
+      do i = 1, n-1
+         j = floor(max(i*astep - w + 1, 1.d0))
+         k = floor(min(i*astep + w, real(ntod, dp)))
+
+         if (present(mask)) then
+            tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
          else
-            tod_out(i) = 1.
+            tod_out(i) = sum(tod_in(j:k)) / (k - j + 1)
          end if
+         if (present(threshold)) then
+            if (tod_out(i) <= threshold) then
+               tod_out(i) = 0.
+            else
+               tod_out(i) = 1.
+            end if
+         end if
+
+         !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
+      end do
+      if (present(threshold)) then
+         tod_out(-npad:0)  = 0.
+         tod_out(n:n+npad) = 0.
+
+         ! Expand mask by m samples
+         m = 1
+         do i = 1, n ! Expand right edges
+            if (tod_out(i) == 1 .and. tod_out(i+1) == 0) tod_out(i-m:i) = 0.
+         end do
+         do i = n, 1, -1 ! Expand left edges
+            if (tod_out(i) == 1 .and. tod_out(i-1) == 0) tod_out(i:i+m) = 0.
+         end do
+
+      else
+         tod_out(-npad:0)  = tod_out(1)
+         tod_out(n:n+npad) = tod_out(n-1)
       end if
 
-      !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
-    end do
-    if (present(threshold)) then
-       tod_out(-npad:0)  = 0.
-       tod_out(n:n+npad) = 0.
+   !!$    if (self%myid == 0) then
+   !!$       open(58, file='filter.dat')
+   !!$       do i = 1, ntod
+   !!$          write(58,*) i, tod_in(i)
+   !!$       end do
+   !!$       write(58,*)
+   !!$       do i = -npad, n+npad
+   !!$          write(58,*) i*astep, tod_out(i)
+   !!$       end do
+   !!$       close(58)
+   !!$    end if
+   !!$    call mpi_finalize(i)
+   !!$    stop
 
-       ! Expand mask by m samples
-       m = 1
-       do i = 1, n ! Expand right edges
-          if (tod_out(i) == 1 .and. tod_out(i+1) == 0) tod_out(i-m:i) = 0.
-       end do
-       do i = n, 1, -1 ! Expand left edges
-          if (tod_out(i) == 1 .and. tod_out(i-1) == 0) tod_out(i:i+m) = 0.
-       end do
-
-    else
-       tod_out(-npad:0)  = tod_out(1)
-       tod_out(n:n+npad) = tod_out(n-1)
-    end if
-
-!!$    if (self%myid == 0) then
-!!$       open(58, file='filter.dat')
-!!$       do i = 1, ntod
-!!$          write(58,*) i, tod_in(i)
-!!$       end do
-!!$       write(58,*)
-!!$       do i = -npad, n+npad
-!!$          write(58,*) i*astep, tod_out(i)
-!!$       end do
-!!$       close(58)
-!!$    end if
-!!$    call mpi_finalize(i)
-!!$    stop
-
-  end subroutine downsample_tod
+   end subroutine downsample_tod
 
 
 
@@ -2742,5 +2775,17 @@ contains
          self%zodi_cache_time = self%zodi_init_cache_time
       end if
    end subroutine reset_zodi_cache
+
+   subroutine deallocate_downsampled_zodi(self)
+      ! Deallocates the downsampled zodi TOD
+      class(comm_tod),   intent(inout) :: self
+      integer(i4b) :: scan, j
+      do j = 1, self%ndet
+         do scan = 1, self%nscan
+            if (allocated(self%scans(scan)%d(j)%downsamp_res)) deallocate(self%scans(scan)%d(j)%downsamp_res)
+            if (allocated(self%scans(scan)%d(j)%downsamp_pointing)) deallocate(self%scans(scan)%d(j)%downsamp_pointing)
+         end do
+      end do
+   end subroutine deallocate_downsampled_zodi
 
 end module comm_tod_mod

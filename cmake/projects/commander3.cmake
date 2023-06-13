@@ -99,6 +99,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_f_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefree_comp_mod.f90
