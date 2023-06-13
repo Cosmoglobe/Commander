@@ -221,10 +221,21 @@ contains
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
        do j = 1, self%ndet
-          call get_zodi_emission(tod, self%pix(:, j, 1), scan, j, s_zodi_scat, s_zodi_therm)
-          do k = 1, zodi%n_comps
-             self%s_zodi(:, j) = self%s_zodi(:, j) + tod%zodi_albedo(k) * s_zodi_scat(:, k) + (tod%zodi_emissivity(k) * s_zodi_therm(:, k)) * (1. - tod%zodi_albedo(k))
-          end do
+          call get_zodi_emission(&
+            & tod=tod, &
+            & pix=self%pix(:, j, 1), &
+            & scan=scan, &
+            & det=j, &
+            & s_zodi_scat=s_zodi_scat, &
+            & s_zodi_therm=s_zodi_therm &
+          &)
+          call get_s_zodi(&
+            & emissivity=tod%zodi_emissivity, &
+            & albedo=tod%zodi_albedo, &
+            & s_therm=s_zodi_therm, &
+            & s_scat=s_zodi_scat, &
+            & s_zodi=self%s_zodi(:, j) &
+          &)
        end do
        deallocate(s_zodi_scat, s_zodi_therm)
        call timer%stop(TOD_ZODI, tod%band)

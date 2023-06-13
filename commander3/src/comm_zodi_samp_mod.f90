@@ -259,20 +259,85 @@ contains
         ! call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, 0, tod%comm, ierr)
     end subroutine
 
-    subroutine sample_zodi_model()
-        integer(i4b) :: i, j, k, ndet, nscan, scan
-        k = 1
-        do i = 1, numband
-            if (.not. data(i)%tod%sample_zodi) cycle
-            if (.not. allocated(data(i)%tod%scans(1)%d(1)%downsamp_res)) stop "cannot sample zodi parameters because downsamp_res and downsamp_pointing isnt allocated in the bands respective tod module. "
-            ndet = data(i)%tod%ndet
-            nscan = data(i)%tod%nscan
-            do scan = 1, nscan
-                do j = 1, ndet
-                    k = k + 1
+    subroutine update_xyz(handle)
+        type(planck_rng), intent(inout) :: handle
+        integer(i4b) :: i
+        class(ZodiComponent), pointer :: comp
+
+        comp => comp_list
+        do while (associated(comp))
+            print *, comp%x_0
+            comp => comp%next()
+        end do    
+        stop
+    end subroutine 
+
+
+    subroutine sample_zodi_model(handle)
+        ! Sample zodi model parameters
+        type(planck_rng), intent(inout) :: handle
+        integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr
+        real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
+        real(dp) :: chisq, chisq_prev, reduced_chisq
+
+        nprop = 1
+        
+        ! Metropolis-Hastings for nproposals of new sets of zodi parameters
+        do k = 1, nprop
+            chisq = 0.
+
+            ! TODO: Loop over categories of shape parameters and propose new values (to all components)
+            if (data(i)%tod%myid) call update_xyz(handle)
+            do i = 1, numband
+                ! Skip bands where we dont want to sample zodi
+                if (.not. data(i)%tod%sample_zodi) cycle
+                if (.not. allocated(data(i)%tod%scans(1)%d(1)%downsamp_res)) stop "cannot sample zodi parameters because downsamp_res and downsamp_pointing isnt allocated in the bands respective tod module. "
+
+                ndet = data(i)%tod%ndet
+                nscan = data(i)%tod%nscan
+
+                ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+                do scan = 1, nscan
+                    do j = 1, ndet
+                        ! Allocate arrays
+                        ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
+                        allocate(s_scat(ntod, zodi%n_comps), s_therm(ntod, zodi%n_comps), s_zodi(ntod))
+                        call get_zodi_emission(&
+                            & tod=data(i)%tod, &
+                            & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
+                            & scan=scan, &
+                            & det=j, &
+                            & s_zodi_scat=s_scat, &
+                            & s_zodi_therm=s_therm &
+                        &)
+                        s_zodi = 0.
+                        call get_s_zodi(&
+                            & emissivity=data(i)%tod%zodi_emissivity, &
+                            & albedo=data(i)%tod%zodi_albedo, &
+                            & s_therm=s_therm, &
+                            & s_scat=s_scat, &
+                            & s_zodi=s_zodi &
+                        &)
+                        chisq = chisq + sum((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)**2)
+                    end do
+                    deallocate(s_scat, s_therm, s_zodi)
                 end do
+
+                ! Reduce chisq to root process
+                call mpi_reduce(chisq, reduced_chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
+                ! TODO: Accept or reject new parameter
+
+
+                if (data(i)%tod%myid == 0) then
+                    ! Sample new zodi parameters
+                    print *, "chisq", reduced_chisq
+                    stop
+                end if
+
+                ! Deallocate downsampled data and pointing
             end do
-            call data(i)%tod%deallocate_downsampled_zodi()
+            chisq_prev = chisq
         end do  
     end subroutine
 end module

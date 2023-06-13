@@ -6,7 +6,7 @@ module comm_zodi_mod
     implicit none
 
     private
-    public initialize_zodi_mod, zodi_params_k98, ZodiComponent, comp_list, zodi
+    public initialize_zodi_mod, get_s_zodi, zodi_params_k98, ZodiComponent, comp_list, zodi
 
     ! Global variables
     integer(i4b) :: gauss_degree, n_interp_points
@@ -123,6 +123,31 @@ contains
         call zodi%initialize_k98_model(cpar)
     end subroutine initialize_zodi_mod
 
+    subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)
+        ! Evaluates the zodiacal signal (eq. 20 in zodipy paper [k98 model]) given 
+        ! integrated thermal zodiacal emission and scattered zodiacal light.
+        !
+        ! Parameters:
+        ! -----------
+        ! emissivity :
+        !     Emissivity of the zodiacal components.
+        ! albedo :
+        !     Albedo of the zodiacal components.
+        ! s_scat :
+        !     Integrated contribution from scattered sunlight light.
+        ! s_therm :
+        !     Integrated contribution from thermal interplanetary dust emission.   
+        real(dp), dimension(:), intent(in) :: emissivity, albedo     
+        real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
+        real(sp), dimension(:), intent(out) :: s_zodi
+        integer(i4b) :: i, n_comps
+
+        s_zodi = 0.
+        n_comps = size(s_scat, dim=2)
+        do i = 1, n_comps
+            s_zodi = s_zodi +  s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)
+        end do
+    end subroutine get_s_zodi
 
    ! Methods for initizializing the zodiacal components
     ! -----------------------------------------------------------------------------------
