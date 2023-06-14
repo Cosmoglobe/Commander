@@ -132,6 +132,7 @@ contains
       constructor%correct_sl      = .false.
       constructor%correct_orb     = .false.
       constructor%orb_4pi_beam    = .false.
+      constructor%sample_zodi     = cpar%sample_zodi .and. constructor%subtract_zodi ! Sample zodi parameters
       constructor%symm_flags      = .false.
       constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
       constructor%nmaps           = info%nmaps
@@ -262,7 +263,8 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-
+      print *, sample_zodi
+      stop
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -328,7 +330,7 @@ contains
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
 
          ! Populate downsampled residual and pointing to be used for zodi sampling
-         if (self%sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, procmask)
+         if (sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, procmask)
 
          ! Sample correlated noise
          !  call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)

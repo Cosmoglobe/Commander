@@ -278,7 +278,7 @@ program commander
      ! Sample zodiacal emission parameters
      if (iter > 1 .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
-        call sample_zodi_model(handle)
+        call sample_zodi_model(cpar, handle)
         call timer%stop(TOT_ZODI_SAMP)
         do i = 1, numband
           call data(i)%tod%deallocate_downsampled_zodi()

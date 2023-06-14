@@ -6,7 +6,7 @@ module comm_zodi_mod
     implicit none
 
     private
-    public initialize_zodi_mod, get_s_zodi, zodi_params_k98, ZodiComponent, comp_list, zodi
+    public initialize_zodi_mod, get_s_zodi, zodi_params_k98, ZodiComponent, comp_list, zodi, zodi_samp_current, zodi_samp_previous
 
     ! Global variables
     integer(i4b) :: gauss_degree, n_interp_points
@@ -105,7 +105,7 @@ module comm_zodi_mod
     end type zodi_params_k98
 
     ! Global zodi parameter object
-    type(zodi_params_k98), target :: zodi
+    type(zodi_params_k98), target :: zodi, zodi_samp_current, zodi_samp_previous
 
 contains
     subroutine initialize_zodi_mod(cpar)
@@ -117,10 +117,15 @@ contains
         !    Parameter file variables.
 
         type(comm_params), intent(in) :: cpar
-        class(ZodiComponent), pointer :: comp
 
         call initialize_hyper_parameters(cpar)
         call zodi%initialize_k98_model(cpar)
+
+        ! If we sample zodi we initialize two additional zodi structs states which we iteratively update
+        if (cpar%sample_zodi) then
+            call zodi_samp_current%initialize_k98_model(cpar)
+            call zodi_samp_previous%initialize_k98_model(cpar)
+        end if
     end subroutine initialize_zodi_mod
 
     subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)

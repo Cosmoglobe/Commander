@@ -353,11 +353,7 @@ contains
 
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
-      if (self%subtract_zodi) then
-         self%sample_zodi = .true.
-      else
-         self%sample_zodi = .false.
-      end if
+      self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
     end if
 
     if (trim(self%tod_type)=='SPIDER') then
