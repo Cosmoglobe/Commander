@@ -6,7 +6,7 @@ module comm_zodi_mod
     implicit none
 
     private
-    public initialize_zodi_mod, get_s_zodi, zodi_params_k98, ZodiComponent, comp_list, zodi, zodi_samp_current, zodi_samp_previous
+    public initialize_zodi_mod, get_s_zodi, zodi_model, ZodiComponent, base_zodi_model
 
     ! Global variables
     integer(i4b) :: gauss_degree, n_interp_points
@@ -14,26 +14,16 @@ module comm_zodi_mod
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature
 
     type, abstract :: ZodiComponent
-        ! Abstract base class for a zodiacal component which also acts as a 
-        ! linked list container.
-
-        ! Pointers to the next/prev links in the linked list
-        class(ZodiComponent), pointer :: next_link => null()
-        class(ZodiComponent), pointer :: prev_link => null()
-
-        ! Shared component variables
         real(dp) :: x_0, y_0, z_0, incl, Omega, n_0
         real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
-
     contains
-        ! Shared component procedures
         procedure(initialize_interface), deferred :: initialize
         procedure(density_interface), deferred :: get_density
-
-        ! Linked list procedures
-        procedure :: next
-        procedure :: add
     end type ZodiComponent
+
+    type :: ZodiComponentContainer
+        class(ZodiComponent), allocatable :: c
+    end type
 
     abstract interface
         subroutine initialize_interface(self)
@@ -85,27 +75,22 @@ module comm_zodi_mod
         procedure :: get_density => get_density_feature
     end type ZodiFeature
 
-    ! Linked list of zodi components for iteration
-    class(ZodiComponent), pointer :: comp_list => null()
 
     ! Stores the interplanetary dust model parameters
-    type :: zodi_params_k98
+    type :: zodi_model
         integer(i4b) :: n_comps, n_bands
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
         real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
-        type(ZodiCloud) :: cloud ! Zodiacal components
-        type(ZodiBand) :: band1, band2, band3
-        type(ZodiRing) :: ring
-        type(ZodiFeature) :: feature
+        class(ZodiComponentContainer), allocatable :: comps(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
-        procedure :: initialize_k98_model, build_splines
-    end type zodi_params_k98
+        procedure :: initialize_model, build_splines
+    end type zodi_model
 
     ! Global zodi parameter object
-    type(zodi_params_k98), target :: zodi, zodi_samp_current, zodi_samp_previous
+    type(zodi_model), target :: base_zodi_model
 
 contains
     subroutine initialize_zodi_mod(cpar)
@@ -119,13 +104,7 @@ contains
         type(comm_params), intent(in) :: cpar
 
         call initialize_hyper_parameters(cpar)
-        call zodi%initialize_k98_model(cpar)
-
-        ! If we sample zodi we initialize two additional zodi structs states which we iteratively update
-        if (cpar%sample_zodi) then
-            call zodi_samp_current%initialize_k98_model(cpar)
-            call zodi_samp_previous%initialize_k98_model(cpar)
-        end if
+        call base_zodi_model%initialize_model(cpar)
     end subroutine initialize_zodi_mod
 
     subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)
@@ -325,7 +304,7 @@ contains
         gauss_degree = cpar%zs_gauss_quad_order
     end subroutine initialize_hyper_parameters
 
-    subroutine initialize_k98_model(self, cpar)
+    subroutine initialize_model(self, cpar)
         ! Initialize the kelsal et al 1998 model.
         !
         ! Parameters
@@ -335,14 +314,15 @@ contains
         ! cpar: comm_params
         !    Parameter file variables.
 
-        class(zodi_params_k98), target, intent(inout) :: self
+        class(zodi_model), target, intent(inout) :: self
         type(comm_params), intent(in) :: cpar
-        class(ZodiComponent), pointer :: comp
         integer(i4b) :: i
 
         ! aux
         self%n_bands = cpar%zs_nbands
         self%n_comps = cpar%zs_ncomps
+
+        allocate(self%comps(self%n_comps))
 
         ! Tempereature parameters
         self%T_0 = cpar%zs_t_0
@@ -359,67 +339,68 @@ contains
         allocate(self%phase_coeff_spl(3))
         call self%build_splines()
 
+        i = 1
         ! Initialize class instances
+        ! if the allocate(ZodiCloud::self%comps(i)%c) notation is confusing, see this
+        ! https://fortran-lang.discourse.group/t/class-array-with-different-types-at-each-index/2627
         if (use_cloud) then
-            self%cloud = ZodiCloud(x_0=cpar%zs_common(1, 1), y_0=cpar%zs_common(1, 2), z_0=cpar%zs_common(1, 3), &
+            allocate(ZodiCloud::self%comps(i)%c)
+            self%comps(i)%c = ZodiCloud(x_0=cpar%zs_common(1, 1), y_0=cpar%zs_common(1, 2), z_0=cpar%zs_common(1, 3), &
                                     incl=cpar%zs_common(1, 4), Omega=cpar%zs_common(1, 5), n_0=cpar%zs_common(1, 6), & 
                                     alpha=cpar%zs_cloud_alpha, beta=cpar%zs_cloud_beta, gamma=cpar%zs_cloud_gamma, &
                                     mu=cpar%zs_cloud_mu)
-            comp => self%cloud
-            call add_component_to_list(comp)
+            i = i + 1
         end if
         if (use_band1) then
-            self%band1 = ZodiBand(x_0=cpar%zs_common(2, 1), y_0=cpar%zs_common(2, 2), z_0=cpar%zs_common(2, 3), &
+            allocate(ZodiBand::self%comps(i)%c)
+            self%comps(i)%c = ZodiBand(x_0=cpar%zs_common(2, 1), y_0=cpar%zs_common(2, 2), z_0=cpar%zs_common(2, 3), &
                               incl=cpar%zs_common(2, 4), Omega=cpar%zs_common(2, 5), n_0=cpar%zs_common(2, 6), & 
                               delta_zeta=cpar%zs_bands_delta_zeta(1), delta_r=cpar%zs_bands_delta_r(1), & 
                               v=cpar%zs_bands_v(1), p=cpar%zs_bands_p(1))
-            comp => self%band1
-            call add_component_to_list(comp)
+            i = i + 1
         end if
         if (use_band2) then
-            self%band2 = ZodiBand(x_0=cpar%zs_common(3, 1), y_0=cpar%zs_common(3, 2), z_0=cpar%zs_common(3, 3), &
+            allocate(ZodiBand::self%comps(i)%c)
+            self%comps(i)%c = ZodiBand(x_0=cpar%zs_common(3, 1), y_0=cpar%zs_common(3, 2), z_0=cpar%zs_common(3, 3), &
                               incl=cpar%zs_common(3, 4), Omega=cpar%zs_common(3, 5), n_0=cpar%zs_common(3, 6), & 
                               delta_zeta=cpar%zs_bands_delta_zeta(2), delta_r=cpar%zs_bands_delta_r(2), & 
                               v=cpar%zs_bands_v(2), p=cpar%zs_bands_p(2))
-            comp => self%band2
-            call add_component_to_list(comp)
+            i = i + 1
         end if
         if (use_band3) then
-            self%band3 = ZodiBand(x_0=cpar%zs_common(4, 1), y_0=cpar%zs_common(4, 2), z_0=cpar%zs_common(4, 3), &
+            allocate(ZodiBand::self%comps(i)%c)
+            self%comps(i)%c = ZodiBand(x_0=cpar%zs_common(4, 1), y_0=cpar%zs_common(4, 2), z_0=cpar%zs_common(4, 3), &
                               incl=cpar%zs_common(4, 4), Omega=cpar%zs_common(4, 5), n_0=cpar%zs_common(4, 6), & 
                               delta_zeta=cpar%zs_bands_delta_zeta(3), delta_r=cpar%zs_bands_delta_r(3), & 
                               v=cpar%zs_bands_v(3), p=cpar%zs_bands_p(3))
-            comp => self%band3
-            call add_component_to_list(comp)
+            i = i + 1
         end if
         if (use_ring) then
-            self%ring = ZodiRing(x_0=cpar%zs_common(5, 1), y_0=cpar%zs_common(5, 2), z_0=cpar%zs_common(5, 3), &
+            allocate(ZodiRing::self%comps(i)%c)
+            self%comps(i)%c = ZodiRing(x_0=cpar%zs_common(5, 1), y_0=cpar%zs_common(5, 2), z_0=cpar%zs_common(5, 3), &
                              incl=cpar%zs_common(5, 4), Omega=cpar%zs_common(5, 5), n_0=cpar%zs_common(5, 6), &
                              R_0=cpar%zs_ring_r, sigma_r=cpar%zs_ring_sigma_r, sigma_z=cpar%zs_ring_sigma_z)
-            comp => self%ring
-            call add_component_to_list(comp)
+            i = i + 1
         end if
         if (use_feature) then
-            self%feature = ZodiFeature(x_0=cpar%zs_common(6, 1), y_0=cpar%zs_common(6, 2), z_0=cpar%zs_common(6, 3), &
+            allocate(ZodiFeature::self%comps(i)%c)
+            self%comps(i)%c = ZodiFeature(x_0=cpar%zs_common(6, 1), y_0=cpar%zs_common(6, 2), z_0=cpar%zs_common(6, 3), &
                                    incl=cpar%zs_common(6, 4), Omega=cpar%zs_common(6, 5), n_0=cpar%zs_common(6, 6), &
                                    R_0=cpar%zs_feature_r, sigma_r=cpar%zs_feature_sigma_r, sigma_z=cpar%zs_feature_sigma_z, &
                                    theta_0=cpar%zs_feature_theta, sigma_theta=cpar%zs_feature_sigma_theta)
-            comp => self%feature
-            call add_component_to_list(comp)
+            i = i + 1
         end if
 
-        ! Call initialize method on each component
-        comp => comp_list
-        do while (associated(comp))
-            call comp%initialize()
-            comp => comp%next()
+        ! Run initializer on comps
+        do i = 1, self%n_comps
+            call self%comps(i)%c%initialize()
         end do        
-    end subroutine initialize_k98_model
+    end subroutine initialize_model
 
     subroutine build_splines(self)
         ! Build splines for the phase function, and solar irradiance
         ! for each component in the model
-        class(zodi_params_k98), intent(inout) :: self
+        class(zodi_model), intent(inout) :: self
         integer(i4b) :: i
 
         do i = 1, 3
@@ -427,36 +408,5 @@ contains
         end do
         call spline_simple(self%solar_irradiance_spl, self%nu_ref, self%solar_irradiance, regular=.false.)
     end subroutine build_splines
-
-    ! Functions for constructing and iterating the linked list of zodiacal components
-    ! -----------------------------------------------------------------------------------
-    function next(self)
-        class(ZodiComponent) :: self
-        class(ZodiComponent), pointer :: next
-        next => self%next_link
-    end function next
-
-    subroutine add(self, link)
-        class(ZodiComponent), target  :: self
-        class(ZodiComponent), pointer :: link
-        class(ZodiComponent), pointer :: comp
-
-        comp => self
-        do while (associated(comp%next_link))
-            comp => comp%next_link
-        end do
-        link%prev_link => comp
-        comp%next_link => link
-    end subroutine add
-
-    subroutine add_component_to_list(comp)
-        class(ZodiComponent), pointer :: comp
-
-        if (.not. associated(comp_list)) then
-            comp_list => comp
-        else
-            call comp_list%add(comp)
-        end if
-    end subroutine add_component_to_list
 
 end module comm_zodi_mod

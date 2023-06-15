@@ -74,8 +74,8 @@ contains
         tod%zodi_min_obs_time = minval(obs_time)
         tod%zodi_max_obs_time = maxval(obs_time)
         
-        allocate(tod%zodi_emissivity(zodi%n_comps))
-        allocate(tod%zodi_albedo(zodi%n_comps))
+        allocate(tod%zodi_emissivity(cpar%zs_ncomps))
+        allocate(tod%zodi_albedo(cpar%zs_ncomps))
         tod%zodi_emissivity(:) = cpar%ds_zodi_emissivity(tod%band, :)
         tod%zodi_albedo(:) = cpar%ds_zodi_albedo(tod%band, :)
         
@@ -95,7 +95,7 @@ contains
     end subroutine initialize_tod_zodi_mod
 
 
-    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm)
+    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model)
         ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
         !
         ! Parameters
@@ -112,6 +112,7 @@ contains
         !     Contribution from scattered sunlight light.
         ! s_zodi_therm : real(sp), dimension(ntod, ncomps)
         !     Contribution from thermal interplanetary dust emission.
+
         !
         ! Returns
         ! -------
@@ -123,12 +124,12 @@ contains
         class(comm_tod), intent(inout) :: tod
         integer(i4b), intent(in) :: pix(:), scan, det
         real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
+        type(zodi_model), intent(in) :: model
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
                                             solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
-        class(ZodiComponent), pointer :: comp
 
         if (.not. tod%zodi_tod_params_are_initialized) then 
             print *, "Error: Zodi parameters have not been initialized."
@@ -195,21 +196,17 @@ contains
                 call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det), phase_function)
             end if
 
-            call get_dust_grain_temperature(R_LOS, T_LOS)
+            call get_dust_grain_temperature(R_LOS, T_LOS, model%T_0, model%delta)
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), T_LOS, b_nu_LOS)
 
-            comp => comp_list
-            k = 1
-            do while (associated(comp))
-                call comp%get_density(X_LOS, earth_lon, density_LOS)
+            do k = 1, model%n_comps
+                call model%comps(k)%c%get_density(X_LOS, earth_lon, density_LOS)
                 if (tod%zodi_scattering) then 
                     s_zodi_scat(i, k) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
                     tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                 end if
                 s_zodi_therm(i, k) = sum(density_LOS * b_nu_LOS * gauss_weights)
                 tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
-                comp => comp%next()
-                k = k + 1
             end do
         end do
     end subroutine get_zodi_emission
@@ -233,10 +230,11 @@ contains
         R_max = max(q, d / q)
     end subroutine get_R_max
 
-    subroutine get_dust_grain_temperature(R, T_out)
+    subroutine get_dust_grain_temperature(R, T_out, T_0, delta)
         real(dp), dimension(:), intent(in) :: R
         real(dp), dimension(:), intent(out) :: T_out
-        T_out = zodi%T_0 * R ** (-zodi%delta)
+        real(dp), intent(in) :: T_0, delta
+        T_out = T_0 * R ** (-delta)
     end subroutine get_dust_grain_temperature
 
     subroutine get_blackbody_emission(nus, T, b_nu)
@@ -307,7 +305,7 @@ contains
     end subroutine initialize_earth_pos_spline
 
 
-    subroutine update_zodi_splines(tod, bandpass, det)
+    subroutine update_zodi_splines(tod, bandpass, det, model)
         ! Updates the spectral spline objects in the TOD object.
         !
         ! In the K98 model, several spectral parameters are tabulated at individual frequencies, 
@@ -332,6 +330,7 @@ contains
         class(comm_tod),   intent(inout) :: tod
         class(comm_bp_ptr), intent(in) :: bandpass
         integer(i4b), intent(in) :: det
+        type(zodi_model), intent(inout) :: model
 
         real(dp), allocatable :: b_nu(:), integrals(:)
         integer(i4b) :: i, j
@@ -344,10 +343,10 @@ contains
         end do
         call spline_simple(tod%zodi_b_nu_spl_obj(det), temperature_grid, integrals, regular=.true.)
         do j = 1, size(tod%zodi_spl_phase_coeffs, dim=2) 
-            tod%zodi_spl_phase_coeffs(det, j) = splint_simple(zodi%phase_coeff_spl(j), bandpass%p%nu_c)
+            tod%zodi_spl_phase_coeffs(det, j) = splint_simple(model%phase_coeff_spl(j), bandpass%p%nu_c)
         end do
 
-        tod%zodi_spl_solar_irradiance = splint_simple(zodi%solar_irradiance_spl, bandpass%p%nu_c)
+        tod%zodi_spl_solar_irradiance = splint_simple(model%solar_irradiance_spl, bandpass%p%nu_c)
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
 

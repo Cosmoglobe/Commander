@@ -120,8 +120,8 @@ contains
     if (tod%subtract_zodi) then
       allocate(self%s_zodi(self%ntod, self%ndet))
       self%s_zodi = 0.
-      allocate(s_zodi_scat(self%ntod, zodi%n_comps))
-      allocate(s_zodi_therm(self%ntod, zodi%n_comps))
+      allocate(s_zodi_scat(self%ntod, base_zodi_model%n_comps))
+      allocate(s_zodi_therm(self%ntod, base_zodi_model%n_comps))
     endif
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
     !call update_status(status, "todinit_alloc")
@@ -227,7 +227,8 @@ contains
             & scan=scan, &
             & det=j, &
             & s_zodi_scat=s_zodi_scat, &
-            & s_zodi_therm=s_zodi_therm &
+            & s_zodi_therm=s_zodi_therm, &
+            & model=base_zodi_model &
           &)
           call get_s_zodi(&
             & emissivity=tod%zodi_emissivity, &

@@ -540,8 +540,8 @@ contains
        end if
     end do
     if (self%subtract_zodi) then
-       allocate(self%zodi_scat_cache(self%nobs, zodi%n_comps, self%ndet))
-       allocate(self%zodi_therm_cache(self%nobs, zodi%n_comps, self%ndet))
+       allocate(self%zodi_scat_cache(self%nobs, base_zodi_model%n_comps, self%ndet))
+       allocate(self%zodi_therm_cache(self%nobs, base_zodi_model%n_comps, self%ndet))
        self%zodi_scat_cache = -1.d0
        self%zodi_therm_cache = -1.d0
        allocate(self%ind2vec_ecl(3,self%nobs))

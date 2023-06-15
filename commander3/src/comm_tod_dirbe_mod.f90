@@ -247,7 +247,7 @@ contains
       type(hdf_file) :: tod_file
       character(len=10), allocatable, dimension(:) :: zodi_comp_names
 
-      allocate(zodi_comp_names(zodi%n_comps))
+      allocate(zodi_comp_names(base_zodi_model%n_comps))
       zodi_comp_names = [character(len=10) :: "cloud", "band1", "band2", "band3", "ring", "feature"]
 
       call int2string(iter, ctext)
@@ -263,8 +263,7 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-      print *, sample_zodi
-      stop
+      
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -272,7 +271,7 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 8
-      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + (2 * zodi%n_comps)
+      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + (2 * base_zodi_model%n_comps)
 
       call int2string(chain, ctext)
       call int2string(iter, samptext)

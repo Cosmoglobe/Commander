@@ -182,7 +182,7 @@ contains
 
         ! Get the number of components to fit (depends on if we want to sample the k98 groups or all components individually)
         ! and initialize Ax = Y matrices
-        n_comps_to_fit = zodi%n_comps
+        n_comps_to_fit = base_zodi_model%n_comps
         if (group_comps) then
             n_comps_to_fit = 3
         end if
@@ -201,8 +201,8 @@ contains
             do j = 1, tod%ndet
                 ntod = size(tod%scans(scan)%d(j)%downsamp_res)
                 padded_ubound = ubound(tod%scans(scan)%d(j)%downsamp_res, dim=1) - 5 - 1 ! - 5 for padding
-                allocate(s_scat(ntod, zodi%n_comps), s_therm(ntod, zodi%n_comps))
-                call get_zodi_emission(tod, tod%scans(scan)%d(j)%downsamp_pointing(1:padded_ubound), scan, j, s_scat, s_therm)
+                allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps))
+                call get_zodi_emission(tod, tod%scans(scan)%d(j)%downsamp_pointing(1:padded_ubound), scan, j, s_scat, s_therm, base_zodi_model)
                 call accumulate_zodi_emissivities(tod, real(s_therm, dp), real(s_scat, dp), real(tod%scans(scan)%d(j)%downsamp_res(1:padded_ubound), dp), A_T_A_emiss, AY_emiss, group_comps)
                 deallocate(s_scat, s_therm)
             end do
@@ -259,30 +259,19 @@ contains
         ! call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, 0, tod%comm, ierr)
     end subroutine
 
-    subroutine draw_n0(handle)
+    subroutine draw_n0(model, cpar, handle)
+        type(zodi_model), intent(inout) :: model
+        type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
-        integer(i4b) :: i
+        integer(i4b) :: i, ierr
         real(dp) :: n0_std(6)
         class(ZodiComponent), pointer :: comp
         n0_std = [6.4d-10, 7.2d-11, 1.28d-10, 2.34d-11, 1.27d-9, 1.42d-9]
 
-        i = 1
-        
-        comp => comp_list
-        do while (associated(comp))
-            comp%n_0 = comp%n_0 + n0_std(i) * rand_gauss(handle)
-            print *, "Sampled n_0: ", comp%n_0
-            comp => comp%next()
-            i = i + 1
-        end do    
-
-
-        comp => comp_list
-        do while (associated(comp))
-            call comp%initialize()
-            comp => comp%next()
-        end do        
-        ! stop
+        do i = 1, model%n_comps
+            if (cpar%myid == cpar%root) model%comps(i)%c%n_0 = model%comps(i)%c%n_0 + n0_std(i) * rand_gauss(handle)
+            call mpi_bcast(model%comps(i)%c%n_0, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+        end do
     end subroutine 
 
 
@@ -290,22 +279,32 @@ contains
         ! Sample zodi model parameters
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
-        integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr
+        integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted
         real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
-        real(dp) :: tod_chisqs, chisq_current, chisq_prev, chisq, P_current, P_previous
+        real(dp) :: chisq_tod, chisq_tod_reduced, chisq_current, chisq_previous, chisq_diff, acceptance_probability
+        type(zodi_model) :: current_model, previous_model
 
-        nprop = 1
-        
+        nprop = 10
+
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
+        chisq_previous = 1d20
+        n_accepted = 0
+
+        current_model = base_zodi_model
+        previous_model = base_zodi_model
+
         do k = 0, nprop
-            tod_chisqs = 0.
+            ! Reset chisq for current proposal
             chisq_current = 0.
-            chisq_prev = 1d30
 
             ! Root process draws new set of zodi parameters and broadcasts to all processes
-            if (cpar%myid == cpar%root .and. k > 0) then
-                call draw_n0(handle)
-            end if
+            ! If first iteration we dont want to draw, just compute the chisq with the base model
+            if (k > 0) print *, 1, current_model%comps(1)%c%n_0, base_zodi_model%comps(1)%c%n_0
+            if (k > 0) call draw_n0(current_model, cpar, handle)
+            if (k > 0) print *, 2, current_model%comps(1)%c%n_0, base_zodi_model%comps(1)%c%n_0
+            if (cpar%myid == cpar%root .and. k > 0) stop
+
+
             do i = 1, numband
                 ! Skip bands where we dont want to sample zodi
                 if (.not. data(i)%tod%sample_zodi) cycle
@@ -314,19 +313,24 @@ contains
                 ndet = data(i)%tod%ndet
                 nscan = data(i)%tod%nscan
 
+                ! Reset tod chisq
+                chisq_tod = 0.
+                chisq_tod_reduced = 0.
+
                 ! Evaluate zodi model with newly proposed values for each band and calculate chisq
                 do scan = 1, nscan
                     do j = 1, ndet
                         ! Allocate arrays
                         ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
-                        allocate(s_scat(ntod, zodi%n_comps), s_therm(ntod, zodi%n_comps), s_zodi(ntod))
+                        allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps), s_zodi(ntod))
                         call get_zodi_emission(&
                             & tod=data(i)%tod, &
                             & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
                             & scan=scan, &
                             & det=j, &
                             & s_zodi_scat=s_scat, &
-                            & s_zodi_therm=s_therm &
+                            & s_zodi_therm=s_therm, &
+                            & model=current_model &
                         &)
                         s_zodi = 0.
                         call get_s_zodi(&
@@ -336,26 +340,38 @@ contains
                             & s_scat=s_scat, &
                             & s_zodi=s_zodi &
                         &)
-                        chisq_tod = chisq_tod + sum((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)**2)
+                        chisq_tod = chisq_tod + sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
+                        deallocate(s_scat, s_therm, s_zodi)
                     end do
-                    deallocate(s_scat, s_therm, s_zodi)
                 end do
 
                 ! Reduce chisq to root process
-                call mpi_reduce(chisq_tod, chisq_current, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-
-                ! TODO: Accept or reject new parameter
-
-                P_current = exp(-0.5d0*(chisq_current))
-
-                if (data(i)%tod%myid == 0) then
-                    ! Sample new zodi parameters
-                    print *, "chisq", reduced_chisq
-                end if
-
-                ! Deallocate downsampled data and pointing
+                call mpi_reduce(chisq_tod, chisq_tod_reduced, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+                if (cpar%myid == cpar%root) chisq_current = chisq_current + chisq_tod_reduced
             end do
-            chisq_prev = chisq
+            if (cpar%myid == cpar%root) then
+                ! If not the first iteration, compute acceptance probability
+                if (k > 0) then
+                    chisq_diff = max(chisq_current - chisq_previous, 0.)
+                    acceptance_probability = exp(-0.5 * chisq_diff)
+                    ! Accept or reject new parameter state. If accepted, we set all the previous
+                    if (acceptance_probability > rand_uni(handle)) then
+                        chisq_previous = chisq_current
+                        n_accepted = n_accepted + 1
+                    else
+                        ! Reset model to previous state
+                        current_model = previous_model
+                    end if
+
+                ! Save chisq from initial iteration
+                else
+                    chisq_previous = chisq_current
+                end if
+            end if
         end do  
+        if (cpar%myid == cpar%root) then 
+            print *, "naccepted:", n_accepted
+            stop
+        end if
     end subroutine
 end module
