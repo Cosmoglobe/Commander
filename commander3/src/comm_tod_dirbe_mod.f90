@@ -46,7 +46,6 @@ module comm_tod_DIRBE_mod
    use comm_tod_driver_mod
    use comm_utils
    use comm_bp_mod
-   use comm_tod_zodi_mod
 
    implicit none
 
@@ -152,8 +151,6 @@ contains
       ! Initialize bandpass mean and proposal matrix
       call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
-      if (constructor%subtract_zodi) call initialize_tod_zodi_mod(cpar, constructor)
-
       ! Construct lookup tables
       call constructor%precompute_lookups()
 
@@ -245,10 +242,6 @@ contains
       real(dp), allocatable, dimension(:, :)    :: res_tot ! (n_tod_tot, ndet)
       real(dp), allocatable, dimension(:)       :: mask_tot ! (n_tod_tot)
       type(hdf_file) :: tod_file
-      character(len=10), allocatable, dimension(:) :: zodi_comp_names
-
-      allocate(zodi_comp_names(base_zodi_model%n_comps))
-      zodi_comp_names = [character(len=10) :: "cloud", "band1", "band2", "band3", "ring", "feature"]
 
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
@@ -257,7 +250,7 @@ contains
       ! Toggle optional operations
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
       output_zodi_comps     = .false. .and. self%subtract_zodi ! Output zodi components
-      use_k98_samp_groups   = .true.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
+      use_k98_samp_groups   = .false.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
@@ -319,7 +312,6 @@ contains
 
       ! Perform loop over scans
       if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
-      ! call open_hdf_file(trim(chaindir)//'/zodi_06.h5', tod_file, 'w')
       do i = 1, self%nscan
 
          ! Skip scan if no accepted data
@@ -356,10 +348,17 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf
-         if (.false.) then
+         if (self%first_call .and. .false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
-            call write_hdf(tod_file, '/'//scantext, d_calib(7, :, :))
+            call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
+            call write_hdf(tod_file, '/tod', sd%tod)
+            call write_hdf(tod_file, '/todz', d_calib(1, :, :))
+            call write_hdf(tod_file, '/res', d_calib(2, :, :))
+            call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
+            call write_hdf(tod_file, '/mask', sd%mask)
+            call write_hdf(tod_file, '/n0', self%scans(i)%d(1)%N_psd%sigma0)
+            call close_hdf_file(tod_file)
          end if
 
          ! Bin TOD

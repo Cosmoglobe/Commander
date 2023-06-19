@@ -34,7 +34,7 @@ from astropy.time import Time, TimeDelta
 from cosmoglobe.tod_tools import TODLoader
 import zodipy
 
-zodi_model = zodipy.Zodipy(extrapolate=True)
+# zodi_model = zodipy.Zodipy(extrapolate=True)
 # Path objects
 DIRBE_DATA_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 HDF5_PATH = Path("/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/")
@@ -295,21 +295,21 @@ def get_yday_cio_data(
             np.split(pix, split_inds), padding=pix_padding
         )
         nus, weights = dirbe_utils.get_bandpass(band)
-        zodi_tods = zodi_model.get_emission_pix(
-            freq=nus,
-            weights=weights,
-            pixels=pixels[band_label],
-            obs_time=Time(time[0], format="mjd"),
-            obs_pos=sat_pos * u.au,
-            nside=nside_out,
-            coord_in="G",
-        )
-
-        tods[band_label] = zodi_tods.value
-        # tods[band_label] = padd_array_gaps(
-        #     np.split(tod * iras_color_corr_factor if color_corr else tod, split_inds),
-        #     padding=bad_data_padding,
+        # zodi_tods = zodi_model.get_emission_pix(
+        #     freq=nus,
+        #     weights=weights,
+        #     pixels=pixels[band_label],
+        #     obs_time=Time(time[0], format="mjd"),
+        #     obs_pos=sat_pos * u.au,
+        #     nside=nside_out,
+        #     coord_in="G",
         # )
+
+        # tods[band_label] = zodi_tods.value
+        tods[band_label] = padd_array_gaps(
+            np.split(tod * iras_color_corr_factor if color_corr else tod, split_inds),
+            padding=bad_data_padding,
+        )
 
         flags[band_label] = padd_array_gaps(
             np.split(flag, split_inds), padding=flag_padding
@@ -431,7 +431,8 @@ def write_to_commander_tods(
 
     multiprocessor_manager_dicts = {}
     for band in dirbe_utils.BANDS:
-        name = f"DIRBE_{band:02}_nside{nside_out:03}_zodi_only"
+        # name = f"DIRBE_{band:02}_nside{nside_out:03}_zodi_only"
+        name = f"DIRBE_{band:02}_nside{nside_out:03}_{version:02}"
         multiprocessor_manager_dicts[name] = manager.dict()
 
     filenames = list(multiprocessor_manager_dicts.keys())
@@ -483,7 +484,7 @@ def main() -> None:
     nside_out = 256
     start_time = time.perf_counter()
     color_corr = True
-    version = 69
+    version = 15
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"reading and processing cios for {len(files)} ydays...")
@@ -510,7 +511,7 @@ def main() -> None:
     print(f"time spent writing to h5: {(h5_time/60):2.2f} minutes\n")
     print(f"total time: {((h5_time + cio_time)/60):2.2f} minutes")
     print(f"{'':=^50}")
-    exit()
+    # exit()
     # print(cio.time.shape)
     # print(cio.tod["04"].shape)
     # import matplotlib.pyplot as plt

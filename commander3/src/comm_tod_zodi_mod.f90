@@ -43,7 +43,8 @@ contains
         R_cutoff = cpar%zs_los_cut
 
         ! Set up interpolation grid for evaluating line of sight b_nu
-        if (.not. allocated(temperature_grid)) allocate(temperature_grid(n_interp_points))
+        if (allocated(temperature_grid)) stop "Temperature grid already allocated"
+        allocate(temperature_grid(n_interp_points))
         call linspace(min_ipd_temp, max_ipd_temp, temperature_grid)
 
         call initialize_earth_pos_spline(cpar)
@@ -70,7 +71,7 @@ contains
             call spline_simple(tod%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
         end do
         tod%zodi_init_cache_time = tod%scans(1)%t0(1)
-        call tod%reset_zodi_cache()
+        call tod%clear_zodi_cache()
         tod%zodi_min_obs_time = minval(obs_time)
         tod%zodi_max_obs_time = maxval(obs_time)
         
@@ -170,7 +171,7 @@ contains
                 end do            
                 R_obs = norm2(obs_pos)
                 earth_lon = atan(earth_pos(2), earth_pos(1))
-                call tod%reset_zodi_cache(obs_time)
+                call tod%clear_zodi_cache(obs_time)
             end if
 
             lookup_idx = tod%pix2ind(pix(i))

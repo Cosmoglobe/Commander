@@ -2,11 +2,10 @@ module comm_zodi_mod
     use comm_utils
     use comm_param_mod
     use spline_1D_mod
-
     implicit none
 
     private
-    public initialize_zodi_mod, get_s_zodi, zodi_model, ZodiComponent, base_zodi_model
+    public initialize_zodi_mod, get_s_zodi, zodi_model, ZodiComponent, base_zodi_model, sampled_zodi_model
 
     ! Global variables
     integer(i4b) :: gauss_degree, n_interp_points
@@ -19,6 +18,7 @@ module comm_zodi_mod
     contains
         procedure(initialize_interface), deferred :: initialize
         procedure(density_interface), deferred :: get_density
+        procedure(get_parameters_interface), deferred :: get_parameters
     end type ZodiComponent
 
     type :: ZodiComponentContainer
@@ -42,6 +42,14 @@ module comm_zodi_mod
             real(dp), intent(out):: n_out(:)
             real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane
         end subroutine density_interface
+        
+        subroutine get_parameters_interface(self, names, values)
+            import dp, ZodiComponent
+            class(ZodiComponent)  :: self
+            character(len=*), allocatable, intent(inout) :: names(:)
+            real(dp), allocatable, intent(inout) :: values(:)
+        end subroutine get_parameters_interface
+
     end interface
 
     type, extends(ZodiComponent) :: ZodiCloud
@@ -49,6 +57,7 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_cloud
         procedure :: get_density => get_density_cloud
+        procedure :: get_parameters => get_parameters_cloud
     end type ZodiCloud
 
     type, extends(ZodiComponent) :: ZodiBand
@@ -57,6 +66,7 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_band
         procedure :: get_density => get_density_band
+        procedure :: get_parameters => get_parameters_band
     end type ZodiBand
 
     type, extends(ZodiComponent) :: ZodiRing
@@ -64,6 +74,7 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_ring
         procedure :: get_density => get_density_ring
+        procedure :: get_parameters => get_parameters_ring
     end type ZodiRing
 
     type, extends(ZodiComponent) :: ZodiFeature
@@ -73,6 +84,7 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_feature
         procedure :: get_density => get_density_feature
+        procedure :: get_parameters => get_parameters_feature
     end type ZodiFeature
 
 
@@ -83,6 +95,7 @@ module comm_zodi_mod
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
         real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
         class(ZodiComponentContainer), allocatable :: comps(:)
+        character(len=10), allocatable :: comp_labels(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
@@ -90,7 +103,7 @@ module comm_zodi_mod
     end type zodi_model
 
     ! Global zodi parameter object
-    type(zodi_model), target :: base_zodi_model
+    type(zodi_model), target :: base_zodi_model, sampled_zodi_model
 
 contains
     subroutine initialize_zodi_mod(cpar)
@@ -105,6 +118,7 @@ contains
 
         call initialize_hyper_parameters(cpar)
         call base_zodi_model%initialize_model(cpar)
+        if (cpar%sample_zodi) call sampled_zodi_model%initialize_model(cpar)
     end subroutine initialize_zodi_mod
 
     subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)
@@ -170,8 +184,53 @@ contains
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_feature
 
+    ! Output parameters methods
+    ! -----------------------------------------------------------------------------------
+    subroutine get_parameters_cloud(self, names, values)
+        class(ZodiCloud) :: self
+        character(len=*), allocatable, intent(inout) :: names(:)
+        real(dp), allocatable, intent(inout) :: values(:)
+        integer(i4b) :: n_comps = 6
 
-    ! Methods describing the densitry distribution of the zodiacal components
+        allocate(names(n_comps), values(n_comps))
+        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
+        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
+    end subroutine get_parameters_cloud
+
+    subroutine get_parameters_band(self, names, values)
+        class(ZodiBand) :: self
+        character(len=*), allocatable, intent(inout) :: names(:)
+        real(dp), allocatable, intent(inout) :: values(:)
+        integer(i4b) :: n_comps = 6
+
+        allocate(names(n_comps), values(n_comps))
+        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
+        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
+    end subroutine get_parameters_band
+
+    subroutine get_parameters_ring(self, names, values)
+        class(ZodiRing) :: self
+        character(len=*), allocatable, intent(inout) :: names(:)
+        real(dp), allocatable, intent(inout) :: values(:)
+        integer(i4b) :: n_comps = 6
+
+        allocate(names(n_comps), values(n_comps))
+        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
+        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
+    end subroutine get_parameters_ring
+
+    subroutine get_parameters_feature(self, names, values)
+        class(ZodiFeature) :: self
+        character(len=*), allocatable, intent(inout) :: names(:)
+        real(dp), allocatable, intent(inout) :: values(:)
+        integer(i4b) :: n_comps = 6
+
+        allocate(names(n_comps), values(n_comps))
+        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
+        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
+    end subroutine get_parameters_feature
+
+    ! Methods describing the allocatable, densitry distribution of the zodiacal allocatable, components
     ! -----------------------------------------------------------------------------------
     subroutine get_density_cloud(self, X_vec, theta, n_out)
         class(ZodiCloud) :: self
@@ -323,6 +382,7 @@ contains
         self%n_comps = cpar%zs_ncomps
 
         allocate(self%comps(self%n_comps))
+        allocate(self%comp_labels(self%n_comps))
 
         ! Tempereature parameters
         self%T_0 = cpar%zs_t_0
@@ -349,6 +409,7 @@ contains
                                     incl=cpar%zs_common(1, 4), Omega=cpar%zs_common(1, 5), n_0=cpar%zs_common(1, 6), & 
                                     alpha=cpar%zs_cloud_alpha, beta=cpar%zs_cloud_beta, gamma=cpar%zs_cloud_gamma, &
                                     mu=cpar%zs_cloud_mu)
+            self%comp_labels(i) = "cloud"
             i = i + 1
         end if
         if (use_band1) then
@@ -357,6 +418,7 @@ contains
                               incl=cpar%zs_common(2, 4), Omega=cpar%zs_common(2, 5), n_0=cpar%zs_common(2, 6), & 
                               delta_zeta=cpar%zs_bands_delta_zeta(1), delta_r=cpar%zs_bands_delta_r(1), & 
                               v=cpar%zs_bands_v(1), p=cpar%zs_bands_p(1))
+            self%comp_labels(i) = "band1"
             i = i + 1
         end if
         if (use_band2) then
@@ -365,6 +427,7 @@ contains
                               incl=cpar%zs_common(3, 4), Omega=cpar%zs_common(3, 5), n_0=cpar%zs_common(3, 6), & 
                               delta_zeta=cpar%zs_bands_delta_zeta(2), delta_r=cpar%zs_bands_delta_r(2), & 
                               v=cpar%zs_bands_v(2), p=cpar%zs_bands_p(2))
+            self%comp_labels(i) = "band2"
             i = i + 1
         end if
         if (use_band3) then
@@ -373,6 +436,7 @@ contains
                               incl=cpar%zs_common(4, 4), Omega=cpar%zs_common(4, 5), n_0=cpar%zs_common(4, 6), & 
                               delta_zeta=cpar%zs_bands_delta_zeta(3), delta_r=cpar%zs_bands_delta_r(3), & 
                               v=cpar%zs_bands_v(3), p=cpar%zs_bands_p(3))
+            self%comp_labels(i) = "band3"
             i = i + 1
         end if
         if (use_ring) then
@@ -380,6 +444,7 @@ contains
             self%comps(i)%c = ZodiRing(x_0=cpar%zs_common(5, 1), y_0=cpar%zs_common(5, 2), z_0=cpar%zs_common(5, 3), &
                              incl=cpar%zs_common(5, 4), Omega=cpar%zs_common(5, 5), n_0=cpar%zs_common(5, 6), &
                              R_0=cpar%zs_ring_r, sigma_r=cpar%zs_ring_sigma_r, sigma_z=cpar%zs_ring_sigma_z)
+            self%comp_labels(i) = "ring"
             i = i + 1
         end if
         if (use_feature) then
@@ -388,6 +453,7 @@ contains
                                    incl=cpar%zs_common(6, 4), Omega=cpar%zs_common(6, 5), n_0=cpar%zs_common(6, 6), &
                                    R_0=cpar%zs_feature_r, sigma_r=cpar%zs_feature_sigma_r, sigma_z=cpar%zs_feature_sigma_z, &
                                    theta_0=cpar%zs_feature_theta, sigma_theta=cpar%zs_feature_sigma_theta)
+            self%comp_labels(i) = "feature"
             i = i + 1
         end if
 

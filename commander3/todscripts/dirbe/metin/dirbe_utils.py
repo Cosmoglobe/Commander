@@ -94,6 +94,19 @@ PLANET_RADII = {
     "neptune": 1,
 }
 
+SIGMA_0 = {
+    1: 0.1820848274487808,
+    2: 0.1785923183102134,
+    3: 0.12869298902093768,
+    4: 0.09362580480386565,
+    5: 0.14110078941487805,
+    6: 0.19622963644711278,
+    7: 0.358702745030365,
+    8: 0.4273920139329039,
+    9: 1.9890065503932703,
+    10: 2.012305834012275,
+}
+
 
 def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
     times = np.arange(datetime(1989, 6, 1), datetime(1991, 1, 1), time_delta).astype(
@@ -376,20 +389,20 @@ def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarra
 @cache
 def get_const_scalars(band: int) -> NDArray[np.floating]:
     """Used in V14 -> and out"""
-    SIGMA0 = u.Quantity(
-        [2.4, 1.6, 0.9, 0.8, 0.9, 0.9, 0.9, 0.5, 32.8, 10.7], "nW/(m^2 sr)"
-    )
-    SIGMA0 *= 20
-    SIGMA0 /= u.Quantity(
-        [59.5, 22.4, 22.0, 8.19, 13.3, 4.13, 2.32, 0.974, 0.605, 0.495], "THz"
-    )
-    SIGMA0 = SIGMA0.to_value("MJy/sr")
+    # SIGMA0 = u.Quantity(
+    #     [2.4, 1.6, 0.9, 0.8, 0.9, 0.9, 0.9, 0.5, 32.8, 10.7], "nW/(m^2 sr)"
+    # )
+    # SIGMA0 *= 20
+    # SIGMA0 /= u.Quantity(
+    #     [59.5, 22.4, 22.0, 8.19, 13.3, 4.13, 2.32, 0.974, 0.605, 0.495], "THz"
+    # )
+    # SIGMA0 = SIGMA0.to_value("MJy/sr")
 
     TEMP_GAIN = 1
     TEMP_ALPHA = -1
     fknee = 1 / (10 * 60)
 
-    return np.array([TEMP_GAIN, SIGMA0[band - 1], fknee, TEMP_ALPHA]).flatten()
+    return np.array([TEMP_GAIN, SIGMA_0[band], fknee, TEMP_ALPHA]).flatten()
 
 @cache
 def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:

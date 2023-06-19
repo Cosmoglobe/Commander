@@ -29,7 +29,6 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_bp_mod
-  use comm_zodi_mod
   use spline_1D_mod
 
   USE ISO_C_BINDING
@@ -202,6 +201,7 @@ module comm_tod_mod
      integer(i4b), allocatable, dimension(:) :: split
 
      ! Zodi parameters and spline objects
+     integer(i4b) :: zodi_n_comps
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
      real(dp)                                  :: zodi_min_obs_time, zodi_max_obs_time
@@ -246,7 +246,7 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: collect_satpos
      procedure                           :: collect_mjds
-     procedure                           :: reset_zodi_cache
+     procedure                           :: clear_zodi_cache
      procedure                           :: deallocate_downsampled_zodi
 
   end type comm_tod
@@ -353,6 +353,7 @@ contains
 
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
+      self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
     end if
 
@@ -540,8 +541,8 @@ contains
        end if
     end do
     if (self%subtract_zodi) then
-       allocate(self%zodi_scat_cache(self%nobs, base_zodi_model%n_comps, self%ndet))
-       allocate(self%zodi_therm_cache(self%nobs, base_zodi_model%n_comps, self%ndet))
+       allocate(self%zodi_scat_cache(self%nobs, self%zodi_n_comps, self%ndet))
+       allocate(self%zodi_therm_cache(self%nobs, self%zodi_n_comps, self%ndet))
        self%zodi_scat_cache = -1.d0
        self%zodi_therm_cache = -1.d0
        allocate(self%ind2vec_ecl(3,self%nobs))
@@ -2754,8 +2755,8 @@ contains
 
   end subroutine collect_v_sun
 
-   subroutine reset_zodi_cache(self, obs_time)
-      ! Resets the zodi tod cache used to look up already computed zodi values. 
+   subroutine clear_zodi_cache(self, obs_time)
+      ! Clears the zodi tod cache used to look up already computed zodi values. 
       !
       ! This cache has an associate time of observation since the cache is only valid
       ! if the time between the observations are small enough for the observer to not 
@@ -2770,7 +2771,7 @@ contains
       else 
          self%zodi_cache_time = self%zodi_init_cache_time
       end if
-   end subroutine reset_zodi_cache
+   end subroutine clear_zodi_cache
 
    subroutine deallocate_downsampled_zodi(self)
       ! Deallocates the downsampled zodi TOD

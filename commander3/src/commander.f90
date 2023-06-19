@@ -157,6 +157,11 @@ program commander
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   ! Debug statement to actually see whether
   ! QUIET is loaded into memory
+
+  ! Initialize zodi_tod_mod
+  do i = 1, numband
+     if (data(i)%tod%subtract_zodi) call initialize_tod_zodi_mod(cpar, data(i)%tod)
+  end do
   !stop
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
@@ -278,11 +283,13 @@ program commander
      ! Sample zodiacal emission parameters
      if (iter > 1 .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
+        if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
         call sample_zodi_model(cpar, handle)
         call timer%stop(TOT_ZODI_SAMP)
         do i = 1, numband
           call data(i)%tod%deallocate_downsampled_zodi()
         end do
+        call output_zodi_model_to_hdf(cpar, iter)
      end if
 
      ! Sample non-linear parameters
@@ -511,7 +518,7 @@ contains
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        call timer%incr_numsamp(data(i)%id_abs)
-       call data(i)%tod%reset_zodi_cache()
+       call data(i)%tod%clear_zodi_cache()
        
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
