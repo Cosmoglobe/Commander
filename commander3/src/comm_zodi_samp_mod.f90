@@ -280,7 +280,8 @@ contains
 
 
     subroutine sample_zodi_model(cpar, handle)
-        ! Sample zodi model parameters
+        ! Metropolis-Hastings for nproposals of new sets of zodi parameters
+        ! Todo: Split into gibbs steps for each component
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
         integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced
@@ -312,7 +313,6 @@ contains
             do i = 1, numband
                 ! Skip bands where we dont want to sample zodi
                 if (.not. data(i)%tod%sample_zodi) cycle
-                if (.not. allocated(data(i)%tod%scans(1)%d(1)%downsamp_res)) stop "cannot sample zodi parameters because downsamp_res and downsamp_pointing isnt allocated in the bands respective tod module. "
 
                 ndet = data(i)%tod%ndet
                 nscan = data(i)%tod%nscan
@@ -326,8 +326,9 @@ contains
 
                 ! Evaluate zodi model with newly proposed values for each band and calculate chisq
                 do scan = 1, nscan
+                    ! Skip scan if no accepted data
+                    if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
                     do j = 1, ndet
-                        ! Allocate arrays
                         ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
                         n_tot_tod  = n_tot_tod + ntod
                         allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps), s_zodi(ntod))
@@ -356,10 +357,6 @@ contains
                 ! Reduce chisq to root process
                 call mpi_reduce(chisq_tod, chisq_tod_reduced, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
                 if (cpar%myid == cpar%root) chisq_current = chisq_current + chisq_tod_reduced
-                ! if (cpar%myid == cpar%root) then
-                !     print *,"ntottod", n_tot_tod_reduced, "chisq", chisq_tod_reduced
-                !     stop
-                ! end if
             end do
 
             if (k > 0) then

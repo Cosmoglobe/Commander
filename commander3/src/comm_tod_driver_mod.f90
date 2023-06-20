@@ -1241,7 +1241,6 @@ contains
         do j = 1, ndet
             ! Add zodi back to the residual
             res = s_tod(:, j) - s_tot(:,j) + s_zodi(:, j)
-
             indices = .true.
             where ((iand(flag(:, j), tod%flag0) .ne. 0.)) indices = .false. ! mask flagged tods
             where (mask == 0.) indices = .false. ! mask galaxy

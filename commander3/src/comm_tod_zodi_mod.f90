@@ -177,18 +177,7 @@ contains
                 earth_lon = atan(earth_pos(2), earth_pos(1))
                 call tod%clear_zodi_cache(obs_time)
             end if
-            if (.not. allocated(tod%pix2ind)) then
-                print *, "Error: tod%pix2ind is not allocated."
-                stop
-            end if
-            if (pix(i) < lbound(tod%pix2ind, dim=1) .or. pix(i) > ubound(tod%pix2ind, dim=1)) then
-                print *, "Error: lookup_idx is out of bounds."
-                print *, "i", i
-                print *, "pix(i) = ", pix(i)
-                print *, "lbound(tod%pix2ind, dim=1) = ", lbound(tod%pix2ind, dim=1)
-                print *, "ubound(tod%pix2ind, dim=1) = ", ubound(tod%pix2ind, dim=1)
-                stop
-            end if
+
             lookup_idx = tod%pix2ind(pix(i))
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
                 s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
