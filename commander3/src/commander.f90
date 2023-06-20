@@ -288,6 +288,7 @@ program commander
         call timer%stop(TOT_ZODI_SAMP)
         do i = 1, numband
           call data(i)%tod%deallocate_downsampled_zodi()
+          call data(i)%tod%clear_zodi_cache()
         end do
      end if
 
@@ -518,7 +519,6 @@ contains
 
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        call timer%incr_numsamp(data(i)%id_abs)
-       call data(i)%tod%clear_zodi_cache()
        
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
