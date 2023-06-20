@@ -289,7 +289,7 @@ contains
         type(zodi_model) :: current_model, previous_model
         logical(lgt) :: accepted
 
-        nprop = 10
+        nprop = 3
 
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
         chisq_previous = 1d20
@@ -388,6 +388,7 @@ contains
     end subroutine
 
     subroutine output_zodi_model_to_hdf(cpar, iter)
+        ! Writes the zodi model to an hdf file
         type(comm_params), intent(in) :: cpar
         integer(i4b), intent(in) :: iter
         
@@ -410,22 +411,19 @@ contains
 
         inquire(file=trim(chainfile), exist=exist)
         call open_hdf_file(chainfile, file, 'b')
-        ! Delete group if it already exists
-        call h5eset_auto_f(0, hdferr)
-        call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
-        if (hdferr == 0) call h5gunlink_f(file%filehandle, trim(adjustl(itext)), hdferr)
 
         call int2string(iter, itext)
-        zodi_path = trim(adjustl(itext))//'/zodi/'
+        zodi_path = trim(adjustl(itext))//'/zodi'
         call create_hdf_group(file, trim(adjustl(zodi_path)))
         do i = 1, sampled_zodi_model%n_comps
-            comp_path = trim(adjustl(zodi_path//trim(adjustl(sampled_zodi_model%comp_labels(i)))//'/'))
-            call create_hdf_group(file, comp_path)
+            comp_path = trim(adjustl(zodi_path))//'/'//trim(adjustl(sampled_zodi_model%comp_labels(i)))//'/'
+            call create_hdf_group(file, trim(adjustl(comp_path)))
             call sampled_zodi_model%comps(i)%c%get_parameters(param_names, param_values)
             do j = 1, size(param_names)
                 param_path = trim(adjustl(comp_path))//trim(adjustl(param_names(j)))
-                call write_hdf(file, param_path, param_values(j))
+                call write_hdf(file, trim(adjustl(param_path)), param_values(j))
             end do
+            deallocate(param_names, param_values)
         end do
         call close_hdf_file(file)
     end subroutine

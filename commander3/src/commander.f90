@@ -289,7 +289,6 @@ program commander
         do i = 1, numband
           call data(i)%tod%deallocate_downsampled_zodi()
         end do
-        call output_zodi_model_to_hdf(cpar, iter)
      end if
 
      ! Sample non-linear parameters
@@ -337,7 +336,8 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-    
+     if (cpar%sample_zodi) call output_zodi_model_to_hdf(cpar, iter)
+
      call wall_time(t2)
      if (ok) then
         if (cpar%myid_chain == 0) then

@@ -11,14 +11,14 @@ module comm_tod_zodi_mod
     public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines
 
     ! Constants
-    real(dp) :: EPS = 3.d-14
+    real(dp) :: R_MIN = 3.d-14
     real(dp) :: SECOND_TO_DAY = 1.1574074074074073e-05
 
     ! Shared global parameters
     type(spline_type) :: earth_pos_spl_obj(3)
-    real(dp), allocatable :: temperature_grid(:)
-    real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp
     integer(i4b) :: n_interp_points, gauss_degree
+    real(dp), allocatable :: temperature_grid(:), gauss_nodes(:), gauss_weights(:)
+    real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp
 
 contains 
     subroutine initialize_tod_zodi_mod(cpar, tod)
@@ -39,8 +39,13 @@ contains
         min_ipd_temp = cpar%zs_min_ipd_temp
         max_ipd_temp = cpar%zs_max_ipd_temp
         n_interp_points = cpar%zs_n_interp_points
-        gauss_degree = cpar%zs_gauss_quad_order
         R_cutoff = cpar%zs_los_cut
+        gauss_degree = cpar%zs_gauss_quad_order
+        
+        ! Set up Gauss-Legendre quadrature
+        allocate(gauss_nodes(gauss_degree), gauss_weights(gauss_degree))
+        call leggaus(gauss_degree, gauss_nodes, gauss_weights)
+
 
         ! Set up interpolation grid for evaluating line of sight b_nu
         if (allocated(temperature_grid)) stop "Temperature grid already allocated"
@@ -53,8 +58,8 @@ contains
         allocate(obs_pos(3, tod%nscan_tot))
 
         ! Set up spline objects for observer position (requires knowing the full scan list ahead of time)
-        obs_time = 0.d0
-        obs_pos = 0.d0
+        obs_time = 0.
+        obs_pos = 0.
         do i = 1, tod%nscan
             obs_time(tod%scanid(i)) = tod%scans(i)%t0(1)
         end do
@@ -80,7 +85,7 @@ contains
         tod%zodi_emissivity(:) = cpar%ds_zodi_emissivity(tod%band, :)
         tod%zodi_albedo(:) = cpar%ds_zodi_albedo(tod%band, :)
         
-        if (count(tod%zodi_albedo /= 0.d0) > 0) then
+        if (count(tod%zodi_albedo /= 0.) > 0) then
             tod%zodi_scattering = .true.
         else
             tod%zodi_scattering = .false.
@@ -129,8 +134,7 @@ contains
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
-        real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, gauss_nodes, gauss_weights, &
-                                            solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+        real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
         if (.not. tod%zodi_tod_params_are_initialized) then 
             print *, "Error: Zodi parameters have not been initialized."
@@ -141,12 +145,12 @@ contains
             print *, "make sure that `initialize_zodi_splines` is called at least once before this function is ran, and then again everytime the bandpasses are updated."
             stop
         end if
-
-        s_zodi_scat = 0.d0
-        s_zodi_therm = 0.d0
+        
+        s_zodi_scat = 0.
+        s_zodi_therm = 0.
         n_tod = size(pix, dim=1)
 
-        dt_tod = (1.d0/tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+        dt_tod = (1./tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
         obs_pos = tod%scans(scan)%satpos
         R_obs = norm2(obs_pos)
         obs_time = tod%scans(scan)%t0(1)
@@ -183,10 +187,11 @@ contains
 
             unit_vector = tod%ind2vec_ecl(:, lookup_idx)
             call get_R_max(unit_vector, obs_pos, R_obs, R_max)
-            call gauss_legendre_quadrature(x1=EPS, x2=R_max, n=gauss_degree, x=gauss_nodes, w=gauss_weights)
 
             do k = 1, 3
-                X_unit_LOS(k, :) = gauss_nodes * unit_vector(k)
+                ! Convert quadrature range from [-1, 1] to [R_min, R_max]
+                X_unit_LOS(k, :) = (0.5 * (R_max - R_MIN)) * gauss_nodes + (0.5 * (R_max + R_MIN))
+                X_unit_LOS(k, :) = X_unit_LOS(k, :) * unit_vector(k)
                 X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
             end do
             R_LOS = norm2(X_LOS, dim=1)           
@@ -206,7 +211,7 @@ contains
                     s_zodi_scat(i, k) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
                     tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                 end if
-                s_zodi_therm(i, k) = sum(density_LOS * b_nu_LOS * gauss_weights)
+                s_zodi_therm(i, k) = sum(density_LOS * b_nu_LOS * gauss_weights) * 0.5 * (R_max - R_MIN)
                 tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
             end do
         end do
@@ -225,9 +230,9 @@ contains
         lon = atan(unit_vector(2), unit_vector(1))
         lat = asin(unit_vector(3))
         cos_lat = cos(lat)
-        b = 2.d0 * (obs_pos(1) * cos_lat * cos(lon) + obs_pos(2) * cos_lat * sin(lon))
+        b = 2. * (obs_pos(1) * cos_lat * cos(lon) + obs_pos(2) * cos_lat * sin(lon))
         d = R_obs**2 - R_cutoff**2
-        q = -0.5d0 * b * (1.d0 + sqrt(b**2 - (4.d0 * d)) / abs(b))
+        q = -0.5 * b * (1. + sqrt(b**2 - (4. * d)) / abs(b))
         R_max = max(q, d / q)
     end subroutine get_R_max
 
@@ -241,7 +246,7 @@ contains
     subroutine get_blackbody_emission(nus, T, b_nu)
         real(dp), intent(in) :: nus(:), T
         real(dp), dimension(:), intent(out) :: b_nu
-        b_nu = 1d20 * ((2 * h * nus**3) / (c*c)) / (exp((h * nus) / (k_B * T)) - 1.d0)
+        b_nu = 1d20 * ((2. * h * nus**3) / (c*c)) / (exp((h * nus) / (k_B * T)) - 1.)
     end subroutine get_blackbody_emission
 
     subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
@@ -274,11 +279,11 @@ contains
         real(dp), intent(out) :: normalization_factor
         real(dp) :: term1, term2, term3, term4
 
-        term1 = 2.d0 * pi
-        term2 = 2.d0 * phase_coefficients(1)
+        term1 = 2. * pi
+        term2 = 2. * phase_coefficients(1)
         term3 = pi * phase_coefficients(2)
-        term4 = (exp(phase_coefficients(3) * pi) + 1.d0) / (phase_coefficients(3)**2 + 1.d0)
-        normalization_factor = 1.d0 / (term1 * (term2 + term3 + term4))
+        term4 = (exp(phase_coefficients(3) * pi) + 1.) / (phase_coefficients(3)**2 + 1.)
+        normalization_factor = 1. / (term1 * (term2 + term3 + term4))
     end subroutine
 
 

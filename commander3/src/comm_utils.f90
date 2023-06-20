@@ -1350,62 +1350,72 @@ contains
   end function calc_corr_len
 
 
-   subroutine gauss_legendre_quadrature(x1, x2, n, x, w)
+   subroutine leggaus(deg, x, w, x1, x2)
       ! Computes the sample points and weights for Gauss-Legendre quadrature.
       !
       ! Given lower and upper integration limits `x1`, and `x2, and `n`, the order of 
       ! quadrature, this routine returns the integration grid/abscissas `x` and 
       ! corresponding weights `w` of the Gauss-Legendre n-point quadrature formula. 
       ! Given the returned grid and weights, the integral of some function f is computed 
-      ! as follows: integral = sum(f(x) * w) 
+      ! as follows: integral = sum(f(x) * w).
+      ! 
+      ! NOTE: Both x1 and x2 must be present to make use of either.
       !
       ! This code is from NUMERICAL RECIPES in FORTRAN 77 the second edition page 145.
       !
-      ! Args:
-      !     x1 (float): Lower integration limit.         
-      !     x2 (float): Upper integration limit.      
-      !     n (int): Gaussian quadrature order.    
-      !
-      ! Returns:
-      !     x (1-D array with length n): Integration grid/abscissas.    
-      !     w (1-D array with length n): Gauss-Legendre weights.
+      ! Parameters:
+      ! -----------
+      ! deg: 
+      !     Gaussian quadrature order.    
+      ! x: 
+      !     1-D ndarray containing the sample points
+      ! w: 
+      !     1-D ndarray containing the weights.
+      ! x1: optional
+      !     Lower integration limit.         
+      ! x2: optional 
+      !     Upper integration limit.      
 
       implicit none
    
-      real(dp), intent(in) :: x1, x2
-      integer(i4b), intent(in) :: n
-      real(dp), dimension(n), intent(out) :: x(n), w(n)
+      integer(i4b), intent(in) :: deg
+      real(dp), intent(out) :: x(deg), w(deg)
+      real(dp), intent(in), optional :: x1, x2
 
       integer(i4b) :: i, j, m 
       real(dp) :: p1, p2, p3, pp, xl, xm, z, z1, EPS
 
       EPS = 3.d-14
-      m = (n + 1) / 2
-      xm = 0.5d0 * (x2 + x1)
-      xl = 0.5d0 * (x2 - x1)
+      m = (deg + 1) / 2
+      if (present(x1) .and. present(x2)) then
+         xm = 0.5d0 * (x2 + x1)
+         xl = 0.5d0 * (x2 - x1)
+      else
+         xm = 0.d0
+         xl = 1.d0
+      end if
 
       do i = 1, m
-         z = cos(pi * (i - .25d0)/(n + .5d0))
+         z = cos(pi * (i - .25d0)/(deg + .5d0))
       1  continue
             p1 = 1.d0
             p2 = 0.d0
-            do j = 1, n
+            do j = 1, deg
                p3 = p2
                p2 = p1
                p1 = ((2.d0 * j - 1.d0) * z * p2 - (j-1.d0) * p3) / j
             end do
 
-            pp = n * (z * p1 - p2) / (z * z - 1.d0)
+            pp = deg * (z * p1 - p2) / (z * z - 1.d0)
             z1 = z
             z = z1 - p1/pp
          if (abs(z - z1) .gt. EPS) goto 1
          x(i) = xm - xl * z
-         x(n + 1 - i) = xm + xl * z
+         x(deg + 1 - i) = xm + xl * z
          w(i) = 2.d0 * xl / ((1.d0 - z * z) * pp * pp)
-         w(n + 1 - i) = w(i)
+         w(deg + 1 - i) = w(i)
       enddo 
-
-   end subroutine gauss_legendre_quadrature
+   end subroutine leggaus
 
    subroutine ecl_to_gal_rot_mat(m)
       implicit none
