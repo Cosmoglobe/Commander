@@ -285,6 +285,8 @@ program commander
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
         call sample_zodi_model(cpar, handle)
+        ! Update base zodi model used in commander to the newly sampled
+        base_zodi_model = sampled_zodi_model
         call timer%stop(TOT_ZODI_SAMP)
         do i = 1, numband
           call data(i)%tod%deallocate_downsampled_zodi()

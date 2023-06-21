@@ -1223,9 +1223,9 @@ contains
         real(sp), intent(in) :: s_tod(:, :), s_tot(:, :), s_zodi(:, :), mask(:)
 
         real(dp) :: box_width
-        real(sp), allocatable, dimension(:) :: res, res_truncated
+        real(sp), allocatable, dimension(:) :: res, res_truncated, downsamp_mask, downsamp_res, downsamp_pointing
         integer(i4b), allocatable, dimension(:) :: pix_truncated
-        logical(lgt), allocatable, dimension(:) :: indices
+        logical(lgt), allocatable, dimension(:) :: masked_indices, downsamp_masked_indices
         integer(i4b) :: i, j, ext(2), ndet, ntod, box_halfwidth, upper_bound
 
         ndet = tod%ndet
@@ -1237,35 +1237,46 @@ contains
         box_halfwidth = box_width / 2
         if (mod(box_halfwidth, 2) == 0) box_width = box_width + 1.
 
-        allocate(res(ntod), indices(ntod))
+        allocate(res(ntod), masked_indices(ntod))
         do j = 1, ndet
             ! Add zodi back to the residual
             res = s_tod(:, j) - s_tot(:,j) + s_zodi(:, j)
-            indices = .true.
-            where ((iand(flag(:, j), tod%flag0) .ne. 0.)) indices = .false. ! mask flagged tods
-            where (mask == 0.) indices = .false. ! mask galaxy
-            res_truncated = pack(res, indices)
-            pix_truncated = pack(pix(:, j, 1), indices)
+            masked_indices = .true.
+            where ((iand(flag(:, j), tod%flag0) .ne. 0.)) masked_indices = .false. ! mask flagged tods
+            where (mask == 0.) masked_indices = .false. ! mask galaxy
+            res_truncated = pack(res, masked_indices)
+            pix_truncated = pack(pix(:, j, 1), masked_indices)
 
             ! Get downsampled shape (ext), and allocate the downsampled arrays
             call tod%downsample_tod(res_truncated, ext, step=box_width)
 
             ! Allocate these the first gibbs iter
-            allocate(tod%scans(scan_id)%d(j)%downsamp_res(ext(1):ext(2)))
-            allocate(tod%scans(scan_id)%d(j)%downsamp_pointing(ext(1):ext(2)))
-            tod%scans(scan_id)%d(j)%downsamp_res = 0.
-            tod%scans(scan_id)%d(j)%downsamp_pointing = 0
+            allocate(downsamp_res(ext(1):ext(2)))
+            allocate(downsamp_pointing(ext(1):ext(2)))
+            allocate(downsamp_mask(ext(1):ext(2)))
+
+            downsamp_mask = 0.
+            downsamp_res = 0.
+            downsamp_pointing = 0
+
+            ! Downsample the mask
+            call tod%downsample_tod(mask, ext, downsamp_mask, step=box_width)
 
             ! Downsample the residual
-            call tod%downsample_tod(res_truncated, ext, tod%scans(scan_id)%d(j)%downsamp_res, step=box_width)
+            call tod%downsample_tod(res_truncated, ext, downsamp_res, step=box_width)
 
             ! Construct the downsampled pointing array (pick central pixel in each box)
             ! This is a bit cluncky, but we have essentially copied the code in downsample_tod and 
             ! picked out the center pixel
             do i = 1, int(size(res_truncated) / box_width)
-                tod%scans(scan_id)%d(j)%downsamp_pointing(i) = pix_truncated(floor(i * box_width))
+                downsamp_pointing(i) = pix_truncated(floor(i * box_width))
             end do
-        end do
 
+            ! Remove downsampled masked
+            downsamp_masked_indices = .true.
+            where (downsamp_mask < 1.) downsamp_masked_indices = .false.
+            tod%scans(scan_id)%d(j)%downsamp_res = pack(downsamp_res, downsamp_masked_indices)
+            tod%scans(scan_id)%d(j)%downsamp_pointing = pack(downsamp_pointing, downsamp_masked_indices)
+        end do
     end subroutine
 end module comm_tod_driver_mod
