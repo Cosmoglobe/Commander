@@ -147,7 +147,10 @@ program commander
   if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
-  if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
+  if (cpar%include_tod_zodi) then 
+     call initialize_zodi_mod(cpar)
+     call initialize_tod_zodi_mod(cpar)
+  end if
   if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call define_cg_samp_groups(cpar)
   ! Initialising Bandpass
@@ -158,10 +161,11 @@ program commander
   ! Debug statement to actually see whether
   ! QUIET is loaded into memory
 
-  ! Initialize zodi_tod_mod
   do i = 1, numband
-     if (data(i)%tod%subtract_zodi) call initialize_tod_zodi_mod(cpar, data(i)%tod)
+   if (.not. data(i)%tod%subtract_zodi) cycle
+   call data(i)%tod%precompute_zodi_lookups(cpar)
   end do
+
   !stop
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
@@ -518,7 +522,6 @@ contains
        !       call s_sky(1,1)%p%writeFITS('sky.fits')
 
        rms => comm_map(data(i)%rmsinfo)
-
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
        call timer%incr_numsamp(data(i)%id_abs)
        

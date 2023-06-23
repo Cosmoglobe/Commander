@@ -85,6 +85,7 @@ module comm_tod_mod
      character(len=512) :: filelist
      character(len=512) :: procmaskf1
      character(len=512) :: procmaskf2
+     character(len=512) :: procmaskfzodi
      character(len=512) :: initfile
      character(len=512) :: instfile
      character(len=512) :: operation
@@ -171,6 +172,7 @@ module comm_tod_mod
      character(len=512), allocatable, dimension(:)     :: label    ! Detector labels
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
+     class(comm_map), pointer                          :: procmask_zodi => null() ! Mask for sampling zodi
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
@@ -246,6 +248,7 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: collect_satpos
      procedure                           :: collect_mjds
+     procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
      procedure                           :: deallocate_downsampled_zodi
 
@@ -408,6 +411,11 @@ contains
 
     self%procmask => comm_map(self%info, self%procmaskf1)
     self%procmask2 => comm_map(self%info, self%procmaskf2)
+    if (self%sample_zodi .and. self%subtract_zodi) then
+      self%procmaskfzodi = trim(cpar%ds_tod_procmask_zodi(id_abs))
+      self%procmask_zodi => comm_map(self%info, self%procmaskfzodi)
+    end if
+
     do i = 0, self%info%np-1
        if (any(self%procmask%map(i,:) < 0.5d0)) then
           self%procmask%map(i,:) = 0.d0
@@ -2754,6 +2762,56 @@ contains
          & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
   end subroutine collect_v_sun
+
+   subroutine precompute_zodi_lookups(self, cpar)
+      class(comm_tod),   intent(inout) :: self
+      type(comm_params),       intent(in) :: cpar
+
+      integer(i4b) :: i, ierr
+      real(dp), allocatable :: obs_time(:), obs_pos(:, :), r
+      allocate(obs_time(self%nscan_tot))
+      allocate(obs_pos(3, self%nscan_tot))
+      ! Set up spline objects for observer position (requires knowing the full scan list ahead of time)
+      
+      obs_time = 0.
+      obs_pos = 0.
+      do i = 1, self%nscan
+         obs_time(self%scanid(i)) = self%scans(i)%t0(1)
+      end do
+      call mpi_allreduce(MPI_IN_PLACE, obs_time, size(obs_time), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+
+      do i = 1, self%nscan
+         obs_pos(:, self%scanid(i)) = self%scans(i)%satpos
+      end do
+      call mpi_allreduce(MPI_IN_PLACE, obs_pos, size(obs_pos), &
+               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      
+      do i = 1, 3
+         call spline_simple(self%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
+      end do
+      self%zodi_init_cache_time = self%scans(1)%t0(1)
+      call self%clear_zodi_cache()
+      self%zodi_min_obs_time = minval(obs_time)
+      self%zodi_max_obs_time = maxval(obs_time)
+      
+      allocate(self%zodi_emissivity(cpar%zs_ncomps))
+      allocate(self%zodi_albedo(cpar%zs_ncomps))
+      self%zodi_emissivity(:) = cpar%ds_zodi_emissivity(self%band, :)
+      self%zodi_albedo(:) = cpar%ds_zodi_albedo(self%band, :)
+      
+      if (count(self%zodi_albedo /= 0.) > 0) then
+         self%zodi_scattering = .true.
+      else
+         self%zodi_scattering = .false.
+      end if
+      !allocate spectral quantities
+      allocate(self%zodi_spl_phase_coeffs(self%ndet, 3))
+      allocate(self%zodi_spl_solar_irradiance(self%ndet))
+      allocate(self%zodi_phase_func_normalization(self%ndet))
+      allocate(self%zodi_b_nu_spl_obj(self%ndet))
+
+   end subroutine precompute_zodi_lookups
 
    subroutine clear_zodi_cache(self, obs_time)
       ! Clears the zodi tod cache used to look up already computed zodi values. 

@@ -124,7 +124,7 @@ contains
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
       ! Initialize instrument-specific parameters
-      constructor%samprate_lowres = 4.  ! Lowres samprate in Hz
+      constructor%samprate_lowres = 1.  ! Lowres samprate in Hz
       constructor%nhorn           = 1
       constructor%ndiode          = 1
       constructor%compressed_tod  = .false.
@@ -232,7 +232,7 @@ contains
       character(len=6)    :: samptext, scantext
       character(len=512)  :: prefix, postfix, prefix4D
       character(len=512), allocatable, dimension(:) :: slist
-      real(sp), allocatable, dimension(:)       :: procmask, procmask2
+      real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
       real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
       real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
@@ -281,9 +281,25 @@ contains
       allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
       call self%procmask%bcast_fullsky_map(m_buf);  procmask  = m_buf(:,1)
       call self%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
+      if (self%sample_zodi .and. self%subtract_zodi) then
+         allocate(procmask_zodi(0:npix-1))
+         call self%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
+      end if
       deallocate(m_buf)
 
       call update_status(status, "tod_init")
+
+      ! Write mask for debugging
+      if (.false. .and. self%myid == 0) then
+         call open_hdf_file(trim(chaindir)//'/mask.h5', tod_file, 'w')
+         call write_hdf(tod_file, '/procmask', procmask)
+         call write_hdf(tod_file, '/procmask2', procmask2)
+         call write_hdf(tod_file, '/procmask_zodi', procmask_zodi)
+         call close_hdf_file(tod_file)
+         stop
+      end if
+
+
 
       !------------------------------------
       ! Perform main sampling steps
@@ -318,10 +334,10 @@ contains
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
 
-         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+         call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Populate downsampled residual and pointing to be used for zodi sampling
-         if (sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, procmask)
+         if (sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, sd%mask_zodi)
 
          ! Sample correlated noise
          !  call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
@@ -356,7 +372,7 @@ contains
             call write_hdf(tod_file, '/todz', d_calib(1, :, :))
             call write_hdf(tod_file, '/res', d_calib(2, :, :))
             call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
-            call write_hdf(tod_file, '/mask', sd%mask)
+            call write_hdf(tod_file, '/mask', sd%mask2)
             call write_hdf(tod_file, '/n0', self%scans(i)%d(1)%N_psd%sigma0)
             call close_hdf_file(tod_file)
          end if

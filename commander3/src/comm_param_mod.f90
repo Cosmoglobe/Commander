@@ -138,6 +138,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)   :: ds_tod_type
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask1
      character(len=512), allocatable, dimension(:)   :: ds_tod_procmask2
+     character(len=512), allocatable, dimension(:)   :: ds_tod_procmask_zodi
      character(len=512), allocatable, dimension(:)   :: ds_tod_filelist
      character(len=512), allocatable, dimension(:)   :: ds_tod_jumplist
      character(len=512), allocatable, dimension(:)   :: ds_tod_instfile
@@ -2808,6 +2809,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      ! Convert from GHz to Hz
      cpar%zs_nu_ref = cpar%zs_nu_ref * 1d9
      
+     if (cpar%sample_zodi) allocate(cpar%ds_tod_procmask_zodi(n))
      ! tod parameters
      do i = 1, n
           if (.not. cpar%ds_tod_subtract_zodi(i)) cycle
@@ -2820,6 +2822,10 @@ subroutine read_zodi_params_hash(htbl, cpar)
                read(emissivity_string1(j), *) cpar%ds_zodi_emissivity(i, j)
                read(albedo_string1(j), *) cpar%ds_zodi_albedo(i, j)
           end do
+          if (cpar%sample_zodi .and. cpar%ds_tod_subtract_zodi(i)) then
+               call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)
+               call validate_file(trim(cpar%ds_tod_procmask_zodi(i)))
+          end if
      end do
 end subroutine read_zodi_params_hash
 

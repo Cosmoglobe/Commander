@@ -343,9 +343,11 @@ contains
                     if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
                     do j = 1, ndet
                         ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
-                        do l = 1, ntod
-                            data(i)%tod%scans(scan)%d(j)%downsamp_res(l) = data(i)%tod%scans(scan)%d(j)%downsamp_res(l) + rand_gauss(handle) * data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
-                        end do
+
+                        ! Add noise to simulations
+                        ! do l = 1, ntod
+                        !     data(i)%tod%scans(scan)%d(j)%downsamp_res(l) = data(i)%tod%scans(scan)%d(j)%downsamp_res(l) + rand_gauss(handle) * data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
+                        ! end do
                         n_tot_tod  = n_tot_tod + ntod
                         allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps), s_zodi(ntod))
                         call get_zodi_emission(&

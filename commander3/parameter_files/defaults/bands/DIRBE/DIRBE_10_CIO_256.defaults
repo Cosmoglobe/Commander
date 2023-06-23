@@ -65,5 +65,6 @@ N_GIBBS_PER_TOD&&&             = 1
 
 # Zodi parameters
 BAND_TOD_SUBTRACT_ZODI&&&   = .true. # if true, the following parameters must be set
+BAND_TOD_ZODI_MASK&&&       = zodi_proc_mask_10.fits
 BAND_ZODI_EMISSIVITY&&&     = 0.51912085401950736d0,1.3996145963796358d0,1.3996145963796358d0,1.3996145963796358d0,0.85763800994217443d0,0.85763800994217443d0
 BAND_ZODI_ALBEDO&&&         = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0

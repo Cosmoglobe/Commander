@@ -21,7 +21,7 @@ module comm_tod_zodi_mod
     real(dp) :: R_cutoff, delta_t_reset, min_ipd_temp, max_ipd_temp
 
 contains 
-    subroutine initialize_tod_zodi_mod(cpar, tod)
+    subroutine initialize_tod_zodi_mod(cpar)
         ! Initializes the zodiacal emission module.
         !
         ! Parameters
@@ -30,9 +30,6 @@ contains
         !     The parameter object.
 
         type(comm_params), intent(in) :: cpar
-        class(comm_tod), intent(inout) :: tod
-        integer(i4b) :: i, ierr
-        real(dp), allocatable :: obs_time(:), obs_pos(:, :), r
 
         ! hyper parameters
         delta_t_reset = cpar%zs_delta_t_reset
@@ -41,63 +38,18 @@ contains
         n_interp_points = cpar%zs_n_interp_points
         R_cutoff = cpar%zs_los_cut
         gauss_degree = cpar%zs_gauss_quad_order
-        
+
         ! Set up Gauss-Legendre quadrature
         allocate(gauss_nodes(gauss_degree), gauss_weights(gauss_degree))
         call leggaus(gauss_degree, gauss_nodes, gauss_weights)
 
-
-        ! Set up interpolation grid for evaluating line of sight b_nu
-        if (allocated(temperature_grid)) stop "Temperature grid already allocated"
+        ! Set up interpolation grid for evaluating temperature
         allocate(temperature_grid(n_interp_points))
         call linspace(min_ipd_temp, max_ipd_temp, temperature_grid)
 
+        ! Read earth position from file and set up spline object
         call initialize_earth_pos_spline(cpar)
 
-        allocate(obs_time(tod%nscan_tot))
-        allocate(obs_pos(3, tod%nscan_tot))
-
-        ! Set up spline objects for observer position (requires knowing the full scan list ahead of time)
-        obs_time = 0.
-        obs_pos = 0.
-        do i = 1, tod%nscan
-            obs_time(tod%scanid(i)) = tod%scans(i)%t0(1)
-        end do
-        call mpi_allreduce(MPI_IN_PLACE, obs_time, size(obs_time), &
-                & MPI_DOUBLE_PRECISION, MPI_SUM, tod%comm, ierr)
-
-        do i = 1, tod%nscan
-            obs_pos(:, tod%scanid(i)) = tod%scans(i)%satpos
-        end do
-        call mpi_allreduce(MPI_IN_PLACE, obs_pos, size(obs_pos), &
-                & MPI_DOUBLE_PRECISION, MPI_SUM, tod%comm, ierr)
-        
-        do i = 1, 3
-            call spline_simple(tod%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
-        end do
-        tod%zodi_init_cache_time = tod%scans(1)%t0(1)
-        call tod%clear_zodi_cache()
-        tod%zodi_min_obs_time = minval(obs_time)
-        tod%zodi_max_obs_time = maxval(obs_time)
-        
-        allocate(tod%zodi_emissivity(cpar%zs_ncomps))
-        allocate(tod%zodi_albedo(cpar%zs_ncomps))
-        tod%zodi_emissivity(:) = cpar%ds_zodi_emissivity(tod%band, :)
-        tod%zodi_albedo(:) = cpar%ds_zodi_albedo(tod%band, :)
-        
-        if (count(tod%zodi_albedo /= 0.) > 0) then
-            tod%zodi_scattering = .true.
-        else
-            tod%zodi_scattering = .false.
-        end if
-        !allocate spectral quantities
-        allocate(tod%zodi_spl_phase_coeffs(tod%ndet, 3))
-        allocate(tod%zodi_spl_solar_irradiance(tod%ndet))
-        allocate(tod%zodi_phase_func_normalization(tod%ndet))
-        allocate(tod%zodi_b_nu_spl_obj(tod%ndet))
-
-        ! Inform `get_zodi_emission` that the relevant tod zodi parameters have been sucessfully initialized
-        tod%zodi_tod_params_are_initialized = .true.
     end subroutine initialize_tod_zodi_mod
 
 
@@ -136,16 +88,6 @@ contains
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
-        if (.not. tod%zodi_tod_params_are_initialized) then 
-            print *, "Error: Zodi parameters have not been initialized."
-            print *, "make sure that `initialize_zodi_tod_parameters` is called in the constructor of `tod_your_experiment_mod`"
-            stop
-        else if (.not. allocated(tod%zodi_b_nu_spl_obj)) then
-            print *, "Error: Zodi splines have not been initialized."
-            print *, "make sure that `initialize_zodi_splines` is called at least once before this function is ran, and then again everytime the bandpasses are updated."
-            stop
-        end if
-        
         s_zodi_scat = 0.
         s_zodi_therm = 0.
         n_tod = size(pix, dim=1)
