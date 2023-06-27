@@ -164,10 +164,12 @@ program commander
   ! QUIET is loaded into memory
 
   ! Set up tod precompute tod_specific zodi lookups
-  do i = 1, numband
-   if (.not. data(i)%tod%subtract_zodi) cycle
-   call data(i)%tod%precompute_zodi_lookups(cpar)
-  end do
+  if (cpar%enable_tod_analysis) then
+     do i = 1, numband
+        if (.not. data(i)%tod%subtract_zodi) cycle
+        call data(i)%tod%precompute_zodi_lookups(cpar)
+     end do
+  end if
 
   !stop
   !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
