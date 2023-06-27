@@ -66,7 +66,6 @@ contains
 
 !    write(*,*) 'mu', trim(label), real(mu,sp)
 !    write(*,*) 'rms', trim(label), real(rms,sp)
-
     ! General parameters
     allocate(constructor)
 
@@ -316,8 +315,9 @@ contains
   
     if (n < numband .and. cpar%myid == 0) then
        write(*,'(a,i6)') ' | Warning: Number of channels without a monopole/dipole definition = ', numband-n
+       stop
     end if
-  
+
   end function initialize_md_comps
   
 end module comm_md_comp_mod

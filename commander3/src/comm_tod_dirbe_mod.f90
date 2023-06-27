@@ -291,6 +291,7 @@ contains
 
       ! Write mask for debugging
       if (.false. .and. self%myid == 0) then
+         print *, "writing masks"
          call open_hdf_file(trim(chaindir)//'/mask.h5', tod_file, 'w')
          call write_hdf(tod_file, '/procmask', procmask)
          call write_hdf(tod_file, '/procmask2', procmask2)

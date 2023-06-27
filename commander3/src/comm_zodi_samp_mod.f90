@@ -367,7 +367,8 @@ contains
                             & s_scat=s_scat, &
                             & s_zodi=s_zodi &
                         &)
-                        if (.true. .and. cpar%myid == cpar%root) then
+                        if (.false. .and. cpar%myid == cpar%root) then
+                            print *, "ntod", ntod,  data(i)%tod%scans(scan)%ntod
                             chaindir = "/mn/stornext/d5/data/metins/dirbe/chains/chains_testing"
                             call open_hdf_file(trim(chaindir)//'/timestream.h5', tod_file, 'w')
                             call write_hdf(tod_file, '/res', data(i)%tod%scans(scan)%d(j)%downsamp_res)
@@ -377,7 +378,6 @@ contains
                             stop
                         end if 
                         chisq_tod = chisq_tod + sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0))**2)
-                        ! chisq_tod = chisq_tod + sum((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)**2)
                         deallocate(s_scat, s_therm, s_zodi)
                     end do
                 end do

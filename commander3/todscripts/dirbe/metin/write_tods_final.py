@@ -479,6 +479,41 @@ def write_to_commander_tods(
 
 def main() -> None:
     # Hyper parameters
+
+    flag_bit_sum = get_flag_sum(
+        [
+            "north_van_allen_belt",
+            "south_van_allen_belt",
+            "south_atlantic_anomaly",
+            "excess_noise",
+            "bad_data",
+            "moon",
+            "mercury",
+            "venus",
+            "mars",
+            "jupiter",
+            "saturn",
+            "uranus",
+            "neptune",
+            # "non_definitive_attitude",
+            # "definite_attitude",
+            # "course_attitude",
+            # "fine_attitude",
+            # "merged_attitude",
+            # "external_uax_attitude",
+            # "space_craft_slewing",
+            # "space_craft_not_slewing",
+            # "special_pointing",
+            # "normal_pointing",
+            # "space_craft_ascending",
+            # "space_craft_descending",
+            # "leading_los",
+            # "trailing_los",
+        ]
+    )
+    print(f"flag bit sum: {flag_bit_sum}")
+    exit()
+
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
     nside_out = 256
@@ -557,7 +592,7 @@ def main() -> None:
             # "trailing_los",
         ]
     )
-    # print(f"flag bit sum: {flag_bit_sum}")
+    print(f"flag bit sum: {flag_bit_sum}")
 
     if flag_bit_sum > 0:
         condition = np.bitwise_and(flags, flag_bit_sum) == 0

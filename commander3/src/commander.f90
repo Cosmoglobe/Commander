@@ -147,11 +147,13 @@ program commander
   if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
+  if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
+
+  ! Initialize zodi modules
   if (cpar%include_tod_zodi) then 
      call initialize_zodi_mod(cpar)
      call initialize_tod_zodi_mod(cpar)
   end if
-  if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
   call define_cg_samp_groups(cpar)
   ! Initialising Bandpass
   ! TODO: Add QUIET stuff into bandpass module
@@ -161,6 +163,7 @@ program commander
   ! Debug statement to actually see whether
   ! QUIET is loaded into memory
 
+  ! Set up tod precompute tod_specific zodi lookups
   do i = 1, numband
    if (.not. data(i)%tod%subtract_zodi) cycle
    call data(i)%tod%precompute_zodi_lookups(cpar)
@@ -289,9 +292,12 @@ program commander
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
         call sample_zodi_model(cpar, handle)
-        ! Update base zodi model used in commander to the newly sampled
+        
+        ! Update zodi model
         base_zodi_model = sampled_zodi_model
         call timer%stop(TOT_ZODI_SAMP)
+
+        ! Reset zodi related quantities for next gibbs sample
         do i = 1, numband
           call data(i)%tod%deallocate_downsampled_zodi()
           call data(i)%tod%clear_zodi_cache()

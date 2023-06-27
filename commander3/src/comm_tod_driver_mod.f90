@@ -1243,6 +1243,9 @@ contains
         logical(lgt), allocatable, dimension(:) :: masked_indices, downsamp_masked_indices
         integer(i4b) :: i, j, ext(2), ndet, ntod, box_halfwidth, upper_bound, padding
       
+        character(len=256) :: chaindir
+        type(hdf_file) :: tod_file
+
         ndet = tod%ndet
         ntod = size(s_tot, dim=1)
 
@@ -1251,6 +1254,8 @@ contains
         box_width = tod%samprate / tod%samprate_lowres
         if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
         box_halfwidth = box_width / 2
+
+        ! Make box have odd size so that we can pick out a center pixel
         if (mod(box_halfwidth, 2) == 0) box_width = box_width + 1.
 
         allocate(res(ntod))
@@ -1279,19 +1284,20 @@ contains
             call tod%downsample_tod(res, ext, downsamp_res, step=box_width)
 
             ! Construct the downsampled pointing array (pick central pixel in each box)
-            ! This is a bit cluncky, but we have essentially copied the code in downsample_tod and 
-            ! picked out the center pixel
             do i = 1, int(size(res) / box_width)
-                downsamp_pointing(i) = pix(floor(i * box_width), j, 1)
+                downsamp_pointing(i) = pix((i * box_width), j, 1)
             end do
 
             ! Remove flagged values in the downsampled residual
             downsamp_masked_indices = .true.
             where (downsamp_mask < 1.) downsamp_masked_indices = .false.
+            
+            ! Find upper bound and truncate the downsampled arrays by where they were padded and
+            ! filter out the masked values. Store the result in the tod objects for use in sampling.
             upper_bound = ubound(downsamp_res, dim=1)
             tod%scans(scan_id)%d(j)%downsamp_res = pack(downsamp_res(padding:upper_bound-padding), downsamp_masked_indices(padding:upper_bound-padding))
             tod%scans(scan_id)%d(j)%downsamp_pointing = pack(downsamp_pointing(padding:upper_bound-padding), downsamp_masked_indices(padding:upper_bound-padding))
-            
+
             deallocate(downsamp_res, downsamp_pointing, downsamp_mask, downsamp_masked_indices)
         end do
     end subroutine
