@@ -559,9 +559,9 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
-       call self%mbeam(i)%p%Y()
+       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       !self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
+       !call self%mbeam(i)%p%Y()
     end do
 
     call close_hdf_file(h5_file)
@@ -2262,7 +2262,6 @@ contains
     integer(i4b),        dimension(:),  intent(out) :: flag
     integer(i4b),        dimension(:,:),intent(out) :: psi, pix
     integer(i4b) :: i, j
-
     do i=1, self%nhorn
       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
