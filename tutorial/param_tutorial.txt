@@ -136,7 +136,7 @@ CG_SAMPLING_GROUP_MAXITER&&  = 100
 @START 01
 @DEFAULT components/cmb/cmb_LFI.defaults
 COMP_POLARIZATION&&           = .false.
-COMP_INPUT_AMP_MAP&&          = init_cmb_amp_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_cmb_amp_BP8.1_v1.fits
 COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_comp_radio_commonDX12_n1024_TQU.fits
 @END 01
 
@@ -144,8 +144,8 @@ COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_band_monopoles_bp10_chisq_c
 @START 02 
 @DEFAULT components/synch/synch_LFI_T_only.defaults
 COMP_POLARIZATION&&           = .false.
-COMP_INPUT_AMP_MAP&&          = init_synch_amp_BP8.1_v1.fits
-COMP_INPUT_BETA_MAP&&         = init_synch_beta_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_synch_amp_BP8.1_v1.fits
+COMP_BETA_INPUT_MAP&&         = init_synch_beta_BP8.1_v1.fits
 COMP_PRIOR_GAUSS_BETA_MEAN&&  = -3.3
 # New Local sampling parameters
 @DEFAULT components/synch/synch_LFI_localsampler.defaults
@@ -161,9 +161,9 @@ COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta_BP10.dat
 COMP_POLARIZATION&&           = .false.
 COMP_NU_REF_T&&               = 353
 COMP_INDMASK&&                = mask_dust_beta_BP8_10deg_HKE.fits 
-COMP_INPUT_AMP_MAP&&          = init_dust_amp_BP8.1_v1.fits
-COMP_INPUT_BETA_MAP&&         = init_dust_beta_BP8.1_v1.fits
-COMP_INPUT_T_MAP&&            = init_dust_T_BP8.1_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_dust_amp_BP8.1_v1.fits
+COMP_BETA_INPUT_MAP&&         = init_dust_beta_BP8.1_v1.fits
+COMP_T_INPUT_MAP&&            = init_dust_T_BP8.1_v1.fits
 @DEFAULT components/dust/dust_LFI_localsampler.defaults
 # New Local sampling parameters, 'dust'
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta.dat

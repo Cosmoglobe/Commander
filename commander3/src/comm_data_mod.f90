@@ -180,7 +180,7 @@ contains
           !   data(n)%ndet = data(n)%tod%ndet
 
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
-            if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
+          !  if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
              write(*,*) 'Unrecognized TOD experiment type = ', trim(data(n)%tod_type)
              stop
