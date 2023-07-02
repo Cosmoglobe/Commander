@@ -132,6 +132,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/math_tools.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_mbb_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_mbbtab_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_system_mod.f90
 	${COMMANDER3_SOURCE_DIR}/powell_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_precond_mod.f90

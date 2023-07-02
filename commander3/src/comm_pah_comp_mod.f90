@@ -100,8 +100,12 @@ contains
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
     real(dp)                                      :: evalSED
-    
-    evalSED = (splint(self%SED_spline, nu)) / (splint(self%SED_spline, self%nu_ref(1))) !* (self%nu_ref(1)/nu)**(2.d0)
+
+    if (nu < minval(self%SED_spline%x) .or.nu > maxval(self%SED_spline%x)) then
+       evalSED = 0.d0
+    else
+       evalSED = (splint(self%SED_spline, nu)) / (splint(self%SED_spline, self%nu_ref(1))) !* (self%nu_ref(1)/nu)**(2.d0)
+    end if
   end function evalSED
   
 end module comm_pah_comp_mod

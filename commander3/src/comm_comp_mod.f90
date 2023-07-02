@@ -203,8 +203,8 @@ module comm_comp_mod
   !             Auxiliary variables
   !**************************************************
 
-  integer(i4b)              :: n_dump = 1000
-  real(dp),    dimension(2) :: nu_dump = [0.1d9, 3000.d9] 
+  integer(i4b)              :: n_dump = 10000
+  real(dp),    dimension(2) :: nu_dump = [0.1d9, 300000.d9] 
 
   !**************************************************
   !             Internal module variables

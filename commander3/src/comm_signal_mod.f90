@@ -33,6 +33,7 @@ module comm_signal_mod
   use comm_hdf_mod
   use comm_line_comp_mod
   use comm_MBB_comp_mod
+  use comm_MBBtab_comp_mod
   use comm_md_comp_mod
   use comm_param_mod
   use comm_powlaw_comp_mod
@@ -90,6 +91,8 @@ contains
              c => comm_ame_lognormal_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
+          case ("MBBtab")
+             c => comm_MBBtab_comp(cpar, ncomp, i)
           case ("freefree")
              c => comm_freefree_comp(cpar, ncomp, i)
           case ("line")

@@ -796,6 +796,8 @@ contains
              call read_lognormal_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('MBB')
              call read_mbb_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
+          case ('MBBtab')
+             call read_mbb_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
           case ('freefree')
              call read_freefree_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)             
           case ('pah')
@@ -2543,6 +2545,11 @@ contains
        end if
     end do         
 
+    if (trim(cpar%cs_type(i)) == 'MBBtab') then
+       call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
+            & par_string=cpar%cs_SED_template(1,i), path=.true.)
+    end if
+
   end subroutine read_mbb_params_hash
 
   subroutine read_freefree_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)
@@ -3372,6 +3379,16 @@ end subroutine read_zodi_params_hash
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
              if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
                   & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)))
+          case ('MBBtab')
+             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
+                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+             if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
+                  call validate_file(trim(cpar%cs_input_ind(2,i)))
+             if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+             if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)))
+             call validate_file(trim(cpar%cs_SED_template(1,i)))
           case ('freefree')
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(cpar%cs_input_ind(1,i)))

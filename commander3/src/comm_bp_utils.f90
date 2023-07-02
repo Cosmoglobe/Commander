@@ -276,7 +276,7 @@ contains
     nu  = x(first:last)
     tau = y(first:last)
 
-    nu(1:m) = nu(1:m) * 1.d9 ! Convert from GHz to Hz
+    nu = nu * 1.d9 ! Convert from GHz to Hz
     tau = tau / tsum(nu, tau) ! normalize bandpass to unity under tsum
 
     deallocate(x, y)
