@@ -121,4 +121,4 @@ If used for published results, please [cite these papers](https://github.com/Cos
 - [Wandelt et al. 2004, Phys. Rev. D, 70, 083511](https://ui.adsabs.harvard.edu/abs/2004PhRvD..70h3511W)
 - [Eriksen et al. 2004, ApJS, 155, 227 (Commander)](https://ui.adsabs.harvard.edu/abs/2004ApJS..155..227E)
 - [Eriksen et al. 2008, ApJ, 676, 10  (Joint FG + CMB)](https://ui.adsabs.harvard.edu/abs/2008ApJ...676...10E)
-
+- [Galloway et al. 2023, A&A, 675, A3 (Commander 3)](https://www.aanda.org/articles/aa/full_html/2023/07/aa43137-22/aa43137-22.html)
