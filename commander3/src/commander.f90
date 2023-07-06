@@ -166,6 +166,7 @@ program commander
   ! Set up tod precompute tod_specific zodi lookups
   if (cpar%enable_tod_analysis) then
      do i = 1, numband
+        if (data(i)%tod_type == 'none') cycle
         if (.not. data(i)%tod%subtract_zodi) cycle
         call data(i)%tod%precompute_zodi_lookups(cpar)
      end do
@@ -301,8 +302,9 @@ program commander
 
         ! Reset zodi related quantities for next gibbs sample
         do i = 1, numband
-          call data(i)%tod%deallocate_downsampled_zodi()
-          call data(i)%tod%clear_zodi_cache()
+          if (data(i)%tod_type == 'none' .and. data(i)%subtract_zodi) then
+             call data(i)%tod%deallocate_downsampled_zodi()
+          end if
         end do
      end if
 
@@ -531,6 +533,10 @@ contains
 
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
+
+       ! Clear zodi cache for next band
+       if (data(i)%subtract_zodi) call data(i)%tod%clear_zodi_cache()
+       
        call timer%incr_numsamp(data(i)%id_abs)
        
        if (cpar%myid_chain == 0) then
