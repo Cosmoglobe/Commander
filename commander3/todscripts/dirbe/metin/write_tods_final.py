@@ -202,7 +202,7 @@ def get_yday_cio_data(
     )
 
     common_flags += get_oa_flags(oa_flags, yday)
-    # Get nside 256 pixels
+    # Get nside highres pixels
     pix9 = data["Pixel_no"].astype(np.int64)
     pix9_sub = data["PSubPos"].astype(np.int64)
     pix9_sub_sub = data["PSbSbPos"].astype(np.int64)
@@ -294,7 +294,7 @@ def get_yday_cio_data(
         pixels[band_label] = padd_array_gaps(
             np.split(pix, split_inds), padding=pix_padding
         )
-        nus, weights = dirbe_utils.get_bandpass(band)
+        # nus, weights = dirbe_utils.get_bandpass(band)
         # zodi_tods = zodi_model.get_emission_pix(
         #     freq=nus,
         #     weights=weights,
@@ -478,50 +478,16 @@ def write_to_commander_tods(
 
 
 def main() -> None:
-    # Hyper parameters
-
-    flag_bit_sum = get_flag_sum(
-        [
-            "north_van_allen_belt",
-            "south_van_allen_belt",
-            "south_atlantic_anomaly",
-            "excess_noise",
-            "bad_data",
-            "moon",
-            "mercury",
-            "venus",
-            "mars",
-            "jupiter",
-            "saturn",
-            "uranus",
-            "neptune",
-            # "non_definitive_attitude",
-            # "definite_attitude",
-            # "course_attitude",
-            # "fine_attitude",
-            # "merged_attitude",
-            # "external_uax_attitude",
-            # "space_craft_slewing",
-            # "space_craft_not_slewing",
-            # "special_pointing",
-            # "normal_pointing",
-            # "space_craft_ascending",
-            # "space_craft_descending",
-            # "leading_los",
-            # "trailing_los",
-        ]
-    )
-    print(f"flag bit sum: {flag_bit_sum}")
-    exit()
 
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
-    nside_out = 256
+    nside_out = 512
     start_time = time.perf_counter()
     color_corr = True
-    version = 15
+    version = 16
 
     print(f"{'Writing DIRBE h5 files':=^50}")
+    print(f"{version=}, {nside_out=}")
     print(f"reading and processing cios for {len(files)} ydays...")
     yday_data = get_yday_data(
         files, nside_out=nside_out, planet_time_delta=time_delta, color_corr=color_corr
@@ -554,7 +520,7 @@ def main() -> None:
     # plt.show()
 
     print("Binning map..")
-    binned_map = np.zeros(hp.nside2npix(256))
+    binned_map = np.zeros(hp.nside2npix(nside_out))
     total_hits = np.zeros_like(binned_map)
     cio = cios["07"]
     pix = np.concatenate([pix for pix in cio.pixels])
