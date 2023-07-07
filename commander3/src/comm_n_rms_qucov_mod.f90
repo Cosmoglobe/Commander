@@ -388,11 +388,24 @@ contains
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
     real(dp)     :: buff_Q, buff_U
-    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps, i
+
     nmaps_band = size(self%siN, dim=2)
     nmaps_inp  = size(map%map, dim=2)
     nmaps      = min(nmaps_inp,nmaps_band)
-    map%map(:,1) = self%siN(1,:) * map%map(:,1)
+    if (self%pol) then
+       do i = 0, self%info%np-1
+          buff_Q = map%map(i,2)
+          buff_U = map%map(i,3)       
+          map%map(i,1) = self%siN(1,i) * map%map(i,1)
+          map%map(i,2) = self%siN(2,i) * buff_Q + self%siN(4,i) * buff_U
+          map%map(i,3) = self%siN(4,i) * buff_Q + self%siN(3,i) * buff_U
+       end do
+    else
+       do i = 0, self%info%np-1
+          map%map(i,1) = self%siN(1,i) * map%map(i,1)
+       end do
+    end if
     if (nmaps_inp > nmaps_band) then
       map%map(:,nmaps_band+1:nmaps_inp) = 0
     end if
@@ -480,7 +493,7 @@ contains
     real(dp) :: A(2,2)
     logical(lgt)        :: pol
 
-    if (size(N%map, dim=2) .eq. 3) then
+    if (size(N%map, dim=2) .eq. 3 .or. size(N%map, dim=2) .eq. 4) then
       pol = .true.
     else
       pol = .false.

@@ -73,6 +73,7 @@ contains
           end if
           
           if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
+
              if (lowres_eval) then
                 lowres = .true.
                 info_lowres  => comm_mapinfo(data(i)%info%comm, data(i)%N%nside_chisq_lowres, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)

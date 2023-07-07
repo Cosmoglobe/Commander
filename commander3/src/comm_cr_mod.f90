@@ -907,7 +907,7 @@ contains
 
        ! Multiply with invN
        call wall_time(t1)
-       call data(i)%N%InvN(map, samp_group=samp_group)
+       call data(i)%N%invN(map, samp_group=samp_group)
        call wall_time(t2)
        !call update_status(status, "A12")
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
