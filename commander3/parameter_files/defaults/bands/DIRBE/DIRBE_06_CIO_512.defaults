@@ -5,14 +5,14 @@ BAND_LABEL&&&                  = 06
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 512
-BAND_LMAX&&&                   = 767
+BAND_LMAX&&&                   = 1500
 BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_mod and scale weights
 BAND_NOISE_FORMAT&&&           = rms
 BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
 BAND_MASKFILE&&&               = fullsky
 BAND_MASKFILE_CALIB&&&         = mask_common_dx12_n0512.fits  fullsky
 BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
-BAND_BEAM_B_L_FILE&&&          = B_l_beam_0.7deg.fits  # This needs to be the DIRBE beam fits file
+BAND_BEAM_B_L_FILE&&&          = B_l_beam_0.7deg_lmax2000.fits  # This needs to be the DIRBE beam fits file
 BAND_BEAM_B_PTSRC_FILE&&&      = none
 BAND_PIXEL_WINDOW&&&           = pixel_window_n0512.fits
 BAND_SAMP_NOISE_AMP&&&         = .false.
@@ -47,9 +47,9 @@ BAND_TOD_INIT_FROM_HDF&&&      = default
 BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_LEVEL&&&              = L2
 
-BAND_MAPFILE&&&                = DIRBE_06_512_v1.fits
-BAND_NOISEFILE&&&              = DIRBE_06_SIGMA_512_v1.fits
-BAND_REG_NOISEFILE&&&          = none   BP_030_rms_v11_median_regnoise.fits
+BAND_MAPFILE&&&                = DIRBE_06_512_v3.fits
+BAND_NOISEFILE&&&              = DIRBE_06_SIGMA_512_v3.fits
+BAND_REG_NOISEFILE&&&          = none  
 BAND_NOISE_RMS&&&_SMOOTH01     = none
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
@@ -63,6 +63,6 @@ N_GIBBS_PER_TOD&&&             = 1
 
 # Zodi parameters
 BAND_TOD_SUBTRACT_ZODI&&&   = .true. # if true, the following parameters must be set
-BAND_TOD_ZODI_MASK&&&       = zodi_proc_mask_06.fits
+BAND_TOD_ZODI_MASK&&&       = zodi_proc_mask_06_n512.fits
 BAND_ZODI_EMISSIVITY&&&     = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
 BAND_ZODI_ALBEDO&&&         = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
