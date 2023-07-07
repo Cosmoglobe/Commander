@@ -481,10 +481,11 @@ def main() -> None:
 
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
-    nside_out = 512
+    nside_out = 256
+    
     start_time = time.perf_counter()
     color_corr = True
-    version = 16
+    version = 17
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"{version=}, {nside_out=}")
@@ -498,6 +499,9 @@ def main() -> None:
     print(
         f"time spent reading in and preprocessing cios: {(cio_time/60):2.2f} minutes\n"
     )
+
+
+    exit()
 
     print("writing cios to h5 files...")
     write_to_commander_tods(
