@@ -611,7 +611,7 @@ contains
     self%ncr_tot = 0
     do while (.true.)
        read(unit,'(a)',end=1) line
-       line = trim(line)
+       line = trim(adjustl(line))
        if (line(1:1) == '#' .or. trim(line) == '') then
           cycle
        else
@@ -635,8 +635,9 @@ contains
     mask = 1
     do while (.true.)
        read(unit,'(a)',end=2) line
-       line = trim(line)
+       line = trim(adjustl(line))
        if (line(1:1) == '#' .or. trim(line) == '') cycle
+       !write(*,*) trim(line)
        read(line,*) glon, glat, amp, amp_rms, beta, beta_rms, chisq, id_ptsrc
        amp_rms = amp_rms * self%amp_rms_scale ! Adjust listed RMS by given value
        do j = 1, npar
@@ -645,13 +646,15 @@ contains
        ! Check for too close neighbours
        skip_src = .false.
        call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
-       do j = 1, i
-          call angdist(vec, self%src(j)%vec, dist)
-          if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
-             skip_src = .true.
-             exit
-          end if
-       end do
+       if (cpar%cs_min_src_dist(id_abs) > 0.d0) then
+          do j = 1, i
+             call angdist(vec, self%src(j)%vec, dist)
+             if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
+                skip_src = .true.
+                exit
+             end if
+          end do
+       end if
        if (skip_src) then
           self%nsrc = self%nsrc-1
        else
@@ -673,8 +676,10 @@ contains
           self%src(i)%P_theta(:,:,2) = beta_rms
           self%src(i)%theta_rms      = 0.d0
           do j = 1, numband
+             filename = trim(cpar%ds_btheta_file(data(j)%id_abs))
+             n        = len(trim(adjustl(filename)))
              if (cpar%cs_output_ptsrc_beam(id_abs) .and. &
-                  & trim(trim(cpar%ds_btheta_file(data(j)%id_abs))) /= 'none') then
+                  & filename(n-2:n) == '.h5') then
                 self%src(i)%T(j)%nside_febecop = self%nside_febecop
              else
                 self%src(i)%T(j)%nside_febecop = data(j)%info%nside
@@ -717,17 +722,17 @@ contains
           end do
           ! Check for too close neighbours
           skip_src = .false.
-          call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
-          do j = 1, i
-             call angdist(vec, self%src(j)%vec, dist)
-             if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
-                skip_src = .true.
-                exit
-             end if
-          end do
-          if (skip_src) then
-             self%nsrc = self%nsrc-1
-          else
+          if (cpar%cs_min_src_dist(id_abs) > 0.d0) then          
+             call ang2vec(0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, vec)
+             do j = 1, i
+                call angdist(vec, self%src(j)%vec, dist)
+                if (dist*RAD2DEG*60.d0 < cpar%cs_min_src_dist(id_abs)) then
+                   skip_src = .true.
+                   exit
+                end if
+             end do
+          end if
+          if (.not. skip_src) then
              i                    = i+1
              self%x(i,:)          = amp / self%cg_scale
              self%src(i)%theta    = beta
@@ -735,7 +740,6 @@ contains
        end do
 4      close(unit)
     end if
-
 
     ! Initialize beam templates
     tempfile = trim(cpar%cs_ptsrc_template(id_abs))
@@ -1171,8 +1175,8 @@ contains
     allocate(mybeam(nlist,T%nmaps), mypix(nlist,2))
     T%np = 0
     i    = 0
-    j    = locate(data(band)%info%pix, listpix(i))
-    if (j > 0) then
+    j    = 1 !locate(data(band)%info%pix, listpix(i))
+!    if (j > 0) then
        do while (.true.)
           if (listpix(i) == data(band)%info%pix(j)) then
              T%np            = T%np + 1
@@ -1196,7 +1200,7 @@ contains
           if (i > nlist-1) exit
           if (j > data(band)%info%np) exit
        end do
-    end if
+!    end if
 
     ! Store pixels that belong to current processor    
     do i = 1, T%nmaps
@@ -1658,7 +1662,7 @@ contains
                 if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
                 
                 if (self%myid == 0 .and. k<20) write(*,*) k, real(a,sp), &
-                     & real(self%src(k)%theta(1,1),sp), real(self%src(k)%red_chisq,sp)
+                     & real(self%src(k)%theta(2,1),sp), real(self%src(k)%red_chisq,sp)
              end do
           end do
        end do
