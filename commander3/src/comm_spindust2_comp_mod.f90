@@ -35,7 +35,7 @@ module comm_spindust2_comp_mod
   !           Power-law component
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_spindust2_comp
-     real(dp)          :: nu_p0, nu_min, nu_max
+     real(dp)          :: nu_p0, nu_min_SED, nu_max_SED
      type(spline_type) :: SED_spline
    contains
      procedure :: S    => evalSED
@@ -89,8 +89,8 @@ contains
        constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
        constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
        constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
-       constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
-       constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
+       constructor%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
+       constructor%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
     constructor%indlabel  = ['nu_p ','alpha']
 
@@ -117,11 +117,11 @@ contains
 
     ! Initialize spectral template !CHANGE??
     call read_spectrum(trim(cpar%cs_SED_template(1,id_abs)), SED)
-    ind                = maxloc(SED(:,2))
-    constructor%nu_p0  = SED(ind(1),1)
-    constructor%nu_min = minval(SED(:,1))
-    constructor%nu_max = maxval(SED(:,1))
-    SED                = log(SED)
+    ind                    = maxloc(SED(:,2))
+    constructor%nu_p0      = SED(ind(1),1)
+    constructor%nu_min_SED = minval(SED(:,1))
+    constructor%nu_max_SED = maxval(SED(:,1))
+    SED                    = log(SED)
     call spline(constructor%SED_spline, SED(:,1), SED(:,2))
     deallocate(SED)
 
@@ -169,7 +169,7 @@ contains
     alpha   = theta(2)
     scale   = self%nu_p0 / (nu_p*1.d9) ! nu_p is in GHz
     
-    if (scale*nu < self%nu_min .or. scale*nu > self%nu_max) then
+    if (scale*nu < self%nu_min_SED .or. scale*nu > self%nu_max_SED) then
        evalSED = 0.d0
     else
        evalSED = exp(splint(self%SED_spline, log(scale*nu))) / &

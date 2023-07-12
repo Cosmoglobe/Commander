@@ -1,0 +1,33 @@
+# CO component
+COMP_LABEL??                  = co
+COMP_TYPE??                   = line
+COMP_CLASS??                  = diffuse    # {diffuse, ptsrc}
+COMP_POLARIZATION??           = .false.
+COMP_CG_SCALE??               = 1.d0
+COMP_CG_SAMPLE_GROUP??        = 1
+COMP_NSIDE??                  = 2048
+COMP_L_APOD??                 = 6000
+COMP_LMAX_AMP??               = 6000
+COMP_LMAX_IND??               = 0
+COMP_OUTPUT_FWHM??            = 5         # arcmin
+COMP_UNIT??                   = uK_RJ
+COMP_NU_REF??                 = 545
+COMP_BAND_REF??               = 545
+COMP_MASK??                   = fullsky
+COMP_INDMASK??                = fullsky
+COMP_CL_TYPE??                = none  # {none, single_l, binned, power_law}
+COMP_CL_POLTYPE??             = 1  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+COMP_CL_BETA_PRIOR_MEAN??     = -0.5
+COMP_CL_BETA_PRIOR_RMS??      =  0.1
+COMP_CL_L_PIVOT??             = 100          # Pivot multipole
+COMP_CL_DEFAULT_AMP_T??       =  10000        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E??       =  1.d0
+COMP_CL_DEFAULT_AMP_B??       =  1.d0
+COMP_CL_DEFAULT_BETA_T??      =  15.d0
+COMP_CL_DEFAULT_BETA_E??      = -0.5d0
+COMP_CL_DEFAULT_BETA_B??      = -0.5d0
+COMP_LINE_TEMPLATE??          = co_line_template_DIRBE.dat
+COMP_APPLY_JEFFREYS_PRIOR??   =  .false.
+COMP_INPUT_AMP_MAP??          = COM_CompMap_CO21-commander_2048_R2.00.fits
+COMP_PRIOR_AMP_MAP??          = none
+COMP_INIT_FROM_HDF??          = .true.

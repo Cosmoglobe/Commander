@@ -35,14 +35,14 @@ COMP_DEFAULT_BETA&&           = 1.56 1.68  1.55
 COMP_PRIOR_UNI_BETA_LOW&&     = 1.0
 COMP_PRIOR_UNI_BETA_HIGH&&    = 3.0
 COMP_PRIOR_GAUSS_BETA_MEAN&&  = 1.56
-COMP_PRIOR_GAUSS_BETA_RMS&&   = 0.1    # 0.1
+COMP_PRIOR_GAUSS_BETA_RMS&&   = 0.    # 0.1
 COMP_BETA_SMOOTHING_SCALE&&   = 3
 COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_DEFAULT_T&&              = 14.
 COMP_PRIOR_UNI_T_LOW&&        = 10.
 COMP_PRIOR_UNI_T_HIGH&&       = 35.
 COMP_PRIOR_GAUSS_T_MEAN&&     = 14.
-COMP_PRIOR_GAUSS_T_RMS&&      = 1.
+COMP_PRIOR_GAUSS_T_RMS&&      = 0.
 COMP_T_SMOOTHING_SCALE&&      = 0
 COMP_T_POLTYPE&&              = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_INPUT_AMP_MAP&&          = init_dust_amp_BP8.1_v1.fits

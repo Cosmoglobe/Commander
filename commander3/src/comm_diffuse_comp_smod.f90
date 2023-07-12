@@ -69,6 +69,8 @@ contains
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
+    self%nu_min        = cpar%cs_nu_min(id_abs)
+    self%nu_max        = cpar%cs_nu_max(id_abs)
 
     if(self%npar == 0) then
        self%lmax_ind = 0 !default
@@ -217,7 +219,6 @@ contains
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-!       write(*,*) i, 'ndet = ', data(i)%ndet, shape(self%F), info%nside
        do j = 0, data(i)%ndet
           if (j<=1) then
             self%F(i,j)%p    => comm_map(info)
@@ -234,6 +235,7 @@ contains
                end if
             end do
           end if
+          if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
        end do
     end do
     call update_status(status, "init_postmix")
@@ -1242,7 +1244,7 @@ contains
     case ("pseudoinv")
        call initDiffPrecond_pseudoinv(comm)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine initDiffPrecond
@@ -1388,7 +1390,7 @@ contains
     case ("pseudoinv")
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine updateDiffPrecond
@@ -2108,7 +2110,7 @@ contains
     case ("pseudoinv")
        call applyDiffPrecond_pseudoinv(x)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine applyDiffPrecond

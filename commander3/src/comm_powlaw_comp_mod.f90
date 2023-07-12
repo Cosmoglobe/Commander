@@ -83,8 +83,8 @@ contains
     constructor%theta_def(1) = cpar%cs_theta_def(1,id_abs)
     constructor%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
     constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
-    constructor%nu_min_ind(1) = cpar%cs_nu_min(id_abs,1)
-    constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
+    constructor%nu_min_ind(1) = cpar%cs_nu_min_beta(id_abs,1)
+    constructor%nu_max_ind(1) = cpar%cs_nu_max_beta(id_abs,1)
     constructor%apply_jeffreys = cpar%cs_apply_jeffreys(id_abs)
     constructor%indlabel(1)  = 'beta'
 

@@ -36,7 +36,7 @@ module comm_diffuse_comp_mod
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, rms_smooth, print_precond_mat, nullify_monopole_amp, recompute_diffuse_precond
+       & res_smooth, rms_smooth, print_precond_mat, nullify_monopole_amp, recompute_diffuse_precond, precond_type
   
   !**************************************************
   !            Diffuse component class

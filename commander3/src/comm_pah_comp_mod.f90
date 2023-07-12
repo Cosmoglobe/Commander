@@ -35,7 +35,7 @@ module comm_pah_comp_mod
   !           Power-law component
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_pah_comp
-     real(dp)          :: nu_p0, nu_min, nu_max
+     real(dp)          :: nu_p0
      type(spline_type) :: SED_spline
    contains
      procedure :: S    => evalSED

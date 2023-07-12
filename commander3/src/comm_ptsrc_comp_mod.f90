@@ -69,7 +69,8 @@ module comm_ptsrc_comp_mod
      logical(lgt)       :: apply_pos_prior, burn_in
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
-     type(ptsrc),     allocatable, dimension(:)   :: src      ! Source template (nsrc)
+     logical(lgt),    allocatable, dimension(:)     :: F_null ! Frequency mask
+     type(ptsrc),     allocatable, dimension(:)     :: src      ! Source template (nsrc)
    contains
      procedure :: dumpFITS      => dumpPtsrcToFITS
      procedure :: getBand       => evalPtsrcBand
@@ -131,6 +132,8 @@ contains
     constructor%id              = id
     constructor%nmaps           = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
     constructor%nu_ref          = cpar%cs_nu_ref(id_abs,:)
+    constructor%nu_min          = cpar%cs_nu_min(id_abs)
+    constructor%nu_max          = cpar%cs_nu_max(id_abs)
     constructor%nside           = cpar%cs_nside(id_abs)
     constructor%nside_febecop   = 1024
     constructor%outprefix       = trim(cpar%cs_label(id_abs))
@@ -170,8 +173,8 @@ contains
        constructor%p_uni      = cpar%cs_p_uni(id_abs,:,:)
        constructor%p_gauss    = cpar%cs_p_gauss(id_abs,:,:)
        constructor%theta_def  = cpar%cs_theta_def(1:2,id_abs)
-       constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
-       constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
+       constructor%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
+       constructor%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
           do i = 1, numband
              do j = 0, data(i)%ndet
@@ -193,8 +196,8 @@ contains
        constructor%p_uni     = cpar%cs_p_uni(id_abs,:,:)
        constructor%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
        constructor%theta_def = cpar%cs_theta_def(1:2,id_abs)
-       constructor%nu_min_ind = cpar%cs_nu_min(id_abs,1:2)
-       constructor%nu_max_ind = cpar%cs_nu_max(id_abs,1:2)
+       constructor%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
+       constructor%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
           do i = 1, numband
              do j = 0, data(i)%ndet
@@ -226,6 +229,12 @@ contains
     case default
        call report_error("Unknown point source model: " // trim(constructor%type))
     end select
+
+    allocate(constructor%F_null(numband))
+    constructor%F_null = .false.
+    do i = 1, numband
+       if (data(i)%bp(0)%p%nu_c < constructor%nu_min .or. data(i)%bp(0)%p%nu_c > constructor%nu_max) constructor%F_null(i) = .true.
+    end do
 
     ! Read and allocate source structures
     call read_sources(constructor, cpar, id, id_abs)
@@ -274,6 +283,12 @@ contains
           ! Only update requested band if present
           if (present(band)) then
              if (i /= band) cycle
+          end if
+
+          ! Check that we're in the correct frequency range; if not, set F to zero
+          if (self%F_null(i)) then
+             self%src(j)%T(i)%F = 0.d0
+             cycle
           end if
 
           do k = 0, data(i)%ndet
@@ -352,6 +367,11 @@ contains
     if (.not. allocated(evalPtsrcBand)) &
          & allocate(evalPtsrcBand(0:data(band)%info%np-1,data(band)%info%nmaps))
 
+    if (self%F_null(band)) then
+       evalPtsrcBand = 0.d0
+       return
+    end if
+
     allocate(amp(self%nsrc,self%nmaps))
     if (self%myid == 0) then
        if (present(amp_in)) then
@@ -394,11 +414,16 @@ contains
     integer(i4b) :: i, j, q, p, ierr, d
     real(dp)     :: val
     real(dp), allocatable, dimension(:,:) :: amp, amp2
-    
+
     d = 0; if (present(det)) d = det
 
     if (.not. allocated(projectPtsrcBand)) &
          & allocate(projectPtsrcBand(self%nsrc,self%nmaps))
+
+    if (self%F_null(band)) then
+       if (self%myid == 0) projectPtsrcBand = 0.d0
+       return
+    end if
 
     ! Loop over sources
     allocate(amp(self%nsrc,self%nmaps), amp2(self%nsrc,self%nmaps))
@@ -447,6 +472,7 @@ contains
 
     ! Output point source maps for each frequency
     do i = 1, numband
+       if (self%F_null(i)) cycle
        map => comm_map(data(i)%info)
        map%map = self%getBand(i) * self%cg_scale
        filename = trim(self%label) // '_' // trim(data(i)%label) // '_' // trim(postfix) // '.fits'
@@ -753,6 +779,12 @@ contains
           allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps,0:data(i)%ndet))
           self%src(j)%T(i)%F       = 0.d0
 
+          if (self%F_null(i)) then
+             self%src(j)%T(i)%map     = 0.d0
+             self%src(j)%T(i)%Omega_b = 0.d0
+             cycle
+          end if
+    
           ! Get pixel space template; try precomputed templates first
           if (trim(cpar%cs_ptsrc_template(id_abs)) /= 'none' .and. &
                & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
@@ -1487,7 +1519,9 @@ contains
 
     integer(i4b) :: i
 
-    if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
+    if (self%src(id)%T(band)%Omega_b(pol) == 0.d0) then
+       getScale = 0.d0
+    else if (trim(self%type) == 'radio' .or. trim(self%type) == 'fir') then
        getScale = 1.d-23 * (c/self%nu_ref(pol))**2 / (2.d0*k_b*self%src(id)%T(band)%Omega_b(pol))
     else
        getScale = 1.d0
@@ -1594,6 +1628,7 @@ contains
                 call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
                 
                 do l = 1, numband
+                   if (self%F_null(l)) cycle
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    ! Compute mixing matrix
@@ -1644,9 +1679,10 @@ contains
                 chisq = 0.d0
                 n_pix = 0
                 do l = 1, numband
-                   s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
+                   if (self%F_null(l)) cycle
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
+                   s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    do q = 1, self%src(k)%T(l)%np
                       pix = self%src(k)%T(l)%pix(q,1)
                       data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - a*s*self%src(k)%T(l)%map(q,p)
@@ -1762,6 +1798,7 @@ contains
 
                 ! Construct current source model
                 do l = 1, numband
+                   if (self%F_null(l)) cycle
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
@@ -1785,6 +1822,7 @@ contains
                    lnL = 0.d0
                    do i = 1, n
                       do l = 1, numband
+                         if (self%F_null(l)) cycle
                          if (p == 1 .and. data(l)%pol_only) cycle
                          if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                          
@@ -1877,6 +1915,7 @@ contains
 
                 ! Update residuals
                 do l = 1, numband
+                   if (self%F_null(l)) cycle
                    ! Compute mixing matrix
                    s = self%getScale(l,k,p) * self%F_int(p,l,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    
@@ -1906,6 +1945,7 @@ contains
              b     = 0.d0
              theta = self%src(k)%theta(:,p)
              do l = 1, numband
+                if (self%F_null(l)) cycle
                 if (p == 1 .and. data(l)%pol_only) cycle
                 if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
 
@@ -1964,6 +2004,7 @@ contains
              !if (k == 3499 .and. self%myid == 0) open(79,file='src.dat', recl=1024)
              do l = 1, numband
                 !if (k == 3499 .and. self%myid == 0) write(*,*) l, p, data(l)%pol_only, self%src(k)%T(l)%np
+                if (self%F_null(l)) cycle
                 if (p == 1 .and. data(l)%pol_only) cycle
 
                 ! Compute mixing matrix
@@ -2077,6 +2118,7 @@ contains
 
     lnL = 0.d0
     do l = 1, numband
+       if (c_lnL%F_null(l)) cycle
        if (p_lnL == 1 .and. data(l)%pol_only) cycle
        if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
           

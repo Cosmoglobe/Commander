@@ -87,6 +87,7 @@ contains
     constructor%nside_def       = 0
     constructor%fwhm_def        = 0.d0
     constructor%mono_prior_type = 'none'
+    precond_type                = cpar%cg_precond
 
     call get_tokens(cpar%output_comps, ",", comp_label, n)
     constructor%output = .false.

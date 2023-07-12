@@ -204,6 +204,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)     :: cs_lmax_ind
      character(len=512), allocatable, dimension(:)     :: cs_unit
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_ref
+     real(dp),           allocatable, dimension(:)     :: cs_nu_min, cs_nu_max
      character(len=512), allocatable, dimension(:)     :: cs_band_ref
      real(dp),           allocatable, dimension(:)     :: cs_fwhm
      character(len=512), allocatable, dimension(:)     :: cs_cltype
@@ -233,8 +234,8 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_catalog
      character(len=512), allocatable, dimension(:)     :: cs_init_catalog
      character(len=512), allocatable, dimension(:)     :: cs_ptsrc_template
-     real(dp),           allocatable, dimension(:,:)   :: cs_nu_min
-     real(dp),           allocatable, dimension(:,:)   :: cs_nu_max
+     real(dp),           allocatable, dimension(:,:)   :: cs_nu_min_beta
+     real(dp),           allocatable, dimension(:,:)   :: cs_nu_max_beta
      logical(lgt),       allocatable, dimension(:)     :: cs_burn_in
      logical(lgt),       allocatable, dimension(:)     :: cs_output_ptsrc_beam
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_pos_prior
@@ -726,7 +727,7 @@ contains
     allocate(cpar%cs_lmax_ind(n), cpar%cs_lmax_ind_pol(3,MAXPAR,n))
     allocate(cpar%cs_polarization(n), cpar%cs_nside(n), cpar%cs_lmax_amp(n), cpar%cs_lmax_amp_prior(n))
     allocate(cpar%cs_l_apod(n), cpar%cs_output_EB(n), cpar%cs_initHDF(n), cpar%cs_lmin_amp(n))
-    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
+    allocate(cpar%cs_unit(n), cpar%cs_nu_ref(n,3), cpar%cs_nu_max(n), cpar%cs_nu_min(n), cpar%cs_cltype(n), cpar%cs_cl_poltype(n))
     allocate(cpar%cs_clfile(n), cpar%cs_binfile(n), cpar%cs_band_ref(n))
     allocate(cpar%cs_lpivot(n), cpar%cs_mask(n), cpar%cs_mono_prior(n), cpar%cs_fwhm(n), cpar%cs_poltype(MAXPAR,n))
     allocate(cpar%cs_latmask(n), cpar%cs_defmask(n), cpar%cs_cg_samp_group_maxiter(n))
@@ -737,7 +738,7 @@ contains
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
-    allocate(cpar%cs_nu_min(n,MAXPAR), cpar%cs_nu_max(n,MAXPAR), cpar%cs_burn_in(n))
+    allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
     allocate(cpar%cs_smooth_scale(n,MAXPAR), cpar%cs_apply_jeffreys(n))
     allocate(cpar%cs_spec_mono_combined(n,MAXPAR),cpar%cs_spec_mono_mask(n,MAXPAR),cpar%cs_spec_mono_type(n,MAXPAR))
     allocate(cpar%cs_spec_corr_convergence(MAXPAR,n),cpar%cs_spec_corr_limit(MAXPAR,n))
@@ -832,6 +833,8 @@ contains
           call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,    par_int=cpar%cs_nside(i))
           call get_parameter_hashtable(htbl, 'COMP_NU_REF'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_ref(i,1))
           cpar%cs_nu_ref(i,2:3) = cpar%cs_nu_ref(i,1)
+          call get_parameter_hashtable(htbl, 'COMP_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i))
+          call get_parameter_hashtable(htbl, 'COMP_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i))
           call get_parameter_hashtable(htbl, 'COMP_CG_SCALE'//itext, len_itext=len_itext, par_dp=cpar%cs_cg_scale(1,i))
           select case (trim(cpar%cs_type(i)))
 
@@ -848,8 +851,8 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,2,1))
              call get_parameter_hashtable(htbl, 'COMP_ALPHA_DEFAULT'//itext, len_itext=len_itext,          &
                   & par_dp=cpar%cs_theta_def(1,i))
-             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext, len_itext=len_itext,  par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext, len_itext=len_itext,  par_dp=cpar%cs_nu_max(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext, len_itext=len_itext,  par_dp=cpar%cs_nu_min_beta(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext, len_itext=len_itext,  par_dp=cpar%cs_nu_max_beta(i,1))
              ! BETA parameters
              call get_parameter_hashtable(htbl, 'COMP_BETA_PRIOR_UNI_LOW'//itext, len_itext=len_itext,    &
                   & par_dp=cpar%cs_p_uni(i,1,2))
@@ -861,8 +864,8 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,2,2))
              call get_parameter_hashtable(htbl, 'COMP_BETA_DEFAULT'//itext, len_itext=len_itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))
-             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,2))
 
           case ('fir')
              call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
@@ -886,10 +889,10 @@ contains
                   & par_dp=cpar%cs_p_gauss(i,2,2))
              call get_parameter_hashtable(htbl, 'COMP_T_DEFAULT'//itext, len_itext=len_itext,          &
                   & par_dp=cpar%cs_theta_def(2,i))             
-             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-             call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min(i,2))
-             call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+             call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min_beta(i,2))
+             call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max_beta(i,2))
           end select
        end if
 
@@ -898,9 +901,11 @@ contains
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
     ! Convert to proper units
-    cpar%cs_nu_ref = 1d9 * cpar%cs_nu_ref
-    cpar%cs_nu_min = 1d9 * cpar%cs_nu_min
-    cpar%cs_nu_max = 1d9 * cpar%cs_nu_max
+    cpar%cs_nu_ref      = 1d9 * cpar%cs_nu_ref
+    cpar%cs_nu_min      = 1d9 * cpar%cs_nu_min
+    cpar%cs_nu_max      = 1d9 * cpar%cs_nu_max
+    cpar%cs_nu_min_beta = 1d9 * cpar%cs_nu_min_beta
+    cpar%cs_nu_max_beta = 1d9 * cpar%cs_nu_max_beta
 
 
   end subroutine read_component_params_hash
@@ -934,6 +939,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_NSIDE'//itext, len_itext=len_itext,           par_int=cpar%cs_nside(i))
     call get_parameter_hashtable(htbl, 'COMP_L_APOD'//itext, len_itext=len_itext,          par_int=cpar%cs_l_apod(i))
     call get_parameter_hashtable(htbl, 'COMP_UNIT'//itext, len_itext=len_itext,            par_string=cpar%cs_unit(i))
+    call get_parameter_hashtable(htbl, 'COMP_NU_MIN'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_min(i))
+    call get_parameter_hashtable(htbl, 'COMP_NU_MAX'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_max(i))
     call get_parameter_hashtable(htbl, 'COMP_NU_REF_T'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,1))
     call get_parameter_hashtable(htbl, 'COMP_NU_REF_P'//itext, len_itext=len_itext,          par_dp=cpar%cs_nu_ref(i,2))
     cpar%cs_nu_ref(i,3) = cpar%cs_nu_ref(i,2)
@@ -1150,8 +1157,8 @@ contains
          & par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     cpar%cs_apply_jeffreys(i) = .false. ! Disabled until properly debugged and validated
 
@@ -1372,10 +1379,10 @@ contains
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_DBETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,2))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_DBETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))          
-    call get_parameter_hashtable(htbl, 'COMP_DBETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_DBETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,2))          
+    call get_parameter_hashtable(htbl, 'COMP_DBETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,2))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
 
     ! Read nu_break in intensity
@@ -1601,10 +1608,10 @@ contains
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_C_S_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,2))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_C_S_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))          
-    call get_parameter_hashtable(htbl, 'COMP_C_S_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_C_S_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,2))          
+    call get_parameter_hashtable(htbl, 'COMP_C_S_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,2))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     do j=1,2
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
@@ -1856,8 +1863,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_NU_P_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     do j=1,1
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
@@ -2075,10 +2082,10 @@ contains
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_ALPHA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,2))
-    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))          
-    call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,2))          
+    call get_parameter_hashtable(htbl, 'COMP_ALPHA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,2))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     do j=1,2
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
@@ -2310,10 +2317,10 @@ contains
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_W_AME_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,2))
-    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_W_AME_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,2))          
-    call get_parameter_hashtable(htbl, 'COMP_W_AME_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_NU_P_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_W_AME_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,2))          
+    call get_parameter_hashtable(htbl, 'COMP_W_AME_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,2))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     do j=1,2
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
@@ -2531,10 +2538,10 @@ contains
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_T_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,2))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min(i,2))
-    call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_BETA_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_T_NU_MIN'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_min_beta(i,2))
+    call get_parameter_hashtable(htbl, 'COMP_T_NU_MAX'//itext, len_itext=len_itext,      par_dp=cpar%cs_nu_max_beta(i,2))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     do j=1,2
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
@@ -2675,10 +2682,10 @@ contains
 !!$                  & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_T_E_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
-!!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-!!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min(i,1))
-    call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max(i,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+!!$             call get_parameter_hashtable(htbl, 'COMP_EM_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MIN'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_min_beta(i,1))
+    call get_parameter_hashtable(htbl, 'COMP_T_E_NU_MAX'//itext, len_itext=len_itext,   par_dp=cpar%cs_nu_max_beta(i,1))
     call get_parameter_hashtable(htbl, 'COMP_APPLY_JEFFREYS_PRIOR'//itext, len_itext=len_itext,   par_lgt=cpar%cs_apply_jeffreys(i))
     do j=1,1
        if (cpar%cs_smooth_scale(i,1) > cpar%num_smooth_scales) then
