@@ -11,14 +11,13 @@ module comm_zodi_mod
     integer(i4b) :: gauss_degree, n_interp_points
     real(dp) :: R_cutoff
     logical(lgt) :: use_cloud, use_band1, use_band2, use_band3, use_ring, use_feature
-
+    
     type, abstract :: ZodiComponent
         real(dp) :: x_0, y_0, z_0, incl, Omega, n_0
         real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
     contains
         procedure(initialize_interface), deferred :: initialize
         procedure(density_interface), deferred :: get_density
-        procedure(get_parameters_interface), deferred :: get_parameters
     end type ZodiComponent
 
     type :: ZodiComponentContainer
@@ -43,13 +42,6 @@ module comm_zodi_mod
             real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane
         end subroutine density_interface
         
-        subroutine get_parameters_interface(self, names, values)
-            import dp, ZodiComponent
-            class(ZodiComponent)  :: self
-            character(len=*), allocatable, intent(inout) :: names(:)
-            real(dp), allocatable, intent(inout) :: values(:)
-        end subroutine get_parameters_interface
-
     end interface
 
     type, extends(ZodiComponent) :: ZodiCloud
@@ -57,7 +49,6 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_cloud
         procedure :: get_density => get_density_cloud
-        procedure :: get_parameters => get_parameters_cloud
     end type ZodiCloud
 
     type, extends(ZodiComponent) :: ZodiBand
@@ -66,7 +57,6 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_band
         procedure :: get_density => get_density_band
-        procedure :: get_parameters => get_parameters_band
     end type ZodiBand
 
     type, extends(ZodiComponent) :: ZodiRing
@@ -74,7 +64,6 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_ring
         procedure :: get_density => get_density_ring
-        procedure :: get_parameters => get_parameters_ring
     end type ZodiRing
 
     type, extends(ZodiComponent) :: ZodiFeature
@@ -84,7 +73,6 @@ module comm_zodi_mod
     contains
         procedure :: initialize => initialize_feature
         procedure :: get_density => get_density_feature
-        procedure :: get_parameters => get_parameters_feature
     end type ZodiFeature
 
 
@@ -94,12 +82,13 @@ module comm_zodi_mod
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
         real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
+        integer(i4b) :: N_PARAMETERS = 64
         class(ZodiComponentContainer), allocatable :: comps(:)
         character(len=10), allocatable :: comp_labels(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
-        procedure :: initialize_model, build_splines
+        procedure :: initialize_model, build_splines, param_vec_to_model, model_to_param_vec
     end type zodi_model
 
     ! Global zodi parameter object
@@ -183,52 +172,6 @@ contains
         self%sin_incl = sin(self%incl * deg2rad)
         self%cos_incl = cos(self%incl * deg2rad)
     end subroutine initialize_feature
-
-    ! Output parameters methods
-    ! -----------------------------------------------------------------------------------
-    subroutine get_parameters_cloud(self, names, values)
-        class(ZodiCloud) :: self
-        character(len=*), allocatable, intent(inout) :: names(:)
-        real(dp), allocatable, intent(inout) :: values(:)
-        integer(i4b) :: n_comps = 6
-
-        allocate(names(n_comps), values(n_comps))
-        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
-        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
-    end subroutine get_parameters_cloud
-
-    subroutine get_parameters_band(self, names, values)
-        class(ZodiBand) :: self
-        character(len=*), allocatable, intent(inout) :: names(:)
-        real(dp), allocatable, intent(inout) :: values(:)
-        integer(i4b) :: n_comps = 6
-
-        allocate(names(n_comps), values(n_comps))
-        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
-        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
-    end subroutine get_parameters_band
-
-    subroutine get_parameters_ring(self, names, values)
-        class(ZodiRing) :: self
-        character(len=*), allocatable, intent(inout) :: names(:)
-        real(dp), allocatable, intent(inout) :: values(:)
-        integer(i4b) :: n_comps = 6
-
-        allocate(names(n_comps), values(n_comps))
-        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
-        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
-    end subroutine get_parameters_ring
-
-    subroutine get_parameters_feature(self, names, values)
-        class(ZodiFeature) :: self
-        character(len=*), allocatable, intent(inout) :: names(:)
-        real(dp), allocatable, intent(inout) :: values(:)
-        integer(i4b) :: n_comps = 6
-
-        allocate(names(n_comps), values(n_comps))
-        names = ["x_0", "y_0", "z_0", "incl", "Omega", "n_0"]
-        values = [self%x_0, self%y_0, self%z_0, self%incl, self%Omega, self%n_0]
-    end subroutine get_parameters_feature
 
     ! Methods describing the allocatable, densitry distribution of the zodiacal allocatable, components
     ! -----------------------------------------------------------------------------------
@@ -474,5 +417,149 @@ contains
         end do
         call spline_simple(self%solar_irradiance_spl, self%nu_ref, self%solar_irradiance, regular=.false.)
     end subroutine build_splines
+
+    subroutine param_vec_to_model(self, x)
+        ! Updates model parameters given a parametor vector x
+        class(zodi_model), intent(inout) :: self
+        real(dp), intent(in) :: x(:)
+        integer(i4b) :: i, j
+
+        if (size(x) /= self%N_PARAMETERS) stop "param_vec has the wrong size"
+        do i = 1, self%n_comps
+            select type (a => self%comps(i)%c)
+            class is (ZodiCloud)
+                a%n_0 = x(1)
+                a%incl = x(2)
+                a%Omega = x(3)
+                a%x_0 = x(4)
+                a%y_0 = x(5)
+                a%z_0 = x(6)
+                a%alpha = x(7)
+                a%beta = x(8)
+                a%gamma = x(9)
+                a%mu = x(10)
+            class is (ZodiBand)
+                select case (self%comp_labels(i))
+                case ('band1')
+                    j = 10
+                case ('band2')
+                    j = 20
+                case ('band3')
+                    j = 30
+                case default
+                    stop 'Invalid component label'
+                end select
+                a%n_0 = x(j + 1)
+                a%incl = x(j + 2)
+                a%Omega = x(j + 3)
+                a%x_0 = x(j + 4)
+                a%y_0 = x(j + 5)
+                a%z_0 = x(j + 6)
+                a%delta_zeta = x(j + 7)
+                a%delta_r = x(j + 8)
+                a%v = x(j + 9)
+                a%p = x(j + 10)
+            class is (ZodiRing)
+                a%n_0 = x(41)
+                a%incl = x(42)
+                a%Omega = x(43)
+                a%x_0 = x(44)
+                a%y_0 = x(45)
+                a%z_0 = x(46)
+                a%r_0 = x(47)
+                a%R_0 = x(48)
+                a%sigma_r = x(49)
+                a%sigma_z = x(50)
+            class is (ZodiFeature)
+                a%n_0 = x(51)
+                a%incl = x(52)
+                a%Omega = x(53)
+                a%x_0 = x(54)
+                a%y_0 = x(55)
+                a%z_0 = x(56)
+                a%r_0 = x(57)
+                a%R_0 = x(58)
+                a%sigma_r = x(59)
+                a%sigma_z = x(60)
+                a%theta_0 = x(61)
+                a%sigma_theta = x(62)
+
+            class default 
+                stop 'Invalid zodi class'
+            end select
+        end do
+        self%T_0 = x(63)
+        self%delta = x(64)
+    end subroutine
+
+    function model_to_param_vec(self) result(x) 
+        ! Dumps a zodi model to a parameter vector
+        class(zodi_model), intent(inout) :: self
+        real(dp) :: x(self%N_PARAMETERS)
+        integer(i4b) :: i, j
+
+        do i = 1, self%n_comps
+            select type (a => self%comps(i)%c)
+            class is (ZodiCloud)
+                x(1) = a%n_0
+                x(2) = a%incl
+                x(3) = a%Omega
+                x(4) = a%x_0
+                x(5) = a%y_0
+                x(6) = a%z_0
+                x(7) = a%alpha
+                x(8) = a%beta
+                x(9) = a%gamma
+                x(10) = a%mu
+            class is (ZodiBand)
+                select case (self%comp_labels(i))
+                case ('band1')
+                    j = 10
+                case ('band2')
+                    j = 20
+                case ('band3')
+                    j = 30
+                case default
+                    stop 'Invalid component label'
+                end select                
+                x(j + 1) = a%n_0
+                x(j + 2) = a%incl
+                x(j + 3) = a%Omega
+                x(j + 4) = a%x_0
+                x(j + 5) = a%y_0
+                x(j + 6) = a%z_0
+                x(j + 7) = a%delta_zeta
+                x(j + 8) = a%delta_r
+                x(j + 9) = a%v
+                x(j + 0) = a%p
+            class is (ZodiRing)
+                x(41) = a%n_0
+                x(42) = a%incl
+                x(43) = a%Omega
+                x(44) = a%x_0
+                x(45) = a%y_0
+                x(46) = a%z_0
+                x(47) = a%r_0
+                x(48) = a%R_0
+                x(49) = a%sigma_r
+                x(50) = a%sigma_z
+            class is (ZodiFeature)
+                x(51) = a%n_0
+                x(52) = a%incl
+                x(53) = a%Omega
+                x(54) = a%x_0
+                x(55) = a%y_0
+                x(56) = a%z_0
+                x(57) = a%r_0
+                x(58) = a%R_0
+                x(59) = a%sigma_r
+                x(60) = a%sigma_z
+                x(61) = a%theta_0
+                x(62) = a%sigma_theta
+            end select
+        end do
+        x(63) = self%T_0 
+        x(64) = self%delta
+    end function model_to_param_vec
 
 end module comm_zodi_mod

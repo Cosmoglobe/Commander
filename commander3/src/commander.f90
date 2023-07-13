@@ -153,6 +153,7 @@ program commander
   if (cpar%include_tod_zodi) then 
      call initialize_zodi_mod(cpar)
      call initialize_tod_zodi_mod(cpar)
+     if (cpar%sample_zodi) call initialize_zodi_samp_mod(cpar)
   end if
   call define_cg_samp_groups(cpar)
   ! Initialising Bandpass
@@ -166,9 +167,9 @@ program commander
   ! Set up tod precompute tod_specific zodi lookups
   if (cpar%enable_tod_analysis) then
      do i = 1, numband
-        if (data(i)%tod_type == 'none') cycle
-        if (.not. data(i)%tod%subtract_zodi) cycle
-        call data(i)%tod%precompute_zodi_lookups(cpar)
+          if (data(i)%tod_type == 'none') cycle
+          if (.not. data(i)%tod%subtract_zodi) cycle        
+          call data(i)%tod%precompute_zodi_lookups(cpar)
      end do
   end if
 
@@ -302,9 +303,10 @@ program commander
 
         ! Reset zodi related quantities for next gibbs sample
         do i = 1, numband
-          if (data(i)%tod_type == 'none' .and. data(i)%subtract_zodi) then
-             call data(i)%tod%deallocate_downsampled_zodi()
-          end if
+          if (data(i)%tod_type == 'none') cycle
+          if (.not. data(i)%tod%subtract_zodi) cycle
+          call data(i)%tod%deallocate_downsampled_zodi()
+          call data(i)%tod%clear_zodi_cache()
         end do
      end if
 
@@ -353,7 +355,7 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-     if (cpar%sample_zodi) call output_zodi_model_to_hdf(cpar, iter)
+     if (cpar%sample_zodi) call output_zodi_model_to_hdf(cpar, iter, sampled_zodi_model)
 
      call wall_time(t2)
      if (ok) then
