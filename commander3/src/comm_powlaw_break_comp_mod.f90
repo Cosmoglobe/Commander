@@ -98,8 +98,8 @@ contains
        else
           constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
           constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
-          constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
-          constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
+          constructor%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
+          constructor%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
        end if
     end do
     constructor%indlabel = ['beta','dbeta']

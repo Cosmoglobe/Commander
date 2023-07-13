@@ -85,8 +85,8 @@ contains
        constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
        constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
        constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
-       constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
-       constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
+       constructor%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
+       constructor%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
     constructor%indlabel  = ['Te']
 
@@ -99,8 +99,8 @@ contains
     !constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
     !constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
     !constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
-    !constructor%nu_min_ind(i) = cpar%cs_nu_min(id_abs,i)
-    !constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
+    !constructor%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
+    !constructor%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     
     !constructor%indlabel  = ['Te']
 

@@ -44,7 +44,7 @@ module comm_comp_mod
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
      logical(lgt)       :: output
-     real(dp)           :: nu_ref(3), RJ2unit_(3)
+     real(dp)           :: nu_ref(3), RJ2unit_(3), nu_min, nu_max
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
