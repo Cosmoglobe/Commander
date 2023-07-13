@@ -496,14 +496,13 @@ contains
         zodi_path = trim(adjustl(itext))//'/zodi'
         call create_hdf_group(file, trim(adjustl(zodi_path)))
         comp_path = trim(adjustl(zodi_path))//'/params/'
-        call create_hdf_group(file, trim(adjustl(comp_path)))
+        ! call create_hdf_group(file, trim(adjustl(comp_path)))
 
         call write_hdf(file, trim(adjustl(comp_path)), param_vec_iter)
 
         ! Write chisq
         comp_path = trim(adjustl(zodi_path))//'/chisq/'
-        call create_hdf_group(file, trim(adjustl(comp_path)))
-        call write_hdf(file, trim(adjustl(comp_path))//'/chisq', chisq_iter)
+        call write_hdf(file, trim(adjustl(comp_path)), chisq_iter)
 
         call close_hdf_file(file)
     end subroutine
