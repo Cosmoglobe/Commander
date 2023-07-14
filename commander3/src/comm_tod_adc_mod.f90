@@ -89,7 +89,7 @@ interface
   ! DCH
   !=========================================================================
 
-  module function constructor_internal(cpar, info, nbins)
+  module function constructor_internal(cpar, info, nbins) result(res)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
     ! Also initializes the bins used for the actual correction model
@@ -116,12 +116,12 @@ interface
     implicit none
     integer(i4b),           intent(in) :: nbins
     class(comm_mapinfo),    target     :: info
-    class(comm_adc),        pointer    :: constructor_internal
+    class(comm_adc),        pointer    :: res
     type(comm_params),      intent(in) :: cpar
 
   end function constructor_internal
 
-  module function constructor_precomp(instfile, path, load)
+  module function constructor_precomp(instfile, path, load) result(res)
     ! ====================================================================
     ! Sets up an adc correction object that maps input and output voltages
     ! Also initializes the bins used for the actual correction model
@@ -149,7 +149,7 @@ interface
     type(hdf_file),     intent(in) :: instfile
     character(len=512), intent(in) :: path
     logical(lgt),       intent(in) :: load
-    class(comm_adc),    pointer    :: constructor_precomp
+    class(comm_adc),    pointer    :: res
   end function constructor_precomp
 
   module subroutine adc_correct(self, tod_in, tod_out, scan, det, di)
