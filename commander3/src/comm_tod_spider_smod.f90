@@ -24,7 +24,7 @@ contains
    !**************************************************
    !             Constructor
    !**************************************************
-   module function constructor(cpar, id_abs, info, tod_type)
+   module function constructor(cpar, id_abs, info, tod_type) result(res)
      !
      ! Constructor function that gathers all the instrument parameters in a pointer
      ! and constructs the objects
