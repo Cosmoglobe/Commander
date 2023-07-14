@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from astropy.time import Time
 from astropy.time import TimeDelta
 from astropy.coordinates import SkyCoord
-from astropy import units
+from astropy import units as u
 from astropy.coordinates import BarycentricMeanEcliptic
 import warnings 
 from astropy.utils.exceptions import AstropyWarning
@@ -54,14 +54,11 @@ This script converts LiteBIRD sims produced by Giuseppe at el into Commander3
 suitable format 
 Need to start server for litebird instrument and activate litebird IMO database to run the code
 
-The script needs specification of 
+The script needs user specification of 
 - LiteBIRD TOD simulation files directory
 - List of detectors to save the data from from each frequency band
 - location to output new Commander3 formated simulations
 
-Script can be parallellized (nprocs != 1 in main), but then some 
-files gets corrupted and some others will be missing certain fields
-Please fix it if you can or just run with one processor
 """
 
 def get_detectors(det_file, detector_list):
@@ -82,10 +79,11 @@ def get_detectors(det_file, detector_list):
                 detectors.append(i)
             i += 1
     file.close()
+    print(det_labels, detectors)
     return (detectors, det_labels)
 
 
-def get_data(nside, k, dfile, scale_loss, dets_nr):
+def get_data(nside, k, dfile, scale_loss, dets_nr, det_labels):
     """
     In: 
     nside      : nside of map
@@ -115,8 +113,8 @@ def get_data(nside, k, dfile, scale_loss, dets_nr):
         tod_cmb   = np.array(readin_file.get("tod_cmb"), dtype=dt)
         #tod_dip   = np.array(readin_file.get("tod_dip"), dtype=dt)
         tod_fg    = np.array(readin_file.get("tod_fg"), dtype=dt)
-        #tod_wn    = np.array(readin_file.get("tod_wn"), dtype=dt)
-        tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"), dtype=dt)
+        tod_wn    = np.array(readin_file.get("tod_wn"), dtype=dt)
+        #tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"), dtype=dt)
  
     # Number of samples in one TOD
     tod_len      = psi_all.shape[1]
@@ -128,12 +126,12 @@ def get_data(nside, k, dfile, scale_loss, dets_nr):
     # Scale white noise level due to data loss (not done in LB TOD sims)
     tod_wn       = tod_wn * scale_nrdet * scale_loss
     # Scalw wn and 1/f noise
-    
+    #tod_wn_1f_30mHz = tod_wn_1f_30mHz * scale_nrdet * scale_loss
 
     # Add TODS
-    tod_cadd_all = tod_cmb + tod_wn_1f_30mHz + tod_fg
+    tod_cadd_all = tod_cmb + tod_wn + tod_fg #+ tod_dip
     
-    sigma_0 = np.diff(tod_wn).std() / 2**0.5  # Using Eqn 20 of BP06
+    #sigma_0 = np.diff(tod_wn).std() / 2**0.5  # Using Eqn 20 of BP06
         
     #Reduce number of detectors: 
     psi_ecl      = np.zeros(shape=(nr_det_out,tod_len))
@@ -144,17 +142,16 @@ def get_data(nside, k, dfile, scale_loss, dets_nr):
         psi_ecl[d,:]       = psi_all[int(dets_nr[d]), :]
         tod_cadd[d,:]      = tod_cadd_all[int(dets_nr[d]), :]
         pointings_ecl[d,:,:] = pointings_ecl_all[int(dets_nr[d]),:,:]
-
     #change from barycentricmeanecliptic --> galactic
     psi_gal   = np.zeros_like(psi_ecl)
     pointings_gal = np.zeros_like(pointings_ecl)
     for d in range(0,nr_det_out):
         pointings_gal[d,:,:], psi_gal[d,:] = lbs.coordinates.rotate_coordinates_e2g(pointings_ecl[d,:,:], pol_angle_ecl=psi_ecl[d,:])
+        #if det_labels[d].split('_')[3][-1] == 'B':
+        #psi_gal =  2*np.pi - psi_gal
     theta     = pointings_gal[:,:,0]
     phi       = pointings_gal[:,:,1]
     pixels    = hp.ang2pix(nside, theta, phi)#, lonlat=True)
-    # Keeping track of current index
-    #return {k: tod_cadd}
     return (tod_cadd, pixels, psi_gal)
 
 
@@ -178,7 +175,7 @@ def main():
     # User-Specified Parameters 
     # ----------------------------------
 
-    nprocs = 128 #joblib.cpu_count() - 28 #16
+    nprocs = 64 #joblib.cpu_count() - 28 #16
     version = np.string_('0.0.1')
     # The size of one scan in a new file (to be created/output) 
     scan_size = 2**16 #~1 hr
@@ -190,7 +187,7 @@ def main():
     start_time = '2030-04-01T00:00:00'
     nside = 512
     output_dir = pathlib.Path(
-         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS_cmb_fg_wn_ncorr30/"
+         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS/"
          )
     lbdata_dir = pathlib.Path(
          "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
@@ -227,8 +224,8 @@ def main():
     # Scale white noise level due to data loss (not done in LB TOD sims)
     scale_loss = 1/np.sqrt(det_yield*margin*cos_ray*duty_cycl)
 
-    instrument = ['LFT', 'MFT', 'HFT']
-    #instrument = ['MFT']
+    #instrument = ['LFT', 'MFT', 'HFT']
+    instrument = ['MFT', 'HFT']
     imo_db_datapath = f"/releases/{imo_version}/satellite"
     for inst in instrument:
         print("Working with detectors on ", inst)
@@ -240,7 +237,7 @@ def main():
         freqs = instrument_info.metadata['channel_names']
         # or specify detectors manually:
         #freqs = ['M2-119', 'M1-140', 'M2-166', 'M1-195']
-
+        
         for freq in freqs:
             print("Working with frequency band ", freq)
             channel_info = imo_db_interface.query(
@@ -376,7 +373,7 @@ def main():
                 # scan_num = 20, nprocs = 64. In such a way each core will get 3 files
                 # to work with. The resulting array will be of size (192, 48, 462334) 
                 superTOD = joblib.Parallel(n_jobs=nprocs, backend="multiprocessing", verbose=2)(joblib.delayed(get_data)
-                                (nside, k, dfile, scale_loss, det_nr_used) 
+                                                                                                (nside, k, dfile, scale_loss, det_nr_used, det_labels) 
                                 for k, dfile in enumerate(lbdata_files[file_ranges[i-1]:file_ranges[i]])) 
 
                 superTOD = list(map(list, zip(*superTOD)))
@@ -500,23 +497,21 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
         #spacecraft position and velocity
         pos_vel = lbs.spacecraft_pos_and_vel(orbit, start_time=time_now,
              time_span_s=scan_size/fsamp, delta_time_s=86400.0)
-        #print(pos_vel)
-        #print(pos_vel.positions_km,pos_vel.velocities_km_s)
-        #print(pos_vel.positions_km[0])
-        #print(SkyCoord(x=pos_vel.positions_km[0,0], y=pos_vel.positions_km[0,1], z=pos_vel.positions_km[0,2],
-        #               frame=BarycentricMeanEcliptic().name, representation_type="cartesian")
-        #      .transform_to("galactic").data.to_cartesian().get_xyz().value)
-        ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/satpos", [0,0,0])
-        
-        #vsun: Satellite velocity: The x,y,z velocity of the satellite relative to the sun. 
-        #TODO: needs to be calculated 
-        #print(pos_vel.velocities_km_s)
-        #print(SkyCoord(x=pos_vel.positions_km[1,0], y=pos_vel.positions_km[1,1], z=pos_vel.positions_km[1,2],
-        #               v_x=pos_vel.velocities_km_s[0,0], v_y=pos_vel.velocities_km_s[0,1], 
-        #               v_z=pos_vel.velocities_km_s[0,2], frame=BarycentricMeanEcliptic().name, 
-        #               differential_type='cartesian', representation_type="cartesian")
-        #      .transform_to("galactic").data.to_cartesian().get_xyz().value)
-        ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/vsun", [0,0,0])
+
+        # linear velocity of the spacecraft in the Barycentric Ecliptic reference frame (in km/s)
+        vel_ecl = pos_vel.velocities_km_s 
+        # position of the spacecraft in the Barycentric Ecliptic reference frame (in kilometers)
+        pos_ecl = pos_vel.positions_km 
+        pos_vel_gal = (SkyCoord(x=pos_ecl[1,0]*u.km, y=pos_ecl[1,1]*u.km, z=pos_ecl[1,2]*u.km,
+                       v_x=vel_ecl[0,0]*u.km/u.s, v_y=vel_ecl[0,1]*u.km/u.s, v_z=vel_ecl[0,2]*u.km/u.s, 
+                        frame=BarycentricMeanEcliptic().name,
+                       differential_type='cartesian', representation_type="cartesian")
+                       .transform_to("galactic")) 
+        pos_gal = pos_vel_gal.data.to_cartesian().get_xyz().value*1000
+        vel_gal = [pos_vel_gal.velocity.d_x.value*1000, pos_vel_gal.velocity.d_y.value*1000, pos_vel_gal.velocity.d_z.value*1000]
+
+        ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/satpos", pos_gal)
+        ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/vsun", vel_gal)
 
         for det_idx, det_label in enumerate(det_labels):
             # Ensuring the name gets unique indentifier (scan id)
@@ -539,7 +534,7 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
             ctod.add_field(prefix + "/psi", psi_arr, compArray)
             
             flag_arr = np.zeros(shape=pix_arr.shape)
-            ctod.add_field(prefix + '/flag', flag_arr, [lfi.huffman])
+            ctod.add_field(prefix + '/flag', flag_arr, compArray) # [lfi.huffman])
 
             # Getting Scalars: gain, sigma0, fknee, alpha
             detector_info = imo_db_interface.query(
@@ -577,13 +572,26 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
     ctod.add_field(prefix + '/nside',    nside)
     # Polarization angles
     if instrument in ('LFT'):
-        polang = [0 + np.pi/4 * int(it.split('_')[3][0] == 'U') + np.pi/2 *
-                int(it.split('_')[3][1] == 'B') for it in det_labels]
+        polang = [0 for it in det_labels]
+        """
+        polang = [(0 + np.pi/4 * int(it.split('_')[3][0] == 'U') + np.pi/2 *
+                   int(it.split('_')[5][0] == 'B')) 
+                  * (1-0*int(it.split('_')[3][1] == 'B'))  for it in det_labels]
+        # change 0 to 2 to change angle
+        """
     elif instrument in ('HFT'):
-        polang = [0 + np.pi/4 * int(it.split('_')[3][0] == 'U') for it in det_labels]
+        polang = [0 for it in det_labels]
+        #polang = [0 + np.pi/4 * int(it.split('_')[3][0] == 'U') + np.pi/2 *
+        #          int(it.split('_')[5][0] == 'B') for it in det_labels]
+    elif instrument in ('MFT'):
+        polang = [0 for it in det_labels]
+        """
+        polang = [int(it.split('_')[3][:2])*np.pi/180 + np.pi/2 *
+                  int(it.split('_')[5][0] == 'B')
+                  * (1-0*int(it.split('_')[3][2] == 'B')) for it in det_labels]
     else:
-        polang = [int(it.split('_')[3][:1])*np.pi/180 + np.pi/2 *
-                int(it.split('_')[3][2] == 'B') for it in det_labels]
+        print("Error: wrong instrument")
+    """
     #print(polang)
     ctod.add_field(prefix + '/polang',   polang)
     # Main Beam
