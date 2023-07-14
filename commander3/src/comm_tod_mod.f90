@@ -1830,24 +1830,23 @@ contains
     do j = 1, self%ndet
        if (.not. self%scans(scan)%d(j)%accept) cycle
        if (self%orbital) then
-          v_ref = self%scans(scan)%v_sun
-       else
-          v_ref = v_solar
-       end if
 
-       if (self%orb_4pi_beam) then
-          v_ref = self%scans(scan)%v_sun
-          do i = 1, ntod
-             P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
-                     & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                     & self%psi(psi(i,j))] ! [phi, theta, psi]
-          end do
+         if (self%orb_4pi_beam) then
+           v_ref = self%scans(scan)%v_sun
+           do i = 1, ntod
+               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
+                       & self%ind2ang(1,self%pix2ind(pix(i,j))), &
+                       & self%psi(psi(i,j))] ! [phi, theta, psi]
+           end do
+         else
+            v_ref = self%scans(scan)%v_sun 
+            do i = 1, ntod
+             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
+            end do
+         end if
+
        else
           v_ref = v_solar
-         !  v_ref = self%scans(scan)%v_sun !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          do i = 1, ntod
-             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
-          end do
        end if
 
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &

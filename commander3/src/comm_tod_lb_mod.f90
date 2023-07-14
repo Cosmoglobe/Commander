@@ -129,7 +129,7 @@ contains
     constructor%correct_sl      = .false.
     constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
+    constructor%chisq_threshold = 2000000.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
        constructor%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
@@ -252,7 +252,7 @@ contains
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
-    sample_gain           = .false.                ! Gain sampling, LB TOD sims have perfect gain
+    sample_gain           = .true.                ! Gain sampling, LB TOD sims have perfect gain
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -274,8 +274,8 @@ contains
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
     allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-    call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
-    call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
+    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -349,13 +349,13 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-          sd%n_corr = 0.
+          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          !sd%n_corr = 0.d0
        end if
-       
+      
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-       
+
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
@@ -403,6 +403,8 @@ contains
     end do
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
+
+    call update_status(status, "finalizing maps, BP")
 
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)

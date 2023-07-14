@@ -487,7 +487,7 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
         #with warnings.catch_warnings(): #Ignore warnings of dubious year
         #warnings.simplefilter('ignore', AstropyWarning)
         warnings.filterwarnings('ignore', category=UserWarning, append=True)
-        time_passed = TimeDelta((global_scan_id-1) * scan_size/86400/fsamp, format='sec')
+        time_passed = TimeDelta((global_scan_id-1) * scan_size/fsamp, format='sec')
         time_now = time_passed + Time(start_time, format="isot")
         #print("time: ", time_now, "scan ID: ", global_scan_id, "mjd: ", time_now.mjd)
         ctod.add_field(f"{global_scan_id}".zfill(6) + "/common/time", [time_now.mjd,0,0])
