@@ -40,6 +40,10 @@ program commander
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
 
+  ! param_vec for zodi (REMOVE THIS AFTER ATLAS)
+   type(zodi_model) :: current_model, previous_model
+   real(dp), allocatable :: param_vec(:)
+   
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
@@ -147,14 +151,17 @@ program commander
   if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
-  if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
 
-  ! Initialize zodi modules
-  if (cpar%include_tod_zodi) then 
-     call initialize_zodi_mod(cpar)
-     call initialize_tod_zodi_mod(cpar)
-     if (cpar%sample_zodi) call initialize_zodi_samp_mod(cpar)
+  ! Initialize tod modules
+  if (cpar%enable_tod_analysis) then 
+    call initialize_tod_mod(cpar)
+    if (cpar%include_tod_zodi) then 
+      call initialize_zodi_mod(cpar)
+      call initialize_tod_zodi_mod(cpar)
+      if (cpar%sample_zodi) call initialize_zodi_samp_mod(cpar)
+    end if
   end if
+
   call define_cg_samp_groups(cpar)
   ! Initialising Bandpass
   ! TODO: Add QUIET stuff into bandpass module
@@ -164,8 +171,8 @@ program commander
   ! Debug statement to actually see whether
   ! QUIET is loaded into memory
 
-  ! Set up tod precompute tod_specific zodi lookups
-  if (cpar%enable_tod_analysis) then
+  ! Precompute zodi lookups
+  if (cpar%enable_tod_analysis .and. cpar%include_tod_zodi) then
      do i = 1, numband
           if (data(i)%tod_type == 'none') cycle
           if (.not. data(i)%tod%subtract_zodi) cycle        
@@ -276,6 +283,29 @@ program commander
 
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
+      ! Create zodi atlas
+      if (.false.) then
+         allocate(param_vec(base_zodi_model%N_PARAMETERS))
+         if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: "
+         do i = 1, base_zodi_model%N_PARAMETERS
+            if (cpar%myid == cpar%root) print *, i
+            do j = 1, 3
+               base_zodi_model = sampled_zodi_model
+               base_zodi_model%param_i = i
+               base_zodi_model%up_down_j = j
+               
+               param_vec = base_zodi_model%model_to_param_vec()
+               if (j == 1) then
+                  param_vec(i) = param_vec(i) - 0.1*param_vec(i)
+               else if (j == 3) then
+                  param_vec(i) = param_vec(i) + 0.1*param_vec(i)
+               end if
+               call base_zodi_model%param_vec_to_model(param_vec)
+               call process_TOD(cpar, cpar%mychain, iter, handle)
+            end do
+         end do
+      end if 
+      
    !   if (iter == 1) then ! For faster component separation since we dont sample the cios
 
         ! First iteration should just be component separation, in case sky model
@@ -505,7 +535,7 @@ contains
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
+                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
              end do
              call update_mixing_matrices(i, update_F_int=.true.)
 
@@ -580,7 +610,7 @@ contains
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-          if (j > 0 .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
+          if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)
 
