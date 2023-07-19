@@ -18,36 +18,38 @@ module comm_tod_driver_mod
   ! Class for uncompressed data for a given scan
   type :: comm_scandata
      integer(i4b) :: ntod, ndet, nhorn, ndelta
-     real(sp),     allocatable, dimension(:,:)     :: tod        ! Raw data
-     real(sp),     allocatable, dimension(:,:)     :: n_corr     ! Correlated noise in V
-     real(sp),     allocatable, dimension(:,:)     :: s_sl       ! Sidelobe correction
-     real(sp),     allocatable, dimension(:,:)     :: s_sky      ! Stationary sky signal
-     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop ! Stationary sky signal proposal for bandpass sampling
-     real(sp),     allocatable, dimension(:,:)     :: s_orb      ! Orbital dipole
-     real(sp),     allocatable, dimension(:,:)     :: s_mono     ! Detector monopole correction 
-     real(sp),     allocatable, dimension(:,:)     :: s_calib    ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_calibA   ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_calibB   ! Custom calibrator
-     real(sp),     allocatable, dimension(:,:)     :: s_bp       ! Bandpass correction
-     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop  ! Bandpass correction proposal     
-     real(sp),     allocatable, dimension(:,:)     :: s_zodi     ! Thermal zodiacal emission
-     real(sp),     allocatable, dimension(:,:)     :: s_inst     ! Instrument-specific correction template
-     real(sp),     allocatable, dimension(:,:)     :: s_tot      ! Total signal
-     real(sp),     allocatable, dimension(:,:)     :: s_gain     ! Absolute calibrator
-     real(sp),     allocatable, dimension(:,:)     :: mask       ! TOD mask (flags + main processing mask)
-     real(sp),     allocatable, dimension(:,:)     :: mask2      ! Small TOD mask, for bandpass sampling
-     real(sp),     allocatable, dimension(:,:)     :: mask_zodi  ! Mask for sampling zodi
-     integer(i4b), allocatable, dimension(:,:,:)   :: pix        ! Discretized pointing 
-     integer(i4b), allocatable, dimension(:,:,:)   :: psi        ! Discretized polarization angle
-     integer(i4b), allocatable, dimension(:,:)     :: flag       ! Quality flags
+     real(sp),     allocatable, dimension(:,:)     :: tod           ! Raw data
+     real(sp),     allocatable, dimension(:,:)     :: n_corr        ! Correlated noise in V
+     real(sp),     allocatable, dimension(:,:)     :: s_sl          ! Sidelobe correction
+     real(sp),     allocatable, dimension(:,:)     :: s_sky         ! Stationary sky signal
+     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop    ! Stationary sky signal proposal for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: s_orb         ! Orbital dipole
+     real(sp),     allocatable, dimension(:,:)     :: s_mono        ! Detector monopole correction 
+     real(sp),     allocatable, dimension(:,:)     :: s_calib       ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibA      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_calibB      ! Custom calibrator
+     real(sp),     allocatable, dimension(:,:)     :: s_bp          ! Bandpass correction
+     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop     ! Bandpass correction proposal     
+     real(sp),     allocatable, dimension(:,:)     :: s_zodi        ! Zodiacal emission
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_scat   ! Scattered sunlight contribution to zodi  
+     real(sp),     allocatable, dimension(:,:,:)   :: s_zodi_therm  ! Thermal zodiacal emission
+     real(sp),     allocatable, dimension(:,:)     :: s_inst        ! Instrument-specific correction template
+     real(sp),     allocatable, dimension(:,:)     :: s_tot         ! Total signal
+     real(sp),     allocatable, dimension(:,:)     :: s_gain        ! Absolute calibrator
+     real(sp),     allocatable, dimension(:,:)     :: mask          ! TOD mask (flags + main processing mask)
+     real(sp),     allocatable, dimension(:,:)     :: mask2         ! Small TOD mask, for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
+     integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
+     integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
 
-     real(sp),     allocatable, dimension(:,:)     :: s_totA     ! Total signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_totB     ! Total signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_gainA     ! Total signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_gainB     ! Total signal, horn B (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
-     real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
-     integer(i4b) :: band                                        ! Band ID
+     real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_totB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainA        ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_gainB        ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbA        ! Orbital signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbB        ! Orbital signal, horn B (differential only)
+     integer(i4b) :: band                                           ! Band ID
    contains
      procedure  :: init_singlehorn   => init_scan_data_singlehorn
      procedure  :: init_differential => init_scan_data_differential
@@ -75,8 +77,6 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
-    real(sp),     allocatable, dimension(:,:)                         :: s_zodi_scat
-    real(sp),     allocatable, dimension(:,:)                         :: s_zodi_therm
     integer(i4b) :: i, j, k, ndelta
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
  
@@ -122,8 +122,8 @@ contains
     if (tod%subtract_zodi) then
       allocate(self%s_zodi(self%ntod, self%ndet))
       self%s_zodi = 0.
-      allocate(s_zodi_scat(self%ntod, tod%zodi_n_comps))
-      allocate(s_zodi_therm(self%ntod, tod%zodi_n_comps))
+      allocate(self%s_zodi_scat(self%ntod, tod%zodi_n_comps, self%ndet))
+      allocate(self%s_zodi_therm(self%ntod, tod%zodi_n_comps, self%ndet))
       if (tod%sample_zodi) allocate(self%mask_zodi(self%ntod, self%ndet))
     endif
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
@@ -240,19 +240,18 @@ contains
             & pix=self%pix(:, j, 1), &
             & scan=scan, &
             & det=j, &
-            & s_zodi_scat=s_zodi_scat, &
-            & s_zodi_therm=s_zodi_therm, &
+            & s_zodi_scat=self%s_zodi_scat(:, :, j), &
+            & s_zodi_therm=self%s_zodi_therm(:, :, j), &
             & model=base_zodi_model &
           &)
           call get_s_zodi(&
             & emissivity=tod%zodi_emissivity, &
             & albedo=tod%zodi_albedo, &
-            & s_therm=s_zodi_therm, &
-            & s_scat=s_zodi_scat, &
+            & s_therm=self%s_zodi_therm(:, :, j), &
+            & s_scat=self%s_zodi_scat(:, :, j), &
             & s_zodi=self%s_zodi(:, j) &
           &)
        end do
-       deallocate(s_zodi_scat, s_zodi_therm)
        call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -605,20 +604,22 @@ contains
     deallocate(self%tod, self%n_corr, self%s_sl, self%s_sky)
     deallocate(self%s_orb, self%s_tot, self%mask, self%s_gain)
     deallocate(self%pix, self%psi, self%flag)
-    if (allocated(self%s_sky_prop))  deallocate(self%s_sky_prop)
-    if (allocated(self%s_bp_prop))   deallocate(self%s_bp_prop)
-    if (allocated(self%s_bp))        deallocate(self%s_bp)
-    if (allocated(self%s_mono))      deallocate(self%s_mono)
-    if (allocated(self%mask2))       deallocate(self%mask2)
-    if (allocated(self%mask_zodi))       deallocate(self%mask_zodi)
-    if (allocated(self%s_zodi))      deallocate(self%s_zodi)
-    if (allocated(self%s_totA))      deallocate(self%s_totA)
-    if (allocated(self%s_totB))      deallocate(self%s_totB)
+    if (allocated(self%s_sky_prop))   deallocate(self%s_sky_prop)
+    if (allocated(self%s_bp_prop))    deallocate(self%s_bp_prop)
+    if (allocated(self%s_bp))         deallocate(self%s_bp)
+    if (allocated(self%s_mono))       deallocate(self%s_mono)
+    if (allocated(self%mask2))        deallocate(self%mask2)
+    if (allocated(self%mask_zodi))    deallocate(self%mask_zodi)
+    if (allocated(self%s_zodi))       deallocate(self%s_zodi)
+    if (allocated(self%s_zodi_scat))  deallocate(self%s_zodi_scat)
+    if (allocated(self%s_zodi_therm)) deallocate(self%s_zodi_therm)
+    if (allocated(self%s_totA))       deallocate(self%s_totA)
+    if (allocated(self%s_totB))       deallocate(self%s_totB)
     if (allocated(self%s_gainA))      deallocate(self%s_gainA)
     if (allocated(self%s_gainB))      deallocate(self%s_gainB)
-    if (allocated(self%s_inst))      deallocate(self%s_inst)
-    if (allocated(self%s_orbA))      deallocate(self%s_orbA)
-    if (allocated(self%s_orbB))      deallocate(self%s_orbB)
+    if (allocated(self%s_inst))       deallocate(self%s_inst)
+    if (allocated(self%s_orbA))       deallocate(self%s_orbA)
+    if (allocated(self%s_orbB))       deallocate(self%s_orbB)
     call timer%stop(TOD_ALLOC, self%band)
 
   end subroutine dealloc_scan_data
@@ -922,6 +923,7 @@ contains
     !  d_calib(6,:,:) - sidelobe
     !  d_calib(7,:,:) - zodiacal light emission
     !  d_calib(8,:,:) - instrument correction
+    !  d_calib(9 - 9 + n_zodi_comps,:,:) - zodiacal light components
     implicit none
     class(comm_tod),                       intent(in)   :: tod
     integer(i4b),                          intent(in)   :: scan
@@ -952,7 +954,11 @@ contains
        if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)          
        if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j) ! zodi
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
-       
+       if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
+         do i = 1, size(sd%s_zodi_therm, dim=2)
+           d_calib(8 + i, :, j) = sd%s_zodi_scat(:, i, j) * tod%zodi_albedo(i) + (1. - tod%zodi_albedo(i)) * tod%zodi_emissivity(i) * sd%s_zodi_therm(:, i, j)
+         end do
+       end if
       !  Bandpass proposals
        do i = 1, nout-tod%output_n_maps
           d_calib(tod%output_n_maps+i,:,j) = d_calib(1,:,j) + sd%s_bp(:,j) - sd%s_bp_prop(:,j,i+1)

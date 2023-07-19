@@ -13,3 +13,5 @@ ZODI_USE_BAND2                   = .true.
 ZODI_USE_BAND3                   = .true.
 ZODI_USE_RING                    = .true.
 ZODI_USE_FEATURE                 = .true.
+
+ZODI_OUTPUT_COMPS                = .false.

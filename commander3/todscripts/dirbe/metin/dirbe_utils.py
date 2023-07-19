@@ -432,4 +432,5 @@ def get_iras_factor(band: int) -> float:
 
 
 if __name__ == "__main__":
-    print(get_iras_factor(6))
+    print([get_iras_factor(i) for i in range(1,11)])
+
