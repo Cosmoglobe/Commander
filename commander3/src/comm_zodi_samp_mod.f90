@@ -328,7 +328,7 @@ contains
                 if (cpar%myid == cpar%root) then
                     param_vec = current_model%model_to_param_vec()
                     do i = 1, size(param_vec)
-                        param_vec(i) = param_vec(i) + (step_size*param_vec(i) * rand_gauss(handle))
+                        param_vec(i) = param_vec(i) + (step_size * param_vec(i) * rand_gauss(handle))
                     end do
                 end if
 

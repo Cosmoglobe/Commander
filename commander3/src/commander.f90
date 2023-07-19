@@ -323,7 +323,6 @@ program commander
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
         call sample_zodi_model(cpar, handle)
-        print *, "got here"
         ! Update zodi model
         base_zodi_model = sampled_zodi_model
         call timer%stop(TOT_ZODI_SAMP)
