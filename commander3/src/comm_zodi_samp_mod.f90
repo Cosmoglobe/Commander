@@ -5,7 +5,7 @@ module comm_zodi_samp_mod
     use comm_tod_zodi_mod
     use comm_zodi_mod
     use comm_output_mod
-    use powell_mod
+    ! use powell_mod
     implicit none
 
     private
@@ -409,7 +409,7 @@ contains
                 else
                     current_model = previous_model
                 end if
-                accept_rate = n_accepted / k.
+                accept_rate = n_accepted / k
                 chisq_iter(k) = chisq_current
                 param_vec_iter(k, :) = current_model%model_to_param_vec()
             end if
@@ -420,86 +420,86 @@ contains
     end subroutine
 
 
-    function lnL_zodi(p)
-        use healpix_types
-        implicit none
-        real(dp), dimension(:), intent(in), optional :: p
-        real(dp) :: lnL_zodi
-        real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
-        type(zodi_model) :: model
+    ! function lnL_zodi(p)
+    !     use healpix_types
+    !     implicit none
+    !     real(dp), dimension(:), intent(in), optional :: p
+    !     real(dp) :: lnL_zodi
+    !     real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
+    !     type(zodi_model) :: model
 
-        integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr
-        real(dp) :: chisq_tod, chisq, chisq_buff
-        real(dp), allocatable :: p_copy(:), param_vec(:)
+    !     integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr
+    !     real(dp) :: chisq_tod, chisq, chisq_buff
+    !     real(dp), allocatable :: p_copy(:), param_vec(:)
 
 
-        model = base_zodi_model
-        allocate(param_vec(model%N_PARAMETERS), p_copy(model%N_PARAMETERS))
-        param_vec = model%model_to_param_vec()
-        p_copy = p
-        p_copy(2:) = param_vec(2:)
-        ! print *, "before:", param_vec(1), "after:", p_copy(1)
-        call model%param_vec_to_model(p_copy)
-        print*, p_copy(1)
+    !     model = base_zodi_model
+    !     allocate(param_vec(model%N_PARAMETERS), p_copy(model%N_PARAMETERS))
+    !     param_vec = model%model_to_param_vec()
+    !     p_copy = p
+    !     p_copy(2:) = param_vec(2:)
+    !     ! print *, "before:", param_vec(1), "after:", p_copy(1)
+    !     call model%param_vec_to_model(p_copy)
+    !     print*, p_copy(1)
 
-        chisq_tod = 0.
-        chisq= 0.
+    !     chisq_tod = 0.
+    !     chisq= 0.
 
-        do i = 1, numband
-            ! Skip none tod bands
-            if (data(i)%tod_type == "none") cycle
-            ! Skip tod bands where we dont want to sample zodi
-            if (.not. data(i)%tod%sample_zodi) cycle
+    !     do i = 1, numband
+    !         ! Skip none tod bands
+    !         if (data(i)%tod_type == "none") cycle
+    !         ! Skip tod bands where we dont want to sample zodi
+    !         if (.not. data(i)%tod%sample_zodi) cycle
 
-            ndet = data(i)%tod%ndet
-            nscan = data(i)%tod%nscan
+    !         ndet = data(i)%tod%ndet
+    !         nscan = data(i)%tod%nscan
             
-            ! Make sure that the zodi cache is cleared before each new band
-            call data(i)%tod%clear_zodi_cache()
+    !         ! Make sure that the zodi cache is cleared before each new band
+    !         call data(i)%tod%clear_zodi_cache()
 
-            ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-            do scan = 1, nscan
-                ! Skip scan if no accepted data
-                if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
-                do j = 1, ndet
-                    ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
-                    allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
-                    call get_zodi_emission(&
-                        & tod=data(i)%tod, &
-                        & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
-                        & scan=scan, &
-                        & det=j, &
-                        & s_zodi_scat=s_scat, &
-                        & s_zodi_therm=s_therm, &
-                        & model=model &
-                    &)
-                    call get_s_zodi(&
-                        & emissivity=data(i)%tod%zodi_emissivity, &
-                        & albedo=data(i)%tod%zodi_albedo, &
-                        & s_therm=s_therm, &
-                        & s_scat=s_scat, &
-                        & s_zodi=s_zodi &
-                    &)
+    !         ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+    !         do scan = 1, nscan
+    !             ! Skip scan if no accepted data
+    !             if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
+    !             do j = 1, ndet
+    !                 ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
+    !                 allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
+    !                 call get_zodi_emission(&
+    !                     & tod=data(i)%tod, &
+    !                     & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
+    !                     & scan=scan, &
+    !                     & det=j, &
+    !                     & s_zodi_scat=s_scat, &
+    !                     & s_zodi_therm=s_therm, &
+    !                     & model=model &
+    !                 &)
+    !                 call get_s_zodi(&
+    !                     & emissivity=data(i)%tod%zodi_emissivity, &
+    !                     & albedo=data(i)%tod%zodi_albedo, &
+    !                     & s_therm=s_therm, &
+    !                     & s_scat=s_scat, &
+    !                     & s_zodi=s_zodi &
+    !                 &)
                 
-                    chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
+    !                 chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
 
-                    if (chisq_tod > 1d30 .or. chisq_buff > 1d30) then
-                        lnL_zodi = -0.5 * 1d30
-                        return
-                    end if
-                    chisq_tod = chisq_tod + chisq_buff
-                    ! print *, "buff:", chisq_buff, "tot:", chisq_tod
-                    deallocate(s_scat, s_therm, s_zodi)
-                end do
-            end do
-        end do
+    !                 if (chisq_tod > 1d30 .or. chisq_buff > 1d30) then
+    !                     lnL_zodi = -0.5 * 1d30
+    !                     return
+    !                 end if
+    !                 chisq_tod = chisq_tod + chisq_buff
+    !                 ! print *, "buff:", chisq_buff, "tot:", chisq_tod
+    !                 deallocate(s_scat, s_therm, s_zodi)
+    !             end do
+    !         end do
+    !     end do
 
-        ! Reduce chisq to root process
-        call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    !     ! Reduce chisq to root process
+    !     call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
 
-        lnL_zodi = -0.5 * chisq
+    !     lnL_zodi = -0.5 * chisq
 
-    end function lnL_zodi
+    ! end function lnL_zodi
 
 
 

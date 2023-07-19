@@ -41,8 +41,8 @@ program commander
   type(planck_rng)    :: handle, handle_noise
 
   ! param_vec for zodi (REMOVE THIS AFTER ATLAS)
-   type(zodi_model) :: current_model, previous_model
-   real(dp), allocatable :: param_vec(:)
+   ! type(zodi_model) :: current_model, previous_model
+   ! real(dp), allocatable :: param_vec(:)
    
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
@@ -282,26 +282,26 @@ program commander
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
       ! Create zodi atlas
-      if (.false.) then
-         allocate(param_vec(base_zodi_model%N_PARAMETERS))
-         do i = 1, base_zodi_model%N_PARAMETERS
-            if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: ", i
-            do j = 1, 3
-               base_zodi_model = sampled_zodi_model
-               base_zodi_model%param_i = i
-               base_zodi_model%up_down_j = j
+      ! if (.false.) then
+      !    allocate(param_vec(base_zodi_model%N_PARAMETERS))
+      !    do i = 1, base_zodi_model%N_PARAMETERS
+      !       if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: ", i
+      !       do j = 1, 3
+      !          base_zodi_model = sampled_zodi_model
+      !          base_zodi_model%param_i = i
+      !          base_zodi_model%up_down_j = j
                
-               param_vec = base_zodi_model%model_to_param_vec()
-               if (j == 1) then
-                  param_vec(i) = param_vec(i) - 0.1*param_vec(i)
-               else if (j == 3) then
-                  param_vec(i) = param_vec(i) + 0.1*param_vec(i)
-               end if
-               call base_zodi_model%param_vec_to_model(param_vec)
-               call process_TOD(cpar, cpar%mychain, iter, handle)
-            end do
-         end do
-      end if 
+      !          param_vec = base_zodi_model%model_to_param_vec()
+      !          if (j == 1) then
+      !             param_vec(i) = param_vec(i) - 0.1*param_vec(i)
+      !          else if (j == 3) then
+      !             param_vec(i) = param_vec(i) + 0.1*param_vec(i)
+      !          end if
+      !          call base_zodi_model%param_vec_to_model(param_vec)
+      !          call process_TOD(cpar, cpar%mychain, iter, handle)
+      !       end do
+      !    end do
+      ! end if 
       
    !   if (iter == 1) then ! For faster component separation since we dont sample the cios
 
@@ -323,7 +323,7 @@ program commander
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
         call sample_zodi_model(cpar, handle)
-        
+        print *, "got here"
         ! Update zodi model
         base_zodi_model = sampled_zodi_model
         call timer%stop(TOT_ZODI_SAMP)
