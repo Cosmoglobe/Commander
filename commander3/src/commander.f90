@@ -180,8 +180,6 @@ program commander
      end do
   end if
 
-  !stop
-  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
@@ -286,9 +284,8 @@ program commander
       ! Create zodi atlas
       if (.false.) then
          allocate(param_vec(base_zodi_model%N_PARAMETERS))
-         if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: "
          do i = 1, base_zodi_model%N_PARAMETERS
-            if (cpar%myid == cpar%root) print *, i
+            if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: ", i
             do j = 1, 3
                base_zodi_model = sampled_zodi_model
                base_zodi_model%param_i = i
@@ -322,7 +319,7 @@ program commander
      end if
 
      ! Sample zodiacal emission parameters
-     if (iter > 1 .and. cpar%sample_zodi) then
+     if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
         call sample_zodi_model(cpar, handle)
@@ -385,7 +382,7 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-     if (cpar%sample_zodi) call output_zodi_model_to_hdf(cpar, iter, sampled_zodi_model)
+     if (cpar%sample_zodi .and. cpar%enable_TOD_analysis) call output_zodi_model_to_hdf(cpar, iter, sampled_zodi_model)
 
      call wall_time(t2)
      if (ok) then

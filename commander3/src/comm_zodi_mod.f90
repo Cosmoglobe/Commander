@@ -82,7 +82,8 @@ module comm_zodi_mod
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
         real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
-        integer(i4b) :: N_PARAMETERS = 64
+        integer(i4b) :: N_PARAMETERS = 62
+        integer(i4b) :: param_i, up_down_j
         class(ZodiComponentContainer), allocatable :: comps(:)
         character(len=10), allocatable :: comp_labels(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
@@ -247,7 +248,6 @@ contains
 
             R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
             Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
-
             term1 = -((R - self%R_0) ** 2) / self.sigma_r**2
             term2 = abs(Z_midplane/self.sigma_z)
 
@@ -466,30 +466,28 @@ contains
                 a%x_0 = x(44)
                 a%y_0 = x(45)
                 a%z_0 = x(46)
-                a%r_0 = x(47)
-                a%R_0 = x(48)
-                a%sigma_r = x(49)
-                a%sigma_z = x(50)
+                a%R_0 = x(47)
+                a%sigma_r = x(48)
+                a%sigma_z = x(49)
             class is (ZodiFeature)
-                a%n_0 = x(51)
-                a%incl = x(52)
-                a%Omega = x(53)
-                a%x_0 = x(54)
-                a%y_0 = x(55)
-                a%z_0 = x(56)
-                a%r_0 = x(57)
-                a%R_0 = x(58)
-                a%sigma_r = x(59)
-                a%sigma_z = x(60)
-                a%theta_0 = x(61)
-                a%sigma_theta = x(62)
-
+                a%n_0 = x(50)
+                a%incl = x(51)
+                a%Omega = x(52)
+                a%x_0 = x(53)
+                a%y_0 = x(54)
+                a%z_0 = x(55)
+                a%R_0 = x(56)
+                a%sigma_r = x(57)
+                a%sigma_z = x(58)
+                a%theta_0 = x(59)
+                a%sigma_theta = x(60)
             class default 
                 stop 'Invalid zodi class'
             end select
+            call self%comps(i)%c%initialize()
         end do
-        self%T_0 = x(63)
-        self%delta = x(64)
+        self%T_0 = x(61)
+        self%delta = x(62)
     end subroutine
 
     function model_to_param_vec(self) result(x) 
@@ -497,7 +495,6 @@ contains
         class(zodi_model), intent(inout) :: self
         real(dp) :: x(self%N_PARAMETERS)
         integer(i4b) :: i, j
-
         do i = 1, self%n_comps
             select type (a => self%comps(i)%c)
             class is (ZodiCloud)
@@ -531,7 +528,7 @@ contains
                 x(j + 7) = a%delta_zeta
                 x(j + 8) = a%delta_r
                 x(j + 9) = a%v
-                x(j + 0) = a%p
+                x(j + 10) = a%p
             class is (ZodiRing)
                 x(41) = a%n_0
                 x(42) = a%incl
@@ -539,27 +536,25 @@ contains
                 x(44) = a%x_0
                 x(45) = a%y_0
                 x(46) = a%z_0
-                x(47) = a%r_0
-                x(48) = a%R_0
-                x(49) = a%sigma_r
-                x(50) = a%sigma_z
+                x(47) = a%R_0
+                x(48) = a%sigma_r
+                x(49) = a%sigma_z
             class is (ZodiFeature)
-                x(51) = a%n_0
-                x(52) = a%incl
-                x(53) = a%Omega
-                x(54) = a%x_0
-                x(55) = a%y_0
-                x(56) = a%z_0
-                x(57) = a%r_0
-                x(58) = a%R_0
-                x(59) = a%sigma_r
-                x(60) = a%sigma_z
-                x(61) = a%theta_0
-                x(62) = a%sigma_theta
+                x(50) = a%n_0
+                x(51) = a%incl
+                x(52) = a%Omega
+                x(53) = a%x_0
+                x(54) = a%y_0
+                x(55) = a%z_0
+                x(56) = a%R_0
+                x(57) = a%sigma_r
+                x(58) = a%sigma_z
+                x(59) = a%theta_0
+                x(60) = a%sigma_theta
             end select
         end do
-        x(63) = self%T_0 
-        x(64) = self%delta
+        x(61) = self%T_0 
+        x(62) = self%delta
     end function model_to_param_vec
 
 end module comm_zodi_mod

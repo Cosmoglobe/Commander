@@ -149,6 +149,7 @@ module comm_tod_mod
      integer(i4b) :: halfring_split                               ! Type of halfring split 0=None, 1=HR1, 2=HR2
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light (defined in the parameter file)
      logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
+     logical(lgt) :: output_zodi_comps                            ! Output zodi components
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
@@ -343,6 +344,7 @@ contains
     self%nscan_tot     = cpar%ds_tod_tot_numscan(id_abs)
     self%output_4D_map = cpar%output_4D_map_nth_iter
     self%output_aux_maps = cpar%output_aux_maps
+    self%output_zodi_comps = cpar%zs_output_comps
     self%central_freq  = cpar%ds_nu_c(id_abs)
     self%halfring_split= cpar%ds_tod_halfring(id_abs)
     self%nside_param   = cpar%ds_nside(id_abs)

@@ -225,12 +225,14 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, output_zodi_comps, use_k98_samp_groups
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
+      character(len=2)    :: zodi_param_text
+      character(len=1)    :: up_down_text
       character(len=6)    :: samptext, scantext
-      character(len=512)  :: prefix, postfix, prefix4D
+      character(len=512)  :: prefix, postfix, prefix4D, prefix_atlas, postfix_atlas
       character(len=512), allocatable, dimension(:) :: slist
       real(sp), allocatable, dimension(:)       :: procmask, procmask2, procmask_zodi
       real(sp), allocatable, dimension(:,:,:)   :: d_calib
@@ -249,7 +251,7 @@ contains
       
       ! Toggle optional operations
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
-      output_zodi_comps     = .false. .and. self%subtract_zodi ! Output zodi components
+      output_zodi_comps     = self%output_zodi_comps .and. self%subtract_zodi ! Output zodi components
       use_k98_samp_groups   = .false.                          ! fits one overall albedo and episolon for the dust bands, and one for ring + feature
       sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
@@ -264,13 +266,17 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 8
-      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + (2 * base_zodi_model%n_comps)
+      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + base_zodi_model%n_comps
 
+      call int2string(base_zodi_model%param_i, zodi_param_text)
+      call int2string(base_zodi_model%up_down_j, up_down_text)
       call int2string(chain, ctext)
       call int2string(iter, samptext)
       call int2string(self%myid, myid_text)
       prefix = trim(chaindir) // '/tod_' // trim(self%freq) // '_'
       postfix = '_c' // ctext // '_k' // samptext // '.fits'
+      prefix_atlas = trim(chaindir) // '/atlas_' // trim(self%freq) // '_' // trim(zodi_param_text) // '_' // trim(up_down_text) // '_'
+      postfix_atlas = '.fits'
 
       ! Distribute maps
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
@@ -426,11 +432,24 @@ contains
 
 
       ! Output maps to disk
-      call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-      call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
-      if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
-      if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-      if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+      if (.false.) then
+         ! call map_out%writeFITS(trim(prefix_atlas)//'map'//trim(postfix_atlas))
+         ! call rms_out%writeFITS(trim(prefix_atlas)//'rms'//trim(postfix_atlas))
+         ! if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix_atlas)//'res'//trim(postfix_atlas))
+         ! if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix_atlas)//'ncorr'//trim(postfix_atlas))
+         if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix_atlas)//'zodi'//trim(postfix_atlas))
+         if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+            do i = 1, base_zodi_model%n_comps
+               call binmap%outmaps(8+i)%p%writeFITS(trim(prefix_atlas)//'zodi_'//trim(base_zodi_model%comp_labels(i))//trim(postfix_atlas))
+            end do
+         endif
+      else
+         call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
+         call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+         if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
+         if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
+         if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+      end if
       ! if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
       !    do i = 1, zodi%n_comps
       !       call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_comp_names(i))//trim(postfix))
