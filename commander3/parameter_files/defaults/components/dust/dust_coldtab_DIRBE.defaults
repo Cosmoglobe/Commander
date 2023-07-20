@@ -1,4 +1,4 @@
-# Thermal dust component
+# Cold thermal dust component
 COMP_LABEL&&                  = dust
 COMP_TYPE&&                   = MBBtab
 COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
@@ -15,10 +15,10 @@ COMP_OUTPUT_FWHM&&            = 10         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0
 COMP_NU_MAX&&                 = 1d30
-COMP_NU_REF_T&&               = 545
-COMP_NU_REF_P&&               = 545
+COMP_NU_REF_T&&               = 857
+COMP_NU_REF_P&&               = 857
 COMP_MASK&&                   = fullsky
-COMP_INDMASK&&                = mask_DIRBE_chisq_n2048_v1.fits  fullsky
+COMP_INDMASK&&                = mask_DIRBE_chisq_n2048_v1.fits fullsky
 
 COMP_CL_TYPE&&                = gauss  # {none, single_l, binned,power_law, exp}
 COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
@@ -34,7 +34,7 @@ COMP_CL_DEFAULT_BETA_B&&      =  10.d0
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 6000
-COMP_AMP_INPUT_MAP&&          = init_hotPAH_n2048_v1.fits
+COMP_AMP_INPUT_MAP&&          = init_colddust_n2048_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
 COMP_IND_LMAX&&               = -1
@@ -42,10 +42,10 @@ COMP_IND_LMAX&&               = -1
 COMP_BETA_NU_MIN&&            = 30          # Lowest frequency for index estimation in GHz
 COMP_BETA_NU_MAX&&            = 9000        # Highest frequency for index estimation in GHz
 COMP_BETA_INPUT_MAP&&         = none init_dust_beta_BP8.1_v1.fits
-COMP_BETA_DEFAULT&&           =   2.0 1.68  1.55
+COMP_BETA_DEFAULT&&           =   1.56 
 COMP_BETA_PRIOR_UNI_LOW&&     =   0.4
 COMP_BETA_PRIOR_UNI_HIGH&&    =   3.0
-COMP_BETA_PRIOR_GAUSS_MEAN&&  =   2.0
+COMP_BETA_PRIOR_GAUSS_MEAN&&  =   1.4
 COMP_BETA_PRIOR_GAUSS_RMS&&   =   0.1    # 0.1
 COMP_BETA_SMOOTHING_SCALE&&   = 1
 COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
@@ -53,7 +53,7 @@ COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 
 COMP_T_DEFAULT&&              = 30.
 COMP_T_PRIOR_UNI_LOW&&        = 10.
 COMP_T_PRIOR_UNI_HIGH&&       = 35.
-COMP_T_PRIOR_GAUSS_MEAN&&     = 26.
+COMP_T_PRIOR_GAUSS_MEAN&&     = 14
 COMP_T_PRIOR_GAUSS_RMS&&      =  1.
 COMP_T_SMOOTHING_SCALE&&      = 1
 COMP_T_POLTYPE&&              = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
