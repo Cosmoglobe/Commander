@@ -2,6 +2,7 @@ module comm_zodi_mod
     use comm_utils
     use comm_param_mod
     use spline_1D_mod
+    use comm_hdf_mod
     implicit none
 
     private
@@ -89,7 +90,7 @@ module comm_zodi_mod
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
-        procedure :: initialize_model, build_splines, param_vec_to_model, model_to_param_vec
+        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec
     end type zodi_model
 
     ! Global zodi parameter object
@@ -107,8 +108,13 @@ contains
         type(comm_params), intent(in) :: cpar
 
         call initialize_hyper_parameters(cpar)
-        call base_zodi_model%initialize_model(cpar)
-        if (cpar%sample_zodi) call sampled_zodi_model%initialize_model(cpar)
+        if (cpar%zs_init_chain == 'none') then
+            call base_zodi_model%init_from_defaults(cpar)
+            if (cpar%sample_zodi) call sampled_zodi_model%init_from_defaults(cpar)
+        else
+            call base_zodi_model%init_from_chain(cpar)
+            if (cpar%sample_zodi) call sampled_zodi_model%init_from_chain(cpar)
+        end if
     end subroutine initialize_zodi_mod
 
     subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)
@@ -306,7 +312,7 @@ contains
         gauss_degree = cpar%zs_gauss_quad_order
     end subroutine initialize_hyper_parameters
 
-    subroutine initialize_model(self, cpar)
+    subroutine init_from_defaults(self, cpar)
         ! Initialize the kelsal et al 1998 model.
         !
         ! Parameters
@@ -404,7 +410,50 @@ contains
         do i = 1, self%n_comps
             call self%comps(i)%c%initialize()
         end do        
-    end subroutine initialize_model
+    end subroutine init_from_defaults
+
+    subroutine init_from_chain(self, cpar)
+        ! Initialize the kelsal et al 1998 model.
+        !
+        ! Parameters
+        ! ----------
+        ! self: zodi_params_k98
+        !    Zodi model object.
+        ! cpar: comm_params
+        !    Parameter file variables.
+
+        class(zodi_model), target, intent(inout) :: self
+        type(comm_params), intent(in) :: cpar
+        logical(lgt)        :: exist
+        integer(i4b) :: i, l,  unit, ierr, initsamp
+            character(len=6)          :: itext, itext2
+
+        type(hdf_file) :: file
+        real(dp) :: param_vec(self%N_PARAMETERS)
+        character(len=512) :: chainfile
+
+
+        unit = getlun()
+        
+        ! validate that the chain file exists, and get path to file and which sample to use
+        call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+        inquire(file=trim(chainfile), exist=exist)
+        if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+        l = len(trim(chainfile))
+        if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+        
+        call open_hdf_file(trim(chainfile), file, "r")
+
+        call int2string(initsamp, itext)
+
+        call read_hdf(file, itext//"/zodi/params" , param_vec)
+        call close_hdf_file(file)
+
+        call self%init_from_defaults(cpar)
+        call self%param_vec_to_model(param_vec)
+
+    end subroutine init_from_chain
+
 
     subroutine build_splines(self)
         ! Build splines for the phase function, and solar irradiance

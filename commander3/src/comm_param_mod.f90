@@ -258,6 +258,7 @@ module comm_param_mod
      real(dp)                               :: zs_t_0, zs_delta
      real(dp), allocatable, dimension(:, :) :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)    :: zs_nu_ref, zs_solar_irradiance ! (n_band)
+     character(len=512) :: zs_init_chain
 
   end type comm_params
 
@@ -2745,6 +2746,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
           call get_parameter_hashtable(htbl, 'ZODI_SAMP_NPROP', par_int=cpar%zs_nprop)
      end if
 
+
+     call get_parameter_from_hash(htbl, 'ZODI_INIT_CHAIN', par_string=cpar%zs_init_chain)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMPS', par_lgt=cpar%zs_output_comps)
 
      call get_parameter_hashtable(htbl, 'ZODI_USE_CLOUD', par_lgt=cpar%zs_use_cloud)

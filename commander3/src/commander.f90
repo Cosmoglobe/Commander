@@ -322,7 +322,7 @@ program commander
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
-        call sample_zodi_model(cpar, handle)
+        call sample_zodi_model_one_by_one_param(cpar, handle, iter)
         ! Update zodi model
         base_zodi_model = sampled_zodi_model
         call timer%stop(TOT_ZODI_SAMP)
