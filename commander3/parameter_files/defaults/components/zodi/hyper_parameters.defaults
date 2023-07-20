@@ -15,3 +15,5 @@ ZODI_USE_RING                    = .true.
 ZODI_USE_FEATURE                 = .true.
 
 ZODI_OUTPUT_COMPS                = .false.
+
+ZODI_INIT_CHAIN                  = .false.
