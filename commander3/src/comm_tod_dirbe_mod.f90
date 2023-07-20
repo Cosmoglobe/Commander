@@ -106,19 +106,18 @@ contains
       constructor%freq            = cpar%ds_label(id_abs)
       constructor%n_xi            = 3
       constructor%noise_psd_model = 'oof'
+      allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
       allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
-      
-      constructor%xi_n_P_rms      = [-1.0, 0.1, -0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
-      if (.true.) then
-         ! constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
-         constructor%xi_n_P_uni(1,:) = [0., 0.]  ! sigma0 dummy values
-         constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
-      else
-         write(*,*) 'Invalid DIRBE frequency label = ', trim(constructor%freq)
-         stop
-      end if
+
+      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] 
+      ! [sigma0, fknee, alpha]; sigma\0 is not used
+      do i = 1, constructor%n_xi 
+         constructor%xi_n_nu_fit(i,:) = [0.d0, 0.3d0] 
+      end do
+      constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
+      constructor%xi_n_P_uni(2,:) = [0.00001d0, 0.3d0]  ! fknee
+      constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
 
       ! Initialize common parameters
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
@@ -347,11 +346,12 @@ contains
          if (sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, sd%mask_zodi)
 
          ! Sample correlated noise
-         !  call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-         sd%n_corr = 0.d0
+         !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+         call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
+         !sd%n_corr = 0.d0
 
          ! Compute noise spectrum parameters
-         ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
          ! Compute chisquare
          do j = 1, sd%ndet
@@ -379,7 +379,7 @@ contains
             call write_hdf(tod_file, '/todz', d_calib(1, :, :))
             call write_hdf(tod_file, '/res', d_calib(2, :, :))
             call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
-            call write_hdf(tod_file, '/mask', sd%mask2)
+            call write_hdf(tod_file, '/mask', sd%mask)
             call write_hdf(tod_file, '/n0', self%scans(i)%d(1)%N_psd%sigma0)
             call close_hdf_file(tod_file)
          end if

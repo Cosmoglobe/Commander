@@ -91,7 +91,7 @@ contains
           else
              lowres=.false.
              call data(i)%N%sqrtInvN(res) 
-             write(*,*) 'N*sqrtInv(N) = ', res%map(1,1)
+             !write(*,*) 'N*sqrtInv(N) = ', res%map(1,1)
              res%map = res%map**2 !(sqrtInvN*res)**2 = res*invN*res
           end if
 

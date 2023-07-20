@@ -286,6 +286,7 @@ contains
         allocate(integrals(n_interp_points))
         allocate(b_nu(bandpass%p%n))
         do i = 1, n_interp_points    
+           !write(*,*) 'alloc2', allocated(bandpass%p%nu)
             call get_blackbody_emission(bandpass%p%nu, temperature_grid(i), b_nu)
             integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau * b_nu)
         end do

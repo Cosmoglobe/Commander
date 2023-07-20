@@ -22,6 +22,7 @@ module comm_gain_mod
   use comm_param_mod
   use comm_data_mod
   use comm_comp_mod
+  use comm_chisq_mod
   implicit none
 
 contains
@@ -34,11 +35,13 @@ contains
     logical(lgt),     intent(in)    :: resamp_hard_prior
     type(planck_rng), intent(inout) :: handle
 
-    integer(i4b)  :: i, l, lmin, lmax, ierr, root, ncomp, dl_low, dl_high
+    integer(i4b)  :: i, l, lmin, lmax, ierr, root, ncomp, dl_low, dl_high, ntok
     real(dp)      :: my_sigma, my_mu, mu, sigma, gain_new, chisq, mychisq
-    real(dp)      :: MAX_DELTA_G = 0.01d0
+    real(dp)      :: MAX_DELTA_G = 0.03d0
+    logical(lgt)  :: include_comp
     character(len=4) :: chain_text
     character(len=6) :: iter_text
+    character(len=512) :: tokens(10)
     real(dp), allocatable, dimension(:,:) :: m, cls1, cls2
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_sig => null(), map => null(), sig => null(), res => null()
@@ -67,18 +70,28 @@ contains
     res => comm_map(data(band)%info)
     c => compList
     do while (associated(c))
-       if (trim(c%label) /= trim(data(band)%gain_comp) .and. trim(data(band)%gain_comp) /= 'all') then
-          c => c%next()
-          cycle
+       call get_tokens(trim(adjustl(data(band)%gain_comp)), ',', tokens, num=ntok)
+       include_comp = .false.
+       do i = 1, ntok
+          if (trim(c%label) == trim(tokens(i)) .or. trim(tokens(i)) == 'all') then
+             include_comp = .true.
+             exit
+          end if
+       end do
+
+       if (include_comp) then
+          ! Add current component to calibration signal
+          allocate(m(0:data(band)%info%np-1,data(band)%info%nmaps))
+          m       = c%getBand(band)
+          sig%map = sig%map + m
+          deallocate(m)
        end if
-       
-       ! Add current component to calibration signal
-       allocate(m(0:data(band)%info%np-1,data(band)%info%nmaps))
-       m       = c%getBand(band)
-       sig%map = sig%map + m
-       deallocate(m)
        c => c%next()
     end do
+
+    ! Compute residual
+    res                => compute_residual(band)
+    data(band)%res%map =  res%map
 
     ! Add reference signal to residual
     res%map = data(band)%res%map + sig%map
@@ -147,6 +160,7 @@ contains
           end if
           ! Only allow relatively small changes between steps, and not outside the range from 0.01 to 0.01
           data(band)%gain = min(max(gain_new, data(band)%gain-MAX_DELTA_G), data(band)%gain+MAX_DELTA_G)
+          write(*,*) ' Posterior mean gain = ', mu, sigma, data(band)%gain
        end if
 
        ! Distribute new gains
@@ -160,8 +174,9 @@ contains
 
     ! Output residual signal and residual for debugging purposes
     if (.true.) then
-       call sig%writeFITS(trim(outdir)//'gain_sig_'//trim(data(band)%label)//'.fits')
-       call res%writeFITS(trim(outdir)//'gain_res_'//trim(data(band)%label)//'.fits')
+       call sig%writeFITS(trim(outdir)//'/gain_sig_'//trim(data(band)%label)//'.fits')
+       call res%writeFITS(trim(outdir)//'/gain_out'//trim(data(band)%label)//'.fits')
+       call data(band)%res%writeFITS(trim(outdir)//'/gain_inp_'//trim(data(band)%label)//'.fits')
     end if
 
     call sig%dealloc(); deallocate(sig)

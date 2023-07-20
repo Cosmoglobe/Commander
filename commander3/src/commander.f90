@@ -531,7 +531,10 @@ contains
 
                 !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
+                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
+                   !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
+                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
+                end if
              end do
              call update_mixing_matrices(i, update_F_int=.true.)
 

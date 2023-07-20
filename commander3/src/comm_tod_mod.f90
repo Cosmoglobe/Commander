@@ -2769,7 +2769,7 @@ contains
       class(comm_tod),   intent(inout) :: self
       type(comm_params),       intent(in) :: cpar
 
-      integer(i4b) :: i, ierr
+      integer(i4b) :: i, j, ierr
       real(dp), allocatable :: obs_time(:), obs_pos(:, :), r
       allocate(obs_time(self%nscan_tot))
       allocate(obs_pos(3, self%nscan_tot))
