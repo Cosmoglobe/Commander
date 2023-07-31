@@ -322,7 +322,7 @@ program commander
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
         call timer%start(TOT_ZODI_SAMP)
         if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
-        call sample_zodi_model_one_by_one_param(cpar, handle, iter)
+        call sample_zodi_model(cpar, handle)
         ! Update zodi model
         base_zodi_model = sampled_zodi_model
         call timer%stop(TOT_ZODI_SAMP)
@@ -381,7 +381,7 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-     if (cpar%sample_zodi .and. cpar%enable_TOD_analysis) call output_zodi_model_to_hdf(cpar, iter, sampled_zodi_model)
+     if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) call base_zodi_model%output_to_hd5(cpar, iter)
 
      call wall_time(t2)
      if (ok) then

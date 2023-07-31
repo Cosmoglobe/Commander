@@ -11,6 +11,8 @@ Notes:
 
 Run as:
     OMP_NUM_THREADS=1 python write_tods_final.py 
+
+MAKE SURE TO CHANGE VERSION NUMBER AND OUTPUT PATH BEFORE RUNNING TO NOT ACCIDENTALLY OVERWRITE EXISTING FILES (OR SET overwrite=False).
 """
 
 from __future__ import annotations
@@ -98,9 +100,12 @@ class YdayData:
     tods: dict[str, np.ndarray]
     pixels: dict[str, np.ndarray]
     flags: dict[str, np.ndarray]
-    time: float
-    sat_pos: np.ndarray
-    earth_pos: np.ndarray
+    time_start: float
+    time_stop: float
+    sat_pos_start: np.ndarray
+    sat_pos_stop: np.ndarray
+    earth_pos_start: np.ndarray
+    earth_pos_stop: np.ndarray
 
 
 @dataclass
@@ -108,9 +113,12 @@ class CIO:
     tods: list[np.ndarray]
     pixels: list[np.ndarray]
     flags: list[np.ndarray]
-    time: list[float]
-    sat_pos: list[np.ndarray]
-    earth_pos: list[np.ndarray]
+    time_start: list[float]
+    time_stop: list[float]
+    sat_pos_start: list[np.ndarray]
+    sat_pos_stop: list[np.ndarray]
+    earth_pos_start: list[np.ndarray]
+    earth_pos_stop: list[np.ndarray]
 
 
 def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
@@ -119,9 +127,12 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
             tods=[yday.tods[f"{band:02}"] for yday in yday_data],
             pixels=[yday.pixels[f"{band:02}"] for yday in yday_data],
             flags=[yday.flags[f"{band:02}"] for yday in yday_data],
-            time=[yday.time for yday in yday_data],
-            sat_pos=[yday.sat_pos for yday in yday_data],
-            earth_pos=[yday.earth_pos for yday in yday_data],
+            time_start=[yday.time_start for yday in yday_data],
+            time_stop=[yday.time_stop for yday in yday_data],
+            sat_pos_start=[yday.sat_pos_start for yday in yday_data],
+            sat_pos_stop=[yday.sat_pos_stop for yday in yday_data],
+            earth_pos_start=[yday.earth_pos_start for yday in yday_data],
+            earth_pos_stop=[yday.earth_pos_stop for yday in yday_data],
         )
         for band in dirbe_utils.BANDS
     }
@@ -169,7 +180,8 @@ def get_yday_cio_data(
 
     # Convert time to MJD
     time = (START_TIME + TimeDelta(time, format="sec", scale="tai")).mjd
-    sat_pos, earth_pos = dirbe_utils.get_sat_and_earth_pos(yday, time[0])
+    sat_pos_start, earth_pos_start= dirbe_utils.get_sat_and_earth_pos(yday, time[0])
+    sat_pos_stop, earth_pos_stop = dirbe_utils.get_sat_and_earth_pos(yday, time[-1])
 
     # Gap filling
     # Get indexes where time difference is larger than 2 sampling rates and split time array
@@ -315,7 +327,17 @@ def get_yday_cio_data(
             np.split(flag, split_inds), padding=flag_padding
         )
 
-    return YdayData(tods, pixels, flags, time[0], sat_pos, earth_pos)
+    return YdayData(
+        tods, 
+        pixels, 
+        flags, 
+        time_start=time[0], 
+        time_stop=time[-1], 
+        sat_pos_start=sat_pos_start, 
+        sat_pos_stop=sat_pos_stop, 
+        earth_pos_start=earth_pos_start,
+        earth_pos_stop=earth_pos_stop,
+    )
 
 
 def padd_array_gaps(splits: list[np.ndarray], padding: list[np.ndarray]) -> np.ndarray:
@@ -376,14 +398,19 @@ def write_band(
         pid_common_group = pid_label + "/common"
         pid_det_group = f"{pid_label}/{det_str}"
 
-        comm_tod.add_field(pid_common_group + "/time", [cio.time[pid], 0, 0])
+        comm_tod.add_field(pid_common_group + "/time", [cio.time_start[pid], 0, 0])
         comm_tod.add_attribute(pid_common_group + "/time", "index", "MJD, OBT, SCET")
+
+        comm_tod.add_field(pid_common_group + "/time_end", [cio.time_stop[pid], 0, 0])
+        comm_tod.add_attribute(pid_common_group + "/time_end", "index", "MJD, OBT, SCET")
 
         comm_tod.add_field(pid_common_group + "/ntod", [len(cio.tods[pid])])
 
-        comm_tod.add_field(pid_common_group + "/satpos", cio.sat_pos[pid])
+        comm_tod.add_field(pid_common_group + "/satpos", cio.sat_pos_start[pid])
+        comm_tod.add_field(pid_common_group + "/satpos_end", cio.sat_pos_stop[pid])
 
-        comm_tod.add_field(pid_common_group + "/earthpos", cio.earth_pos[pid])
+        comm_tod.add_field(pid_common_group + "/earthpos", cio.earth_pos_start[pid])
+        comm_tod.add_field(pid_common_group + "/earthpos_end", cio.earth_pos_stop[pid])
 
         comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
         comm_tod.add_attribute(
@@ -432,7 +459,7 @@ def write_to_commander_tods(
     multiprocessor_manager_dicts = {}
     for band in dirbe_utils.BANDS:
         # name = f"DIRBE_{band:02}_nside{nside_out:03}_zodi_only"
-        name = f"DIRBE_{band:02}_nside{nside_out:03}_{version:02}"
+        name = f"DIRBE_{band:02}_nside{nside_out:03}_V{version:02}"
         multiprocessor_manager_dicts[name] = manager.dict()
 
     filenames = list(multiprocessor_manager_dicts.keys())
@@ -442,7 +469,7 @@ def write_to_commander_tods(
 
     n_pids = 0
     for cio in cios.values():
-        n_pids = len(cio.time)
+        n_pids = len(cio.time_start)
         break
     if n_pids == 0:
         raise ValueError("No CIOs found")
@@ -478,14 +505,13 @@ def write_to_commander_tods(
 
 
 def main() -> None:
-
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
     nside_out = 256
-    
+
     start_time = time.perf_counter()
     color_corr = True
-    version = 17
+    version = 18
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"{version=}, {nside_out=}")
@@ -500,9 +526,6 @@ def main() -> None:
         f"time spent reading in and preprocessing cios: {(cio_time/60):2.2f} minutes\n"
     )
 
-
-    exit()
-
     print("writing cios to h5 files...")
     write_to_commander_tods(
         cios,
@@ -516,7 +539,7 @@ def main() -> None:
     print(f"time spent writing to h5: {(h5_time/60):2.2f} minutes\n")
     print(f"total time: {((h5_time + cio_time)/60):2.2f} minutes")
     print(f"{'':=^50}")
-    # exit()
+    exit()
     # print(cio.time.shape)
     # print(cio.tod["04"].shape)
     # import matplotlib.pyplot as plt

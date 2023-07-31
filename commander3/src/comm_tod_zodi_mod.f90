@@ -93,27 +93,20 @@ contains
         n_tod = size(pix, dim=1)
 
         dt_tod = (1./tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-        obs_pos = tod%scans(scan)%satpos
+        obs_pos = tod%scans(scan)%x0_obs
+        earth_pos = tod%scans(scan)%x0_earth
         R_obs = norm2(obs_pos)
-        obs_time = tod%scans(scan)%t0(1)
-        do i = 1, 3
-            earth_pos(i) = splint_simple(earth_pos_spl_obj(i), tod%scans(scan)%t0(1))
-        end do        
-
+        obs_time = tod%scans(scan)%t0(1)   
         earth_lon = atan(earth_pos(2), earth_pos(1))
 
         do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
             ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
             obs_time = obs_time + dt_tod
-            if (((obs_time - tod%zodi_cache_time) >= delta_t_reset) &
-                .and. &
-                (obs_time > tod%zodi_min_obs_time .and. obs_time < tod%zodi_max_obs_time) &
-            ) then 
-
+            if ((obs_time - tod%zodi_cache_time) >= delta_t_reset) then 
                 do j = 1, 3 
-                    earth_pos(j) = splint_simple(earth_pos_spl_obj(j), obs_time)
-                    obs_pos(j) = splint_simple(tod%zodi_obs_pos_spl_obj(j), obs_time)
+                    earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
+                    obs_pos(j) = splint_simple(tod%x_obs_spline(j), obs_time)
                 end do            
                 R_obs = norm2(obs_pos)
                 earth_lon = atan(earth_pos(2), earth_pos(1))

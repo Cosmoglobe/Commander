@@ -4,15 +4,14 @@ module comm_zodi_samp_mod
     use comm_data_mod
     use comm_tod_zodi_mod
     use comm_zodi_mod
-    use comm_output_mod
-    ! use powell_mod
+    use powell_mod
     implicit none
 
     private
-    public sample_zodi_model, output_zodi_model_to_hdf, initialize_zodi_samp_mod, sample_zodi_model_one_by_one_param
+    public sample_zodi_model, initialize_zodi_samp_mod, sample_zodi_model_one_by_one_param
 
     ! globals
-    real(dp), allocatable :: chisq_iter(:), param_vec_iter(:, :), chisq_previous, step_size, step_sizes(:)
+    real(dp), allocatable :: chisq_previous, step_size, step_sizes(:), priors(:, :)
 
 contains
     subroutine initialize_zodi_samp_mod(cpar)
@@ -24,12 +23,97 @@ contains
         !    Parameter file variables.
 
         type(comm_params), intent(in) :: cpar
+        integer(i4b) :: i
+
         chisq_previous = 1d20
         step_size = 0.01
-        allocate(chisq_iter(cpar%zs_nprop))
-        allocate(param_vec_iter(cpar%zs_nprop, sampled_zodi_model%N_PARAMETERS))
+        allocate(priors(sampled_zodi_model%N_PARAMETERS, 2))
         allocate(step_sizes(sampled_zodi_model%N_PARAMETERS))
         step_sizes = 0.1
+
+        ! Priors for zodi parameters
+        ! Cloud
+        priors(1, :) = [1.13d-8, 1.13d-6] !n_0
+        priors(2, :) = [0., 4.] !incl
+        priors(3, :) = [67., 87.] !omega
+        priors(4, :) = [-0.05, 0.05] !x_0
+        priors(5, :) = [-0.05, 0.05] !y_0
+        priors(6, :) = [-0.05, 0.05] !z_0
+        priors(7, :) = [1., 2.] !alpha
+        priors(8, :) = [3., 5.] !beta
+        priors(9, :) = [0.7, 1.2] !gamma
+        priors(10, :) = [0.0, 0.5] !mu
+
+        ! Band1
+        priors(11, :) = [5.59d-11, 5.59d-9] !n_0
+        priors(12, :) = [0., 2.] !incl
+        priors(13, :) = [0., 180.] !omega
+        priors(14, :) = [-0.1, 0.1] !x_0
+        priors(15, :) = [-0.1, 0.1] !y_0
+        priors(16, :) = [-0.1, 0.1] !z_0
+        priors(17, :) = [6.78, 10.78] !delta_zeta
+        priors(18, :) = [1., 3.] !delta_r
+        priors(19, :) = [0., 1.] !v
+        priors(20, :) = [2., 6.] !p
+
+        ! Band2
+        priors(21, :) = [1.99d-10, 1.99d-8] !n_0
+        priors(22, :) = [0., 10.] !incl
+        priors(23, :) = [10., 50.] !omega
+        priors(24, :) = [-0.1, 0.1] !x_0
+        priors(25, :) = [-0.1, 0.1] !y_0
+        priors(26, :) = [-0.1, 0.1] !z_0
+        priors(27, :) = [0., 5.] !delta_zeta
+        priors(28, :) = [0.6, 3.] !delta_r
+        priors(29, :) = [0., 3.] !v
+        priors(30, :) = [2., 6.] !p
+
+        ! Band3
+        priors(31, :) = [1.44d-11, 1.44d-9] !n_0
+        priors(32, :) = [0., 5.] !incl
+        priors(33, :) = [40., 120.] !omega
+        priors(34, :) = [-0.1, 0.1] !x_0
+        priors(35, :) = [-0.1, 0.1] !y_0
+        priors(36, :) = [-0.1, 0.1] !z_0
+        priors(37, :) = [10., 20.] !delta_zeta
+        priors(38, :) = [1., 4.] !delta_r
+        priors(39, :) = [0., 1.] !v
+        priors(40, :) = [2., 6.] !p
+
+        ! Ring
+        priors(41, :) = [1.83d-9, 1.83d-7] !n_0
+        priors(42, :) = [0., 2.] !incl
+        priors(43, :) = [0., 40.] !omega
+        priors(44, :) = [-0.1, 0.1] !x_0
+        priors(45, :) = [-0.1, 0.1] !y_0
+        priors(46, :) = [-0.1, 0.1] !z_0
+        priors(47, :) = [0.9, 1.1] !R_0
+        priors(48, :) = [0., 0.05] !sigma_r
+        priors(49, :) = [0., 0.1] !sigma_z
+
+        ! Feature
+        priors(50, :) = [1.9d-9, 1.9d-7] !n_0
+        priors(51, :) = [0., 2.] !incl
+        priors(52, :) = [0., 40.] !omega
+        priors(53, :) = [-0.1, 0.1] !x_0
+        priors(54, :) = [-0.1, 0.1] !y_0
+        priors(55, :) = [-0.1, 0.1] !z_0
+        priors(56, :) = [0.85, 1.15] !R_0
+        priors(57, :) = [0., 0.2] !sigma_r
+        priors(58, :) = [0., 0.2] !sigma_z
+        priors(59, :) = [-20., 5.] !theta_0
+        priors(60, :) = [0., 20.] !sigma_theta
+
+        ! Other
+        priors(61, :) = [250., 315.] !T_0
+        priors(62, :) = [0.2, 0.7] !delta
+
+        ! Print out priors for debugging
+        ! if (cpar%myid == cpar%root) then
+        !     do i = 1, sampled_zodi_model%N_PARAMETERS
+        !         print *, i, priors(i, :)
+        !     end do
+        ! end if
     end subroutine initialize_zodi_samp_mod
 
     subroutine accumulate_zodi_emissivities(tod, s_therm, s_scat, res, A_T_A, AY, group_comps)
@@ -307,18 +391,10 @@ contains
         current_model = sampled_zodi_model
         previous_model = sampled_zodi_model
         allocate(param_vec(current_model%N_PARAMETERS))
+        param_vec = current_model%model_to_param_vec()
 
-        ! param_vec = current_model%model_to_param_vec()
-        ! if (cpar%myid == cpar%root) then
-        !     print *, "before", param_vec
-        ! end if
-
-        ! call powell(param_vec, lnL_zodi, ierr)
-
-        ! if (cpar%myid == cpar%root) then
-        !     print *, "after", param_vec
-        ! end if
-
+        call powell(param_vec, lnL_zodi, ierr)
+        call current_model%param_vec_to_model(param_vec)
         do k = 0, nprop
             ! Reset chisq for current proposal
             chisq_tod = 0.
@@ -412,8 +488,6 @@ contains
                     current_model = previous_model
                 end if
                 accept_rate = n_accepted / k
-                chisq_iter(k) = chisq_current
-                param_vec_iter(k, :) = current_model%model_to_param_vec()
             end if
         end do  
         if (accept_rate < 10.) step_size = step_size / 2.
@@ -538,8 +612,6 @@ contains
                     current_model = previous_model
                 end if
                 accept_rate = n_accepted / k
-                chisq_iter(k) = chisq_current
-                param_vec_iter(k, :) = current_model%model_to_param_vec()
             end if
         end do  
         if (accept_rate < 10.) then
@@ -552,129 +624,93 @@ contains
     end subroutine sample_zodi_model_one_by_one_param
 
 
-    ! function lnL_zodi(p)
-    !     use healpix_types
-    !     implicit none
-    !     real(dp), dimension(:), intent(in), optional :: p
-    !     real(dp) :: lnL_zodi
-    !     real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
-    !     type(zodi_model) :: model
+    function lnL_zodi(p)
+        use healpix_types
+        implicit none
+        real(dp), dimension(:), intent(in), optional :: p
+        real(dp) :: lnL_zodi
+        real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
+        type(zodi_model) :: model
 
-    !     integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr
-    !     real(dp) :: chisq_tod, chisq, chisq_buff
-    !     real(dp), allocatable :: p_copy(:), param_vec(:)
+        integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr
+        real(dp) :: chisq_tod, chisq, chisq_buff
+        real(dp), allocatable :: p_copy(:), param_vec(:)
 
 
-    !     model = base_zodi_model
-    !     allocate(param_vec(model%N_PARAMETERS), p_copy(model%N_PARAMETERS))
-    !     param_vec = model%model_to_param_vec()
-    !     p_copy = p
-    !     p_copy(2:) = param_vec(2:)
-    !     ! print *, "before:", param_vec(1), "after:", p_copy(1)
-    !     call model%param_vec_to_model(p_copy)
-    !     print*, p_copy(1)
+        model = base_zodi_model
+        ! print *, "p(1):", p(1)
+        ! Check priors
+        allocate(param_vec(model%N_PARAMETERS), p_copy(model%N_PARAMETERS))
+        param_vec = model%model_to_param_vec()
+        p_copy = p
+        p_copy(2:) = param_vec(2:)
+        ! print *, "before:", param_vec(1), "after:", p_copy(1)
+        do i = 1, model%N_PARAMETERS
+            if (p(i) < priors(i, 1) .or. p(i) > priors(i, 2)) then
+                lnL_zodi = -0.5 * 1d30
+                print *, "got here"
+                return
+            end if
+        end do
+        call model%param_vec_to_model(p_copy)
+        ! print*, p_copy(1)
+        print *, "p(1):", p_copy(1)
 
-    !     chisq_tod = 0.
-    !     chisq= 0.
+        chisq_tod = 0.
+        chisq= 0.
 
-    !     do i = 1, numband
-    !         ! Skip none tod bands
-    !         if (data(i)%tod_type == "none") cycle
-    !         ! Skip tod bands where we dont want to sample zodi
-    !         if (.not. data(i)%tod%sample_zodi) cycle
+        do i = 1, numband
+            ! Skip none tod bands
+            if (data(i)%tod_type == "none") cycle
+            ! Skip tod bands where we dont want to sample zodi
+            if (.not. data(i)%tod%sample_zodi) cycle
 
-    !         ndet = data(i)%tod%ndet
-    !         nscan = data(i)%tod%nscan
+            ndet = data(i)%tod%ndet
+            nscan = data(i)%tod%nscan
             
-    !         ! Make sure that the zodi cache is cleared before each new band
-    !         call data(i)%tod%clear_zodi_cache()
+            ! Make sure that the zodi cache is cleared before each new band
+            call data(i)%tod%clear_zodi_cache()
 
-    !         ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-    !         do scan = 1, nscan
-    !             ! Skip scan if no accepted data
-    !             if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
-    !             do j = 1, ndet
-    !                 ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
-    !                 allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
-    !                 call get_zodi_emission(&
-    !                     & tod=data(i)%tod, &
-    !                     & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
-    !                     & scan=scan, &
-    !                     & det=j, &
-    !                     & s_zodi_scat=s_scat, &
-    !                     & s_zodi_therm=s_therm, &
-    !                     & model=model &
-    !                 &)
-    !                 call get_s_zodi(&
-    !                     & emissivity=data(i)%tod%zodi_emissivity, &
-    !                     & albedo=data(i)%tod%zodi_albedo, &
-    !                     & s_therm=s_therm, &
-    !                     & s_scat=s_scat, &
-    !                     & s_zodi=s_zodi &
-    !                 &)
+            ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+            do scan = 1, nscan
+                ! Skip scan if no accepted data
+                if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
+                do j = 1, ndet
+                    ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
+                    allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
+                    call get_zodi_emission(&
+                        & tod=data(i)%tod, &
+                        & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
+                        & scan=scan, &
+                        & det=j, &
+                        & s_zodi_scat=s_scat, &
+                        & s_zodi_therm=s_therm, &
+                        & model=model &
+                    &)
+                    call get_s_zodi(&
+                        & emissivity=data(i)%tod%zodi_emissivity, &
+                        & albedo=data(i)%tod%zodi_albedo, &
+                        & s_therm=s_therm, &
+                        & s_scat=s_scat, &
+                        & s_zodi=s_zodi &
+                    &)
                 
-    !                 chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
+                    chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
 
-    !                 if (chisq_tod > 1d30 .or. chisq_buff > 1d30) then
-    !                     lnL_zodi = -0.5 * 1d30
-    !                     return
-    !                 end if
-    !                 chisq_tod = chisq_tod + chisq_buff
-    !                 ! print *, "buff:", chisq_buff, "tot:", chisq_tod
-    !                 deallocate(s_scat, s_therm, s_zodi)
-    !             end do
-    !         end do
-    !     end do
+                    if (chisq_tod > 1d30 .or. chisq_buff > 1d30) then
+                        lnL_zodi = -0.5 * 1d30
+                        return
+                    end if
+                    chisq_tod = chisq_tod + chisq_buff
+                    deallocate(s_scat, s_therm, s_zodi)
+                end do
+            end do
+        end do
 
-    !     ! Reduce chisq to root process
-    !     call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        ! Reduce chisq to root process
+        call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
 
-    !     lnL_zodi = -0.5 * chisq
+        lnL_zodi = -0.5 * chisq
 
-    ! end function lnL_zodi
-
-
-
-    subroutine output_zodi_model_to_hdf(cpar, iter, model)
-        ! Writes the zodi model to an hdf file
-        type(comm_params), intent(in) :: cpar
-        integer(i4b), intent(in) :: iter
-        type(zodi_model), intent(in) :: model
-
-        integer(i4b) :: i, j, hdferr, ierr, unit
-        logical(lgt) :: exist, init, new_header
-        character(len=6) :: itext
-        character(len=4) :: ctext
-        character(len=512) :: zodi_path, comp_path, param_path, chainfile, hdfpath
-        character(len=10), allocatable :: param_names(:)
-        real(dp), allocatable :: param_values(:)
-        type(hdf_file) :: file
-        type(h5o_info_t) :: object_info
-
-        if (.not. cpar%myid_chain == 0) return
-
-        call int2string(cpar%mychain, ctext)
-        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
-            & '_c' // trim(adjustl(ctext)) // '.h5'
-
-        inquire(file=trim(chainfile), exist=exist)
-        call open_hdf_file(chainfile, file, 'b')
-
-        call int2string(iter, itext)
-        zodi_path = trim(adjustl(itext))//'/zodi'
-        call create_hdf_group(file, trim(adjustl(zodi_path)))
-        comp_path = trim(adjustl(zodi_path))//'/params/'
-        ! call create_hdf_group(file, trim(adjustl(comp_path)))
-
-        call write_hdf(file, trim(adjustl(comp_path)), param_vec_iter(:, cpar%zs_nprop))
-
-        ! Write chisq
-        comp_path = trim(adjustl(zodi_path))//'/chisq/'
-        call write_hdf(file, trim(adjustl(comp_path)), chisq_iter)
-
-        call close_hdf_file(file)
-    end subroutine
-
-
-
+    end function lnL_zodi
 end module

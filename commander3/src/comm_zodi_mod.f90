@@ -90,7 +90,7 @@ module comm_zodi_mod
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
-        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec
+        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec, output_to_hd5
     end type zodi_model
 
     ! Global zodi parameter object
@@ -541,7 +541,7 @@ contains
 
     function model_to_param_vec(self) result(x) 
         ! Dumps a zodi model to a parameter vector
-        class(zodi_model), intent(inout) :: self
+        class(zodi_model), intent(in) :: self
         real(dp) :: x(self%N_PARAMETERS)
         integer(i4b) :: i, j
         do i = 1, self%n_comps
@@ -605,5 +605,40 @@ contains
         x(61) = self%T_0 
         x(62) = self%delta
     end function model_to_param_vec
+
+    subroutine output_to_hd5(self, cpar, iter)
+        ! Writes the zodi model to an hdf file
+        class(zodi_model), intent(in) :: self
+        type(comm_params), intent(in) :: cpar
+        integer(i4b), intent(in) :: iter
+
+        integer(i4b) :: i, j, hdferr, ierr, unit
+        logical(lgt) :: exist, init, new_header
+        character(len=6) :: itext
+        character(len=4) :: ctext
+        character(len=512) :: zodi_path, comp_path, param_path, chainfile, hdfpath
+        character(len=10), allocatable :: param_names(:)
+        real(dp), allocatable :: param_values(:)
+        type(hdf_file) :: file
+        type(h5o_info_t) :: object_info
+
+        if (.not. cpar%myid_chain == 0) return
+
+        call int2string(cpar%mychain, ctext)
+        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
+            & '_c' // trim(adjustl(ctext)) // '.h5'
+
+        inquire(file=trim(chainfile), exist=exist)
+        call open_hdf_file(chainfile, file, 'b')
+
+        call int2string(iter, itext)
+        zodi_path = trim(adjustl(itext))//'/zodi'
+        call create_hdf_group(file, trim(adjustl(zodi_path)))
+        comp_path = trim(adjustl(zodi_path))//'/params/'
+        
+        call write_hdf(file, trim(adjustl(comp_path)), self%model_to_param_vec())
+
+        call close_hdf_file(file)
+    end subroutine
 
 end module comm_zodi_mod
