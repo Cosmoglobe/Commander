@@ -70,8 +70,9 @@ contains
     dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
-    constructor%type  =  'b_l'    
-    constructor%info  => info
+    constructor%type        =  'b_l'    
+    constructor%info        => info
+    constructor%almFromConv = .true.
     if (present(fwhm)) then
        allocate(constructor%b_l(0:constructor%info%lmax,constructor%info%nmaps))
 !!$       do l = 0, constructor%info%lmax

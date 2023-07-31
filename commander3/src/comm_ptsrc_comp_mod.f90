@@ -2,7 +2,7 @@
 !
 ! Copyright (C) 2020 Institute of Theoretical Astrophysics, University of Oslo.
 !
-! This file is part of Commander3.
+! This file is part of Commander3
 !
 ! Commander3 is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by
@@ -1598,7 +1598,7 @@ contains
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
-    n_gibbs             = 3  !10
+    n_gibbs             = 1  !10
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 

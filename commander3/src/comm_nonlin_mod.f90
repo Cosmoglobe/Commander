@@ -205,8 +205,9 @@ contains
              call sample_specind_local(cpar, iter, handle, c%id, j)
 
           class is (comm_ptsrc_comp)
-             call sample_specind_local(cpar, iter, handle, c%id, j)
-          
+             if (j == 1) then
+                call sample_specind_local(cpar, iter, handle, c%id, j)
+             end if
           end select
 
        end do
@@ -981,7 +982,10 @@ contains
        ! Clean up
        if (info%myid == 0) close(69)   
        if (info%myid == 0) close(66)   
-       deallocate(alms, regs, chisq, maxit)
+       if (allocated(alms)) deallocate(alms)
+       if (allocated(regs)) deallocate(regs)
+       if (allocated(chisq)) deallocate(chisq)
+       if (allocated(maxit)) deallocate(maxit)
        call theta%dealloc(); deallocate(theta)
 
        if (c%apply_jeffreys) then

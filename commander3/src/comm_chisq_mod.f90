@@ -237,12 +237,18 @@ contains
 
        select type (c)
        class is (comm_diffuse_comp)
-          allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps))          
-          alm     = c%getBand(band, alm_out=.true.)
-          res%alm = res%alm + alm
-          !call res%add_alm(alm, c%x%info)
-          deallocate(alm)
-          nonzero = .true.
+          if (data(band)%B(0)%p%almFromConv) then
+             allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps)) 
+             alm     = c%getBand(band, alm_out=.true.)
+             res%alm = res%alm + alm
+             deallocate(alm)
+             nonzero = .true.
+          else
+             allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
+             map       = c%getBand(band)
+             ptsrc%map = ptsrc%map + map
+             deallocate(map)
+          end if
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map       = c%getBand(band)
@@ -368,9 +374,13 @@ contains
           class is (comm_diffuse_comp)
              !allocate(alm(0:data(i)%info%nalm-1,data(i)%info%nmaps))
              !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-             out%alm = c%getBand(i, alm_out=.true.)
+             if (data(i)%B(0)%p%almFromConv) then
+                out%alm = c%getBand(i, alm_out=.true.)
              !call out%add_alm(alm, c%x%info)
-             call out%Y()
+                call out%Y()
+             else
+                out%map     = c%getBand(i)
+             end if
              !deallocate(alm)
           class is (comm_ptsrc_comp)
              !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))

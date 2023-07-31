@@ -33,7 +33,7 @@ module comm_bp_mod
      integer(i4b)       :: n, npar
      real(dp)           :: threshold
      real(dp)           :: nu_c, a2t, f2t, a2sz, unit_scale, nu_eff, a2f
-     real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta
+     real(dp), allocatable, dimension(:) :: nu0, nu, tau0, tau, delta, a2f_arr
    contains
      ! Data procedures
      procedure     :: update_tau
@@ -185,6 +185,9 @@ contains
           end if
        end if
        allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
+       if (trim(constructor%type) == 'DIRBE') then
+          allocate(constructor%a2f_arr(constructor%n))
+       end if
     end if
     ! Initialize fitting model
     constructor%model = cpar%ds_bpmodel(id_abs)
@@ -275,6 +278,7 @@ contains
        self%a2sz = 2.d0*self%nu_c**2*k_b/c**2 / &
             & (bnu_prime(1) * sz(1)) * 1.d-6
        self%f2t  = 1.d0 / bnu_prime(1) * 1.d-14
+       self%a2f  = 2.d0*self%nu_c**2*k_b/c**2 * 1d14
        
     case ('WMAP')
 
@@ -286,6 +290,7 @@ contains
        self%a2sz    = sum(self%tau) / sum(self%tau/a * sz) * 1.d-6
        self%f2t     = sum(self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * &
                           & 1.d-14 / sum(self%tau/self%nu**2 * bnu_prime)
+       self%a2f     = sum(self%tau) / sum(self%tau/self%nu**2 * (self%nu_c / self%nu)**ind_iras) * 1d14
        self%tau     = self%tau * a
 
     case ('LFI') 
@@ -297,6 +302,7 @@ contains
                        & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
                        & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%a2f     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / tsum(self%nu, self%tau/self%nu**2 * (self%nu_c / self%nu)**ind_iras) * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
     case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
@@ -306,6 +312,7 @@ contains
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
+       self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)**ind_iras) * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau*bnu_prime)
        
     case ('HFI_submm') 
@@ -315,6 +322,7 @@ contains
                        & tsum(self%nu, self%tau*bnu_prime*sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
+       self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)**ind_iras) * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
  
     case ('DIRBE') 
@@ -329,9 +337,9 @@ contains
        self%f2t     = tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        & 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%a2f     = tsum(self%nu, self%tau * bnu_prime_RJ) / tsum(self%nu, self%tau * (self%nu_c / self%nu)) * 1d14
-      !  self%tau     = self%tau / tsum(self%nu, self%tau)
+       self%a2f_arr = bnu_prime_RJ / (self%nu_c / self%nu)**ind_iras * 1d14
        self%tau     = self%tau / tsum(self%nu, self%tau)
-
+       !self%tau     = self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
 
 
     ! NEW !
@@ -342,7 +350,7 @@ contains
        self%f2t     = 1.0 !tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * &
                        !& 1.d-14 / tsum(self%nu, self%tau*bnu_prime)
        self%tau     = 1.0 !self%tau / tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d14
-
+       self%a2f     = 1.0
     case ('LB')
        
        self%a2t     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / &
@@ -351,6 +359,7 @@ contains
                        & tsum(self%nu, self%tau/self%nu**2 * bnu_prime * sz) * 1.d-6
        self%f2t     = tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) &
                    & * 1.d-14 / tsum(self%nu, self%tau/self%nu**2 * bnu_prime)
+       self%a2f     = tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ) / tsum(self%nu, self%tau/self%nu**2 * (self%nu_c/self%nu)**ind_iras) * 1.d-14 
        self%tau     = self%tau / tsum(self%nu, self%tau/a)
 
    !  case ('SPIDER') 
@@ -379,6 +388,9 @@ contains
     real(dp),       dimension(:), intent(in) :: f
     real(dp)                                 :: SED2F
 
+    integer(i4b) :: i, j
+    real(dp)     :: a2f1, a2f2, a2fc, K, Inu0
+
     select case (trim(self%type))
     case ('delta')
        SED2F = f(1) * self%a2t
@@ -391,7 +403,16 @@ contains
     case ('HFI_submm') 
        SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f)
     case ('DIRBE') 
-       SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f) * 1d14
+       !SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f) !* 1d14
+       i     = locate(self%nu, self%nu_c)
+       a2fc  = 2.d0*k_B*self%nu_c**2/c**2 * 1.d-14
+       Inu0  = a2fc * (f(i) + (f(i+1)-f(i))*(self%nu_c-self%nu(i))/(self%nu(i+1)-self%nu(i)))
+       if (Inu0 == 0.d0) then
+          SED2F = 0.d0
+       else
+          K     = tsum(self%nu, self%tau * self%a2f_arr*f / Inu0) / tsum(self%nu, self%tau * self%nu_c/self%nu)
+          SED2F = K * Inu0
+       end if
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW

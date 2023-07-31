@@ -84,6 +84,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_f_int_1d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_output_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_b_bl_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_b_firas_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_f_int_2d_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_param_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_beam_mod.f90
@@ -103,6 +104,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefree_comp_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_freefreeEM_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_shared_arr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/d1mach.f
 	${COMMANDER3_SOURCE_DIR}/comm_chisq_mod.f90
