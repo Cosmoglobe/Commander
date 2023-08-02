@@ -6,7 +6,7 @@ module comm_zodi_mod
     implicit none
 
     private
-    public initialize_zodi_mod, get_s_zodi, zodi_model, ZodiComponent, base_zodi_model, sampled_zodi_model
+    public initialize_zodi_mod, get_s_zodi, ZodiModel, ZodiComponent, zodi_model
 
     ! Global variables
     integer(i4b) :: gauss_degree, n_interp_points
@@ -78,23 +78,22 @@ module comm_zodi_mod
 
 
     ! Stores the interplanetary dust model parameters
-    type :: zodi_model
+    type :: ZodiModel
         integer(i4b) :: n_comps, n_bands
+        integer(i4b) :: n_parameters
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
-        real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
-        integer(i4b) :: N_PARAMETERS = 62
-        integer(i4b) :: param_i, up_down_j
+        real(dp), allocatable, dimension(:, :) :: phase_coeffs, emissivity, albedo ! spectral parameters
         class(ZodiComponentContainer), allocatable :: comps(:)
         character(len=10), allocatable :: comp_labels(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
         procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec, output_to_hd5
-    end type zodi_model
+    end type ZodiModel
 
     ! Global zodi parameter object
-    type(zodi_model), target :: base_zodi_model, sampled_zodi_model
+    type(ZodiModel), target :: zodi_model
 
 contains
     subroutine initialize_zodi_mod(cpar)
@@ -109,11 +108,9 @@ contains
 
         call initialize_hyper_parameters(cpar)
         if (cpar%zs_init_chain == 'none') then
-            call base_zodi_model%init_from_defaults(cpar)
-            if (cpar%sample_zodi) call sampled_zodi_model%init_from_defaults(cpar)
+            call zodi_model%init_from_defaults(cpar)
         else
-            call base_zodi_model%init_from_chain(cpar)
-            if (cpar%sample_zodi) call sampled_zodi_model%init_from_chain(cpar)
+            call zodi_model%init_from_chain(cpar)
         end if
     end subroutine initialize_zodi_mod
 
@@ -322,17 +319,19 @@ contains
         ! cpar: comm_params
         !    Parameter file variables.
 
-        class(zodi_model), target, intent(inout) :: self
+        class(ZodiModel), target, intent(inout) :: self
         type(comm_params), intent(in) :: cpar
         integer(i4b) :: i
 
         ! aux
         self%n_bands = cpar%zs_nbands
         self%n_comps = cpar%zs_ncomps
+        self%n_parameters = 62 + 2*(self%n_comps * self%n_bands)
 
         allocate(self%comps(self%n_comps))
         allocate(self%comp_labels(self%n_comps))
-
+        allocate(self%emissivity(self%n_comps, self%n_bands))
+        allocate(self%albedo(self%n_comps, self%n_bands))
         ! Tempereature parameters
         self%T_0 = cpar%zs_t_0
         self%delta = cpar%zs_delta
@@ -344,7 +343,8 @@ contains
         self%nu_ref = cpar%zs_nu_ref
         self%phase_coeffs = cpar%zs_phase_coeff
         self%solar_irradiance = cpar%zs_solar_irradiance
-
+        self%albedo = cpar%zs_albedo
+        self%emissivity = cpar%zs_emissivity
         allocate(self%phase_coeff_spl(3))
         call self%build_splines()
 
@@ -422,14 +422,14 @@ contains
         ! cpar: comm_params
         !    Parameter file variables.
 
-        class(zodi_model), target, intent(inout) :: self
+        class(ZodiModel), target, intent(inout) :: self
         type(comm_params), intent(in) :: cpar
         logical(lgt)        :: exist
         integer(i4b) :: i, l,  unit, ierr, initsamp
             character(len=6)          :: itext, itext2
 
         type(hdf_file) :: file
-        real(dp) :: param_vec(self%N_PARAMETERS)
+        real(dp) :: param_vec(self%n_parameters)
         character(len=512) :: chainfile
 
 
@@ -458,7 +458,7 @@ contains
     subroutine build_splines(self)
         ! Build splines for the phase function, and solar irradiance
         ! for each component in the model
-        class(zodi_model), intent(inout) :: self
+        class(ZodiModel), intent(inout) :: self
         integer(i4b) :: i
 
         do i = 1, 3
@@ -469,11 +469,11 @@ contains
 
     subroutine param_vec_to_model(self, x)
         ! Updates model parameters given a parametor vector x
-        class(zodi_model), intent(inout) :: self
+        class(ZodiModel), intent(inout) :: self
         real(dp), intent(in) :: x(:)
-        integer(i4b) :: i, j
+        integer(i4b) :: i, j, k
 
-        if (size(x) /= self%N_PARAMETERS) stop "param_vec has the wrong size"
+        if (size(x) /= self%n_parameters) stop "param_vec has the wrong size"
         do i = 1, self%n_comps
             select type (a => self%comps(i)%c)
             class is (ZodiCloud)
@@ -537,13 +537,31 @@ contains
         end do
         self%T_0 = x(61)
         self%delta = x(62)
+
+        !emissivities
+        k = 63
+        do i = 1, self%n_comps
+            do j = 1, self%n_bands
+                self%emissivity(i, j) = x(k)
+                k = k + 1
+            end do
+        end do
+
+        !albedos
+        k = 63 + self%n_comps * self%n_bands
+        do i = 1, self%n_comps
+            do j = 1, self%n_bands
+                self%albedo(i, j) = x(k)
+                k = k + 1
+            end do
+        end do
     end subroutine
 
     function model_to_param_vec(self) result(x) 
         ! Dumps a zodi model to a parameter vector
-        class(zodi_model), intent(in) :: self
-        real(dp) :: x(self%N_PARAMETERS)
-        integer(i4b) :: i, j
+        class(ZodiModel), intent(in) :: self
+        real(dp) :: x(self%n_parameters)
+        integer(i4b) :: i, j, k
         do i = 1, self%n_comps
             select type (a => self%comps(i)%c)
             class is (ZodiCloud)
@@ -604,11 +622,29 @@ contains
         end do
         x(61) = self%T_0 
         x(62) = self%delta
+        
+        !emissivities
+        k = 63
+        do i = 1, self%n_comps
+            do j = 1, self%n_bands
+                x(k) = self%emissivity(i, j)
+                k = k + 1
+            end do
+        end do
+
+        !albedos
+        k = 63 + self%n_comps * self%n_bands
+        do i = 1, self%n_comps
+            do j = 1, self%n_bands
+                x(k) = self%albedo(i, j)
+                k = k + 1
+            end do
+        end do
     end function model_to_param_vec
 
     subroutine output_to_hd5(self, cpar, iter)
         ! Writes the zodi model to an hdf file
-        class(zodi_model), intent(in) :: self
+        class(ZodiModel), intent(in) :: self
         type(comm_params), intent(in) :: cpar
         integer(i4b), intent(in) :: iter
 

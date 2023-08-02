@@ -242,7 +242,7 @@ contains
             & det=j, &
             & s_zodi_scat=self%s_zodi_scat(:, :, j), &
             & s_zodi_therm=self%s_zodi_therm(:, :, j), &
-            & model=base_zodi_model &
+            & model=zodi_model &
           &)
           call get_s_zodi(&
             & emissivity=tod%zodi_emissivity, &

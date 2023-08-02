@@ -82,7 +82,7 @@ contains
         class(comm_tod), intent(inout) :: tod
         integer(i4b), intent(in) :: pix(:), scan, det
         real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
-        type(zodi_model), intent(in) :: model
+        type(ZodiModel), intent(in) :: model
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_tod, ierr
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
@@ -112,7 +112,7 @@ contains
                 earth_lon = atan(earth_pos(2), earth_pos(1))
                 call tod%clear_zodi_cache(obs_time)
             end if
-
+            
             lookup_idx = tod%pix2ind(pix(i))
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
                 s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
@@ -271,7 +271,7 @@ contains
         class(comm_tod),   intent(inout) :: tod
         class(comm_bp_ptr), intent(in) :: bandpass
         integer(i4b), intent(in) :: det
-        type(zodi_model), intent(inout) :: model
+        type(ZodiModel), intent(inout) :: model
 
         real(dp), allocatable :: b_nu(:), integrals(:)
         integer(i4b) :: i, j

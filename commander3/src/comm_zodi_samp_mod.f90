@@ -4,14 +4,18 @@ module comm_zodi_samp_mod
     use comm_data_mod
     use comm_tod_zodi_mod
     use comm_zodi_mod
+    use comm_tod_driver_mod
+    use comm_chisq_mod
     use powell_mod
     implicit none
 
     private
-    public sample_zodi_model, initialize_zodi_samp_mod, sample_zodi_model_one_by_one_param
+    public initialize_zodi_samp_mod, sample_zodi_model, init_scandata_and_downsamp_zodi
 
     ! globals
     real(dp), allocatable :: chisq_previous, step_size, step_sizes(:), priors(:, :)
+    logical(lgt), allocatable :: active_params(:)
+    integer(i4b) :: n_active_params
 
 contains
     subroutine initialize_zodi_samp_mod(cpar)
@@ -23,17 +27,23 @@ contains
         !    Parameter file variables.
 
         type(comm_params), intent(in) :: cpar
-        integer(i4b) :: i
+        integer(i4b) :: i, j, n_spec_params
+        real(dp), allocatable :: param_vec(:)
 
         chisq_previous = 1d20
         step_size = 0.01
-        allocate(priors(sampled_zodi_model%N_PARAMETERS, 2))
-        allocate(step_sizes(sampled_zodi_model%N_PARAMETERS))
-        step_sizes = 0.1
+
+        allocate(priors(zodi_model%n_parameters, 2))
+        allocate(step_sizes(zodi_model%n_parameters))
+        allocate(active_params(zodi_model%n_parameters))
+        allocate(param_vec(zodi_model%n_parameters))
+        param_vec = zodi_model%model_to_param_vec()
+        step_sizes = 0.33
+        n_spec_params = zodi_model%n_bands * zodi_model%n_comps
 
         ! Priors for zodi parameters
         ! Cloud
-        priors(1, :) = [1.13d-8, 1.13d-6] !n_0
+        priors(1, :) = [1.0d-7, 1.4d-7] !n_0
         priors(2, :) = [0., 4.] !incl
         priors(3, :) = [67., 87.] !omega
         priors(4, :) = [-0.05, 0.05] !x_0
@@ -108,274 +118,132 @@ contains
         priors(61, :) = [250., 315.] !T_0
         priors(62, :) = [0.2, 0.7] !delta
 
-        ! Print out priors for debugging
-        ! if (cpar%myid == cpar%root) then
-        !     do i = 1, sampled_zodi_model%N_PARAMETERS
-        !         print *, i, priors(i, :)
-        !     end do
-        ! end if
+        ! Emissivity
+        priors(63 : 63 + n_spec_params, 0) = 0.
+        priors(63 : 63 + n_spec_params, 1) = 5.
+
+        ! Albedo
+        priors(63 + n_spec_params : 63 + 2 * n_spec_params, 0) = 0.
+        priors(63 + n_spec_params : 63 + 2 * n_spec_params, 1) = 1.
+
+        ! Set active parameters (Those we want to fit)
+        ! Cloud
+        active_params(1) = .true. !n_0
+        active_params(2) = .false. !incl
+        active_params(3) = .false. !omega
+        active_params(4) = .false. !x_0
+        active_params(5) = .false. !y_0
+        active_params(6) = .false. !z_0
+        active_params(7) = .false. !alpha
+        active_params(8) = .false. !beta
+        active_params(9) = .false. !gamma
+        active_params(10) = .false. !mu
+
+        ! Band1
+        active_params(11) = .false. !n_0
+        active_params(12) = .false. !incl
+        active_params(13) = .false. !omega
+        active_params(14) = .false. !x_0
+        active_params(15) = .false. !y_0
+        active_params(16) = .false. !z_0
+        active_params(17) = .false. !delta_zeta
+        active_params(18) = .false. !delta_r
+        active_params(19) = .false. !v
+        active_params(20) = .false. !p
+
+        ! Band2
+        active_params(21) = .false. !n_0
+        active_params(22) = .false. !incl
+        active_params(23) = .false. !omega
+        active_params(24) = .false. !x_0
+        active_params(25) = .false. !y_0
+        active_params(26) = .false. !z_0
+        active_params(27) = .false. !delta_zeta
+        active_params(28) = .false. !delta_r
+        active_params(29) = .false. !v
+        active_params(30) = .false. !p
+
+        ! Band3
+        active_params(31) = .false. !n_0
+        active_params(32) = .false. !incl
+        active_params(33) = .false. !omega
+        active_params(34) = .false. !x_0
+        active_params(35) = .false. !y_0
+        active_params(36) = .false. !z_0
+        active_params(37) = .false. !delta_zeta
+        active_params(38) = .false. !delta_r
+        active_params(39) = .false. !v
+        active_params(40) = .false. !p
+
+        ! Ring
+        active_params(41) = .false. !n_0
+        active_params(42) = .false. !incl
+        active_params(43) = .false. !omega
+        active_params(44) = .false. !x_0
+        active_params(45) = .false. !y_0
+        active_params(46) = .false. !z_0
+        active_params(47) = .false. !R_0
+        active_params(48) = .false. !sigma_r
+        active_params(49) = .false. !sigma_z
+
+        ! Feature
+        active_params(50) = .false. !n_0
+        active_params(51) = .false. !incl
+        active_params(52) = .false. !omega
+        active_params(53) = .false. !x_0
+        active_params(54) = .false. !y_0
+        active_params(55) = .false. !z_0
+        active_params(56) = .false. !R_0
+        active_params(57) = .false. !sigma_r
+        active_params(58) = .false. !sigma_z
+        active_params(59) = .false. !theta_0
+        active_params(60) = .false. !sigma_theta
+
+        ! Other
+        active_params(61) = .false. !T_0
+        active_params(62) = .false. !delta
+
+        ! emissivities
+        active_params(63 : 63 + n_spec_params) = .false.
+
+        ! albedos
+        active_params(63 + n_spec_params : 63 + 2 * n_spec_params) = .false.
+
+        n_active_params = count(active_params == .true.)
+
     end subroutine initialize_zodi_samp_mod
 
-    subroutine accumulate_zodi_emissivities(tod, s_therm, s_scat, res, A_T_A, AY, group_comps)
-        ! Returns the A^T A and A Y matrices when solving the normal equations 
-        ! (AX = Y, where X is the emissivity vector).
-        !
-        ! TODO: Add the covariance matrix
-        !
-        ! Parameters
-        ! ----------
-        ! tod :
-        !     The TOD object holding the component emissivities and albedos.
-        ! s_therm : (ntod, ncomps)
-        !     The thermal zodiacal emission integral (without being scaled by emissivities).
-        ! s_scat : (ntod, ncomps)
-        !     The scattered zodiacal light integral (without being scaled by albedos).
-        ! res : (ntod)
-        !     The residual (data - sky model).
-        ! A_T_A : (ncomps, ncomps)
-        !     The A^T A matrix.
-        ! AY : (ncomps)
-        !     The A Y matrix.
-        ! group_comps :
-        !     Whether to group the components (bands into one group, and feature + ring into another).
-        class(comm_tod), intent(in) :: tod
-        real(dp), intent(in) :: s_therm(:, :), s_scat(:, :), res(:)
-        real(dp), intent(inout) :: A_T_A(:, :), AY(:)
-        logical(lgt), intent(in) :: group_comps
-        integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
-        real(dp) :: term1, term2, residual
+    function get_powell_vec(param_vec) result(powell_vec)
+        real(dp), allocatable :: param_vec(:)
+        real(dp), allocatable :: powell_vec(:)
+        powell_vec = pack(param_vec, active_params == .true.)
+    end function get_powell_vec
 
-        ntod = size(s_therm, dim=1)
-        if (group_comps) then
-            ncomp = 3
-        else 
-            ncomp = size(s_therm, dim=2)
-        end if
-        do i = 1, ntod
-            do j = 1, ncomp
-                if (group_comps .and. j == 2) then
-                    term1 = sum(s_therm(i, 2:4), dim=1) * (1.d0 - tod%zodi_albedo(2))
-                else if (group_comps .and. j == 3) then
-                    term1 = sum(s_therm(i, 5:6), dim=1) * (1.d0 - tod%zodi_albedo(5))
-                else
-                    term1 = s_therm(i, j) * (1.d0 - tod%zodi_albedo(j))
-                end if
-                residual = res(i) - sum(s_scat(i, :) * tod%zodi_albedo(:), dim=1)
-                AY(j) = AY(j) + residual * term1
-                do k = 1, ncomp
-                    if (group_comps .and. k == 2) then
-                        term2 = sum(s_therm(i, 2:4), dim=1) * (1.d0 - tod%zodi_albedo(2))
-                    else if (group_comps .and. k == 3) then
-                        term2 = sum(s_therm(i, 5:6), dim=1) * (1.d0 - tod%zodi_albedo(5))
-                    else
-                        term2 = s_therm(i, k) * (1.d0 - tod%zodi_albedo(k))
-                    end if
-                    A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-                end do
-            end do
-        end do
-    end subroutine accumulate_zodi_emissivities
-
-    subroutine accumulate_zodi_albedos(tod, s_therm, s_scat, res, A_T_A, AY, group_comps)
-        ! Returns the A^T A and A Y matrices when solving the normal equations 
-        ! (AX = Y, where X is the albedo vector).
-        !
-        ! TODO: Add the covariance matrix
-        !
-        ! Parameters
-        ! ----------
-        ! tod :
-        !     The TOD object holding the component emissivities and albedos.
-        ! s_therm : (ntod, ncomps)
-        !     The thermal zodiacal emission integral (without being scaled by emissivities).
-        ! s_scat : (ntod, ncomps)
-        !     The scattered zodiacal light integral (without being scaled by albedos).
-        ! res : (ntod)
-        !     The residual (data - sky model).
-        ! A_T_A : (ncomps, ncomps)
-        !     The A^T A matrix.
-        ! AY : (ncomps)
-        !     The A Y matrix.
-        ! group_comps :
-        !     Whether to group the components (bands into one group, and feature + ring into another).
-        class(comm_tod), intent(in) :: tod
-        real(dp), intent(in):: s_therm(:, :), s_scat(:, :), res(:)
-        real(dp), intent(inout) :: A_T_A(:, :), AY(:)
-        logical(lgt), intent(in) :: group_comps
-        integer(i4b) :: i, j, k, det, ierr, ndet, ntod, ncomp
-        real(dp) :: term1, term2, residual
-        
-        ntod = size(s_scat, dim=1)
-        if (group_comps) then
-            ncomp = 3
-        else 
-            ncomp = size(s_scat, dim=2)
-        end if
-
-        do i = 1, ntod
-            do j = 1, ncomp
-                if (group_comps .and. j == 2) then
-                    term1 = sum(s_scat(i, 2:4), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4), dim=1))
-                else if (group_comps .and. j == 3) then
-                    term1 = sum(s_scat(i, 5:6), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6), dim=1))
-                else
-                    term1 = s_scat(i, j) - (tod%zodi_emissivity(j) * s_therm(i, j))
-                end if
-                residual = res(i) - sum(s_therm(i, :) * tod%zodi_emissivity(:), dim=1) 
-                AY(j) = AY(j) + residual * term1
-                do k = 1, ncomp
-                    if (group_comps .and. k == 2) then
-                        term2 = sum(s_scat(i, 2:4), dim=1) - (tod%zodi_emissivity(2) * sum(s_therm(i, 2:4), dim=1))
-                    else if (group_comps .and. k == 3) then
-                        term2 = sum(s_scat(i, 5:6), dim=1) - (tod%zodi_emissivity(5) * sum(s_therm(i, 5:6), dim=1))
-                    else
-                        term2 = s_scat(i, k) - (tod%zodi_emissivity(k) * s_therm(i, k))
-                    end if
-                    A_T_A(j, k) = A_T_A(j, k) + term1 * term2
-                end do
-            end do
-        end do
-    end subroutine accumulate_zodi_albedos
-
-    subroutine solve_Ax_zodi(A_T_A, AY, handle, X)
-        ! Solve the normal equations and return the parameter vector X (albedos or emissivities).
-        ! X = (A^T A)^{-1} (A Y)
-        !
-        ! TODO: Add the covariance matrix
-        !
-        ! Parameters
-        ! ----------
-        ! A_T_A:
-        !   (A^T A) matrix.
-        ! AY:
-        !   (A Y) vector.
-        ! handle:
-        !   The random number generator handle.
-        real(dp), dimension(:, :), intent(in):: A_T_A
-        real(dp), dimension(:), intent(in) :: AY
-        type(planck_rng), intent(inout) :: handle
-        real(dp), dimension(:), intent(inout) :: X
-
-        real(dp), allocatable, dimension(:, :) :: A_T_A_inv, A_T_A_inv_sqrt
-        real(dp), allocatable, dimension(:) :: eta
-        integer(i4b) :: i, ierr
-
-        allocate(A_T_A_inv, mold=A_T_A)
-        allocate(A_T_A_inv_sqrt, mold=A_T_A)
-        allocate(eta, mold=AY)
-        A_T_A_inv = A_T_A
-
-        call invert_matrix(A_T_A_inv)
-        call cholesky_decompose(A_T_A_inv, A_T_A_inv_sqrt)
-        do i = 1, size(AY)
-            eta(i) = rand_gauss(handle)
-        end do
-        X = matmul(A_T_A_inv, AY) + matmul(A_T_A_inv_sqrt, eta)
-    end subroutine solve_Ax_zodi
-
-    subroutine sample_linear_zodi_params(tod, handle, group_comps)
-        class(comm_tod), intent(inout) :: tod
-        type(planck_rng), intent(inout) :: handle
-        logical(lgt), intent(in) :: group_comps
-        real(sp), allocatable, dimension(:, :) :: s_scat, s_therm
-        integer(i4b) :: i, j, ierr, scan, ndet, nhorn, nscan, ntod, n_comps_to_fit, padded_ubound
-        real(dp), allocatable, dimension(:, :) :: A_T_A_emiss, A_T_A_albedo, A_T_A_emiss_reduced, A_T_A_albedo_reduced
-        real(dp), allocatable, dimension(:) :: AY_emiss, AY_albedo, AY_emiss_reduced, AY_albedo_reduced, emissivities, albedos
-        real(dp) :: n_used
-
-        ndet = tod%ndet
-        nscan = tod%nscan
-
-        ! Get the number of components to fit (depends on if we want to sample the k98 groups or all components individually)
-        ! and initialize Ax = Y matrices
-        n_comps_to_fit = base_zodi_model%n_comps
-        if (group_comps) then
-            n_comps_to_fit = 3
-        end if
-        allocate(A_T_A_emiss(n_comps_to_fit, n_comps_to_fit))
-        allocate(A_T_A_emiss_reduced(n_comps_to_fit, n_comps_to_fit))
-        allocate(AY_emiss(n_comps_to_fit))
-        allocate(AY_emiss_reduced(n_comps_to_fit))
-        allocate(emissivities(n_comps_to_fit))
-        A_T_A_emiss = 0.
-        A_T_A_emiss_reduced = 0.
-        AY_emiss = 0.
-        AY_emiss_reduced = 0.
-
-        ! Loop over downsampled data, and evaluate emissivity
-        do scan = 1, nscan
-            do j = 1, tod%ndet
-                ntod = size(tod%scans(scan)%d(j)%downsamp_res)
-                padded_ubound = ubound(tod%scans(scan)%d(j)%downsamp_res, dim=1) - 5 - 1 ! - 5 for padding
-                allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps))
-                call get_zodi_emission(tod, tod%scans(scan)%d(j)%downsamp_pointing(1:padded_ubound), scan, j, s_scat, s_therm, base_zodi_model)
-                call accumulate_zodi_emissivities(tod, real(s_therm, dp), real(s_scat, dp), real(tod%scans(scan)%d(j)%downsamp_res(1:padded_ubound), dp), A_T_A_emiss, AY_emiss, group_comps)
-                deallocate(s_scat, s_therm)
-            end do
-        end do
-        call mpi_reduce(A_T_A_emiss, A_T_A_emiss_reduced, size(A_T_A_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-        call mpi_reduce(AY_emiss, AY_emiss_reduced, size(AY_emiss), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-        if (tod%myid == 0) then
-            call solve_Ax_zodi(A_T_A_emiss_reduced, AY_emiss_reduced, handle, emissivities)
-            if (group_comps) then
-               tod%zodi_emissivity(1) = emissivities(1)
-               tod%zodi_emissivity(2:4) = emissivities(2)
-               tod%zodi_emissivity(5:6) = emissivities(3)
-            else 
-               tod%zodi_emissivity = emissivities
+    subroutine update_param_vec_from_powell_vec(param_vec, powell_vec)
+        real(dp), intent(inout) :: param_vec(:)
+        real(dp), intent(in) :: powell_vec(:)
+        integer :: i, j
+        j = 1
+        do i = 1, size(param_vec)
+            if (active_params(i) == .true.) then
+                param_vec(i) = powell_vec(j)
+                j = j + 1
             end if
-            print *, "Sampled emissivity: ", emissivities
-        end if
-        call mpi_bcast(tod%zodi_emissivity, size(tod%zodi_emissivity), MPI_DOUBLE_PRECISION, 0, tod%comm, ierr)
+        end do
+    end subroutine update_param_vec_from_powell_vec
 
-        ! ! ! Loop over downsampled data, and evaluate albedo
-        ! allocate(A_T_A_albedo(n_comps_to_fit, n_comps_to_fit))
-        ! allocate(A_T_A_albedo_reduced(n_comps_to_fit, n_comps_to_fit))
-        ! allocate(AY_albedo(n_comps_to_fit))
-        ! allocate(AY_albedo_reduced(n_comps_to_fit))
-        ! A_T_A_albedo = 0.
-        ! A_T_A_albedo_reduced = 0.
-        ! AY_albedo = 0.
-        ! AY_albedo_reduced = 0.
-        ! allocate(albedos(n_comps_to_fit))
-
-        ! do scan = 1, nscan
-        !     do j = 1, tod%ndet
-        !         ntod = size(tod%scans(scan)%d(j)%downsamp_res)
-        !         padded_ubound = ubound(tod%scans(scan)%d(j)%downsamp_res, dim=1) - 5 - 1 ! - 5 for padding
-        !         allocate(s_scat(ntod, zodi%n_comps), s_therm(ntod, zodi%n_comps))
-        !         call get_zodi_emission(tod, tod%scans(scan)%d(j)%downsamp_pointing(1:padded_ubound), scan, j, s_scat, s_therm)
-        !         call accumulate_zodi_albedos(tod, real(s_therm, dp), real(s_scat, dp), real(tod%scans(scan)%d(j)%downsamp_res(1:padded_ubound), dp), A_T_A_albedo, AY_albedo, group_comps)
-        !         deallocate(s_scat, s_therm)
-        !     end do
-        ! end do
-        ! call mpi_reduce(A_T_A_albedo, A_T_A_albedo_reduced, size(A_T_A_albedo), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-        ! call mpi_reduce(AY_albedo, AY_albedo_reduced, size(AY_albedo), MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-        ! if (tod%myid == 0) then
-        !     call solve_Ax_zodi(A_T_A_albedo_reduced, AY_albedo_reduced, handle, albedos)
-        !     if (group_comps) then
-        !        tod%zodi_albedo(1) = albedos(1)
-        !        tod%zodi_albedo(2:4) = albedos(2)
-        !        tod%zodi_albedo(5:6) = albedos(3)
-        !     else 
-        !        tod%zodi_albedo = albedos
-        !     end if
-        !     print *, "Sampled albedo: ", albedos
-        ! end if
-        ! call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, 0, tod%comm, ierr)
-    end subroutine
 
     subroutine sample_zodi_model(cpar, handle)
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
         ! Todo: Split into gibbs steps for each component
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
-        integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced, n_tot_tod_current
+        integer(i4b) :: i, j, k, flag, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced, n_tot_tod_current
         real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
-        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate
-        real(dp), allocatable :: param_vec(:)
-        type(zodi_model) :: current_model, previous_model
-        logical(lgt) :: accepted
+        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL
+        real(dp), allocatable :: param_vec(:), powell_vec(:)
+        type(ZodiModel) :: current_model, previous_model
+        logical(lgt) :: accepted, operation
         ! real(dp) :: n0_grid(100), chisq_grid(100)
 
         !debugging stuff
@@ -388,13 +256,51 @@ contains
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
         nprop = cpar%zs_nprop
         n_accepted = 0
-        current_model = sampled_zodi_model
-        previous_model = sampled_zodi_model
-        allocate(param_vec(current_model%N_PARAMETERS))
-        param_vec = current_model%model_to_param_vec()
+        current_model = zodi_model
+        previous_model = zodi_model
 
-        call powell(param_vec, lnL_zodi, ierr)
-        call current_model%param_vec_to_model(param_vec)
+        allocate(param_vec(current_model%n_parameters))
+        allocate(powell_vec(current_model%n_comps))  
+
+        ! param_vec = current_model%model_to_param_vec()
+        ! powell_vec = get_powell_vec(param_vec)
+        
+        ! Start initial parameter minimization. Root will aquire new set of parameters. While this happens
+        ! the other processes will wait for the new parameters to be broadcasted. Then they will all compute
+        ! the their own lnL.
+        ! if (cpar%myid == cpar%root) then
+        !     print *, "before", powell_vec
+        !     call powell(powell_vec, lnL_zodi, ierr)
+        !     flag = 0
+        !     call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
+        ! else
+        !     do while (.true.)
+        !         call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
+        !         if (flag == 1) then 
+        !             ! Here we call the function without a powell vector, because it will recieve it in internally from MPI
+        !             chisq_lnL = lnL_zodi()
+        !             ! print *, chisq_lnL
+        !         else
+        !             exit
+        !         end if
+        !     end do
+        ! end if
+
+        ! ! Wait for every process to exit
+        ! call mpi_barrier(MPI_COMM_WORLD, ierr)
+
+        ! call mpi_bcast(powell_vec, size(powell_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+        ! if (cpar%myid == cpar%root) then
+        !     print *, "after", powell_vec, "ierr", ierr
+        ! end if
+        ! stop
+
+        ! ! update param_vec with new parameters from powell
+        ! call update_param_vec_from_powell_vec(param_vec, powell_vec)
+
+        ! update model with new param_vec
+        ! call current_model%param_vec_to_model(param_vec)
+
         do k = 0, nprop
             ! Reset chisq for current proposal
             chisq_tod = 0.
@@ -402,22 +308,33 @@ contains
             
             ! Root process draws new set of zodi parameters and broadcasts to all processes
             ! If first iteration we dont want to draw, just compute the chisq with the base model
-            if (k > 0) then !call draw_n0(current_model, cpar, handle)
+            if (k > 0) then
                 if (cpar%myid == cpar%root) then
                     param_vec = current_model%model_to_param_vec()
                     do i = 1, size(param_vec)
-                        param_vec(i) = param_vec(i) + (step_size * param_vec(i) * rand_gauss(handle))
+                        if (active_params(i) == .true.) then
+                            print *, "before", param_vec(i)
+                            param_vec(i) = param_vec(i) + (step_sizes(i) * param_vec(i) * rand_gauss(handle))
+                            print *, "after", param_vec(i)
+                            if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
+                                step_sizes(i) = step_sizes(i) / 2.
+                                chisq_tod = 1.d30
+                                exit
+                            end if
+                        end if
                     end do
                 end if
-
                 call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
                 call current_model%param_vec_to_model(param_vec)
             end if
+
             do i = 1, numband
                 ! Skip none tod bands
                 if (data(i)%tod_type == "none") cycle
                 ! Skip tod bands where we dont want to sample zodi
                 if (.not. data(i)%tod%sample_zodi) cycle
+
+                if (chisq_tod >= 1.d30) exit
 
                 ndet = data(i)%tod%ndet
                 nscan = data(i)%tod%nscan
@@ -432,7 +349,7 @@ contains
                     do j = 1, ndet
                         ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
 
-                        allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps), s_zodi(ntod))
+                        allocate(s_scat(ntod, zodi_model%n_comps), s_therm(ntod, zodi_model%n_comps), s_zodi(ntod))
                         call get_zodi_emission(&
                             & tod=data(i)%tod, &
                             & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
@@ -475,7 +392,7 @@ contains
                     print *, "ln a:", ln_acceptance_probability 
                     print *, "accepted:", accepted
                     print *, "accept rate:", (real(n_accepted) / real(k))*100.
-                    print *, "step_size:", step_size
+                    print *, " "
                 end if
 
                 call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
@@ -490,35 +407,283 @@ contains
                 accept_rate = n_accepted / k
             end if
         end do  
-        if (accept_rate < 10.) step_size = step_size / 2.
+        if (accept_rate < 10.) then
+            step_sizes = step_sizes / 2.
+            print *, "lowering stepsize"
+        else if (accept_rate > 60.) then 
+            step_sizes = step_sizes * 2.
+            print *, "increasing stepsize"
+        end if
         
-        sampled_zodi_model = current_model
+        zodi_model = current_model
     end subroutine
 
-    subroutine sample_zodi_model_one_by_one_param(cpar, handle, iter)
+
+
+
+
+    subroutine init_scandata_and_downsamp_zodi(cpar, comp)
+        ! This routine mimics parts of the process_TOD where we calibrate the timestreams 
+        ! put them into th scan_data type, and then downsample them for use in zodi fitting.
+        ! See the process_TOD routines for more details on what happens here.
+        type(comm_params), intent(in) :: cpar
+        integer(i4b), intent(in) :: comp
+
+        integer(i4b) :: i, j , k, nside, npix, nmaps, ndelta
+        real(sp), allocatable, dimension(:, :, :, :) :: map_sky
+        real(sp), allocatable, dimension(:) :: procmask, procmask2, procmask_zodi
+        real(dp), allocatable, dimension(:, :) :: m_buf
+        integer(i4b), allocatable, dimension(:) :: downsamp_width
+        type(comm_scandata) :: sd
+        type(map_ptr), allocatable, dimension(:, :) :: s_sky
+
+        allocate(downsamp_width(zodi_model%n_comps))
+
+        ! For each zodi band, create downsampled residual time stream
+        do i = 1, numband
+
+            ! Only generate downsampled arrays for tod bands and bands where we have zodi
+            if (trim(data(i)%tod_type) == 'none') cycle
+            if (.not. data(i)%tod%subtract_zodi) cycle
+
+            ! Clear previously allocated arrays if they exist
+            call data(i)%tod%deallocate_downsampled_zodi()
+            call data(i)%tod%clear_zodi_cache()
+
+            ndelta = 1
+            nside = data(i)%map%info%nside
+            npix = 12 * nside**2
+            nmaps = data(i)%map%info%nmaps
+
+            allocate(m_buf(0:npix-1, nmaps), procmask(0:npix-1), procmask2(0:npix-1), procmask_zodi(0:npix-1))
+            call data(i)%tod%procmask%bcast_fullsky_map(m_buf); procmask  = m_buf(:,1)
+            call data(i)%tod%procmask2%bcast_fullsky_map(m_buf); procmask2 = m_buf(:,1)
+            call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:,1)
+            
+            allocate(s_sky(data(i)%tod%ndet, ndelta))
+            do j = 1, data(i)%tod%ndet
+                call get_sky_signal(i, j, s_sky(j, ndelta)%p, mono=.false.)
+            end do
+
+            allocate(map_sky(nmaps, data(i)%tod%nobs, 0:data(i)%tod%ndet, 1))
+            call distribute_sky_maps(data(i)%tod, s_sky, 1.e0, map_sky)
+
+            ! Start with same downsamp box width for all comps (change in future)
+            downsamp_width = data(i)%tod%samprate / data(i)%tod%samprate_lowres
+
+            do j = 1, data(i)%tod%nscan
+                if (.not. any(data(i)%tod%scans(j)%d%accept)) cycle
+
+                ! not calibrating the data so we use substitute map_gain with map_sky
+                call sd%init_singlehorn(data(i)%tod, j, map_sky, map_sky, procmask, procmask2, procmask_zodi)
+                call boxcar_downsamp_zodi_res_and_pointing(data(i)%tod, sd, j, padding=5, box_width=downsamp_width(comp))
+
+                ! prepare scandata object for next scan
+                call sd%dealloc
+            end do
+
+            deallocate(m_buf, procmask, procmask2, procmask_zodi)
+            deallocate(s_sky)
+            deallocate(map_sky)
+        end do
+    end subroutine
+
+
+
+    subroutine boxcar_downsamp_zodi_res_and_pointing(tod, sd, scan_id, padding, box_width)
+        ! Downsamples the tod residual and pointing given a box car width for use in zodi sampling.
+        class(comm_tod), intent(inout) :: tod
+        type(comm_scandata), intent(in) :: sd
+        integer(i4b), intent(in) :: scan_id, padding
+        integer(i4b), intent(in) :: box_width
+
+        integer(i4b) :: i, j, ext(2), upper_bound, box_halfwidth
+        real(dp) :: box_fullwidth
+        real(sp), allocatable, dimension(:) :: res, res_truncated, downsamp_mask, downsamp_res, downsamp_pointing
+        logical(lgt), allocatable, dimension(:) :: downsamp_masked_indices
+
+        if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
+
+       ! Make box have odd size so that we can pick out a center pixel
+        if (mod(box_halfwidth, 2) == 0) then 
+            box_fullwidth = box_width + 1.
+        else 
+            box_fullwidth = box_width
+        end if
+        box_halfwidth = box_fullwidth / 2
+
+        allocate(res(size(sd%s_tot, dim=1)))
+
+        do j = 1, tod%ndet
+            ! Add zodi back to the residual and apply mask
+            res = (sd%tod(:, j) - sd%s_tot(:,j) + sd%s_zodi(:, j))
+
+            ! Get downsampled shape (ext), and allocate the downsampled arrays
+            call tod%downsample_tod(res, ext, step=box_fullwidth)
+
+            ! Allocate these the first gibbs iter
+            allocate(downsamp_res(ext(1):ext(2)))
+            allocate(downsamp_pointing(ext(1):ext(2)))
+            allocate(downsamp_mask(ext(1):ext(2)))
+            allocate(downsamp_masked_indices(ext(1):ext(2)))
+
+            downsamp_mask = 0.
+            downsamp_res = 0.
+            downsamp_pointing = 0
+
+            ! Downsample the mask
+            call tod%downsample_tod(sd%mask_zodi(:, j), ext, downsamp_mask, step=box_fullwidth)
+
+            ! Downsample the residual
+            call tod%downsample_tod(res, ext, downsamp_res, step=box_fullwidth)
+
+            ! Construct the downsampled pointing array (pick central pixel in each box)
+            do i = 1, int(size(res) / box_fullwidth)
+                downsamp_pointing(i) = sd%pix((i * box_fullwidth), j, 1)
+            end do
+
+            ! Remove flagged values in the downsampled residual
+            downsamp_masked_indices = .true.
+            where (downsamp_mask < 1.) downsamp_masked_indices = .false.
+            
+            ! Find upper bound and truncate the downsampled arrays by where they were padded and
+            ! filter out the masked values. Store the result in the tod objects for use in sampling.
+            upper_bound = ubound(downsamp_res, dim=1)
+            tod%scans(scan_id)%d(j)%downsamp_res = pack(downsamp_res(padding:upper_bound-padding), downsamp_masked_indices(padding:upper_bound-padding))
+            tod%scans(scan_id)%d(j)%downsamp_pointing = pack(downsamp_pointing(padding:upper_bound-padding), downsamp_masked_indices(padding:upper_bound-padding))
+
+            deallocate(downsamp_res, downsamp_pointing, downsamp_mask, downsamp_masked_indices)
+        end do
+    end subroutine boxcar_downsamp_zodi_res_and_pointing
+
+    ! function for Powell()
+    function lnL_zodi(p)
+        use healpix_types
+        implicit none
+        real(dp), dimension(:), intent(in), optional :: p
+        real(dp) :: lnL_zodi
+
+        real(dp), allocatable :: theta(:)
+        real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
+        type(ZodiModel) :: model
+
+        integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr, flag
+        real(dp) :: chisq_tod, chisq, chisq_buff
+        real(dp), allocatable :: p_copy(:), param_vec(:)
+        allocate(theta(n_active_params))
+
+        if (data(1)%tod%myid == 0) then
+            flag = 1
+            call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
+            theta = p
+        end if
+        call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
+
+        ! Get param vector from zodi model
+        model = zodi_model
+        allocate(param_vec(model%n_parameters))
+        param_vec = model%model_to_param_vec()
+        
+        ! Check priors
+        j = 1
+        do i = 1, size(param_vec)
+            if (active_params(i) == .true.) then
+                if (theta(j) < priors(i, 1) .or. theta(j) > priors(i, 2)) then
+                    lnL_zodi = 1.d30
+                    return
+                end if
+                j = j + 1
+            end if
+        end do
+
+        ! Update param_vec with new values from powell_vec (theta)
+        call update_param_vec_from_powell_vec(param_vec, theta)
+
+        ! update zodi model with new param_vec
+        call model%param_vec_to_model(param_vec)
+
+
+        ! Calculate chisq for each band
+        chisq_tod = 0.
+        chisq = 0.
+        lnL_zodi = 0.
+
+        do i = 1, numband
+            ! Skip none tod bands
+            if (data(i)%tod_type == "none") cycle
+            ! Skip tod bands where we dont want to sample zodi
+            if (.not. data(i)%tod%sample_zodi) cycle
+
+            ndet = data(i)%tod%ndet
+            nscan = data(i)%tod%nscan
+            
+            ! Make sure that the zodi cache is cleared before each new band
+            call data(i)%tod%clear_zodi_cache()
+
+            ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+            do scan = 1, nscan
+                ! Skip scan if no accepted data
+                if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
+                do j = 1, ndet
+                    ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
+                    allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
+                    call get_zodi_emission(&
+                        & tod=data(i)%tod, &
+                        & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
+                        & scan=scan, &
+                        & det=j, &
+                        & s_zodi_scat=s_scat, &
+                        & s_zodi_therm=s_therm, &
+                        & model=model &
+                    &)
+                    call get_s_zodi(&
+                        & emissivity=data(i)%tod%zodi_emissivity, &
+                        & albedo=data(i)%tod%zodi_albedo, &
+                        & s_therm=s_therm, &
+                        & s_scat=s_scat, &
+                        & s_zodi=s_zodi &
+                    &)
+                    chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
+
+                    chisq_tod = chisq_tod + chisq_buff
+                    deallocate(s_scat, s_therm, s_zodi)
+                end do
+            end do
+        end do
+
+        ! Reduce chisq to root process
+        call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
+
+        if (data(1)%tod%myid == 0) then
+            ! print *, chisq, model%comps(1)%c%n_0
+            lnL_zodi = chisq
+        end if
+
+    end function lnL_zodi
+
+
+
+
+    subroutine gibbs_sample_zodi_comp(cpar, handle, comp)
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
-        integer(i4b), intent(in) :: iter
-        integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced, n_tot_tod_current, current_parameter
+        integer(i4b), intent(in) :: comp
+        integer(i4b) :: i, j, k, flag, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced, n_tot_tod_current
         real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
-        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate
-        real(dp), allocatable :: param_vec(:)
-        type(zodi_model) :: current_model, previous_model
-        logical(lgt) :: accepted
+        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL
+        real(dp), allocatable :: param_vec(:), powell_vec(:)
+        type(ZodiModel) :: current_model, previous_model
+        logical(lgt) :: accepted, operation
 
-        !debugging stuff
-        character(len=256) :: chaindir
-        character(len=512) :: path, param_path, param_name
-        character(len=6) :: itext
-        type(hdf_file) :: tod_file
-        integer(i4b) :: l
 
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
         nprop = cpar%zs_nprop
         n_accepted = 0
-        current_model = sampled_zodi_model
-        previous_model = sampled_zodi_model
-        allocate(param_vec(current_model%N_PARAMETERS))
+        current_model = zodi_model
+        previous_model = zodi_model
+
+        allocate(param_vec(current_model%n_parameters))
+
 
         do k = 0, nprop
             ! Reset chisq for current proposal
@@ -527,22 +692,31 @@ contains
             
             ! Root process draws new set of zodi parameters and broadcasts to all processes
             ! If first iteration we dont want to draw, just compute the chisq with the base model
-            if (k > 0) then !call draw_n0(current_model, cpar, handle)
+            if (k > 0) then
                 if (cpar%myid == cpar%root) then
                     param_vec = current_model%model_to_param_vec()
-                    current_parameter = mod(iter, current_model%N_PARAMETERS) - 1
-                    param_vec(current_parameter) = param_vec(current_parameter) + (step_sizes(current_parameter) * param_vec(current_parameter) * rand_gauss(handle))
-                    print *, "current_parameter:", current_parameter, param_vec(current_parameter)
+                    do i = 1, size(param_vec)
+                        if (active_params(i) == .true.) then
+                            param_vec(i) = param_vec(i) + (step_sizes(i) * param_vec(i) * rand_gauss(handle))
+                            if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
+                                step_sizes(i) = step_sizes(i) / 2.
+                                chisq_tod = 1.d30
+                                exit
+                            end if
+                        end if
+                    end do
                 end if
-
                 call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
                 call current_model%param_vec_to_model(param_vec)
             end if
+
             do i = 1, numband
                 ! Skip none tod bands
                 if (data(i)%tod_type == "none") cycle
                 ! Skip tod bands where we dont want to sample zodi
                 if (.not. data(i)%tod%sample_zodi) cycle
+
+                if (chisq_tod >= 1.d30) exit
 
                 ndet = data(i)%tod%ndet
                 nscan = data(i)%tod%nscan
@@ -557,7 +731,7 @@ contains
                     do j = 1, ndet
                         ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
 
-                        allocate(s_scat(ntod, base_zodi_model%n_comps), s_therm(ntod, base_zodi_model%n_comps), s_zodi(ntod))
+                        allocate(s_scat(ntod, zodi_model%n_comps), s_therm(ntod, zodi_model%n_comps), s_zodi(ntod))
                         call get_zodi_emission(&
                             & tod=data(i)%tod, &
                             & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
@@ -595,11 +769,12 @@ contains
                     accepted = ln_acceptance_probability > log(rand_uni(handle))
                     
                     print *, "proposal:", k
+                    print *, "chisq_current:", chisq_current
                     print *, "chisq_diff:", chisq_diff
                     print *, "ln a:", ln_acceptance_probability 
                     print *, "accepted:", accepted
                     print *, "accept rate:", (real(n_accepted) / real(k))*100.
-                    print *, "step_size:", step_size
+                    print *, " "
                 end if
 
                 call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
@@ -615,102 +790,17 @@ contains
             end if
         end do  
         if (accept_rate < 10.) then
-            step_sizes(current_parameter) = step_sizes(current_parameter) / 2.
-        else if (accept_rate > 90.) then 
-            step_sizes(current_parameter) = step_sizes(current_parameter) * 2.
+            step_sizes = step_sizes / 2.
+            print *, "lowering stepsize"
+        else if (accept_rate > 60.) then 
+            step_sizes = step_sizes * 2.
+            print *, "increasing stepsize"
         end if
         
-        sampled_zodi_model = current_model
-    end subroutine sample_zodi_model_one_by_one_param
+        zodi_model = current_model
+
+    end subroutine
 
 
-    function lnL_zodi(p)
-        use healpix_types
-        implicit none
-        real(dp), dimension(:), intent(in), optional :: p
-        real(dp) :: lnL_zodi
-        real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
-        type(zodi_model) :: model
 
-        integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr
-        real(dp) :: chisq_tod, chisq, chisq_buff
-        real(dp), allocatable :: p_copy(:), param_vec(:)
-
-
-        model = base_zodi_model
-        ! print *, "p(1):", p(1)
-        ! Check priors
-        allocate(param_vec(model%N_PARAMETERS), p_copy(model%N_PARAMETERS))
-        param_vec = model%model_to_param_vec()
-        p_copy = p
-        p_copy(2:) = param_vec(2:)
-        ! print *, "before:", param_vec(1), "after:", p_copy(1)
-        do i = 1, model%N_PARAMETERS
-            if (p(i) < priors(i, 1) .or. p(i) > priors(i, 2)) then
-                lnL_zodi = -0.5 * 1d30
-                print *, "got here"
-                return
-            end if
-        end do
-        call model%param_vec_to_model(p_copy)
-        ! print*, p_copy(1)
-        print *, "p(1):", p_copy(1)
-
-        chisq_tod = 0.
-        chisq= 0.
-
-        do i = 1, numband
-            ! Skip none tod bands
-            if (data(i)%tod_type == "none") cycle
-            ! Skip tod bands where we dont want to sample zodi
-            if (.not. data(i)%tod%sample_zodi) cycle
-
-            ndet = data(i)%tod%ndet
-            nscan = data(i)%tod%nscan
-            
-            ! Make sure that the zodi cache is cleared before each new band
-            call data(i)%tod%clear_zodi_cache()
-
-            ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-            do scan = 1, nscan
-                ! Skip scan if no accepted data
-                if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
-                do j = 1, ndet
-                    ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
-                    allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
-                    call get_zodi_emission(&
-                        & tod=data(i)%tod, &
-                        & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pointing, &
-                        & scan=scan, &
-                        & det=j, &
-                        & s_zodi_scat=s_scat, &
-                        & s_zodi_therm=s_therm, &
-                        & model=model &
-                    &)
-                    call get_s_zodi(&
-                        & emissivity=data(i)%tod%zodi_emissivity, &
-                        & albedo=data(i)%tod%zodi_albedo, &
-                        & s_therm=s_therm, &
-                        & s_scat=s_scat, &
-                        & s_zodi=s_zodi &
-                    &)
-                
-                    chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
-
-                    if (chisq_tod > 1d30 .or. chisq_buff > 1d30) then
-                        lnL_zodi = -0.5 * 1d30
-                        return
-                    end if
-                    chisq_tod = chisq_tod + chisq_buff
-                    deallocate(s_scat, s_therm, s_zodi)
-                end do
-            end do
-        end do
-
-        ! Reduce chisq to root process
-        call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-
-        lnL_zodi = -0.5 * chisq
-
-    end function lnL_zodi
 end module
