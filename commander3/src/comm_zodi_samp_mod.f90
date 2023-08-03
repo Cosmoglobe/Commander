@@ -125,10 +125,10 @@ contains
         active_params(62) = .false. !delta
 
         ! emissivities
-        active_params(63 : 63 + n_spec_params) = .false.
+        active_params(63 : 63 + n_spec_params - 1) = .false.
 
         ! albedos
-        active_params(63 + n_spec_params : 63 + 2 * n_spec_params) = .false.
+        active_params(63 + n_spec_params - 1 : 63 + 2 * n_spec_params - 1) = .false.
 
         n_active_params = count(active_params == .true.)
 
@@ -210,12 +210,12 @@ contains
         priors(62, :) = [0.2, 0.7] !delta
 
         ! Emissivity
-        priors(63 : 63 + n_spec_params, 0) = 0.
-        priors(63 : 63 + n_spec_params, 1) = 5.
+        priors(63 : 63 + n_spec_params - 1, 1) = 0.
+        priors(63 : 63 + n_spec_params - 1, 2) = 5.
 
         ! Albedo
-        priors(63 + n_spec_params : 63 + 2 * n_spec_params, 0) = 0.
-        priors(63 + n_spec_params : 63 + 2 * n_spec_params, 1) = 1.
+        priors(63 + n_spec_params - 1 : 63 + 2 * n_spec_params - 1, 1) = 0.
+        priors(63 + n_spec_params - 1 : 63 + 2 * n_spec_params - 1, 2) = 1.
     end subroutine initialize_zodi_samp_mod
 
     function get_powell_vec(param_vec) result(powell_vec)
@@ -510,7 +510,7 @@ contains
         if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
 
        ! Make box have odd size so that we can pick out a center pixel
-        if (mod(box_halfwidth, 2) == 0) then 
+        if (mod(box_width, 2) == 0) then 
             box_fullwidth = box_width + 1.
         else 
             box_fullwidth = box_width

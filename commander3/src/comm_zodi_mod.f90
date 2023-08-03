@@ -330,8 +330,8 @@ contains
 
         allocate(self%comps(self%n_comps))
         allocate(self%comp_labels(self%n_comps))
-        allocate(self%emissivity(self%n_comps, self%n_bands))
-        allocate(self%albedo(self%n_comps, self%n_bands))
+        allocate(self%emissivity(self%n_bands, self%n_comps))
+        allocate(self%albedo(self%n_bands, self%n_comps))
         ! Tempereature parameters
         self%T_0 = cpar%zs_t_0
         self%delta = cpar%zs_delta
@@ -540,8 +540,8 @@ contains
 
         !emissivities
         k = 63
-        do i = 1, self%n_comps
-            do j = 1, self%n_bands
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
                 self%emissivity(i, j) = x(k)
                 k = k + 1
             end do
@@ -549,8 +549,8 @@ contains
 
         !albedos
         k = 63 + self%n_comps * self%n_bands
-        do i = 1, self%n_comps
-            do j = 1, self%n_bands
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
                 self%albedo(i, j) = x(k)
                 k = k + 1
             end do
@@ -625,8 +625,8 @@ contains
         
         !emissivities
         k = 63
-        do i = 1, self%n_comps
-            do j = 1, self%n_bands
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
                 x(k) = self%emissivity(i, j)
                 k = k + 1
             end do
@@ -634,8 +634,8 @@ contains
 
         !albedos
         k = 63 + self%n_comps * self%n_bands
-        do i = 1, self%n_comps
-            do j = 1, self%n_bands
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
                 x(k) = self%albedo(i, j)
                 k = k + 1
             end do
