@@ -10,13 +10,12 @@ module comm_zodi_samp_mod
     implicit none
 
     private
-    public initialize_zodi_samp_mod, sample_zodi_model, init_scandata_and_downsamp_zodi
+    public initialize_zodi_samp_mod, sample_zodi_model, init_scandata_and_downsamp_zodi, gibbs_sample_zodi_comp
 
     ! globals
     real(dp), allocatable :: chisq_previous, step_size, step_sizes(:), priors(:, :)
     logical(lgt), allocatable :: active_params(:)
-    integer(i4b) :: n_active_params
-
+    integer(i4b) :: n_active_params, cloud_start, cloud_stop, band1_start, band1_stop, band2_start, band2_stop, band3_start, band3_stop, ring_start, ring_stop, feature_start, feature_stop
 contains
     subroutine initialize_zodi_samp_mod(cpar)
         ! Initialize the zodi sampling module.
@@ -38,8 +37,100 @@ contains
         allocate(active_params(zodi_model%n_parameters))
         allocate(param_vec(zodi_model%n_parameters))
         param_vec = zodi_model%model_to_param_vec()
-        step_sizes = 0.33
+        step_sizes = 0.1
         n_spec_params = zodi_model%n_bands * zodi_model%n_comps
+
+
+        ! Set active parameters (Those we want to fit)
+        ! Cloud
+        active_params(1) = .true. !n_0
+        active_params(2) = .true. !incl
+        active_params(3) = .true. !omega
+        active_params(4) = .true. !x_0
+        active_params(5) = .true. !y_0
+        active_params(6) = .true. !z_0
+        active_params(7) = .true. !alpha
+        active_params(8) = .true. !beta
+        active_params(9) = .true. !gamma
+        active_params(10) = .true. !mu
+        cloud_start = 1 ; cloud_stop = 10
+
+        ! Band1
+        active_params(11) = .true. !n_0
+        active_params(12) = .true. !incl
+        active_params(13) = .true. !omega
+        active_params(14) = .true. !x_0
+        active_params(15) = .true. !y_0
+        active_params(16) = .true. !z_0
+        active_params(17) = .true. !delta_zeta
+        active_params(18) = .true. !delta_r
+        active_params(19) = .true. !v
+        active_params(20) = .true. !p
+        band1_start = 11 ; band1_stop = 20
+
+        ! Band2
+        active_params(21) = .true. !n_0
+        active_params(22) = .true. !incl
+        active_params(23) = .true. !omega
+        active_params(24) = .true. !x_0
+        active_params(25) = .true. !y_0
+        active_params(26) = .true. !z_0
+        active_params(27) = .true. !delta_zeta
+        active_params(28) = .true. !delta_r
+        active_params(29) = .true. !v
+        active_params(30) = .true. !p
+        band2_start = 21 ; band2_stop = 30
+
+        ! Band3
+        active_params(31) = .true. !n_0
+        active_params(32) = .true. !incl
+        active_params(33) = .true. !omega
+        active_params(34) = .true. !x_0
+        active_params(35) = .true. !y_0
+        active_params(36) = .true. !z_0
+        active_params(37) = .true. !delta_zeta
+        active_params(38) = .true. !delta_r
+        active_params(39) = .true. !v
+        active_params(40) = .true. !p
+        band3_start = 31 ; band3_stop = 40
+
+        ! Ring
+        active_params(41) = .true. !n_0
+        active_params(42) = .true. !incl
+        active_params(43) = .true. !omega
+        active_params(44) = .true. !x_0
+        active_params(45) = .true. !y_0
+        active_params(46) = .true. !z_0
+        active_params(47) = .true. !R_0
+        active_params(48) = .true. !sigma_r
+        active_params(49) = .true. !sigma_z
+        ring_start = 41 ; ring_stop = 49
+
+        ! Feature
+        active_params(50) = .true. !n_0
+        active_params(51) = .true. !incl
+        active_params(52) = .true. !omega
+        active_params(53) = .true. !x_0
+        active_params(54) = .true. !y_0
+        active_params(55) = .true. !z_0
+        active_params(56) = .true. !R_0
+        active_params(57) = .true. !sigma_r
+        active_params(58) = .true. !sigma_z
+        active_params(59) = .true. !theta_0
+        active_params(60) = .true. !sigma_theta
+        feature_start = 50 ; feature_stop = 60
+
+        ! Other
+        active_params(61) = .false. !T_0
+        active_params(62) = .false. !delta
+
+        ! emissivities
+        active_params(63 : 63 + n_spec_params) = .false.
+
+        ! albedos
+        active_params(63 + n_spec_params : 63 + 2 * n_spec_params) = .false.
+
+        n_active_params = count(active_params == .true.)
 
         ! Priors for zodi parameters
         ! Cloud
@@ -125,92 +216,6 @@ contains
         ! Albedo
         priors(63 + n_spec_params : 63 + 2 * n_spec_params, 0) = 0.
         priors(63 + n_spec_params : 63 + 2 * n_spec_params, 1) = 1.
-
-        ! Set active parameters (Those we want to fit)
-        ! Cloud
-        active_params(1) = .true. !n_0
-        active_params(2) = .false. !incl
-        active_params(3) = .false. !omega
-        active_params(4) = .false. !x_0
-        active_params(5) = .false. !y_0
-        active_params(6) = .false. !z_0
-        active_params(7) = .false. !alpha
-        active_params(8) = .false. !beta
-        active_params(9) = .false. !gamma
-        active_params(10) = .false. !mu
-
-        ! Band1
-        active_params(11) = .false. !n_0
-        active_params(12) = .false. !incl
-        active_params(13) = .false. !omega
-        active_params(14) = .false. !x_0
-        active_params(15) = .false. !y_0
-        active_params(16) = .false. !z_0
-        active_params(17) = .false. !delta_zeta
-        active_params(18) = .false. !delta_r
-        active_params(19) = .false. !v
-        active_params(20) = .false. !p
-
-        ! Band2
-        active_params(21) = .false. !n_0
-        active_params(22) = .false. !incl
-        active_params(23) = .false. !omega
-        active_params(24) = .false. !x_0
-        active_params(25) = .false. !y_0
-        active_params(26) = .false. !z_0
-        active_params(27) = .false. !delta_zeta
-        active_params(28) = .false. !delta_r
-        active_params(29) = .false. !v
-        active_params(30) = .false. !p
-
-        ! Band3
-        active_params(31) = .false. !n_0
-        active_params(32) = .false. !incl
-        active_params(33) = .false. !omega
-        active_params(34) = .false. !x_0
-        active_params(35) = .false. !y_0
-        active_params(36) = .false. !z_0
-        active_params(37) = .false. !delta_zeta
-        active_params(38) = .false. !delta_r
-        active_params(39) = .false. !v
-        active_params(40) = .false. !p
-
-        ! Ring
-        active_params(41) = .false. !n_0
-        active_params(42) = .false. !incl
-        active_params(43) = .false. !omega
-        active_params(44) = .false. !x_0
-        active_params(45) = .false. !y_0
-        active_params(46) = .false. !z_0
-        active_params(47) = .false. !R_0
-        active_params(48) = .false. !sigma_r
-        active_params(49) = .false. !sigma_z
-
-        ! Feature
-        active_params(50) = .false. !n_0
-        active_params(51) = .false. !incl
-        active_params(52) = .false. !omega
-        active_params(53) = .false. !x_0
-        active_params(54) = .false. !y_0
-        active_params(55) = .false. !z_0
-        active_params(56) = .false. !R_0
-        active_params(57) = .false. !sigma_r
-        active_params(58) = .false. !sigma_z
-        active_params(59) = .false. !theta_0
-        active_params(60) = .false. !sigma_theta
-
-        ! Other
-        active_params(61) = .false. !T_0
-        active_params(62) = .false. !delta
-
-        ! emissivities
-        active_params(63 : 63 + n_spec_params) = .false.
-
-        ! albedos
-        active_params(63 + n_spec_params : 63 + 2 * n_spec_params) = .false.
-
-        n_active_params = count(active_params == .true.)
-
     end subroutine initialize_zodi_samp_mod
 
     function get_powell_vec(param_vec) result(powell_vec)
@@ -422,12 +427,12 @@ contains
 
 
 
-    subroutine init_scandata_and_downsamp_zodi(cpar, comp)
+    subroutine init_scandata_and_downsamp_zodi(cpar, comp_idx)
         ! This routine mimics parts of the process_TOD where we calibrate the timestreams 
         ! put them into th scan_data type, and then downsample them for use in zodi fitting.
         ! See the process_TOD routines for more details on what happens here.
         type(comm_params), intent(in) :: cpar
-        integer(i4b), intent(in) :: comp
+        integer(i4b), intent(in) :: comp_idx
 
         integer(i4b) :: i, j , k, nside, npix, nmaps, ndelta
         real(sp), allocatable, dimension(:, :, :, :) :: map_sky
@@ -476,7 +481,7 @@ contains
 
                 ! not calibrating the data so we use substitute map_gain with map_sky
                 call sd%init_singlehorn(data(i)%tod, j, map_sky, map_sky, procmask, procmask2, procmask_zodi)
-                call boxcar_downsamp_zodi_res_and_pointing(data(i)%tod, sd, j, padding=5, box_width=downsamp_width(comp))
+                call boxcar_downsamp_zodi_res_and_pointing(data(i)%tod, sd, j, padding=5, box_width=downsamp_width(comp_idx))
 
                 ! prepare scandata object for next scan
                 call sd%dealloc
@@ -664,58 +669,97 @@ contains
 
 
 
-    subroutine gibbs_sample_zodi_comp(cpar, handle, comp)
+    subroutine gibbs_sample_zodi_comp(cpar, handle, comp_label, verbose)
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
-        integer(i4b), intent(in) :: comp
-        integer(i4b) :: i, j, k, flag, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced, n_tot_tod_current
+        character(len=*), intent(in) :: comp_label
+        logical(lgt), intent(in), optional :: verbose
+        integer(i4b) :: i, j, k, param_start, param_stop, flag, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, n_tot_tod, n_tot_tod_reduced, n_tot_tod_current
         real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:)
         real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL
         real(dp), allocatable :: param_vec(:), powell_vec(:)
         type(ZodiModel) :: current_model, previous_model
-        logical(lgt) :: accepted, operation
+        logical(lgt) :: accepted, verbose_
 
+        if (present(verbose)) then
+            verbose_ = verbose
+        else
+            verbose_ = .false.
+        end if
+
+        if (verbose_ .and. (cpar%myid == cpar%root)) then
+            print *, "==== Zodi gibbs sampling step: ", trim(comp_label), " ===="
+            print *, " "
+        end if 
+
+        ! Get parameter indicies for this component
+        select case (trim(comp_label)) 
+        case ("cloud")
+            param_start = cloud_start
+            param_stop = cloud_stop
+        case ("band1")
+            param_start = band1_start
+            param_stop = band1_stop
+        case ("band2")
+            param_start = band2_start
+            param_stop = band2_stop
+        case ("band3")
+            param_start = band3_start
+            param_stop = band3_stop
+        case ("ring")
+            param_start = ring_start
+            param_stop = ring_stop
+        case ("feature")
+            param_start = feature_start
+            param_stop = feature_stop
+        end select
 
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
         nprop = cpar%zs_nprop
-        n_accepted = 0
+
+        ! Make two copies of the zodi model, one for the current proposal and one for the previous proposal
         current_model = zodi_model
         previous_model = zodi_model
 
         allocate(param_vec(current_model%n_parameters))
 
-
+        n_accepted = 0
         do k = 0, nprop
             ! Reset chisq for current proposal
             chisq_tod = 0.
             chisq_current = 0.
             
-            ! Root process draws new set of zodi parameters and broadcasts to all processes
             ! If first iteration we dont want to draw, just compute the chisq with the base model
             if (k > 0) then
+
+                ! Root process draws new set of zodi parameters and broadcasts to all processes
                 if (cpar%myid == cpar%root) then
                     param_vec = current_model%model_to_param_vec()
-                    do i = 1, size(param_vec)
-                        if (active_params(i) == .true.) then
-                            param_vec(i) = param_vec(i) + (step_sizes(i) * param_vec(i) * rand_gauss(handle))
-                            if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
-                                step_sizes(i) = step_sizes(i) / 2.
-                                chisq_tod = 1.d30
-                                exit
-                            end if
+
+                    ! propse new set of parameters for component
+                    do i = param_start, param_stop
+                        if (.not. active_params(i)) cycle
+                        param_vec(i) = param_vec(i) + (step_sizes(i) * param_vec(i) * rand_gauss(handle))
+
+                        ! If parameter is outside of prior range, immediatly reject proposal and halve step size
+                        if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
+                            step_sizes(i) = step_sizes(i) / 2.
+                            chisq_tod = 1.d30
+                            exit
                         end if
                     end do
                 end if
                 call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+                ! Update current_model with new parameters
                 call current_model%param_vec_to_model(param_vec)
             end if
 
+            ! loop over downsampled residuals for each tod band with zodi
             do i = 1, numband
-                ! Skip none tod bands
                 if (data(i)%tod_type == "none") cycle
-                ! Skip tod bands where we dont want to sample zodi
                 if (.not. data(i)%tod%sample_zodi) cycle
 
+                ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
                 if (chisq_tod >= 1.d30) exit
 
                 ndet = data(i)%tod%ndet
@@ -767,14 +811,15 @@ contains
                     chisq_diff = max(chisq_current - chisq_previous, 0.)
                     ln_acceptance_probability = -0.5 * chisq_diff
                     accepted = ln_acceptance_probability > log(rand_uni(handle))
-                    
-                    print *, "proposal:", k
-                    print *, "chisq_current:", chisq_current
-                    print *, "chisq_diff:", chisq_diff
-                    print *, "ln a:", ln_acceptance_probability 
-                    print *, "accepted:", accepted
-                    print *, "accept rate:", (real(n_accepted) / real(k))*100.
-                    print *, " "
+                    if (verbose_) then
+                        print *, "proposal:", k
+                        print *, "chisq_current:", chisq_current
+                        print *, "chisq_diff:", chisq_diff
+                        print *, "ln a:", ln_acceptance_probability 
+                        print *, "accepted:", accepted
+                        print *, "accept rate:", (real(n_accepted) / real(k))*100.
+                        print *, " "
+                    end if
                 end if
 
                 call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
@@ -790,17 +835,14 @@ contains
             end if
         end do  
         if (accept_rate < 10.) then
-            step_sizes = step_sizes / 2.
-            print *, "lowering stepsize"
+            step_sizes(param_start:param_stop) = step_sizes(param_start:param_stop) / 2.
+            if (verbose_ .and. (cpar%myid == cpar%root)) print *, "lowering stepsize"
         else if (accept_rate > 60.) then 
-            step_sizes = step_sizes * 2.
-            print *, "increasing stepsize"
+            step_sizes(param_start:param_stop) = step_sizes(param_start:param_stop) * 2.
+            if (verbose_ .and. (cpar%myid == cpar%root)) print *, "increasing stepsize"
         end if
         
         zodi_model = current_model
-
     end subroutine
-
-
 
 end module

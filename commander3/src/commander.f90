@@ -323,9 +323,9 @@ program commander
       ! Gibbs step over components. Compute downsampled res before each step. 
       do i = 1, zodi_model%n_comps
          ! MCMC sample comp i and update sampled zodi model at the end
-         call gibbs_sample_zodi_comp(cpar,, handle, comp=i)
+         call gibbs_sample_zodi_comp(cpar, handle, comp_label=zodi_model%comp_labels(i), verbose=.true.)
          ! Recompute downsampled residual using the newly fitted zodi component
-         call init_scandata_and_downsamp_zodi(cpar, comp=i)
+         call init_scandata_and_downsamp_zodi(cpar, comp_idx=i)
       end do
 
       ! Each gibbs step is a MCMC of all 10-12 component parameters with `n_prop` proposals.
