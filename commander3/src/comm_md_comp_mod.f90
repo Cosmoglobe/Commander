@@ -113,8 +113,12 @@ contains
        constructor%RJ2unit_ = data(band)%bp(0)%p%a2f
     case ('uK_RJ') 
        constructor%RJ2unit_ = 1.d0
-    case ('K km/s') 
+    case ('Kkm/s') 
        constructor%RJ2unit_ = 1.d0
+       ! constructor%RJ2unit_ = 1.d0 / (constructor%nu_ref/c * 1d9)
+!       write(*,*) 'Kkm/s not yet supported in md_mod'
+!       call mpi_finalize(i)
+!       stop
     case default
        call report_error('Unsupported unit: ' // trim(constructor%unit))
     end select

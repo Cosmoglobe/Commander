@@ -81,6 +81,7 @@ module comm_ptsrc_comp_mod
      procedure :: initHDF       => initPtsrcHDF
      procedure :: sampleSpecInd => samplePtsrcSpecInd
      procedure :: update_F_int  => updatePtsrcFInt
+     procedure :: read_febecop_beam
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
@@ -769,48 +770,45 @@ contains
 
     ! Initialize beam templates
     tempfile = trim(cpar%cs_ptsrc_template(id_abs))
-    do j = 1, self%nsrc
-       if (mod(j,1000) == 0 .and. self%myid == 0) &
-       !if (mod(j,100) == 0 .and. self%myid == 0) &
-            & write(*,fmt='(a,i6,a,i6)') ' |    Initializing src no. ', j, ' of ', self%nsrc
-       do i = 1, numband
-          self%src(j)%T(i)%nside   = data(i)%info%nside
-          self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
-          allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps,0:data(i)%ndet))
-          self%src(j)%T(i)%F       = 0.d0
+    do i = 1, numband
+       filename = trim(cpar%ds_btheta_file(data(i)%id_abs))
+       n        = len(trim(adjustl(filename)))
+       if (trim(tempfile) /= 'none' .and. &
+            & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
+          ! Read from precomputed file
+          call self%read_febecop_beam(cpar, tempfile, data(i)%label, i)      
+       else if (filename(n-2:n) == '.h5') then
+          ! Read precomputed Febecop beam from HDF file
+          call self%read_febecop_beam(cpar, filename, 'none', i)
+       else
+          ! Construct beam on-the-fly
+          do j = 1, self%nsrc
+             if (mod(j,1000) == 0 .and. self%myid == 0) &
+                  & write(*,fmt='(a,i6,a,i6)') ' |    Initializing src no. ', j, ' of ', self%nsrc
+             self%src(j)%T(i)%nside   = data(i)%info%nside
+             self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
+             allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps,0:data(i)%ndet))
+             self%src(j)%T(i)%F       = 0.d0
 
-          if (self%F_null(i)) then
-             self%src(j)%T(i)%map     = 0.d0
-             self%src(j)%T(i)%Omega_b = 0.d0
-             cycle
-          end if
+             if (self%F_null(i)) then
+                self%src(j)%T(i)%map     = 0.d0
+                self%src(j)%T(i)%Omega_b = 0.d0
+                cycle
+             end if
     
-          ! Get pixel space template; try precomputed templates first
-          if (trim(cpar%cs_ptsrc_template(id_abs)) /= 'none' .and. &
-               & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
-             call read_febecop_beam(cpar, tempfile, data(i)%label, &
-                  & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))             
-          else
-             !write(*,*) i, trim(data(i)%label), trim(cpar%ds_btheta_file(i))
-             filename = trim(cpar%ds_btheta_file(data(i)%id_abs))
-             n        = len(trim(adjustl(filename)))
-             if (filename(n-2:n) == '.h5') then
-                ! Read precomputed Febecop beam from HDF file
-                call read_febecop_beam(cpar, filename, 'none', &
-                     & self%src(j)%glon, self%src(j)%glat, i, self%src(j)%T(i))
-             else if (trim(cpar%ds_btheta_file(data(i)%id_abs)) == 'none') then
+             if (trim(cpar%ds_btheta_file(data(i)%id_abs)) == 'none') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
                      & self%src(j)%T(i), bl=data(i)%B(0)%p%b_l)
              else if (filename(n-3:n) == '.dat' .or. filename(n-3:n) == '.txt') then
                 ! Build template internally from b_l
                 call compute_symmetric_beam(i, self%src(j)%glon, self%src(j)%glat, &
-                     & self%src(j)%T(i), beamfile=filename)             
+                        & self%src(j)%T(i), beamfile=filename)             
              else
                 call report_error('Unsupported point source template = '//trim(filename))
              end if
-          end if
-       end do
+          end do
+       end if
     end do
     if (cpar%cs_output_ptsrc_beam(id_abs)) call dump_beams_to_hdf(self, tempfile)
 
@@ -831,154 +829,174 @@ contains
   end subroutine read_sources
 
 
-  subroutine read_febecop_beam(cpar, filename, label, glon, glat, band, T)
+  subroutine read_febecop_beam(self, cpar, filename, label, band)
     implicit none
+    class(comm_ptsrc_comp), intent(inout), target :: self
     class(comm_params), intent(in)    :: cpar
     character(len=*),   intent(in)    :: filename, label
-    real(dp),           intent(in)    :: glon, glat
     integer(i4b),       intent(in)    :: band
-    type(Tnu),          intent(inout) :: T
 
-    integer(i4b)      :: i, j, k, n, m, p, q, pix, ext(1), ierr
+
+    integer(i4b)       :: i, j, k, n, m, p, q, s, pix, ext(1), ierr
     character(len=128) :: itext
-    type(hdf_file)    :: file
+    type(hdf_file)     :: file
+    type(Tnu), pointer :: T
     integer(i4b), allocatable, dimension(:)   :: ind, ind_in, nsamp
     integer(i4b), allocatable, dimension(:,:) :: mypix
     real(dp),     allocatable, dimension(:)   :: b_in
     real(dp),     allocatable, dimension(:,:) :: b, mybeam
     real(dp),     allocatable, dimension(:,:)   :: buffer
 
-    if (myid_pre == 0) then
-       ! Find center pixel number for current source
-       call ang2pix_ring(T%nside_febecop, 0.5d0*pi-glat, glon, pix)
+    if (myid_pre == 0) call open_hdf_file(filename, file, 'r')
 
-       ! Find number of pixels in beam
-       write(itext,*) pix
-       if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
-       call open_hdf_file(filename, file, 'r')
-       call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
-       m = ext(1)
+    do s = 1, self%nsrc
 
-       ! Read full beam from file
-       !allocate(ind_in(m), b_in(m,T%nmaps))
-       allocate(ind_in(m), b_in(m))
-       call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
-       call read_hdf(file, trim(adjustl(itext))//'/values',  b_in)
-       call close_hdf_file(file)
+       T => self%src(s)%T(band)
+       T%nside   = data(band)%info%nside
+       T%nmaps   = min(data(band)%info%nmaps, self%nmaps)
+       allocate(T%F(T%nmaps,0:data(band)%ndet))
+       T%F       = 0.d0
+       
+       if (self%F_null(band)) then
+          T%map     = 0.d0
+          T%Omega_b = 0.d0
+          cycle
+       end if
 
-       if (T%nside == T%nside_febecop) then
-          n = m
-          allocate(ind(n), b(n,T%nmaps))
-          ind    = ind_in
-          b(:,1) = b_in
-       else if (T%nside > T%nside_febecop) then
-          q = (T%nside/T%nside_febecop)**2
-          n = q*m
-          allocate(ind(n), b(n,T%nmaps))
-          k = 1
-          do i = 1, m
-             call ring2nest(T%nside_febecop, ind_in(i), j)
-             do p = q*j, q*j-1
-                call nest2ring(T%nside, p, ind(k))
-                !b(k,:) = b_in(i,:)
-                b(k,1) = b_in(i)
-                k      = k+1
+       if (myid_pre == 0) then
+          if (mod(s,50000) == 0) then
+             write(*,fmt='(a,i6,a,i6,a,a)') ' |    Initializing src ', s, ' of ', self%nsrc, ', ', trim(data(band)%label) 
+          end if
+
+          ! Find center pixel number for current source
+          call ang2pix_ring(T%nside_febecop, &
+               & 0.5d0*pi-self%src(s)%glat, self%src(s)%glon, pix)
+
+          ! Find number of pixels in beam
+          write(itext,*) pix
+          if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
+          call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
+          m = ext(1)
+
+          ! Read full beam from file
+          allocate(ind_in(m), b_in(m))
+          call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
+          call read_hdf(file, trim(adjustl(itext))//'/values',  b_in)
+
+          if (T%nside == T%nside_febecop) then
+             n = m
+             allocate(ind(n), b(n,T%nmaps))
+             ind    = ind_in
+             b(:,1) = b_in
+          else if (T%nside > T%nside_febecop) then
+             q = (T%nside/T%nside_febecop)**2
+             n = q*m
+             allocate(ind(n), b(n,T%nmaps))
+             k = 1
+             do i = 1, m
+                call ring2nest(T%nside_febecop, ind_in(i), j)
+                do p = q*j, q*j-1
+                   call nest2ring(T%nside, p, ind(k))
+                   !b(k,:) = b_in(i,:)
+                   b(k,1) = b_in(i)
+                   k      = k+1
+                end do
+                write(*,*) 'Needs sorting'
+                stop
              end do
-             write(*,*) 'Needs sorting'
-             stop
-          end do
-       else if (T%nside < T%nside_febecop) then
-          q = (T%nside_febecop/T%nside)**2
-          n = 0
-          allocate(ind(m), b(m,T%nmaps), nsamp(m), buffer(m, T%nmaps))
-          nsamp = 0
-          b     = 0.d0
-          do i = 1, m
-             call ring2nest(T%nside_febecop, ind_in(i), j)
-             j = j / q
-             call nest2ring(T%nside, j, p)
-             do k = 1, n
-                if (ind(k) == p) then
-                   !b(k,:)   = b(k,:)   + b_in(i,:)
-                   b(k,1)   = b(k,1)   + b_in(i)
-                   nsamp(k) = nsamp(k) + 1
-                   exit
+          else if (T%nside < T%nside_febecop) then
+             q = (T%nside_febecop/T%nside)**2
+             n = 0
+             allocate(ind(m), b(m,T%nmaps), nsamp(m), buffer(m, T%nmaps))
+             nsamp = 0
+             b     = 0.d0
+             do i = 1, m
+                call ring2nest(T%nside_febecop, ind_in(i), j)
+                j = j / q
+                call nest2ring(T%nside, j, p)
+                do k = 1, n
+                   if (ind(k) == p) then
+                      b(k,1)   = b(k,1)   + b_in(i)
+                      nsamp(k) = nsamp(k) + 1
+                      exit
+                   end if
+                end do
+                if (k > n) then
+                   do k = 1, n
+                      if (ind(k) > p) exit
+                   end do
+                   ind(k+1:n+1)   = ind(k:n)
+                   b(k+1:n+1,:)   = b(k:n,:)
+                   nsamp(k+1:n+1) = nsamp(k:n)
+                   ind(k)         = p
+                   b(k,1)         = b_in(i)
+                   nsamp(k)       = 1
+                   n              = n + 1
                 end if
              end do
-             if (k > n) then
-                do k = 1, n
-                   if (ind(k) > p) exit
-                end do
-                ind(k+1:n+1)   = ind(k:n)
-                b(k+1:n+1,:)   = b(k:n,:)
-                nsamp(k+1:n+1) = nsamp(k:n)
-                ind(k)         = p
-                !b(k,:)         = b_in(i,:)
-                b(k,1)         = b_in(i)
-                nsamp(k)       = 1
-                n              = n + 1
-             end if
-          end do
-          do k = 1, n
-             b(k,:) = b(k,:) / nsamp(k)
-          end do
-          deallocate(nsamp)
-       end if
-       deallocate(ind_in, b_in)
-
-       ! Distribute information
-       call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
-    else
-       call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
-       allocate(ind(n), b(n,T%nmaps), buffer(n, T%nmaps))
-    end if
-    call mpi_bcast(ind(1:n), n,         MPI_INTEGER,          0, comm_pre, ierr)
-    buffer = b(1:n, :)
-    call mpi_bcast(buffer, n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
-    b(1:n, :) = buffer
-    deallocate(buffer)
-
-    ! Find number of pixels belonging to current processor
-    allocate(mypix(n,2), mybeam(n,T%nmaps))
-    T%np = 0
-    i    = 1
-    j    = locate(data(band)%info%pix, ind(i))
-    do while (j == 0 .and. i < n) 
-       i = i+1
-       j = locate(data(band)%info%pix, ind(i))
-    end do
-    if (j > 0) then
-       do while (.true.)
-          if (ind(i) == data(band)%info%pix(j)) then
-             T%np            = T%np + 1
-             mypix(T%np,1)   = j-1
-             mypix(T%np,2)   = data(band)%info%pix(j)
-             mybeam(T%np,:)  = b(i,:)
-             i               = i+1
-             j               = j+1
-          else if (ind(i) < data(band)%info%pix(j)) then
-             i               = i+1
-          else
-             j               = j+1
+             do k = 1, n
+                b(k,:) = b(k,:) / nsamp(k)
+             end do
+             deallocate(nsamp)
           end if
-          if (i > n) exit
-          if (j > data(band)%info%np) exit
+          deallocate(ind_in, b_in)
+             
+          ! Distribute information
+          call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
+       else
+          call mpi_bcast(n, 1, MPI_INTEGER, 0, comm_pre, ierr)
+          allocate(ind(n), b(n,T%nmaps), buffer(n, T%nmaps))
+       end if
+       call mpi_bcast(ind(1:n), n, MPI_INTEGER, 0, comm_pre, ierr)
+       buffer = b(1:n, :)
+       call mpi_bcast(buffer, n*T%nmaps, MPI_DOUBLE_PRECISION, 0, comm_pre, ierr)
+       b(1:n, :) = buffer
+       deallocate(buffer)
+          
+       ! Find number of pixels belonging to current processor
+       allocate(mypix(n,2), mybeam(n,T%nmaps))
+       T%np = 0
+       i    = 1
+       j    = locate(data(band)%info%pix, ind(i))
+       do while (j == 0 .and. i < n) 
+          i = i+1
+          j = locate(data(band)%info%pix, ind(i))
        end do
-    end if
+       if (j > 0) then
+          do while (.true.)
+             if (ind(i) == data(band)%info%pix(j)) then
+                T%np            = T%np + 1
+                mypix(T%np,1)   = j-1
+                mypix(T%np,2)   = data(band)%info%pix(j)
+                mybeam(T%np,:)  = b(i,:)
+                i               = i+1
+                j               = j+1
+             else if (ind(i) < data(band)%info%pix(j)) then
+                i               = i+1
+             else
+                j               = j+1
+             end if
+             if (i > n) exit
+             if (j > data(band)%info%np) exit
+          end do
+       end if
 
-    ! Store pixels that belong to current processor
-    allocate(T%pix(T%np,2), T%map(T%np,T%nmaps), T%Omega_b(T%nmaps))
-    T%pix = mypix(1:T%np,:)
-    do i = 1, T%nmaps
-       T%map(:,i)   = mybeam(1:T%np,i) / maxval(b(:,i))
-       T%Omega_b(i) = sum(b(:,i))/maxval(b(:,i)) * 4.d0*pi/(12.d0*T%nside**2)
+       ! Store pixels that belong to current processor
+       allocate(T%pix(T%np,2), T%map(T%np,T%nmaps), T%Omega_b(T%nmaps))
+       T%pix = mypix(1:T%np,:)
+       do i = 1, T%nmaps
+          T%map(:,i)   = mybeam(1:T%np,i) / maxval(b(:,i))
+          T%Omega_b(i) = sum(b(:,i))/maxval(b(:,i)) * 4.d0*pi/(12.d0*T%nside**2)
+       end do
+
+       ! Adjusting for main beam efficiency
+       !    if (trim(label) == '0.4-Haslam') T%map = 1.3 * T%map 
+
+       deallocate(ind, b, mypix, mybeam)
     end do
 
-    ! Adjusting for main beam efficiency
-!    if (trim(label) == '0.4-Haslam') T%map = 1.3 * T%map 
-
-    deallocate(ind, b, mypix, mybeam)
-
+    if (myid_pre == 0) call close_hdf_file(file)
+    
   end subroutine read_febecop_beam
 
   subroutine dump_beams_to_hdf(self, filename)

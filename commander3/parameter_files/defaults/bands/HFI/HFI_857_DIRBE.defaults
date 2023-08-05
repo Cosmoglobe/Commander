@@ -35,6 +35,6 @@ BAND_DEFAULT_BP_DELTA&&&       =   0.
 BAND_DEFAULT_NOISEAMP&&&       =   1.
 BAND_COMPONENT_SENSITIVITY&&&  = broadband
 BAND_TOD_TYPE&&&               = none
-BAND_NOISE_RMS&&&_SMOOTH01       = none
+BAND_NOISE_RMS&&&_SMOOTH01       = HFI_SkyMap_857-BPassCorrected_2048_R4.00_full_rms_uK_1deg_n256.fits
 BAND_NOISE_RMS&&&_SMOOTH02       = none
 BAND_NOISE_RMS&&&_SMOOTH03       = none

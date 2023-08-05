@@ -18,7 +18,7 @@ COMP_NU_MAX&&                 = 1d30
 COMP_NU_REF_T&&               = 545
 COMP_NU_REF_P&&               = 545
 COMP_MASK&&                   = fullsky
-COMP_INDMASK&&                = mask_DIRBE_chisq_n2048_v1.fits  fullsky
+COMP_INDMASK&&                = mask_DIRBE_chisq_n2048_v2.fits  fullsky
 
 COMP_CL_TYPE&&                = gauss  # {none, single_l, binned,power_law, exp}
 COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
