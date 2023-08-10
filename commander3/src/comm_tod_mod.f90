@@ -2821,17 +2821,6 @@ contains
       self%zodi_init_cache_time = self%scans(1)%t0(1)
       call self%clear_zodi_cache()
       
-      allocate(self%zodi_emissivity(cpar%zs_ncomps))
-      allocate(self%zodi_albedo(cpar%zs_ncomps))
-      self%zodi_emissivity(:) = cpar%ds_zodi_emissivity(self%band, :)
-      self%zodi_albedo(:) = cpar%ds_zodi_albedo(self%band, :)
-      
-      if (count(self%zodi_albedo /= 0.) > 0) then
-         self%zodi_scattering = .true.
-      else
-         self%zodi_scattering = .false.
-      end if
-      
       !allocate spectral quantities
       allocate(self%zodi_spl_phase_coeffs(self%ndet, 3))
       allocate(self%zodi_spl_solar_irradiance(self%ndet))

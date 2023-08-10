@@ -114,7 +114,7 @@ contains
         end if
     end subroutine initialize_zodi_mod
 
-    subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)
+    subroutine get_s_zodi(s_therm, s_scat, s_zodi, band, model)
         ! Evaluates the zodiacal signal (eq. 20 in zodipy paper [k98 model]) given 
         ! integrated thermal zodiacal emission and scattered zodiacal light.
         !
@@ -128,15 +128,23 @@ contains
         !     Integrated contribution from scattered sunlight light.
         ! s_therm :
         !     Integrated contribution from thermal interplanetary dust emission.   
-        real(dp), dimension(:), intent(in) :: emissivity, albedo     
+        ! s_zodi :
+        !     Zodiacal signal.
+        ! band :
+        !     Band number.
+        ! model :
+        !     zodi model.
         real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
         real(sp), dimension(:), intent(out) :: s_zodi
-        integer(i4b) :: i, n_comps
+        integer(i4b), intent(in) :: band
+        type(ZodiModel), intent(in) :: model
+        integer(i4b) :: i
+
+        if (band > model%n_bands) stop 'Error: band number exceeds number of bands in model'
 
         s_zodi = 0.
-        n_comps = size(s_scat, dim=2)
-        do i = 1, n_comps
-            s_zodi = s_zodi +  s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)
+        do i = 1, model%n_comps
+            s_zodi = s_zodi +  s_scat(:, i) * model%albedo(band, i) + (1. - model%albedo(band, i)) * model%emissivity(band, i) * s_therm(:, i)
         end do
     end subroutine get_s_zodi
 

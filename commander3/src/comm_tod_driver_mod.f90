@@ -245,11 +245,11 @@ contains
             & model=zodi_model &
           &)
           call get_s_zodi(&
-            & emissivity=tod%zodi_emissivity, &
-            & albedo=tod%zodi_albedo, &
             & s_therm=self%s_zodi_therm(:, :, j), &
             & s_scat=self%s_zodi_scat(:, :, j), &
-            & s_zodi=self%s_zodi(:, j) &
+            & s_zodi=self%s_zodi(:, j), &
+            & band=tod%band, &
+            & model=zodi_model &
           &)
        end do
        call timer%stop(TOD_ZODI, tod%band)

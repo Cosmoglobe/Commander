@@ -321,18 +321,40 @@ program commander
    !---- SAMPLE ZODI -----
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       ! Gibbs step over components. Compute downsampled res before each step. 
-      do i = 1, zodi_model%n_comps
-         ! MCMC sample comp i and update sampled zodi model at the end
-         call gibbs_sample_zodi_comp(cpar, handle, comp_label=zodi_model%comp_labels(i), verbose=.true.)
-         ! Recompute downsampled residual using the newly fitted zodi component
-         call init_scandata_and_downsamp_zodi(cpar, comp_idx=i)
-      end do
 
-      ! Each gibbs step is a MCMC of all 10-12 component parameters with `n_prop` proposals.
+      ! --- COMP-WISE GIBBS
+      if (.false.) then
+         do i = 1, zodi_model%n_comps
+            ! MCMC sample comp i and update sampled zodi model at the end
+            call gibbs_sample_zodi_comp(cpar, handle, i, zodi_model, verbose=.true.)
+            
+            ! Recompute downsampled residual using the newly fitted zodi component
+            call init_scandata_and_downsamp_zodi(cpar)
+         end do
+
+      ! --- ONE BY ONE PARAM GIBBS
+      else if (.true.) then
+         do i = 1, zodi_model%N_PARAMETERS
+            if (.not. active_params(i)) cycle
+            call gibbs_sample_all(cpar, handle, iter, i, zodi_model, verbose=.true.)
+            
+            ! Recompute downsampled residual using the newly fitted zodi component
+            call init_scandata_and_downsamp_zodi(cpar)
+         end do
+
+         call gibbs_sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
+      end if
 
       ! Final gibbs step is to estimate the spectral parameters (emissivity + albedo). 
-      ! Map based fitting MCMC where we only fit to one band at a time.
+      ! call gibbs_sample_zodi_emissivity_and_albedo(cpar, handle, zodi_model, verbose=.true.)
 
+      ! Reset zodi related quantities for next gibbs sample
+      do i = 1, numband
+         if (data(i)%tod_type == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+         call data(i)%tod%deallocate_downsampled_zodi()
+         call data(i)%tod%clear_zodi_cache()
+      end do
    end if
    !---- END SAMPLE ZODI -----
 
