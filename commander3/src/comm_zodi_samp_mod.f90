@@ -10,7 +10,7 @@ module comm_zodi_samp_mod
     implicit none
 
     private
-    public initialize_zodi_samp_mod, sample_zodi_model, init_scandata_and_downsamp_zodi, gibbs_sample_zodi_comp, gibbs_sample_zodi_emissivity_and_albedo, gibbs_sample_all, active_params
+    public initialize_zodi_samp_mod, sample_zodi_model, init_scandata_and_downsamp_zodi, gibbs_sample_zodi_comp, sample_zodi_emissivity_and_albedo, sample_zodi_parameter, active_params
 
     ! globals
     real(dp), allocatable :: chisq_previous, step_size, step_sizes(:), priors(:, :)
@@ -707,7 +707,7 @@ contains
     end function lnL_zodi
 
 
-    subroutine gibbs_sample_all(cpar, handle, gibbs_iter, param_idx, zodi_model_samp, verbose)
+    subroutine sample_zodi_parameter(cpar, handle, gibbs_iter, param_idx, zodi_model_samp, verbose)
         ! Gibbs sample one by one zodi parameter
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
@@ -818,15 +818,18 @@ contains
                             & model=current_model &
                         &)
 
-                        if (.true. .and. cpar%myid == cpar%root) then
-                            call open_hdf_file(trim("/mn/stornext/d5/data/metins/dirbe/chains/chains_testing/downsamp_timestream.h5"), tod_file, 'w')
-                            call write_hdf(tod_file, '/r', data(i)%tod%scans(scan)%d(j)%downsamp_res)
-                            call write_hdf(tod_file, '/z', s_zodi)
-                            call close_hdf_file(tod_file)
+                        if (.false.) then
+                            if (cpar%myid == cpar%root) then
+                                call open_hdf_file(trim("/mn/stornext/d5/data/metins/dirbe/chains/chains_testing/downsamp_timestream.h5"), tod_file, 'w')
+                                call write_hdf(tod_file, '/r', data(i)%tod%scans(scan)%d(j)%downsamp_res)
+                                call write_hdf(tod_file, '/z', s_zodi)
+                                call close_hdf_file(tod_file)
+                                stop
+                            end if
+                            call mpi_barrier(cpar%comm_chain, ierr)
                             stop
                         end if
-                        call mpi_barrier(cpar%comm_chain, ierr)
-                        stop
+                        
                         chisq_tod = chisq_tod + sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
                         deallocate(s_scat, s_therm, s_zodi)
                     end do
@@ -1077,7 +1080,7 @@ contains
     end subroutine
 
 
-    subroutine gibbs_sample_zodi_emissivity_and_albedo(cpar, handle, gibbs_iter, zodi_model_samp, verbose)
+    subroutine sample_zodi_emissivity_and_albedo(cpar, handle, gibbs_iter, zodi_model_samp, verbose)
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
         integer(i4b), intent(in) :: gibbs_iter
