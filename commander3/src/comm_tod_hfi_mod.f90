@@ -142,7 +142,7 @@ contains
 
     ! Get detector labels
     call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
-    
+ 
     ! Read the actual TOD
     call constructor%read_tod(constructor%label)
 
@@ -406,14 +406,6 @@ contains
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)
        
-       if(self%scans(i)%chunk_num == 3) then
-          open(123, file="testhke.txt", recl=1024)
-         write(*,*) "gain:", self%scans(i)%d(1)%gain
-         do k=1, self%scans(i)%ntod
-           write(123,*) k, sd%s_sky(k,1), d_calib(:,k,1)
-         end do
-         close(123)
-       end if 
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
@@ -433,6 +425,25 @@ contains
        deallocate(d_calib)
 
     end do
+
+
+    ! calculate gain as a median of all scans 
+    !do j = 1, self%ndet
+    !   allocate(temp(self%nscan))
+
+    !   do i = 1, self%nscan
+    !      temp(i) = self%scans(i)%d(j)%gain
+    !   end do
+
+    !   gain_median = median(temp)
+
+    !   do i = 1, self%nscan
+    !      self%scans(i)%d(j)%gain = gain_median
+    !   end do
+
+    !   deallocate(temp)
+    !end do
+
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
@@ -492,7 +503,7 @@ contains
 
   subroutine sample_hfi_baselines(self, tod, scan, handle)
     ! 
-    ! Estimates baselines for MODULATED data, separate for odd and even samples (ARTEM)
+    ! Estimates baselines for MODULATED data, separate for odd and even samples
     ! 
     ! Arguments:
     ! ----------
@@ -511,6 +522,7 @@ contains
     ! ----------
     !   None, but updates tod%scans(scan)%d(:)%baseline  (for odd samples)
     !                     tod%scans(scan)%d(:)%baseline2 (for even samples)
+    !                     tod%scans(scan)%d(:)%gain (temporary solution)
     !
     implicit none
     class(comm_scandata),                         intent(in)    :: self
@@ -518,11 +530,12 @@ contains
     integer(i4b),                                 intent(in)    :: scan
     type(planck_rng),                             intent(inout) :: handle
 
-    real(sp) :: sigma_0
+    real(dp) :: sigma_0
     integer(i4b) :: i, j
-    real(sp), allocatable, dimension(:,:)     :: T, even, uneven, tod_inv_N, matrix_buf, A, A_sqrt, s_tot_inv_N
-    real(sp), allocatable, dimension(:)       :: B, eta, X
-
+    real(dp), allocatable, dimension(:,:)     :: T, even, uneven, tod_inv_N, matrix_buf, A, A_sqrt, s_tot_inv_N
+    real(dp), allocatable, dimension(:)       :: B, eta, X
+    real(dp), allocatable, dimension(:)       :: temp
+    real(dp) :: gain_median
 
     ! tod%scans(scan)%d(i)%gain - the gain constant over a scan [real number]
     ! sd = self --- self%s_tot - sky signal model
@@ -536,12 +549,13 @@ contains
     s_tot_inv_N = self%s_tot
     tod_inv_N = self%tod
 
+    ! preparing utility and noise matrices, where noise is assumed constant
     do i = 1, tod%ndet
         sigma_0  = tod%scans(scan)%d(i)%N_psd%sigma0
 
         do j = 1, self%ntod
-            even(j,i) = 0.0/sigma_0/sigma_0
-            uneven(j,i) = 1.0/sigma_0/sigma_0
+            even(j,i) = 0.d0 !/sigma_0/sigma_0
+            uneven(j,i) = 1.d0/sigma_0/sigma_0
             s_tot_inv_N(j,i) = s_tot_inv_N(j,i)/sigma_0/sigma_0
             tod_inv_N(j,i) = tod_inv_N(j,i)/sigma_0/sigma_0
         end do
@@ -564,24 +578,25 @@ contains
        ! fill the matrix T and flip every other sample
        do j = 1, self%ntod
            if (mod(j,2) /= 0) then
-               T(j,1) = -1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
-               T(j,2) = 1.0
-               T(j,3) = 0.0
+               T(j,1) = -1.d0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
+               T(j,2) = 1.d0
+               T(j,3) = 0.d0
            else
-               T(j,1) = 1.0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
-               T(j,2) = 0.0
-               T(j,3) = 1.0
+               T(j,1) = 1.d0 * self%s_tot(j, i) !* tod%scans(scan)%d(i)%gain
+               T(j,2) = 0.d0
+               T(j,3) = 1.d0
            end if
+
        end do
 
        ! multiply matrices (N^-1 x T) possibly (T^t x N^-1)
        do j = 1, self%ntod
            if (mod(j,2) /= 0) then
-               matrix_buf(j,1) = -1.0 * s_tot_inv_N(j,i)
+               matrix_buf(j,1) = -1.d0 * s_tot_inv_N(j,i)
                matrix_buf(j,2) = uneven(j,i)
                matrix_buf(j,3) = even(j,i)
            else
-               matrix_buf(j,1) = 1.0 * s_tot_inv_N(j,i)
+               matrix_buf(j,1) = 1.d0 * s_tot_inv_N(j,i)
                matrix_buf(j,2) = even(j,i)
                matrix_buf(j,3) = uneven(j,i)     
            end if
@@ -590,11 +605,11 @@ contains
        
        ! multiply matrices T^t x N^-1 x T
        do j = 1, 3
-           A(1,j) = sum(matrix_buf(:,1) * T(:,j)) !sum(T(:,1)*matrix_buf(:,j))
-           A(2,j) = sum(matrix_buf(:,2) * T(:,j)) !sum(T(:,2)*matrix_buf(:,j))
-           A(3,j) = sum(matrix_buf(:,3) * T(:,j)) !sum(T(:,3)*matrix_buf(:,j))
+           A(1,j) = sum(T(:,1)*matrix_buf(:,j)) 
+           A(2,j) = sum(T(:,2)*matrix_buf(:,j)) 
+           A(3,j) = sum(T(:,3)*matrix_buf(:,j)) 
        
-           ! preparing A_sqrt
+           ! preparing for A_sqrt calculation
            A_sqrt(1,j) = A(1,j)
            A_sqrt(2,j) = A(2,j)
            A_sqrt(3,j) = A(3,j)
@@ -604,21 +619,17 @@ contains
        
        ! multiply T^t x N^-1 x d
        do j = 1, 3
-           B(j) = sum(matrix_buf(:,j)* self%tod(:,i)) !sum(T(:,j)*tod_inv_N(:,i))
+           B(j) = sum(T(:,j)*tod_inv_N(:,i)) 
        end do
 
-       !do j = 1,3
-       !    write(*,*) A(j,1), " ", A(j,2), " ", A(j,3)
-       !end do
 
+       call compute_hermitian_root(A_sqrt, 0.5d0)       
 
-       call compute_hermitian_root_sp(A_sqrt, 0.5)       
 
        ! fill random gaussian N(0,1) eta
        do j = 1, 3
            eta(j) = rand_gauss(handle) 
        end do
-
 
        ! multiply ((T^t x N^-1) x T)^0.5 eta
        do j = 1, 3
@@ -626,13 +637,34 @@ contains
        end do
 
        ! solving the linear system 
-       call solve_system_real_sp(A, X, B)
+       call solve_system_real(A, X, B)
 
 
-       write(*,*) "X=", X(1), " ", X(2), " ", X(3)
-       ! saving the offset to the tod object
+       !write(*,*) "X=", X(1), " ", X(2), " ", X(3)
+       ! saving the offset (and gain) to the tod object
+       tod%scans(scan)%d(i)%gain = X(1)
        tod%scans(scan)%d(i)%baseline  = X(2)
        tod%scans(scan)%d(i)%baseline2 = X(3)
+
+
+       ! calculate gain as a median of all scans 
+       ! (a temporary solution, before a proper sampling established)
+       if (scan == tod%nscan) then 
+           allocate(temp(tod%nscan))
+
+           do j = 1, tod%nscan
+               temp(j) = tod%scans(j)%d(i)%gain
+           end do
+
+           gain_median = median(temp)
+
+           do j = 1, tod%nscan
+               tod%scans(j)%d(i)%gain = gain_median
+           end do
+
+           deallocate(temp)
+       end if
+
 
 
        deallocate(T, matrix_buf, A, A_sqrt)
@@ -672,41 +704,14 @@ contains
 
     do i = 1, tod%ndet
 
-
-       ! Subtract baselines and Flip sign of even samples
+       ! Subtract baselines and flip sign of even samples
        do j = 1, self%ntod
            if (mod(j,2) /= 0) then
                self%tod(j,i) = -(self%tod(j,i) - tod%scans(scan)%d(i)%baseline)
            else
                self%tod(j,i) = (self%tod(j,i) - tod%scans(scan)%d(i)%baseline2)
            end if
-
        end do
-
-
-       ! flip the sign if all negative
-       !if (all(check_negative)) then
-       !    do j = 1, self%ntod
-       !        self%tod(j,i) = - self%tod(j,i)
-       !    end do
-       !end if 
-
-
-       if (i == 1) then
-
-           inquire(file="myoutput.dat", exist=exists)
-           if (exists) then
-               open(58, file="myoutput.dat", status="old", position="append")
-           else
-               open(58, file="myoutput.dat", status="new")
-           end if
-
-           do j = 1, self%ntod
-               write(58,*) j, self%tod(j,i), self%s_tot(j, i)
-           end do
-           close(58)
-       end if
-
 
     end do
 

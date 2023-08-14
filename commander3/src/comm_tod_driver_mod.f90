@@ -253,6 +253,7 @@ contains
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
        if (tod%apply_inst_corr) self%s_tot(:,j) = self%s_tot(:,j) + self%s_inst(:,j)
     end do
+
     !call update_status(status, "todinit_stot")
 
   end subroutine init_scan_data_singlehorn

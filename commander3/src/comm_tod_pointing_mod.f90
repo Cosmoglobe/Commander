@@ -46,6 +46,8 @@ contains
       ! T - temperature; Q, U - Stoke's parameters
 !      if (tod%myid == 78) write(*,*) 'c611', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
+
+
       nmap = SIZE(map, 1)
       do det = 1, tod%ndet
          if (.not. tod%scans(scan_id)%d(det)%accept) then
@@ -63,8 +65,7 @@ contains
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
             else if (nmap == 1) then
                 s_sky(i,det) = map(1,p,det)  ! Unpolarized channel
-            end if  
-
+            end if 
 
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             tmask(i,det) = pmask(pix(i,det))
@@ -91,6 +92,7 @@ contains
             end do
          end do
       end if
+
 
    end subroutine project_sky
 

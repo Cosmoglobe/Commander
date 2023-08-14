@@ -45,7 +45,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
-     real(sp)          :: baseline, baseline2
+     real(dp)          :: baseline, baseline2
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
@@ -543,6 +543,7 @@ contains
     type(hdf_file) :: h5_file
     integer(i4b) :: lmax_beam, lmax_sl, i
     type(comm_mapinfo), pointer :: info_beam
+
 
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type

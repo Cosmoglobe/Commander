@@ -58,5 +58,5 @@ BAND_BANDPASSFILE&&&           = HFI_instrument_v2.h5
 BAND_TOD_MAIN_PROCMASK&&&      = npipe6v20_545-1_n2048_mask.fits
 BAND_TOD_SMALL_PROCMASK&&&     = npipe6v20_545-1_n2048_mask.fits
 BAND_TOD_RIMO&&&               = HFI_instrument_v2.h5
-BAND_TOD_FILELIST&&&           = filelist_545_Artem.txt
+BAND_TOD_FILELIST&&&           = filelist_545_Artem_full.txt
 

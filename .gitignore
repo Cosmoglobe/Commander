@@ -75,4 +75,8 @@ commander3/todscripts/quiet/quiet_qband_beam_instrumental_v1.fits
 param_*.txt
 myoutput*.dat
 run_commander.sh
-chains/
+chains*/
+testhke.txt
+*.dat
+
+
