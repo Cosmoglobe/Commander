@@ -321,6 +321,7 @@ program commander
    !---- SAMPLE ZODI -----
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       ! Gibbs step over components. Compute downsampled res before each step. 
+      call timer%start(TOT_ZODI_SAMP)
 
       ! --- COMP-WISE GIBBS
       if (.false.) then
@@ -334,15 +335,17 @@ program commander
 
       ! --- ONE BY ONE PARAM GIBBS
       else if (.true.) then
+         ! Compute absolute calibration factors for each zodi component
+         call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
+         call init_scandata_and_downsamp_zodi(cpar)
+
          do i = 1, zodi_model%N_PARAMETERS
             if (.not. active_params(i)) cycle ! For skipping specific parameters
             call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
             
-            ! Recompute downsampled residual using the newly estimated zodi parameter
-            call init_scandata_and_downsamp_zodi(cpar)
+            ! Recompute downsampled residual using the newly estimated zodi parameter (if not at last parameter)
+            if (.not. i == 1) call init_scandata_and_downsamp_zodi(cpar)
          end do
-
-         call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
       end if
 
       ! Final gibbs step is to estimate the spectral parameters (emissivity + albedo). 
@@ -355,6 +358,7 @@ program commander
          call data(i)%tod%deallocate_downsampled_zodi()
          call data(i)%tod%clear_zodi_cache()
       end do
+      call timer%stop(TOT_ZODI_SAMP)
    end if
    !---- END SAMPLE ZODI -----
 

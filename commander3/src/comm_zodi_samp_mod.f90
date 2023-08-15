@@ -16,7 +16,7 @@ module comm_zodi_samp_mod
     real(dp), allocatable :: chisq_previous, step_size, step_sizes(:), priors(:, :)
     logical(lgt), allocatable :: active_params(:)
     integer(i4b) :: n_active_params, cloud_start, cloud_stop, band1_start, band1_stop, band2_start, band2_stop, band3_start, band3_stop, ring_start, ring_stop, feature_start, feature_stop, emissivity_start, emissivity_stop, albedo_start, albedo_stop
-
+    real(dp) :: NO_PRIOR = HUGE(1.0_dp)
 
     ! Custom types for albedo and emissivity fitting
     type :: ZodiTimestreams
@@ -146,16 +146,21 @@ contains
         emissivity_start = 63 ; emissivity_stop = 63 + n_spec_params - 1
         albedo_start = 63 + n_spec_params ; albedo_stop = 63 + 2 * n_spec_params - 1
 
-        active_params(emissivity_start:emissivity_stop) = .false.
-        active_params(albedo_start:albedo_stop) = .false.
+        active_params(emissivity_start:emissivity_stop) = .true.
+        active_params(albedo_start:albedo_stop) = .true.
+
+        ! Deactivate emissivities for band 6 (reference emissivity of 1.0)
+        do i = 1, zodi_model%n_comps
+            active_params(get_emissivity_idx(i, 6, zodi_model%n_bands, zodi_model%n_comps)) = .false.
+        end do
 
         n_active_params = count(active_params == .true.)
 
         ! Priors for zodi parameters
         ! Cloud
         priors(1, :) = [1.13d-8, 1.13d-6] !n_0
-        priors(2, :) = [0., 180.] !incl
-        priors(3, :) = [0., 180.] !omega
+        priors(2, :) = NO_PRIOR !incl
+        priors(3, :) = NO_PRIOR !omega
         priors(4, :) = [-0.25, 0.25] !x_0
         priors(5, :) = [-0.25, 0.25] !y_0
         priors(6, :) = [-0.25, 0.25] !z_0
@@ -166,8 +171,8 @@ contains
 
         ! Band1
         priors(11, :) = [5.59d-12, 5.59d-8] !n_0
-        priors(12, :) = [0., 180.] !incl
-        priors(13, :) = [0., 180.] !omega
+        priors(12, :) = NO_PRIOR !incl
+        priors(13, :) = NO_PRIOR !omega
         priors(14, :) = [-0.25, 0.25] !x_0
         priors(15, :) = [-0.25, 0.25] !y_0
         priors(16, :) = [-0.25, 0.25] !z_0
@@ -178,8 +183,8 @@ contains
 
         ! Band2
         priors(21, :) = [1.99d-11, 1.99d-7] !n_0
-        priors(22, :) = [0., 180.] !incl
-        priors(23, :) = [0., 180.] !omega
+        priors(22, :) = NO_PRIOR !incl
+        priors(23, :) = NO_PRIOR !omega
         priors(24, :) = [-0.25, 0.25] !x_0
         priors(25, :) = [-0.25, 0.25] !y_0
         priors(26, :) = [-0.25, 0.25] !z_0
@@ -190,8 +195,8 @@ contains
 
         ! Band3
         priors(31, :) = [1.44d-12, 1.44d-8] !n_0
-        priors(32, :) = [0., 180.] !incl
-        priors(33, :) = [0., 180.] !omega
+        priors(32, :) = NO_PRIOR !incl
+        priors(33, :) = NO_PRIOR !omega
         priors(34, :) = [-0.25, 0.25] !x_0
         priors(35, :) = [-0.25, 0.25] !y_0
         priors(36, :) = [-0.25, 0.25] !z_0
@@ -202,8 +207,8 @@ contains
 
         ! Ring
         priors(41, :) = [1.83d-10, 1.83d-6] !n_0
-        priors(42, :) = [0., 180.] !incl
-        priors(43, :) = [0., 180.] !omega
+        priors(42, :) = NO_PRIOR !incl
+        priors(43, :) = NO_PRIOR !omega
         priors(44, :) = [-0.25, 0.25] !x_0
         priors(45, :) = [-0.25, 0.25] !y_0
         priors(46, :) = [-0.25, 0.25] !z_0
@@ -213,15 +218,15 @@ contains
 
         ! Feature
         priors(50, :) = [1.9d-10, 1.9d-6] !n_0
-        priors(51, :) = [0., 180.] !incl
-        priors(52, :) = [0., 180.] !omega
+        priors(51, :) = NO_PRIOR !incl
+        priors(52, :) = NO_PRIOR !omega
         priors(53, :) = [-0.25, 0.25] !x_0
         priors(54, :) = [-0.25, 0.25] !y_0
         priors(55, :) = [-0.25, 0.25] !z_0
         priors(56, :) = [0.5, 2.] !R_0
         priors(57, :) = [0., 5.] !sigma_r
         priors(58, :) = [0., 5.] !sigma_z
-        priors(59, :) = [-180., 180.] !theta_0
+        priors(59, :) = NO_PRIOR !theta_0
         priors(60, :) = [0., 100.] !sigma_theta
 
         ! Other
@@ -353,10 +358,10 @@ contains
                     param_vec = current_model%model_to_param_vec()
                     do i = 1, size(param_vec)
                         if (active_params(i) == .true.) then
-                            print *, "before", param_vec(i)
                             param_vec(i) = param_vec(i) + (step_sizes(i) * param_vec(i) * rand_gauss(handle))
-                            print *, "after", param_vec(i)
-                            if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
+                            if (priors(i, 1) == NO_PRIOR .or. priors(i, 2) == NO_PRIOR) then 
+                                continue
+                            else if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
                                 step_sizes(i) = step_sizes(i) / 2.
                                 chisq_tod = 1.d30
                                 exit
@@ -767,7 +772,9 @@ contains
                     param_vec(param_idx) = param_vec(param_idx) + (step_sizes(param_idx) * rand_gauss(handle))
 
                     ! If parameter is outside of prior range, immediatly reject proposal and halve step size
-                    if (param_vec(param_idx) < priors(param_idx, 1) .or. param_vec(param_idx) > priors(param_idx, 2)) then 
+                    if (priors(param_idx, 1) == NO_PRIOR .or. priors(param_idx, 2) == NO_PRIOR) then 
+                        continue
+                    else if (param_vec(param_idx) < priors(param_idx, 1) .or. param_vec(param_idx) > priors(param_idx, 2)) then 
                         if (tuning) step_sizes(param_idx) = step_sizes(param_idx) / 2.
                         chisq_tod = 1.d30
                         skip = .true.
@@ -969,7 +976,9 @@ contains
                         param_vec(i) = param_vec(i) + (step_sizes(i) * rand_gauss(handle))
 
                         ! If parameter is outside of prior range, immediatly reject proposal and halve step size
-                        if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
+                        if (priors(i, 1) == NO_PRIOR .or. priors(i, 2) == NO_PRIOR) then 
+                            continue
+                        else if (param_vec(i) < priors(i, 1) .or. param_vec(i) > priors(i, 2)) then 
                             step_sizes(i) = step_sizes(i) / 2.
                             chisq_tod = 1.d30
                             exit
@@ -1110,7 +1119,8 @@ contains
         end if 
 
         ! Metropolis-Hastings for nproposals of new sets of zodi parameters
-        nprop = 1000
+        nprop = 50
+        ! nprop = cpar%zs_nprop
 
         ! Make two copies of the zodi model, one for the current proposal and one for the previous proposal
 
@@ -1176,27 +1186,33 @@ contains
                     param_loop: do j = 1, current_model%n_comps
                         ! Emissivities
                         emissivity_idx = get_emissivity_idx(j, data(i)%tod%band, current_model%n_bands, current_model%n_comps)
+                        if (.not. active_params(emissivity_idx)) cycle
+
                         if (param_vec(emissivity_idx) /= 0.) then
                             param_vec(emissivity_idx) = param_vec(emissivity_idx) + (step_sizes(emissivity_idx) * rand_gauss(handle)) 
-                            if (param_vec(emissivity_idx) < priors(emissivity_idx, 1) .or. param_vec(emissivity_idx) > priors(emissivity_idx, 2)) then 
+                            if (priors(emissivity_idx, 1) == NO_PRIOR .or. priors(emissivity_idx, 2) == NO_PRIOR) then 
+                                continue
+                            else if (param_vec(emissivity_idx) < priors(emissivity_idx, 1) .or. param_vec(emissivity_idx) > priors(emissivity_idx, 2)) then 
                                 if (tuning) step_sizes(emissivity_idx) = step_sizes(emissivity_idx) / 2.
                                 chisq_tod = 1.d30
                                 skip = .true.
-                                print *, "Got here1"
                                 exit param_loop
                             end if
                         end if
 
                         ! Albedos
                         albedo_idx = get_albedo_idx(j, data(i)%tod%band, current_model%n_bands, current_model%n_comps)
+                        if (.not. active_params(albedo_idx)) cycle
+
                         if (param_vec(albedo_idx) /= 0.) then
                             param_vec(albedo_idx) = param_vec(albedo_idx) + (step_sizes(albedo_idx) * rand_gauss(handle)) 
 
-                            if (param_vec(albedo_idx) < priors(albedo_idx, 1) .or. param_vec(albedo_idx) > priors(albedo_idx, 2)) then 
+                            if (priors(albedo_idx, 1) == NO_PRIOR .or. priors(albedo_idx, 2) == NO_PRIOR) then 
+                                continue
+                            else if (param_vec(albedo_idx) < priors(albedo_idx, 1) .or. param_vec(albedo_idx) > priors(albedo_idx, 2)) then 
                                 if (tuning) step_sizes(albedo_idx) = step_sizes(albedo_idx) / 2.
                                 chisq_tod = 1.d30
                                 skip = .true.
-                                print *, "Got here2"
                                 exit param_loop
                             end if
                         end if
