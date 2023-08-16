@@ -318,23 +318,71 @@ program commander
         exit
      end if
 
-     ! Sample zodiacal emission parameters
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-        call timer%start(TOT_ZODI_SAMP)
-        if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
-        call sample_zodi_model_one_by_one_param(cpar, handle, iter)
-        ! Update zodi model
-        base_zodi_model = sampled_zodi_model
-        call timer%stop(TOT_ZODI_SAMP)
+   !---- SAMPLE ZODI -----
+   if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+      ! Gibbs step over components. Compute downsampled res before each step. 
+      call timer%start(TOT_ZODI_SAMP)
 
-        ! Reset zodi related quantities for next gibbs sample
-        do i = 1, numband
-          if (data(i)%tod_type == 'none') cycle
-          if (.not. data(i)%tod%subtract_zodi) cycle
-          call data(i)%tod%deallocate_downsampled_zodi()
-          call data(i)%tod%clear_zodi_cache()
-        end do
-     end if
+      ! --- COMP-WISE GIBBS
+      if (.false.) then
+         do i = 1, zodi_model%n_comps
+            ! MCMC sample comp i and update sampled zodi model at the end
+            call gibbs_sample_zodi_comp(cpar, handle, i, zodi_model, verbose=.true.)
+            
+            ! Recompute downsampled residual using the newly fitted zodi component
+            call init_scandata_and_downsamp_zodi(cpar)
+         end do
+
+      ! --- ONE BY ONE PARAM GIBBS
+      else if (.true.) then
+         ! Compute absolute calibration factors for each zodi component
+         call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
+         call init_scandata_and_downsamp_zodi(cpar)
+
+         do i = 1, zodi_model%n_parameters
+            if (.not. active_params(i)) cycle ! For skipping specific parameters
+            call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
+            
+            ! Recompute downsampled residual using the newly estimated zodi parameter (if not at last parameter)
+            if (.not. i == zodi_model%n_parameters) call init_scandata_and_downsamp_zodi(cpar)
+         end do
+      end if
+
+      ! Final gibbs step is to estimate the spectral parameters (emissivity + albedo). 
+      ! call gibbs_sample_zodi_emissivity_and_albedo(cpar, handle, zodi_model, verbose=.true.)
+
+      ! Reset zodi related quantities for next gibbs sample
+      do i = 1, numband
+         if (data(i)%tod_type == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+         call data(i)%tod%deallocate_downsampled_zodi()
+         call data(i)%tod%clear_zodi_cache()
+      end do
+      call timer%stop(TOT_ZODI_SAMP)
+   end if
+   !---- END SAMPLE ZODI -----
+
+
+
+   !   ! Sample zodiacal emission parameters
+   !   if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+   !      call timer%start(TOT_ZODI_SAMP)
+   !      if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
+
+   !      ! Performs the various sub gibbs steps of the zodi sampling
+   !      call sample_zodi(cpar, handle)
+   !      ! Update zodi model
+   !      base_zodi_model = sampled_zodi_model
+   !      call timer%stop(TOT_ZODI_SAMP)
+
+   !      ! Reset zodi related quantities for next gibbs sample
+   !      do i = 1, numband
+   !        if (data(i)%tod_type == 'none') cycle
+   !        if (.not. data(i)%tod%subtract_zodi) cycle
+   !        call data(i)%tod%deallocate_downsampled_zodi()
+   !        call data(i)%tod%clear_zodi_cache()
+   !      end do
+   !   end if
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
@@ -382,7 +430,7 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-     if (cpar%sample_zodi .and. cpar%enable_TOD_analysis) call output_zodi_model_to_hdf(cpar, iter, sampled_zodi_model)
+     if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) call zodi_model%output_to_hd5(cpar, iter)
 
      call wall_time(t2)
      if (ok) then
@@ -534,7 +582,7 @@ contains
                 call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
                 if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
                    !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
-                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
+                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
                 end if
              end do
              call update_mixing_matrices(i, update_F_int=.true.)
@@ -610,7 +658,7 @@ contains
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-          if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, base_zodi_model)
+          if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
        end do
        call update_mixing_matrices(i, update_F_int=.true.)
 

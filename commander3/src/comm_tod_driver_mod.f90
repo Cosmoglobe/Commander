@@ -242,14 +242,14 @@ contains
             & det=j, &
             & s_zodi_scat=self%s_zodi_scat(:, :, j), &
             & s_zodi_therm=self%s_zodi_therm(:, :, j), &
-            & model=base_zodi_model &
+            & model=zodi_model &
           &)
           call get_s_zodi(&
-            & emissivity=tod%zodi_emissivity, &
-            & albedo=tod%zodi_albedo, &
             & s_therm=self%s_zodi_therm(:, :, j), &
             & s_scat=self%s_zodi_scat(:, :, j), &
-            & s_zodi=self%s_zodi(:, j) &
+            & s_zodi=self%s_zodi(:, j), &
+            & band=tod%band, &
+            & model=zodi_model &
           &)
        end do
        call timer%stop(TOD_ZODI, tod%band)
@@ -956,7 +956,7 @@ contains
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
          do i = 1, size(sd%s_zodi_therm, dim=2)
-           d_calib(8 + i, :, j) = sd%s_zodi_scat(:, i, j) * tod%zodi_albedo(i) + (1. - tod%zodi_albedo(i)) * tod%zodi_emissivity(i) * sd%s_zodi_therm(:, i, j)
+           d_calib(8 + i, :, j) = sd%s_zodi_scat(:, i, j) * zodi_model%albedo(tod%band, i) + (1. - zodi_model%albedo(tod%band, i)) * zodi_model%emissivity(tod%band, i) * sd%s_zodi_therm(:, i, j)
          end do
        end if
       !  Bandpass proposals

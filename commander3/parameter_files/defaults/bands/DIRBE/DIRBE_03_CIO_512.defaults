@@ -58,7 +58,7 @@ BAND_NOISE_RMS&&&_SMOOTH03     = none
 BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0512.fits
 BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0512.fits
 BAND_TOD_RIMO&&&               = DIRBE_instrument_02.h5
-BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_16.txt
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_V18.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1
 

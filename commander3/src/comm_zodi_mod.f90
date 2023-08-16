@@ -6,7 +6,7 @@ module comm_zodi_mod
     implicit none
 
     private
-    public initialize_zodi_mod, get_s_zodi, zodi_model, ZodiComponent, base_zodi_model, sampled_zodi_model
+    public initialize_zodi_mod, get_s_zodi, ZodiModel, ZodiComponent, zodi_model
 
     ! Global variables
     integer(i4b) :: gauss_degree, n_interp_points
@@ -78,23 +78,22 @@ module comm_zodi_mod
 
 
     ! Stores the interplanetary dust model parameters
-    type :: zodi_model
+    type :: ZodiModel
         integer(i4b) :: n_comps, n_bands
+        integer(i4b) :: n_parameters
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
-        real(dp), allocatable, dimension(:, :) :: phase_coeffs ! spectral parameters
-        integer(i4b) :: N_PARAMETERS = 62
-        integer(i4b) :: param_i, up_down_j
+        real(dp), allocatable, dimension(:, :) :: phase_coeffs, emissivity, albedo ! spectral parameters
         class(ZodiComponentContainer), allocatable :: comps(:)
         character(len=10), allocatable :: comp_labels(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
-        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec
-    end type zodi_model
+        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec, output_to_hd5
+    end type ZodiModel
 
     ! Global zodi parameter object
-    type(zodi_model), target :: base_zodi_model, sampled_zodi_model
+    type(ZodiModel), target :: zodi_model
 
 contains
     subroutine initialize_zodi_mod(cpar)
@@ -109,15 +108,13 @@ contains
 
         call initialize_hyper_parameters(cpar)
         if (cpar%zs_init_chain == 'none') then
-            call base_zodi_model%init_from_defaults(cpar)
-            if (cpar%sample_zodi) call sampled_zodi_model%init_from_defaults(cpar)
+            call zodi_model%init_from_defaults(cpar)
         else
-            call base_zodi_model%init_from_chain(cpar)
-            if (cpar%sample_zodi) call sampled_zodi_model%init_from_chain(cpar)
+            call zodi_model%init_from_chain(cpar)
         end if
     end subroutine initialize_zodi_mod
 
-    subroutine get_s_zodi(emissivity, albedo, s_therm, s_scat, s_zodi)
+    subroutine get_s_zodi(s_therm, s_scat, s_zodi, band, model)
         ! Evaluates the zodiacal signal (eq. 20 in zodipy paper [k98 model]) given 
         ! integrated thermal zodiacal emission and scattered zodiacal light.
         !
@@ -131,15 +128,23 @@ contains
         !     Integrated contribution from scattered sunlight light.
         ! s_therm :
         !     Integrated contribution from thermal interplanetary dust emission.   
-        real(dp), dimension(:), intent(in) :: emissivity, albedo     
+        ! s_zodi :
+        !     Zodiacal signal.
+        ! band :
+        !     Band number.
+        ! model :
+        !     zodi model.
         real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
         real(sp), dimension(:), intent(out) :: s_zodi
-        integer(i4b) :: i, n_comps
+        integer(i4b), intent(in) :: band
+        type(ZodiModel), intent(in) :: model
+        integer(i4b) :: i
+
+        if (band > model%n_bands) stop 'Error: band number exceeds number of bands in model'
 
         s_zodi = 0.
-        n_comps = size(s_scat, dim=2)
-        do i = 1, n_comps
-            s_zodi = s_zodi +  s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)
+        do i = 1, model%n_comps
+            s_zodi = s_zodi +  s_scat(:, i) * model%albedo(band, i) + (1. - model%albedo(band, i)) * model%emissivity(band, i) * s_therm(:, i)
         end do
     end subroutine get_s_zodi
 
@@ -322,17 +327,19 @@ contains
         ! cpar: comm_params
         !    Parameter file variables.
 
-        class(zodi_model), target, intent(inout) :: self
+        class(ZodiModel), target, intent(inout) :: self
         type(comm_params), intent(in) :: cpar
         integer(i4b) :: i
 
         ! aux
         self%n_bands = cpar%zs_nbands
         self%n_comps = cpar%zs_ncomps
+        self%n_parameters = 62 + 2*(self%n_comps * self%n_bands)
 
         allocate(self%comps(self%n_comps))
         allocate(self%comp_labels(self%n_comps))
-
+        allocate(self%emissivity(self%n_bands, self%n_comps))
+        allocate(self%albedo(self%n_bands, self%n_comps))
         ! Tempereature parameters
         self%T_0 = cpar%zs_t_0
         self%delta = cpar%zs_delta
@@ -344,7 +351,8 @@ contains
         self%nu_ref = cpar%zs_nu_ref
         self%phase_coeffs = cpar%zs_phase_coeff
         self%solar_irradiance = cpar%zs_solar_irradiance
-
+        self%albedo = cpar%zs_albedo
+        self%emissivity = cpar%zs_emissivity
         allocate(self%phase_coeff_spl(3))
         call self%build_splines()
 
@@ -422,34 +430,38 @@ contains
         ! cpar: comm_params
         !    Parameter file variables.
 
-        class(zodi_model), target, intent(inout) :: self
+        class(ZodiModel), target, intent(inout) :: self
         type(comm_params), intent(in) :: cpar
         logical(lgt)        :: exist
         integer(i4b) :: i, l,  unit, ierr, initsamp
             character(len=6)          :: itext, itext2
 
         type(hdf_file) :: file
-        real(dp) :: param_vec(self%N_PARAMETERS)
+        real(dp), allocatable :: param_vec(:)
         character(len=512) :: chainfile
 
 
         unit = getlun()
-        
-        ! validate that the chain file exists, and get path to file and which sample to use
-        call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-        inquire(file=trim(chainfile), exist=exist)
-        if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
-        l = len(trim(chainfile))
-        if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-        
-        call open_hdf_file(trim(chainfile), file, "r")
-
-        call int2string(initsamp, itext)
-
-        call read_hdf(file, itext//"/zodi/params" , param_vec)
-        call close_hdf_file(file)
-
         call self%init_from_defaults(cpar)
+        allocate(param_vec(self%n_parameters))
+        if (cpar%myid == cpar%root) then
+            ! validate that the chain file exists, and get path to file and which sample to use
+            call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+            inquire(file=trim(chainfile), exist=exist)
+            if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+            l = len(trim(chainfile))
+            if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+            
+            call open_hdf_file(trim(chainfile), file, "r")
+
+            call int2string(initsamp, itext)
+
+            call read_hdf(file, itext//"/zodi/params" , param_vec)
+            if (size(param_vec) /= self%n_parameters) stop "param_vec has the wrong size"
+            call close_hdf_file(file)
+        end if
+        
+        call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
         call self%param_vec_to_model(param_vec)
 
     end subroutine init_from_chain
@@ -458,7 +470,7 @@ contains
     subroutine build_splines(self)
         ! Build splines for the phase function, and solar irradiance
         ! for each component in the model
-        class(zodi_model), intent(inout) :: self
+        class(ZodiModel), intent(inout) :: self
         integer(i4b) :: i
 
         do i = 1, 3
@@ -469,11 +481,11 @@ contains
 
     subroutine param_vec_to_model(self, x)
         ! Updates model parameters given a parametor vector x
-        class(zodi_model), intent(inout) :: self
+        class(ZodiModel), intent(inout) :: self
         real(dp), intent(in) :: x(:)
-        integer(i4b) :: i, j
+        integer(i4b) :: i, j, k
 
-        if (size(x) /= self%N_PARAMETERS) stop "param_vec has the wrong size"
+        if (size(x) /= self%n_parameters) stop "param_vec has the wrong size"
         do i = 1, self%n_comps
             select type (a => self%comps(i)%c)
             class is (ZodiCloud)
@@ -537,13 +549,31 @@ contains
         end do
         self%T_0 = x(61)
         self%delta = x(62)
+
+        !emissivities
+        k = 63
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
+                self%emissivity(i, j) = x(k)
+                k = k + 1
+            end do
+        end do
+
+        !albedos
+        k = 63 + self%n_comps * self%n_bands
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
+                self%albedo(i, j) = x(k)
+                k = k + 1
+            end do
+        end do
     end subroutine
 
     function model_to_param_vec(self) result(x) 
         ! Dumps a zodi model to a parameter vector
-        class(zodi_model), intent(inout) :: self
-        real(dp) :: x(self%N_PARAMETERS)
-        integer(i4b) :: i, j
+        class(ZodiModel), intent(in) :: self
+        real(dp) :: x(self%n_parameters)
+        integer(i4b) :: i, j, k
         do i = 1, self%n_comps
             select type (a => self%comps(i)%c)
             class is (ZodiCloud)
@@ -604,6 +634,59 @@ contains
         end do
         x(61) = self%T_0 
         x(62) = self%delta
+        
+        !emissivities
+        k = 63
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
+                x(k) = self%emissivity(i, j)
+                k = k + 1
+            end do
+        end do
+
+        !albedos
+        k = 63 + self%n_comps * self%n_bands
+        do i = 1, self%n_bands
+            do j = 1, self%n_comps
+                x(k) = self%albedo(i, j)
+                k = k + 1
+            end do
+        end do
     end function model_to_param_vec
+
+    subroutine output_to_hd5(self, cpar, iter)
+        ! Writes the zodi model to an hdf file
+        class(ZodiModel), intent(in) :: self
+        type(comm_params), intent(in) :: cpar
+        integer(i4b), intent(in) :: iter
+
+        integer(i4b) :: i, j, hdferr, ierr, unit
+        logical(lgt) :: exist, init, new_header
+        character(len=6) :: itext
+        character(len=4) :: ctext
+        character(len=512) :: zodi_path, comp_path, param_path, chainfile, hdfpath
+        character(len=10), allocatable :: param_names(:)
+        real(dp), allocatable :: param_values(:)
+        type(hdf_file) :: file
+        type(h5o_info_t) :: object_info
+
+        if (.not. cpar%myid_chain == 0) return
+
+        call int2string(cpar%mychain, ctext)
+        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
+            & '_c' // trim(adjustl(ctext)) // '.h5'
+
+        inquire(file=trim(chainfile), exist=exist)
+        call open_hdf_file(chainfile, file, 'b')
+
+        call int2string(iter, itext)
+        zodi_path = trim(adjustl(itext))//'/zodi'
+        call create_hdf_group(file, trim(adjustl(zodi_path)))
+        comp_path = trim(adjustl(zodi_path))//'/params/'
+        
+        call write_hdf(file, trim(adjustl(comp_path)), self%model_to_param_vec())
+
+        call close_hdf_file(file)
+    end subroutine
 
 end module comm_zodi_mod

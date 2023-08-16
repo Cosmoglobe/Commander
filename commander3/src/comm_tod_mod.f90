@@ -66,12 +66,17 @@ module comm_tod_mod
   ! Stores information about all detectors at once 
   type :: comm_scan
      integer(i4b)   :: ntod                                        ! Number of time samples
-     integer(i4b)      :: ext_lowres(2)             ! Shape of downgraded TOD including padding
+     integer(i4b)   :: ext_lowres(2)                            ! Shape of downgraded TOD including padding
      real(dp)       :: proctime    = 0.d0                          ! Processing time in seconds
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
-     real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for first sample
-     real(dp)       :: satpos(3)                                   ! Observatory position (x,y,z)
+     real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for start of chunk
+     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end f chunk
+     real(dp)       :: x0_obs(3)                                   ! Observatory position (x,y,z) for start of chunk
+     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end f chunk
+     real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
+     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end f chunk
+
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
@@ -163,6 +168,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
      real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
+     type(spline_type)                                 :: x_obs_spline(3), x_earth_spline(3) ! splines to compute observer and earth positions
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -207,12 +213,10 @@ module comm_tod_mod
      integer(i4b) :: zodi_n_comps
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
-     real(dp)                                  :: zodi_min_obs_time, zodi_max_obs_time
      real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
-     type(spline_type)                         :: zodi_obs_pos_spl_obj(3)
      logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering
    contains
      procedure                           :: read_tod
@@ -247,8 +251,6 @@ module comm_tod_mod
      procedure                           :: remove_fixed_scans
      procedure                           :: apply_map_precond
      procedure                           :: collect_v_sun
-     procedure                           :: collect_satpos
-     procedure                           :: collect_mjds
      procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
      procedure                           :: deallocate_downsampled_zodi
@@ -915,9 +917,17 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
+
+    ! Read in time at the start and end of each scan (if available)
     call read_hdf(file, slabel // "/common/time",  self%t0)
+    call read_hdf(file, slabel // "/common/time_end",  self%t1, opt=.true.)
+
     ! HKE: LFI files should be regenerated with (x,y,z) info
-    call read_hdf(file, slabel // "/common/satpos",  self%satpos, opt=.true.)
+    ! Read in satellite and earth position at the start and end of each scan (if available)
+    call read_hdf(file, slabel // "/common/satpos",  self%x0_obs, opt=.true.)
+    call read_hdf(file, slabel // "/common/satpos_end",  self%x1_obs, opt=.true.)
+    call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
+    call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -2704,39 +2714,6 @@ contains
     implicit none
     class(comm_tod),                     intent(inout)  :: self
   end subroutine remove_fixed_scans
-
-  subroutine collect_satpos(self)
-    implicit none
-    class(comm_tod),   intent(inout) :: self
-
-    integer(i4b) :: i, j, ierr
-
-    allocate(self%satpos(3, self%nscan_tot))
-
-    self%satpos = 0.d0
-    do i = 1, self%nscan
-       self%satpos(:, self%scanid(i)) = self%scans(i)%satpos
-    end do
-
-    call mpi_allreduce(MPI_IN_PLACE, self%satpos, size(self%satpos), &
-         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-  end subroutine collect_satpos
-
-  subroutine collect_mjds(self)
-    implicit none
-    class(comm_tod),   intent(inout) :: self
-
-    integer(i4b) :: i, j, ierr
-    allocate(self%mjds(self%nscan_tot))
-
-    self%mjds  = 0.d0
-    do i = 1, self%nscan
-       self%mjds(self%scanid(i)) = self%scans(i)%t0(1)
-    end do
-
-    call mpi_allreduce(MPI_IN_PLACE, self%mjds, size(self%mjds), &
-         & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-  end subroutine collect_mjds
   
   subroutine apply_map_precond(self, map, map_out)
     implicit none
@@ -2770,49 +2747,85 @@ contains
       type(comm_params),       intent(in) :: cpar
 
       integer(i4b) :: i, j, ierr
-      real(dp), allocatable :: obs_time(:), obs_pos(:, :), r
-      allocate(obs_time(self%nscan_tot))
-      allocate(obs_pos(3, self%nscan_tot))
-      ! Set up spline objects for observer position (requires knowing the full scan list ahead of time)
-      
-      obs_time = 0.
-      obs_pos = 0.
-      do i = 1, self%nscan
-         obs_time(self%scanid(i)) = self%scans(i)%t0(1)
-      end do
-      call mpi_allreduce(MPI_IN_PLACE, obs_time, size(obs_time), &
-               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:)
+      real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), x0_earth_packed(:, :), x1_earth_packed(:, :), t0_packed(:), t1_packed(:)
+      real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY
+      real(dp), allocatable :: time(:), x_obs(:, :), x_earth(:, :)
+
+      allocate(x0_obs(3, self%nscan_tot), x1_obs(3, self%nscan_tot))
+      allocate(x0_earth(3, self%nscan_tot), x1_earth(3, self%nscan_tot))
+      allocate(t0(self%nscan_tot), t1(self%nscan_tot))
+
+      x0_obs = 0.
+      x1_obs = 0.
+      x0_earth = 0.
+      x1_earth = 0.
+      t0 = 0.
+      t1 = 0.
 
       do i = 1, self%nscan
-         obs_pos(:, self%scanid(i)) = self%scans(i)%satpos
+         t0(self%scanid(i)) = self%scans(i)%t0(1)
+         t1(self%scanid(i)) = self%scans(i)%t1(1)
+         x0_obs(:, self%scanid(i)) = self%scans(i)%x0_obs
+         x1_obs(:, self%scanid(i)) = self%scans(i)%x1_obs
+         x0_earth(:, self%scanid(i)) = self%scans(i)%x0_earth
+         x1_earth(:, self%scanid(i)) = self%scans(i)%x1_earth
       end do
-      call mpi_allreduce(MPI_IN_PLACE, obs_pos, size(obs_pos), &
-               & MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+
       
+      call mpi_allreduce(MPI_IN_PLACE, t0, size(t0), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, t1, size(t1), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, x0_obs, size(x0_obs), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, x1_obs, size(x1_obs), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, x0_earth, size(x0_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, x1_earth, size(x1_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
+
+      ! filter out non zero values
+      t0_packed = pack(t0, t0 /= 0.)
+      t1_packed = pack(t1, t1 /= 0.)
+      if (size(t0_packed) /= size(t1_packed)) stop "t0 and t1 are not the same size"
+  
+
+      allocate(x0_obs_packed(3, size(t0_packed)), x1_obs_packed(3, size(t0_packed)))
+      allocate(x0_earth_packed(3, size(t0_packed)), x1_earth_packed(3, size(t0_packed)))
       do i = 1, 3
-         call spline_simple(self%zodi_obs_pos_spl_obj(i), obs_time, obs_pos(i, :))
+         x0_obs_packed(i, :) = pack(x0_obs(i, :), x0_obs(i, :) /= 0.)
+         x1_obs_packed(i, :) = pack(x1_obs(i, :), x1_obs(i, :) /= 0.)
+         x0_earth_packed(i, :) = pack(x0_earth(i, :), x0_earth(i, :) /= 0.)
+         x1_earth_packed(i, :) = pack(x1_earth(i, :), x1_earth(i, :) /= 0.)
       end do
+
+      ! make new time, obs_pos and earth_pos arrays containing both chunk start and chunk end values
+      allocate(time(size(t0_packed) * 2))
+      allocate(x_obs(3, size(t0_packed) * 2))
+      allocate(x_earth(3, size(t0_packed) * 2))
+      do i = 1, size(t0_packed) * 2 , 2
+         j = (i - 1) / 2 + 1 ! index from 1, to size(t0)
+         time(i) = t0_packed(j)
+         time(i + 1) = t1_packed(j)
+         x_obs(:, i) = x0_obs_packed(:, j)
+         x_obs(:, i + 1) = x1_obs_packed(:, j)
+         x_earth(:, i) = x0_earth_packed(:, j)
+         x_earth(:, i + 1) = x1_earth_packed(:, j)
+      end do
+
+      do i = 2, size(time)
+         if (.not. time(i) > time(i - 1)) stop "precomputed MJD time array must be strictly increasing"
+      end do
+
+      do i = 1, 3
+         call spline_simple(self%x_obs_spline(i), time, x_obs(i, :))
+         call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
+      end do
+
       self%zodi_init_cache_time = self%scans(1)%t0(1)
       call self%clear_zodi_cache()
-      self%zodi_min_obs_time = minval(obs_time)
-      self%zodi_max_obs_time = maxval(obs_time)
       
-      allocate(self%zodi_emissivity(cpar%zs_ncomps))
-      allocate(self%zodi_albedo(cpar%zs_ncomps))
-      self%zodi_emissivity(:) = cpar%ds_zodi_emissivity(self%band, :)
-      self%zodi_albedo(:) = cpar%ds_zodi_albedo(self%band, :)
-      
-      if (count(self%zodi_albedo /= 0.) > 0) then
-         self%zodi_scattering = .true.
-      else
-         self%zodi_scattering = .false.
-      end if
       !allocate spectral quantities
       allocate(self%zodi_spl_phase_coeffs(self%ndet, 3))
       allocate(self%zodi_spl_solar_irradiance(self%ndet))
       allocate(self%zodi_phase_func_normalization(self%ndet))
       allocate(self%zodi_b_nu_spl_obj(self%ndet))
-
    end subroutine precompute_zodi_lookups
 
    subroutine clear_zodi_cache(self, obs_time)

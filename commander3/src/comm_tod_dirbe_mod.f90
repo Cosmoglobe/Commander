@@ -265,10 +265,8 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 8
-      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + base_zodi_model%n_comps
+      if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
-      call int2string(base_zodi_model%param_i, zodi_param_text)
-      call int2string(base_zodi_model%up_down_j, up_down_text)
       call int2string(chain, ctext)
       call int2string(iter, samptext)
       call int2string(self%myid, myid_text)
@@ -339,7 +337,6 @@ contains
          ! Skip scan if no accepted data
          if (.not. any(self%scans(i)%d%accept)) cycle
          call wall_time(t1)
-
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Populate downsampled residual and pointing to be used for zodi sampling
@@ -347,16 +344,16 @@ contains
 
          ! Sample correlated noise
          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-         call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
-         !sd%n_corr = 0.d0
+         ! call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
+         sd%n_corr = 0.d0
 
          ! Compute noise spectrum parameters
-         call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
          end do
 
          ! Select data
@@ -439,8 +436,8 @@ contains
          ! if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix_atlas)//'ncorr'//trim(postfix_atlas))
          if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix_atlas)//'zodi'//trim(postfix_atlas))
          if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
-            do i = 1, base_zodi_model%n_comps
-               call binmap%outmaps(8+i)%p%writeFITS(trim(prefix_atlas)//'zodi_'//trim(base_zodi_model%comp_labels(i))//trim(postfix_atlas))
+            do i = 1, zodi_model%n_comps
+               call binmap%outmaps(8+i)%p%writeFITS(trim(prefix_atlas)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix_atlas))
             end do
          endif
       else
@@ -449,6 +446,11 @@ contains
          if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
          if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
          if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+         if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+            do i = 1, zodi_model%n_comps
+               call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+            end do
+         endif
       end if
       ! if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
       !    do i = 1, zodi%n_comps

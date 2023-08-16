@@ -53,7 +53,7 @@ contains
     end subroutine initialize_tod_zodi_mod
 
 
-    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model)
+    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering)
         ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
         !
         ! Parameters
@@ -70,7 +70,10 @@ contains
         !     Contribution from scattered sunlight light.
         ! s_zodi_therm : real(sp), dimension(ntod, ncomps)
         !     Contribution from thermal interplanetary dust emission.
-
+        ! model : type(ZodiModel)
+        !     The zodiacal emission model.
+        ! always_scattering : logical(lgt), optional
+        !     If present, this overrides the default behavior of only including scattering when the albedo is non-zero.
         !
         ! Returns
         ! -------
@@ -82,8 +85,11 @@ contains
         class(comm_tod), intent(inout) :: tod
         integer(i4b), intent(in) :: pix(:), scan, det
         real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
-        type(zodi_model), intent(in) :: model
+        type(ZodiModel), intent(in) :: model
+        logical(lgt), intent(in), optional :: always_scattering
+
         integer(i4b) :: i, j, k, pixel, lookup_idx, n_tod, ierr
+        logical(lgt) :: scattering
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
@@ -93,33 +99,32 @@ contains
         n_tod = size(pix, dim=1)
 
         dt_tod = (1./tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-        obs_pos = tod%scans(scan)%satpos
+        obs_pos = tod%scans(scan)%x0_obs
+        earth_pos = tod%scans(scan)%x0_earth
         R_obs = norm2(obs_pos)
-        obs_time = tod%scans(scan)%t0(1)
-        do i = 1, 3
-            earth_pos(i) = splint_simple(earth_pos_spl_obj(i), tod%scans(scan)%t0(1))
-        end do        
-
+        obs_time = tod%scans(scan)%t0(1)   
         earth_lon = atan(earth_pos(2), earth_pos(1))
+        
+        if (present(always_scattering)) then
+            scattering = always_scattering
+        else
+            scattering = count(model%albedo(tod%band, :)  /= 0.) > 0
+        end if
 
         do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
             ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
             obs_time = obs_time + dt_tod
-            if (((obs_time - tod%zodi_cache_time) >= delta_t_reset) &
-                .and. &
-                (obs_time > tod%zodi_min_obs_time .and. obs_time < tod%zodi_max_obs_time) &
-            ) then 
-
+            if ((obs_time - tod%zodi_cache_time) >= delta_t_reset) then 
                 do j = 1, 3 
-                    earth_pos(j) = splint_simple(earth_pos_spl_obj(j), obs_time)
-                    obs_pos(j) = splint_simple(tod%zodi_obs_pos_spl_obj(j), obs_time)
+                    earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
+                    obs_pos(j) = splint_simple(tod%x_obs_spline(j), obs_time)
                 end do            
                 R_obs = norm2(obs_pos)
                 earth_lon = atan(earth_pos(2), earth_pos(1))
                 call tod%clear_zodi_cache(obs_time)
             end if
-
+            
             lookup_idx = tod%pix2ind(pix(i))
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
                 s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
@@ -138,7 +143,7 @@ contains
             end do
             R_LOS = norm2(X_LOS, dim=1)           
 
-            if (tod%zodi_scattering) then
+            if (scattering) then
                 solar_flux_LOS = tod%zodi_spl_solar_irradiance(det) / R_LOS**2
                 call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
                 call get_phase_function(scattering_angle, tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det), phase_function)
@@ -149,7 +154,7 @@ contains
 
             do k = 1, model%n_comps
                 call model%comps(k)%c%get_density(X_LOS, earth_lon, density_LOS)
-                if (tod%zodi_scattering) then 
+                if (scattering) then 
                     s_zodi_scat(i, k) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
                     tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                 end if
@@ -278,7 +283,7 @@ contains
         class(comm_tod),   intent(inout) :: tod
         class(comm_bp_ptr), intent(in) :: bandpass
         integer(i4b), intent(in) :: det
-        type(zodi_model), intent(inout) :: model
+        type(ZodiModel), intent(inout) :: model
 
         real(dp), allocatable :: b_nu(:), integrals(:)
         integer(i4b) :: i, j

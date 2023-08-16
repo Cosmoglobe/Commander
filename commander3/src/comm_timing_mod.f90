@@ -13,8 +13,8 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_TODPROC   =  7
   integer(i4b), parameter, public :: TOT_SPECIND   =  8
   integer(i4b), parameter, public :: TOT_CLS       =  9
-  integer(i4b), parameter, public :: TOT_OUTPUT    =  10
-  integer(i4b), parameter, public :: TOT_ZODI_SAMP =  11
+  integer(i4b), parameter, public :: TOT_ZODI_SAMP =  10
+  integer(i4b), parameter, public :: TOT_OUTPUT    =  11
 
   ! Channel specific parameters
   integer(i4b), parameter, public :: NUM_TOD       = 26
@@ -211,7 +211,7 @@ contains
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Cls sampling                  = ', t(TOT_CLS)     / self%numsamp(0), 100*t(TOT_CLS)/t(TOT_GIBBSSAMP)
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp(0), 100*t(TOT_TODPROC)/t(TOT_GIBBSSAMP)
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Zodi sampling                 = ', t(TOT_ZODI_SAMP) / self%numsamp(0), 100*t(TOT_ZODI_SAMP)/t(TOT_GIBBSSAMP)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Other                         = ', (t(TOT_GIBBSSAMP)-sum(t(6:10))) / self%numsamp(0), 100*(t(TOT_GIBBSSAMP)-sum(t(6:10)))/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Other                         = ', (t(TOT_GIBBSSAMP)-sum(t(6:11))) / self%numsamp(0), 100*(t(TOT_GIBBSSAMP)-sum(t(6:11)))/t(TOT_GIBBSSAMP)
           write(unit,fmt='(a,f12.3,"h")')        '       Total cost per Gibbs sample   = ', t(TOT_GIBBSSAMP)     / self%numsamp(0)
        write(unit,*) ''
        write(unit,*) '   Channel-specific global timers:'

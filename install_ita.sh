@@ -31,12 +31,14 @@ bee4345="$prefix+(4[3-5])+$suffix"
 bee46="$prefix+(46)+$suffix"
 bee47="$prefix+(47)+$suffix"
 prefix="hyades"
-hya13="$prefix+([1-3])+$suffix"
 hya4="$prefix+(4)+$suffix"
 hya5="$prefix+(5)+$suffix"
 hya6="$prefix+(6)+$suffix"
 hya79="$prefix+([7-9])+$suffix"
 hya1016="$prefix+(1[0-6])+$suffix"
+hya1719="$prefix+(1[7-9])+$suffix"
+hya20="$prefix+(20)+$suffix"
+hya21="$prefix+(21)+$suffix"
 #------------------------------------------------------------------------------
 # Will compile commander only if on owl/beehive/hyades!
 #------------------------------------------------------------------------------
@@ -115,8 +117,12 @@ then
     build_dir="build_hya79_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
     build_dir="build_hya1016_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $hya13 ]]; then
-    build_dir="build_hya13_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
+    build_dir="build_hya1719_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya20 ]]; then
+    build_dir="build_hya20_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
+    build_dir="build_hya21_$toolchain"
 	fi
   echo $build_dir
 	#------------------------------------------------------------------------------
