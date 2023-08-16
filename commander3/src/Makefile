@@ -106,6 +106,7 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_lb_mod.f90 \
 	       comm_tod_dirbe_mod.f90 \
 	       comm_tod_hfi_mod.f90 \
+           comm_tod_cr_mod.f90 \
            comm_camb_mod.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
 	   comm_timing_mod.f90 \
@@ -218,6 +219,7 @@ comm_tod_spider_smod.o      : comm_tod_spider_mod.o
 comm_tod_wmap_mod.o         : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_driver_mod.o comm_utils.o
 comm_tod_dirbe_mod.o        : comm_tod_mod.o comm_param_mod.o comm_map_mod.o comm_conviqt_mod.o comm_huffman_mod.o comm_hdf_mod.o comm_fft_mod.o spline_1d_mod.o comm_4d_map_mod.o comm_zodi_mod.o comm_tod_mapmaking_mod.o comm_tod_pointing_mod.o comm_tod_gain_mod.o comm_tod_bandpass_mod.o comm_tod_orbdipole_mod.o comm_tod_driver_mod.o comm_utils.o
 comm_tod_hfi_mod.o          : comm_tod_driver_mod.o comm_shared_arr_mod.o comm_conviqt_mod.o comm_tod_cray_mod.o
+comm_tod_cr_mod.o           : comm_tod_mod.o comm_utils.o
 comm_utils.o                : comm_system_mod.o comm_defs.o sort_utils.o spline_1d_mod.o comm_mpi_mod.o
 comm_zodi_mod.o             : comm_utils.o comm_param_mod.o
 invsamp_mod.o               : spline_1d_mod.o

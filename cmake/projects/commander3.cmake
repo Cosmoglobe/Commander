@@ -63,6 +63,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lfi_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_hfi_mod.f90
+        ${COMMANDER3_SOURCE_DIR}/comm_tod_cr_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_gain_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_noise_mod.f90
