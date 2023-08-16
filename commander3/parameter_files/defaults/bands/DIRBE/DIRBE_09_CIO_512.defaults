@@ -50,7 +50,7 @@ BAND_TOD_LEVEL&&&              = L2
 BAND_MAPFILE&&&                = DIRBE_09_512_v1.fits
 BAND_NOISEFILE&&&              = DIRBE_09_SIGMA_512_v1.fits
 BAND_REG_NOISEFILE&&&          = none   
-BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_09_SIGMA_512_v1_1deg_n256.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_09_SIGMA_512_v1_1deg_n256_v2.fits
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 

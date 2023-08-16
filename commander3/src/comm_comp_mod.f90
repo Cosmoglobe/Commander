@@ -29,7 +29,7 @@ module comm_comp_mod
   implicit none
 
   private
-  public  :: comm_comp, ncomp, compList, update_mixing_matrices!, dumpCompMaps
+  public  :: comm_comp, ncomp, compList, update_mixing_matrices, comp_ptr!, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -198,6 +198,11 @@ module comm_comp_mod
      end subroutine update_F_int
        
   end interface
+
+
+  type comp_ptr
+     class(comm_comp), pointer :: p => null()
+  end type comp_ptr
 
   !**************************************************
   !             Auxiliary variables

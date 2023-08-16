@@ -569,7 +569,7 @@ contains
           allocate(self%pixreg_priors(MAXVAL(self%npixreg(:,:)),3,self%npar))
           self%fix_pixreg(:,:,:) = .false.
           do i = 1,self%npar
-             self%pixreg_priors(:,:,i) = self%p_gauss(i,1)
+             self%pixreg_priors(:,:,i) = self%p_gauss(1,i)
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
