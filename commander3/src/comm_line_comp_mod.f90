@@ -108,8 +108,8 @@ contains
              constructor%theta_def(n) = mu(j)
              constructor%p_gauss(1,n) = mu(j)
              constructor%p_gauss(2,n) = sigma(j)
-             constructor%p_uni(1,n)   = -100.d0   !mu(j)-5*sigma(j)
-             constructor%p_uni(2,n)   =  100.d0   !mu(j)+5*sigma(j)
+             constructor%p_uni(1,n)   = -100.d30   !mu(j)-5*sigma(j)
+             constructor%p_uni(2,n)   =  100.d30   !mu(j)+5*sigma(j)
              constructor%poltype(n)   = poltype(j)
              constructor%indlabel(n)  = label(j)
              constructor%line2RJ(n)   = line2RJ(j)
@@ -120,6 +120,13 @@ contains
           constructor%ref_band    = i
           constructor%line2RJ_ref = constructor%line2RJ(n)
        end if
+    end do
+
+    ! Update reference band unit conversion
+    do i = 1, constructor%x%info%nmaps
+       constructor%RJ2unit_(i) = 1.d0 / constructor%line2RJ_ref
+       constructor%x%map(:,i)  = constructor%x%map(:,i) / constructor%RJ2unit_(i)
+       constructor%x%alm(:,i)  = constructor%x%alm(:,i) / constructor%RJ2unit_(i)
     end do
 
     ! Initialize spectral index maps
@@ -244,20 +251,12 @@ contains
 
     integer(i4b)    :: i, j, l, n, m, band, ierr
     real(dp)        :: A, b, mu, sigma, par, sigma_p, scale, w
-    class(comm_map), pointer :: invN_amp, amp, mask
+    class(comm_map), pointer :: invN_amp, amp
     character(len=2) :: id_text
     
     band = self%ind2band(id)
     !if (band == self%ref_band) return
 
-    ! Construct mask
-!!$    if (associated(self%indmask)) then
-!!$       if (data(band)%info%nside /= self%indmask%info%nside) then
-!!$          call report_error("Mask udgrade in line_comp not yet supported.")
-!!$       else
-!!$          mask => self%indmask
-!!$       end if
-!!$    end if
     
     ! Compute likelihood term
     w            = self%theta(id)%p%map(1,1)
@@ -274,9 +273,9 @@ contains
 !!$    call data(band)%N%invN_diag%writeFITS('co_invN'//id_text//'.fits')
 
     ! Reduce across processors
-    if (associated(mask)) then
-       A = sum(invN_amp%map * mask%map * amp%map)
-       b = sum(invN_amp%map * mask%map * data(band)%res%map)
+    if (associated(self%indmask(band)%p)) then
+       A = sum(invN_amp%map * self%indmask(band)%p%map * amp%map)
+       b = sum(invN_amp%map * self%indmask(band)%p%map * data(band)%res%map)
     else
        A = sum(invN_amp%map * amp%map)
        b = sum(invN_amp%map * data(band)%res%map)
@@ -290,8 +289,6 @@ contains
     ! Compute new line ratio; just root processor
     if (self%x%info%myid == 0) then
 
-!       write(*,*) 'A,b = ', A, b
-
        if (A > 0.d0) then
           mu    = b / A
           sigma = sqrt(1.d0 / A)
@@ -303,8 +300,6 @@ contains
           sigma = 0.d0
        end if
 
-!       write(*,*) '  mu, sigma = ', mu, sigma
-       
        ! Add prior
        if (self%p_gauss(2,id) > 0.d0) then
           sigma_p = self%p_gauss(2,id) !/ sqrt(real(npix_reg,dp))
@@ -312,8 +307,6 @@ contains
           sigma   = sqrt(sigma**2 * sigma_p**2 / (sigma**2 + sigma_p**2))
        end if
 
-!       write(*,*) '  mu_prior, sigma_prior = ', mu, sigma
-       
        ! Draw sample
        par = -1.d30
        if (trim(self%operation) == 'optimize') then

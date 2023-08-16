@@ -117,7 +117,7 @@ contains
     integer(i4b),                       intent(in) :: id, id_abs
     class(comm_Cl),                     pointer    :: constructor
 
-    integer(i4b)       :: l, nmaps
+    integer(i4b)       :: l, nmaps, ierr
     character(len=512) :: datadir, binfile
     logical(lgt)       :: pol
 
@@ -155,8 +155,12 @@ contains
           constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-6
        case ('MJy/sr') 
           constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1d14
-       case ('K km/s') 
+       case ('Kkm/s') 
           constructor%RJ2unit(l) = 1.d0
+          !constructor%RJ2unit(l) = 1.d0 / (constructor%nu_ref(l)/c * 1d9)
+          !write(*,*) 'Kkm/s not yet supported in md_mod'
+          !call mpi_finalize(ierr)
+          !stop
        case ('y_SZ') 
           constructor%RJ2unit(l) = 2.d0*constructor%nu_ref(l)**2*k_b/c**2 / &
                & (comp_bnu_prime(constructor%nu_ref(l)) * comp_sz_thermo(constructor%nu_ref(l)))

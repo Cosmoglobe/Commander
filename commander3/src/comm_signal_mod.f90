@@ -30,6 +30,7 @@ module comm_signal_mod
   use comm_data_mod
   use comm_diffuse_comp_mod
   use comm_freefree_comp_mod
+  use comm_freefreeEM_comp_mod
   use comm_hdf_mod
   use comm_line_comp_mod
   use comm_MBB_comp_mod
@@ -95,6 +96,8 @@ contains
              c => comm_MBBtab_comp(cpar, ncomp, i)
           case ("freefree")
              c => comm_freefree_comp(cpar, ncomp, i)
+          case ("freefreeEM")
+             c => comm_freefreeEM_comp(cpar, ncomp, i)
           case ("line")
              c => comm_line_comp(cpar, ncomp, i)
           case ("md")

@@ -37,7 +37,7 @@ contains
 
     integer(i4b)  :: i, l, lmin, lmax, ierr, root, ncomp, dl_low, dl_high, ntok
     real(dp)      :: my_sigma, my_mu, mu, sigma, gain_new, chisq, mychisq
-    real(dp)      :: MAX_DELTA_G = 0.03d0
+    real(dp)      :: MAX_DELTA_G = 0.3d0
     logical(lgt)  :: include_comp
     character(len=4) :: chain_text
     character(len=6) :: iter_text

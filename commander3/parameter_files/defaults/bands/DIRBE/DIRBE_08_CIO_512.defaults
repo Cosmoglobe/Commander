@@ -10,7 +10,7 @@ BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_
 BAND_NOISE_FORMAT&&&           = rms
 BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
 BAND_MASKFILE&&&               = fullsky
-BAND_MASKFILE_CALIB&&&         = mask_common_dx12_n0512.fits  fullsky
+BAND_MASKFILE_CALIB&&&         = mask_calib_08_v2.fits  mask_common_dx12_n0512.fits  fullsky
 BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
 BAND_BEAM_B_L_FILE&&&          = DIRBE_BL08_P3B_symm.fits
 BAND_BEAM_B_PTSRC_FILE&&&      = none
@@ -50,7 +50,7 @@ BAND_TOD_LEVEL&&&              = L2
 BAND_MAPFILE&&&                = DIRBE_08_512_v1.fits
 BAND_NOISEFILE&&&              = DIRBE_08_SIGMA_512_v1.fits
 BAND_REG_NOISEFILE&&&          = none 
-BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_08_SIGMA_512_v1_1deg_n256_v2.fits
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 

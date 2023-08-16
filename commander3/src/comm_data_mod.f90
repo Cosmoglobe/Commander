@@ -205,6 +205,11 @@ contains
              ! MNG: I stripped mb_eff out of here to make it compile, if we need
              ! this ever we need to introduce it back in somehow
           end do
+       case ('FIRAS')
+          data(n)%B(0)%p => comm_B_FIRAS(cpar, data(n)%info, n, i)
+          do j = 1, data(n)%ndet
+             data(n)%B(j)%p => comm_B_FIRAS(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
+          end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
        end select
@@ -492,22 +497,30 @@ contains
 
   end subroutine apply_source_mask
 
-  subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out)
+  subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out, spinzero)
     implicit none
     class(comm_mapinfo),                      intent(in),   target :: info
     logical(lgt),                             intent(in)           :: alms_in
     real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
     class(comm_map),                          intent(inout)        :: map_in
     class(comm_map),                          intent(out), pointer :: map_out
+    logical(lgt),                             intent(in), optional :: spinzero
 
-    integer(i4b) :: i, j, l, lmax
+    integer(i4b) :: i, j, l, b, lmax
+    logical(lgt) :: spinzero_
+
+    spinzero_ = .false.; if (present(spinzero)) spinzero_ = spinzero
 
     map_out => comm_map(info)
 
     if (.not. alms_in) then
        !map_out%map = map_in%map
        call map_in%udgrade(map_out)
-       call map_out%YtW
+       if (spinzero_) then
+          call map_out%YtW_scalar
+       else
+          call map_out%YtW
+       end if
     else
        call map_in%alm_equal(map_out)
     end if
@@ -522,8 +535,9 @@ contains
           cycle
        end if
        do j = 1, map_out%info%nmaps
+          b = j; if (spinzero_) b = 1
           if (bl_in(l,j) > 1.d-12) then
-             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,j) / bl_in(l,j)
+             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,b) / bl_in(l,b)
           else
              map_out%alm(i,j) = 0.d0
           end if
@@ -531,7 +545,11 @@ contains
     end do    
 
     ! Recompose map
-    call map_out%Y
+    if (spinzero_) then
+       call map_out%Y_scalar
+    else
+       call map_out%Y
+    end if
 
   end subroutine smooth_map
 

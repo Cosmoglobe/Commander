@@ -28,6 +28,9 @@ module comm_nonlin_mod
   use comm_diffuse_comp_mod
   use comm_signal_mod
   use comm_utils
+  use InvSamp_mod
+  use powell_mod
+  use comm_output_mod
   implicit none
 
 contains
@@ -122,8 +125,41 @@ contains
     real(dp)     :: t1, t2
     logical(lgt) :: samp_cg
     class(comm_comp),    pointer :: c    => null()
+    character(len=512), allocatable, dimension(:) :: comp_labels
 
     call wall_time(t1)
+
+
+
+    ! Sample calibration factors
+    do i = 1, numband
+       if (.not. data(i)%sample_gain) cycle
+       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
+    end do
+
+    ! Update mixing matrices if gains have been sampled
+    if (any(data%sample_gain)) then
+       c => compList
+       do while (associated(c))
+          call c%updateMixmat
+          c => c%next()
+       end do
+    end if
+
+    !call output_FITS_sample(cpar, 200+iter, .true.)
+
+    allocate(comp_labels(2))
+    comp_labels(1) = 'dust'
+    comp_labels(2) = 'hotPAH'
+    call sample_specind_multi(cpar, iter, handle, comp_labels)
+    deallocate(comp_labels)
+
+    !call output_FITS_sample(cpar, 300+iter, .true.)
+
+    call wall_time(t2)
+    if (cpar%myid_chain == 0) write(*,*) '| CPU time specind = ', real(t2-t1,sp)
+
+    return
                     
     c => compList
     do while (associated(c))
@@ -205,8 +241,9 @@ contains
              call sample_specind_local(cpar, iter, handle, c%id, j)
 
           class is (comm_ptsrc_comp)
-             call sample_specind_local(cpar, iter, handle, c%id, j)
-          
+             if (j == 1) then
+                call sample_specind_local(cpar, iter, handle, c%id, j)
+             end if
           end select
 
        end do
@@ -981,7 +1018,10 @@ contains
        ! Clean up
        if (info%myid == 0) close(69)   
        if (info%myid == 0) close(66)   
-       deallocate(alms, regs, chisq, maxit)
+       if (allocated(alms)) deallocate(alms)
+       if (allocated(regs)) deallocate(regs)
+       if (allocated(chisq)) deallocate(chisq)
+       if (allocated(maxit)) deallocate(maxit)
        call theta%dealloc(); deallocate(theta)
 
        if (c%apply_jeffreys) then
@@ -1053,6 +1093,12 @@ contains
 
     integer(c_int),    allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
+
+    ! HKE: Only perform joint Powell search
+    if (par_id /= 1) then
+       if (cpar%myid == 0) write(*,*) 'Performing Powell'
+       return
+    end if
 
     call wall_time(t1)
     
@@ -1211,7 +1257,7 @@ contains
        ! Compute smoothed spectral index maps
        allocate(c%theta_smooth(c%npar))
        do k = 1, c%npar
-          if (k == par_id) cycle
+          !if (k == par_id) cycle
           if (status_amp == 1) then ! Native resolution
              info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, &
                   & c%x%info%lmax, c%x%info%nmaps, c%x%info%pol)
@@ -1257,7 +1303,8 @@ contains
                   & cpar%lmax_smooth(smooth_scale), &
                   & c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
              c%theta_smooth(k)%p => comm_map(info)
-             call temp_map%udgrade(c%theta_smooth(k)%p)
+             !call temp_map%udgrade(c%theta_smooth(k)%p)
+             call c%theta(k)%p%udgrade(c%theta_smooth(k)%p)
 
              !deallocate fullres smooth parameter maps (temp_map,temp_map2,temp_res)
              call temp_map%dealloc(); deallocate(temp_map)
@@ -1269,7 +1316,9 @@ contains
        end do
 
        ! Sample spectral parameters for diffuse component
-       call sampleDiffuseSpecInd_nonlin(cpar, handle, c%id, par_id, iter)
+       !call sampleDiffuseSpecInd_nonlin(cpar, handle, c%id, par_id, iter)
+       !call sampleDiffuseSpecInd_simple(cpar, handle, c%id, par_id, iter)
+       call sampleDiffuseSpecInd_powell(cpar, handle, c%id, iter)
 
     end select
           
@@ -1382,6 +1431,422 @@ contains
     end if
    
   end subroutine sample_specind_local
+
+
+  subroutine sample_specind_multi(cpar, iter, handle, comp_labels)
+    !
+    ! Routine that sets up the sampling using the local sampling routine  for the spectral parameter given by
+    ! par_id for the component given by the comp_id parameter. 
+    ! Then it calls on the specific sampling routine and finally updates the components spectral parameter map
+    ! 
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! comp_id: integer
+    !       integer ID for the specific component to be sampled (in the list of the active components)
+    !
+    ! par_id: integer
+    !       integer ID for the specific spectral parameter to be sampled in the component given by 'comp_id'
+    !
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handle is updated as it is used and returned from the routine.
+    !       All other changes are done internally.
+    !
+    implicit none
+    type(comm_params),  intent(in)    :: cpar
+    integer(i4b),       intent(in)    :: iter
+    type(planck_rng),   intent(inout) :: handle    
+    character(len=512), dimension(:), intent(in)    :: comp_labels
+
+    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, p_ind, p_min, p_max, id, ncomp, npar, pix_out
+    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind, ind_pol, pol, pix
+    real(dp)     :: t1, t2, ts, dalm, fwhm_prior, temp_theta
+    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior
+    integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
+    integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
+    real(dp)     :: s, lnL_old, lnL_new, eps
+    real(dp), allocatable, dimension(:) :: theta, theta_old
+    character(len=2) :: itext
+    logical :: accepted, exist, doexit, skip
+    class(comm_mapinfo), pointer :: info => null()
+    class(comm_mapinfo), pointer :: info_lowres => null()
+    class(comm_N),       pointer :: tmp  => null()
+    class(comm_map),     pointer :: res  => null()
+    class(comm_map),     pointer :: temp_res  => null()
+    class(comm_map),     pointer :: temp_map  => null()
+    class(comm_map),     pointer :: temp_map2  => null()
+    class(comm_map),     pointer :: chisq_lowres  => null()
+    class(comm_map),     pointer :: chisq_old  => null()
+    class(comm_comp),    pointer :: c_in    => null()
+    class(comm_diffuse_comp),    pointer :: c    => null()
+    type(diff_ptr),    allocatable, dimension(:) :: comps
+    real(dp),          allocatable, dimension(:,:,:)   :: alms
+    real(dp),          allocatable, dimension(:,:) :: m
+    real(dp),          allocatable, dimension(:) :: buffer, rgs, chisq
+
+    integer(c_int),    allocatable, dimension(:,:) :: lm
+    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
+
+    call wall_time(t1)
+    eps = 1d-9
+    pix_out = -1 ! 350000
+    
+    ncomp = size(comp_labels)
+    npar  = 0
+    allocate(comps(ncomp))
+    do j = 1, size(comp_labels)
+       c_in => compList     
+       do while (trim(c_in%label) /= trim(comp_labels(j)))
+          c_in => c_in%next()
+       end do
+       select type (c_in)
+       class is (comm_diffuse_comp)
+          comps(j)%p => c_in 
+          npar       = npar + c_in%npar
+       end select
+    end do
+
+    ! Initialize residual maps
+!    call output_FITS_sample(cpar, 1000+iter, .true.)
+    do i = 1, numband
+!!$       res             => compute_residual(i)
+!!$       call res%writeFITS("res_"//trim(data(i)%label)//"_raw.fits")
+       res             => compute_residual(i,exclude_comps=comp_labels)
+!!$       call res%writeFITS("res_"//trim(data(i)%label)//"_sig.fits")
+       data(i)%res%map =  res%map
+       call res%dealloc(); deallocate(res)
+       nullify(res)
+    end do
+
+    ! Add components back into residual
+!!$    do j = 1, ncomp
+!!$       do i = 1, numband
+!!$          allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+!!$          m               = comps(j)%p%getBand(i)
+!!$          data(i)%res%map = data(i)%res%map + m
+!!$          deallocate(m)
+!!$       end do
+!!$    end do
+
+    !create comm_map_info for low resolution residual
+    c => comps(1)%p
+    smooth_scale =  c%smooth_scale(1) ! Require same smoothing scale for all par
+    info_lowres  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), &
+         & cpar%lmax_smooth(smooth_scale), c%x%info%nmaps, c%x%info%pol)
+
+    ! Compute smoothed residuals
+    nullify(info)
+    do i = 1, numband
+       if (.not. associated(data(i)%N_smooth(smooth_scale)%p)) cycle
+
+       !Smooth the residual map at full resolution 
+       info  => comm_mapinfo(data(i)%res%info%comm, data(i)%res%info%nside, &
+            & data(i)%res%info%lmax, data(i)%res%info%nmaps, data(i)%res%info%pol)
+       call smooth_map(info, .false., data(i)%B(0)%p%b_l, data(i)%res, &
+            & data(i)%B_smooth(smooth_scale)%p%b_l, temp_map)
+
+       !downgrade smoothed residual map to smoothing scale Nside
+       rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
+       res_smooth(i)%p => comm_map(info_lowres)
+       call temp_map%udgrade(res_smooth(i)%p)
+!!$       call res_smooth(i)%p%writeFITS("ressmooth_"//trim(data(i)%label)//".fits")
+!       rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
+       rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
+       !call rms_smooth(i)%p%writeFITS("rmssmooth_"//trim(data(i)%label)//".fits")
+
+       ! Clean up
+       call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+    end do
+
+    ! Check that there are relevant data
+    if (.not. associated(info)) then
+       write(*,*) 'Error: No bands contribute to index fit!'
+       call mpi_finalize(i)
+       stop
+    end if
+
+    ! Compute smoothed component maps
+    do j = 1, ncomp
+       c => comps(j)%p
+
+       ! Compute smoothed amplitude maps
+       info  => comm_mapinfo(c%x%info%comm, c%x%info%nside, c%x%info%lmax, &
+            & c%x%info%nmaps, c%x%info%pol)
+       call smooth_map(info, .true., &
+            & c%B_smooth_amp(1)%p%b_l*0.d0+1.d0, c%x, &  
+            & c%B_smooth_amp(1)%p%b_l,           temp_map)
+       c%x_smooth => comm_map(info_lowres)
+       call temp_map%udgrade(c%x_smooth)
+       call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+!!$       call c%x_smooth%writeFITS("smooth_amp_"//trim(c%label)//".fits")
+
+       ! Compute smoothed spectral index maps; spin zero
+       allocate(c%theta_smooth(c%npar))
+       do k = 1, c%npar
+!!$          info  => comm_mapinfo(c%theta(k)%p%info%comm, &
+!!$               & c%B_smooth_specpar(1)%p%info%nside, &
+!!$               & c%B_smooth_specpar(1)%p%info%lmax, &
+!!$               & c%theta(k)%p%info%nmaps, c%theta(k)%p%info%nmaps==3)
+!!$          temp_map => comm_map(info)
+!!$          temp_res => comm_map(info)
+!!$          temp_res%map=c%theta(k)%p%map
+!!$
+!!$          call smooth_map(info, .false., &
+!!$               & c%B_smooth_specpar(1)%p%b_l*0.d0+1.d0, temp_res, &  
+!!$               & c%B_smooth_specpar(1)%p%b_l,           temp_map, &
+!!$               & spinzero=.true.)
+!!$
+          c%theta_smooth(k)%p => comm_map(info_lowres)
+          !call temp_map%udgrade(c%theta_smooth(k)%p)
+          call c%theta(k)%p%udgrade(c%theta_smooth(k)%p)
+
+!!$          call c%theta_smooth(k)%p%writeFITS("smooth_ind_"//trim(c%label)//"_"//trim(c%indlabel(k))//".fits")
+
+!!$          call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+!!$          call temp_res%dealloc(); deallocate(temp_res); nullify(temp_res)
+       end do
+    end do
+
+    ! Perform the actual fit, pixel-by-pixel
+    pol = 1
+    allocate(theta(npar), theta_old(npar))
+    chisq_lowres => comm_map(info_lowres)
+    chisq_old => comm_map(info_lowres)
+    do pix = 0, info_lowres%np-1
+       
+       if (info_lowres%pix(pix+1) == pix_out) then
+          open(58,file="pix.dat")
+          do k = 1, numband
+             if (.not. associated(rms_smooth(k)%p)) cycle
+             if (trim(data(k)%unit) == 'uK_cmb') then
+                write(58,*) data(k)%bp(0)%p%nu_c, res_smooth(k)%p%map(pix,pol)/data(k)%bp(0)%p%a2t, rms_smooth(k)%p%rms_pix(pix,pol)/data(k)%bp(0)%p%a2t
+             else 
+                write(58,*) data(k)%bp(0)%p%nu_c, res_smooth(k)%p%map(pix,pol)/data(k)%bp(0)%p%a2f, rms_smooth(k)%p%rms_pix(pix,pol)/data(k)%bp(0)%p%a2f
+             end if
+          end do
+          close(58)
+       end if
+
+       i = 0
+       do j = 1, ncomp
+          c => comps(j)%p          
+          !theta_old(i) = c%x_smooth%map(pix,pol)
+          do k = 1, c%npar
+             theta_old(i+k) = min(c%theta_smooth(k)%p%map(pix,pol), c%p_uni(2,k)-eps) 
+             theta_old(i+k) = max(theta_old(i+k),                   c%p_uni(1,k)+eps) 
+          end do
+          i = i + c%npar
+       end do
+       theta = theta_old
+
+       if (info_lowres%pix(pix+1) == pix_out) lnL_old = lnL_multi(theta_old)
+       chisq_old%map(pix,pol) = 2*lnL_multi(theta_old)
+       call powell(theta, lnL_multi, ierr)
+       chisq_lowres%map(pix,pol) = 2*lnL_multi(theta)
+       if (info_lowres%pix(pix+1) == pix_out) then
+          lnL_new = lnL_multi(theta)
+          write(*,*) info_lowres%pix(pix+1), theta_old
+          write(*,*) info_lowres%pix(pix+1), theta
+          write(*,fmt='(i8,2e16.8)') info_lowres%pix(pix+1), lnL_old, lnL_new
+       end if
+
+       i = 0
+       do j = 1, ncomp
+          c => comps(j)%p
+          do k = 1, c%npar
+             c%theta_smooth(k)%p%map(pix,pol) = theta(i+k)
+          end do
+          i = i + c%npar
+       end do
+    end do
+!!$    call chisq_lowres%writeFITS("chisq_lowres.fits")
+!!$    call chisq_old%writeFITS("chisq_old.fits")
+
+    do j = 1, ncomp
+       c => comps(j)%p
+       do k = 1, c%npar
+          call c%theta_smooth(k)%p%udgrade(c%theta(k)%p)
+          call c%theta(k)%p%writeFITS(trim(c%label)//trim(c%indlabel(k))//".fits")
+       end do
+    end do
+
+    deallocate(theta, theta_old)
+
+    ! Smooth if requested
+    if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
+       !write(*,*) 'skal ikke vaere her'
+       do j = 1, ncomp
+          c => comps(j)%p
+          do k = 1, c%npar
+             info  => c%theta(k)%p%info
+             temp_map => comm_map(info)
+             call smooth_map(info, .false., &
+                  & c%B_pp_fr(1)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
+                  & c%B_pp_fr(1)%p%b_l, temp_map, spinzero=.true.)
+             c%theta(k)%p%map = temp_map%map
+             call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+          end do
+       end do
+    end if
+
+
+    ! Update mixing matrix and residuals
+    do j = 1, ncomp
+       c => comps(j)%p
+       call c%updateMixmat 
+!!$       do i = 1, numband
+!!$          allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+!!$          m               = c%getBand(i)
+!!$          data(i)%res%map = data(i)%res%map - m
+!!$          deallocate(m)
+!!$       end do
+    end do
+
+!!$    call output_FITS_sample(cpar, 1100+iter, .true.)
+
+!!$    do i = 1, numband
+!!$       res             => compute_residual(i)
+!!$       call res%writeFITS("res_"//trim(data(i)%label)//"_new.fits")
+!!$       call res%dealloc(); deallocate(res)
+!!$       nullify(res)
+!!$    end do
+
+
+    ! Clean up temporary data structures
+    do j = 1, ncomp
+       c => comps(j)%p
+       if (associated(c%x_smooth)) then
+          call c%x_smooth%dealloc(); deallocate(c%x_smooth); nullify(c%x_smooth)
+       end if
+       do k =1, c%npar
+          if (associated(c%theta_smooth(k)%p)) then
+             call c%theta_smooth(k)%p%dealloc(); deallocate(c%theta_smooth(k)%p)
+          end if
+       end do
+       if (allocated(c%theta_smooth)) deallocate(c%theta_smooth)
+    end do
+
+    do i = 1, numband
+       if (associated(rms_smooth(i)%p)) then
+          call res_smooth(i)%p%dealloc()
+          deallocate(res_smooth(i)%p); nullify(res_smooth(i)%p)
+       end if
+    end do
+    deallocate(comps)   
+
+!!$    call mpi_finalize(ierr)
+!!$    stop
+
+  contains
+
+    function lnL_multi(x)
+      use healpix_types
+      implicit none
+      real(dp), dimension(:), intent(in), optional :: x
+      real(dp)             :: lnL_multi
+      
+      integer(i4b) :: i, j, k, n
+      real(dp)     :: s, res, sigma, amp
+      
+      ! Check priors
+      i = 0
+      do j = 1, ncomp
+         c => comps(j)%p
+         do k = 1, c%npar
+            if (x(i+k) < c%p_uni(1,k) .or. x(i+k) > c%p_uni(2,k)) then
+               lnL_multi = 1.d30
+               return
+            end if
+         end do
+         i = i + c%npar
+      end do
+
+      ! Compute chi-square term
+      lnL_multi      = 0.d0
+      do k = 1, numband
+         if (.not. associated(rms_smooth(k)%p)) cycle
+         s = 0
+         i = 0
+         do j = 1, ncomp
+            c => comps(j)%p
+            amp = max(c%x_smooth%map(pix,pol), 0.d0)
+            s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
+              & * data(k)%gain * c%cg_scale(pol)
+            i = i + c%npar
+         end do
+!         sigma = rms_smooth(k)%p%rms_pix(pix,pol)
+         sigma = 0.01d0 * res_smooth(k)%p%map(pix,pol) 
+         res = res_smooth(k)%p%map(pix,pol) - s
+         lnL_multi = lnL_multi - 0.5d0 * res**2 / sigma**2
+!!$         if (info_lowres%pix(pix+1) == pix_out) then
+!!$            write(*,*) 'chisq', k, res, sigma, res**2 / sigma**2
+!!$         end if
+      end do
+
+      ! Add Gaussian prior
+      i = 0
+      do j = 1, ncomp
+         c => comps(j)%p
+         do k = 1, c%npar
+            if (c%p_gauss(2,k) > 0.d0) then
+               lnL_multi = lnL_multi -0.5d0*((x(i+k)-c%p_gauss(1,k))/c%p_gauss(2,k))**2
+!!$               if (info_lowres%pix(pix+1) == pix_out) then
+!!$                  write(*,*) 'prior', j, k, x(i+k), c%p_gauss(1,k), c%p_gauss(2,k), ((x(i+k)-c%p_gauss(1,k))/c%p_gauss(2,k))**2
+!!$               end if
+            end if
+         end do
+         i = i + c%npar
+      end do
+
+      ! Switch sign, since powell is a minimization routine
+      lnL_multi = -lnL_multi
+
+!!$      if (info_lowres%pix(pix+1) == pix_out) then
+!!$         write(*,*) 'multipowell', real(x,sp), 2*lnL_multi
+!!$      end if
+         
+    end function lnL_multi
+
+!!$    subroutine compute_lowres_residuals(x)
+!!$      use healpix_types
+!!$      implicit none
+!!$      real(dp), dimension(:), intent(in), optional :: x
+!!$      
+!!$      real(dp)             :: lnL_multi
+!!$      
+!!$      integer(i4b) :: i, j, k, n
+!!$      real(dp)     :: s, res, sigma, amp
+!!$      
+!!$
+!!$      ! Compute chi-square term
+!!$      lnL_multi      = 0.d0
+!!$      do k = 1, numband
+!!$         if (.not. associated(rms_smooth(k)%p)) cycle
+!!$         s = 0
+!!$         i = 0
+!!$         do j = 1, ncomp
+!!$            c => comps(j)%p
+!!$            amp = max(c%x_smooth%map(pix,pol), 0.d0)
+!!$            s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
+!!$              & * data(k)%gain * c%cg_scale(pol)
+!!$            i = i + c%npar
+!!$         end do
+!!$         res_smooth(k)%p%map(pix,pol) = res_smooth(k)%p%map(pix,pol) - s
+!!$      end do
+!!$
+!!$    end subroutine compute_lowres_residuals
+
+
+  end subroutine sample_specind_multi
   
 
   subroutine gather_alms(alm, alms, nalm, lm, i, pl, pl_tar)
@@ -1479,6 +1944,269 @@ contains
     deallocate(C_, N_)
     !close(58)
   end subroutine compute_corrlen
+
+
+  ! Sample spectral parameters using straight Powell or inversion sampler
+  subroutine sampleDiffuseSpecInd_simple(cpar, handle, comp_id, par_id, iter)
+    !
+    ! Overarching routine that sets up the sampling of diffuse type component spectral parameters
+    ! 
+    ! Calls on the specific sampling routine and finally updates the component's spectral parameter map
+    ! 
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! comp_id: integer
+    !       integer ID for the specific component to be sampled (in the list of the active components)
+    !
+    ! par_id: integer
+    !       integer ID for the specific spectral parameter to be sampled in the component given by 'comp_id'
+    !
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handle is updated as they are used and returned from the routine
+    !       All other changes are done internally
+    !
+    implicit none
+    type(comm_params),                       intent(in)           :: cpar
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: par_id, comp_id, iter
+
+    integer(i4b) :: pix, ierr, pol, status
+    real(dp)     :: s, x(3), lnL_old, lnL_new, eps, theta_old
+    class(comm_comp),         pointer :: c => null()
+    class(comm_diffuse_comp), pointer :: c_lnL => null()
+
+    eps = 1d-9
+
+    c           => compList     
+    do while (comp_id /= c%id)
+       c => c%next()
+    end do
+    select type (c)
+    class is (comm_diffuse_comp)
+       c_lnL => c !to be able to access all diffuse comp parameters through c_lnL
+    end select
+
+
+!    do pol = 1, c_lnL%theta_smooth(par_id)%p%info%nmaps
+    pol = 1
+    do pix = 0, c_lnL%theta_smooth(par_id)%p%info%np-1
+       if (c_lnL%theta_smooth(par_id)%p%map(pix,pol) <= c_lnL%p_uni(1,par_id)+eps) then
+          x(1) = c_lnL%p_uni(1,par_id)+eps
+          x(3) = min(x(1) + c_lnL%p_gauss(2,par_id), c_lnL%p_uni(2,par_id)-eps)
+          x(2) = 0.5d0*(x(1)+x(3))
+       else if (c_lnL%theta_smooth(par_id)%p%map(pix,pol) >= c_lnL%p_uni(2,par_id)-eps) then
+          x(3) = c_lnL%p_uni(2,par_id)-eps
+          x(1) = max(x(3) - c_lnL%p_gauss(2,par_id), c_lnL%p_uni(1,par_id)+eps)
+          x(2) = 0.5d0*(x(1)+x(3))
+       else
+          x(2) = c_lnL%theta_smooth(par_id)%p%map(pix,pol)
+          x(1) = max(x(2) - c_lnL%p_gauss(2,par_id), 0.5d0*(x(2) + c_lnL%p_uni(1,par_id)))
+          x(3) = min(x(2) + c_lnL%p_gauss(2,par_id), 0.5d0*(x(2) + c_lnL%p_uni(2,par_id)))
+          if (x(2) == x(1) .or. x(2) == x(3)) x(2) = 0.5d0*(x(1)+x(3))
+       end if
+       theta_old = x(2)
+
+       if (mod(pix,1000) == 0) lnL_old = lnL_simple(c_lnL%theta_smooth(par_id)%p%map(pix,pol))
+       c_lnL%theta_smooth(par_id)%p%map(pix,pol) = &
+            & sample_InvSamp(handle, x, lnL_simple, prior=c_lnL%p_uni(:,par_id), &
+            & optimize=(trim(cpar%operation)=='optimize'), status=status)
+       if (mod(pix,1000) == 0) then
+          lnL_new = lnL_simple(c_lnL%theta_smooth(par_id)%p%map(pix,pol))
+          write(*,fmt='(i8,2f8.3,2e16.8)') c_lnL%theta_smooth(par_id)%p%info%pix(pix+1), theta_old, c_lnL%theta_smooth(par_id)%p%map(pix,pol), lnL_old, lnL_new
+       end if
+    end do
+    !end do
+!!$call mpi_finalize(ierr)
+!!$    stop
+    call c_lnL%theta_smooth(par_id)%p%udgrade(c_lnL%theta(par_id)%p)
+
+  contains
+
+    function lnL_simple(x)
+      use healpix_types
+      implicit none
+      real(dp), intent(in) :: x
+      real(dp)             :: lnL_simple
+      
+      integer(i4b) :: i, j, n
+      real(dp)     :: s, res, theta(6)
+      real(dp), allocatable, dimension(:,:) :: f_precomp
+      
+      ! Check priors
+      if (x < c_lnL%p_uni(1,par_id) .or. x > c_lnL%p_uni(2,par_id)) then
+         lnL_simple = 1.d30
+         return
+      end if
+      
+      ! Set up internal parameter array
+      n = c_lnL%npar
+      do i = 1, n
+         theta(i) = c_lnL%theta_smooth(i)%p%map(pix,pol)
+         theta(i) = max(theta(i), c_lnL%p_uni(1,i)+eps)
+         theta(i) = min(theta(i), c_lnL%p_uni(2,i)-eps)
+      end do
+      theta(par_id) = x
+      
+      ! Compute chi-square term
+      lnL_simple      = 0.d0
+      do j = 1, numband
+         if (.not. associated(rms_smooth(j)%p)) cycle
+         s   = c_lnL%x_smooth%map(pix,pol) * c_lnL%F_int(1,j,0)%p%eval(theta(1:n))&
+              & * data(j)%gain * c_lnL%cg_scale(pol)
+         res = res_smooth(j)%p%map(pix,pol) - s
+         lnL_simple = lnL_simple - 0.5d0 * res**2 / rms_smooth(j)%p%rms_pix(pix,pol)**2
+      end do
+
+      ! Add Gaussian prior
+      if (c_lnL%p_gauss(2,par_id) > 0.d0) then
+         lnL_simple = lnL_simple -0.5d0*((x-c_lnL%p_gauss(1,par_id))/c_lnL%p_gauss(2,par_id))**2
+      end if
+
+    end function lnL_simple
+    
+  end subroutine sampleDiffuseSpecInd_simple
+
+
+  ! Sample spectral parameters using straight Powell or inversion sampler
+  subroutine sampleDiffuseSpecInd_powell(cpar, handle, comp_id, iter)
+    !
+    ! Overarching routine that sets up the sampling of diffuse type component spectral parameters
+    ! 
+    ! Calls on the specific sampling routine and finally updates the component's spectral parameter map
+    ! 
+    !
+    ! Arguments:
+    ! cpar: Commander parameter type
+    !       Incudes all information from the parameter file
+    !
+    ! iter: integer
+    !       Gibb's sample counter
+    !
+    ! handle: planck_rng type
+    !       a parameter for the RNG to produce random numbers
+    !
+    ! comp_id: integer
+    !       integer ID for the specific component to be sampled (in the list of the active components)
+    !
+    ! par_id: integer
+    !       integer ID for the specific spectral parameter to be sampled in the component given by 'comp_id'
+    !
+    ! Returns:
+    !       No explicit parameter is returned.
+    !       The RNG handle is updated as they are used and returned from the routine
+    !       All other changes are done internally
+    !
+    implicit none
+    type(comm_params),                       intent(in)           :: cpar
+    type(planck_rng),                        intent(inout)        :: handle
+    integer(i4b),                            intent(in)           :: comp_id, iter
+
+    integer(i4b) :: i, pix, ierr, pol, status
+    real(dp)     :: s, x(3), lnL_old, lnL_new, eps
+    real(dp), allocatable, dimension(:) :: theta, theta_old
+    class(comm_comp),         pointer :: c => null()
+    class(comm_diffuse_comp), pointer :: c_lnL => null()
+
+    eps = 1d-9
+
+    c           => compList     
+    do while (comp_id /= c%id)
+       c => c%next()
+    end do
+    select type (c)
+    class is (comm_diffuse_comp)
+       c_lnL => c !to be able to access all diffuse comp parameters through c_lnL
+    end select
+
+
+!    do pol = 1, c_lnL%theta_smooth(par_id)%p%info%nmaps
+    pol = 1
+    allocate(theta(c_lnL%npar), theta_old(c_lnL%npar))
+    do pix = 0, c_lnL%theta_smooth(1)%p%info%np-1
+       
+       do i = 1, c_lnL%npar
+          theta_old(i) = min(c_lnL%theta_smooth(i)%p%map(pix,pol), c_lnL%p_uni(2,i)-eps) 
+          theta_old(i) = max(theta_old(i),                         c_lnL%p_uni(1,i)+eps) 
+       end do
+       theta = theta_old
+
+       if (mod(pix,1000) == 0) lnL_old = lnL_simple(theta_old)
+       call powell(theta, lnL_simple, ierr)
+       if (mod(pix,1000) == 0) then
+          lnL_new = lnL_simple(theta)
+          write(*,fmt='(i8,2e16.8)') c_lnL%theta_smooth(1)%p%info%pix(pix+1), lnL_old, lnL_new
+       end if
+
+       do i = 1, c_lnL%npar
+          c_lnL%theta_smooth(i)%p%map(pix,pol) = theta(i)
+       end do
+    end do
+    !end do
+!!$call mpi_finalize(ierr)
+!!$    stop
+    do i = 1, c_lnL%npar
+       call c_lnL%theta_smooth(i)%p%udgrade(c_lnL%theta(i)%p)
+    end do
+
+    deallocate(theta, theta_old)
+
+  contains
+
+    function lnL_simple(x)
+      use healpix_types
+      implicit none
+      real(dp), dimension(:), intent(in), optional :: x
+      real(dp)             :: lnL_simple
+      
+      integer(i4b) :: i, j, n
+      real(dp)     :: s, res
+      real(dp), allocatable, dimension(:,:) :: f_precomp
+      
+      ! Check priors
+      do i = 1, c_lnL%npar
+         if (x(i) < c_lnL%p_uni(1,i) .or. x(i) > c_lnL%p_uni(2,i)) then
+            lnL_simple = 1.d30
+            return
+         end if
+      end do
+
+      ! Compute chi-square term
+      lnL_simple      = 0.d0
+      do j = 1, numband
+         if (.not. associated(rms_smooth(j)%p)) cycle
+         s   = c_lnL%x_smooth%map(pix,pol) * c_lnL%F_int(1,j,0)%p%eval(x)&
+              & * data(j)%gain * c_lnL%cg_scale(pol)
+         res = res_smooth(j)%p%map(pix,pol) - s
+         lnL_simple = lnL_simple - 0.5d0 * res**2 / rms_smooth(j)%p%rms_pix(pix,pol)**2
+      end do
+
+      ! Add Gaussian prior
+      do i = 1, c_lnL%npar
+         if (c_lnL%p_gauss(2,i) > 0.d0) then
+            lnL_simple = lnL_simple -0.5d0*((x(i)-c_lnL%p_gauss(1,i))/c_lnL%p_gauss(2,i))**2
+         end if
+      end do
+
+      ! Switch sign, since powell is a minimization routine
+      lnL_simple = -lnL_simple
+
+      if (c_lnL%theta_smooth(1)%p%info%pix(pix+1) == 100000) then
+         write(*,*) 'powell', real(x,sp), 2*lnL_simple
+      end if
+         
+    end function lnL_simple
+    
+  end subroutine sampleDiffuseSpecInd_powell
 
 
   !Here comes all subroutines for sampling diffuse components locally
@@ -1601,6 +2329,8 @@ contains
     end select
 
   end subroutine sampleDiffuseSpecInd_nonlin
+
+
 
   subroutine sampleDiffuseSpecIndPixReg_nonlin(cpar, buffer_lnL, handle, comp_id, par_id, p, iter)
     !

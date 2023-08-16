@@ -569,7 +569,7 @@ contains
           allocate(self%pixreg_priors(MAXVAL(self%npixreg(:,:)),3,self%npar))
           self%fix_pixreg(:,:,:) = .false.
           do i = 1,self%npar
-             self%pixreg_priors(:,:,i) = self%p_gauss(i,1)
+             self%pixreg_priors(:,:,i) = self%p_gauss(1,i)
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
@@ -2021,15 +2021,15 @@ contains
        
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-    if (.not. alm_out_) call m%Y()
 
     ! Return correct data product
     if (alm_out_) then
-       !if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
+       if (.not. data(band)%B(d)%p%almFromConv) call m%YtW()
        if (.not. allocated(res)) allocate(res(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%alm(:,1:nmaps)
     else
+       if (data(band)%B(d)%p%almFromConv) call m%Y()
        if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%map(:,1:nmaps)
@@ -2085,7 +2085,7 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
-       call m%Y()
+       if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
     end if
