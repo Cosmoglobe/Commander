@@ -339,12 +339,12 @@ program commander
          call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
          call init_scandata_and_downsamp_zodi(cpar)
 
-         do i = 1, zodi_model%N_PARAMETERS
+         do i = 1, zodi_model%n_parameters
             if (.not. active_params(i)) cycle ! For skipping specific parameters
             call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
             
             ! Recompute downsampled residual using the newly estimated zodi parameter (if not at last parameter)
-            if (.not. i == 1) call init_scandata_and_downsamp_zodi(cpar)
+            if (.not. i == zodi_model%n_parameters) call init_scandata_and_downsamp_zodi(cpar)
          end do
       end if
 

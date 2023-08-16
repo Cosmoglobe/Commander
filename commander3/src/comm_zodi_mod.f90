@@ -437,27 +437,31 @@ contains
             character(len=6)          :: itext, itext2
 
         type(hdf_file) :: file
-        real(dp) :: param_vec(self%n_parameters)
+        real(dp), allocatable :: param_vec(:)
         character(len=512) :: chainfile
 
 
         unit = getlun()
-        
-        ! validate that the chain file exists, and get path to file and which sample to use
-        call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-        inquire(file=trim(chainfile), exist=exist)
-        if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
-        l = len(trim(chainfile))
-        if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-        
-        call open_hdf_file(trim(chainfile), file, "r")
-
-        call int2string(initsamp, itext)
-
-        call read_hdf(file, itext//"/zodi/params" , param_vec)
-        call close_hdf_file(file)
-
         call self%init_from_defaults(cpar)
+        allocate(param_vec(self%n_parameters))
+        if (cpar%myid == cpar%root) then
+            ! validate that the chain file exists, and get path to file and which sample to use
+            call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+            inquire(file=trim(chainfile), exist=exist)
+            if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+            l = len(trim(chainfile))
+            if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+            
+            call open_hdf_file(trim(chainfile), file, "r")
+
+            call int2string(initsamp, itext)
+
+            call read_hdf(file, itext//"/zodi/params" , param_vec)
+            if (size(param_vec) /= self%n_parameters) stop "param_vec has the wrong size"
+            call close_hdf_file(file)
+        end if
+        
+        call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
         call self%param_vec_to_model(param_vec)
 
     end subroutine init_from_chain
