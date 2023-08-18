@@ -209,7 +209,7 @@ ALMSAMP_APPLY_PRIOR                    = .true.
 ALMSAMP_PIXREG                         = .true.
 ALMSAMP_PRIORSAMP_FROZEN_REGIONS       = .true.
 
-INSTRUMENT_PARAM_FILE         = init_instpar_v1.dat instrument_params_init_DIRBE_hke.dat
+INSTRUMENT_PARAM_FILE         = init_instpar_v1.dat # can add new bands in here
 INIT_INSTRUMENT_FROM_HDF      = none default
  
 NUM_SIGNAL_COMPONENTS         = 15
@@ -237,16 +237,10 @@ CG_SAMPLING_GROUP_MASK&&     = fullsky
 CG_SAMPLING_GROUP_MAXITER&&  = 200
 @END 01
 
-#@START 01
-#CG_SAMPLING_GROUP&&          = cii
-#CG_SAMPLING_GROUP_MASK&&     = fullsky
-#CG_SAMPLING_GROUP_MAXITER&&  = 500
-#@END 01
-
 
 @START 02
 CG_SAMPLING_GROUP&&          = md
-CG_SAMPLING_GROUP_MASK&&     = mask_stars_0.05MJysr_857_1K_zodi_100mK_v1.fits  mask_common_dx12_n0512.fits
+CG_SAMPLING_GROUP_MASK&&     = mask_stars_0.05MJysr_857_1K_zodi_100mK_v1.fits  
 CG_SAMPLING_GROUP_MAXITER&&  = 200
 @END 02
 
@@ -268,14 +262,11 @@ CG_SAMPLING_GROUP_MAXITER&&  = 200
 # Thermal dust component
 @START 03
 @DEFAULT components/dust/dust_coldtab_DIRBE.defaults
-#COMP_TYPE&&                   = MBB
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_14K_n2048.fits
+COMP_BETA_INPUT_MAP&&         = default
+COMP_T_INPUT_MAP&&            = default
 COMP_SED_TEMPLATE&&           = coldtab_def_v1.dat
 COMP_T_DEFAULT&&              = 16.
 COMP_BETA_DEFAULT&&           =   1.56
-#COMP_BETA_PRIOR_GAUSS_RMS&&   = 10.
-#COMP_T_PRIOR_GAUSS_RMS&&      = 10.
 @DEFAULT components/dust/dust_DIRBE_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default
 @END 03
@@ -318,8 +309,6 @@ COMP_INIT_FROM_HDF&&          = none
 @START 09
 @DEFAULT components/pah/pah_DIRBE.defaults
 COMP_NU_REF_T&&               = 25000
-#COMP_SED_TEMPLATE&&           = PAH_astrodust.dat
-#COMP_SED_TEMPLATE&&           = PAH_3e-3micron.dat
 COMP_SED_TEMPLATE&&           = PAH_3e-3micron_trunc6um.dat
 COMP_INIT_FROM_HDF&&          = default
 @END 09
@@ -330,9 +319,8 @@ COMP_INIT_FROM_HDF&&          = default
 COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = hotdust
 COMP_NU_REF_T&&               = 3000
-#COMP_NU_REF_T&&               = 1249.1352416666668
-COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits init_dust_beta_1.56.fits
-COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_dust_T_30K.fits
+COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits
+COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits 
 @DEFAULT components/dust/dust_LFI_localsampler.defaults
 @END 10
 
@@ -340,8 +328,6 @@ COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_du
 @START 11
 @DEFAULT components/dust/dust_stars_n512.defaults
 @DEFAULT components/dust/dust_stars_localsampler.defaults
-#COMP_BETA_INPUT_MAP&&         = init_dust_beta_0.8_n256.fits
-#COMP_T_INPUT_MAP&&            = init_dust_T_2250K_n256.fits
 COMP_INIT_FROM_HDF&&          = default
 @END 11
 
@@ -349,16 +335,13 @@ COMP_INIT_FROM_HDF&&          = default
 # Hot dust + PAH
 @START 12
 @DEFAULT components/dust/dust_hotPAH.defaults
-#COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = hotPAH
 COMP_NU_REF_T&&               = 545
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
+COMP_BETA_INPUT_MAP&&         = default
+COMP_T_INPUT_MAP&&            = default
 COMP_T_DEFAULT&&              = 21.
-COMP_BETA_DEFAULT&&           =   1.9
+COMP_BETA_DEFAULT&&           = 1.9
 COMP_SED_TEMPLATE&&           = hotPAH_def_v3.dat
-#COMP_BETA_PRIOR_GAUSS_RMS&&   = 10.
-#COMP_T_PRIOR_GAUSS_RMS&&      = 10.
 @DEFAULT components/dust/dust_hotPAH_localsampler.defaults
 COMP_INIT_FROM_HDF&&          = default
 @END 12
@@ -420,7 +403,7 @@ COMP_CL_DEFAULT_AMP_B99       =  1.d0
 COMP_CL_DEFAULT_BETA_T99      =  20.d0
 COMP_CL_DEFAULT_BETA_E99      = -0.5d0
 COMP_CL_DEFAULT_BETA_B99      = -0.5d0
-COMP_LINE_TEMPLATE99          = data/hotdust_pah_weights_v1.dat
+COMP_LINE_TEMPLATE99          = hotdust_pah_weights_v1.dat
 COMP_APPLY_JEFFREYS_PRIOR99   =  .true.
 COMP_AMP_INPUT_MAP99          = none
 COMP_AMP_PRIOR_MAP99          = none
