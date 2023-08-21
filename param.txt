@@ -17,8 +17,8 @@ CHAIN_STATUS     = append
 NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = /mn/stornext/d5/data/artemba/AST9240/2023/data/init_chain_v1.h5:11
 
-SAMPLE_SIGNAL_AMPLITUDES      = .true.
-SAMPLE_SPECTRAL_INDICES       = .true.
+SAMPLE_SIGNAL_AMPLITUDES      = .false.
+SAMPLE_SPECTRAL_INDICES       = .false.
 SAMPLE_ONLY_TEMPERATURE       = .true.
 SAMPLE_ZODI                   = .false.
 
@@ -226,7 +226,7 @@ INCLUDE_COMP10                = .false.  # Hot dust (FDS) # Thermal dust
 INCLUDE_COMP11                = .false.  # Stars (BB with fixed T)
 INCLUDE_COMP12                = .true.  # hot dust + pah, free weights
 INCLUDE_COMP13                = .false.  # stars, fir, ptsrc
-INCLUDE_COMP14                = .true.  # CO
+INCLUDE_COMP14                = .false.  # CO
 INCLUDE_COMP15                = .false.  # CII
 
 NUM_CG_SAMPLING_GROUPS = 2
