@@ -61,12 +61,12 @@ INCLUDE_BAND010                = .true.    # 240 micron T 10
 
 # MAPS
 # Planck
-INCLUDE_BAND011                = .true.    # 857 map
-INCLUDE_BAND012                = .true.    # 545 map
-INCLUDE_BAND018                = .true.    # 353 map
-INCLUDE_BAND019                = .true.    # 217 map
-INCLUDE_BAND020                = .true.    # 143 map
-INCLUDE_BAND021                = .true.    # 100 map
+INCLUDE_BAND011                = .false.    # 857 map
+INCLUDE_BAND012                = .false.    # 545 map
+INCLUDE_BAND018                = .false.    # 353 map
+INCLUDE_BAND019                = .false.    # 217 map
+INCLUDE_BAND020                = .false.    # 143 map
+INCLUDE_BAND021                = .false.    # 100 map
 
 # FIRAS 
 INCLUDE_BAND013                = .true.    # 544 map

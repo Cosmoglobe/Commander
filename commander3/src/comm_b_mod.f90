@@ -109,7 +109,7 @@ contains
           read(line,*) x(n), y(n)
        end do
 2      close(unit)
-       write(*,*) 'Warning: changing btheta unit from arcmin to deg'
+      !  write(*,*) 'Warning: changing btheta unit from arcmin to deg'
        x = x * pi/180.d0
        !x = x * pi/180.d0/60.d0
        
