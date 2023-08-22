@@ -339,7 +339,7 @@ program commander
          call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
          call init_scandata_and_downsamp_zodi(cpar)
 
-         do i = 1, zodi_model%n_parameters
+         do i = 1, 2!zodi_model%n_parameters
             if (.not. active_params(i)) cycle ! For skipping specific parameters
             call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
             
@@ -347,9 +347,6 @@ program commander
             if (.not. i == zodi_model%n_parameters) call init_scandata_and_downsamp_zodi(cpar)
          end do
       end if
-
-      ! Final gibbs step is to estimate the spectral parameters (emissivity + albedo). 
-      ! call gibbs_sample_zodi_emissivity_and_albedo(cpar, handle, zodi_model, verbose=.true.)
 
       ! Reset zodi related quantities for next gibbs sample
       do i = 1, numband

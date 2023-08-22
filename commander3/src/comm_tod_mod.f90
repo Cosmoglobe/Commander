@@ -211,6 +211,7 @@ module comm_tod_mod
 
      ! Zodi parameters and spline objects
      integer(i4b) :: zodi_n_comps
+     integer(i4b), allocatable, dimension(:)   :: pix_at_zodi_nside
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
      real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
@@ -502,7 +503,7 @@ contains
     class(comm_tod),                intent(inout)  :: self
 
     real(dp)     :: f_fill, f_fill_lim(3), theta, phi, rotation_matrix(3, 3)
-    integer(i4b) :: i, j, k, l, np_vec, ierr
+    integer(i4b) :: i, j, k, l, np_vec, ierr, zodi_subpix, nest_pix
     integer(i4b), allocatable, dimension(:) :: pix
 
     ! Construct observed pixel array
@@ -553,6 +554,8 @@ contains
        end if
     end do
     if (self%subtract_zodi) then
+      !  zodi_subpix = (self%nside / integer(256, i4b))**2 ! (change to nside_zodi)
+      !  allocate(self%pix_at_zodi_nside(self%nobs))
        allocate(self%zodi_scat_cache(self%nobs, self%zodi_n_comps, self%ndet))
        allocate(self%zodi_therm_cache(self%nobs, self%zodi_n_comps, self%ndet))
        self%zodi_scat_cache = -1.d0
@@ -560,9 +563,14 @@ contains
        allocate(self%ind2vec_ecl(3,self%nobs))
        call ecl_to_gal_rot_mat(rotation_matrix)
        do i = 1, self%nobs
+         !  call ring2nest(self%nside, self%ind2pix(i), nest_pix)
+         !  nest_pix = nest_pix / zodi_subpix
+         !  call nest2ring(integer(256, i4b), nest_pix, self%pix_at_zodi_nside)
           self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
        end do
     end if
+   !  print *, self%pix_at_zodi_nside
+   !  stop
     f_fill = self%nobs/(12.*self%nside**2)
     call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
     call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)

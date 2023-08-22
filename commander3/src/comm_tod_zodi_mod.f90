@@ -88,7 +88,7 @@ contains
         type(ZodiModel), intent(in) :: model
         logical(lgt), intent(in), optional :: always_scattering
 
-        integer(i4b) :: i, j, k, pixel, lookup_idx, n_tod, ierr
+        integer(i4b) :: i, j, k, pix_at_zodi_nside, lookup_idx, n_tod, ierr
         logical(lgt) :: scattering
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
@@ -124,7 +124,7 @@ contains
                 earth_lon = atan(earth_pos(2), earth_pos(1))
                 call tod%clear_zodi_cache(obs_time)
             end if
-            
+            ! pix_at_zodi_nside = tod%pix_at_zodi_nside(pix(i))
             lookup_idx = tod%pix2ind(pix(i))
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
                 s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
