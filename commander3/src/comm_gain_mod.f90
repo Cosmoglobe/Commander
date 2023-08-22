@@ -66,6 +66,7 @@ contains
     sig => comm_map(data(band)%info)
     res => comm_map(data(band)%info)
     c => compList
+    i = 0
     do while (associated(c))
        if (trim(c%label) /= trim(data(band)%gain_comp) .and. trim(data(band)%gain_comp) /= 'all') then
           c => c%next()
@@ -78,7 +79,13 @@ contains
        sig%map = sig%map + m
        deallocate(m)
        c => c%next()
+       i = i + 1
     end do
+    if (i == 0) then
+      write(*,*) "WARNING: Gain component not associated"
+    else if (i > 1) then
+      write(*,*) "WARNING: Gain calibrator may have been associated more than once"
+    end if
 
     ! Add reference signal to residual
     res%map = data(band)%res%map + sig%map
