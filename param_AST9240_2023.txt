@@ -12,18 +12,18 @@ VERBOSITY                     = 3       # [0,...,3]
 
 # Monte Carlo options
 NUMCHAIN         = 1       # Number of independent chains
-NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
+NUM_GIBBS_ITER   = 2       # Length of each Markov chain
 CHAIN_STATUS     = append
 NUM_INIT_CHAINS  = 1
-INIT_CHAIN01     = /mn/stornext/d5/data/metins/dirbe/data/init_chain_v14.h5:5
+INIT_CHAIN01     = /mn/stornext/d5/data/artemba/AST9240/2023/data/init_chain_v1.h5:11
 
-SAMPLE_SIGNAL_AMPLITUDES      = .true.
-SAMPLE_SPECTRAL_INDICES       = .true.
+SAMPLE_SIGNAL_AMPLITUDES      = .false.
+SAMPLE_SPECTRAL_INDICES       = .false.
 SAMPLE_ONLY_TEMPERATURE       = .true.
 SAMPLE_ZODI                   = .false.
 
-ENABLE_TOD_ANALYSIS           = .true.
-TOD_INCLUDE_ZODI              = .true.
+ENABLE_TOD_ANALYSIS           = .false.
+TOD_INCLUDE_ZODI              = .false.
 
 OUTPUT_SIGNALS_PER_BAND       = .true.
 OUTPUT_MIXING_MATRIX          = .false.
@@ -36,22 +36,22 @@ TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
 #                       Output options                       #
 ##############################################################
 
-OUTPUT_DIRECTORY              = chains_hke
+OUTPUT_DIRECTORY              = chains
 NSIDE_CHISQ                   = 512
 
 ##############################################################
 #                         Data sets                          #
 ##############################################################	
 
-DATA_DIRECTORY                 = /mn/stornext/d5/data/metins/dirbe/data
+DATA_DIRECTORY                 = /mn/stornext/d5/data/artemba/AST9240/2023/data
 NUMBAND                        = 22
 
 # TOD
 # DIRBE 
-INCLUDE_BAND001                = .true.    # 1.25 micron T 01
-INCLUDE_BAND002                = .true.    # 2.2 micron T 02
-INCLUDE_BAND003                = .true.    # 3.5 micron T 03
-INCLUDE_BAND004                = .true.    # 4.9 micron T 04
+INCLUDE_BAND001                = .false.    # 1.25 micron T 01
+INCLUDE_BAND002                = .false.    # 2.2 micron T 02
+INCLUDE_BAND003                = .false.    # 3.5 micron T 03
+INCLUDE_BAND004                = .false.    # 4.9 micron T 04
 INCLUDE_BAND005                = .true.    # 12 micron T 05
 INCLUDE_BAND006                = .true.    # 25 micron T 06
 INCLUDE_BAND007                = .true.    # 60 micron T 07
@@ -61,12 +61,12 @@ INCLUDE_BAND010                = .true.    # 240 micron T 10
 
 # MAPS
 # Planck
-INCLUDE_BAND011                = .true.    # 857 map
-INCLUDE_BAND012                = .true.    # 545 map
-INCLUDE_BAND018                = .true.    # 353 map
+INCLUDE_BAND011                = .false.    # 857 map
+INCLUDE_BAND012                = .false.    # 545 map
+INCLUDE_BAND018                = .false.    # 353 map
 INCLUDE_BAND019                = .true.    # 217 map
-INCLUDE_BAND020                = .true.    # 143 map
-INCLUDE_BAND021                = .true.    # 100 map
+INCLUDE_BAND020                = .false.    # 143 map
+INCLUDE_BAND021                = .false.    # 100 map
 
 # FIRAS 
 INCLUDE_BAND013                = .true.    # 544 map
@@ -79,35 +79,30 @@ INCLUDE_BAND017                = .true.    # 2802 map
 
 @START 001
 @DEFAULT bands/DIRBE/DIRBE_01_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_01_nside512_zodi_only.txt
-BAND_TOD_TYPE&&&               = none DIRBE
+BAND_TOD_TYPE&&&               = none
 BAND_TOD_INIT_FROM_HDF&&&      = none
 @END 001
 
 @START 002
 @DEFAULT bands/DIRBE/DIRBE_02_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_02_nside512_zodi_only.txt
-BAND_TOD_TYPE&&&               = none DIRBE
+BAND_TOD_TYPE&&&               = none
 BAND_TOD_INIT_FROM_HDF&&&      = none
 @END 002
 
 @START 003
 @DEFAULT bands/DIRBE/DIRBE_03_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_03_nside512_zodi_only.txt
-BAND_TOD_TYPE&&&               = none DIRBE
+BAND_TOD_TYPE&&&               = none
 BAND_TOD_INIT_FROM_HDF&&&      = none
 @END 003
 
 @START 004
 @DEFAULT bands/DIRBE/DIRBE_04_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_04_nside512_zodi_only.txt
-BAND_TOD_TYPE&&&               = none DIRBE
+BAND_TOD_TYPE&&&               = none
 BAND_TOD_INIT_FROM_HDF&&&      = none
 @END 004
 
 @START 005
 @DEFAULT bands/DIRBE/DIRBE_05_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_05_nside512_zodi_only.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_INIT_FROM_HDF&&&      = none
 BAND_MASKFILE_CALIB&&&         = mask_calib_07_v1.fits
@@ -115,7 +110,6 @@ BAND_MASKFILE_CALIB&&&         = mask_calib_07_v1.fits
 
 @START 006
 @DEFAULT bands/DIRBE/DIRBE_06_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_06_nside512_zodi_only.txt
 BAND_TOD_TYPE&&&               = DIRBE
 BAND_TOD_INIT_FROM_HDF&&&      = none
 BAND_MASKFILE_CALIB&&&         = mask_calib_07_v1.fits
@@ -123,26 +117,22 @@ BAND_MASKFILE_CALIB&&&         = mask_calib_07_v1.fits
 
 @START 007
 @DEFAULT bands/DIRBE/DIRBE_07_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_nside512_zodi_only.txt
 BAND_SAMP_GAIN&&&              = .true.
 BAND_TOD_INIT_FROM_HDF&&&      = none
 BAND_GAIN_APOD_MASK&&&         = mask_calib_09_v1.fits
-BAND_TOD_TYPE&&&               = none DIRBE
+BAND_TOD_TYPE&&&               = none 
 @END 007
 
 @START 008
 @DEFAULT bands/DIRBE/DIRBE_08_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_08_nside512_zodi_only.txt
-#BAND_MAPFILE&&&                 = DIRBE_08_512_v3_x1.30.fits
 BAND_SAMP_GAIN&&&              = .false.
 BAND_TOD_INIT_FROM_HDF&&&      = none
 BAND_MASKFILE_CALIB&&&         = mask_calib_09_v1.fits
-BAND_TOD_TYPE&&&               = none DIRBE
+BAND_TOD_TYPE&&&               = none
 @END 008
 
 @START 009
 @DEFAULT bands/DIRBE/DIRBE_09_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_09_nside512_zodi_only.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_MAPFILE&&&                = /mn/stornext/d5/data/metins/dirbe/chains_HKE/chains_good9/tod_09_map_c0001_k000003.fits
 BAND_NOISEFILE&&&              = /mn/stornext/d5/data/metins/dirbe/chains_HKE/chains_good9/tod_09_rms_c0001_k000003.fits
@@ -155,7 +145,6 @@ BAND_TOD_SMALL_PROCMASK&&&     = mask_calib_09_v1.fits
 
 @START 010
 @DEFAULT bands/DIRBE/DIRBE_10_CIO_512.defaults
-#BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_nside512_zodi_only.txt
 BAND_SAMP_GAIN&&&              = .false.
 BAND_MASKFILE_CALIB&&&         = mask_calib_07_v1.fits
 BAND_TOD_INIT_FROM_HDF&&&      = default
@@ -246,8 +235,8 @@ ALMSAMP_APPLY_PRIOR                    = .true.
 ALMSAMP_PIXREG                         = .true.
 ALMSAMP_PRIORSAMP_FROZEN_REGIONS       = .true.
 
-INSTRUMENT_PARAM_FILE         = init_instpar_v14.dat instrument_params_init_DIRBE_hke.dat
-INIT_INSTRUMENT_FROM_HDF      = none default
+INSTRUMENT_PARAM_FILE         = init_instpar_v14.dat # add new bands here!
+INIT_INSTRUMENT_FROM_HDF      = none 
  
 NUM_SIGNAL_COMPONENTS         = 15
 INCLUDE_COMP01                = .false.  # Cmb # CMB; no monopole or dipole
@@ -283,7 +272,7 @@ CG_SAMPLING_GROUP_MAXITER&&  = 200
 
 @START 02
 CG_SAMPLING_GROUP&&          = md
-CG_SAMPLING_GROUP_MASK&&     = mask_stars_0.05MJysr_857_1K_zodi_100mK_v1.fits  mask_common_dx12_n0512.fits
+CG_SAMPLING_GROUP_MASK&&     = mask_stars_0.05MJysr_857_1K_zodi_100mK_v1.fits
 CG_SAMPLING_GROUP_MAXITER&&  = 200
 @END 02
 
@@ -305,9 +294,8 @@ CG_SAMPLING_GROUP_MAXITER&&  = 200
 # Thermal dust component
 @START 03
 @DEFAULT components/dust/dust_coldtab_DIRBE.defaults
-#COMP_TYPE&&                   = MBB
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_1.56_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_14K_n2048.fits
+COMP_BETA_INPUT_MAP&&         = default
+COMP_T_INPUT_MAP&&            = default
 COMP_SED_TEMPLATE&&           = coldtab_def_v5.dat
 COMP_T_DEFAULT&&              = 16.
 COMP_BETA_DEFAULT&&           =   1.56
@@ -322,8 +310,8 @@ COMP_INIT_FROM_HDF&&          = default
 # Mono- and dipole component
 @START 04
 @DEFAULT components/monodipole/md_LFI.defaults
-COMP_MD_DEFINITION_FILE&&     = init_md_v14.dat
-COMP_INIT_FROM_HDF&&          = none default
+COMP_MD_DEFINITION_FILE&&     = init_md_v14.dat # add new bands here!
+COMP_INIT_FROM_HDF&&          = none 
 @END 04
 
 # Radio sources
@@ -357,8 +345,6 @@ COMP_INIT_FROM_HDF&&          = none
 @START 09
 @DEFAULT components/pah/pah_DIRBE.defaults
 COMP_NU_REF_T&&               = 25000
-#COMP_SED_TEMPLATE&&           = PAH_astrodust.dat
-#COMP_SED_TEMPLATE&&           = PAH_3e-3micron.dat
 COMP_SED_TEMPLATE&&           = PAH_3e-3micron_trunc6um.dat
 COMP_INIT_FROM_HDF&&          = default
 @END 09
@@ -369,9 +355,8 @@ COMP_INIT_FROM_HDF&&          = default
 COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = hotdust
 COMP_NU_REF_T&&               = 3000
-#COMP_NU_REF_T&&               = 1249.1352416666668
-COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits init_dust_beta_1.56.fits
-COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_dust_T_30K.fits
+COMP_BETA_INPUT_MAP&&         = dust_hot_beta_c0001_k00347_n2048_1deg.fits
+COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits
 @DEFAULT components/dust/dust_LFI_localsampler.defaults
 @END 10
 
@@ -379,8 +364,6 @@ COMP_T_INPUT_MAP&&            = dust_hot_Td_c0001_k00347_n2048_1deg.fits init_du
 @START 11
 @DEFAULT components/dust/dust_stars_n512.defaults
 @DEFAULT components/dust/dust_stars_localsampler.defaults
-#COMP_BETA_INPUT_MAP&&         = init_dust_beta_0.8_n256.fits
-#COMP_T_INPUT_MAP&&            = init_dust_T_2250K_n256.fits
 COMP_INIT_FROM_HDF&&          = default
 @END 11
 
@@ -388,13 +371,12 @@ COMP_INIT_FROM_HDF&&          = default
 # Hot dust + PAH
 @START 12
 @DEFAULT components/dust/dust_hotPAH.defaults
-#COMP_TYPE&&                   = MBB
 COMP_LABEL&&                  = hotPAH
 COMP_NU_REF_T&&               = 545
-COMP_BETA_INPUT_MAP&&         = default init_dust_beta_2.00_n2048.fits
-COMP_T_INPUT_MAP&&            = default init_dust_T_26K_n2048.fits
+COMP_BETA_INPUT_MAP&&         = default 
+COMP_T_INPUT_MAP&&            = default 
 COMP_T_DEFAULT&&              = 28.
-COMP_BETA_DEFAULT&&           =   1.9
+COMP_BETA_DEFAULT&&           = 1.9
 COMP_SED_TEMPLATE&&           = hotPAH_def_v5.dat
 COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
 COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.3
@@ -439,7 +421,7 @@ COMP_INIT_FROM_HDF&&           = none
 ZODI_GAUSS_QUAD_ORDER            = 15
 ZODI_DELTA_T_RESET               = 1.0
 
-SAMPLE_ZODI     = .false.
+SAMPLE_ZODI                      = .false.
 ZODI_SAMP_NPROP                  = 2
 ZODI_INIT_CHAIN                  = /mn/stornext/d5/data/metins/dirbe/data/zodi_init_chain_v2.h5:26
 
@@ -487,7 +469,7 @@ COMP_CL_DEFAULT_AMP_B99       =  1.d0
 COMP_CL_DEFAULT_BETA_T99      =  20.d0
 COMP_CL_DEFAULT_BETA_E99      = -0.5d0
 COMP_CL_DEFAULT_BETA_B99      = -0.5d0
-COMP_LINE_TEMPLATE99          = data/hotdust_pah_weights_v1.dat
+COMP_LINE_TEMPLATE99          = hotdust_pah_weights_v1.dat
 COMP_APPLY_JEFFREYS_PRIOR99   =  .true.
 COMP_AMP_INPUT_MAP99          = none
 COMP_AMP_PRIOR_MAP99          = none
