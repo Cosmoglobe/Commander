@@ -337,7 +337,7 @@ COMP_INIT_FROM_HDF&&          = none
 
 # CMB relativistic quadrupole correction
 @START 08
-@DEFAULT components/cmb/cmb_relquad.defaults
+@DEFAULT components/cmb/cmb_relquad.defaults # add band in the file inside! 
 @END 08
 
 
