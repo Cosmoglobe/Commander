@@ -148,16 +148,6 @@ contains
 
     !call output_FITS_sample(cpar, 200+iter, .true.)
 
-    allocate(comp_labels(2))
-    comp_labels(1) = 'dust'
-    comp_labels(2) = 'hotPAH'
-    call sample_specind_multi(cpar, iter, handle, comp_labels)
-    deallocate(comp_labels)
-
-    !call output_FITS_sample(cpar, 300+iter, .true.)
-
-    call wall_time(t2)
-    if (cpar%myid_chain == 0) write(*,*) '| CPU time specind = ', real(t2-t1,sp)
 
     !return
                     
@@ -253,23 +243,34 @@ contains
            
     end do
 
-    ! Sample calibration factors
-    do i = 1, numband
-       if (.not. data(i)%sample_gain) cycle
-       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
-    end do
+    allocate(comp_labels(2))
+    comp_labels(1) = 'dust'
+    comp_labels(2) = 'hotPAH'
+    call sample_specind_multi(cpar, iter, handle, comp_labels)
+    deallocate(comp_labels)
 
-    ! Update mixing matrices if gains have been sampled
-    if (any(data%sample_gain)) then
-       c => compList
-       do while (associated(c))
-          call c%updateMixmat
-          c => c%next()
-       end do
-    end if
+    !call output_FITS_sample(cpar, 300+iter, .true.)
 
     call wall_time(t2)
     if (cpar%myid_chain == 0) write(*,*) '| CPU time specind = ', real(t2-t1,sp)
+
+!!$    ! Sample calibration factors
+!!$    do i = 1, numband
+!!$       if (.not. data(i)%sample_gain) cycle
+!!$       call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
+!!$    end do
+!!$
+!!$    ! Update mixing matrices if gains have been sampled
+!!$    if (any(data%sample_gain)) then
+!!$       c => compList
+!!$       do while (associated(c))
+!!$          call c%updateMixmat
+!!$          c => c%next()
+!!$       end do
+!!$    end if
+!!$
+!!$    call wall_time(t2)
+!!$    if (cpar%myid_chain == 0) write(*,*) '| CPU time specind = ', real(t2-t1,sp)
     
   end subroutine sample_nonlin_params
 
@@ -1498,7 +1499,7 @@ contains
 
     call wall_time(t1)
     eps = 1d-9
-    pix_out = -1 ! 350000
+    pix_out = -100000
     
     ncomp = size(comp_labels)
     npar  = 0
@@ -1516,10 +1517,10 @@ contains
     end do
 
     ! Initialize residual maps
-!    call output_FITS_sample(cpar, 1000+iter, .true.)
+    !call output_FITS_sample(cpar, 1000+iter, .true.)
     do i = 1, numband
-!!$       res             => compute_residual(i)
-!!$       call res%writeFITS("res_"//trim(data(i)%label)//"_raw.fits")
+       !res             => compute_residual(i)
+       !call res%writeFITS("res_"//trim(data(i)%label)//"_raw.fits")
        res             => compute_residual(i,exclude_comps=comp_labels)
 !!$       call res%writeFITS("res_"//trim(data(i)%label)//"_sig.fits")
        data(i)%res%map =  res%map
@@ -1547,6 +1548,8 @@ contains
     nullify(info)
     do i = 1, numband
        if (.not. associated(data(i)%N_smooth(smooth_scale)%p)) cycle
+       if (data(i)%bp(0)%p%nu_c < c%nu_min_ind(1) .or. &
+            & data(i)%bp(0)%p%nu_c > c%nu_max_ind(1)) cycle
 
        !Smooth the residual map at full resolution 
        info  => comm_mapinfo(data(i)%res%info%comm, data(i)%res%info%nside, &
@@ -1558,12 +1561,17 @@ contains
        rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
        res_smooth(i)%p => comm_map(info_lowres)
        call temp_map%udgrade(res_smooth(i)%p)
-!!$       call res_smooth(i)%p%writeFITS("ressmooth_"//trim(data(i)%label)//".fits")
+       !call res_smooth(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_in.fits")
 !       rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
        rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
        !call rms_smooth(i)%p%writeFITS("rmssmooth_"//trim(data(i)%label)//".fits")
 
        ! Clean up
+       call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+
+       temp_map => comm_map(info)
+       temp_map%map = comps(1)%p%getBand(i)
+       !call temp_map%writeFITS("dust_"//trim(data(i)%label)//"_fullres.fits")
        call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
     end do
 
@@ -1587,7 +1595,7 @@ contains
        c%x_smooth => comm_map(info_lowres)
        call temp_map%udgrade(c%x_smooth)
        call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
-!!$       call c%x_smooth%writeFITS("smooth_amp_"//trim(c%label)//".fits")
+       !call c%x_smooth%writeFITS("smooth_amp_"//trim(c%label)//".fits")
 
        ! Compute smoothed spectral index maps; spin zero
        allocate(c%theta_smooth(c%npar))
@@ -1604,12 +1612,12 @@ contains
 !!$               & c%B_smooth_specpar(1)%p%b_l*0.d0+1.d0, temp_res, &  
 !!$               & c%B_smooth_specpar(1)%p%b_l,           temp_map, &
 !!$               & spinzero=.true.)
-!!$
+
           c%theta_smooth(k)%p => comm_map(info_lowres)
           !call temp_map%udgrade(c%theta_smooth(k)%p)
           call c%theta(k)%p%udgrade(c%theta_smooth(k)%p)
 
-!!$          call c%theta_smooth(k)%p%writeFITS("smooth_ind_"//trim(c%label)//"_"//trim(c%indlabel(k))//".fits")
+         ! call c%theta_smooth(k)%p%writeFITS("smooth_ind_"//trim(c%label)//"_"//trim(c%indlabel(k))//".fits")
 
 !!$          call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
 !!$          call temp_res%dealloc(); deallocate(temp_res); nullify(temp_res)
@@ -1658,6 +1666,7 @@ contains
           write(*,*) info_lowres%pix(pix+1), theta
           write(*,fmt='(i8,2e16.8)') info_lowres%pix(pix+1), lnL_old, lnL_new
        end if
+       call compute_lowres_residuals(theta)
 
        i = 0
        do j = 1, ncomp
@@ -1668,8 +1677,13 @@ contains
           i = i + c%npar
        end do
     end do
-!!$    call chisq_lowres%writeFITS("chisq_lowres.fits")
-!!$    call chisq_old%writeFITS("chisq_old.fits")
+    !call chisq_lowres%writeFITS("chisq_lowres.fits")
+    !call chisq_old%writeFITS("chisq_old.fits")
+    do i = 1, numband
+       if (associated(rms_smooth(i)%p)) then
+          !call res_smooth(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_pre.fits")
+       end if
+    end do
 
     do j = 1, ncomp
        c => comps(j)%p
@@ -1711,7 +1725,7 @@ contains
 !!$       end do
     end do
 
-!!$    call output_FITS_sample(cpar, 1100+iter, .true.)
+    !call output_FITS_sample(cpar, 1100+iter, .true.)
 
 !!$    do i = 1, numband
 !!$       res             => compute_residual(i)
@@ -1778,18 +1792,21 @@ contains
          i = 0
          do j = 1, ncomp
             c => comps(j)%p
-            amp = max(c%x_smooth%map(pix,pol), 0.d0)
+            amp = c%x_smooth%map(pix,pol)
             s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
-              & * data(k)%gain * c%cg_scale(pol)
+                 & * data(k)%gain * c%cg_scale(pol)
+            if (info_lowres%pix(pix+1) == pix_out) then
+               write(*,*) 'sig', trim(data(k)%label), j, s
+            end if
             i = i + c%npar
          end do
-!         sigma = rms_smooth(k)%p%rms_pix(pix,pol)
-         sigma = 0.01d0 * res_smooth(k)%p%map(pix,pol) 
+         sigma = rms_smooth(k)%p%rms_pix(pix,pol)
+         !sigma = 0.03d0 * res_smooth(k)%p%map(pix,pol) 
          res = res_smooth(k)%p%map(pix,pol) - s
          lnL_multi = lnL_multi - 0.5d0 * res**2 / sigma**2
-!!$         if (info_lowres%pix(pix+1) == pix_out) then
-!!$            write(*,*) 'chisq', k, res, sigma, res**2 / sigma**2
-!!$         end if
+          if (info_lowres%pix(pix+1) == pix_out) then
+            write(*,*) 'chisq', k, res, sigma, res**2 / sigma**2
+         end if
       end do
 
       ! Add Gaussian prior
@@ -1799,9 +1816,9 @@ contains
          do k = 1, c%npar
             if (c%p_gauss(2,k) > 0.d0) then
                lnL_multi = lnL_multi -0.5d0*((x(i+k)-c%p_gauss(1,k))/c%p_gauss(2,k))**2
-!!$               if (info_lowres%pix(pix+1) == pix_out) then
-!!$                  write(*,*) 'prior', j, k, x(i+k), c%p_gauss(1,k), c%p_gauss(2,k), ((x(i+k)-c%p_gauss(1,k))/c%p_gauss(2,k))**2
-!!$               end if
+               if (info_lowres%pix(pix+1) == pix_out) then
+                  write(*,*) 'prior', j, k, x(i+k), c%p_gauss(1,k), c%p_gauss(2,k), ((x(i+k)-c%p_gauss(1,k))/c%p_gauss(2,k))**2
+               end if
             end if
          end do
          i = i + c%npar
@@ -1810,40 +1827,43 @@ contains
       ! Switch sign, since powell is a minimization routine
       lnL_multi = -lnL_multi
 
-!!$      if (info_lowres%pix(pix+1) == pix_out) then
-!!$         write(*,*) 'multipowell', real(x,sp), 2*lnL_multi
-!!$      end if
+      if (info_lowres%pix(pix+1) == pix_out) then
+         write(*,*) 'multipowell', real(x,sp), 2*lnL_multi
+      end if
          
     end function lnL_multi
 
-!!$    subroutine compute_lowres_residuals(x)
-!!$      use healpix_types
-!!$      implicit none
-!!$      real(dp), dimension(:), intent(in), optional :: x
-!!$      
-!!$      real(dp)             :: lnL_multi
-!!$      
-!!$      integer(i4b) :: i, j, k, n
-!!$      real(dp)     :: s, res, sigma, amp
-!!$      
-!!$
-!!$      ! Compute chi-square term
-!!$      lnL_multi      = 0.d0
-!!$      do k = 1, numband
-!!$         if (.not. associated(rms_smooth(k)%p)) cycle
-!!$         s = 0
-!!$         i = 0
-!!$         do j = 1, ncomp
-!!$            c => comps(j)%p
-!!$            amp = max(c%x_smooth%map(pix,pol), 0.d0)
-!!$            s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
-!!$              & * data(k)%gain * c%cg_scale(pol)
-!!$            i = i + c%npar
-!!$         end do
-!!$         res_smooth(k)%p%map(pix,pol) = res_smooth(k)%p%map(pix,pol) - s
-!!$      end do
-!!$
-!!$    end subroutine compute_lowres_residuals
+    subroutine compute_lowres_residuals(x)
+      use healpix_types
+      implicit none
+      real(dp), dimension(:), intent(in), optional :: x
+      
+      real(dp)             :: lnL_multi
+      
+      integer(i4b) :: i, j, k, n
+      real(dp)     :: s, res, sigma, amp
+      
+
+      ! Compute chi-square term
+      lnL_multi      = 0.d0
+      do k = 1, numband
+         if (.not. associated(rms_smooth(k)%p)) cycle
+         s = 0
+         i = 0
+         do j = 1, ncomp
+            c => comps(j)%p
+            amp = c%x_smooth%map(pix,pol)
+            !if (j == 1) then
+               !write(*,*) k, pix, real(x(i+1:i+c%npar),sp)
+               s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
+                    & * data(k)%gain * c%cg_scale(pol)
+            !end if
+            i = i + c%npar
+         end do
+         res_smooth(k)%p%map(pix,pol) = res_smooth(k)%p%map(pix,pol) - s
+      end do
+
+    end subroutine compute_lowres_residuals
 
 
   end subroutine sample_specind_multi

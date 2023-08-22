@@ -224,7 +224,8 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
+      logical(lgt)        :: sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_noise
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -257,7 +258,20 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
+      sample_noise          = .false.
       
+!!$      if (trim(self%freq) == '05' &
+!!$           & .or. trim(self%freq) == '06' &
+!!$           & .or. trim(self%freq) == '09') then
+!!$         sample_gain  = .false.
+!!$         sample_noise = .true.
+!!$      end if
+
+      if (trim(self%freq) == '09' .or. trim(self%freq) == '10') then
+         sample_gain  = .true.
+         sample_noise = .true.
+      end if
+
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -316,7 +330,7 @@ contains
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
 
       ! Prepare intermediate data structures
@@ -343,12 +357,16 @@ contains
          if (sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, sd%mask_zodi)
 
          ! Sample correlated noise
-         !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-         ! call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
-         sd%n_corr = 0.d0
+         if (sample_noise) then
+            if (self%myid == 0) write(*,*) 'Sampling ncorr'
+            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
 
-         ! Compute noise spectrum parameters
-         ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+            ! Compute noise spectrum parameters
+            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         else
+            sd%n_corr = 0.d0
+         end if
 
          ! Compute chisquare
          do j = 1, sd%ndet

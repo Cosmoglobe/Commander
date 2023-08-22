@@ -48,9 +48,9 @@ BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_LEVEL&&&              = L2
 
 BAND_MAPFILE&&&                = DIRBE_04_512_v1.fits
-BAND_NOISEFILE&&&              = DIRBE_04_SIGMA_512_v1.fits
+BAND_NOISEFILE&&&              = DIRBE_04_SIGMA_512_v2.fits
 BAND_REG_NOISEFILE&&&          = none 
-BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_04_SIGMA_512_v1_1deg_n256_v2.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_04_SIGMA_512_v1_1deg_n256_v3.fits
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 
