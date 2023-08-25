@@ -221,7 +221,7 @@ contains
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
+       if (line(1:1) == '#' .or. line(1:1) == '') cycle
        nline = nline+1
     end do
 1   close(unit)
@@ -232,7 +232,7 @@ contains
     do while (.true.)
        read(unit,'(a)', end=2) line
        line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
+       if (line(1:1) == '#' .or. line(1:1) == '') cycle
        nline = nline+1
        read(line,*) label(nline), mu(nline), sigma(nline), line2RJ(nline), poltype(nline)
     end do

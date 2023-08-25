@@ -196,7 +196,7 @@ contains
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
+       if (line(1:1) == '#' .or. line(1:1) == '') cycle
        self%ntab = self%ntab+1
     end do
 1   close(unit)
@@ -207,7 +207,7 @@ contains
     do while (.true.)
        read(unit,'(a)', end=2) line
        line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
+       if (line(1:1) == '#' .or. line(1:1) == '') cycle
        i = i+1
        read(line,*) self%SEDtab(:,i)
     end do

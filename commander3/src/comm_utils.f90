@@ -704,7 +704,7 @@ contains
        do while (.true.)
           read(unit,'(a)',end=99) line
           line = trim(adjustl(line))
-          if (line(1:1) == '#') cycle
+          if (line(1:1) == '#' .or. line(1:1) == '') cycle
           read(line,*) band, vals
           if (trim(band) == trim(label)) then
              if (trim(field) == 'gain') then

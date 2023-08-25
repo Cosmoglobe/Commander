@@ -436,7 +436,7 @@ contains
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
+       if (line(1:1) == '#' .or. line(1:1) == '') cycle
        read(line,*) label, active
        do i = 1, numband
           if (trim(label) == trim(data(i)%label)) then
