@@ -175,7 +175,7 @@ contains
     do while (.true.)
        read(unit,'(a)', end=1) line
        line = trim(adjustl(line))
-       if (line(1:1) == '#') cycle
+       if (line(1:1) == '#' .or. line(1:1) == '') cycle
        read(line,*) label, mapfile, maskfile, mu, rms, def
        do i = 1, numband
           if (trim(label) == trim(data(i)%label)) exit
