@@ -242,9 +242,9 @@ contains
              val_convergence = abs((chisq_prev-chisq)/chisq)
           end if
           if (val_convergence < lim_convergence .and. &
-               & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0) .and. &
+               & (i >= cpar%cg_miniter .or. delta_new <= 1d-40 * delta0) .and. &
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
-          if (delta_new <= 1d-30 * delta0 .and. &
+          if (delta_new <= 1d-40 * delta0 .and. &
                & trim(cpar%cg_conv_crit) == 'fixed_iter') exit
        end if
        

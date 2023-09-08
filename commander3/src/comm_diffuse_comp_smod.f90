@@ -245,8 +245,12 @@ contains
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
 
     ! Initialize pointers for non-linear search
+    if (.not. allocated(res_lowres)) allocate(res_lowres(numband))
     if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
     if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
+
+    if (.not. allocated(dust_lowres)) allocate(dust_lowres(numband))
+    if (.not. allocated(hotpah_lowres)) allocate(hotpah_lowres(numband))
 
     ! Set up monopole prior
     self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
@@ -2018,10 +2022,10 @@ contains
           call m%YtW()
        end if
     end if
-       
+
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-
+       
     ! Return correct data product
     if (alm_out_) then
        if (.not. data(band)%B(d)%p%almFromConv) call m%YtW()

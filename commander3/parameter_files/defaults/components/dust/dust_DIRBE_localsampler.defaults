@@ -1,5 +1,5 @@
 # New Local sampling parameters, 'dust'
-COMP_BETA_INT_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_INT_LMAX&&          = 0         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_BETA_POL_LMAX&&          = 0          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_BETA_INT_LNLTYPE&&       = chisq   # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_POL_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
@@ -18,7 +18,7 @@ COMP_BETA_POL_NPROP_INIT&&    = 500        # {> 0, < 0 to disable}. overwrites n
 COMP_BETA_UNI_NPROP_LOW&&     = 10         # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_UNI_NPROP_HIGH&&    = 2000       # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_BETA_ALMSAMP_INIT&&      = init_alm_dust_beta_hke.dat
-COMP_BETA_MASK&&              = fullsky mask_DIRBE_colddust_chisq_n2048_v2.fits fullsky mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_MASK&&              = mask_DIRBE_colddust_chisq_n2048_v2.fits fullsky mask_monopoles_BP10_chisq_dx12_n1024_specpar_sampling.fits mask_dust_beta_BP8_10deg.fits  # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_BETA_NPROP&&             = fullsky    # nprop map, local sampling (fullsky = 1)
 COMP_BETA_PROPLEN&&           = fullsky    # proposal length map, local sampling (fullsky = 1.d0)
 COMP_BETA_INT_PROPLEN_INIT&&  = 0.0003     # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
@@ -36,7 +36,7 @@ COMP_BETA_COMBINED_MONOPOLE_MASK&& = fullsky mask_band_monopoles_bp10_chisq_comp
 COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
 
-COMP_T_INT_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_T_INT_LMAX&&          = 0         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_T_POL_LMAX&&          = -1         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_T_INT_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_T_POL_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
@@ -53,7 +53,7 @@ COMP_T_POL_NPROP_INIT&&    = 1000       # {> 0, < 0 to disable}. overwrites npro
 COMP_T_UNI_NPROP_LOW&&     = 10         # {>= 0} local sampling. minimum number of proposals per pixel region
 COMP_T_UNI_NPROP_HIGH&&    = 2000       # {> 0} local sampling. minimum number of proposals per pixel region
 COMP_T_ALMSAMP_INIT&& = init_alm_dust_T_hke.dat
-COMP_T_MASK&&              = fullsky mask_DIRBE_colddust_chisq_n2048_v2.fits  fullsky    # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_T_MASK&&              = mask_DIRBE_colddust_chisq_n2048_v2.fits  fullsky    # index sampling mask for smoothed log-likelihood eval. local sampler.
 COMP_T_NPROP&&             = fullsky    # nprop map, local sampling (fullsky = 1)
 COMP_T_PROPLEN&&           = fullsky    # proposal length map, local sampling (fullsky = 1.d0)
 COMP_T_INT_PROPLEN_INIT&&  = 5.d-2      # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler

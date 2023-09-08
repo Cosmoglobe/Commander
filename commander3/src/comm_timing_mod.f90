@@ -176,6 +176,7 @@ contains
     implicit none
     class(comm_timing),               intent(inout) :: self
     character(len=*),   dimension(:), intent(in)    :: labels
+
     character(len=*),                 intent(in)    :: filename
 
     integer(i4b) :: unit, ierr, band, b
@@ -188,9 +189,14 @@ contains
 
     call mpi_reduce(self%t, t, self%n_tot, MPI_DOUBLE_PRECISION, &
          & MPI_SUM, 0, self%comm, ierr)
-    t = t/3600 ! CPU-hours
+!!$    if (any(t /= t)) then 
+!!$       write(*,*) "a", self%myid, self%t
+!!$       write(*,*) "b", self%myid, t
+!!$    end if
 
     if (self%myid == 0) then
+       t = t/3600.d0 ! CPU-hours
+
        unit = getlun()
        open(unit,file=trim(filename), recl=1024)
        write(unit,*) 'Timing summary'

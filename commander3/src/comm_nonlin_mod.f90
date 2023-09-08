@@ -229,7 +229,6 @@ contains
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
-
           class is (comm_ptsrc_comp)
              if (j == 1) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
@@ -243,11 +242,11 @@ contains
            
     end do
 
-    allocate(comp_labels(2))
-    comp_labels(1) = 'dust'
-    comp_labels(2) = 'hotPAH'
-    call sample_specind_multi(cpar, iter, handle, comp_labels)
-    deallocate(comp_labels)
+!!$    allocate(comp_labels(1))
+!!$    comp_labels(1) = 'dust'
+!!$!    comp_labels(2) = 'hotPAH'
+!!$    call sample_specind_multi(cpar, iter, handle, comp_labels)
+!!$    deallocate(comp_labels)
 
     !call output_FITS_sample(cpar, 300+iter, .true.)
 
@@ -1095,8 +1094,13 @@ contains
     integer(c_int),    allocatable, dimension(:,:) :: lm
     integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
+    c           => compList     
+    do while (c%id /= comp_id)
+       c => c%next()
+    end do
+
     ! HKE: Only perform joint Powell search
-    if (par_id /= 1) then
+    if (par_id /= 1 .and. trim(c%type) == "diffuse") then
        if (cpar%myid == 0) write(*,*) 'Performing Powell'
        return
     end if
@@ -1109,11 +1113,6 @@ contains
        data(i)%res%map =  res%map
        call res%dealloc(); deallocate(res)
        nullify(res)
-    end do
-
-    c           => compList     
-    do while (c%id /= comp_id)
-       c => c%next()
     end do
 
     ! Sample poltype index poltype_id of spec. ind. par_id of component comp_id
@@ -1482,6 +1481,9 @@ contains
     class(comm_mapinfo), pointer :: info_lowres => null()
     class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
+    class(comm_map),     pointer :: raw  => null()
+    class(comm_map),     pointer :: raw2  => null()
+    class(comm_map),     pointer :: raw_lowres  => null()
     class(comm_map),     pointer :: temp_res  => null()
     class(comm_map),     pointer :: temp_map  => null()
     class(comm_map),     pointer :: temp_map2  => null()
@@ -1499,7 +1501,7 @@ contains
 
     call wall_time(t1)
     eps = 1d-9
-    pix_out = -100000
+    pix_out = 370000
     
     ncomp = size(comp_labels)
     npar  = 0
@@ -1512,20 +1514,48 @@ contains
        select type (c_in)
        class is (comm_diffuse_comp)
           comps(j)%p => c_in 
-          npar       = npar + c_in%npar
+          npar       = npar + c_in%npar + 1
        end select
     end do
+
+    !create comm_map_info for low resolution residual
+    c => comps(1)%p
+    smooth_scale =  c%smooth_scale(1) ! Require same smoothing scale for all par
+    info_lowres  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), &
+         & cpar%lmax_smooth(smooth_scale), c%x%info%nmaps, c%x%info%pol)
 
     ! Initialize residual maps
     !call output_FITS_sample(cpar, 1000+iter, .true.)
     do i = 1, numband
-       !res             => compute_residual(i)
-       !call res%writeFITS("res_"//trim(data(i)%label)//"_raw.fits")
-       res             => compute_residual(i,exclude_comps=comp_labels)
-!!$       call res%writeFITS("res_"//trim(data(i)%label)//"_sig.fits")
+       if (.not. associated(data(i)%N_smooth(smooth_scale)%p)) cycle
+       if (data(i)%bp(0)%p%nu_c < c%nu_min_ind(1) .or. &
+            & data(i)%bp(0)%p%nu_c > c%nu_max_ind(1)) cycle
+
+       !res             => compute_residual(i,exclude_comps=comp_labels)
+       res             => compute_residual(i)
+!       call res%writeFITS("res_"//trim(data(i)%label)//"_sig.fits")
        data(i)%res%map =  res%map
        call res%dealloc(); deallocate(res)
        nullify(res)
+
+
+       raw             => compute_residual(i)
+       raw_lowres      => comm_map(info_lowres)
+       call raw%writeFITS("res_"//trim(data(i)%label)//"_hires_raw.fits")
+       info  => comm_mapinfo(data(i)%res%info%comm, data(i)%res%info%nside, &
+            & data(i)%res%info%lmax, data(i)%res%info%nmaps, data(i)%res%info%pol)
+       raw2 => comm_map(info)
+       call smooth_map(info, .false., data(i)%B(0)%p%b_l, raw, &
+            & data(i)%B_smooth(smooth_scale)%p%b_l, raw2)
+       call raw2%udgrade(raw_lowres)
+       call raw_lowres%writeFITS("res_"//trim(data(i)%label)//"_lowres_raw.fits")
+
+       call raw%dealloc(); deallocate(raw)
+       nullify(raw)
+       call raw2%dealloc(); deallocate(raw2)
+       nullify(raw2)
+       call raw_lowres%dealloc(); deallocate(raw_lowres)
+       nullify(raw_lowres)
     end do
 
     ! Add components back into residual
@@ -1537,12 +1567,6 @@ contains
 !!$          deallocate(m)
 !!$       end do
 !!$    end do
-
-    !create comm_map_info for low resolution residual
-    c => comps(1)%p
-    smooth_scale =  c%smooth_scale(1) ! Require same smoothing scale for all par
-    info_lowres  => comm_mapinfo(c%x%info%comm, cpar%nside_smooth(smooth_scale), &
-         & cpar%lmax_smooth(smooth_scale), c%x%info%nmaps, c%x%info%pol)
 
     ! Compute smoothed residuals
     nullify(info)
@@ -1560,19 +1584,22 @@ contains
        !downgrade smoothed residual map to smoothing scale Nside
        rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
        res_smooth(i)%p => comm_map(info_lowres)
+       res_lowres(i)%p => comm_map(info_lowres)
+       dust_lowres(i)%p => comm_map(info_lowres)
+       hotpah_lowres(i)%p => comm_map(info_lowres)
        call temp_map%udgrade(res_smooth(i)%p)
-       !call res_smooth(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_in.fits")
+       call res_smooth(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_in.fits")
 !       rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
        rms_smooth(i)%p => data(i)%N_smooth(smooth_scale)%p
-       !call rms_smooth(i)%p%writeFITS("rmssmooth_"//trim(data(i)%label)//".fits")
+       !call rms_smooth(i)%writeFITS("rmssmooth_"//trim(data(i)%label)//".fits")
 
        ! Clean up
        call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
 
-       temp_map => comm_map(info)
-       temp_map%map = comps(1)%p%getBand(i)
+       !temp_map => comm_map(info)
+       !temp_map%map = comps(1)%p%getBand(i)
        !call temp_map%writeFITS("dust_"//trim(data(i)%label)//"_fullres.fits")
-       call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
+       !call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
     end do
 
     ! Check that there are relevant data
@@ -1595,7 +1622,7 @@ contains
        c%x_smooth => comm_map(info_lowres)
        call temp_map%udgrade(c%x_smooth)
        call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
-       !call c%x_smooth%writeFITS("smooth_amp_"//trim(c%label)//".fits")
+       call c%x_smooth%writeFITS("smooth_amp_"//trim(c%label)//".fits")
 
        ! Compute smoothed spectral index maps; spin zero
        allocate(c%theta_smooth(c%npar))
@@ -1617,16 +1644,47 @@ contains
           !call temp_map%udgrade(c%theta_smooth(k)%p)
           call c%theta(k)%p%udgrade(c%theta_smooth(k)%p)
 
-         ! call c%theta_smooth(k)%p%writeFITS("smooth_ind_"//trim(c%label)//"_"//trim(c%indlabel(k))//".fits")
+         call c%theta_smooth(k)%p%writeFITS("smooth_ind_"//trim(c%label)//"_"//trim(c%indlabel(k))//".fits")
 
 !!$          call temp_map%dealloc(); deallocate(temp_map); nullify(temp_map)
 !!$          call temp_res%dealloc(); deallocate(temp_res); nullify(temp_res)
        end do
     end do
 
-    ! Perform the actual fit, pixel-by-pixel
+    ! Output initial residual maps
     pol = 1
     allocate(theta(npar), theta_old(npar))
+    do pix = 0, info_lowres%np-1
+       i = 1
+       do j = 1, ncomp
+          c => comps(j)%p          
+          theta_old(i) = c%x_smooth%map(pix,pol)
+          do k = 1, c%npar
+             theta_old(i+k) = min(c%theta_smooth(k)%p%map(pix,pol), c%p_uni(2,k)-eps) 
+             theta_old(i+k) = max(theta_old(i+k),                   c%p_uni(1,k)+eps) 
+          end do
+          i = i + c%npar + 1
+       end do
+       call compute_lowres_residuals(theta_old)
+    end do
+    do i = 1, numband
+       if (associated(rms_smooth(i)%p)) then
+          res_smooth(i)%p%map = res_smooth(i)%p%map + dust_lowres(i)%p%map
+          res_smooth(i)%p%map = res_smooth(i)%p%map + hotpah_lowres(i)%p%map
+       end if
+    end do
+
+    do i = 1, numband
+       if (associated(rms_smooth(i)%p)) then
+          call res_lowres(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_pre.fits")
+          call hotpah_lowres(i)%p%writeFITS("hotpah_"//trim(data(i)%label)//"_lowres_pre.fits")
+          call dust_lowres(i)%p%writeFITS("dust_"//trim(data(i)%label)//"_lowres_pre.fits")
+       end if
+    end do
+
+
+    ! Perform the actual fit, pixel-by-pixel
+    pol = 1
     chisq_lowres => comm_map(info_lowres)
     chisq_old => comm_map(info_lowres)
     do pix = 0, info_lowres%np-1
@@ -1644,21 +1702,23 @@ contains
           close(58)
        end if
 
-       i = 0
+       i = 1
        do j = 1, ncomp
           c => comps(j)%p          
-          !theta_old(i) = c%x_smooth%map(pix,pol)
+          theta_old(i) = c%x_smooth%map(pix,pol)
           do k = 1, c%npar
              theta_old(i+k) = min(c%theta_smooth(k)%p%map(pix,pol), c%p_uni(2,k)-eps) 
              theta_old(i+k) = max(theta_old(i+k),                   c%p_uni(1,k)+eps) 
           end do
-          i = i + c%npar
+          i = i + c%npar + 1
        end do
        theta = theta_old
 
        if (info_lowres%pix(pix+1) == pix_out) lnL_old = lnL_multi(theta_old)
        chisq_old%map(pix,pol) = 2*lnL_multi(theta_old)
-       call powell(theta, lnL_multi, ierr)
+       do i = 1, 10
+          call powell(theta, lnL_multi, ierr)
+       end do
        chisq_lowres%map(pix,pol) = 2*lnL_multi(theta)
        if (info_lowres%pix(pix+1) == pix_out) then
           lnL_new = lnL_multi(theta)
@@ -1668,20 +1728,21 @@ contains
        end if
        call compute_lowres_residuals(theta)
 
-       i = 0
+       i = 1
        do j = 1, ncomp
           c => comps(j)%p
+          c%x_smooth%map(pix,pol) = theta(i)
           do k = 1, c%npar
              c%theta_smooth(k)%p%map(pix,pol) = theta(i+k)
           end do
-          i = i + c%npar
+          i = i + c%npar + 1
        end do
     end do
-    !call chisq_lowres%writeFITS("chisq_lowres.fits")
-    !call chisq_old%writeFITS("chisq_old.fits")
+    call chisq_lowres%writeFITS("chisq_lowres.fits")
+    call chisq_old%writeFITS("chisq_old.fits")
     do i = 1, numband
        if (associated(rms_smooth(i)%p)) then
-          !call res_smooth(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_pre.fits")
+          call res_lowres(i)%p%writeFITS("res_"//trim(data(i)%label)//"_lowres_post.fits")
        end if
     end do
 
@@ -1691,6 +1752,9 @@ contains
           call c%theta_smooth(k)%p%udgrade(c%theta(k)%p)
           call c%theta(k)%p%writeFITS(trim(c%label)//trim(c%indlabel(k))//".fits")
        end do
+       call c%x_smooth%writeFITS(trim(c%label)//"_amp_lowres.fits")
+!!$       call c%x_smooth%udgrade(c%x)
+!!$       call c%x%YtW
     end do
 
     deallocate(theta, theta_old)
@@ -1701,7 +1765,10 @@ contains
        do j = 1, ncomp
           c => comps(j)%p
           do k = 1, c%npar
-             info  => c%theta(k)%p%info
+             !info  => c%theta(k)%p%info
+             info  => comm_mapinfo(c%theta(k)%p%info%comm, c%theta(k)%p%info%nside, &
+                  & 3*c%theta(k)%p%info%nside, c%theta(k)%p%info%nmaps, c%theta(k)%p%info%pol)
+
              temp_map => comm_map(info)
              call smooth_map(info, .false., &
                   & c%B_pp_fr(1)%p%b_l*0.d0+1.d0, c%theta(k)%p, &  
@@ -1772,7 +1839,7 @@ contains
       real(dp)     :: s, res, sigma, amp
       
       ! Check priors
-      i = 0
+      i = 1
       do j = 1, ncomp
          c => comps(j)%p
          do k = 1, c%npar
@@ -1781,7 +1848,7 @@ contains
                return
             end if
          end do
-         i = i + c%npar
+         i = i + c%npar + 1
       end do
 
       ! Compute chi-square term
@@ -1789,28 +1856,28 @@ contains
       do k = 1, numband
          if (.not. associated(rms_smooth(k)%p)) cycle
          s = 0
-         i = 0
+         i = 1
          do j = 1, ncomp
             c => comps(j)%p
-            amp = c%x_smooth%map(pix,pol)
+            amp = x(i) !c%x_smooth%map(pix,pol)
             s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
                  & * data(k)%gain * c%cg_scale(pol)
             if (info_lowres%pix(pix+1) == pix_out) then
-               write(*,*) 'sig', trim(data(k)%label), j, s
+               write(*,fmt='(a,a,i3,f16.4)') '      sig', trim(data(k)%label), j, s
             end if
-            i = i + c%npar
+            i = i + c%npar + 1
          end do
          sigma = rms_smooth(k)%p%rms_pix(pix,pol)
          !sigma = 0.03d0 * res_smooth(k)%p%map(pix,pol) 
          res = res_smooth(k)%p%map(pix,pol) - s
          lnL_multi = lnL_multi - 0.5d0 * res**2 / sigma**2
           if (info_lowres%pix(pix+1) == pix_out) then
-            write(*,*) 'chisq', k, res, sigma, res**2 / sigma**2
+            write(*,fmt='(a,i4,2f10.3,f16.3)') '  chisq', k, res, sigma, res**2 / sigma**2
          end if
       end do
 
       ! Add Gaussian prior
-      i = 0
+      i = 1
       do j = 1, ncomp
          c => comps(j)%p
          do k = 1, c%npar
@@ -1821,14 +1888,14 @@ contains
                end if
             end if
          end do
-         i = i + c%npar
+         i = i + c%npar + 1
       end do
 
       ! Switch sign, since powell is a minimization routine
       lnL_multi = -lnL_multi
 
       if (info_lowres%pix(pix+1) == pix_out) then
-         write(*,*) 'multipowell', real(x,sp), 2*lnL_multi
+         write(*,fmt='(a,7f7.2)') 'multipowell', real(x,sp), 2*lnL_multi
       end if
          
     end function lnL_multi
@@ -1841,26 +1908,32 @@ contains
       real(dp)             :: lnL_multi
       
       integer(i4b) :: i, j, k, n
-      real(dp)     :: s, res, sigma, amp
+      real(dp)     :: s, s_tot, res, sigma, amp
       
 
       ! Compute chi-square term
       lnL_multi      = 0.d0
       do k = 1, numband
          if (.not. associated(rms_smooth(k)%p)) cycle
-         s = 0
-         i = 0
+         s_tot = 0
+         i = 1
          do j = 1, ncomp
             c => comps(j)%p
-            amp = c%x_smooth%map(pix,pol)
+            amp = x(i) !c%x_smooth%map(pix,pol)
             !if (j == 1) then
                !write(*,*) k, pix, real(x(i+1:i+c%npar),sp)
-               s   = s + amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
+               s   = amp * c%F_int(1,k,0)%p%eval(x(i+1:i+c%npar))&
                     & * data(k)%gain * c%cg_scale(pol)
+               if (j == 1) then
+                  dust_lowres(k)%p%map(pix,pol) = s
+               else
+                  hotpah_lowres(k)%p%map(pix,pol) = s
+               end if
+               s_tot = s_tot + s
             !end if
-            i = i + c%npar
+            i = i + c%npar + 1
          end do
-         res_smooth(k)%p%map(pix,pol) = res_smooth(k)%p%map(pix,pol) - s
+         !res_lowres(k)%p%map(pix,pol) = res_smooth(k)%p%map(pix,pol) - s_tot
       end do
 
     end subroutine compute_lowres_residuals
