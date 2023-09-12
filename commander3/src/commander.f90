@@ -158,7 +158,6 @@ program commander
     if (cpar%include_tod_zodi) then 
       call initialize_zodi_mod(cpar)
       call initialize_tod_zodi_mod(cpar)
-      if (cpar%sample_zodi) call initialize_zodi_samp_mod(cpar)
     end if
   end if
 
@@ -179,6 +178,9 @@ program commander
           call data(i)%tod%precompute_zodi_lookups(cpar)
      end do
   end if
+
+  ! initialize zodi samp mod
+  if (cpar%sample_zodi .and. cpar%include_tod_zodi) call initialize_zodi_samp_mod(cpar)
 
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
@@ -278,7 +280,6 @@ program commander
      end if
      !----------------------------------------------------------------------------------
      ! Process TOD structures
-
      if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
       ! Create zodi atlas
@@ -320,41 +321,27 @@ program commander
 
    !---- SAMPLE ZODI -----
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-      ! Gibbs step over components. Compute downsampled res before each step. 
       call timer%start(TOT_ZODI_SAMP)
 
-      ! --- COMP-WISE GIBBS
-      if (.false.) then
-         do i = 1, zodi_model%n_comps
-            ! MCMC sample comp i and update sampled zodi model at the end
-            call gibbs_sample_zodi_comp(cpar, handle, i, zodi_model, verbose=.true.)
-            
-            ! Recompute downsampled residual using the newly fitted zodi component
-            call init_scandata_and_downsamp_zodi(cpar)
-         end do
+      ! For the first iteration we downsample and cache invariant structures such as the tod, pointing
+      ! and preallocate downsampled arrays to avoid many reallocations
+      if (iter == 2) call downsamp_invariant_structs(cpar)
+      
+      call project_and_downsamp_sky(cpar)
+      call compute_downsamp_zodi(cpar, zodi_model)
 
-      ! --- ONE BY ONE PARAM GIBBS
-      else if (.true.) then
-         ! Compute absolute calibration factors for each zodi component
-         call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
-         call init_scandata_and_downsamp_zodi(cpar)
+      ! Sample absolute calibration factors for each zodi component
+      call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
+      ! call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+      ! Sample geometric model parameters
+      ! do i = 1, n_active_geom_params
+      !    if (.not. active_params(i)) cycle ! For skipping specific parameters
+      !    call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
 
-         do i = 1, 2!zodi_model%n_parameters
-            if (.not. active_params(i)) cycle ! For skipping specific parameters
-            call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
-            
-            ! Recompute downsampled residual using the newly estimated zodi parameter (if not at last parameter)
-            if (.not. i == zodi_model%n_parameters) call init_scandata_and_downsamp_zodi(cpar)
-         end do
-      end if
-
-      ! Reset zodi related quantities for next gibbs sample
-      do i = 1, numband
-         if (data(i)%tod_type == 'none') cycle
-         if (.not. data(i)%tod%subtract_zodi) cycle
-         call data(i)%tod%deallocate_downsampled_zodi()
-         call data(i)%tod%clear_zodi_cache()
-      end do
+      !    if (i == n_active_geom_params) exit 
+      !    call downsamp_zodi(cpar)
+      !    call update_residual(cpar)
+      ! end do
       call timer%stop(TOT_ZODI_SAMP)
    end if
    !---- END SAMPLE ZODI -----
@@ -427,7 +414,16 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-     if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) call zodi_model%output_to_hd5(cpar, iter)
+
+     ! Output zodi ipd and tod parameters to chain
+     if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) then
+         call zodi_model%output_to_hd5(cpar, iter)
+         do i = 1, numband
+            if (data(i)%tod_type == 'none') cycle
+            if (.not. data(i)%tod%subtract_zodi) cycle
+            call output_tod_params_to_hd5(cpar, data(i)%tod, iter)
+         end do
+     end if
 
      call wall_time(t2)
      if (ok) then

@@ -57,10 +57,19 @@ module comm_tod_mod
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
      real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
-     real(sp),           allocatable, dimension(:)    :: downsamp_res         ! Downsampled residual for s_tod - s_tot (ntod_downsamped)
-     integer(i4b),       allocatable, dimension(:)    :: downsamp_pointing    ! downsampled pointing associated with res_zodi (ntod_downsamped, nhorn)
      integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
      real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
+
+     ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
+     integer(i4b),       allocatable, dimension(:)    :: downsamp_pix
+     real(sp),           allocatable, dimension(:)    :: downsamp_tod
+     real(sp),           allocatable, dimension(:)    :: downsamp_sky
+     real(sp),           allocatable, dimension(:)    :: downsamp_zodi
+     real(sp),           allocatable, dimension(:, :) :: downsamp_scat
+     real(sp),           allocatable, dimension(:, :) :: downsamp_therm
+
+     real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
+     real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -191,7 +200,12 @@ module comm_tod_mod
      integer(i4b),       allocatable, dimension(:)     :: pix2ind ! Array mapping all npix pixels to the uniquely observed pixels in the tod object for saving memory
      integer(i4b),       allocatable, dimension(:)     :: ind2pix, ind2sl ! Lookup tables used with pix2ind 
      real(sp),           allocatable, dimension(:,:)   :: ind2ang ! Lookup tables used with pix2ind for pixel angles
-     real(dp),           allocatable, dimension(:,:)   :: ind2vec, ind2vec_ecl ! Lookup tables used with pix2ind for pixel unit vectors
+     real(dp),           allocatable, dimension(:,:)   :: ind2vec ! Lookup tables used with pix2ind for pixel unit vectors
+     real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl ! Lookuptable for lowres ind to ecliptic unit vector
+     real(dp),           allocatable, dimension(:,:)   :: ind2vec_ecl_lowres ! Lookuptable for lowres ind to ecliptic unit vector
+     integer(i4b),       allocatable, dimension(:)     :: udgrade_pix_zodi !Lookuptable for highres pix to lowres pix
+     integer(i4b),       allocatable, dimension(:)     :: pix2ind_lowres !Lookuptable for lowres zodi pixels
+
      character(len=128)                                :: tod_type
      integer(i4b)                                      :: nside_beam
      integer(i4b)                                      :: verbosity ! verbosity of output
@@ -211,14 +225,15 @@ module comm_tod_mod
 
      ! Zodi parameters and spline objects
      integer(i4b) :: zodi_n_comps
-     integer(i4b), allocatable, dimension(:)   :: pix_at_zodi_nside
-     real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
+   !   real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
+     real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cache for zodi
+     real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache_lowres, zodi_therm_cache_lowres ! Cache for lowresolution zodi (used for sampling)
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
      real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
-     logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering
+     logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering, udgrade_zodi
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -254,7 +269,6 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
-     procedure                           :: deallocate_downsampled_zodi
 
   end type comm_tod
 
@@ -363,6 +377,7 @@ contains
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
+      call load_zodi_tod_parameters(self, cpar)
     end if
 
     if (trim(self%tod_type)=='SPIDER') then
@@ -502,8 +517,8 @@ contains
     implicit none
     class(comm_tod),                intent(inout)  :: self
 
-    real(dp)     :: f_fill, f_fill_lim(3), theta, phi, rotation_matrix(3, 3)
-    integer(i4b) :: i, j, k, l, np_vec, ierr, zodi_subpix, nest_pix
+    real(dp)     :: f_fill, f_fill_lim(3), theta, phi
+    integer(i4b) :: i, j, k, l, ierr
     integer(i4b), allocatable, dimension(:) :: pix
 
     ! Construct observed pixel array
@@ -541,6 +556,7 @@ contains
     allocate(self%ind2sl(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
     allocate(self%ind2vec(3,self%nobs))
+
     j = 1
     do i = 0, 12*self%nside**2-1
        if (self%pix2ind(i) == 1) then
@@ -553,24 +569,7 @@ contains
           j = j+1
        end if
     end do
-    if (self%subtract_zodi) then
-      !  zodi_subpix = (self%nside / integer(256, i4b))**2 ! (change to nside_zodi)
-      !  allocate(self%pix_at_zodi_nside(self%nobs))
-       allocate(self%zodi_scat_cache(self%nobs, self%zodi_n_comps, self%ndet))
-       allocate(self%zodi_therm_cache(self%nobs, self%zodi_n_comps, self%ndet))
-       self%zodi_scat_cache = -1.d0
-       self%zodi_therm_cache = -1.d0
-       allocate(self%ind2vec_ecl(3,self%nobs))
-       call ecl_to_gal_rot_mat(rotation_matrix)
-       do i = 1, self%nobs
-         !  call ring2nest(self%nside, self%ind2pix(i), nest_pix)
-         !  nest_pix = nest_pix / zodi_subpix
-         !  call nest2ring(integer(256, i4b), nest_pix, self%pix_at_zodi_nside)
-          self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
-       end do
-    end if
-   !  print *, self%pix_at_zodi_nside
-   !  stop
+
     f_fill = self%nobs/(12.*self%nside**2)
     call mpi_reduce(f_fill, f_fill_lim(1), 1, MPI_DOUBLE_PRECISION, MPI_MIN, 0, self%info%comm, ierr)
     call mpi_reduce(f_fill, f_fill_lim(2), 1, MPI_DOUBLE_PRECISION, MPI_MAX, 0, self%info%comm, ierr)
@@ -584,6 +583,52 @@ contains
   !**************************************************
   !             Utility routines
   !**************************************************
+
+   subroutine load_zodi_tod_parameters(self, cpar)
+      class(comm_tod),   intent(inout) :: self
+      type(comm_params), intent(in) :: cpar
+
+      logical(lgt)        :: exist
+      integer(i4b) :: i, l,  unit, ierr, initsamp
+      character(len=6)          :: itext, itext2
+      real(dp), allocatable :: emissivity(:), albedo(:)
+
+      type(hdf_file) :: file
+      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, tod_path
+
+      allocate(self%zodi_emissivity(self%zodi_n_comps))
+      allocate(self%zodi_albedo(self%zodi_n_comps))
+      if (cpar%zs_init_chain == 'none') then
+         self%zodi_emissivity = cpar%ds_zodi_emissivity(self%band, :)
+         self%zodi_albedo     = cpar%ds_zodi_albedo(self%band, :)
+         return
+      end if
+
+      allocate(emissivity(self%zodi_n_comps))
+      allocate(albedo(self%zodi_n_comps))
+
+      unit = getlun()
+      call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+      inquire(file=trim(chainfile), exist=exist)
+      if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+      l = len(trim(chainfile))
+      if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+
+      call open_hdf_file(trim(chainfile), file, "r")
+
+      call int2string(initsamp, itext)
+      
+      tod_path = trim(adjustl(itext//"/zodi/tod/"))
+      band_path = trim(adjustl(tod_path))//trim(adjustl(self%freq))
+      call read_hdf(file, trim(adjustl(band_path))//'/emissivity' , self%zodi_emissivity)
+      call read_hdf(file, trim(adjustl(band_path))//'/albedo' , self%zodi_albedo)
+      call close_hdf_file(file)
+
+      call mpi_bcast(self%zodi_emissivity, size(self%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+
+   end subroutine load_zodi_tod_parameters
+
 
   subroutine load_instrument_file(self, nside_beam, nmaps_beam, pol_beam, comm_chain)
     implicit none
@@ -2754,10 +2799,10 @@ contains
       class(comm_tod),   intent(inout) :: self
       type(comm_params),       intent(in) :: cpar
 
-      integer(i4b) :: i, j, ierr
-      real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:)
+      integer(i4b) :: i, j, ierr, pix, pix_high, pix_low, nest_pix, n_subpix, nobs_lowres, npix_lowres, npix_highres
+      real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:), ind2vec_zodi_temp(:, :)
       real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), x0_earth_packed(:, :), x1_earth_packed(:, :), t0_packed(:), t1_packed(:)
-      real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY
+      real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY, rotation_matrix(3, 3)
       real(dp), allocatable :: time(:), x_obs(:, :), x_earth(:, :)
 
       allocate(x0_obs(3, self%nscan_tot), x1_obs(3, self%nscan_tot))
@@ -2834,6 +2879,70 @@ contains
       allocate(self%zodi_spl_solar_irradiance(self%ndet))
       allocate(self%zodi_phase_func_normalization(self%ndet))
       allocate(self%zodi_b_nu_spl_obj(self%ndet))
+
+      ! allocate cache files and precompute ecliptic unit vectors
+      call ecl_to_gal_rot_mat(rotation_matrix)
+      allocate(self%zodi_scat_cache(self%nobs, self%zodi_n_comps, self%ndet))
+      allocate(self%zodi_therm_cache(self%nobs, self%zodi_n_comps, self%ndet))
+      self%zodi_scat_cache = -1.d0
+      self%zodi_therm_cache = -1.d0
+      allocate(self%ind2vec_ecl(3, self%nobs))
+      do i = 1, self%nobs
+         self%ind2vec_ecl(:,i) = matmul(self%ind2vec(:,i), rotation_matrix)
+      end do
+      
+      ! If zodi sampling is turned on we precompute lowres zodi lookups
+      if (.not. cpar%sample_zodi) return
+      ! Skip if zodi nside = tod nside
+      if (self%nside == zodi_nside) return
+      n_subpix = (self%nside / zodi_nside)**2
+
+      npix_lowres = 12*zodi_nside**2
+      npix_highres = 12*self%nside**2
+
+      ! Make lookup table for highres pixels to lowres pixels
+      allocate(self%udgrade_pix_zodi(0:npix_highres - 1))
+      do i = 0, npix_highres - 1
+         call ring2nest(self%nside, i, nest_pix)
+         nest_pix = nest_pix / n_subpix
+         call nest2ring(zodi_nside, nest_pix, self%udgrade_pix_zodi(i))
+      end do
+      
+      allocate(self%pix2ind_lowres(0:npix_lowres - 1))
+      self%pix2ind_lowres = 0
+
+      allocate(ind2vec_zodi_temp(3, self%nobs))
+      ind2vec_zodi_temp = 0.
+      j = 1
+      do i = 1, self%nobs
+         pix_high = self%ind2pix(i)
+         pix_low = self%udgrade_pix_zodi(pix_high)
+         if (self%pix2ind_lowres(pix_low) /= 0) cycle
+         self%pix2ind_lowres(pix_low) = j
+         call pix2vec_ring(zodi_nside, pix_low, ind2vec_zodi_temp(:, j))
+         j =  j + 1
+      end do
+
+      nobs_lowres = j - 1
+
+      allocate(self%ind2vec_ecl_lowres(3, nobs_lowres))
+      self%ind2vec_ecl_lowres = ind2vec_zodi_temp(:, 1:nobs_lowres)
+   
+      allocate(self%zodi_scat_cache_lowres(nobs_lowres, self%zodi_n_comps, self%ndet))
+      allocate(self%zodi_therm_cache_lowres(nobs_lowres, self%zodi_n_comps, self%ndet))
+      self%zodi_scat_cache_lowres = -1.d0
+      self%zodi_therm_cache_lowres = -1.d0
+
+      do i = 1, nobs_lowres
+         self%ind2vec_ecl_lowres(:, i) = matmul(self%ind2vec_ecl_lowres(:, i), rotation_matrix)
+      end do
+
+      ! Allocate downsampled pointing, tod, mask, and timestreams
+      
+
+
+
+
    end subroutine precompute_zodi_lookups
 
    subroutine clear_zodi_cache(self, obs_time)
@@ -2852,18 +2961,10 @@ contains
       else 
          self%zodi_cache_time = self%zodi_init_cache_time
       end if
+      if (allocated(self%zodi_therm_cache_lowres)) then
+         self%zodi_scat_cache_lowres = -1.d0
+         self%zodi_therm_cache_lowres = -1.d0
+      end if
    end subroutine clear_zodi_cache
-
-   subroutine deallocate_downsampled_zodi(self)
-      ! Deallocates the downsampled zodi TOD
-      class(comm_tod),   intent(inout) :: self
-      integer(i4b) :: scan, j
-      do j = 1, self%ndet
-         do scan = 1, self%nscan
-            if (allocated(self%scans(scan)%d(j)%downsamp_res)) deallocate(self%scans(scan)%d(j)%downsamp_res)
-            if (allocated(self%scans(scan)%d(j)%downsamp_pointing)) deallocate(self%scans(scan)%d(j)%downsamp_pointing)
-         end do
-      end do
-   end subroutine deallocate_downsampled_zodi
 
 end module comm_tod_mod

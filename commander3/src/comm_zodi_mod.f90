@@ -83,13 +83,13 @@ module comm_zodi_mod
         integer(i4b) :: n_parameters
         real(dp) :: T_0, delta ! solar system temperature parameters
         real(dp), allocatable, dimension(:) :: nu_ref, solar_irradiance ! spectral parameters
-        real(dp), allocatable, dimension(:, :) :: phase_coeffs, emissivity, albedo ! spectral parameters
+        real(dp), allocatable, dimension(:, :) :: phase_coeffs
         class(ZodiComponentContainer), allocatable :: comps(:)
         character(len=10), allocatable :: comp_labels(:)
         type(spline_type) :: solar_irradiance_spl! spline interpolators
         type(spline_type), allocatable, dimension(:) :: phase_coeff_spl
     contains
-        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec, output_to_hd5
+        procedure :: init_from_defaults, init_from_chain, build_splines, param_vec_to_model, model_to_param_vec, output_to_hd5 => output_ipd_params_to_hd5
     end type ZodiModel
 
     ! Global zodi parameter object
@@ -114,7 +114,7 @@ contains
         end if
     end subroutine initialize_zodi_mod
 
-    subroutine get_s_zodi(s_therm, s_scat, s_zodi, band, model)
+    subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
         ! Evaluates the zodiacal signal (eq. 20 in zodipy paper [k98 model]) given 
         ! integrated thermal zodiacal emission and scattered zodiacal light.
         !
@@ -130,22 +130,29 @@ contains
         !     Integrated contribution from thermal interplanetary dust emission.   
         ! s_zodi :
         !     Zodiacal signal.
-        ! band :
-        !     Band number.
-        ! model :
-        !     zodi model.
+        ! emissivity :
+        !     Emissivity of the zodiacal components.
+        ! albedo :
+        !     Albedo of the zodiacal components.
+        ! comp :
+        !     If present, only the component with index comp is used to compute the zodiacal signal.
+
         real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
-        real(sp), dimension(:), intent(out) :: s_zodi
-        integer(i4b), intent(in) :: band
-        type(ZodiModel), intent(in) :: model
-        integer(i4b) :: i
+        real(sp), dimension(:), intent(inout) :: s_zodi
+        real(dp), dimension(:), intent(in) :: emissivity, albedo
+        integer(i4b), intent(in), optional :: comp
 
-        if (band > model%n_bands) stop 'Error: band number exceeds number of bands in model'
+        integer(i4b) :: i, n_comps
 
-        s_zodi = 0.
-        do i = 1, model%n_comps
-            s_zodi = s_zodi +  s_scat(:, i) * model%albedo(band, i) + (1. - model%albedo(band, i)) * model%emissivity(band, i) * s_therm(:, i)
-        end do
+        n_comps = size(emissivity)
+        if (present(comp)) then
+            s_zodi = s_scat(:, comp) * albedo(comp) + (1. - albedo(comp)) * emissivity(comp) * s_therm(:, comp)
+        else
+            s_zodi = 0.
+            do i = 1, n_comps
+                s_zodi = s_zodi +  s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)
+            end do
+        end if
     end subroutine get_s_zodi
 
    ! Methods for initizializing the zodiacal components
@@ -334,12 +341,10 @@ contains
         ! aux
         self%n_bands = cpar%zs_nbands
         self%n_comps = cpar%zs_ncomps
-        self%n_parameters = 62 + 2*(self%n_comps * self%n_bands)
+        self%n_parameters = 62
 
         allocate(self%comps(self%n_comps))
         allocate(self%comp_labels(self%n_comps))
-        allocate(self%emissivity(self%n_bands, self%n_comps))
-        allocate(self%albedo(self%n_bands, self%n_comps))
         ! Tempereature parameters
         self%T_0 = cpar%zs_t_0
         self%delta = cpar%zs_delta
@@ -351,8 +356,6 @@ contains
         self%nu_ref = cpar%zs_nu_ref
         self%phase_coeffs = cpar%zs_phase_coeff
         self%solar_irradiance = cpar%zs_solar_irradiance
-        self%albedo = cpar%zs_albedo
-        self%emissivity = cpar%zs_emissivity
         allocate(self%phase_coeff_spl(3))
         call self%build_splines()
 
@@ -456,7 +459,7 @@ contains
 
             call int2string(initsamp, itext)
 
-            call read_hdf(file, itext//"/zodi/params" , param_vec)
+            call read_hdf(file, itext//"/zodi/ipd" , param_vec)
             if (size(param_vec) /= self%n_parameters) stop "param_vec has the wrong size"
             call close_hdf_file(file)
         end if
@@ -549,24 +552,6 @@ contains
         end do
         self%T_0 = x(61)
         self%delta = x(62)
-
-        !emissivities
-        k = 63
-        do i = 1, self%n_bands
-            do j = 1, self%n_comps
-                self%emissivity(i, j) = x(k)
-                k = k + 1
-            end do
-        end do
-
-        !albedos
-        k = 63 + self%n_comps * self%n_bands
-        do i = 1, self%n_bands
-            do j = 1, self%n_comps
-                self%albedo(i, j) = x(k)
-                k = k + 1
-            end do
-        end do
     end subroutine
 
     function model_to_param_vec(self) result(x) 
@@ -635,26 +620,26 @@ contains
         x(61) = self%T_0 
         x(62) = self%delta
         
-        !emissivities
-        k = 63
-        do i = 1, self%n_bands
-            do j = 1, self%n_comps
-                x(k) = self%emissivity(i, j)
-                k = k + 1
-            end do
-        end do
+        ! !emissivities
+        ! k = 63
+        ! do i = 1, self%n_bands
+        !     do j = 1, self%n_comps
+        !         x(k) = self%emissivity(i, j)
+        !         k = k + 1
+        !     end do
+        ! end do
 
-        !albedos
-        k = 63 + self%n_comps * self%n_bands
-        do i = 1, self%n_bands
-            do j = 1, self%n_comps
-                x(k) = self%albedo(i, j)
-                k = k + 1
-            end do
-        end do
+        ! !albedos
+        ! k = 63 + self%n_comps * self%n_bands
+        ! do i = 1, self%n_bands
+        !     do j = 1, self%n_comps
+        !         x(k) = self%albedo(i, j)
+        !         k = k + 1
+        !     end do
+        ! end do
     end function model_to_param_vec
 
-    subroutine output_to_hd5(self, cpar, iter)
+    subroutine output_ipd_params_to_hd5(self, cpar, iter)
         ! Writes the zodi model to an hdf file
         class(ZodiModel), intent(in) :: self
         type(comm_params), intent(in) :: cpar
@@ -682,10 +667,9 @@ contains
         call int2string(iter, itext)
         zodi_path = trim(adjustl(itext))//'/zodi'
         call create_hdf_group(file, trim(adjustl(zodi_path)))
-        comp_path = trim(adjustl(zodi_path))//'/params/'
+        comp_path = trim(adjustl(zodi_path))//'/ipd/'
         
         call write_hdf(file, trim(adjustl(comp_path)), self%model_to_param_vec())
-
         call close_hdf_file(file)
     end subroutine
 

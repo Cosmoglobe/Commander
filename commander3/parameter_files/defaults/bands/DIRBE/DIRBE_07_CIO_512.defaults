@@ -24,7 +24,7 @@ BAND_BANDPASSFILE&&&           = DIRBE_instrument_02.h5
 BAND_SAMP_GAIN&&&              = .false.
 BAND_GAIN_PRIOR_MEAN&&&         = 1.
 BAND_GAIN_PRIOR_RMS&&&          = 0.
-BAND_GAIN_CALIB_COMP&&&        = all  dust,hotPAH
+BAND_GAIN_CALIB_COMP&&&        = dust,hotPAH
 BAND_GAIN_LMIN&&&              = -1
 BAND_GAIN_LMAX&&&              = -1
 BAND_GAIN_APOD_MASK&&&         = fullsky
@@ -48,9 +48,9 @@ BAND_TOD_JUMPLIST&&&           = none
 BAND_TOD_LEVEL&&&              = L2
 
 BAND_MAPFILE&&&                = DIRBE_07_512_v1.fits
-BAND_NOISEFILE&&&              = DIRBE_07_SIGMA_512_v2.fits
+BAND_NOISEFILE&&&              = DIRBE_07_SIGMA_512_v1.fits
 BAND_REG_NOISEFILE&&&          = none  
-BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_07_SIGMA_512_v1_1deg_n256_v3.fits
+BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_07_SIGMA_512_v1_1deg_n256_v2.fits
 BAND_NOISE_RMS&&&_SMOOTH02     = none
 BAND_NOISE_RMS&&&_SMOOTH03     = none
 
@@ -61,9 +61,7 @@ BAND_TOD_FILELIST&&&           = filelist_DIRBE_07_nside512_V18.txt
 BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1
 
-
-# Zodi parameters
-BAND_TOD_SUBTRACT_ZODI&&&   = .true. # if true, the following parameters must be set
-BAND_TOD_ZODI_MASK&&&       = zodi_proc_mask_07_n512.fits
-BAND_ZODI_EMISSIVITY&&&     = 0.73338832616768868d0,1.2539242027824944d0,1.2539242027824944d0,1.2539242027824944d0,0.87266361378785184d0,0.87266361378785184d0
-BAND_ZODI_ALBEDO&&&         = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+BAND_TOD_ZODI_SUBTRACTION&&&   = .true. 
+BAND_TOD_ZODI_MASK&&&          = zodi_proc_mask_07_n512.fits
+BAND_TOD_ZODI_EMISSIVITY&&&    = 0.73338832616768868d0,1.2539242027824944d0,1.2539242027824944d0,1.2539242027824944d0,0.87266361378785184d0,0.87266361378785184d0
+BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0

@@ -1,0 +1,11 @@
+# Zodi parameter groups 
+
+NUM_ZODI_SAMPLING_GROUPS = 2
+
+@START 01
+ZODI_SAMPLING_GROUP&&          = cloud:incl,cloud:Omega,band1:Omega
+@END 01
+
+@START 02
+ZODI_SAMPLING_GROUP&&          = band1:incl,band1:Omega,ring:y_0,delta
+@END 02

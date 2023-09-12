@@ -245,7 +245,8 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
 
      ! Zodi parameters
-     integer(i4b)       :: zs_gauss_quad_order, zs_nbands, zs_ncomps, zs_n_interp_points, zs_nprop
+     integer(i4b)       :: zs_gauss_quad_order, zs_nbands, zs_ncomps, zs_n_interp_points, zs_nprop, zs_num_samp_groups
+     integer(i4b), allocatable :: zs_samp_groups(:, :)
      real(dp)           :: zs_los_cut, zs_delta_t_reset, zs_min_ipd_temp, zs_max_ipd_temp
      logical(lgt)       :: zs_output_comps, zs_use_cloud, zs_use_band1, zs_use_band2, zs_use_band3, zs_use_ring, zs_use_feature
      real(dp), allocatable, dimension(:, :) :: zs_common ! shape: (n_comps, 6)
@@ -633,7 +634,7 @@ contains
                   & par_int=cpar%ds_tod_flag(i))
              !call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
              !     & par_lgt=cpar%ds_tod_orb_abscal(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_SUBTRACT_ZODI'//itext, len_itext=len_itext, &
+             call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_SUBTRACTION'//itext, len_itext=len_itext, &
                   & par_lgt=cpar%ds_tod_subtract_zodi(i))       
              call get_parameter_hashtable(htbl, 'BAND_TOD_ABSCAL_COMP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_abscal(i))
@@ -2859,8 +2860,9 @@ subroutine read_zodi_params_hash(htbl, cpar)
      type(hash_tbl_sll), intent(in) :: htbl
      type(comm_params),  intent(inout) :: cpar
 
-     integer(i4b) :: i, j, n, len_itext
+     integer(i4b) :: i, j, n, len_itext, num_comp_params
      character(len=3) :: itext
+     character(len=2) :: itext2
 
      integer(i4b), parameter :: n_common_params = 6
      integer(i4b), parameter :: n_dust_bands = 3
@@ -2868,9 +2870,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      character(len=1) :: dust_band_label
      character(len=2) :: obs_band_label
      character(len=512) :: temp_emissivity, temp_albedo, temp_phase_function
-     character(len=512) :: temp_emissivity1, temp_albedo1
-     character(len=128), allocatable, dimension(:) :: emissivity_string, albedo_string, phase_function_string
-     character(len=128), allocatable, dimension(:) :: emissivity_string1, albedo_string1
+     character(len=128), allocatable, dimension(:) :: emissivity_string, albedo_string, phase_function_string, samp_group_strings
+     character(len=128), dimension(1000) :: comp_param_labels
 
      len_itext=len(trim(itext)) !! FIXME
      n = cpar%numband
@@ -2914,9 +2915,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      allocate(cpar%zs_solar_irradiance(cpar%zs_nbands))
      allocate(cpar%zs_nu_ref(cpar%zs_nbands))
      allocate(emissivity_string(cpar%zs_ncomps))
-     allocate(emissivity_string1(cpar%zs_ncomps))
      allocate(albedo_string(cpar%zs_ncomps))
-     allocate(albedo_string1(cpar%zs_ncomps))
      allocate(phase_function_string(cpar%zs_ncomps))
      allocate(cpar%ds_zodi_emissivity(n, cpar%zs_ncomps), cpar%ds_zodi_albedo(n, cpar%zs_ncomps))
 
@@ -2964,16 +2963,10 @@ subroutine read_zodi_params_hash(htbl, cpar)
      do i = 1, cpar%zs_nbands
           call int2string(i, obs_band_label)
           call get_parameter_hashtable(htbl, 'ZODI_NU_REF_'//obs_band_label, par_dp=cpar%zs_nu_ref(i))
-          call get_parameter_hashtable(htbl, 'ZODI_EMISSIVITY_'//obs_band_label, par_string=temp_emissivity)
-          call get_parameter_hashtable(htbl, 'ZODI_ALBEDO_'//obs_band_label, par_string=temp_albedo)
           call get_parameter_hashtable(htbl, 'ZODI_SOLAR_IRRADIANCE_'//obs_band_label, par_dp=cpar%zs_solar_irradiance(i))
           call get_parameter_hashtable(htbl, 'ZODI_C_'//obs_band_label, par_string=temp_phase_function)
-          call get_tokens(temp_emissivity, ',', emissivity_string)
-          call get_tokens(temp_albedo, ',', albedo_string)
           call get_tokens(temp_phase_function, ',', phase_function_string)
           do j = 1, cpar%zs_ncomps
-               read(emissivity_string(j), *) cpar%zs_emissivity(i, j)
-               read(albedo_string(j), *) cpar%zs_albedo(i, j)
                if (j <= 3) read(phase_function_string(j), *) cpar%zs_phase_coeff(i, j)
           end do
      end do
@@ -2986,20 +2979,55 @@ subroutine read_zodi_params_hash(htbl, cpar)
      do i = 1, n
           if (.not. cpar%ds_tod_subtract_zodi(i)) cycle
           call int2string(i, itext)
-          call get_parameter_hashtable(htbl, 'BAND_ZODI_EMISSIVITY'//itext, len_itext=len_itext, par_string=temp_emissivity1)
-          call get_parameter_hashtable(htbl, 'BAND_ZODI_ALBEDO'//itext, len_itext=len_itext, par_string=temp_albedo1)
-          call get_tokens(temp_emissivity1, ',', emissivity_string1)
-          call get_tokens(temp_albedo1, ',', albedo_string1)
+          call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_EMISSIVITY'//itext, len_itext=len_itext, par_string=temp_emissivity)
+          call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_ALBEDO'//itext, len_itext=len_itext, par_string=temp_albedo)
+          call get_tokens(temp_emissivity, ',', emissivity_string)
+          call get_tokens(temp_albedo, ',', albedo_string)
           do j = 1, cpar%zs_ncomps
-               read(emissivity_string1(j), *) cpar%ds_zodi_emissivity(i, j)
-               read(albedo_string1(j), *) cpar%ds_zodi_albedo(i, j)
+               read(emissivity_string(j), *) cpar%ds_zodi_emissivity(i, j)
+               read(albedo_string(j), *) cpar%ds_zodi_albedo(i, j)
           end do
           if (cpar%sample_zodi .and. cpar%ds_tod_subtract_zodi(i)) then
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)
                call validate_file(trim(cpar%ds_tod_procmask_zodi(i)))
           end if
      end do
+
+    call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
+    allocate(samp_group_strings(cpar%zs_num_samp_groups))
+    allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups, 10))
+    cpar%zs_samp_groups = -1
+    do i = 1, cpar%zs_num_samp_groups
+       call int2string(i, itext2)
+       call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=samp_group_strings(i))
+       call get_tokens(samp_group_strings(i), ',', comp_param_labels, num_comp_params) 
+       do j = 1, num_comp_params
+            cpar%zs_samp_groups(i, j) = get_param_vec_idx_from_comp_and_param(comp_param_labels(j))
+       end do
+    end do
+
 end subroutine read_zodi_params_hash
+
+function get_param_vec_idx_from_comp_and_param(label) result(idx) 
+     ! picks out the parameter vector index from a given comp:param label for zodi samp groups
+     ! REMEMBER TO UPDATE THIS WHEN THE MODEL IS UPDATED
+     character(len=*), intent(in) :: label
+     integer(i4b) :: idx
+     character(len=32), dimension(:), allocatable :: params
+
+     allocate(params(1000))
+     params = [ &
+     & "cloud:n_0", "cloud:incl", "cloud:Omega", "cloud:x_0", "cloud:y_0", "cloud:z_0", "cloud:alpha", "cloud:beta", "cloud:gamma", "cloud:mu", &
+     & "band1:n_0", "band1:incl", "band1:Omega", "band1:x_0", "band1:y_0", "band1:z_0", "band1:delta_zeta", "band1:delta_r", "band1:v", "band1:p",&
+     & "band2:n_0", "band2:incl", "band2:Omega", "band2:x_0", "band2:y_0", "band2:z_0", "band2:delta_zeta", "band2:delta_r", "band2:v", "band2:p",&
+     & "band3:n_0", "band3:incl", "band3:Omega", "band3:x_0", "band3:y_0", "band3:z_0", "band3:delta_zeta", "band3:delta_r", "band3:v", "band3:p",&
+     & "ring:n_0", "ring:incl", "ring:Omega", "ring:x_0", "ring:y_0", "ring:z_0", "ring:R_0", "ring:sigma_r", "ring:sigma_z", &
+     & "feature:n_0","feature:incl","feature:Omega","feature:x_0","feature:y_0","feature:z_0","feature:R_0","feature:sigma_r","feature:sigma_z","feature:theta_0","feature:sigma_theta", &
+     & "T_0", "delta" &
+     & ]
+     idx = findloc(params, label, dim=1)
+     if (idx == 0) stop "Error: unrecognized label to 'get_param_vec_idx_from_comp_and_param'!"
+end function get_param_vec_idx_from_comp_and_param
 
   ! ********************************************************
   !                     Utility routines

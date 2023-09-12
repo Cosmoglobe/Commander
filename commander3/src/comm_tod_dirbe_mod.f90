@@ -224,8 +224,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist
-      logical(lgt)        :: sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_noise
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -258,20 +257,7 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-      sample_noise          = .false.
       
-!!$      if (trim(self%freq) == '05' &
-!!$           & .or. trim(self%freq) == '06' &
-!!$           & .or. trim(self%freq) == '09') then
-!!$         sample_gain  = .false.
-!!$         sample_noise = .true.
-!!$      end if
-
-      if (trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-         sample_gain  = .true.
-         sample_noise = .true.
-      end if
-
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -330,7 +316,7 @@ contains
          ! 'relcal': the gain factor that is constant in time but varying between detectors
          ! call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
-         !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
+         call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
 
       ! Prepare intermediate data structures
@@ -353,20 +339,13 @@ contains
          call wall_time(t1)
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
-         ! Populate downsampled residual and pointing to be used for zodi sampling
-         if (sample_zodi) call downsample_zodi_res_and_pointing(self, i, sd%tod, sd%s_tot, sd%s_zodi, sd%pix, sd%flag, sd%mask_zodi)
-
          ! Sample correlated noise
-         if (sample_noise) then
-            if (self%myid == 0) write(*,*) 'Sampling ncorr'
-            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
+         !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+         ! call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
+         sd%n_corr = 0.d0
 
-            ! Compute noise spectrum parameters
-            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
-         else
-            sd%n_corr = 0.d0
-         end if
+         ! Compute noise spectrum parameters
+         ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
          ! Compute chisquare
          do j = 1, sd%ndet
@@ -386,17 +365,20 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf
-         if (self%first_call .and. .false.) then
-            call int2string(self%scanid(i), scantext)
-            if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
-            call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
-            call write_hdf(tod_file, '/tod', sd%tod)
-            call write_hdf(tod_file, '/todz', d_calib(1, :, :))
-            call write_hdf(tod_file, '/res', d_calib(2, :, :))
-            call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
-            call write_hdf(tod_file, '/mask', sd%mask)
-            call write_hdf(tod_file, '/n0', self%scans(i)%d(1)%N_psd%sigma0)
-            call close_hdf_file(tod_file)
+         if (.false.) then
+            if (self%myid == 0 .and. i == 1) then 
+               print *, self%scanid(i)
+               call int2string(self%scanid(i), scantext)
+               call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
+               call write_hdf(tod_file, '/tod', sd%tod)
+               call write_hdf(tod_file, '/todz', d_calib(1, :, :))
+               call write_hdf(tod_file, '/res', d_calib(2, :, :))
+               call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
+               call write_hdf(tod_file, '/mask', sd%mask)
+               call write_hdf(tod_file, '/n0', self%scans(i)%d(1)%N_psd%sigma0)
+               call close_hdf_file(tod_file)
+               stop
+            end if
          end if
 
          ! Bin TOD

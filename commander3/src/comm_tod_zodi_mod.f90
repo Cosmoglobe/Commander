@@ -5,10 +5,11 @@ module comm_tod_zodi_mod
     use comm_zodi_mod
     use spline_1D_mod
     use comm_bp_mod
+    use comm_hdf_mod
     implicit none
 
     private
-    public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines
+    public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5
 
     ! Constants
     real(dp) :: R_MIN = 3.d-14
@@ -53,7 +54,7 @@ contains
     end subroutine initialize_tod_zodi_mod
 
 
-    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering)
+    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering, use_lowres_pointing, comp)
         ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
         !
         ! Parameters
@@ -74,6 +75,10 @@ contains
         !     The zodiacal emission model.
         ! always_scattering : logical(lgt), optional
         !     If present, this overrides the default behavior of only including scattering when the albedo is non-zero.
+        ! use_lowres_pointing : logical(lgt), optional
+        !     If present, the input pixels are converted to low resolution pixels before evaluating the zodiacal emission.
+        ! comp : integer(i4b), optional
+        !     If present, only evaluate the zodiacal emission for this component.
         !
         ! Returns
         ! -------
@@ -86,14 +91,15 @@ contains
         integer(i4b), intent(in) :: pix(:), scan, det
         real(sp), dimension(:, :), intent(inout) :: s_zodi_scat, s_zodi_therm
         type(ZodiModel), intent(in) :: model
-        logical(lgt), intent(in), optional :: always_scattering
+        logical(lgt), intent(in), optional :: always_scattering, use_lowres_pointing
+        integer(i4b), intent(in), optional :: comp
 
-        integer(i4b) :: i, j, k, pix_at_zodi_nside, lookup_idx, n_tod, ierr
-        logical(lgt) :: scattering
+        integer(i4b) :: i, j, k, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
+        logical(lgt) :: scattering, use_lowres
         real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time
         real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
         real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
-
+        
         s_zodi_scat = 0.
         s_zodi_therm = 0.
         n_tod = size(pix, dim=1)
@@ -108,9 +114,22 @@ contains
         if (present(always_scattering)) then
             scattering = always_scattering
         else
-            scattering = count(model%albedo(tod%band, :)  /= 0.) > 0
+            scattering = count(tod%zodi_albedo  /= 0.) > 0
         end if
 
+        ! select the correct cache
+        if (present(use_lowres_pointing)) then
+            if (tod%nside == zodi_nside) then
+                use_lowres = .false.
+            else 
+                if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
+                use_lowres = .true.
+            end if
+        else
+            use_lowres = .false.
+        end if
+
+        cache_hits = 0
         do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
             ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
@@ -124,15 +143,28 @@ contains
                 earth_lon = atan(earth_pos(2), earth_pos(1))
                 call tod%clear_zodi_cache(obs_time)
             end if
-            ! pix_at_zodi_nside = tod%pix_at_zodi_nside(pix(i))
-            lookup_idx = tod%pix2ind(pix(i))
-            if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
-                s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
-                s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
-                cycle
+
+            ! Get lookup index for cache. If the pixel is already cached, used that value.
+            if (use_lowres) then
+                lookup_idx = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i)))
+                if (tod%zodi_therm_cache_lowres(lookup_idx, 1, det) > 0.d0) then
+                    s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
+                    s_zodi_therm(i, :) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
+                    cache_hits = cache_hits + 1
+                    cycle
+                end if
+                unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
+            else 
+                lookup_idx = tod%pix2ind(pix(i))
+                if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
+                    s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
+                    s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
+                    cache_hits = cache_hits + 1
+                    cycle
+                end if
+                unit_vector = tod%ind2vec_ecl(:, lookup_idx)
             end if
 
-            unit_vector = tod%ind2vec_ecl(:, lookup_idx)
             call get_R_max(unit_vector, obs_pos, R_obs, R_max)
 
             do k = 1, 3
@@ -142,7 +174,7 @@ contains
                 X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
             end do
             R_LOS = norm2(X_LOS, dim=1)           
-
+ 
             if (scattering) then
                 solar_flux_LOS = tod%zodi_spl_solar_irradiance(det) / R_LOS**2
                 call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
@@ -153,15 +185,29 @@ contains
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), T_LOS, b_nu_LOS)
 
             do k = 1, model%n_comps
+                ! If comp is present we only evaluate the zodi emission for that component.
+                ! If comp == 0 then we evaluate the zodi emission for all components.
+                if (present(comp)) then
+                    if (k /= comp .and. comp /= 0) cycle
+                end if
                 call model%comps(k)%c%get_density(X_LOS, earth_lon, density_LOS)
                 if (scattering) then 
                     s_zodi_scat(i, k) = sum(density_LOS * solar_flux_LOS * phase_function * gauss_weights)
-                    tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
+                    if (use_lowres) then
+                        tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
+                    else 
+                        tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
+                    end if
                 end if
                 s_zodi_therm(i, k) = sum(density_LOS * b_nu_LOS * gauss_weights) * 0.5 * (R_max - R_MIN)
-                tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
+                if (use_lowres) then
+                    tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
+                else
+                    tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
+                end if
             end do
         end do
+        ! if (tod%myid == 0) print *, "cache hits %: ", (real(cache_hits, dp)/real(size(pix, dim=1), dp)) * 100.
     end subroutine get_zodi_emission
 
     ! Functions for evaluating the zodiacal emission
@@ -303,5 +349,44 @@ contains
         tod%zodi_spl_solar_irradiance = splint_simple(model%solar_irradiance_spl, bandpass%p%nu_c)
         call get_phase_normalization(tod%zodi_spl_phase_coeffs(det, :), tod%zodi_phase_func_normalization(det))
     end subroutine update_zodi_splines
+
+    subroutine output_tod_params_to_hd5(cpar, tod, iter)
+        ! Writes the zodi model to an hdf file
+        type(comm_params), intent(in) :: cpar
+        class(comm_tod),   intent(inout) :: tod
+        integer(i4b), intent(in) :: iter
+
+        integer(i4b) :: i, j, hdferr, ierr, unit
+        logical(lgt) :: exist, init, new_header
+        character(len=6) :: itext
+        character(len=4) :: ctext
+        character(len=512) :: zodi_path, tod_path, band_path, det_path, chainfile, hdfpath
+        character(len=10), allocatable :: param_names(:)
+        real(dp), allocatable :: param_values(:)
+        type(hdf_file) :: file
+        type(h5o_info_t) :: object_info
+
+        if (.not. cpar%myid_chain == 0) return
+
+        call int2string(cpar%mychain, ctext)
+        chainfile = trim(adjustl(cpar%outdir)) // '/chain' // &
+            & '_c' // trim(adjustl(ctext)) // '.h5'
+
+        inquire(file=trim(chainfile), exist=exist)
+        call open_hdf_file(chainfile, file, 'b')
+
+        call int2string(iter, itext)
+        zodi_path = trim(adjustl(itext))//'/zodi'
+        tod_path = trim(adjustl(zodi_path))//'/tod'
+
+        call create_hdf_group(file, trim(adjustl(tod_path)))
+        band_path = trim(adjustl(tod_path))//'/'//trim(adjustl(tod%freq))
+        call create_hdf_group(file, trim(adjustl(band_path)))
+
+        call write_hdf(file, trim(adjustl(band_path))//'/emissivity', tod%zodi_emissivity)
+        call write_hdf(file, trim(adjustl(band_path))//'/albedo', tod%zodi_albedo)
+
+        call close_hdf_file(file)
+    end subroutine
 
 end module comm_tod_zodi_mod

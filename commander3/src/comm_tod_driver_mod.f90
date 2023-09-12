@@ -120,6 +120,7 @@ contains
     if (init_s_sky_prop_)    allocate(self%mask2(self%ntod, self%ndet))
     if (tod%sample_mono)     allocate(self%s_mono(self%ntod, self%ndet))
     if (tod%subtract_zodi) then
+      call tod%clear_zodi_cache()
       allocate(self%s_zodi(self%ntod, self%ndet))
       self%s_zodi = 0.
       allocate(self%s_zodi_scat(self%ntod, tod%zodi_n_comps, self%ndet))
@@ -195,16 +196,16 @@ contains
        end do
     end if
 
-    ! Project zodi sampling mask to timestream
-    if (tod%subtract_zodi .and. tod%sample_zodi) then
-      if (.not. present(procmask_zodi)) stop "zodi processing mask is not present in init_scan_data_singlehorn but sample zodi is true"
-      do j = 1, self%ndet
-         do i = 1, tod%scans(scan)%ntod
-            self%mask_zodi(i, j) = procmask_zodi(self%pix(i, j, 1))
-            if (iand(self%flag(i, j), tod%flag0) .ne. 0) self%mask_zodi(i, j) = 0.
-         end do
-      end do
-    end if
+   !  ! Project zodi sampling mask to timestream
+   !  if (tod%subtract_zodi .and. tod%sample_zodi) then
+   !    if (.not. present(procmask_zodi)) stop "zodi processing mask is not present in init_scan_data_singlehorn but sample zodi is true"
+   !    do j = 1, self%ndet
+   !       do i = 1, tod%scans(scan)%ntod
+   !          self%mask_zodi(i, j) = procmask_zodi(self%pix(i, j, 1))
+   !          if (iand(self%flag(i, j), tod%flag0) .ne. 0) self%mask_zodi(i, j) = 0.
+   !       end do
+   !    end do
+   !  end if
     call timer%stop(TOD_PROJECT, tod%band)
     !call update_status(status, "todinit_bp")
     !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
@@ -248,8 +249,8 @@ contains
             & s_therm=self%s_zodi_therm(:, :, j), &
             & s_scat=self%s_zodi_scat(:, :, j), &
             & s_zodi=self%s_zodi(:, j), &
-            & band=tod%band, &
-            & model=zodi_model &
+            & emissivity=tod%zodi_emissivity, &
+            & albedo=tod%zodi_albedo &
           &)
        end do
        call timer%stop(TOD_ZODI, tod%band)
@@ -956,7 +957,7 @@ contains
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
          do i = 1, size(sd%s_zodi_therm, dim=2)
-           d_calib(8 + i, :, j) = sd%s_zodi_scat(:, i, j) * zodi_model%albedo(tod%band, i) + (1. - zodi_model%albedo(tod%band, i)) * zodi_model%emissivity(tod%band, i) * sd%s_zodi_therm(:, i, j)
+           call get_s_zodi(sd%s_zodi_therm(:, :, j), sd%s_zodi_scat(:, :, j), d_calib(8 + i, :, j), tod%zodi_emissivity, tod%zodi_albedo, i)
          end do
        end if
       !  Bandpass proposals
@@ -1215,96 +1216,4 @@ contains
     write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
   end subroutine simulate_tod
-
-  subroutine downsample_zodi_res_and_pointing(tod, scan_id, s_tod, s_tot, s_zodi, pix, flag, mask)
-        ! Downsamples the residual and pointing to allow for fast zodi parameter estimation.
-        ! The downsampled arrays are stored in the detscan object (e.g tod%scans(scan_id)%d(j)%downsamp_res)
-        !
-        ! Parameters
-        ! ----------
-        ! tod:
-        !     The TOD object.
-        ! scan_id:
-        !     The current scan to process.
-        ! s_tod:
-        !     The TOD signal.
-        ! s_tot:
-        !     The total sky signal.
-        ! s_zodi:
-        !     The zodi signal.
-        ! pix:
-        !     The pixel indices.
-        ! flag:
-        !     Flagged tods.
-        ! mask:
-        !     Zodi processing mask.
-        !
-        class(comm_tod), intent(inout) :: tod
-        integer(i4b), intent(in):: scan_id, pix(:, :, :), flag(:, :)
-        real(sp), intent(in) :: s_tod(:, :), s_tot(:, :), s_zodi(:, :), mask(:, :)
-
-        real(dp) :: box_width
-        real(sp), allocatable, dimension(:) :: res, res_truncated, downsamp_mask, downsamp_res, downsamp_pointing
-        integer(i4b), allocatable, dimension(:) :: pix_truncated
-        logical(lgt), allocatable, dimension(:) :: masked_indices, downsamp_masked_indices
-        integer(i4b) :: i, j, ext(2), ndet, ntod, box_halfwidth, upper_bound, padding
-      
-        character(len=256) :: chaindir
-        type(hdf_file) :: tod_file
-
-        ndet = tod%ndet
-        ntod = size(s_tot, dim=1)
-
-        ! Get box car size and make sure it has odd numbers so that we can pick out a center pixel.
-        padding = 5 ! this is hardcoded but should be a parameter for the tod_downsamp function
-        box_width = tod%samprate / tod%samprate_lowres
-        if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
-        box_halfwidth = box_width / 2
-
-        ! Make box have odd size so that we can pick out a center pixel
-        if (mod(box_halfwidth, 2) == 0) box_width = box_width + 1.
-
-        allocate(res(ntod))
-
-        do j = 1, ndet
-            ! Add zodi back to the residual and apply mask
-            res = (s_tod(:, j) - s_tot(:,j) + s_zodi(:, j))
-
-            ! Get downsampled shape (ext), and allocate the downsampled arrays
-            call tod%downsample_tod(res, ext, step=box_width)
-
-            ! Allocate these the first gibbs iter
-            allocate(downsamp_res(ext(1):ext(2)))
-            allocate(downsamp_pointing(ext(1):ext(2)))
-            allocate(downsamp_mask(ext(1):ext(2)))
-            allocate(downsamp_masked_indices(ext(1):ext(2)))
-
-            downsamp_mask = 0.
-            downsamp_res = 0.
-            downsamp_pointing = 0
-
-            ! Downsample the mask
-            call tod%downsample_tod(mask(:, j), ext, downsamp_mask, step=box_width)
-
-            ! Downsample the residual
-            call tod%downsample_tod(res, ext, downsamp_res, step=box_width)
-
-            ! Construct the downsampled pointing array (pick central pixel in each box)
-            do i = 1, int(size(res) / box_width)
-                downsamp_pointing(i) = pix((i * box_width), j, 1)
-            end do
-
-            ! Remove flagged values in the downsampled residual
-            downsamp_masked_indices = .true.
-            where (downsamp_mask < 1.) downsamp_masked_indices = .false.
-            
-            ! Find upper bound and truncate the downsampled arrays by where they were padded and
-            ! filter out the masked values. Store the result in the tod objects for use in sampling.
-            upper_bound = ubound(downsamp_res, dim=1)
-            tod%scans(scan_id)%d(j)%downsamp_res = pack(downsamp_res(padding:upper_bound-padding), downsamp_masked_indices(padding:upper_bound-padding))
-            tod%scans(scan_id)%d(j)%downsamp_pointing = pack(downsamp_pointing(padding:upper_bound-padding), downsamp_masked_indices(padding:upper_bound-padding))
-
-            deallocate(downsamp_res, downsamp_pointing, downsamp_mask, downsamp_masked_indices)
-        end do
-    end subroutine
 end module comm_tod_driver_mod
