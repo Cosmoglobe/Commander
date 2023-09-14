@@ -2870,8 +2870,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      character(len=1) :: dust_band_label
      character(len=2) :: obs_band_label
      character(len=512) :: temp_emissivity, temp_albedo, temp_phase_function
-     character(len=128), allocatable, dimension(:) :: emissivity_string, albedo_string, phase_function_string, samp_group_strings
-     character(len=128), dimension(1000) :: comp_param_labels
+     character(len=512), allocatable, dimension(:) :: emissivity_string, albedo_string, phase_function_string, samp_group_strings
+     character(len=512), dimension(1000) :: comp_param_labels
 
      len_itext=len(trim(itext)) !! FIXME
      n = cpar%numband
@@ -3026,7 +3026,10 @@ function get_param_vec_idx_from_comp_and_param(label) result(idx)
      & "T_0", "delta" &
      & ]
      idx = findloc(params, label, dim=1)
-     if (idx == 0) stop "Error: unrecognized label to 'get_param_vec_idx_from_comp_and_param'!"
+     if (idx == 0) then
+          print *, "Error: found unrecognized parameter: ", label, " when parsing zodi group paramter."
+          stop
+     end if
 end function get_param_vec_idx_from_comp_and_param
 
   ! ********************************************************

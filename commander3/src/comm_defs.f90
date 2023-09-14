@@ -32,7 +32,9 @@ module comm_defs
   real(dp)            :: T_CMB_DIP = 3359.5d-6
   real(dp)            :: v_solar(3)= [0.d0, 0.d0, 0.d0]
   real(dp)            :: EXP_OVERFLOW = 700.d0
+  real(dp)            :: SECOND_TO_DAY = 1.1574074074074073e-05
   integer(i4b)        :: zodi_nside = 64
+
   !**************************************************
   !               Counters
   !**************************************************

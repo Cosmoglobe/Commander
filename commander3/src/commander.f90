@@ -330,18 +330,8 @@ program commander
       call project_and_downsamp_sky(cpar)
       call compute_downsamp_zodi(cpar, zodi_model)
 
-      ! Sample absolute calibration factors for each zodi component
       call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
-      ! call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-      ! Sample geometric model parameters
-      ! do i = 1, n_active_geom_params
-      !    if (.not. active_params(i)) cycle ! For skipping specific parameters
-      !    call sample_zodi_parameter(cpar, handle, iter, i, zodi_model, verbose=.true.)
-
-      !    if (i == n_active_geom_params) exit 
-      !    call downsamp_zodi(cpar)
-      !    call update_residual(cpar)
-      ! end do
+      call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       call timer%stop(TOT_ZODI_SAMP)
    end if
    !---- END SAMPLE ZODI -----

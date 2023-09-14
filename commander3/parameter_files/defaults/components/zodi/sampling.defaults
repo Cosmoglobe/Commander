@@ -1,11 +1,27 @@
 # Zodi parameter groups 
 
-NUM_ZODI_SAMPLING_GROUPS = 2
+NUM_ZODI_SAMPLING_GROUPS = 6
 
 @START 01
-ZODI_SAMPLING_GROUP&&          = cloud:incl,cloud:Omega,band1:Omega
+ZODI_SAMPLING_GROUP&&          = cloud:incl,cloud:Omega
 @END 01
 
 @START 02
-ZODI_SAMPLING_GROUP&&          = band1:incl,band1:Omega,ring:y_0,delta
+ZODI_SAMPLING_GROUP&&          = band1:incl,band1:Omega
 @END 02
+
+@START 03
+ZODI_SAMPLING_GROUP&&          = band2:incl,band2:Omega
+@END 03
+
+@START 04
+ZODI_SAMPLING_GROUP&&          = band3:incl,band3:Omega
+@END 04
+
+@START 05
+ZODI_SAMPLING_GROUP&&          = ring:incl,ring:Omega
+@END 05
+
+@START 06
+ZODI_SAMPLING_GROUP&&          = feature:incl,feature:Omega
+@END 06

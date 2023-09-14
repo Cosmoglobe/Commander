@@ -13,7 +13,6 @@ module comm_tod_zodi_mod
 
     ! Constants
     real(dp) :: R_MIN = 3.d-14
-    real(dp) :: SECOND_TO_DAY = 1.1574074074074073e-05
 
     ! Shared global parameters
     type(spline_type) :: earth_pos_spl_obj(3)
@@ -123,6 +122,7 @@ contains
                 use_lowres = .false.
             else 
                 if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
+                if (.not. allocated(tod%scans(1)%downsamp_obs_time)) stop "lowres obs_time not allocated"
                 use_lowres = .true.
             end if
         else
@@ -133,7 +133,11 @@ contains
         do i = 1, n_tod
             ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
             ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
-            obs_time = obs_time + dt_tod
+            if (use_lowres) then 
+                obs_time = tod%scans(scan)%downsamp_obs_time(i)
+            else
+                obs_time = obs_time + dt_tod ! assumes a time continuous TOD
+            end if
             if ((obs_time - tod%zodi_cache_time) >= delta_t_reset) then 
                 do j = 1, 3 
                     earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)

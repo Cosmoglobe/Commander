@@ -90,6 +90,7 @@ module comm_tod_mod
      type(huffcode) :: todkey                                      ! Huffman decompression key
      integer(i4b)   :: chunk_num                                   ! Absolute number of chunk in the data files
      integer(i4b),        allocatable, dimension(:,:)   :: zext    ! Extension of compressed diode arrays
+     real(sp),            allocatable, dimension(:)     :: downsamp_obs_time ! downsampled_obs_time used for zodi sampling
      class(comm_detscan), allocatable, dimension(:)     :: d       ! Array of all detectors
   end type comm_scan
 
@@ -2935,12 +2936,7 @@ contains
 
       do i = 1, nobs_lowres
          self%ind2vec_ecl_lowres(:, i) = matmul(self%ind2vec_ecl_lowres(:, i), rotation_matrix)
-      end do
-
-      ! Allocate downsampled pointing, tod, mask, and timestreams
-      
-
-
+      end do      
 
 
    end subroutine precompute_zodi_lookups
