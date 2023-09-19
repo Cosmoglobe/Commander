@@ -319,44 +319,14 @@ program commander
         exit
      end if
 
-   !---- SAMPLE ZODI -----
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
-
-      ! For the first iteration we downsample and cache invariant structures such as the tod, pointing
-      ! and preallocate downsampled arrays to avoid many reallocations
-      if (iter == 2) call downsamp_invariant_structs(cpar)
-      
-      call project_and_downsamp_sky(cpar)
-      call compute_downsamp_zodi(cpar, zodi_model)
-
-      call sample_zodi_emissivity_and_albedo(cpar, handle, iter, zodi_model, verbose=.true.)
+      if (iter == 2) call downsamp_invariant_structs(cpar) !downsample and cache tod and pointing
+      call project_and_downsamp_sky(cpar) ! project skymodel down to downsampled pointing
+      call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
       call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       call timer%stop(TOT_ZODI_SAMP)
    end if
-   !---- END SAMPLE ZODI -----
-
-
-
-   !   ! Sample zodiacal emission parameters
-   !   if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-   !      call timer%start(TOT_ZODI_SAMP)
-   !      if (cpar%myid_chain == cpar%root) print *, "Sampling zodiacal light model"
-
-   !      ! Performs the various sub gibbs steps of the zodi sampling
-   !      call sample_zodi(cpar, handle)
-   !      ! Update zodi model
-   !      base_zodi_model = sampled_zodi_model
-   !      call timer%stop(TOT_ZODI_SAMP)
-
-   !      ! Reset zodi related quantities for next gibbs sample
-   !      do i = 1, numband
-   !        if (data(i)%tod_type == 'none') cycle
-   !        if (.not. data(i)%tod%subtract_zodi) cycle
-   !        call data(i)%tod%deallocate_downsampled_zodi()
-   !        call data(i)%tod%clear_zodi_cache()
-   !      end do
-   !   end if
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then

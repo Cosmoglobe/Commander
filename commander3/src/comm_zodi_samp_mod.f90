@@ -10,13 +10,11 @@ module comm_zodi_samp_mod
     implicit none
 
     private
-    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_emissivity_and_albedo, active_params, n_active_geom_params, sample_zodi_group
-    ! public initialize_zodi_samp_mod, sample_zodi_emissivity_and_albedo, sample_zodi_parameter, downsamp_invariant_structs, project_and_downsamp_sky, cleanup_zodi, active_params, n_active_geom_params
+    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_emissivity_and_albedo, active_params, n_active_geom_params, sample_zodi_group, sample_linear_zodi
 
-    ! globals
-    real(dp), allocatable :: chisq_previous, step_size, priors(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:)
+    real(dp), allocatable :: chisq_previous, step_size, priors(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:)
     logical(lgt), allocatable :: active_params(:)
-    integer(i4b) :: n_samp_bands, n_active_params, n_active_geom_params, cloud_start, cloud_stop, band1_start, band1_stop, band2_start, band2_stop, band3_start, band3_stop, ring_start, ring_stop, feature_start, feature_stop, emissivity_start, emissivity_stop, albedo_start, albedo_stop, fixed_emissivity_band
+    integer(i4b) :: n_samp_bands, n_active_params, n_active_geom_params, cloud_start, cloud_stop, band1_start, band1_stop, band2_start, band2_stop, band3_start, band3_stop, ring_start, ring_stop, feature_start, feature_stop, emissivity_start, emissivity_stop, albedo_start, albedo_stop, reference_emissivity_band
     real(dp) :: NO_PRIOR = HUGE(1.0_dp)
     real(dp), dimension(2) :: emissivity_prior, albedo_prior
 
@@ -44,17 +42,27 @@ contains
 
         allocate(step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
         allocate(step_sizes_emissivity(n_samp_bands, zodi_model%n_comps))
+        allocate(step_sizes_n0(zodi_model%n_comps))
         j = 0
+
+        reference_emissivity_band = -1
         do i = 1, numband
             if (data(i)%tod_type == 'none') cycle
             if (.not. data(i)%tod%subtract_zodi) cycle
             j = j + 1
             step_sizes_albedo(j, :) = 0.1 * data(i)%tod%zodi_albedo
             step_sizes_emissivity(j, :) = 0.1 * data(i)%tod%zodi_emissivity
+
+            if (data(i)%tod%freq == "06") then
+                reference_emissivity_band = i
+            end if
+        end do
+        if (reference_emissivity_band == -1) stop "Could not find reference band for zodi emissivity sampling!"
+
+        do i = 1, zodi_model%n_comps
+            step_sizes_n0(i) = 0.1 * zodi_model%comps(i)%c%n_0
         end do
 
-        ! fix emissivities for band 6 (reference emissivity of 1.0)
-        fixed_emissivity_band = 6
                 
         allocate(priors(zodi_model%n_parameters, 2))
         priors(:, :) = NO_PRIOR
@@ -68,218 +76,6 @@ contains
 
     end subroutine initialize_zodi_samp_mod
 
-    ! subroutine initialize_zodi_samp_mod_old(cpar)
-    !     ! Initialize the zodi sampling module.
-    !     !
-    !     ! Parameters
-    !     ! ----------
-    !     ! cpar: comm_params
-    !     !    Parameter file variables.
-
-    !     type(comm_params), intent(in) :: cpar
-    !     integer(i4b) :: i, j, n_spec_params
-    !     real(dp), allocatable :: param_vec(:)
-
-    !     chisq_previous = 1d20
-    !     step_size = 0.01
-
-    !     allocate(priors(zodi_model%n_parameters, 2))
-    !     allocate(active_params(zodi_model%n_parameters))
-    !     allocate(param_vec(zodi_model%n_parameters))
-    !     param_vec = zodi_model%model_to_param_vec()
-
-    !     allocate(step_sizes(size(param_vec)))
-    !     step_sizes = 0.1 * param_vec
-
-    !     n_spec_params = zodi_model%n_bands * zodi_model%n_comps
-
-
-    !     ! Set active parameters (Those we want to fit)
-    !     ! Cloud
-    !     active_params(1) = .false. !n_0
-    !     active_params(2) = .true. !incl
-    !     active_params(3) = .true. !omega
-    !     active_params(4) = .false. !x_0
-    !     active_params(5) = .false. !y_0
-    !     active_params(6) = .false. !z_0
-    !     active_params(7) = .false. !alpha
-    !     active_params(8) = .false. !beta
-    !     active_params(9) = .false. !gamma
-    !     active_params(10) = .false. !mu
-    !     cloud_start = 1 ; cloud_stop = 10
-
-    !     ! Band1
-    !     active_params(11) = .false. !n_0
-    !     active_params(12) = .false. !incl
-    !     active_params(13) = .false. !omega
-    !     active_params(14) = .false. !x_0
-    !     active_params(15) = .false. !y_0
-    !     active_params(16) = .false. !z_0
-    !     active_params(17) = .false. !delta_zeta
-    !     active_params(18) = .false. !delta_r
-    !     active_params(19) = .false. !v
-    !     active_params(20) = .false. !p
-    !     band1_start = 11 ; band1_stop = 20
-
-    !     ! Band2
-    !     active_params(21) = .false. !n_0
-    !     active_params(22) = .false. !incl
-    !     active_params(23) = .false. !omega
-    !     active_params(24) = .false. !x_0
-    !     active_params(25) = .false. !y_0
-    !     active_params(26) = .false. !z_0
-    !     active_params(27) = .false. !delta_zeta
-    !     active_params(28) = .false. !delta_r
-    !     active_params(29) = .false. !v
-    !     active_params(30) = .false. !p
-    !     band2_start = 21 ; band2_stop = 30
-
-    !     ! Band3
-    !     active_params(31) = .false. !n_0
-    !     active_params(32) = .false. !incl
-    !     active_params(33) = .false. !omega
-    !     active_params(34) = .false. !x_0
-    !     active_params(35) = .false. !y_0
-    !     active_params(36) = .false. !z_0
-    !     active_params(37) = .false. !delta_zeta
-    !     active_params(38) = .false. !delta_r
-    !     active_params(39) = .false. !v
-    !     active_params(40) = .false. !p
-    !     band3_start = 31 ; band3_stop = 40
-
-    !     ! Ring
-    !     active_params(41) = .false. !n_0
-    !     active_params(42) = .false. !incl
-    !     active_params(43) = .false. !omega
-    !     active_params(44) = .false. !x_0
-    !     active_params(45) = .false. !y_0
-    !     active_params(46) = .false. !z_0
-    !     active_params(47) = .false. !R_0
-    !     active_params(48) = .false. !sigma_r
-    !     active_params(49) = .false. !sigma_z
-    !     ring_start = 41 ; ring_stop = 49
-
-    !     ! Feature
-    !     active_params(50) = .false. !n_0
-    !     active_params(51) = .false. !incl
-    !     active_params(52) = .false. !omega
-    !     active_params(53) = .false. !x_0
-    !     active_params(54) = .false. !y_0
-    !     active_params(55) = .false. !z_0
-    !     active_params(56) = .false. !R_0
-    !     active_params(57) = .false. !sigma_r
-    !     active_params(58) = .false. !sigma_z
-    !     active_params(59) = .false. !theta_0
-    !     active_params(60) = .false. !sigma_theta
-    !     feature_start = 50 ; feature_stop = 60
-
-    !     ! Other
-    !     active_params(61) = .false. !T_0
-    !     active_params(62) = .false. !delta
-        
-    !     n_active_geom_params = count(active_params == .true.)
-
-    !     ! Deactivate emissivities for band 6 (reference emissivity of 1.0)
-    !     do i = 1, zodi_model%n_comps
-    !         active_params(get_emissivity_idx(i, 6, zodi_model%n_bands, zodi_model%n_comps)) = .false.
-    !     end do
-
-    !     n_active_params = count(active_params == .true.)
-
-    !     ! Priors for zodi parameters
-    !     ! Cloud
-    !     priors(1, :) = [1.13d-8, 1.13d-6] !n_0
-    !     priors(2, :) = NO_PRIOR !incl
-    !     priors(3, :) = NO_PRIOR !omega
-    !     priors(4, :) = [-0.25, 0.25] !x_0
-    !     priors(5, :) = [-0.25, 0.25] !y_0
-    !     priors(6, :) = [-0.25, 0.25] !z_0
-    !     priors(7, :) = NO_PRIOR !alpha
-    !     priors(8, :) = NO_PRIOR !beta
-    !     priors(9, :) = NO_PRIOR !gamma
-    !     priors(10, :) = NO_PRIOR !mu
-
-    !     ! Band1
-    !     priors(11, :) = [5.59d-12, 5.59d-8] !n_0
-    !     priors(12, :) = NO_PRIOR !incl
-    !     priors(13, :) = NO_PRIOR !omega
-    !     priors(14, :) = [-0.25, 0.25] !x_0
-    !     priors(15, :) = [-0.25, 0.25] !y_0
-    !     priors(16, :) = [-0.25, 0.25] !z_0
-    !     priors(17, :) = NO_PRIOR !delta_zeta
-    !     priors(18, :) = [0.5, 6.] !delta_r
-    !     priors(19, :) = NO_PRIOR !v
-    !     priors(20, :) = NO_PRIOR !p
-
-    !     ! Band2
-    !     priors(21, :) = [1.99d-11, 1.99d-7] !n_0
-    !     priors(22, :) = NO_PRIOR !incl
-    !     priors(23, :) = NO_PRIOR !omega
-    !     priors(24, :) = [-0.25, 0.25] !x_0
-    !     priors(25, :) = [-0.25, 0.25] !y_0
-    !     priors(26, :) = [-0.25, 0.25] !z_0
-    !     priors(27, :) = NO_PRIOR !delta_zeta
-    !     priors(28, :) = [0.5, 6.] !delta_r
-    !     priors(29, :) = NO_PRIOR !v
-    !     priors(30, :) = NO_PRIOR !p
-
-    !     ! Band3
-    !     priors(31, :) = [1.44d-12, 1.44d-8] !n_0
-    !     priors(32, :) = NO_PRIOR !incl
-    !     priors(33, :) = NO_PRIOR !omega
-    !     priors(34, :) = [-0.25, 0.25] !x_0
-    !     priors(35, :) = [-0.25, 0.25] !y_0
-    !     priors(36, :) = [-0.25, 0.25] !z_0
-    !     priors(37, :) = NO_PRIOR !delta_zeta
-    !     priors(38, :) = [0., 6.] !delta_r
-    !     priors(39, :) = NO_PRIOR !v
-    !     priors(40, :) = NO_PRIOR !p
-
-    !     ! Ring
-    !     priors(41, :) = [1.83d-10, 1.83d-6] !n_0
-    !     priors(42, :) = NO_PRIOR !incl
-    !     priors(43, :) = NO_PRIOR !omega
-    !     priors(44, :) = [-0.25, 0.25] !x_0
-    !     priors(45, :) = [-0.25, 0.25] !y_0
-    !     priors(46, :) = [-0.25, 0.25] !z_0
-    !     priors(47, :) = [0.5, 2.] !R_0
-    !     priors(48, :) = NO_PRIOR !sigma_r
-    !     priors(49, :) = NO_PRIOR !sigma_z
-
-    !     ! Feature
-    !     priors(50, :) = [1.9d-10, 1.9d-6] !n_0
-    !     priors(51, :) = NO_PRIOR !incl
-    !     priors(52, :) = NO_PRIOR !omega
-    !     priors(53, :) = [-0.25, 0.25] !x_0
-    !     priors(54, :) = [-0.25, 0.25] !y_0
-    !     priors(55, :) = [-0.25, 0.25] !z_0
-    !     priors(56, :) = [0.5, 2.] !R_0
-    !     priors(57, :) = NO_PRIOR !sigma_r
-    !     priors(58, :) = NO_PRIOR !sigma_z
-    !     priors(59, :) = NO_PRIOR !theta_0
-    !     priors(60, :) = NO_PRIOR !sigma_theta
-
-    !     ! Other
-    !     priors(61, :) = [200., 400.] !T_0
-    !     priors(62, :) = [0.1, 1.] !delta
-
-
-    !     do i = 1, numband
-    !         if (data(i)%tod_type == 'none') cycle
-    !         if (.not. data(i)%tod%subtract_zodi) cycle
-            
-    !     end do
-    !     ! Emissivity
-    !     priors(emissivity_start:emissivity_stop, 1) = 0.
-    !     priors(emissivity_start:emissivity_stop, 2) = 5.
-
-    !     ! Albedo
-    !     priors(albedo_start:albedo_stop, 1) = 0.
-    !     priors(albedo_start:albedo_stop, 2) = 1.
-
-
-    ! end subroutine initialize_zodi_samp_mod_old
-
     function get_boxwidth(samprate_lowres, samprate) result(box_width)
         ! Returns the boxcar width for downsampling the zodi tods
         real(dp), intent(in) :: samprate_lowres, samprate
@@ -291,44 +87,6 @@ contains
         if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
         if (mod(int(box_width), 2) == 0) box_width = box_width + 1.
     end function
-
-    function get_emissivity_idx(comp_idx, band, n_bands, n_comps) result(idx)
-        ! Returns the index of the emissivity for a given component and band
-        integer(i4b), intent(in) :: comp_idx, band, n_bands, n_comps
-        integer(i4b) :: idx
-        idx = 62 + (band - 1) * n_comps + comp_idx
-    end function get_emissivity_idx
-
-    function get_albedo_idx(comp_idx, band, n_bands, n_comps) result(idx)
-        ! Returns the index of the albedo for a given component and band
-        integer(i4b), intent(in) :: comp_idx, band, n_bands, n_comps
-        integer(i4b) :: idx
-        idx = 62 + (n_comps * n_bands) + (band - 1) * n_comps + comp_idx
-    end function get_albedo_idx
-
-    function get_comp_from_param_idx(param_idx) result(comp)
-        ! Returns the component index for a given parameter index
-        integer(i4b), intent(in) :: param_idx
-
-        integer(i4b) :: comp
-
-        if (cloud_start <= param_idx <= cloud_stop) then 
-            comp = 1
-        else if (band1_start <= param_idx <= band1_stop) then
-            comp = 2
-        else if (band2_start <= param_idx <= band2_stop) then
-            comp = 3
-        else if (band3_start <= param_idx <= band3_stop) then
-            comp = 4
-        else if (ring_start <= param_idx <= ring_stop) then
-            comp = 5
-        else if (feature_start <= param_idx <= feature_stop) then
-            comp = 6
-        else
-            comp = 0
-        end if
-
-    end function get_comp_from_param_idx
 
     function get_powell_vec(param_vec) result(powell_vec)
         real(dp), allocatable :: param_vec(:)
@@ -454,7 +212,7 @@ contains
 
     ! end function lnL_zodi
 
-    subroutine sample_zodi_emissivity_and_albedo(cpar, handle, gibbs_iter, model, verbose)
+    subroutine sample_linear_zodi(cpar, handle, gibbs_iter, model, verbose)
         type(comm_params), intent(in) :: cpar
         type(planck_rng), intent(inout) :: handle
         integer(i4b), intent(in) :: gibbs_iter
@@ -464,8 +222,8 @@ contains
         integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted
         integer(i4b) :: albedo_idx, emissivity_idx
         real(sp), allocatable :: s_zodi_scan(:)
-        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL
-        real(dp), allocatable :: param_vec(:), powell_vec(:), emissivity_new(:, :), albedo_new(:, :), emissivity_prev(:, :), albedo_prev(:, :)
+        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
+        real(dp), allocatable :: param_vec(:), powell_vec(:), emissivity_new(:, :), albedo_new(:, :), emissivity_prev(:, :), albedo_prev(:, :), n0_new(:), n0_prev(:), n0_initial(:)
         logical(lgt) :: accepted, verbose_, tuning, skip
         type(hdf_file) :: tod_file
 
@@ -474,21 +232,126 @@ contains
         else
             verbose_ = .false.
         end if
-
-
         if (verbose_ .and. (cpar%myid == cpar%root)) print *, "sampling emissivities and albeods"
 
+        tuning = gibbs_iter <= 25
+
+        ! Update the cached downsampled zodi with the new model
+        call compute_downsamp_zodi(cpar, model)
+
+        ! Start by sampling n_0 at reference band
+        allocate(n0_new(model%n_comps))
+        allocate(n0_prev(model%n_comps))
+        allocate(n0_initial(model%n_comps))
+
+        nprop = 100
+
+        do j = 1, model%n_comps
+            n0_initial(j) = model%comps(j)%c%n_0
+        end do
+        n0_new = n0_initial
+        n0_prev = n0_new
+
+        n_accepted = 0
+        accept_rate = 0.
+
+        do k = 0, nprop
+            skip = .false.
+            chisq_tod = 0.
+            chisq_current = 0.
+
+            if (k > 0) then
+                if (cpar%myid == cpar%root) then
+                    do j = 1, model%n_comps
+                        n0_new(j) = n0_new(j) + (step_sizes_n0(j) * rand_gauss(handle))
+                    end do
+                end if
+                call mpi_bcast(n0_new, size(n0_new), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+            end if
+            do i = 1, numband
+                if (data(i)%tod_type == "none") cycle
+                if (.not. data(i)%tod%sample_zodi) cycle
+
+                if (chisq_tod >= 1.d30) exit                
+
+                ndet = data(i)%tod%ndet
+                nscan = data(i)%tod%nscan
+
+                box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+                
+                ! Update current_model with new parameters
+                do scan = 1, nscan
+                    do j = 1, ndet
+                        if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+
+                        ! Evaluate zodi model with newly proposed values for each band and calculate chisq
+                        call get_s_zodi_with_n0(&
+                            & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+                            & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
+                            & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
+                            & emissivity=data(i)%tod%zodi_emissivity, &
+                            & albedo=data(i)%tod%zodi_albedo, &
+                            & n_ratio=n0_new / n0_initial &
+                        &)
+                        chisq_tod = chisq_tod + sum( &
+                        & (  (data(i)%tod%scans(scan)%d(j)%downsamp_tod &
+                        &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
+                        &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
+                        & ) / (data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
+                        &)
+
+                    end do
+                end do
+            end do
+            ! Reduce chisq to root process
+            call mpi_reduce(chisq_tod, chisq_current, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+
+            ! Use chisq from the first iteration where we dont draw new parameters as the base chisq
+            if (k == 0) chisq_previous = chisq_current
+
+            if (k > 0) then
+                ! Root checks if the new proposal is accepted
+                if (cpar%myid == cpar%root) then
+                    chisq_diff = max(chisq_current - chisq_previous, 0.)
+                    ln_acceptance_probability = -0.5 * chisq_diff
+                    accepted = ln_acceptance_probability > log(rand_uni(handle))
+                    if (accepted) print *, chisq_current
+                end if
+
+                call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
+                ! Update model if proposal is accepted
+                if (accepted) then
+                    n_accepted = n_accepted + 1
+                    chisq_previous = chisq_current
+                    n0_prev = n0_new
+                else
+                    n0_new = n0_prev
+                end if
+                accept_rate = real(n_accepted) / real(k)
+            end if
+        end do 
+        if (accept_rate < 0.1) then
+            step_sizes_n0 = step_sizes_n0 / 2.
+        else if (accept_rate > 0.4) then 
+            step_sizes_n0 = step_sizes_n0 * 2.
+        end if
+
+        ! report accept rate and update model parameters with last accepted proposal values
+        if (verbose_ .and. (cpar%myid == cpar%root)) print *, "n0 accept rate:", (real(n_accepted) / real(nprop))*100, n_accepted, nprop
+        ! call mpi_barrier(cpar%comm_chain, ierr)
+        do j = 1, model%n_comps
+            model%comps(j)%c%n_0 = n0_new(j)
+        end do
+
+        
+        ! Sample emissivity and albedo
         allocate(emissivity_new(n_samp_bands, model%n_comps))
         allocate(albedo_new(n_samp_bands, model%n_comps))
         allocate(emissivity_prev(n_samp_bands, model%n_comps))
         allocate(albedo_prev(n_samp_bands, model%n_comps))
 
-        ! Metropolis-Hastings for nproposals of new sets of zodi parameters
-        nprop = 200
-        ! nprop = cpar%zs_nprop
-
-        ! Make two copies of the zodi model, one for the current proposal and one for the previous proposal
-        tuning = gibbs_iter <= 25
+        accept_rate = 0
+        n_accepted = 0
         do i = 1, numband
             if (data(i)%tod_type == "none") cycle
             if (.not. data(i)%tod%sample_zodi) cycle
@@ -497,6 +360,8 @@ contains
             ndet = data(i)%tod%ndet
             nscan = data(i)%tod%nscan
 
+            box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+            
             emissivity_new(i, :) = data(i)%tod%zodi_emissivity
             albedo_new(i, :) = data(i)%tod%zodi_albedo
             emissivity_prev = emissivity_new
@@ -513,7 +378,11 @@ contains
                     ! Root process draws new set of zodi parameters and broadcasts to all processes
                     if (cpar%myid == cpar%root) then
                         sample_loop: do j = 1, model%n_comps
-                            if (.not. data(i)%tod%band == fixed_emissivity_band) emissivity_new(i, j) = emissivity_new(i, j) + (step_sizes_emissivity(i, j) * rand_gauss(handle)) 
+                            if (i == reference_emissivity_band) then
+                                emissivity_new(i, j) = 1.
+                            else 
+                                emissivity_new(i, j) = emissivity_new(i, j) + (step_sizes_emissivity(i, j) * rand_gauss(handle)) 
+                            end if
                             if (emissivity_new(i, j) < emissivity_prior(1) .or. emissivity_new(i, j) > emissivity_prior(2)) then 
                                 if (tuning) step_sizes_emissivity(i, j) = step_sizes_emissivity(i, j) / 2.
                                 chisq_tod = 1.d30
@@ -541,18 +410,19 @@ contains
                             if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
                             ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-                            call get_s_zodi(&
+                            call get_s_zodi_with_n0(&
                                 & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                                 & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
                                 & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
                                 & emissivity=emissivity_new(i, :), &
-                                & albedo=albedo_new(i, :) &
+                                & albedo=albedo_new(i, :), &
+                                & n_ratio=n0_new / n0_initial &
                             &)
                             chisq_tod = chisq_tod + sum( &
                                & (  (data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                                &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
                                &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                               & ) / data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2 &
+                               & ) / (data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                             &)
                             ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
                             if (chisq_tod >= 1.d30) exit scan_loop
@@ -590,7 +460,7 @@ contains
             if (accept_rate < 0.1) then
                 step_sizes_emissivity(i, :) = step_sizes_emissivity(i, :) / 2.
                 step_sizes_albedo(i, :) = step_sizes_albedo(i, :) / 2.
-            else if (accept_rate > 0.6) then 
+            else if (accept_rate > 0.4) then 
                 step_sizes_emissivity(i, :) = step_sizes_emissivity(i, :) * 2.
                 step_sizes_albedo(i, :) = step_sizes_albedo(i, :) * 2.
             end if
@@ -610,7 +480,7 @@ contains
         logical(lgt), intent(in), optional :: verbose
 
         integer(i4b) :: i, j, k, prop, group_idx, flag, ndet, nscan, ntod, n_proposals, scan, ierr, n_accepted, param_idx
-        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL
+        real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
         real(dp), allocatable :: param_vec(:)
         integer(i4b), allocatable :: group_indices(:)
         type(ZodiModel) :: current_model, previous_model
@@ -624,19 +494,19 @@ contains
         end if
         if (verbose_ .and. (cpar%myid == cpar%root)) print *, "sampling interplanetary dust parameters"
 
-    !     ! Make two copies of the zodi model, one for the current proposal and one for the previous proposal
         current_model = model
         previous_model = model
 
         tuning = gibbs_iter <= 25
-        n_accepted = 0
         n_proposals = 25
+
         ! sample all parameters in a group jointly
         do group_idx = 1, cpar%zs_num_samp_groups
+            if (cpar%myid == cpar%root) print *, "sampling zodi group: ", group_idx, " of ", cpar%zs_num_samp_groups
+
             group_indices = pack(cpar%zs_samp_groups(group_idx, :), cpar%zs_samp_groups(group_idx, :) > 0)
 
-            if (cpar%myid == cpar%root) print *, "sampling zodi group: ", group_idx, " of ", cpar%zs_num_samp_groups
-            ! n proposals per group
+            n_accepted = 0
             do prop = 0, n_proposals
                 ! if propsed parameter is outside of priors we dont want to immediately reject
                 skip = .false.
@@ -644,9 +514,9 @@ contains
                 ! Reset chisq for current proposal
                 chisq_tod = 0.
                 chisq_current = 0.
+
                 ! If first iteration we dont want to draw, just compute the chisq with the base model
                 if (prop > 0) then
-
                     param_vec = current_model%model_to_param_vec()
                     ! Root process draws new set of zodi parameters and broadcasts to all processes
                     if (cpar%myid == cpar%root) then
@@ -661,12 +531,11 @@ contains
                         end do
                     end if
                     call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-                    ! Update current_model with new parameters
                     call current_model%param_vec_to_model(param_vec)
                 end if
-                ! loop over downsampled residuals for each tod band with zodi
+
                 do i = 1, numband
-                    if (skip) exit ! prior was violated, skip rest of evaluation
+                    if (skip) exit ! drop evaluation if prior is violated
                     if (data(i)%tod_type == "none") cycle
                     if (.not. data(i)%tod%sample_zodi) cycle
 
@@ -675,7 +544,9 @@ contains
 
                     ndet = data(i)%tod%ndet
                     nscan = data(i)%tod%nscan
-                    
+
+                    box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+
                     ! Make sure that the zodi cache is cleared before each new band
                     call data(i)%tod%clear_zodi_cache()
 
@@ -684,7 +555,6 @@ contains
                         ! Skip scan if no accepted data
                         do j = 1, ndet
                             if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-                            ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
 
                             call get_zodi_emission(&
                                 & tod=data(i)%tod, &
@@ -709,7 +579,7 @@ contains
                                & (  (data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                                &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
                                &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                               & ) / data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2 &
+                               & ) / (data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                             &)
                         end do
                     end do
@@ -821,7 +691,6 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do scan = 1, data(i)%tod%nscan
                 if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
-
                 ntod = data(i)%tod%scans(scan)%ntod
                 ! Allocate temporary variables to be downsampled
                 allocate(pix(ntod, nhorn))
@@ -840,15 +709,13 @@ contains
                 allocate(downsamp_mask_idx(ext(1):ext(2)))
 
                 ! downsample obs_time
-                if (i == 1) then
-                    allocate(obs_time(ntod))
-                    dt_tod = (1./data(i)%tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-                    do k = 1, ntod
-                        obs_time(k) = data(i)%tod%scans(scan)%t0(1) + (k - 1) * dt_tod
-                    end do
-                    allocate(downsamp_obs_time(ext(1):ext(2)))
-                    call data(i)%tod%downsample_tod(obs_time, ext, downsamp_obs_time, step=box_width)
-                end if
+                allocate(obs_time(ntod))
+                dt_tod = (1./data(i)%tod%samprate) * SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+                do k = 1, ntod
+                    obs_time(k) = data(i)%tod%scans(scan)%t0(1) + (k - 1) * dt_tod
+                end do
+                allocate(downsamp_obs_time(ext(1):ext(2)))
+                call data(i)%tod%downsample_tod(obs_time, ext, downsamp_obs_time, step=box_width)
 
                 do j = 1, data(i)%tod%ndet
                     pix = 0.
@@ -896,7 +763,7 @@ contains
                     
                     data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(downsamp_pix(padding:upper_bound-padding), downsamp_mask_idx(padding:upper_bound-padding))
                     data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(downsamp_tod(padding:upper_bound-padding), downsamp_mask_idx(padding:upper_bound-padding))
-                    if (i == 1 .and. j == 1) then
+                    if (j == 1) then
                         data(i)%tod%scans(scan)%downsamp_obs_time = pack(downsamp_obs_time(padding:upper_bound-padding), downsamp_mask_idx(padding:upper_bound-padding))
                     end if
 
@@ -907,7 +774,7 @@ contains
                     allocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
                     allocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
                 deallocate(pix, psi, flag, tod, mask, downsamp_tod, downsamp_mask, downsamp_pix, downsamp_mask_idx)
-                if (i == 1) deallocate(obs_time, downsamp_obs_time)
+                deallocate(obs_time, downsamp_obs_time)
                 end do
             end do
 
@@ -991,4 +858,17 @@ contains
             end do
         end do
     end subroutine
+
+    subroutine get_s_zodi_with_n0(s_therm, s_scat, s_zodi, emissivity, albedo, n_ratio)
+        real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
+        real(sp), dimension(:), intent(inout) :: s_zodi
+        real(dp), dimension(:), intent(in) :: emissivity, albedo, n_ratio
+        integer(i4b) :: i, n_comps
+
+        n_comps = size(emissivity)
+        s_zodi = 0.
+        do i = 1, n_comps
+            s_zodi = s_zodi + (s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)) * n_ratio(i)
+        end do
+    end subroutine get_s_zodi_with_n0
 end module

@@ -122,7 +122,10 @@ contains
                 use_lowres = .false.
             else 
                 if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
-                if (.not. allocated(tod%scans(1)%downsamp_obs_time)) stop "lowres obs_time not allocated"
+                if (.not. allocated(tod%scans(scan)%downsamp_obs_time)) then 
+                    print *, tod%band, scan, "lowres obs_time not allocated"
+                    stop
+                end if
                 use_lowres = .true.
             end if
         else

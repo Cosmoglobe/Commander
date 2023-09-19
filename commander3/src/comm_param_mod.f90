@@ -2993,18 +2993,20 @@ subroutine read_zodi_params_hash(htbl, cpar)
           end if
      end do
 
-    call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
-    allocate(samp_group_strings(cpar%zs_num_samp_groups))
-    allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups, 10))
-    cpar%zs_samp_groups = -1
-    do i = 1, cpar%zs_num_samp_groups
-       call int2string(i, itext2)
-       call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=samp_group_strings(i))
-       call get_tokens(samp_group_strings(i), ',', comp_param_labels, num_comp_params) 
-       do j = 1, num_comp_params
-            cpar%zs_samp_groups(i, j) = get_param_vec_idx_from_comp_and_param(comp_param_labels(j))
-       end do
-    end do
+     if (cpar%sample_zodi) then
+          call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
+          allocate(samp_group_strings(cpar%zs_num_samp_groups))
+          allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups, 10))
+          cpar%zs_samp_groups = -1
+          do i = 1, cpar%zs_num_samp_groups
+               call int2string(i, itext2)
+               call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=samp_group_strings(i))
+               call get_tokens(samp_group_strings(i), ',', comp_param_labels, num_comp_params) 
+               do j = 1, num_comp_params
+                    cpar%zs_samp_groups(i, j) = get_param_vec_idx_from_comp_and_param(comp_param_labels(j))
+               end do
+          end do
+     end if
 
 end subroutine read_zodi_params_hash
 
