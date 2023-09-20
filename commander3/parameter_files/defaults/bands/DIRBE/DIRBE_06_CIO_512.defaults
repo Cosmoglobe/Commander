@@ -62,6 +62,6 @@ BAND_TOD_ABSCAL_COMP&&&        = full
 N_GIBBS_PER_TOD&&&             = 1
 
 BAND_TOD_ZODI_SUBTRACTION&&&   = .true. 
-BAND_TOD_ZODI_MASK&&&          = zodi_proc_mask_06_n512.fits
+BAND_TOD_ZODI_MASK&&&          = zodi_proc_mask_06_n512_v2.fits
 BAND_TOD_ZODI_EMISSIVITY&&&    = 1.d0,1.d0,1.d0,1.d0,1.d0,1.d0
 BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0

@@ -10,11 +10,10 @@ module comm_zodi_samp_mod
     implicit none
 
     private
-    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_emissivity_and_albedo, active_params, n_active_geom_params, sample_zodi_group, sample_linear_zodi
+    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi
 
     real(dp), allocatable :: chisq_previous, step_size, priors(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:)
-    logical(lgt), allocatable :: active_params(:)
-    integer(i4b) :: n_samp_bands, n_active_params, n_active_geom_params, cloud_start, cloud_stop, band1_start, band1_stop, band2_start, band2_stop, band3_start, band3_stop, ring_start, ring_stop, feature_start, feature_stop, emissivity_start, emissivity_stop, albedo_start, albedo_stop, reference_emissivity_band
+    integer(i4b) :: n_samp_bands, reference_emissivity_band
     real(dp) :: NO_PRIOR = HUGE(1.0_dp)
     real(dp), dimension(2) :: emissivity_prior, albedo_prior
 
@@ -60,7 +59,7 @@ contains
         if (reference_emissivity_band == -1) stop "Could not find reference band for zodi emissivity sampling!"
 
         do i = 1, zodi_model%n_comps
-            step_sizes_n0(i) = 0.1 * zodi_model%comps(i)%c%n_0
+            step_sizes_n0(i) = 0.05 * zodi_model%comps(i)%c%n_0
         end do
 
                 
@@ -88,24 +87,24 @@ contains
         if (mod(int(box_width), 2) == 0) box_width = box_width + 1.
     end function
 
-    function get_powell_vec(param_vec) result(powell_vec)
-        real(dp), allocatable :: param_vec(:)
-        real(dp), allocatable :: powell_vec(:)
-        powell_vec = pack(param_vec, active_params == .true.)
-    end function get_powell_vec
+    ! function get_powell_vec(param_vec) result(powell_vec)
+    !     real(dp), allocatable :: param_vec(:)
+    !     real(dp), allocatable :: powell_vec(:)
+    !     powell_vec = pack(param_vec, active_params == .true.)
+    ! end function get_powell_vec
 
-    subroutine update_param_vec_from_powell_vec(param_vec, powell_vec)
-        real(dp), intent(inout) :: param_vec(:)
-        real(dp), intent(in) :: powell_vec(:)
-        integer :: i, j
-        j = 1
-        do i = 1, size(param_vec)
-            if (active_params(i) == .true.) then
-                param_vec(i) = powell_vec(j)
-                j = j + 1
-            end if
-        end do
-    end subroutine update_param_vec_from_powell_vec
+    ! subroutine update_param_vec_from_powell_vec(param_vec, powell_vec)
+    !     real(dp), intent(inout) :: param_vec(:)
+    !     real(dp), intent(in) :: powell_vec(:)
+    !     integer :: i, j
+    !     j = 1
+    !     do i = 1, size(param_vec)
+    !         if (active_params(i) == .true.) then
+    !             param_vec(i) = powell_vec(j)
+    !             j = j + 1
+    !         end if
+    !     end do
+    ! end subroutine update_param_vec_from_powell_vec
 
 
     ! function lnL_zodi(p)
@@ -234,6 +233,7 @@ contains
         end if
         if (verbose_ .and. (cpar%myid == cpar%root)) print *, "sampling emissivities and albeods"
 
+        nprop = 250
         tuning = gibbs_iter <= 25
 
         ! Update the cached downsampled zodi with the new model
@@ -244,7 +244,6 @@ contains
         allocate(n0_prev(model%n_comps))
         allocate(n0_initial(model%n_comps))
 
-        nprop = 100
 
         do j = 1, model%n_comps
             n0_initial(j) = model%comps(j)%c%n_0
@@ -335,10 +334,9 @@ contains
         else if (accept_rate > 0.4) then 
             step_sizes_n0 = step_sizes_n0 * 2.
         end if
-
-        ! report accept rate and update model parameters with last accepted proposal values
-        if (verbose_ .and. (cpar%myid == cpar%root)) print *, "n0 accept rate:", (real(n_accepted) / real(nprop))*100, n_accepted, nprop
-        ! call mpi_barrier(cpar%comm_chain, ierr)
+        if (verbose_ .and. (cpar%myid == cpar%root)) print *, "n0 accept rate:", (real(n_accepted) / real(nprop))*100
+        
+        ! Update model with new n_0 values
         do j = 1, model%n_comps
             model%comps(j)%c%n_0 = n0_new(j)
         end do
@@ -373,9 +371,7 @@ contains
                 chisq_tod = 0.
                 chisq_current = 0.
 
-                ! TODO: code in sampling of tod parameters emissivity and albedo
                 if (k > 0) then
-                    ! Root process draws new set of zodi parameters and broadcasts to all processes
                     if (cpar%myid == cpar%root) then
                         sample_loop: do j = 1, model%n_comps
                             if (i == reference_emissivity_band) then
