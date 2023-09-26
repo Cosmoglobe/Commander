@@ -83,13 +83,13 @@ module comm_zodi_mod
       integer(i4b) :: n_comps, n_params, n_common_params
       real(dp) :: T_0, delta
       class(ZodiComponentContainer), allocatable :: comps(:)
-      character(len=32), allocatable :: comp_labels(:)
+      character(len=128), allocatable :: comp_labels(:)
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0]
       real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
    contains
-      procedure :: init_comps, params_to_model, model_to_params, model_to_chain, model_from_chain
+      procedure :: init_comps, params_to_model, model_to_params, model_to_chain, model_from_chain, model_to_ascii, ascii_to_model
    end type ZodiModel
 
    ! Global zodi parameter object
@@ -108,7 +108,7 @@ contains
       integer(i4b) :: i, ierr
       character(len=256) :: file_path
       real(dp), allocatable :: param_vec(:)
-      character(len=32), allocatable :: comp_labels(:)
+      character(len=128), allocatable :: comp_labels(:)
 
       zodi_model%n_comps = cpar%zs_ncomps
       allocate (zodi_model%comp_labels(zodi_model%n_comps))
@@ -141,6 +141,8 @@ contains
             zodi_model%n_params = zodi_model%n_params + size(cpar%zodi_param_labels%feature)
          end select
       end do
+      call zodi_model%model_to_ascii(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
+      stop
    end subroutine initialize_zodi_mod
 
    subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
@@ -419,11 +421,13 @@ contains
       class(ZodiModel), intent(in) :: self
       real(dp), intent(out) :: x(:)
       character(len=*), allocatable, optional, intent(inout) :: labels(:)
-      integer(i4b) :: i, running_idx
+      character(len=128), allocatable :: labels_copy(:), comp_label_upper(:)
+      integer(i4b) :: i, j, running_idx
 
       if (size(x) /= self%n_params) stop "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`"
       if (present(labels)) then
          if (allocated(labels)) stop "`labels` must not be allocated at the time of passing it in to `model_to_params`"
+         allocate(comp_label_upper(self%n_comps))
       end if
 
       running_idx = 0
@@ -463,7 +467,15 @@ contains
             x(running_idx + 5) = comp%sigma_theta
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
-         if (present(labels)) labels = [labels, self%comps(i)%labels]
+         if (present(labels)) then
+            labels_copy = self%comps(i)%labels
+            call upcase(self%comp_labels(i), comp_label_upper(i))
+            print *, self%comp_labels(i), comp_label_upper
+            do j = 1, size(labels_copy)
+               labels_copy(j) = trim(adjustl(comp_label_upper(i)))//' '//trim(adjustl(labels_copy(j))) 
+            end do
+               labels = [labels, labels_copy]
+         end if
       end do
    end subroutine model_to_params
 
@@ -565,7 +577,6 @@ contains
       call close_hdf_file(file)
    end subroutine
 
-
    subroutine model_from_chain(self, cpar)
       class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
@@ -575,10 +586,9 @@ contains
 
       type(hdf_file) :: file
       real(dp) :: comp_params(100), params(100, 100)
-      character(len=32), allocatable :: common_param_labels(:), comp_param_labels(:)
+      character(len=32), allocatable :: common_param_labels(:), param_labels(:)
       character(len=512) :: chainfile
       TYPE(h5o_info_t) :: object_info
-
 
       params = 0.
       if (cpar%myid == cpar%root) then
@@ -595,24 +605,10 @@ contains
             call h5eset_auto_f(0, hdferr)
             call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)//'/zodi/params/'//trim(adjustl(cpar%zs_comp_labels(i)))), object_info, hdferr)
             if (hdferr /= 0) cycle
-            common_param_labels = cpar%zodi_param_labels%common
-            select case(trim(adjustl(cpar%zs_comp_types(i))))
-            case ('cloud')
-               comp_param_labels = cpar%zodi_param_labels%cloud
-            case ('band')
-               comp_param_labels = cpar%zodi_param_labels%band
-            case ('ring')
-               comp_param_labels = cpar%zodi_param_labels%ring
-            case ('feature')
-               comp_param_labels = cpar%zodi_param_labels%feature
-            case default
-               print *, 'Invalid zodi component type in zodi `init_from_chain`:', trim(adjustl(cpar%zs_comp_types(i)))
-               stop
-            end select 
-            comp_param_labels = [common_param_labels, comp_param_labels]
-            do j = 1, size(comp_param_labels)
+            param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
+            do j = 1, size(param_labels)
                call read_hdf(file, trim(adjustl(itext)//'/zodi/params/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
-                   & '/'//trim(adjustl(comp_param_labels(j)))), comp_params(j))
+                   & '/'//trim(adjustl(param_labels(j)))), comp_params(j))
             end do
                params(i, :) = comp_params
          end do 
@@ -622,5 +618,72 @@ contains
       call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
    end subroutine model_from_chain
 
+
+   subroutine model_to_ascii(self, cpar, filename)
+      class(ZodiModel), target, intent(in) :: self
+      type(comm_params), intent(in) :: cpar
+      character(len=*), intent(in) :: filename
+
+      integer(i4b) :: io, i, j, running_idx
+      logical(lgt) :: exists
+      real(dp), allocatable :: params(:)
+      integer(i4b), allocatable :: comp_switch_indices(:)
+      character(len=128), allocatable :: labels(:)
+
+      if (cpar%myid_chain /= cpar%root) return
+      inquire(file=trim(adjustl(filename)), exist=exists)
+      if (.not. exists) then
+         print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+         stop
+      end if
+
+      open(newunit=io, file=trim(adjustl(filename)), action="write")
+
+      allocate(params(self%n_params))
+      call self%model_to_params(params, labels=labels)
+
+      allocate(comp_switch_indices(self%n_comps))
+
+      running_idx = 0
+      do i = 1, self%n_comps
+         running_idx = running_idx + size(self%comps(i)%labels)
+         comp_switch_indices(i) = running_idx
+      end do
+
+      do i = 1, self%n_params
+         if (any(comp_switch_indices == i)) then
+               write(io, fmt='(a, T25, ES12.5, a)') trim(adjustl(labels(i))), params(i), new_line('a')
+            else
+               write(io, fmt='(a, T25, ES12.5)') trim(adjustl(labels(i))), params(i)
+         end if
+      end do
+
+      close(io)
+   end subroutine
+
+   subroutine ascii_to_model(self, cpar, filename)
+      class(ZodiModel), target, intent(in) :: self
+      type(comm_params), intent(in) :: cpar
+      character(len=*), intent(in) :: filename
+
+      integer(i4b) :: io, i, j, running_idx
+      logical(lgt) :: exists
+      real(dp), allocatable :: params(:)
+      integer(i4b), allocatable :: comp_switch_indices(:)
+      character(len=128), allocatable :: labels(:)
+
+      if (cpar%myid_chain /= cpar%root) return
+      inquire(file=trim(adjustl(filename)), exist=exists)
+      if (.not. exists) then
+         print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+         stop
+      end if
+
+      open(newunit=io, file=trim(adjustl(filename)), action="read")
+
+      allocate(params(self%n_params))
+
+      close(io)
+   end subroutine
 
 end module comm_zodi_mod

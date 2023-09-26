@@ -34,20 +34,20 @@ module comm_param_mod
   !       problems. Then, copy parameters over to module structures if convenient
   !       at a later stage. 
 
-  integer(i4b), parameter, private :: MAXPAR       = 10
-  integer(i4b), parameter, private :: MAXAUXPAR    = 10
-  integer(i4b), parameter, private :: MAXSAMPGROUP = 100
-  integer(i4b), parameter, private :: MAXZODICOMPS = 20
-  integer(i4b), parameter, private :: MAXZODIPARAMS = 20
+  integer(i4b), parameter, private :: MAXPAR           = 10
+  integer(i4b), parameter, private :: MAXAUXPAR        = 10
+  integer(i4b), parameter, private :: MAXSAMPGROUP     = 100
+  integer(i4b), parameter, private :: MAXZODICOMPS     = 100
+  integer(i4b), parameter, private :: MAXZODIPARAMS    = 100
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=32), dimension(8) :: common = [character(len=32) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0', 'T_0', 'T_DELTA']
-     character(len=32), dimension(4) :: cloud = [character(len=32) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
-     character(len=32), dimension(4) :: band = [character(len=32) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=32), dimension(3) :: ring = [character(len=32) :: 'R', 'SIGMA_R', 'SIGMA_Z']
-     character(len=32), dimension(5) :: feature = [character(len=32) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=32), dimension(4) :: comp_types = [character(len=32) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
+     character(len=128), dimension(8) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0', 'T_0', 'T_DELTA']
+     character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
+     character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
+     character(len=128), dimension(3) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z']
+     character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
      contains
             procedure :: get_labels
   end type InterplanetaryDustParamLabels
@@ -263,7 +263,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 3), zs_delta_t_reset
-     character(len=64)                       :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS)
+     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS)
      logical(lgt)                            :: zs_output_comps
      character(len=512)                      :: zs_init_chain
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
@@ -3956,8 +3956,8 @@ end subroutine
      class(InterplanetaryDustParamLabels), intent(in) :: self
      character(len=*), intent(in) :: comp_type
      logical(lgt), intent(in), optional :: add_common
-     character(len=32) :: upcase_comp_type
-     character(len=32), allocatable :: labels(:)
+     character(len=128) :: upcase_comp_type
+     character(len=128), allocatable :: labels(:)
 
      call upcase(comp_type, upcase_comp_type)
      select case ((trim(adjustl(upcase_comp_type))))
