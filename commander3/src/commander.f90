@@ -377,7 +377,7 @@ program commander
 
      ! Output zodi ipd and tod parameters to chain
      if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) then
-         call zodi_model%output_to_hd5(cpar, iter)
+         call zodi_model%model_to_chain(cpar, iter)
          do i = 1, numband
             if (data(i)%tod_type == 'none') cycle
             if (.not. data(i)%tod%subtract_zodi) cycle

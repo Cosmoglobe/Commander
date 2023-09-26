@@ -627,7 +627,7 @@ contains
 
       call mpi_bcast(self%zodi_emissivity, size(self%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-
+      
    end subroutine load_zodi_tod_parameters
 
 
@@ -2876,9 +2876,6 @@ contains
       call self%clear_zodi_cache()
       
       !allocate spectral quantities
-      allocate(self%zodi_spl_phase_coeffs(self%ndet, 3))
-      allocate(self%zodi_spl_solar_irradiance(self%ndet))
-      allocate(self%zodi_phase_func_normalization(self%ndet))
       allocate(self%zodi_b_nu_spl_obj(self%ndet))
 
       ! allocate cache files and precompute ecliptic unit vectors

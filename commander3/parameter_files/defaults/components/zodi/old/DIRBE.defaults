@@ -1,5 +1,5 @@
 # Source parameters for the zodiacal emission from DIRBE
-ZODI_NBANDS                = 10
+ZODI_NUM_DIRBE_BANDS       = 10
 ZODI_NCOMPS                = 6
 
 # Reference frequencies (in GHz) for observing bands
