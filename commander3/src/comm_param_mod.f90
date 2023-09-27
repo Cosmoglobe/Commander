@@ -146,6 +146,7 @@ module comm_param_mod
      real(dp),           allocatable, dimension(:,:) :: ds_defaults
      character(len=512), allocatable, dimension(:)   :: ds_component_sensitivity
      real(dp),           allocatable, dimension(:, :):: ds_zodi_emissivity, ds_zodi_albedo
+     logical(lgt),       allocatable, dimension(:)   :: ds_zodi_reference_band
 
      !TOD data parameters
      character(len=512), allocatable, dimension(:)   :: ds_tod_type
@@ -258,12 +259,12 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
 
      ! Zodi parameters
-     integer(i4b)                            :: zs_ncomps, zs_los_steps
-     integer(i4b), allocatable               :: zs_samp_groups(:, :), zs_num_samp_groups
+     integer(i4b)                            :: zs_ncomps, zs_los_steps, zs_num_samp_groups
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 3), zs_delta_t_reset
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS)
+     character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps
      character(len=512)                      :: zs_init_chain
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
@@ -2908,7 +2909,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      allocate(emissivity_string(cpar%zs_ncomps))
      allocate(albedo_string(cpar%zs_ncomps))
      allocate(cpar%ds_zodi_emissivity(cpar%numband, cpar%zs_ncomps), cpar%ds_zodi_albedo(cpar%numband, cpar%zs_ncomps))
-
+     allocate(cpar%ds_zodi_reference_band(cpar%numband))
+     cpar%ds_zodi_reference_band = .false.
      do i = 1, cpar%numband
           if (.not. cpar%ds_tod_subtract_zodi(i)) cycle
           call int2string(i, itext)
@@ -2922,6 +2924,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
                read(albedo_string(j), *) cpar%ds_zodi_albedo(i, j)
           end do
           if (cpar%sample_zodi .and. cpar%ds_tod_subtract_zodi(i)) then
+               call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_REFERENCE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_zodi_reference_band(i))
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)
                call validate_file(trim(cpar%ds_tod_procmask_zodi(i)))
           end if
@@ -2929,20 +2932,17 @@ subroutine read_zodi_params_hash(htbl, cpar)
 
      if (cpar%sample_zodi) then
           call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
-          ! allocate(samp_group_strings(cpar%zs_num_samp_groups))
-          ! allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups, MAXZODIPARAMS))
-          ! cpar%zs_samp_groups = -1
-          ! do i = 1, cpar%zs_num_samp_groups
-          !      call int2string(i, itext2)
-          !      call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=samp_group_strings(i))
-          !      call get_tokens(samp_group_strings(i), ',', comp_param_labels, num_comp_params) 
-          !      do j = 1, num_comp_params
-          !           cpar%zs_samp_groups(i, j) = get_param_vec_idx_from_comp_and_param(comp_param_labels(j))
-          !      end do
-          ! end do
+          allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
+          do i = 1, cpar%zs_num_samp_groups
+               call int2string(i, itext2)
+               call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=cpar%zs_samp_groups(i))
+               ! call get_tokens(samp_group_strings(i), ',', comp_param_labels, num_comp_params) 
+               ! do j = 1, num_comp_params
+               !      cpar%zs_samp_groups(i, j) = get_param_vec_idx_from_comp_and_param(comp_param_labels(j))
+               ! end do
+          end do
      end if
 
-!      call read_zodi_model_hash(htbl, cpar)
 
 end subroutine
 
@@ -3956,11 +3956,12 @@ end subroutine
      class(InterplanetaryDustParamLabels), intent(in) :: self
      character(len=*), intent(in) :: comp_type
      logical(lgt), intent(in), optional :: add_common
-     character(len=128) :: upcase_comp_type
      character(len=128), allocatable :: labels(:)
+     character(len=128) :: comp_type_upper
 
-     call upcase(comp_type, upcase_comp_type)
-     select case ((trim(adjustl(upcase_comp_type))))
+     comp_type_upper = comp_type
+     call toupper(comp_type_upper)
+     select case ((trim(adjustl(comp_type_upper))))
      case ('CLOUD')
           labels = self%cloud
      case ('BAND')

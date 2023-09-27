@@ -27,7 +27,7 @@ contains
       !    Parameter file variables.
 
       type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, j
+      integer(i4b) :: i, j, ref_band_count
       real(dp), allocatable :: param_vec(:)
 
       ! Figure out how many sampling bands there are and initialize the tod step sizes
@@ -38,24 +38,18 @@ contains
          n_samp_bands = n_samp_bands + 1
       end do
 
+      ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
+      if (ref_band_count > 1) then
+         stop "Error: cannot have more than one reference band for zodi emissivity."
+      else if (ref_band_count == 0) then
+         stop "Error: cannot sample zodi without the reference band being active."
+      end if
+      
+
       allocate (step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
       allocate (step_sizes_emissivity(n_samp_bands, zodi_model%n_comps))
       allocate (step_sizes_n0(zodi_model%n_comps))
       j = 0
-
-      reference_emissivity_band = -1
-      do i = 1, numband
-         if (data(i)%tod_type == 'none') cycle
-         if (.not. data(i)%tod%subtract_zodi) cycle
-         j = j + 1
-         step_sizes_albedo(j, :) = 0.1*data(i)%tod%zodi_albedo
-         step_sizes_emissivity(j, :) = 0.1*data(i)%tod%zodi_emissivity
-
-         if (data(i)%tod%freq == "06") then
-            reference_emissivity_band = i
-         end if
-      end do
-      if (reference_emissivity_band == -1) stop "Could not find reference band for zodi emissivity sampling!"
 
       do i = 1, zodi_model%n_comps
          step_sizes_n0(i) = 0.05*zodi_model%comps(i)%c%n_0
@@ -66,6 +60,7 @@ contains
       emissivity_prior = [0., 5.]
       albedo_prior = [0., 1.]
 
+      allocate(param_vec(zodi_model%n_params))
       call zodi_model%model_to_params(param_vec)
       allocate (step_sizes_ipd(zodi_model%n_params))
       step_sizes_ipd = 0.1*param_vec
@@ -170,7 +165,6 @@ contains
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                   & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                   &)
-
                end do
             end do
          end do
@@ -245,7 +239,7 @@ contains
             if (k > 0) then
                if (cpar%myid == cpar%root) then
                   sample_loop: do j = 1, model%n_comps
-                     if (i == reference_emissivity_band) then
+                     if (cpar%ds_zodi_reference_band(i)) then
                         emissivity_new(i, j) = 1.
                      else
                         emissivity_new(i, j) = emissivity_new(i, j) + (step_sizes_emissivity(i, j)*rand_gauss(handle))
@@ -348,10 +342,11 @@ contains
       integer(i4b) :: i, j, k, prop, group_idx, flag, ndet, nscan, ntod, n_proposals, scan, ierr, n_accepted, param_idx
       real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
       real(dp), allocatable :: param_vec(:)
-      integer(i4b), allocatable :: group_indices(:)
+      integer(i4b), allocatable :: group_indices(:), param_indices(:)
       type(ZodiModel) :: current_model, previous_model
       logical(lgt) :: accepted, verbose_, tuning, skip
       type(hdf_file) :: tod_file
+      character(len=128), allocatable :: param_labels(:)
 
       if (present(verbose)) then
          verbose_ = verbose
@@ -366,11 +361,17 @@ contains
       tuning = gibbs_iter <= 25
       n_proposals = 25
 
+      allocate(param_vec(current_model%n_params))
+      call current_model%model_to_params(param_vec, param_labels)
+
       ! sample all parameters in a group jointly
       do group_idx = 1, cpar%zs_num_samp_groups
          if (cpar%myid == cpar%root) print *, "sampling zodi group: ", group_idx, " of ", cpar%zs_num_samp_groups
-
-         group_indices = pack(cpar%zs_samp_groups(group_idx, :), cpar%zs_samp_groups(group_idx, :) > 0)
+         call get_samp_group_indices(cpar%zs_samp_groups(group_idx), param_labels, param_indices)
+         if (cpar%myid == cpar%root) print *, "group idx:",group_idx, "param idx:",param_indices
+         call mpi_barrier(cpar%comm_chain, ierr)
+         stop
+         ! group_indices = pack(cpar%zs_samp_groups(group_idx, :), cpar%zs_samp_groups(group_idx, :) > 0)
 
          n_accepted = 0
          do prop = 0, n_proposals
@@ -736,6 +737,37 @@ contains
          s_zodi = s_zodi + (s_scat(:, i)*albedo(i) + (1.-albedo(i))*emissivity(i)*s_therm(:, i))*n_ratio(i)
       end do
    end subroutine get_s_zodi_with_n0
+
+   subroutine get_samp_group_indices(samp_group_str, param_labels, param_indices)
+      character(len=*), intent(in) :: samp_group_str
+      character(len=*), intent(in) :: param_labels(:)
+      integer(i4b), allocatable, intent(inout) :: param_indices(:)
+      character(len=128) :: tokens(100), comp_param(2), label
+      character(len=128), allocatable :: tokens_trunc(:)
+      integer(i4b) :: i, j, n_params
+
+
+      if (allocated(param_indices)) deallocate(param_indices)
+
+      call get_tokens(samp_group_str, ',', tokens, n_params) 
+      tokens_trunc = tokens(1:n_params)
+      allocate(param_indices(n_params))
+
+      do i = 1, size(tokens_trunc)
+         call get_tokens(tokens_trunc(i), ':', comp_param) 
+         call toupper(comp_param(1))
+         call toupper(comp_param(2))
+
+         label = trim(adjustl(comp_param(1)))//"_"//trim(adjustl(comp_param(2)))
+         do j = 1, size(param_labels)
+            if (label == param_labels(j)) then
+               param_indices(i) = j
+               exit
+            end if
+         end do
+      end do
+   end subroutine
+
 
    ! function get_powell_vec(param_vec) result(powell_vec)
    !     real(dp), allocatable :: param_vec(:)

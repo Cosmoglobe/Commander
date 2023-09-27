@@ -336,7 +336,6 @@ contains
       integer(i4b) :: i, ierr
 
       allocate (self%comps(self%n_comps))
-      
       ! NOTE: order of `zs_comp_params` is important and is given by the lable arrays in `InterplanetaryDustParamLabels` in param_mod
       do i = 1, self%n_comps
          self%comps(i)%labels = [param_labels%common]
@@ -471,7 +470,8 @@ contains
          end select
          if (present(labels)) then
             labels_copy = self%comps(i)%labels
-            call upcase(self%comp_labels(i), comp_label_upper(i))
+            comp_label_upper(i) = self%comp_labels(i)
+            call toupper(comp_label_upper(i))
             do j = 1, size(labels_copy)
                labels_copy(j) = trim(adjustl(comp_label_upper(i)))//'_'//trim(adjustl(labels_copy(j))) 
             end do
