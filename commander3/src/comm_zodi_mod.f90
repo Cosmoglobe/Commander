@@ -3,7 +3,8 @@ module comm_zodi_mod
    use comm_param_mod
    use spline_1D_mod
    use comm_hdf_mod
-   
+   use hashtbl
+
    implicit none
 
    private
@@ -141,8 +142,8 @@ contains
             zodi_model%n_params = zodi_model%n_params + size(cpar%zodi_param_labels%feature)
          end select
       end do
-      call zodi_model%model_to_ascii(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
-      stop
+      ! call zodi_model%ascii_to_model(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
+      ! call zodi_model%model_to_ascii(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
    end subroutine initialize_zodi_mod
 
    subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
@@ -326,6 +327,7 @@ contains
          n_out(i) = self%n_0*exp(-exp_term)
       end do
    end subroutine get_density_feature
+
    subroutine init_comps(self, params, comp_types, param_labels)
       class(ZodiModel), target, intent(inout) :: self
       character(len=*), intent(in), optional :: comp_types(:)
@@ -470,9 +472,8 @@ contains
          if (present(labels)) then
             labels_copy = self%comps(i)%labels
             call upcase(self%comp_labels(i), comp_label_upper(i))
-            print *, self%comp_labels(i), comp_label_upper
             do j = 1, size(labels_copy)
-               labels_copy(j) = trim(adjustl(comp_label_upper(i)))//' '//trim(adjustl(labels_copy(j))) 
+               labels_copy(j) = trim(adjustl(comp_label_upper(i)))//'_'//trim(adjustl(labels_copy(j))) 
             end do
                labels = [labels, labels_copy]
          end if
@@ -525,6 +526,7 @@ contains
             comp%sigma_theta = x(running_idx + 5)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
+         call self%comps(i)%c%initialize()
       end do
    end subroutine params_to_model
 
@@ -614,7 +616,7 @@ contains
          end do 
          call close_hdf_file(file)
       end if
-      call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), mpi_real, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
    end subroutine model_from_chain
 
@@ -651,6 +653,7 @@ contains
       end do
 
       do i = 1, self%n_params
+
          if (any(comp_switch_indices == i)) then
                write(io, fmt='(a, T25, ES12.5, a)') trim(adjustl(labels(i))), params(i), new_line('a')
             else
@@ -662,28 +665,49 @@ contains
    end subroutine
 
    subroutine ascii_to_model(self, cpar, filename)
-      class(ZodiModel), target, intent(in) :: self
+      class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
       character(len=*), intent(in) :: filename
+      type(hash_tbl_sll) :: htbl
 
-      integer(i4b) :: io, i, j, running_idx
+      integer(i4b) :: i, io, io_status, ierr
       logical(lgt) :: exists
-      real(dp), allocatable :: params(:)
-      integer(i4b), allocatable :: comp_switch_indices(:)
+      character(len=128) :: key, val, line
       character(len=128), allocatable :: labels(:)
-
-      if (cpar%myid_chain /= cpar%root) return
-      inquire(file=trim(adjustl(filename)), exist=exists)
-      if (.not. exists) then
-         print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
-         stop
-      end if
-
-      open(newunit=io, file=trim(adjustl(filename)), action="read")
+      real(dp), allocatable :: params(:)
 
       allocate(params(self%n_params))
+      if (cpar%myid_chain == cpar%root) then
+         inquire(file=trim(adjustl(filename)), exist=exists)
+         if (.not. exists) then
+            print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+            stop
+         end if
+         
+         call init_hash_tbl_sll(htbl, tbl_len=500)
 
-      close(io)
+         open(newunit=io, file=trim(adjustl(filename)), action="read")
+         io_status = 0
+         do while (io_status == 0)
+            read(io, "(a)", iostat=io_status) line
+            if (io_status == 0 .and. line /= "") then
+               read(line, *) key, val
+               call tolower(key)
+               call put_hash_tbl_sll(htbl, trim(key), trim(val)) 
+            end if
+         end do
+         close(io)
+
+         call self%model_to_params(params, labels)
+         params = 0.
+         if (size(labels) /= size(params)) stop "Error: size of labels and params do not match"
+         do i = 1, size(labels)
+            call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
+         end do
+      end if
+
+      call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call self%params_to_model(params)
    end subroutine
 
 end module comm_zodi_mod
