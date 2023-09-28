@@ -342,7 +342,7 @@ contains
       integer(i4b) :: i, j, k, prop, group_idx, flag, ndet, nscan, ntod, n_proposals, scan, ierr, n_accepted, param_idx
       real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
       real(dp), allocatable :: param_vec(:)
-      integer(i4b), allocatable :: group_indices(:), param_indices(:)
+      integer(i4b), allocatable :: group_indices(:)
       type(ZodiModel) :: current_model, previous_model
       logical(lgt) :: accepted, verbose_, tuning, skip
       type(hdf_file) :: tod_file
@@ -367,11 +367,9 @@ contains
       ! sample all parameters in a group jointly
       do group_idx = 1, cpar%zs_num_samp_groups
          if (cpar%myid == cpar%root) print *, "sampling zodi group: ", group_idx, " of ", cpar%zs_num_samp_groups
-         call get_samp_group_indices(cpar%zs_samp_groups(group_idx), param_labels, param_indices)
-         if (cpar%myid == cpar%root) print *, "group idx:",group_idx, "param idx:",param_indices
-         call mpi_barrier(cpar%comm_chain, ierr)
-         stop
-         ! group_indices = pack(cpar%zs_samp_groups(group_idx, :), cpar%zs_samp_groups(group_idx, :) > 0)
+
+         ! Get indices of the parameters to sample in the current sampling group
+         call parse_samp_group_strings(cpar%zs_samp_groups(group_idx), param_labels, group_indices)
 
          n_accepted = 0
          do prop = 0, n_proposals
@@ -696,7 +694,6 @@ contains
    subroutine compute_downsamp_zodi(cpar, model)
       type(comm_params), intent(in) :: cpar
       type(ZodiModel), intent(inout) :: model
-
       integer(i4b) :: i, j, scan, ierr, ndet
 
       if (cpar%myid == cpar%root) print *, "computing downsampled zodi"
@@ -738,13 +735,14 @@ contains
       end do
    end subroutine get_s_zodi_with_n0
 
-   subroutine get_samp_group_indices(samp_group_str, param_labels, param_indices)
+   subroutine parse_samp_group_strings(samp_group_str, param_labels, param_indices)
       character(len=*), intent(in) :: samp_group_str
       character(len=*), intent(in) :: param_labels(:)
       integer(i4b), allocatable, intent(inout) :: param_indices(:)
-      character(len=128) :: tokens(100), comp_param(2), label
+      character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10)
       character(len=128), allocatable :: tokens_trunc(:)
       integer(i4b) :: i, j, n_params
+      logical(lgt) :: found
 
 
       if (allocated(param_indices)) deallocate(param_indices)
@@ -752,20 +750,36 @@ contains
       call get_tokens(samp_group_str, ',', tokens, n_params) 
       tokens_trunc = tokens(1:n_params)
       allocate(param_indices(n_params))
-
+      param_indices = -1
       do i = 1, size(tokens_trunc)
          call get_tokens(tokens_trunc(i), ':', comp_param) 
          call toupper(comp_param(1))
          call toupper(comp_param(2))
-
-         label = trim(adjustl(comp_param(1)))//"_"//trim(adjustl(comp_param(2)))
-         do j = 1, size(param_labels)
-            if (label == param_labels(j)) then
-               param_indices(i) = j
-               exit
-            end if
-         end do
+         if (trim(adjustl(comp_param(2))) == "ALL") then
+            do j = 1, size(param_labels)
+               call get_tokens(param_labels(j), "_", param_label_tokens) 
+               call toupper(param_label_tokens(1))
+               if (trim(adjustl(comp_param(1))) == param_label_tokens(1)) then
+                  if (.not. any(param_indices == j)) param_indices = [param_indices , j]
+               end if
+            end do
+         else
+            found = .false.
+            label = trim(adjustl(comp_param(1)))//"_"//trim(adjustl(comp_param(2)))
+            do j = 1, size(param_labels)
+               if (label == param_labels(j)) then
+                  if (.not. any(param_indices == j)) param_indices(i) = j
+                  found = .true.
+                  exit
+               end if
+            end do
+            if (.not. found) then
+               print *, "Error: invalid zodi sampling group parameter label :" // trim(adjustl(label)) 
+               stop
+            end if 
+         end if
       end do
+      param_indices = pack(param_indices, param_indices > 0)
    end subroutine
 
 
