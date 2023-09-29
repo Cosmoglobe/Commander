@@ -14,12 +14,12 @@ module comm_zodi_mod
    real(dp) :: gauss_degree
 
    type, abstract :: ZodiComponent
-      real(dp) :: x_0, y_0, z_0, incl, Omega, n_0, t_0, delta
+      real(dp) :: x_0, y_0, z_0, incl, Omega, n_0
       real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
       !priors
    contains
-      procedure :: initialize_base
-      procedure(initialize_interface), deferred :: initialize
+      procedure :: init_base_comp
+      procedure(init_interface), deferred :: init
       procedure(density_interface), deferred :: get_density
    end type ZodiComponent
 
@@ -29,10 +29,10 @@ module comm_zodi_mod
    end type
 
    abstract interface
-      subroutine initialize_interface(self)
+      subroutine init_interface(self)
          import dp, ZodiComponent
          class(ZodiComponent)  :: self
-      end subroutine initialize_interface
+      end subroutine init_interface
 
       subroutine density_interface(self, X_vec, theta, n_out)
          ! Returns the dust density (n) of the component at heliocentric
@@ -51,7 +51,7 @@ module comm_zodi_mod
    type, extends(ZodiComponent) :: ZodiCloud
       real(dp) :: alpha, beta, gamma, mu
    contains
-      procedure :: initialize => initialize_cloud
+      procedure :: init => init_cloud
       procedure :: get_density => get_density_cloud
    end type ZodiCloud
 
@@ -59,14 +59,14 @@ module comm_zodi_mod
       real(dp) :: delta_zeta, delta_r, v, p
       real(dp) :: delta_zeta_rad = 0.d0
    contains
-      procedure :: initialize => initialize_band
+      procedure :: init => init_band
       procedure :: get_density => get_density_band
    end type ZodiBand
 
    type, extends(ZodiComponent) :: ZodiRing
       real(dp) :: R_0, sigma_r, sigma_z
    contains
-      procedure :: initialize => initialize_ring
+      procedure :: init => init_ring
       procedure :: get_density => get_density_ring
    end type ZodiRing
 
@@ -75,148 +75,89 @@ module comm_zodi_mod
       real(dp) :: theta_0_rad = 0.d0
       real(dp) :: sigma_theta_rad = 0.d0
    contains
-      procedure :: initialize => initialize_feature
+      procedure :: init => init_feature
       procedure :: get_density => get_density_feature
    end type ZodiFeature
 
-   ! Stores the interplanetary dust model parameters
    type :: ZodiModel
-      integer(i4b) :: n_comps, n_params, n_common_params
-      real(dp) :: T_0, delta
       class(ZodiComponentContainer), allocatable :: comps(:)
-      character(len=128), allocatable :: comp_labels(:)
+      character(len=128), allocatable :: comp_labels(:), general_labels(:)
+      integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
+      real(dp) :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0]
       real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
    contains
-      procedure :: init_comps, params_to_model, model_to_params, model_to_chain, model_from_chain, model_to_ascii, ascii_to_model
+      procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, model_from_chain, model_to_ascii, ascii_to_model
    end type ZodiModel
-
-   ! Global zodi parameter object
    type(ZodiModel), target :: zodi_model
 
 contains
    subroutine initialize_zodi_mod(cpar)
-      ! Initialize the zodi module.
-      !
-      ! Parameters
-      ! ----------
-      ! cpar: comm_params
-      !    Parameter file variables.
-
       type(comm_params), intent(in) :: cpar
       integer(i4b) :: i, ierr
       character(len=256) :: file_path
       real(dp), allocatable :: param_vec(:)
       character(len=128), allocatable :: comp_labels(:)
 
+      ! Set model and zodi_mod parameters from cpar
+      gauss_degree = cpar%zs_los_steps
       zodi_model%n_comps = cpar%zs_ncomps
-      allocate (zodi_model%comp_labels(zodi_model%n_comps))
+      zodi_model%general_labels = cpar%zodi_param_labels%general
       zodi_model%comp_labels = cpar%zs_comp_labels(1:zodi_model%n_comps)
-
+      zodi_model%n_common_params = size(cpar%zodi_param_labels%common)
+      zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
+      
+      ! initialize zodi_model from chain or from cpar
       if (cpar%zs_init_chain /= 'none') then
-         ! init from model as defined in the paramterfile/defaults
          call zodi_model%model_from_chain(cpar)
       else
-         ! init from model structure as defined in the paramterfile/defaults with values from chain
          call zodi_model%init_comps(cpar%zs_comp_params(:, :, 1), cpar%zs_comp_types, cpar%zodi_param_labels)
+         call zodi_model%init_general_params(cpar%zs_general_params(:))
       end if
-
-      gauss_degree = cpar%zs_los_steps
-      ! Currently only support single values temperature
-      zodi_model%T_0 = zodi_model%comps(1)%c%t_0
-      zodi_model%delta = zodi_model%comps(1)%c%delta
-
-      zodi_model%n_common_params = size(cpar%zodi_param_labels%common)
-      zodi_model%n_params = zodi_model%n_comps*size(cpar%zodi_param_labels%common)
-      do i = 1, zodi_model%n_comps
-         select case (cpar%zs_comp_types(i))
-         case ('cloud')
-            zodi_model%n_params = zodi_model%n_params + size(cpar%zodi_param_labels%cloud)
-         case ('band')
-            zodi_model%n_params = zodi_model%n_params + size(cpar%zodi_param_labels%band)
-         case ('ring')
-            zodi_model%n_params = zodi_model%n_params + size(cpar%zodi_param_labels%ring)
-         case ('feature')
-            zodi_model%n_params = zodi_model%n_params + size(cpar%zodi_param_labels%feature)
-         end select
-      end do
+      
       ! call zodi_model%ascii_to_model(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
       ! call zodi_model%model_to_ascii(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
    end subroutine initialize_zodi_mod
 
-   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
-      ! Evaluates the zodiacal signal (eq. 20 in zodipy paper [k98 model]) given
-      ! integrated thermal zodiacal emission and scattered zodiacal light.
-      !
-      ! Parameters:
-      ! -----------
-      ! emissivity :
-      !     Emissivity of the zodiacal components.
-      ! albedo :
-      !     Albedo of the zodiacal components.
-      ! s_scat :
-      !     Integrated contribution from scattered sunlight light.
-      ! s_therm :
-      !     Integrated contribution from thermal interplanetary dust emission.
-      ! s_zodi :
-      !     Zodiacal signal.
-      ! emissivity :
-      !     Emissivity of the zodiacal components.
-      ! albedo :
-      !     Albedo of the zodiacal components.
-      ! comp :
-      !     If present, only the component with index comp is used to compute the zodiacal signal.
+   subroutine init_general_params(self, general_params)
+      class(ZodiModel), intent(inout) :: self
+      real(dp), intent(in) :: general_params(:)
+      self%T_0 = general_params(1)
+      self%delta = general_params(2)
+   end subroutine
 
-      real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
-      real(sp), dimension(:), intent(inout) :: s_zodi
-      real(dp), dimension(:), intent(in) :: emissivity, albedo
-      integer(i4b), intent(in), optional :: comp
-
-      integer(i4b) :: i, n_comps
-
-      n_comps = size(emissivity)
-      if (present(comp)) then
-         s_zodi = s_scat(:, comp)*albedo(comp) + (1.-albedo(comp))*emissivity(comp)*s_therm(:, comp)
-      else
-         s_zodi = 0.
-         do i = 1, n_comps
-            s_zodi = s_zodi + s_scat(:, i)*albedo(i) + (1.-albedo(i))*emissivity(i)*s_therm(:, i)
-         end do
-      end if
-   end subroutine get_s_zodi
-
-   subroutine initialize_base(self)
+   subroutine init_base_comp(self)
       class(ZodiComponent) :: self
       self%sin_omega = sin(self%Omega*deg2rad)
       self%cos_omega = cos(self%Omega*deg2rad)
       self%sin_incl = sin(self%incl*deg2rad)
       self%cos_incl = cos(self%incl*deg2rad)
-   end subroutine initialize_base
+   end subroutine init_base_comp
 
-   subroutine initialize_cloud(self)
+   subroutine init_cloud(self)
       class(ZodiCloud) :: self
-      call self%initialize_base()
-   end subroutine initialize_cloud
+      call self%init_base_comp()
+   end subroutine init_cloud
 
-   subroutine initialize_band(self)
+   subroutine init_band(self)
       class(ZodiBand) :: self
       self%delta_zeta_rad = self%delta_zeta*deg2rad
-      call self%initialize_base()
-   end subroutine initialize_band
+      call self%init_base_comp()
+   end subroutine init_band
 
-   subroutine initialize_ring(self)
+   subroutine init_ring(self)
       class(ZodiRing) :: self
-      call self%initialize_base()
-   end subroutine initialize_ring
+      call self%init_base_comp()
+   end subroutine init_ring
 
-   subroutine initialize_feature(self)
+   subroutine init_feature(self)
       class(ZodiFeature) :: self
       self%theta_0_rad = self%theta_0*deg2rad
       self%sigma_theta_rad = self%sigma_theta*deg2rad
-      call self%initialize_base()
-   end subroutine initialize_feature
+      call self%init_base_comp()
+   end subroutine init_feature
 
    subroutine get_density_cloud(self, X_vec, theta, n_out)
       class(ZodiCloud) :: self
@@ -329,6 +270,7 @@ contains
    end subroutine get_density_feature
 
    subroutine init_comps(self, params, comp_types, param_labels)
+      ! Initializes the components in the zodi model and computes the number of parameters in the model.
       class(ZodiModel), target, intent(inout) :: self
       character(len=*), intent(in), optional :: comp_types(:)
       class(InterplanetaryDustParamLabels) :: param_labels
@@ -336,7 +278,8 @@ contains
       integer(i4b) :: i, ierr
 
       allocate (self%comps(self%n_comps))
-      ! NOTE: order of `zs_comp_params` is important and is given by the lable arrays in `InterplanetaryDustParamLabels` in param_mod
+      self%n_params = self%n_general_params
+      ! NOTE: The order of the parameters in the `params` array must match the below order of readin
       do i = 1, self%n_comps
          self%comps(i)%labels = [param_labels%common]
          select case (trim(adjustl(comp_types(i))))
@@ -349,12 +292,10 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & t_0=params(i, 7), &
-                & delta=params(i, 8), &
-                & alpha=params(i, 9), &
-                & beta=params(i, 10), &
-                & gamma=params(i, 11), &
-                & mu=params(i, 12) &
+                & alpha=params(i, 7), &
+                & beta=params(i, 8), &
+                & gamma=params(i, 9), &
+                & mu=params(i, 10) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%cloud]
          case ('band')
@@ -366,12 +307,10 @@ contains
                 & x_0=params(i, 4), &
                 & y_0=params(i, 5), &
                 & z_0=params(i, 6), &
-                & t_0=params(i, 7), &
-                & delta=params(i, 8), &
-                & delta_zeta=params(i, 9), &
-                & delta_r=params(i, 10), &
-                & v=params(i, 11), &
-                & p=params(i, 12) &
+                & delta_zeta=params(i, 7), &
+                & delta_r=params(i, 8), &
+                & v=params(i, 9), &
+                & p=params(i, 10) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%band]
          case ('ring')
@@ -383,11 +322,9 @@ contains
                & x_0=params(i, 4), &
                & y_0=params(i, 5), &
                & z_0=params(i, 6), &
-               & t_0=params(i, 7), &
-               & delta=params(i, 8), &
-               & R_0=params(i, 9), &
-               & sigma_r=params(i, 10), &
-               & sigma_z=params(i, 11) &
+               & R_0=params(i, 7), &
+               & sigma_r=params(i, 8), &
+               & sigma_z=params(i, 9) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring]
          case ('feature')
@@ -399,26 +336,25 @@ contains
                & x_0=params(i, 4), &
                & y_0=params(i, 5), &
                & z_0=params(i, 6), &
-               & t_0=params(i, 7), &
-               & delta=params(i, 8), &
-               & R_0=params(i, 9), &
-               & sigma_r=params(i, 10), &
-               & sigma_z=params(i, 11), &
-               & theta_0=params(i, 12), &
-               & sigma_theta=params(i, 13) &
+               & R_0=params(i, 7), &
+               & sigma_r=params(i, 8), &
+               & sigma_z=params(i, 9), &
+               & theta_0=params(i, 10), &
+               & sigma_theta=params(i, 11) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%feature]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
          end select
-         call self%comps(i)%c%initialize()
+         call self%comps(i)%c%init()
+         self%n_params = self%n_params + size(self%comps(i)%labels)
       end do
    end subroutine
 
    subroutine model_to_params(self, x, labels)
-      ! Dumps a zodi model to a parameter vector `x`.
-      ! If `labels` is present, it is populated with the corresponding labels.
+      ! Dumps a zodi model to a parameter vector `x`. If `labels` is present, it is populated with
+      ! the corresponding parameter labels.
       class(ZodiModel), intent(in) :: self
       real(dp), intent(out) :: x(:)
       character(len=*), allocatable, optional, intent(inout) :: labels(:)
@@ -439,8 +375,6 @@ contains
          x(running_idx + 4) = self%comps(i)%c%x_0
          x(running_idx + 5) = self%comps(i)%c%y_0
          x(running_idx + 6) = self%comps(i)%c%z_0
-         x(running_idx + 7) = self%comps(i)%c%t_0
-         x(running_idx + 8) = self%comps(i)%c%delta
          running_idx = running_idx + self%n_common_params
          select type (comp => self%comps(i)%c)
          class is (ZodiCloud)
@@ -478,10 +412,15 @@ contains
                labels = [labels, labels_copy]
          end if
       end do
+      x(running_idx + 1) = self%T_0
+      x(running_idx + 2) = self%delta
+      if (present(labels)) then
+         labels = [labels, self%general_labels]
+      end if
    end subroutine model_to_params
 
    subroutine params_to_model(self, x)
-      ! Dumps a zodi model to a parameter vector
+      ! Dumps a zodi model to a parameter vector `x`.
       class(ZodiModel), intent(inout) :: self
       real(dp), intent(in) :: x(:)
       integer(i4b) :: i, running_idx
@@ -497,8 +436,6 @@ contains
          self%comps(i)%c%x_0 = x(running_idx + 4)
          self%comps(i)%c%y_0 = x(running_idx + 5)
          self%comps(i)%c%z_0 = x(running_idx + 6)
-         self%comps(i)%c%t_0 = x(running_idx + 7)
-         self%comps(i)%c%delta = x(running_idx + 8)
          running_idx = running_idx + self%n_common_params
          select type (comp => self%comps(i)%c)
          class is (ZodiCloud)
@@ -526,13 +463,14 @@ contains
             comp%sigma_theta = x(running_idx + 5)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
-         call self%comps(i)%c%initialize()
+         call self%comps(i)%c%init()
       end do
+      self%T_0 = x(running_idx + 1)
+      self%delta = x(running_idx + 2)
    end subroutine params_to_model
 
-
    subroutine model_to_chain(self, cpar, iter)
-      ! Writes the zodi model to an hdf file
+      ! Dumps the zodi model to the chain file
       class(ZodiModel), intent(in) :: self
       type(comm_params), intent(in) :: cpar
       integer(i4b), intent(in) :: iter
@@ -541,7 +479,7 @@ contains
       logical(lgt) :: exist, init, new_header
       character(len=6) :: itext
       character(len=4) :: ctext
-      character(len=512) :: zodi_path, comp_path, comp_group_path, param_path, chainfile, hdfpath, param_label
+      character(len=512) :: zodi_path, comp_path, comp_group_path, param_path, chainfile, hdfpath, param_label, general_group_path
       character(len=32), allocatable :: labels(:)
       real(dp), allocatable :: params(:)
       type(hdf_file) :: file
@@ -559,7 +497,11 @@ contains
       zodi_path = trim(adjustl(itext))//'/zodi'
       call create_hdf_group(file, trim(adjustl(zodi_path)))
 
-      comp_group_path = trim(adjustl(zodi_path))//'/params'
+
+      general_group_path = trim(adjustl(zodi_path))//'/general'
+      call create_hdf_group(file, trim(adjustl(general_group_path)))
+
+      comp_group_path = trim(adjustl(zodi_path))//'/comps'
       call create_hdf_group(file, trim(adjustl(comp_group_path)))
 
       allocate(params(self%n_params))
@@ -576,10 +518,16 @@ contains
          end do
          param_idx = param_idx + n_comp_params
       end do
+      if (param_idx + self%n_general_params /= self%n_params) stop "Error: param_idx + self%n_general_params /= self%n_params"
+      do i = 1, self%n_general_params
+         param_label = trim(adjustl(general_group_path))//'/'//trim(adjustl(self%general_labels(i)))
+         call write_hdf(file, trim(adjustl(param_label)), params(param_idx + i))
+      end do
       call close_hdf_file(file)
    end subroutine
 
    subroutine model_from_chain(self, cpar)
+      ! Initializes parts of the zodi model from the chain file
       class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
       logical(lgt) :: exist
@@ -587,7 +535,7 @@ contains
       character(len=6) :: itext
 
       type(hdf_file) :: file
-      real(dp) :: comp_params(100), params(100, 100)
+      real(dp) :: comp_params(100), params(100, 100), general_params(100)
       character(len=32), allocatable :: common_param_labels(:), param_labels(:)
       character(len=512) :: chainfile
       TYPE(h5o_info_t) :: object_info
@@ -605,23 +553,30 @@ contains
          call int2string(initsamp, itext)
          do i = 1, cpar%zs_ncomps
             call h5eset_auto_f(0, hdferr)
-            call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)//'/zodi/params/'//trim(adjustl(cpar%zs_comp_labels(i)))), object_info, hdferr)
+            call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))), object_info, hdferr)
             if (hdferr /= 0) cycle
             param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
             do j = 1, size(param_labels)
-               call read_hdf(file, trim(adjustl(itext)//'/zodi/params/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
+               call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
                    & '/'//trim(adjustl(param_labels(j)))), comp_params(j))
             end do
                params(i, :) = comp_params
          end do 
+         do i = 1, self%n_general_params
+            call read_hdf(file, trim(adjustl(itext)//'/zodi/general/'//trim(adjustl(self%general_labels(i)))), general_params(i))
+         end do
          call close_hdf_file(file)
       end if
       call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(general_params, size(general_params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call self%init_general_params(general_params)
       call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
+
    end subroutine model_from_chain
 
 
    subroutine model_to_ascii(self, cpar, filename)
+      ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
       class(ZodiModel), target, intent(in) :: self
       type(comm_params), intent(in) :: cpar
       character(len=*), intent(in) :: filename
@@ -653,7 +608,6 @@ contains
       end do
 
       do i = 1, self%n_params
-
          if (any(comp_switch_indices == i)) then
                write(io, fmt='(a, T25, ES12.5, a)') trim(adjustl(labels(i))), params(i), new_line('a')
             else
@@ -665,6 +619,7 @@ contains
    end subroutine
 
    subroutine ascii_to_model(self, cpar, filename)
+      ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
       class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
       character(len=*), intent(in) :: filename
@@ -710,4 +665,43 @@ contains
       call self%params_to_model(params)
    end subroutine
 
+
+   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
+      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
+      ! integrated thermal zodiacal emission and scattered zodiacal light.
+      !
+      ! Parameters:
+      ! -----------
+      ! emissivity :
+      !     Emissivity of the zodiacal components.
+      ! albedo :
+      !     Albedo of the zodiacal components.
+      ! s_scat :
+      !     Integrated contribution from scattered sunlight light.
+      ! s_therm :
+      !     Integrated contribution from thermal interplanetary dust emission.
+      ! s_zodi :
+      !     Zodiacal signal.
+      ! emissivity :
+      !     Emissivity of the zodiacal components.
+      ! albedo :
+      !     Albedo of the zodiacal components.
+      ! comp :
+      !     If present, only the component with index comp is used to compute the zodiacal signal.
+      real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
+      real(sp), dimension(:), intent(inout) :: s_zodi
+      real(dp), dimension(:), intent(in) :: emissivity, albedo
+      integer(i4b), intent(in), optional :: comp
+      integer(i4b) :: i, n_comps
+
+      n_comps = size(emissivity)
+      if (present(comp)) then
+         s_zodi = s_scat(:, comp)*albedo(comp) + (1.-albedo(comp))*emissivity(comp)*s_therm(:, comp)
+      else
+         s_zodi = 0.
+         do i = 1, n_comps
+            s_zodi = s_zodi + s_scat(:, i)*albedo(i) + (1.-albedo(i))*emissivity(i)*s_therm(:, i)
+         end do
+      end if
+   end subroutine get_s_zodi
 end module comm_zodi_mod

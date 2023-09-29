@@ -12,7 +12,7 @@ module comm_tod_zodi_mod
    public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5
 
    ! Constants
-   real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2
+   real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp)
 
    ! Shared global parameters
    type(spline_type) :: earth_pos_spl_obj(3)
@@ -117,15 +117,14 @@ contains
       if (present(always_scattering)) then
          scattering = always_scattering
       else
-         scattering = count(tod%zodi_albedo /= 0.) > 0
+         scattering = any(tod%zodi_albedo > EPS)
       end if
-
       ! select the correct cache
       if (present(use_lowres_pointing)) then
          if (tod%nside == zodi_nside) then
             use_lowres = .false.
          else
-                if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
+            if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
             if (.not. allocated(tod%scans(scan)%downsamp_obs_time)) then
                print *, tod%band, scan, "lowres obs_time not allocated"
                stop
@@ -187,7 +186,7 @@ contains
          R_LOS = norm2(X_LOS, dim=1)
 
          if (scattering) then
-            solar_flux_LOS = tod%zodi_spl_solar_irradiance(det)/R_LOS**2
+            solar_flux_LOS = model%F_sun(tod%band)/R_LOS**2
             call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
             call get_phase_function(scattering_angle, C0, C1, C2, phase_normalization, phase_function)
          end if
@@ -369,7 +368,7 @@ contains
 
       call int2string(cpar%mychain, ctext)
       chainfile = trim(adjustl(cpar%outdir))//'/chain'// &
-          & '_c'//trim(adjustl(ctext))//'.h5'
+      & '_c'//trim(adjustl(ctext))//'.h5'
 
       inquire (file=trim(chainfile), exist=exist)
       call open_hdf_file(chainfile, file, 'b')

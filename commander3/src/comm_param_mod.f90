@@ -42,7 +42,8 @@ module comm_param_mod
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=128), dimension(8) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0', 'T_0', 'T_DELTA']
+     character(len=128), dimension(2) :: general = [character(len=128) :: "T_0", "T_DELTA"]
+     character(len=128), dimension(6) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
      character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
      character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
      character(len=128), dimension(3) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z']
@@ -262,7 +263,7 @@ module comm_param_mod
      integer(i4b)                            :: zs_ncomps, zs_los_steps, zs_num_samp_groups
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
-     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 3), zs_delta_t_reset
+     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 3), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS)
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS)
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps
@@ -2860,7 +2861,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      type(hash_tbl_sll), intent(in) :: htbl
      type(comm_params),  intent(inout) :: cpar
 
-     integer(i4b) :: i, j, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS
+     integer(i4b) :: i, j, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
      character(len=2) :: itext2
      character(len=3) :: itext
      character(len=64), allocatable :: parameter_labels(:)
@@ -2876,6 +2877,10 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_CHAIN', par_string=cpar%zs_init_chain)
+
+     do i = 1, size(cpar%zodi_param_labels%general)
+          call get_parameter_from_hash(htbl, 'ZODI_'//trim(adjustl(cpar%zodi_param_labels%general(i))), par_dp=cpar%zs_general_params(i))
+     end do
 
      cpar%zs_comp_params = 0.
      
@@ -2909,6 +2914,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      allocate(emissivity_string(cpar%zs_ncomps))
      allocate(albedo_string(cpar%zs_ncomps))
      allocate(cpar%ds_zodi_emissivity(cpar%numband, cpar%zs_ncomps), cpar%ds_zodi_albedo(cpar%numband, cpar%zs_ncomps))
+     cpar%ds_zodi_emissivity = 0.
+     cpar%ds_zodi_albedo = 0.
      allocate(cpar%ds_zodi_reference_band(cpar%numband))
      cpar%ds_zodi_reference_band = .false.
      do i = 1, cpar%numband
@@ -2917,8 +2924,12 @@ subroutine read_zodi_params_hash(htbl, cpar)
           len_itext=len(trim(itext))
           call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_EMISSIVITY'//itext, len_itext=len_itext, par_string=temp_emissivity)
           call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_ALBEDO'//itext, len_itext=len_itext, par_string=temp_albedo)
-          call get_tokens(temp_emissivity, ',', emissivity_string)
-          call get_tokens(temp_albedo, ',', albedo_string)
+          call get_tokens(temp_emissivity, ',', emissivity_string, num=num_e)
+          call get_tokens(temp_albedo, ',', albedo_string, num=num_a)
+          if ((num_e /= cpar%zs_ncomps) .or. (num_a /= cpar%zs_ncomps)) then
+               write(*,*) 'Error: Number of emissivity or albedo components in band ', i, ' does not match the number of zodiacal components'
+               stop
+          end if
           do j = 1, cpar%zs_ncomps
                read(emissivity_string(j), *) cpar%ds_zodi_emissivity(i, j)
                read(albedo_string(j), *) cpar%ds_zodi_albedo(i, j)
@@ -2929,17 +2940,12 @@ subroutine read_zodi_params_hash(htbl, cpar)
                call validate_file(trim(cpar%ds_tod_procmask_zodi(i)))
           end if
      end do
-
      if (cpar%sample_zodi) then
           call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
           allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups
                call int2string(i, itext2)
                call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=cpar%zs_samp_groups(i))
-               ! call get_tokens(samp_group_strings(i), ',', comp_param_labels, num_comp_params) 
-               ! do j = 1, num_comp_params
-               !      cpar%zs_samp_groups(i, j) = get_param_vec_idx_from_comp_and_param(comp_param_labels(j))
-               ! end do
           end do
      end if
 

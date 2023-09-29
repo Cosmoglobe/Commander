@@ -592,42 +592,43 @@ contains
       logical(lgt)        :: exist
       integer(i4b) :: i, l,  unit, ierr, initsamp
       character(len=6)          :: itext, itext2
-      real(dp), allocatable :: emissivity(:), albedo(:)
 
       type(hdf_file) :: file
+      real(dp), allocatable :: emissivity(:), albedo(:)
       character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, tod_path
-
+       
       allocate(self%zodi_emissivity(self%zodi_n_comps))
       allocate(self%zodi_albedo(self%zodi_n_comps))
-      if (cpar%zs_init_chain == 'none') then
+      if (trim(adjustl(cpar%zs_init_chain)) == 'none') then
          self%zodi_emissivity = cpar%ds_zodi_emissivity(self%band, :)
          self%zodi_albedo     = cpar%ds_zodi_albedo(self%band, :)
          return
       end if
-
+      
       allocate(emissivity(self%zodi_n_comps))
       allocate(albedo(self%zodi_n_comps))
+      if (cpar%myid == cpar%root) then
+         unit = getlun()
+         call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+         inquire(file=trim(chainfile), exist=exist)
+         if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+         l = len(trim(chainfile))
+         if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
 
-      unit = getlun()
-      call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-      inquire(file=trim(chainfile), exist=exist)
-      if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
-      l = len(trim(chainfile))
-      if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+         call open_hdf_file(trim(chainfile), file, "r")
 
-      call open_hdf_file(trim(chainfile), file, "r")
-
-      call int2string(initsamp, itext)
-      
-      tod_path = trim(adjustl(itext//"/zodi/tod/"))
-      band_path = trim(adjustl(tod_path))//trim(adjustl(self%freq))
-      call read_hdf(file, trim(adjustl(band_path))//'/emissivity' , self%zodi_emissivity)
-      call read_hdf(file, trim(adjustl(band_path))//'/albedo' , self%zodi_albedo)
-      call close_hdf_file(file)
-
-      call mpi_bcast(self%zodi_emissivity, size(self%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call mpi_bcast(self%zodi_albedo, size(self%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      
+         call int2string(initsamp, itext)
+         
+         tod_path = trim(adjustl(itext//"/zodi/tod/"))
+         band_path = trim(adjustl(tod_path))//trim(adjustl(self%freq))
+         call read_hdf(file, trim(adjustl(band_path))//'/emissivity' , emissivity)
+         call read_hdf(file, trim(adjustl(band_path))//'/albedo' , albedo)
+         call close_hdf_file(file)
+      end if
+      call mpi_bcast(emissivity, size(emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(albedo, size(albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      self%zodi_emissivity = emissivity
+      self%zodi_albedo     = albedo
    end subroutine load_zodi_tod_parameters
 
 
