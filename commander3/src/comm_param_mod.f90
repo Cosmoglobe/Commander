@@ -2922,18 +2922,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
           if (.not. cpar%ds_tod_subtract_zodi(i)) cycle
           call int2string(i, itext)
           len_itext=len(trim(itext))
-          call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_EMISSIVITY'//itext, len_itext=len_itext, par_string=temp_emissivity)
-          call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_ALBEDO'//itext, len_itext=len_itext, par_string=temp_albedo)
-          call get_tokens(temp_emissivity, ',', emissivity_string, num=num_e)
-          call get_tokens(temp_albedo, ',', albedo_string, num=num_a)
-          if ((num_e /= cpar%zs_ncomps) .or. (num_a /= cpar%zs_ncomps)) then
-               write(*,*) 'Error: Number of emissivity or albedo components in band ', i, ' does not match the number of zodiacal components'
-               stop
-          end if
-          do j = 1, cpar%zs_ncomps
-               read(emissivity_string(j), *) cpar%ds_zodi_emissivity(i, j)
-               read(albedo_string(j), *) cpar%ds_zodi_albedo(i, j)
-          end do
           if (cpar%sample_zodi .and. cpar%ds_tod_subtract_zodi(i)) then
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_REFERENCE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_zodi_reference_band(i))
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)

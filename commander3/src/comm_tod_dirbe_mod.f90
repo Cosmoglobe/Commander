@@ -156,6 +156,8 @@ contains
       ! Load the instrument file
       call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
+      if (cpar%include_tod_zodi) call constructor%read_tod_zodi_params(cpar)
+
    ! commenting this out for now
       !do i=1, constructor%ndet
       !  call init_noise_model(constructor, i)

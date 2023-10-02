@@ -89,7 +89,7 @@ module comm_zodi_mod
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
    contains
-      procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, model_from_chain, model_to_ascii, ascii_to_model
+      procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, model_from_chain
    end type ZodiModel
    type(ZodiModel), target :: zodi_model
 
@@ -537,7 +537,7 @@ contains
       type(hdf_file) :: file
       real(dp) :: comp_params(100), params(100, 100), general_params(100)
       character(len=32), allocatable :: common_param_labels(:), param_labels(:)
-      character(len=512) :: chainfile
+      character(len=512) :: chainfile, group_name
       TYPE(h5o_info_t) :: object_info
 
       params = 0.
@@ -552,9 +552,8 @@ contains
          
          call int2string(initsamp, itext)
          do i = 1, cpar%zs_ncomps
-            call h5eset_auto_f(0, hdferr)
-            call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))), object_info, hdferr)
-            if (hdferr /= 0) cycle
+            group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
+            if (.not. hdf_group_exists(file, group_name)) cycle
             param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
             do j = 1, size(param_labels)
                call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
@@ -573,98 +572,6 @@ contains
       call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
 
    end subroutine model_from_chain
-
-
-   subroutine model_to_ascii(self, cpar, filename)
-      ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
-      class(ZodiModel), target, intent(in) :: self
-      type(comm_params), intent(in) :: cpar
-      character(len=*), intent(in) :: filename
-
-      integer(i4b) :: io, i, j, running_idx
-      logical(lgt) :: exists
-      real(dp), allocatable :: params(:)
-      integer(i4b), allocatable :: comp_switch_indices(:)
-      character(len=128), allocatable :: labels(:)
-
-      if (cpar%myid_chain /= cpar%root) return
-      inquire(file=trim(adjustl(filename)), exist=exists)
-      if (.not. exists) then
-         print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
-         stop
-      end if
-
-      open(newunit=io, file=trim(adjustl(filename)), action="write")
-
-      allocate(params(self%n_params))
-      call self%model_to_params(params, labels=labels)
-
-      allocate(comp_switch_indices(self%n_comps))
-
-      running_idx = 0
-      do i = 1, self%n_comps
-         running_idx = running_idx + size(self%comps(i)%labels)
-         comp_switch_indices(i) = running_idx
-      end do
-
-      do i = 1, self%n_params
-         if (any(comp_switch_indices == i)) then
-               write(io, fmt='(a, T25, ES12.5, a)') trim(adjustl(labels(i))), params(i), new_line('a')
-            else
-               write(io, fmt='(a, T25, ES12.5)') trim(adjustl(labels(i))), params(i)
-         end if
-      end do
-
-      close(io)
-   end subroutine
-
-   subroutine ascii_to_model(self, cpar, filename)
-      ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
-      class(ZodiModel), target, intent(inout) :: self
-      type(comm_params), intent(in) :: cpar
-      character(len=*), intent(in) :: filename
-      type(hash_tbl_sll) :: htbl
-
-      integer(i4b) :: i, io, io_status, ierr
-      logical(lgt) :: exists
-      character(len=128) :: key, val, line
-      character(len=128), allocatable :: labels(:)
-      real(dp), allocatable :: params(:)
-
-      allocate(params(self%n_params))
-      if (cpar%myid_chain == cpar%root) then
-         inquire(file=trim(adjustl(filename)), exist=exists)
-         if (.not. exists) then
-            print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
-            stop
-         end if
-         
-         call init_hash_tbl_sll(htbl, tbl_len=500)
-
-         open(newunit=io, file=trim(adjustl(filename)), action="read")
-         io_status = 0
-         do while (io_status == 0)
-            read(io, "(a)", iostat=io_status) line
-            if (io_status == 0 .and. line /= "") then
-               read(line, *) key, val
-               call tolower(key)
-               call put_hash_tbl_sll(htbl, trim(key), trim(val)) 
-            end if
-         end do
-         close(io)
-
-         call self%model_to_params(params, labels)
-         params = 0.
-         if (size(labels) /= size(params)) stop "Error: size of labels and params do not match"
-         do i = 1, size(labels)
-            call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
-         end do
-      end if
-
-      call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call self%params_to_model(params)
-   end subroutine
-
 
    subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given

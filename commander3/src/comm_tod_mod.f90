@@ -269,6 +269,7 @@ module comm_tod_mod
      procedure                           :: apply_map_precond
      procedure                           :: collect_v_sun
      procedure                           :: precompute_zodi_lookups
+     procedure                           :: read_tod_zodi_params
      procedure                           :: clear_zodi_cache
 
   end type comm_tod
@@ -378,7 +379,6 @@ contains
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
-      call load_zodi_tod_parameters(self, cpar)
     end if
 
     if (trim(self%tod_type)=='SPIDER') then
@@ -585,7 +585,7 @@ contains
   !             Utility routines
   !**************************************************
 
-   subroutine load_zodi_tod_parameters(self, cpar)
+   subroutine read_tod_zodi_params(self, cpar)
       class(comm_tod),   intent(inout) :: self
       type(comm_params), intent(in) :: cpar
 
@@ -594,14 +594,22 @@ contains
       character(len=6)          :: itext, itext2
 
       type(hdf_file) :: file
+      real(dp) :: lambda, lambda_min, lambda_max
       real(dp), allocatable :: emissivity(:), albedo(:)
-      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, tod_path
+      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, tod_path, group_name
        
+      lambda_min = 0.1
+      lambda_max = 4.
       allocate(self%zodi_emissivity(self%zodi_n_comps))
       allocate(self%zodi_albedo(self%zodi_n_comps))
       if (trim(adjustl(cpar%zs_init_chain)) == 'none') then
-         self%zodi_emissivity = cpar%ds_zodi_emissivity(self%band, :)
-         self%zodi_albedo     = cpar%ds_zodi_albedo(self%band, :)
+         self%zodi_emissivity = 1.
+         lambda = (c / self%nu_c(1)) * 1e6 ! in microns
+         if ((lambda_min < lambda) .and. (lambda_max > lambda)) then
+            self%zodi_albedo = 0.5
+         else 
+            self%zodi_albedo = 0.
+         end if
          return
       end if
       
@@ -621,15 +629,22 @@ contains
          
          tod_path = trim(adjustl(itext//"/zodi/tod/"))
          band_path = trim(adjustl(tod_path))//trim(adjustl(self%freq))
+
+         if (.not. hdf_group_exists(file, band_path)) then
+            print*, "Zodi init chain does contain emissivities or albedos for band: " // trim(adjustl(self%freq))
+            stop
+         end if 
+
          call read_hdf(file, trim(adjustl(band_path))//'/emissivity' , emissivity)
          call read_hdf(file, trim(adjustl(band_path))//'/albedo' , albedo)
          call close_hdf_file(file)
       end if
       call mpi_bcast(emissivity, size(emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call mpi_bcast(albedo, size(albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      if (size(emissivity) /= size(self%zodi_emissivity)) stop "number of components in zodi init chain does not match the parameter file"
       self%zodi_emissivity = emissivity
       self%zodi_albedo     = albedo
-   end subroutine load_zodi_tod_parameters
+   end subroutine read_tod_zodi_params
 
 
   subroutine load_instrument_file(self, nside_beam, nmaps_beam, pol_beam, comm_chain)
