@@ -348,15 +348,17 @@ contains
     deallocate(ext_hdf, mext_hdf)
   end subroutine get_size_hdf
 
-!!$  function hdf_group_exist(file, group)
-!!$    implicit none
-!!$    type(hdf_file)                  :: file
-!!$    character(len=*),   intent(in)  :: group
-!!$    type(hf
-!!$    
-!!$
-!!$
-!!$  end function hdf_group_exist
+  function hdf_group_exists(file, group) result(exists)
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: group
+    logical(lgt) :: exists
+    integer(i4b) :: hdferr
+    TYPE(h5o_info_t) :: object_info
+
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, trim(adjustl(group)), object_info, hdferr)
+    exists = hdferr == 0
+  end function hdf_group_exists
   
   ! *****************************************************
   ! Set read operations
