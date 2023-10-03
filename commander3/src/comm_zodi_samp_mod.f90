@@ -26,8 +26,8 @@ contains
       ! cpar: comm_params
       !    Parameter file variables.
 
-      type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, j, ref_band_count
+      type(comm_params), intent(inout) :: cpar
+      integer(i4b) :: i, idx_start, idx_stop, ref_band_count
       real(dp), allocatable :: param_vec(:)
 
       ! Figure out how many sampling bands there are and initialize the tod step sizes
@@ -49,22 +49,37 @@ contains
       allocate (step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
       allocate (step_sizes_emissivity(n_samp_bands, zodi_model%n_comps))
       allocate (step_sizes_n0(zodi_model%n_comps))
-      j = 0
 
       do i = 1, zodi_model%n_comps
-         step_sizes_n0(i) = 0.05*zodi_model%comps(i)%c%n_0
+         step_sizes_n0(i) = 0.1*zodi_model%comps(i)%c%n_0
       end do
 
-      allocate (priors(zodi_model%n_params, 2))
-      priors(:, :) = NO_PRIOR
-      emissivity_prior = [0., 5.]
-      albedo_prior = [0., 1.]
+      where (cpar%zs_comp_params == 0)
+         cpar%zs_comp_params = NO_PRIOR
+      end where
+      where (cpar%zs_general_params == 0)
+         cpar%zs_general_params = NO_PRIOR
+      end where
 
       allocate(param_vec(zodi_model%n_params))
       call zodi_model%model_to_params(param_vec)
       allocate (step_sizes_ipd(zodi_model%n_params))
       step_sizes_ipd = 0.1*param_vec
 
+      allocate (priors(zodi_model%n_params, 2))
+      idx_start = 1
+      do i = 1, zodi_model%n_comps
+         idx_stop = idx_start + size(zodi_model%comps(i)%labels) - 1
+         priors(idx_start:idx_stop, :) = cpar%zs_comp_params(i, :size(zodi_model%comps(i)%labels), 2:)
+         idx_start = idx_stop + 1
+      end do 
+      do i = 1, zodi_model%n_general_params
+         priors(idx_start, :) = cpar%zs_general_params(i, 2:)
+         idx_start = idx_start + 1
+      end do
+
+      emissivity_prior = [0., 5.]
+      albedo_prior = [0., 1.]
    end subroutine initialize_zodi_samp_mod
 
    function get_boxwidth(samprate_lowres, samprate) result(box_width)

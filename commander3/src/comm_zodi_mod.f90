@@ -114,7 +114,7 @@ contains
          call zodi_model%model_from_chain(cpar)
       else
          call zodi_model%init_comps(cpar%zs_comp_params(:, :, 1), cpar%zs_comp_types, cpar%zodi_param_labels)
-         call zodi_model%init_general_params(cpar%zs_general_params(:))
+         call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
       end if
       
       ! call zodi_model%ascii_to_model(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")

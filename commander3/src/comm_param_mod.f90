@@ -263,7 +263,7 @@ module comm_param_mod
      integer(i4b)                            :: zs_ncomps, zs_los_steps, zs_num_samp_groups
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
-     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 3), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS)
+     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 3), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 3)
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS)
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps
@@ -2879,7 +2879,13 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_CHAIN', par_string=cpar%zs_init_chain)
 
      do i = 1, size(cpar%zodi_param_labels%general)
-          call get_parameter_from_hash(htbl, 'ZODI_'//trim(adjustl(cpar%zodi_param_labels%general(i))), par_dp=cpar%zs_general_params(i))
+          call get_parameter_from_hash(htbl, 'ZODI_'//trim(adjustl(cpar%zodi_param_labels%general(i))), par_string=value_string)! par_dp=cpar%zs_general_params(i))
+          call get_tokens(value_string, ',', value_and_priors_str, num=n_tokens) 
+          if (n_tokens == 3) then
+               read(value_and_priors_str, *) cpar%zs_general_params(i, :)
+          else 
+               read(value_and_priors_str, *) cpar%zs_general_params(i, 1)
+          end if
      end do
 
      cpar%zs_comp_params = 0.
@@ -2890,7 +2896,10 @@ subroutine read_zodi_params_hash(htbl, cpar)
           if (comp_idx == cpar%zs_ncomps) exit
           call int2string(i, itext2)
           call get_parameter_hashtable(htbl, 'ZODI_COMP_INCLUDE'//itext2, par_lgt=use_comp)
-          if (.not. use_comp) cycle
+          if (.not. use_comp) then 
+               cpar%zs_ncomps = cpar%zs_ncomps - 1
+               cycle
+          end if
           comp_idx = comp_idx + 1
 
           call get_parameter_hashtable(htbl, 'ZODI_COMP_TYPE'//itext2, par_string=cpar%zs_comp_types(comp_idx))
@@ -2907,7 +2916,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
                end if
           end do
      end do
-
 
      if (cpar%sample_zodi) allocate(cpar%ds_tod_procmask_zodi(cpar%numband))
      ! tod parameters!      
