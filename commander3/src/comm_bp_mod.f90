@@ -407,11 +407,14 @@ contains
        i     = locate(self%nu, self%nu_c)
        a2fc  = 2.d0*k_B*self%nu_c**2/c**2 * 1.d-14
        Inu0  = a2fc * (f(i) + (f(i+1)-f(i))*(self%nu_c-self%nu(i))/(self%nu(i+1)-self%nu(i)))
+       !  if (Inu0 < TINY(1.0_dp)) then
        if (Inu0 == 0.d0) then
-          SED2F = 0.d0
-       else
-          K     = tsum(self%nu, self%tau * self%a2f_arr*f / Inu0) / tsum(self%nu, self%tau * self%nu_c/self%nu)
-          SED2F = K * Inu0
+         SED2F = 0.d0
+      else
+          K     = tsum(self%nu, self%tau * self%a2f_arr*f) / tsum(self%nu, self%tau * self%nu_c/self%nu)
+         !  SED2F = K * Inu0
+         SED2F = K
+         !  print *, SED2F, tsum(self%nu, self%tau * self%a2f_arr*f) / tsum(self%nu, self%tau * self%nu_c/self%nu)
        end if
     case ('WMAP')
        SED2F = sum(self%tau * f)
