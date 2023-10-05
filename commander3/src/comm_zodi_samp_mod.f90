@@ -195,7 +195,7 @@ contains
                chisq_diff = max(chisq_current - chisq_previous, 0.)
                ln_acceptance_probability = -0.5*chisq_diff
                accepted = ln_acceptance_probability > log(rand_uni(handle))
-               if (accepted) print *, chisq_current
+               if (accepted) print *, 'chisq_current: ', chisq_current
             end if
 
             call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
@@ -406,6 +406,7 @@ contains
                if (cpar%myid == cpar%root) then
                   do i = 1, size(group_indices)
                      param_idx = group_indices(i)
+                     if (prop == 1) write(*,*) trim(param_labels(param_idx)), param_vec(param_idx), step_sizes_ipd(param_idx)
                      param_vec(param_idx) = param_vec(param_idx) + (step_sizes_ipd(param_idx)*rand_gauss(handle))
                      skip = prior_is_violated(param_vec(param_idx), priors(param_idx, :))
                      if (skip) then
@@ -513,11 +514,13 @@ contains
             do i = 1, size(group_indices)
                param_idx = group_indices(i)
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx)/2.
+               if (cpar%myid == cpar%root) write(*,*) 'Step size for ', trim(param_labels(param_idx)), ' decreased to ', step_sizes_ipd(param_idx)
             end do
          else if (accept_rate > 0.6) then
             do i = 1, size(group_indices)
                param_idx = group_indices(i)
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx)*2.
+               if (cpar%myid == cpar%root) write(*,*) 'Step size for ', trim(param_labels(param_idx)), ' increased to ', step_sizes_ipd(param_idx)
             end do
          end if
          model = current_model
