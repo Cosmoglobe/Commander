@@ -185,6 +185,7 @@ program commander
 ! Example use case of zodi_to_ascii for HKE
 !   call zodi_model_to_ascii(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
 !   call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/d5/data/duncanwa/DIRBE/ascii_powell.dat")
+!   call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/ascii_K98.dat")
 
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
@@ -328,7 +329,7 @@ program commander
       if (iter == 2) call downsamp_invariant_structs(cpar) !downsample and cache tod and pointing
       call project_and_downsamp_sky(cpar) ! project skymodel down to downsampled pointing
       call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
-      call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+      ! call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       call timer%stop(TOT_ZODI_SAMP)
    end if
 

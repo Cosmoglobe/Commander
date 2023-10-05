@@ -101,7 +101,7 @@ contains
       type(ZodiModel), intent(inout) :: model
       logical(lgt), intent(in), optional :: verbose
 
-      integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted
+      integer(i4b) :: i, j, k, ndet, nscan, ntod, nprop, scan, ierr, n_accepted, comp
       integer(i4b) :: albedo_idx, emissivity_idx
       real(sp), allocatable :: s_zodi_scan(:)
       real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
@@ -126,104 +126,96 @@ contains
       allocate (n0_new(model%n_comps))
       allocate (n0_prev(model%n_comps))
       allocate (n0_initial(model%n_comps))
-
-      do j = 1, model%n_comps
-         n0_initial(j) = model%comps(j)%c%n_0
+      
+      do comp = 1, model%n_comps
+         n0_initial(comp) = model%comps(comp)%c%n_0
       end do
+
       n0_new = n0_initial
       n0_prev = n0_new
 
-      n_accepted = 0
-      accept_rate = 0.
+      do comp = 1, model%n_comps
+         n_accepted = 0
+         accept_rate = 0.
 
-      do k = 0, nprop
-         skip = .false.
-         chisq_tod = 0.
-         chisq_current = 0.
 
-         if (k > 0) then
-            if (cpar%myid == cpar%root) then
-               do j = 1, model%n_comps
-                  n0_new(j) = n0_new(j) + (step_sizes_n0(j) * rand_gauss(handle))
-               end do
+         do k = 0, nprop
+            skip = .false.
+            chisq_tod = 0.
+            chisq_current = 0.
+
+            if (k > 0) then
+               if (cpar%myid == cpar%root) n0_new(comp) = n0_new(comp) + (step_sizes_n0(comp) * rand_gauss(handle))
+               call mpi_bcast(n0_new, size(n0_new), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
             end if
-            call mpi_bcast(n0_new, size(n0_new), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-         end if
-         do i = 1, numband
-            if (data(i)%tod_type == "none") cycle
-            if (.not. data(i)%tod%sample_zodi) cycle
 
-            if (chisq_tod >= 1.d30) exit
+            do i = 1, numband
+               if (data(i)%tod_type == "none") cycle
+               if (.not. data(i)%tod%sample_zodi) cycle
+               if (chisq_tod >= 1.d30) exit
 
-            ndet = data(i)%tod%ndet
-            nscan = data(i)%tod%nscan
+               ndet = data(i)%tod%ndet
+               nscan = data(i)%tod%nscan
 
-            box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
-
-            ! Update current_model with new parameters
-            do scan = 1, nscan
-               do j = 1, ndet
-                  if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-
-                  ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-                  call get_s_zodi_with_n0(&
-                      & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                      & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                      & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                      & emissivity=data(i)%tod%zodi_emissivity, &
-                      & albedo=data(i)%tod%zodi_albedo, &
-                      & n_ratio=n0_new/n0_initial &
-                  &)
-                  chisq_tod = chisq_tod + sum( &
-                  & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
-                  &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
-                  &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
-                  & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
-                  &)
+               box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+               do scan = 1, nscan
+                  do j = 1, ndet
+                     if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+                     call get_s_zodi_with_n0(&
+                        & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+                        & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
+                        & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
+                        & emissivity=data(i)%tod%zodi_emissivity, &
+                        & albedo=data(i)%tod%zodi_albedo, &
+                        & n_0_comp_ratio=n0_new/n0_initial, &
+                        & comp=comp &
+                     &)
+                     chisq_tod = chisq_tod + sum( &
+                     & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
+                     &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
+                     &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
+                     & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
+                     &)
+                  end do
                end do
             end do
-         end do
-         ! Reduce chisq to root process
-         call mpi_reduce(chisq_tod, chisq_current, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+            ! Reduce chisq to root process
+            call mpi_reduce(chisq_tod, chisq_current, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
 
-         ! Use chisq from the first iteration where we dont draw new parameters as the base chisq
-         if (k == 0) chisq_previous = chisq_current
+            ! Use chisq from the first iteration where we dont draw new parameters as the base chisq
+            if (k == 0) chisq_previous = chisq_current
 
-         if (k > 0) then
             ! Root checks if the new proposal is accepted
-            if (cpar%myid == cpar%root) then
-               chisq_diff = max(chisq_current - chisq_previous, 0.)
-               ln_acceptance_probability = -0.5*chisq_diff
-               accepted = ln_acceptance_probability > log(rand_uni(handle))
-               if (accepted) print *, 'chisq_current: ', chisq_current
+            if (k > 0) then
+               if (cpar%myid == cpar%root) then
+                  chisq_diff = max(chisq_current - chisq_previous, 0.)
+                  ln_acceptance_probability = -0.5*chisq_diff
+                  accepted = ln_acceptance_probability > log(rand_uni(handle))
+                  if (accepted) write(*, '(A, ES12.5)') 'chisq_current: ', chisq_current
+               end if
+               call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
+               if (accepted) then
+                  n_accepted = n_accepted + 1
+                  chisq_previous = chisq_current
+                  n0_prev(comp) = n0_new(comp)
+               else
+                  n0_new(comp) = n0_prev(comp)
+               end if
+               accept_rate = real(n_accepted)/real(k)
             end if
+         end do
 
-            call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
-            ! Update model if proposal is accepted
-            if (accepted) then
-               n_accepted = n_accepted + 1
-               chisq_previous = chisq_current
-               n0_prev = n0_new
-            else
-               n0_new = n0_prev
+         if (verbose_ .and. (cpar%myid == cpar%root)) print *, "n0 accept rate for comp ", model%comp_labels(comp), ": ", (real(n_accepted)/real(nprop))*100
+
+         model%comps(comp)%c%n_0 = n0_new(comp)
+
+         if (tuning) then
+            if (accept_rate < 0.1) then
+               step_sizes_n0(comp) = step_sizes_n0(comp) / 2.
+            else if (accept_rate > 0.4) then
+               step_sizes_n0(comp) = step_sizes_n0(comp) * 2.
             end if
-            accept_rate = real(n_accepted)/real(k)
          end if
-      end do
-
-      if (verbose_ .and. (cpar%myid == cpar%root)) print *, "n0 accept rate:", (real(n_accepted)/real(nprop))*100
-
-      if (tuning) then
-         if (accept_rate < 0.1) then
-            step_sizes_n0 = step_sizes_n0 / 2.
-         else if (accept_rate > 0.4) then
-            step_sizes_n0 = step_sizes_n0 * 2.
-         end if
-      end if
-
-      ! Update model with new n_0 values
-      do j = 1, model%n_comps
-         model%comps(j)%c%n_0 = n0_new(j)
       end do
 
       ! Sample emissivity and albedo
@@ -290,13 +282,16 @@ contains
                      if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
                      ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-                     call get_s_zodi_with_n0(&
+                     do comp = 1, model%n_comps
+                        data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, comp) = data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, comp) * (n0_new(comp) / n0_initial(comp))
+                        data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, comp) = data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, comp) * (n0_new(comp) / n0_initial(comp))
+                     end do
+                     call get_s_zodi(&
                          & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                          & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
                          & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
                          & emissivity=emissivity_new(i, :), &
-                         & albedo=albedo_new(i, :), &
-                         & n_ratio=n0_new/n0_initial &
+                         & albedo=albedo_new(i, :) &
                      &)
                      chisq_tod = chisq_tod + sum( &
                         & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
@@ -744,16 +739,16 @@ contains
       end do
    end subroutine
 
-   subroutine get_s_zodi_with_n0(s_therm, s_scat, s_zodi, emissivity, albedo, n_ratio)
+   subroutine get_s_zodi_with_n0(s_therm, s_scat, s_zodi, emissivity, albedo, n_0_comp_ratio, comp)
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
       real(sp), dimension(:), intent(inout) :: s_zodi
-      real(dp), dimension(:), intent(in) :: emissivity, albedo, n_ratio
-      integer(i4b) :: i, n_comps
+      real(dp), dimension(:), intent(in) :: emissivity, albedo, n_0_comp_ratio
+      integer(i4b) :: comp
+      integer(i4b) :: i
 
-      n_comps = size(emissivity)
       s_zodi = 0.
-      do i = 1, n_comps
-         s_zodi = s_zodi + (s_scat(:, i)*albedo(i) + (1.-albedo(i))*emissivity(i)*s_therm(:, i))*n_ratio(i)
+      do i = 1, size(s_therm, dim= 2)
+         s_zodi = s_zodi + (s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)) * n_0_comp_ratio(i)
       end do
    end subroutine get_s_zodi_with_n0
 
