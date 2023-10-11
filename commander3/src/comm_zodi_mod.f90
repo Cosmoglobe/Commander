@@ -8,7 +8,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, ZodiModel, ZodiComponent, zodi_model
+   public initialize_zodi_mod, get_s_zodi, get_s_zodi_comp, ZodiModel, ZodiComponent, zodi_model
 
    ! Global variables
    real(dp) :: gauss_degree
@@ -573,16 +573,12 @@ contains
 
    end subroutine model_from_chain
 
-   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
+   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, alpha)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
       ! integrated thermal zodiacal emission and scattered zodiacal light.
       !
       ! Parameters:
       ! -----------
-      ! emissivity :
-      !     Emissivity of the zodiacal components.
-      ! albedo :
-      !     Albedo of the zodiacal components.
       ! s_scat :
       !     Integrated contribution from scattered sunlight light.
       ! s_therm :
@@ -593,22 +589,50 @@ contains
       !     Emissivity of the zodiacal components.
       ! albedo :
       !     Albedo of the zodiacal components.
-      ! comp :
-      !     If present, only the component with index comp is used to compute the zodiacal signal.
+      ! alpha : optional
+      !     Scale factor per component
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
       real(sp), dimension(:), intent(inout) :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
-      integer(i4b), intent(in), optional :: comp
+      real(dp), dimension(:), intent(in), optional :: alpha
       integer(i4b) :: i, n_comps
 
       n_comps = size(emissivity)
-      if (present(comp)) then
-         s_zodi = s_scat(:, comp)*albedo(comp) + (1.-albedo(comp))*emissivity(comp)*s_therm(:, comp)
-      else
-         s_zodi = 0.
-         do i = 1, n_comps
-            s_zodi = s_zodi + s_scat(:, i)*albedo(i) + (1.-albedo(i))*emissivity(i)*s_therm(:, i)
-         end do
-      end if
+      s_zodi = 0.
+      do i = 1, n_comps
+         call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i), alpha(i))
+      end do
    end subroutine get_s_zodi
+
+   subroutine get_s_zodi_comp(s_therm_comp, s_scat_comp, s_zodi_comp, emissivity_comp, albedo_comp, alpha_comp)
+      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
+      ! integrated thermal zodiacal emission and scattered zodiacal light for a single
+      ! component.
+      !
+      ! Parameters:
+      ! -----------
+      ! s_scat_comp :
+      !     Integrated contribution from scattered sunlight light.
+      ! s_therm_comp :
+      !     Integrated contribution from thermal interplanetary dust emission.
+      ! s_zodi :
+      !     Zodiacal signal.
+      ! albedo_comp :
+      !     Albedo of the zodiacal component.
+      ! emissivity_comp :
+      !     Emissivity of the zodiacal component.
+      ! alpha_comp : optional
+      !     Scale factor for a component
+      real(sp), dimension(:), intent(in) :: s_scat_comp, s_therm_comp
+      real(sp), dimension(:), intent(out) :: s_zodi_comp
+      real(dp), intent(in) :: emissivity_comp, albedo_comp
+      real(dp), intent(in), optional :: alpha_comp
+      integer(i4b) :: i, n_comps
+
+      if (present(alpha_comp)) then 
+         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp) * alpha_comp
+      else 
+         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp)
+      end if
+   end subroutine get_s_zodi_comp
 end module comm_zodi_mod

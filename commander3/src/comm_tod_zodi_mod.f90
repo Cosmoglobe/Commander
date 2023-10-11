@@ -158,7 +158,7 @@ contains
          if (use_lowres) then
             lookup_idx = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i)))
             if (tod%zodi_therm_cache_lowres(lookup_idx, 1, det) > 0.d0) then
-               s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
+               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
                s_zodi_therm(i, :) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
                cache_hits = cache_hits + 1
                cycle
@@ -167,7 +167,7 @@ contains
          else
             lookup_idx = tod%pix2ind(pix(i))
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
-               s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
+               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
                s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
                cache_hits = cache_hits + 1
                cycle
