@@ -82,10 +82,10 @@ endif
 export F90COMP := $(F90FLAGS) -I../include $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
 export FCOMP := $(FFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
 export CCOMP := $(CFLAGS)  $(LAPACK_INCLUDE) $(CFITSIO_INCLUDE) $(HEALPIX_INCLUDE)
-export LINK := -L../commander -L../include -lcommander -lcommander_healpix $(HEALPIX_LINK) $(CFITSIO_LINK) $(LAPACK_LINK) $(LDFLAGS) $(F90OMPFLAGS)
+export LINK := -L../commander -L../include -lcommander -lcommander_healpix $(HEALPIX_LINK) $(CFITSIO_LINK) $(LAPACK_LINK) $(LDFLAGS) $(F90OMPFLAGS) $(SHARP_LINK)
 
 
-all : commander comm_process_resfiles
+all : commander #comm_process_resfiles
 
 help :
 	@echo ' '

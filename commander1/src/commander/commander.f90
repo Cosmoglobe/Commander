@@ -1236,7 +1236,8 @@ contains
        open(50,file='spec_test.dat')
        do i = 1, n
           nu = nu_min * (nu_max/nu_min)**((i-1.d0)/(n-1.d0)) * 1d9
-          write(50,*) nu, compute_physical_dust_spectrum(nu,0.d0,fg_components(1)%us,545.d9,fg_components(1)%S_phys_dust, fg_components(1)%S_dust_coeff, [0.d0,0.d0])
+          write(50,*) nu, compute_physical_dust_spectrum(nu,0.d0,fg_components(1)%us,545.d9,fg_components(1)%S_phys_dust,&
+               & fg_components(1)%S_dust_coeff, [0.d0,0.d0])
        end do
        close(50)
        stop

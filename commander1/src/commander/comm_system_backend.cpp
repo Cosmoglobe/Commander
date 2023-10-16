@@ -45,7 +45,7 @@ extern "C"
 	{
 		stringstream path; path << "/proc/" << getpid() << "/statm";
 		FILE * f = fopen(path.str().c_str(),"r");
-		int64_t npage;
+		long long int npage;
 		fscanf(f, "%lld", &npage);
 		fclose(f);
 		return npage*getpagesize();
