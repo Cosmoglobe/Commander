@@ -187,12 +187,7 @@ program commander
 !   stop
 ! Example use case of zodi_to_ascii for HKE
 !   call zodi_model_to_ascii(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
-<<<<<<< HEAD
-!   call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/d5/data/duncanwa/DIRBE/ascii_powell.dat")
-!   call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/ascii_K98.dat")
-=======
 !   call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/data/ascii_K98.dat")
->>>>>>> 2dca5de640afb7c5ae0a05579f75b9ba9a646116
 
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")

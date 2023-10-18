@@ -10,7 +10,7 @@
 ! (at your option) any later version.
 !
 ! Commander3 is distributed in the hope that it will be useful,
-! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! but WITHout ANY WARRANTY; without even the implied warranty of
 ! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 ! GNU General Public License for more details.
 !
@@ -52,6 +52,33 @@ contains
     deallocate(xt)
 
   end function f1lin
+
+  function df1lin(x, p, xi, dfunc)
+    implicit none
+
+    real(dp)   :: x
+    real(dp), dimension(:)  :: p, xi
+    real(dp)                :: df1lin
+    interface
+       function dfunc(p)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                                     :: dfunc
+       end function dfunc
+    end interface
+
+    real(dp), allocatable, dimension(:)  :: xt, df
+
+    allocate(xt(0:size(p)-1), df(0:size(p)-1))
+    
+    xt = p + x * xi
+    df = dfunc(xt)
+    df1lin = dot_product(df, xi)
+    
+    deallocate(xt, df)
+
+  end function df1lin
 
 
   subroutine powell(p, func, ierr, niter, tolerance)
@@ -433,7 +460,202 @@ contains
     end do
 
   end subroutine mnbrak
+
+  subroutine dbrent(ax, bx, cx, eps, xmin, fret, pp, xi, func, dfunc, ierr)
+    implicit none
+    real(dp) :: ax, bx, cx, eps, xmin, fret
+    real(dp), dimension(:) :: xi, pp
+    integer(i4b), intent(out), optional :: ierr
+  
+    interface
+       function func(p)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                           :: func
+       end function func
+
+       function dfunc(p)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                           :: dfunc
+       end function dfunc
+    end interface
+  
+    integer(i4b), parameter :: itmax = 100
+    real(dp), parameter :: ZEPS = 1.0e-3_dp * epsilon(ax)
+  
+    integer(i4b) :: iter
+    real(dp) :: a, b, d, d1, d2, du, dv, dw, dx, e, fu, fv, fw, fx, olde, tol, tol1, tol2
+    real(dp) :: u, u1, u2, v, w, x, xm
+  
+    logical :: ok1, ok2  ! Will be used as flags for whether proposed steps are acceptable or not.
+  
+    a = min(ax, cx)
+    b = max(ax, cx)
+    v = bx
+    w = v
+    x = v
+    e = 0.0
+    tol = 1d-4
+    fx = f1lin(x, pp, xi, func)
+    fv = fx
+    fw = fx
+    dx = df1lin(x, pp, xi, dfunc)
+  
+    ! All our housekeeping chores are doubled by the necessity of moving derivative values around as well as function values.
+    dv = dx
+    dw = dx
+  
+    do iter = 1, itmax
+      xm = 0.5_dp * (a + b)
+      tol1 = tol * abs(x) + ZEPS
+      tol2 = 2.0_dp * tol1
+  
+      if (abs(x - xm) <= (tol2 - 0.5_dp * (b - a))) exit
+  
+      if (abs(e) > tol1) then
+        d1 = 2.0_dp * (b - a)  ! Initialize these d’s to an out-of-bracket value.
+        d2 = d1
+        if (dw /= dx) d1 = (w - x) * dx / (dx - dw)  ! Secant method with each point.
+        if (dv /= dx) d2 = (v - x) * dx / (dx - dv)  ! Which of these two estimates of d shall we take?
+        ! We will insist that they be within the bracket, and on the side pointed to by the derivative at x:
+        u1 = x + d1
+        u2 = x + d2
+        ok1 = ((a - u1) * (u1 - b) > 0.0) .AND. (dx * d1 <= 0.0)
+        ok2 = ((a - u2) * (u2 - b) > 0.0) .AND. (dx * d2 <= 0.0)
+        olde = e  ! Movement on the step before last.
+        if (ok1 .or. ok2) then  ! Take only an acceptable d, and if both are acceptable, then take the smallest one.
+          if (ok1 .AND. ok2) then
+            d = merge(d1, d2, abs(d1) < abs(d2))
+          else
+            d = merge(d1, d2, ok1)
+          end if
+          if (abs(d) <= abs(0.5_dp * olde)) then
+            u = x + d
+            if (u - a < tol2 .or. b - u < tol2) d = sign(tol1, xm - x)
+          else
+            e = merge(a, b, dx >= 0.0) - x  ! Decide which segment by the sign of the derivative.
+            d = 0.5_dp * e  ! Bisect, not golden section.
+          end if
+        else
+          e = merge(a, b, dx >= 0.0) - x  ! Decide which segment by the sign of the derivative.
+          d = 0.5_dp * e  ! Bisect, not golden section.
+        end if
+      end if
+  
+      if (abs(d) >= tol1) then
+        u = x + d
+        fu = f1lin(u, pp, xi, func)
+      else
+        u = x + sign(tol1, d)
+        fu = f1lin(u, pp, xi, func)
+      end if
+  
+      ! If the minimum step in the downhill direction takes us uphill, then we are done.
+      if (fu > fx) exit
+  
+      du = df1lin(u, pp, xi, dfunc)
+  
+      ! Now all the housekeeping, sigh.
+      if (fu <= fx) then
+        if (u >= x) then
+          a = x
+        else
+          b = x
+        end if
+        call mov3(v, fv, dv, w, fw, dw)
+        call mov3(w, fw, dw, x, fx, dx)
+        call mov3(x, fx, dx, u, fu, du)
+      else
+        if (u < x) then
+          a = u
+        else
+          b = u
+        end if
+        if (fu <= fw .or. w == x) then
+          call mov3(v, fv, dv, w, fw, dw)
+          call mov3(w, fw, dw, u, fu, du)
+        else if (fu <= fv .or. v == x .or. v == w) then
+          call mov3(v, fv, dv, u, fu, du)
+        end if
+      end if
+    end do
+  
+    if (iter > itmax) then
+      if (present(ierr)) then
+        ierr = 3
+      else
+        write(*,*) 'dbrent: exceeded maximum iterations'
+      end if
+    end if
+    xmin = x
+    fret = fx
+  
+  contains
+  
+    subroutine mov3(a, b, c, d, e, f)
+      real(dp), intent(in) :: d, e, f
+      real(dp), intent(out) :: a, b, c
+      a = d
+      b = e
+      c = f
+    end subroutine mov3
+  
+  end subroutine dbrent
+  
+  
+  
+  
+  
+  subroutine dlinmin(p, xi, fret, func, dfunc, ierr, xmin_out, eps)
+    implicit none
+  
+    real(dp), intent(in),  optional :: eps
+    real(dp), intent(out), optional :: xmin_out
+  
+    real(dp)   :: fret
+    real(dp), dimension(:)  :: p, xi
+    integer(i4b), intent(out), optional :: ierr
+    interface
+       function func(p)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                           :: func
+       end function func
+  
+       function dfunc(p)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in), optional :: p
+         real(dp)                           :: dfunc
+       end function dfunc
+    end interface
+  
+    real(dp)       :: epsilon, xx, xmin, fx, fb, fa, bx, ax
+  
+    if (present(ierr)) ierr = 0
+    epsilon = 1d-4; if (present(eps)) epsilon = eps
+  
+    ax = 0.d0
+    xx = 1.d0
+  
+    call mnbrak(ax, xx, bx, fa, fx, fb, p, xi, func, ierr)
+    if (present(ierr)) then
+       if (ierr /= 0) return
+    end if
+    call dbrent(ax, xx, bx, epsilon, xmin, fret, p, xi, func, dfunc, ierr)
+    if (present(ierr)) then
+       if (ierr /= 0) return
+    end if
+  
+    xi = xi * xmin
+    p  = p + xi
+  
+    if (present(xmin_out)) xmin_out = xmin
+  
+  end subroutine dlinmin
   
 end module powell_mod
-
-

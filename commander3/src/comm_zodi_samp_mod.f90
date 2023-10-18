@@ -185,33 +185,6 @@ contains
                   &)
                end do
             end do
-<<<<<<< HEAD
-            ! Reduce chisq to root process
-            call mpi_reduce(chisq_tod, chisq_current, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
-
-            ! Use chisq from the first iteration where we dont draw new parameters as the base chisq
-            if (k == 0) chisq_previous = chisq_current
-
-            ! Root checks if the new proposal is accepted
-            if (k > 0) then
-               if (cpar%myid == cpar%root) then
-                  chisq_diff = max(chisq_current - chisq_previous, 0.)
-                  ln_acceptance_probability = -0.5*chisq_diff
-                  accepted = ln_acceptance_probability > log(rand_uni(handle))
-                  if (accepted) write(*, '(A, ES12.5)') 'chisq_current: ', chisq_current
-               end if
-               call mpi_bcast(accepted, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
-               if (accepted) then
-                  n_accepted = n_accepted + 1
-                  chisq_previous = chisq_current
-                  n0_prev(comp) = n0_new(comp)
-               else
-                  n0_new(comp) = n0_prev(comp)
-               end if
-               accept_rate = real(n_accepted)/real(k)
-            end if
-=======
->>>>>>> 2dca5de640afb7c5ae0a05579f75b9ba9a646116
          end do
          call mpi_reduce(chisq_scan, chisq_new, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
 
@@ -470,14 +443,8 @@ contains
                if (cpar%myid == cpar%root) then
                   do i = 1, size(group_indices)
                      param_idx = group_indices(i)
-<<<<<<< HEAD
-                     if (prop == 1) write(*,*) trim(param_labels(param_idx)), param_vec(param_idx), step_sizes_ipd(param_idx)
-                     param_vec(param_idx) = param_vec(param_idx) + (step_sizes_ipd(param_idx)*rand_gauss(handle))
-                     skip = prior_is_violated(param_vec(param_idx), priors(param_idx, :))
-=======
                      theta_physical(param_idx) = theta_physical(param_idx) + (step_sizes_ipd(param_idx) * rand_gauss(handle))/theta_0(param_idx)
                      skip = prior_is_violated(theta(param_idx), priors(param_idx, :))
->>>>>>> 2dca5de640afb7c5ae0a05579f75b9ba9a646116
                      if (skip) then
                         chisq_tod = 1.d30
                         exit
@@ -581,22 +548,12 @@ contains
          if (accept_rate < 0.05) then
             do i = 1, size(group_indices)
                param_idx = group_indices(i)
-<<<<<<< HEAD
-               step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx)/2.
-               if (cpar%myid == cpar%root) write(*,*) 'Step size for ', trim(param_labels(param_idx)), ' decreased to ', step_sizes_ipd(param_idx)
-=======
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx) / 2.
->>>>>>> 2dca5de640afb7c5ae0a05579f75b9ba9a646116
             end do
          else if (accept_rate > 0.234) then
             do i = 1, size(group_indices)
                param_idx = group_indices(i)
-<<<<<<< HEAD
-               step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx)*2.
-               if (cpar%myid == cpar%root) write(*,*) 'Step size for ', trim(param_labels(param_idx)), ' increased to ', step_sizes_ipd(param_idx)
-=======
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx) * 2.
->>>>>>> 2dca5de640afb7c5ae0a05579f75b9ba9a646116
             end do
          end if
          model = current_model
