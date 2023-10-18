@@ -116,9 +116,6 @@ contains
          call zodi_model%init_comps(cpar%zs_comp_params(:, :, 1), cpar%zs_comp_types, cpar%zodi_param_labels)
          call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
       end if
-      
-      ! call zodi_model%ascii_to_model(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
-      ! call zodi_model%model_to_ascii(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
    end subroutine initialize_zodi_mod
 
    subroutine init_general_params(self, general_params)
@@ -431,8 +428,8 @@ contains
       do i = 1, self%n_comps
          ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
          self%comps(i)%c%n_0 = x(running_idx + 1)
-         self%comps(i)%c%incl = x(running_idx + 2)
-         self%comps(i)%c%Omega = x(running_idx + 3)
+         self%comps(i)%c%incl = mod(x(running_idx + 2), 360.) ! degree prior
+         self%comps(i)%c%Omega = mod(x(running_idx + 3), 360.) ! degree prior
          self%comps(i)%c%x_0 = x(running_idx + 4)
          self%comps(i)%c%y_0 = x(running_idx + 5)
          self%comps(i)%c%z_0 = x(running_idx + 6)
@@ -445,7 +442,7 @@ contains
             comp%mu = x(running_idx + 4)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          class is (ZodiBand)
-            comp%delta_zeta = x(running_idx + 1)
+            comp%delta_zeta = mod(x(running_idx + 1), 360.) ! degree prior
             comp%delta_r = x(running_idx + 2)
             comp%v = x(running_idx + 3)
             comp%p = x(running_idx + 4)
@@ -459,8 +456,8 @@ contains
             comp%R_0 = x(running_idx + 1)
             comp%sigma_r = x(running_idx + 2)
             comp%sigma_z = x(running_idx + 3)
-            comp%theta_0 = x(running_idx + 4)
-            comp%sigma_theta = x(running_idx + 5)
+            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
+            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()
@@ -553,7 +550,10 @@ contains
          call int2string(initsamp, itext)
          do i = 1, cpar%zs_ncomps
             group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
-            if (.not. hdf_group_exists(file, group_name)) cycle
+            if (.not. hdf_group_exists(file, group_name)) then
+               params(i, :) = cpar%zs_comp_params(i, :, 1)
+               cycle
+            end if 
             param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
             do j = 1, size(param_labels)
                call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
