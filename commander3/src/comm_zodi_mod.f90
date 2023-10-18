@@ -8,7 +8,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, ZodiModel, ZodiComponent, zodi_model
+   public initialize_zodi_mod, get_s_zodi, get_s_zodi_comp, ZodiModel, ZodiComponent, zodi_model
 
    ! Global variables
    real(dp) :: gauss_degree
@@ -116,9 +116,6 @@ contains
          call zodi_model%init_comps(cpar%zs_comp_params(:, :, 1), cpar%zs_comp_types, cpar%zodi_param_labels)
          call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
       end if
-      
-      ! call zodi_model%ascii_to_model(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
-      ! call zodi_model%model_to_ascii(cpar, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
    end subroutine initialize_zodi_mod
 
    subroutine init_general_params(self, general_params)
@@ -431,8 +428,8 @@ contains
       do i = 1, self%n_comps
          ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
          self%comps(i)%c%n_0 = x(running_idx + 1)
-         self%comps(i)%c%incl = x(running_idx + 2)
-         self%comps(i)%c%Omega = x(running_idx + 3)
+         self%comps(i)%c%incl = mod(x(running_idx + 2), 360.) ! degree prior
+         self%comps(i)%c%Omega = mod(x(running_idx + 3), 360.) ! degree prior
          self%comps(i)%c%x_0 = x(running_idx + 4)
          self%comps(i)%c%y_0 = x(running_idx + 5)
          self%comps(i)%c%z_0 = x(running_idx + 6)
@@ -445,7 +442,7 @@ contains
             comp%mu = x(running_idx + 4)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          class is (ZodiBand)
-            comp%delta_zeta = x(running_idx + 1)
+            comp%delta_zeta = mod(x(running_idx + 1), 360.) ! degree prior
             comp%delta_r = x(running_idx + 2)
             comp%v = x(running_idx + 3)
             comp%p = x(running_idx + 4)
@@ -459,8 +456,8 @@ contains
             comp%R_0 = x(running_idx + 1)
             comp%sigma_r = x(running_idx + 2)
             comp%sigma_z = x(running_idx + 3)
-            comp%theta_0 = x(running_idx + 4)
-            comp%sigma_theta = x(running_idx + 5)
+            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
+            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()
@@ -553,7 +550,10 @@ contains
          call int2string(initsamp, itext)
          do i = 1, cpar%zs_ncomps
             group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
-            if (.not. hdf_group_exists(file, group_name)) cycle
+            if (.not. hdf_group_exists(file, group_name)) then
+               params(i, :) = cpar%zs_comp_params(i, :, 1)
+               cycle
+            end if 
             param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
             do j = 1, size(param_labels)
                call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
@@ -573,16 +573,12 @@ contains
 
    end subroutine model_from_chain
 
-   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
+   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, alpha)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
       ! integrated thermal zodiacal emission and scattered zodiacal light.
       !
       ! Parameters:
       ! -----------
-      ! emissivity :
-      !     Emissivity of the zodiacal components.
-      ! albedo :
-      !     Albedo of the zodiacal components.
       ! s_scat :
       !     Integrated contribution from scattered sunlight light.
       ! s_therm :
@@ -593,22 +589,50 @@ contains
       !     Emissivity of the zodiacal components.
       ! albedo :
       !     Albedo of the zodiacal components.
-      ! comp :
-      !     If present, only the component with index comp is used to compute the zodiacal signal.
+      ! alpha : optional
+      !     Scale factor per component
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
       real(sp), dimension(:), intent(inout) :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
-      integer(i4b), intent(in), optional :: comp
+      real(dp), dimension(:), intent(in), optional :: alpha
       integer(i4b) :: i, n_comps
 
       n_comps = size(emissivity)
-      if (present(comp)) then
-         s_zodi = s_scat(:, comp)*albedo(comp) + (1.-albedo(comp))*emissivity(comp)*s_therm(:, comp)
-      else
-         s_zodi = 0.
-         do i = 1, n_comps
-            s_zodi = s_zodi + s_scat(:, i)*albedo(i) + (1.-albedo(i))*emissivity(i)*s_therm(:, i)
-         end do
-      end if
+      s_zodi = 0.
+      do i = 1, n_comps
+         call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i), alpha(i))
+      end do
    end subroutine get_s_zodi
+
+   subroutine get_s_zodi_comp(s_therm_comp, s_scat_comp, s_zodi_comp, emissivity_comp, albedo_comp, alpha_comp)
+      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
+      ! integrated thermal zodiacal emission and scattered zodiacal light for a single
+      ! component.
+      !
+      ! Parameters:
+      ! -----------
+      ! s_scat_comp :
+      !     Integrated contribution from scattered sunlight light.
+      ! s_therm_comp :
+      !     Integrated contribution from thermal interplanetary dust emission.
+      ! s_zodi :
+      !     Zodiacal signal.
+      ! albedo_comp :
+      !     Albedo of the zodiacal component.
+      ! emissivity_comp :
+      !     Emissivity of the zodiacal component.
+      ! alpha_comp : optional
+      !     Scale factor for a component
+      real(sp), dimension(:), intent(in) :: s_scat_comp, s_therm_comp
+      real(sp), dimension(:), intent(out) :: s_zodi_comp
+      real(dp), intent(in) :: emissivity_comp, albedo_comp
+      real(dp), intent(in), optional :: alpha_comp
+      integer(i4b) :: i, n_comps
+
+      if (present(alpha_comp)) then 
+         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp) * alpha_comp
+      else 
+         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp)
+      end if
+   end subroutine get_s_zodi_comp
 end module comm_zodi_mod

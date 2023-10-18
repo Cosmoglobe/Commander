@@ -269,7 +269,6 @@ module comm_tod_mod
      procedure                           :: apply_map_precond
      procedure                           :: collect_v_sun
      procedure                           :: precompute_zodi_lookups
-     procedure                           :: read_tod_zodi_params
      procedure                           :: clear_zodi_cache
 
   end type comm_tod
@@ -584,68 +583,6 @@ contains
   !**************************************************
   !             Utility routines
   !**************************************************
-
-   subroutine read_tod_zodi_params(self, cpar)
-      class(comm_tod),   intent(inout) :: self
-      type(comm_params), intent(in) :: cpar
-
-      logical(lgt)        :: exist
-      integer(i4b) :: i, l,  unit, ierr, initsamp
-      character(len=6)          :: itext, itext2
-
-      type(hdf_file) :: file
-      real(dp) :: lambda, lambda_min, lambda_max
-      real(dp), allocatable :: emissivity(:), albedo(:)
-      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, tod_path, group_name
-       
-      lambda_min = 0.1
-      lambda_max = 4.
-      allocate(self%zodi_emissivity(self%zodi_n_comps))
-      allocate(self%zodi_albedo(self%zodi_n_comps))
-      if (trim(adjustl(cpar%zs_init_chain)) == 'none') then
-         self%zodi_emissivity = 1.
-         lambda = (c / self%nu_c(1)) * 1e6 ! in microns
-         if ((lambda_min < lambda) .and. (lambda_max > lambda)) then
-            self%zodi_albedo = 0.5
-         else 
-            self%zodi_albedo = 0.
-         end if
-         return
-      end if
-      
-      allocate(emissivity(self%zodi_n_comps))
-      allocate(albedo(self%zodi_n_comps))
-      if (cpar%myid == cpar%root) then
-         unit = getlun()
-         call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-         inquire(file=trim(chainfile), exist=exist)
-         if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
-         l = len(trim(chainfile))
-         if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-
-         call open_hdf_file(trim(chainfile), file, "r")
-
-         call int2string(initsamp, itext)
-         
-         tod_path = trim(adjustl(itext//"/zodi/tod/"))
-         band_path = trim(adjustl(tod_path))//trim(adjustl(self%freq))
-
-         if (.not. hdf_group_exists(file, band_path)) then
-            print*, "Zodi init chain does contain emissivities or albedos for band: " // trim(adjustl(self%freq))
-            stop
-         end if 
-
-         call read_hdf(file, trim(adjustl(band_path))//'/emissivity' , emissivity)
-         call read_hdf(file, trim(adjustl(band_path))//'/albedo' , albedo)
-         call close_hdf_file(file)
-      end if
-      call mpi_bcast(emissivity, size(emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call mpi_bcast(albedo, size(albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      if (size(emissivity) /= size(self%zodi_emissivity)) stop "number of components in zodi init chain does not match the parameter file"
-      self%zodi_emissivity = emissivity
-      self%zodi_albedo     = albedo
-   end subroutine read_tod_zodi_params
-
 
   subroutine load_instrument_file(self, nside_beam, nmaps_beam, pol_beam, comm_chain)
     implicit none

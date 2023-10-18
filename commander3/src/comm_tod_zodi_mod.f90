@@ -9,7 +9,7 @@ module comm_tod_zodi_mod
    implicit none
 
    private
-   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5
+   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
 
    ! Constants
    real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp)
@@ -158,7 +158,7 @@ contains
          if (use_lowres) then
             lookup_idx = tod%pix2ind_lowres(tod%udgrade_pix_zodi(pix(i)))
             if (tod%zodi_therm_cache_lowres(lookup_idx, 1, det) > 0.d0) then
-               s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
+               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache_lowres(lookup_idx, :, det)
                s_zodi_therm(i, :) = tod%zodi_therm_cache_lowres(lookup_idx, :, det)
                cache_hits = cache_hits + 1
                cycle
@@ -167,7 +167,7 @@ contains
          else
             lookup_idx = tod%pix2ind(pix(i))
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
-               s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
+               if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
                s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
                cache_hits = cache_hits + 1
                cycle
@@ -217,7 +217,6 @@ contains
             end if
          end do
       end do
-      ! if (tod%myid == 0) print *, "cache hits %: ", (real(cache_hits, dp)/real(size(pix, dim=1), dp)) * 100.
    end subroutine get_zodi_emission
 
    ! Functions for evaluating the zodiacal emission
@@ -348,17 +347,18 @@ contains
       call spline_simple(tod%zodi_b_nu_spl_obj(det), temperature_grid, b_nu_integrals, regular=.true.)
    end subroutine update_zodi_splines
 
-   subroutine output_tod_params_to_hd5(cpar, tod, iter)
+   subroutine output_tod_params_to_hd5(cpar, model, tod, iter)
       ! Writes the zodi model to an hdf file
       type(comm_params), intent(in) :: cpar
       class(comm_tod), intent(inout) :: tod
+      type(ZodiModel), intent(in) :: model
       integer(i4b), intent(in) :: iter
 
       integer(i4b) :: i, j, hdferr, ierr, unit
       logical(lgt) :: exist, init, new_header
       character(len=6) :: itext
       character(len=4) :: ctext
-      character(len=512) :: zodi_path, tod_path, band_path, det_path, chainfile, hdfpath
+      character(len=512) :: zodi_path, tod_path, band_path, det_path, comp_path, chainfile, hdfpath
       character(len=10), allocatable :: param_names(:)
       real(dp), allocatable :: param_values(:)
       type(hdf_file) :: file
@@ -380,11 +380,76 @@ contains
       call create_hdf_group(file, trim(adjustl(tod_path)))
       band_path = trim(adjustl(tod_path))//'/'//trim(adjustl(tod%freq))
       call create_hdf_group(file, trim(adjustl(band_path)))
-
-      call write_hdf(file, trim(adjustl(band_path))//'/emissivity', tod%zodi_emissivity)
-      call write_hdf(file, trim(adjustl(band_path))//'/albedo', tod%zodi_albedo)
-
+      do i = 1, model%n_comps
+         comp_path = trim(adjustl(band_path))//'/'//trim(adjustl(model%comp_labels(i)))//'/'
+         call create_hdf_group(file, trim(adjustl(comp_path)))
+         call write_hdf(file, trim(adjustl(comp_path))//'/emissivity', tod%zodi_emissivity(i))
+         call write_hdf(file, trim(adjustl(comp_path))//'/albedo', tod%zodi_albedo(i))
+      end do
       call close_hdf_file(file)
    end subroutine
 
+   subroutine read_tod_zodi_params(cpar, model, tod)
+      type(comm_params), intent(in) :: cpar
+      type(ZodiModel), intent(in) :: model
+      class(comm_tod), intent(inout) :: tod
+
+      logical(lgt) :: exist
+      integer(i4b) :: i, l, comp, unit, ierr, initsamp
+      character(len=6) :: itext, itext2
+
+      type(hdf_file) :: file
+      real(dp) :: lambda, lambda_min, lambda_max
+      real(dp), allocatable :: emissivity(:), albedo(:)
+      character(len=512) :: chainfile, emissivity_path, albedo_path, band_path, comp_path, tod_path, group_name
+
+      allocate(tod%zodi_emissivity(tod%zodi_n_comps))
+      allocate(tod%zodi_albedo(tod%zodi_n_comps))
+      lambda_min = 0.1
+      lambda_max = 4.
+
+      if (trim(adjustl(cpar%zs_init_chain)) == 'none') then
+         tod%zodi_emissivity = 1.
+         lambda = (c / tod%nu_c(1)) * 1e6 ! in microns
+         if ((lambda_min < lambda) .and. (lambda_max > lambda)) then
+            tod%zodi_albedo = 0.5
+         else 
+            tod%zodi_albedo = 0.
+         end if
+         return
+      end if
+      
+      if (cpar%myid == cpar%root) then
+         unit = getlun()
+         call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+         inquire(file=trim(chainfile), exist=exist)
+         if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+         l = len(trim(chainfile))
+         if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+         call open_hdf_file(trim(chainfile), file, "r")
+         
+         call int2string(initsamp, itext)
+         
+         tod_path = trim(adjustl(itext//"/zodi/tod/"))
+         band_path = trim(adjustl(tod_path))//trim(adjustl(tod%freq))
+
+         if (.not. hdf_group_exists(file, band_path)) then
+            print *, "Zodi init chain does contain emissivities or albedos for band: " // trim(adjustl(tod%freq))
+            stop
+         end if 
+
+         do comp = 1, model%n_comps
+            comp_path = trim(adjustl(band_path))//'/'//trim(adjustl(model%comp_labels(comp)))//'/'
+            if (hdf_group_exists(file, comp_path)) then
+               call read_hdf(file, trim(adjustl(comp_path))//'/emissivity', tod%zodi_emissivity(comp))
+               call read_hdf(file, trim(adjustl(comp_path))//'/albedo', tod%zodi_albedo(comp))
+            else 
+               tod%zodi_emissivity(comp) = 1.
+               tod%zodi_albedo(comp) = 0.
+            end if 
+         end do
+      end if
+      call mpi_bcast(tod%zodi_emissivity, size(tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+   end subroutine read_tod_zodi_params
 end module comm_tod_zodi_mod
