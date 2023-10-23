@@ -189,7 +189,7 @@ contains
       real(dp), intent(in) :: theta
       real(dp), dimension(:), intent(out) :: n_out
       integer(i4b) :: i
-      real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, zeta, zeta_over_delta_zeta, term1, term2, term3, term4
+      real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, zeta, zeta_over_delta_zeta, term1, term2, term3, term4, R_ratio
 
       do i = 1, gauss_degree
          x_prime = X_vec(1, i) - self%x_0
@@ -207,7 +207,12 @@ contains
          ! Differs from eq 8 in K98 by a factor of 1/self.v. See Planck XIV
          ! section 4.1.2.
          term3 = 1.d0 + (zeta_over_delta_zeta**self%p)/self%v
-         term4 = 1.d0 - exp(-((R/self%delta_r)**20))
+         R_ratio = R/self%delta_r
+         if (abs(R_ratio) > 1d12) then ! overflow
+            term4 = 1.
+         else 
+            term4 = 1. - exp(-((R/self%delta_r)**20))
+         end if
 
          n_out(i) = term1*term2*term3*term4
       end do

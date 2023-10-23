@@ -331,8 +331,12 @@ program commander
       if (iter == 2) call downsamp_invariant_structs(cpar) !downsample and cache tod and pointing
       call project_and_downsamp_sky(cpar) ! project skymodel down to downsampled pointing
       call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
-      call minimize_zodi_with_powell(cpar)
-      ! call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+      select case (trim(adjustl(cpar%zs_operation)))
+      case ("sample")
+         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+      case ("powell")
+         call minimize_zodi_with_powell(cpar)
+      end select
       call timer%stop(TOT_ZODI_SAMP)
    end if
 

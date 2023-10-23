@@ -12,9 +12,9 @@ module comm_zodi_samp_mod
    private
    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell
 
-   real(dp), allocatable :: chisq_previous, step_size, priors(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
+   real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    integer(i4b) :: n_samp_bands, reference_emissivity_band
-   real(dp) :: NO_PRIOR = HUGE(1.0_dp), EPS = TINY(1.0_dp)
+   real(dp) :: EPS = TINY(1.0_dp)
    real(dp), dimension(2) :: emissivity_prior, albedo_prior
 
 contains
@@ -29,6 +29,7 @@ contains
       type(comm_params), intent(inout) :: cpar
       integer(i4b) :: i, j, idx_start, idx_stop, ref_band_count
       real(dp), allocatable :: param_vec(:)
+      character(len=128), allocatable :: labels(:)
 
       ! Figure out how many sampling bands there are and initialize the tod step sizes
       n_samp_bands = 0
@@ -46,6 +47,8 @@ contains
       end if
       
 
+
+      ! crappy way of picking initial stepsizes for the zodi parameters
       allocate (step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
       allocate (step_sizes_emissivity(n_samp_bands, zodi_model%n_comps))
       allocate (step_sizes_n0(zodi_model%n_comps))
@@ -58,27 +61,21 @@ contains
          step_sizes_albedo(i, :) =  0.01 * data(i)%tod%zodi_albedo
       end do
 
-      where (cpar%zs_comp_params == 0)
-         cpar%zs_comp_params = NO_PRIOR
-      end where
-      where (cpar%zs_general_params == 0)
-         cpar%zs_general_params = NO_PRIOR
-      end where
-
       allocate(param_vec(zodi_model%n_params))
-      call zodi_model%model_to_params(param_vec)
+      call zodi_model%model_to_params(param_vec, labels)
+
       allocate (step_sizes_ipd(zodi_model%n_params))
       step_sizes_ipd = 0.005*param_vec
 
-      allocate (priors(zodi_model%n_params, 2))
+      allocate (prior_vec(zodi_model%n_params, 3))
       idx_start = 1
       do i = 1, zodi_model%n_comps
          idx_stop = idx_start + size(zodi_model%comps(i)%labels) - 1
-         priors(idx_start:idx_stop, :) = cpar%zs_comp_params(i, :size(zodi_model%comps(i)%labels), 2:)
+         prior_vec(idx_start:idx_stop, :) = cpar%zs_comp_params(i, :size(zodi_model%comps(i)%labels), 2:)
          idx_start = idx_stop + 1
       end do 
       do i = 1, zodi_model%n_general_params
-         priors(idx_start, :) = cpar%zs_general_params(i, 2:)
+         prior_vec(idx_start, :) = cpar%zs_general_params(i, 2:)
          idx_start = idx_start + 1
       end do
 
@@ -392,8 +389,8 @@ contains
       logical(lgt), intent(in), optional :: verbose
 
       integer(i4b) :: i, j, k, prop, group_idx, flag, ndet, nscan, ntod, n_proposals, scan, ierr, n_accepted, param_idx
-      real(dp) :: chisq_tod, chisq_current, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
-      real(dp), allocatable :: param_vec(:), theta_0(:), theta(:), theta_physical(:)
+      real(dp) :: chisq_tod, chisq_current, chisq_prior, chisq_diff, ln_acceptance_probability, accept_rate, chisq_lnL, box_width
+      real(dp), allocatable :: param_vec(:)
       integer(i4b), allocatable :: group_indices(:)
       type(ZodiModel) :: current_model, previous_model
       logical(lgt) :: accepted, verbose_, tuning, skip
@@ -413,10 +410,8 @@ contains
       tuning = .true.
       n_proposals = 50
 
-      allocate(theta(current_model%n_params))
-      allocate(theta_0(current_model%n_params))
-      allocate(theta_physical(current_model%n_params))
-      call current_model%model_to_params(theta_0, param_labels)
+      allocate(param_vec(current_model%n_params))
+      call current_model%model_to_params(param_vec, param_labels)
 
       ! sample all parameters in a group jointly
       do group_idx = 1, cpar%zs_num_samp_groups
@@ -434,27 +429,22 @@ contains
             chisq_tod = 0.
             chisq_current = 0.
 
-            ! Scaling of parameters in the parameter vector so that theta/theta_0 ~ 1
             ! If first iteration we dont want to draw, just compute the chisq with the base model
             if (prop > 0) then
-               call current_model%model_to_params(theta)
-               theta_physical = theta / theta_0
+               call current_model%model_to_params(param_vec)
                ! Root process draws new set of zodi parameters and broadcasts to all processes
                if (cpar%myid == cpar%root) then
                   do i = 1, size(group_indices)
                      param_idx = group_indices(i)
-                     theta_physical(param_idx) = theta_physical(param_idx) + (step_sizes_ipd(param_idx) * rand_gauss(handle))/theta_0(param_idx)
-                     skip = prior_is_violated(theta(param_idx), priors(param_idx, :))
-                     if (skip) then
-                        chisq_tod = 1.d30
-                        exit
-                     end if
+                     param_vec(param_idx) = param_vec(param_idx) + (step_sizes_ipd(param_idx) * rand_gauss(handle))
                   end do
+                  chisq_prior = get_chisq_priors(param_vec, prior_vec)
+                  if (chisq_prior >= 1.d30) skip = .true.
                end if
-               call mpi_bcast(theta_physical, size(theta_physical), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-               call current_model%params_to_model(theta_physical*theta_0)
+               call mpi_bcast(chisq_prior, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+               call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+               call current_model%params_to_model(param_vec)
             end if
-
             do i = 1, numband
                if (skip) exit ! drop evaluation if prior is violated
                if (data(i)%tod_type == "none") cycle
@@ -508,6 +498,9 @@ contains
             ! Reduce chisq to root process
             call mpi_reduce(chisq_tod, chisq_current, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
 
+            ! Add prior penalty to chisq
+            if (prop > 0 ) chisq_current = chisq_current + chisq_prior
+
             ! Use chisq from the first iteration where we dont draw new parameters as the base chisq
             if (prop == 0) chisq_previous = chisq_current
 
@@ -560,17 +553,26 @@ contains
       end do
    end subroutine
 
-   function prior_is_violated(value, prior) result(violated)
-      real(dp), intent(in) :: value
-      real(dp), intent(in) :: prior(2)
-      logical(lgt) :: violated
+   function get_chisq_priors(params, priors) result(chisq_prior)
+      real(dp), intent(in) :: params(:)
+      real(dp), intent(in) :: priors(:, :)
+      real(dp) :: chisq_prior
+      integer(i4b) :: i
+      logical(lgt) :: prior_is_violated
 
-      if (value < prior(1)) then
-         violated = prior(1) /= NO_PRIOR
-      else if (value > prior(2)) then
-         violated = prior(2) /= NO_PRIOR
-      end if
-   end function
+      chisq_prior = 0.
+      do i = 1, size(params)
+         if (priors(i, 3) == 0) then
+            prior_is_violated = params(i) < priors(i, 1) .or. params(i) > priors(i, 2)
+            if (prior_is_violated) then
+               chisq_prior = 1.d30
+               return
+            end if
+         else if (priors(i, 3) == 1) then
+            chisq_prior = chisq_prior + (params(i) - priors(i, 1))**2 / priors(i, 2)**2
+         end if
+      end do
+   end function 
 
    subroutine downsamp_invariant_structs(cpar)
       ! Downsamples pointing, tod and caches the zodi mask (sky mask + flags)
@@ -952,129 +954,6 @@ contains
          print *, chisq, real(theta,sp)
      end if
    end function
-
-   ! function get_powell_vec(param_vec) result(powell_vec)
-   !     real(dp), allocatable :: param_vec(:)
-   !     real(dp), allocatable :: powell_vec(:)
-   !     powell_vec = pack(param_vec, active_params == .true.)
-   ! end function get_powell_vec
-
-   ! subroutine update_param_vec_from_powell_vec(param_vec, powell_vec)
-   !     real(dp), intent(inout) :: param_vec(:)
-   !     real(dp), intent(in) :: powell_vec(:)
-   !     integer :: i, j
-   !     j = 1
-   !     do i = 1, size(param_vec)
-   !         if (active_params(i) == .true.) then
-   !             param_vec(i) = powell_vec(j)
-   !             j = j + 1
-   !         end if
-   !     end do
-   ! end subroutine update_param_vec_from_powell_vec
-
-   ! function lnL_zodi(p)
-   !     use healpix_types
-   !     implicit none
-   !     real(dp), dimension(:), intent(in), optional :: p
-   !     real(dp) :: lnL_zodi
-
-   !     real(dp), allocatable :: theta(:)
-   !     real(sp), allocatable :: s_scat(:, :), s_therm(:, :), s_zodi(:), res(:)
-   !     type(ZodiModel) :: model
-
-   !     integer(i4b) :: i, j, ntod, ndet, nscan, scan, ierr, flag
-   !     real(dp) :: chisq_tod, chisq, chisq_buff
-   !     real(dp), allocatable :: p_copy(:), param_vec(:)
-   !     allocate(theta(n_active_params))
-
-   !     if (data(1)%tod%myid == 0) then
-   !         flag = 1
-   !         call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
-   !         theta = p
-   !     end if
-   !     call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
-
-   !     ! Get param vector from zodi model
-   !     model = zodi_model
-   !     allocate(param_vec(model%n_parameters))
-   !     param_vec = model%model_to_param_vec()
-
-   !     ! Check priors
-   !     j = 1
-   !     do i = 1, size(param_vec)
-   !         if (active_params(i) == .true.) then
-   !             if (theta(j) < priors(i, 1) .or. theta(j) > priors(i, 2)) then
-   !                 lnL_zodi = 1.d30
-   !                 return
-   !             end if
-   !             j = j + 1
-   !         end if
-   !     end do
-
-   !     ! Update param_vec with new values from powell_vec (theta)
-   !     call update_param_vec_from_powell_vec(param_vec, theta)
-
-   !     ! update zodi model with new param_vec
-   !     call model%param_vec_to_model(param_vec)
-
-   !     ! Calculate chisq for each band
-   !     chisq_tod = 0.
-   !     chisq = 0.
-   !     lnL_zodi = 0.
-
-   !     do i = 1, numband
-   !         ! Skip none tod bands
-   !         if (data(i)%tod_type == "none") cycle
-   !         ! Skip tod bands where we dont want to sample zodi
-   !         if (.not. data(i)%tod%sample_zodi) cycle
-
-   !         ndet = data(i)%tod%ndet
-   !         nscan = data(i)%tod%nscan
-
-   !         ! Make sure that the zodi cache is cleared before each new band
-   !         call data(i)%tod%clear_zodi_cache()
-
-   !         ! Evaluate zodi model with newly proposed values for each band and calculate chisq
-   !         do scan = 1, nscan
-   !             ! Skip scan if no accepted data
-   !             do j = 1, ndet
-   !                 if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-   !                 ntod = size(data(i)%tod%scans(scan)%d(j)%downsamp_res)
-   !                 allocate(s_scat(ntod, model%n_comps), s_therm(ntod, model%n_comps), s_zodi(ntod))
-   !                 call get_zodi_emission(&
-   !                     & tod=data(i)%tod, &
-   !                     & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
-   !                     & scan=scan, &
-   !                     & det=j, &
-   !                     & s_zodi_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-   !                     & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-   !                     & model=model &
-   !                 &)
-   !                 call get_s_zodi(&
-   !                     & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-   !                     & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-   !                     & s_zodi=s_zodi, &
-   !                     & emissivity=data(i)%tod%zodi_emissivity, &
-   !                     & albedo=data(i)%tod%zodi_albedo &
-   !                 &)
-   !                 chisq_buff = sum(((data(i)%tod%scans(scan)%d(j)%downsamp_res - s_zodi)/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0)**2)
-
-   !                 chisq_tod = chisq_tod + chisq_buff
-   !                 deallocate(s_scat, s_therm, s_zodi)
-   !             end do
-   !         end do
-   !     end do
-
-   !     ! Reduce chisq to root process
-   !     call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
-
-   !     if (data(1)%tod%myid == 0) then
-   !         ! print *, chisq, model%comps(1)%c%n_0
-   !         lnL_zodi = chisq
-   !     end if
-
-   ! end function lnL_zodi
-
 
    subroutine zodi_model_to_ascii(cpar, model, filename)
       ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
