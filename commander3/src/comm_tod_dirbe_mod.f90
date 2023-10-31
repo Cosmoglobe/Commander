@@ -132,7 +132,8 @@ contains
       constructor%orb_4pi_beam    = .false.
       constructor%sample_zodi     = cpar%sample_zodi .and. constructor%subtract_zodi ! Sample zodi parameters
       constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
+      ! constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
+      constructor%chisq_threshold = 50000.
       constructor%nmaps           = info%nmaps
       constructor%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
 

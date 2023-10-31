@@ -206,6 +206,7 @@ contains
 
          ! Differs from eq 8 in K98 by a factor of 1/self.v. See Planck XIV
          ! section 4.1.2.
+         ! term3 = self%v + (zeta_over_delta_zeta**self%p)
          term3 = 1.d0 + (zeta_over_delta_zeta**self%p)/self%v
          R_ratio = R/self%delta_r
          if (abs(R_ratio) > 1d12) then ! overflow

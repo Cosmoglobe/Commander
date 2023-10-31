@@ -260,14 +260,14 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
 
      ! Zodi parameters
-     integer(i4b)                            :: zs_ncomps, zs_los_steps, zs_num_samp_groups
+     integer(i4b)                            :: zs_ncomps, zs_los_steps, zs_num_samp_groups, zs_covar_first, zs_covar_last
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_operation
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps
-     character(len=512)                      :: zs_init_chain
+     character(len=512)                      :: zs_init_chain, zs_covar_chain
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
   end type comm_params
 
@@ -2961,6 +2961,11 @@ subroutine read_zodi_params_hash(htbl, cpar)
           end if
      end do
      if (cpar%sample_zodi) then
+          ! call get_parameter_from_hash(htbl, 'ZODI_COVAR_CHAIN', par_string=cpar%zs_covar_chain)
+          ! if (trim(adjustl(cpar%zs_covar_chain)) /= "none") then
+          !      call get_parameter_from_hash(htbl, 'ZODI_COVAR_FIRST_SAMPLE', par_int=cpar%zs_covar_first)
+          !      call get_parameter_from_hash(htbl, 'ZODI_COVAR_LAST_SAMPLE', par_int=cpar%zs_covar_last)
+          ! end if
           call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
           allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups

@@ -1,3 +1,7 @@
+ZODI_INIT_CHAIN                  = none
+ZODI_COVAR_CHAIN                 = none
+ZODI_OUTPUT_COMP_MAPS            = .false.
+
 NUM_ZODI_SAMPLING_GROUPS         = 6
 
 @START 01
@@ -23,3 +27,4 @@ ZODI_SAMPLING_GROUP&&          = ring:x_0,ring:y_0,ring:z_0,ring:incl,ring:Omega
 @START 06
 ZODI_SAMPLING_GROUP&&          = feature:x_0,feature:y_0,feature:z_0,feature:incl,feature:Omega,feature:R_0,feature:sigma_r,feature:sigma_z,feature:theta_0,feature:sigma_theta
 @END 06
+
