@@ -16,7 +16,7 @@ module comm_zodi_samp_mod
    integer(i4b) :: n_samp_bands, reference_emissivity_band
    real(dp) :: EPS = TINY(1.0_dp)
    real(dp), dimension(2) :: emissivity_prior, albedo_prior
-   logical(lgt), allocatable :: powell_ignore_indices(:)
+   logical(lgt), allocatable :: powell_ignored_params(:)
 
 contains
    subroutine initialize_zodi_samp_mod(cpar)
@@ -865,19 +865,19 @@ contains
       call zodi_model%model_to_params(theta, labels)
       theta_0 = theta
 
-      ! make boolen array with all parameters but N_0
-      if (.not. allocated(powell_ignore_indices)) allocate(powell_ignore_indices(size(theta)))
-      powell_ignore_indices = .true.
+      ! filter out parameters for powell search
+      if (.not. allocated(powell_ignored_params)) allocate(powell_ignored_params(size(theta)))
+      powell_ignored_params = .true.
       do i = 1, size(labels)
          ! if (index(trim(adjustl(labels(i))), "N_0") /= 0) powell_ignore_indices(i) = .false.
-         if (index(trim(adjustl(labels(i))), "T_0") /= 0) powell_ignore_indices(i) = .false.
-         if (index(trim(adjustl(labels(i))), "T_DELTA") /= 0) powell_ignore_indices(i) = .false.
+         if (index(trim(adjustl(labels(i))), "T_0") /= 0) powell_ignored_params(i) = .false.
+         if (index(trim(adjustl(labels(i))), "T_DELTA") /= 0) powell_ignored_params(i) = .false.
       end do
 
-      allocate(theta_phys(count(powell_ignore_indices)))
+      allocate(theta_phys(count(powell_ignored_params)))
       if (cpar%myid == cpar%root) then
          !filter out N_0 parameters and scale to physical units
-         theta_phys = pack(theta / theta_0, powell_ignore_indices)
+         theta_phys = pack(theta / theta_0, powell_ignored_params)
          call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-2, niter=10)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
@@ -897,7 +897,7 @@ contains
 
       j = 1
       do i = 1, size(theta)
-         if (powell_ignore_indices(i)) then 
+         if (powell_ignored_params(i)) then 
             theta(i) = theta_phys(j) * theta_0(i)
             j = j + 1
          end if
@@ -921,7 +921,7 @@ contains
       model = zodi_model
       allocate(theta(model%n_params))
       call model%model_to_params(theta)
-      theta_phys = pack(theta / theta_0, powell_ignore_indices)
+      theta_phys = pack(theta / theta_0, powell_ignored_params)
       if (data(1)%tod%myid == 0) then
          flag = 1
          call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
@@ -931,7 +931,7 @@ contains
 
       j = 1
       do i = 1, size(theta)
-         if (powell_ignore_indices(i)) then
+         if (powell_ignored_params(i)) then
             theta(i) = theta_phys(j) * theta_0(i)
             j = j + 1
          end if
