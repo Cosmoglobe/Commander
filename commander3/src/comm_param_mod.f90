@@ -48,6 +48,7 @@ module comm_param_mod
      character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
      character(len=128), dimension(3) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z']
      character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(1) :: interstellar = [character(len=128) :: 'R']
      character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
      contains
             procedure :: get_labels
@@ -264,7 +265,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
-     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_operation
+     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_operation
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps
      character(len=512)                      :: zs_init_chain, zs_covar_chain
@@ -2918,29 +2919,30 @@ subroutine read_zodi_params_hash(htbl, cpar)
 
           call get_parameter_hashtable(htbl, 'ZODI_COMP_TYPE'//itext2, par_string=cpar%zs_comp_types(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_LABEL'//itext2, par_string=cpar%zs_comp_labels(comp_idx))
+          call get_parameter_hashtable(htbl, 'ZODI_COMP_INIT_FROM_HDF'//itext2, par_string=cpar%zs_init_hdf(comp_idx))
+          if (trim(adjustl(cpar%zs_init_hdf(comp_idx))) /= "none") cycle 
           
           parameter_labels = cpar%zodi_param_labels%get_labels(cpar%zs_comp_types(comp_idx), add_common=.true.)
           do j = 1, size(parameter_labels)
                call get_parameter_hashtable(htbl, 'ZODI_COMP_'//trim(adjustl(parameter_labels(j)))//itext2, par_string=value_string)
                call get_tokens(value_string, ',', value_and_priors_str, num=n_tokens) 
                if (.not. (n_tokens == 4 .or. n_tokens == 1)) stop "zodi parameter must have 1, or 4 tokens (value,) or (value,prior_lower_limit,prior_upper_limit,prior_type) [no spaces]"
-               read(value_and_priors_str(1), *) cpar%zs_comp_params(i, j, 1)
+               read(value_and_priors_str(1), *) cpar%zs_comp_params(comp_idx, j, 1)
                if (n_tokens == 4) then
                     do k = 2, 3
                          if (trim(adjustl(value_and_priors_str(k))) == "none") cycle
-                         read(value_and_priors_str(k), *) cpar%zs_comp_params(i, j, k)
+                         read(value_and_priors_str(k), *) cpar%zs_comp_params(comp_idx, j, k)
                     end do
                     if (trim(adjustl(value_and_priors_str(4))) == "uniform") then 
-                         cpar%zs_comp_params(i, j, 4) = 0
+                         cpar%zs_comp_params(comp_idx, j, 4) = 0
                     else if (trim(adjustl(value_and_priors_str(4))) == "gauss") then
-                         cpar%zs_comp_params(i, j, 4) = 1
+                         cpar%zs_comp_params(comp_idx, j, 4) = 1
                     else 
                          stop "the 4th token to a zodi parameter must be either 'uniform' or 'gauss'"
                     end if
                end if
           end do
      end do
-
      if (cpar%sample_zodi) allocate(cpar%ds_tod_procmask_zodi(cpar%numband))
      ! tod parameters!      
      allocate(emissivity_string(cpar%zs_ncomps))

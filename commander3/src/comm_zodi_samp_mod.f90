@@ -506,6 +506,7 @@ contains
                         &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                         & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                      &)
+
                      if (chisq_tod >= 1.d30) exit
                   end do
                end do
@@ -604,6 +605,7 @@ contains
       real(sp), allocatable, dimension(:) :: downsamp_mask, downsamp_tod, downsamp_obs_time, obs_time
       real(sp), allocatable, dimension(:) :: procmask_zodi
       type(hdf_file) :: tod_file
+      character(len=4) :: scan_str
 
       padding = 5
       if (cpar%myid == cpar%root) print *, "downsampling tod and pointing"
@@ -681,6 +683,8 @@ contains
                   if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
                end do
 
+               where (mask > 0.) mask = 1. ! make sure mask is binary before downsampling
+
                ! Downsample the mask
                call data(i)%tod%downsample_tod(mask, ext, downsamp_mask, step=box_width)
 
@@ -699,6 +703,14 @@ contains
                data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(downsamp_pix(padding:upper_bound-padding), downsamp_mask_idx(padding:upper_bound-padding))
                data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(downsamp_tod(padding:upper_bound-padding), downsamp_mask_idx(padding:upper_bound-padding))
                if (j == 1) data(i)%tod%scans(scan)%downsamp_obs_time = pack(downsamp_obs_time(padding:upper_bound-padding), downsamp_mask_idx(padding:upper_bound-padding))
+
+
+               ! write timestreams to files
+               ! call int2string(data(i)%tod%scanid(scan), scan_str)
+               ! call open_hdf_file(trim(adjustl("/mn/stornext/u3/metins/dirbe/chains/chains_downsamp/dtod_"//scan_str//".h5")), tod_file, 'w')
+               ! call write_hdf(tod_file, '/dtod', data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+               ! call close_hdf_file(tod_file)
+
 
                ! Allocate other downsampled quantities with same shape
                ndownsamp = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
@@ -738,7 +750,7 @@ contains
          ndet = data(i)%tod%ndet
          allocate (sky_signal(data(i)%tod%ndet, ndelta))
          do j = 1, data(i)%tod%ndet
-            call get_sky_signal(i, j, sky_signal(j, ndelta)%p, mono=.false.)
+            call get_sky_signal(i, j, sky_signal(j, ndelta)%p, mono=.true.)
          end do
 
          allocate (map_sky(nmaps, data(i)%tod%nobs, 0:data(i)%tod%ndet, 1))
@@ -915,7 +927,8 @@ contains
       real(dp), allocatable :: theta(:), theta_phys(:)
       real(dp) :: chisq, chisq_tod, chisq_prior, box_width
       integer(i4b) :: i, j, scan, ntod, ndet, nscan, flag, ierr
-
+      character(len=4) :: scan_str
+      type(hdf_file) :: tod_file
 
       allocate(theta_phys, mold=theta_0)
       model = zodi_model
@@ -989,14 +1002,17 @@ contains
                   & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                &)
                if (chisq_tod >= 1.d30) exit
-
+               ! call int2string(data(i)%tod%scanid(scan), scan_str)
+               ! call open_hdf_file(trim(adjustl("/mn/stornext/u3/metins/dirbe/chains/chains_downsamp/dtodlnl_"//scan_str//".h5")), tod_file, 'w')
+               ! call write_hdf(tod_file, '/dtod', data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+               ! call close_hdf_file(tod_file)
             end do
          end do
       end do
 
       ! Reduce chisq to root process
       call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
-
+      ! stop
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq
          print *, chisq, real(theta, sp)
