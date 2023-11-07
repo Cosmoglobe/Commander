@@ -79,6 +79,13 @@ module comm_zodi_mod
       procedure :: get_density => get_density_feature
    end type ZodiFeature
 
+   type, extends(ZodiComponent) :: ZodiInterstellar
+      real(dp) :: amp
+   contains
+      procedure :: init => init_interstellar
+      procedure :: get_density => get_density_interstellar
+   end type ZodiInterstellar
+
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=128), allocatable :: comp_labels(:), general_labels(:)
@@ -89,7 +96,7 @@ module comm_zodi_mod
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
    contains
-      procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, model_from_chain
+      procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, comp_from_chain
    end type ZodiModel
    type(ZodiModel), target :: zodi_model
 
@@ -98,24 +105,26 @@ contains
       type(comm_params), intent(in) :: cpar
       integer(i4b) :: i, ierr
       character(len=256) :: file_path
-      real(dp), allocatable :: param_vec(:)
+      real(dp), allocatable :: comp_params(:, :)
       character(len=128), allocatable :: comp_labels(:)
 
       ! Set model and zodi_mod parameters from cpar
       gauss_degree = cpar%zs_los_steps
       zodi_model%n_comps = cpar%zs_ncomps
+      allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
       zodi_model%general_labels = cpar%zodi_param_labels%general
       zodi_model%comp_labels = cpar%zs_comp_labels(1:zodi_model%n_comps)
       zodi_model%n_common_params = size(cpar%zodi_param_labels%common)
       zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
       
-      ! initialize zodi_model from chain or from cpar
-      if (cpar%zs_init_chain /= 'none') then
-         call zodi_model%model_from_chain(cpar)
-      else
-         call zodi_model%init_comps(cpar%zs_comp_params(:, :, 1), cpar%zs_comp_types, cpar%zodi_param_labels)
-         call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
-      end if
+      comp_params = cpar%zs_comp_params(:, :, 1)
+      do i = 1, zodi_model%n_comps
+         if (trim(adjustl(cpar%zs_init_hdf(i))) /= 'none') then 
+            call zodi_model%comp_from_chain(cpar, comp_params, i)
+         end if
+      end do
+      call zodi_model%init_comps(comp_params, cpar%zs_comp_types, cpar%zodi_param_labels)
+      call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
    end subroutine initialize_zodi_mod
 
    subroutine init_general_params(self, general_params)
@@ -155,6 +164,11 @@ contains
       self%sigma_theta_rad = self%sigma_theta*deg2rad
       call self%init_base_comp()
    end subroutine init_feature
+
+   subroutine init_interstellar(self)
+      class(ZodiInterstellar) :: self
+      call self%init_base_comp()
+   end subroutine init_interstellar
 
    subroutine get_density_cloud(self, X_vec, theta, n_out)
       class(ZodiCloud) :: self
@@ -199,7 +213,6 @@ contains
          R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
          Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
          zeta = abs(Z_midplane/R)
-
          zeta_over_delta_zeta = zeta/self%delta_zeta_rad
          term1 = (3.d0*self%n_0)/R
          term2 = exp(-(zeta_over_delta_zeta**6))
@@ -253,7 +266,7 @@ contains
          x_prime = X_vec(1, i) - self%x_0
          y_prime = X_vec(2, i) - self%y_0
          z_prime = X_vec(3, i) - self%z_0
-         theta_prime = atan2(y_prime, x_prime) - (theta + self%theta_0_rad)
+         theta_prime = atan2(y_prime, x_prime) - theta - self%theta_0_rad
 
          ! Constraining the angle to the limit [-pi, pi]
          do while (theta_prime < -pi)
@@ -267,19 +280,30 @@ contains
          Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
 
          exp_term = ((R - self%R_0)**2/self%sigma_r**2) + (abs(Z_midplane)/self%sigma_z) + (theta_prime**2/self%sigma_theta_rad**2)
-
          n_out(i) = self%n_0*exp(-exp_term)
       end do
    end subroutine get_density_feature
 
+   subroutine get_density_interstellar(self, X_vec, theta, n_out)
+      class(ZodiInterstellar) :: self
+      real(dp), dimension(:, :), intent(in) :: X_vec
+      real(dp), intent(in) :: theta
+      real(dp), dimension(:), intent(out) :: n_out
+      integer(i4b) :: i
+      real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
+
+      do i = 1, gauss_degree
+         n_out(i) = self%amp
+      end do
+   end subroutine get_density_interstellar
+
    subroutine init_comps(self, params, comp_types, param_labels)
       ! Initializes the components in the zodi model and computes the number of parameters in the model.
       class(ZodiModel), target, intent(inout) :: self
-      character(len=*), intent(in), optional :: comp_types(:)
-      class(InterplanetaryDustParamLabels) :: param_labels
-      real(dp) :: params(:, :)
+      real(dp), intent(in) :: params(:, :)
+      character(len=*), intent(in) :: comp_types(:)
+      class(InterplanetaryDustParamLabels), intent(in) :: param_labels
       integer(i4b) :: i, ierr
-
       allocate (self%comps(self%n_comps))
       self%n_params = self%n_general_params
       ! NOTE: The order of the parameters in the `params` array must match the below order of readin
@@ -529,23 +553,24 @@ contains
       call close_hdf_file(file)
    end subroutine
 
-   subroutine model_from_chain(self, cpar)
-      ! Initializes parts of the zodi model from the chain file
+   subroutine comp_from_chain(self, cpar, params, comp_idx)
+      ! Initialize a component from a chain
       class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
+      real(dp), intent(inout) :: params(:, :)
+      integer(i4b) :: comp_idx
+
       logical(lgt) :: exist
-      integer(i4b) :: i, j, l, unit, ierr, initsamp, hdferr
+      integer(i4b) :: i, j, l, ierr, initsamp
       character(len=6) :: itext
 
       type(hdf_file) :: file
-      real(dp) :: comp_params(100), params(100, 100), general_params(100)
-      character(len=32), allocatable :: common_param_labels(:), param_labels(:)
-      character(len=512) :: chainfile, group_name
-      TYPE(h5o_info_t) :: object_info
 
-      params = 0.
+      character(len=32), allocatable :: param_labels(:)
+      character(len=512) :: chainfile, group_name
+
       if (cpar%myid == cpar%root) then
-         call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+         call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
          inquire (file=trim(chainfile), exist=exist)
          if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
          l = len(trim(chainfile))
@@ -554,30 +579,71 @@ contains
          call open_hdf_file(trim(chainfile), file, "r")
          
          call int2string(initsamp, itext)
-         do i = 1, cpar%zs_ncomps
-            group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
-            if (.not. hdf_group_exists(file, group_name)) then
-               params(i, :) = cpar%zs_comp_params(i, :, 1)
-               cycle
-            end if 
-            param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
-            do j = 1, size(param_labels)
-               call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
-                   & '/'//trim(adjustl(param_labels(j)))), comp_params(j))
-            end do
-               params(i, :) = comp_params
-         end do 
-         do i = 1, self%n_general_params
-            call read_hdf(file, trim(adjustl(itext)//'/zodi/general/'//trim(adjustl(self%general_labels(i)))), general_params(i))
-         end do
-         call close_hdf_file(file)
-      end if
-      call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call mpi_bcast(general_params, size(general_params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call self%init_general_params(general_params)
-      call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
+         group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
+         if (.not. hdf_group_exists(file, group_name)) then
+            print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(i))), "not found in chain:", trim(chainfile)
+            stop
+         end if 
 
-   end subroutine model_from_chain
+         param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(comp_idx))), add_common=.true.)
+         do j = 1, size(param_labels)
+            call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
+                  & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
+         end do
+      end if
+      ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+
+   end subroutine
+   ! subroutine model_from_chain(self, cpar)
+   !    ! Initializes parts of the zodi model from the chain file
+   !    class(ZodiModel), target, intent(inout) :: self
+   !    type(comm_params), intent(in) :: cpar
+   !    logical(lgt) :: exist
+   !    integer(i4b) :: i, j, l, unit, ierr, initsamp, hdferr
+   !    character(len=6) :: itext
+
+   !    type(hdf_file) :: file
+   !    real(dp) :: comp_params(100), params(100, 100), general_params(100)
+   !    character(len=32), allocatable :: common_param_labels(:), param_labels(:)
+   !    character(len=512) :: chainfile, group_name
+   !    TYPE(h5o_info_t) :: object_info
+
+   !    params = 0.
+   !    if (cpar%myid == cpar%root) then
+   !       call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
+   !       inquire (file=trim(chainfile), exist=exist)
+   !       if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
+   !       l = len(trim(chainfile))
+   !       if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+         
+   !       call open_hdf_file(trim(chainfile), file, "r")
+         
+   !       call int2string(initsamp, itext)
+   !       do i = 1, cpar%zs_ncomps
+   !          group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
+   !          if (.not. hdf_group_exists(file, group_name)) then
+   !             params(i, :) = cpar%zs_comp_params(i, :, 1)
+   !             cycle
+   !          end if 
+   !          param_labels = cpar%zodi_param_labels%get_labels(trim(adjustl(cpar%zs_comp_types(i))), add_common=.true.)
+   !          do j = 1, size(param_labels)
+   !             call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i)))// &
+   !                 & '/'//trim(adjustl(param_labels(j)))), comp_params(j))
+   !          end do
+   !             params(i, :) = comp_params
+   !       end do 
+   !       do i = 1, self%n_general_params
+   !          call read_hdf(file, trim(adjustl(itext)//'/zodi/general/'//trim(adjustl(self%general_labels(i)))), general_params(i))
+   !       end do
+   !       call close_hdf_file(file)
+   !    end if
+   !    call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+   !    call mpi_bcast(general_params, size(general_params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+   !    call self%init_general_params(general_params)
+   !    call self%init_comps(params, cpar%zs_comp_types, cpar%zodi_param_labels)
+
+   ! end subroutine model_from_chain
 
    subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, alpha)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given

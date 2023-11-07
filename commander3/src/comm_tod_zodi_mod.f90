@@ -179,8 +179,8 @@ contains
 
          do k = 1, 3
             ! Convert quadrature range from [-1, 1] to [R_min, R_max]
-            X_unit_LOS(k, :) = (0.5*(R_max - R_MIN))*gauss_nodes + (0.5*(R_max + R_MIN))
-            X_unit_LOS(k, :) = X_unit_LOS(k, :)*unit_vector(k)
+            X_unit_LOS(k, :) = (0.5 * (R_max - R_MIN)) * gauss_nodes + (0.5 * (R_max + R_MIN))
+            X_unit_LOS(k, :) = X_unit_LOS(k, :) * unit_vector(k)
             X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
          end do
          R_LOS = norm2(X_LOS, dim=1)
@@ -407,48 +407,47 @@ contains
       allocate(tod%zodi_albedo(tod%zodi_n_comps))
       lambda_min = 0.1
       lambda_max = 4.
-
-      if (trim(adjustl(cpar%zs_init_chain)) == 'none') then
-         tod%zodi_emissivity = 1.
-         lambda = (c / tod%nu_c(1)) * 1e6 ! in microns
-         if ((lambda_min < lambda) .and. (lambda_max > lambda)) then
-            tod%zodi_albedo = 0.5
-         else 
-            tod%zodi_albedo = 0.
-         end if
-         return
-      end if
-      
-      if (cpar%myid == cpar%root) then
-         unit = getlun()
-         call get_chainfile_and_samp(trim(cpar%zs_init_chain), chainfile, initsamp)
-         inquire(file=trim(chainfile), exist=exist)
-         if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
-         l = len(trim(chainfile))
-         if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-         call open_hdf_file(trim(chainfile), file, "r")
-         
-         call int2string(initsamp, itext)
-         
-         tod_path = trim(adjustl(itext//"/zodi/tod/"))
-         band_path = trim(adjustl(tod_path))//trim(adjustl(tod%freq))
-
-         if (.not. hdf_group_exists(file, band_path)) then
-            print *, "Zodi init chain does contain emissivities or albedos for band: " // trim(adjustl(tod%freq))
-            stop
-         end if 
-
-         do comp = 1, model%n_comps
-            comp_path = trim(adjustl(band_path))//'/'//trim(adjustl(model%comp_labels(comp)))//'/'
-            if (hdf_group_exists(file, comp_path)) then
-               call read_hdf(file, trim(adjustl(comp_path))//'/emissivity', tod%zodi_emissivity(comp))
-               call read_hdf(file, trim(adjustl(comp_path))//'/albedo', tod%zodi_albedo(comp))
+      do i = 1, cpar%zs_ncomps
+         if (trim(adjustl(cpar%zs_init_hdf(i))) == 'none') then
+            tod%zodi_emissivity(i) = 1.
+            lambda = (c / tod%nu_c(1)) * 1e6 ! in microns
+            if ((lambda_min < lambda) .and. (lambda_max > lambda)) then
+               tod%zodi_albedo(i) = 0.5
             else 
-               tod%zodi_emissivity(comp) = 1.
-               tod%zodi_albedo(comp) = 0.
+               tod%zodi_albedo(i) = 0.
+            end if
+            cycle
+         end if
+         
+         if (cpar%myid == cpar%root) then
+            unit = getlun()
+            call get_chainfile_and_samp(trim(cpar%zs_init_hdf(i)), chainfile, initsamp)
+            inquire(file=trim(chainfile), exist=exist)
+            if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
+            l = len(trim(chainfile))
+            if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
+            call open_hdf_file(trim(chainfile), file, "r")
+            
+            call int2string(initsamp, itext)
+            
+            tod_path = trim(adjustl(itext//"/zodi/tod/"))
+            band_path = trim(adjustl(tod_path))//trim(adjustl(tod%freq))
+
+            if (.not. hdf_group_exists(file, band_path)) then
+               print *, "Zodi init chain does contain emissivities or albedos for band: " // trim(adjustl(tod%freq))
+               stop
             end if 
-         end do
-      end if
+
+            comp_path = trim(adjustl(band_path))//'/'//trim(adjustl(model%comp_labels(i)))//'/'
+            if (hdf_group_exists(file, comp_path)) then
+               call read_hdf(file, trim(adjustl(comp_path))//'/emissivity', tod%zodi_emissivity(i))
+               call read_hdf(file, trim(adjustl(comp_path))//'/albedo', tod%zodi_albedo(i))
+            else 
+               tod%zodi_emissivity(i) = 1.
+               tod%zodi_albedo(i) = 0.
+            end if 
+         end if
+      end do
       call mpi_bcast(tod%zodi_emissivity, size(tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
    end subroutine read_tod_zodi_params

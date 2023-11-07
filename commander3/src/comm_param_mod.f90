@@ -268,7 +268,6 @@ module comm_param_mod
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_operation
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps
-     character(len=512)                      :: zs_init_chain, zs_covar_chain
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
   end type comm_params
 
@@ -2878,7 +2877,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_N_LOS_STEP', par_int=cpar%zs_los_steps)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
-     call get_parameter_from_hash(htbl, 'ZODI_INIT_CHAIN', par_string=cpar%zs_init_chain)
      call get_parameter_from_hash(htbl, 'ZODI_OPERATION', par_string=cpar%zs_operation)
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT
@@ -2963,11 +2961,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
           end if
      end do
      if (cpar%sample_zodi) then
-          ! call get_parameter_from_hash(htbl, 'ZODI_COVAR_CHAIN', par_string=cpar%zs_covar_chain)
-          ! if (trim(adjustl(cpar%zs_covar_chain)) /= "none") then
-          !      call get_parameter_from_hash(htbl, 'ZODI_COVAR_FIRST_SAMPLE', par_int=cpar%zs_covar_first)
-          !      call get_parameter_from_hash(htbl, 'ZODI_COVAR_LAST_SAMPLE', par_int=cpar%zs_covar_last)
-          ! end if
           call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
           allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups
