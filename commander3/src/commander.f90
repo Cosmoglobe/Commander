@@ -183,6 +183,7 @@ program commander
   ! initialize zodi samp mod
   if (cpar%sample_zodi .and. cpar%include_tod_zodi) call initialize_zodi_samp_mod(cpar)
 !   call zodi_model_to_ascii(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
+   !  call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_k98_ascii.dat")
 !   call mpi_barrier(MPI_COMM_WORLD, ierr)
 !   stop
 ! Example use case of zodi_to_ascii for HKE

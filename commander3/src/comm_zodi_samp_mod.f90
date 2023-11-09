@@ -28,10 +28,10 @@ contains
       !    Parameter file variables.
 
       type(comm_params), intent(inout) :: cpar
-      integer(i4b) :: i, j, idx_start, idx_stop, ref_band_count, ierr
+      integer(i4b) :: i, j, idx_start, idx_stop, ref_band_count, ierr, group_idx
       real(dp), allocatable :: param_vec(:)
       character(len=128), allocatable :: labels(:)
-
+      integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
       n_samp_bands = 0
       do i = 1, numband
@@ -83,6 +83,13 @@ contains
       emissivity_prior = [0., 5.]
       albedo_prior = [0., 1.]
 
+      if (trim(adjustl(cpar%zs_operation)) == "powell") allocate(powell_included_params(size(param_vec)))
+
+      ! validate sampling group parameters
+      do group_idx = 1, cpar%zs_num_samp_groups
+         ! Get indices of the parameters to sample in the current sampling group
+         call parse_samp_group_strings(cpar%zs_samp_groups(group_idx), labels, indices)
+      end do
       ! do i = 1, size(labels)
       !    if (index(trim(adjustl(labels(i))), "X_0") /= 0) then
       !       step_sizes_ipd(i) = step_sizes_ipd(i) * 10.
@@ -870,16 +877,46 @@ contains
       logical(lgt), save :: first_call = .true.
       real(dp), allocatable :: theta(:), theta_phys(:)
       character(len=128), allocatable :: labels(:)
-      integer(i4b) :: i, j, ierr, flag
+      integer(i4b) :: i, j, ierr, flag, group_idx
       real(dp) :: chisq_lnL
+      integer(i4b), allocatable :: indices(:)
+      logical(lgt), allocatable :: trues(:)
 
       allocate(theta(zodi_model%n_params))
       call zodi_model%model_to_params(theta, labels)
-      theta_0 = theta
-
+      
       ! filter out parameters for powell search
-      if (.not. allocated(powell_included_params)) allocate(powell_included_params(size(theta)))
-      powell_included_params = .true.
+      powell_included_params = .false.
+      do group_idx = 1, cpar%zs_num_samp_groups
+         ! Get indices of the parameters to sample in the current sampling group
+         call parse_samp_group_strings(cpar%zs_samp_groups(group_idx), labels, indices)
+         do i = 1, size(indices)
+            powell_included_params(indices(i)) = .true.
+         end do
+      end do
+
+      allocate(trues(zodi_model%n_comps))
+      trues = .true.
+      ! add relevant emissivities to powellvec
+      do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+         theta = [theta, data(i)%tod%zodi_emissivity]
+         powell_included_params = [powell_included_params, trues]
+      end do
+      do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+         if (.not. any(data(i)%tod%zodi_albedo > EPS)) cycle
+         theta = [theta, data(i)%tod%zodi_albedo]
+         powell_included_params = [powell_included_params, trues]
+      end do
+      if (cpar%myid == 0) print *, size(powell_included_params), powell_included_params
+      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      stop
+      
+      theta_0 = theta
+      ! manually turn of specific parameters
       do i = 1, size(labels)
          ! if (index(trim(adjustl(labels(i))), "N_0") /= 0) powell_ignore_indices(i) = .false.
          if (index(trim(adjustl(labels(i))), "T_0") /= 0) powell_included_params(i) = .false.

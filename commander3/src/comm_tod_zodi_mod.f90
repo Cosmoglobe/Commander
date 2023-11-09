@@ -113,7 +113,6 @@ contains
       C1 = zodi_model%C1(tod%band)
       C2 = zodi_model%C2(tod%band)
       phase_normalization = get_phase_normalization(C0, C1, C2)
-
       if (present(always_scattering)) then
          scattering = always_scattering
       else
@@ -202,14 +201,14 @@ contains
             end if
             call model%comps(k)%c%get_density(X_LOS, earth_lon, density_LOS)
             if (scattering) then
-               s_zodi_scat(i, k) = sum(density_LOS*solar_flux_LOS*phase_function*gauss_weights)
+               s_zodi_scat(i, k) = sum(density_LOS*solar_flux_LOS*phase_function*gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
                if (use_lowres) then
                   tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
                else
                   tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                end if
             end if
-            s_zodi_therm(i, k) = sum(density_LOS*b_nu_LOS*gauss_weights)*0.5*(R_max - R_MIN)
+            s_zodi_therm(i, k) = sum(density_LOS*b_nu_LOS*gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
             if (use_lowres) then
                tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
             else
@@ -248,7 +247,7 @@ contains
    subroutine get_blackbody_emission(nus, T, b_nu)
       real(dp), intent(in) :: nus(:), T
       real(dp), dimension(:), intent(out) :: b_nu
-      b_nu = 1d20*((2.*h*nus**3)/(c*c))/(exp((h*nus)/(k_B*T)) - 1.)
+      b_nu = ((2.*h*nus**3)/(c*c))/(exp((h*nus)/(k_B*T)) - 1.)
    end subroutine get_blackbody_emission
 
    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
@@ -264,7 +263,6 @@ contains
       elsewhere(cos_theta < -1)
          cos_theta = -1
       end where
-
       scattering_angle = acos(-cos_theta)
    end subroutine get_scattering_angle
 
@@ -434,7 +432,7 @@ contains
             band_path = trim(adjustl(tod_path))//trim(adjustl(tod%freq))
 
             if (.not. hdf_group_exists(file, band_path)) then
-               print *, "Zodi init chain does contain emissivities or albedos for band: " // trim(adjustl(tod%freq))
+               print *, "Zodi init chain does not contain emissivities or albedos for band: " // trim(adjustl(tod%freq))
                stop
             end if 
 

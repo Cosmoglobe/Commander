@@ -91,7 +91,7 @@ module comm_zodi_mod
       character(len=128), allocatable :: comp_labels(:), general_labels(:)
       integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
       real(dp) :: T_0, delta
-      real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0]
+      real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert yo specific intensity units
       real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
@@ -700,7 +700,7 @@ contains
       real(dp), intent(in) :: emissivity_comp, albedo_comp
       real(dp), intent(in), optional :: alpha_comp
       integer(i4b) :: i, n_comps
-
+      
       if (present(alpha_comp)) then 
          s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp) * alpha_comp
       else 
