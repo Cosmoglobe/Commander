@@ -672,7 +672,11 @@ contains
       n_comps = size(emissivity)
       s_zodi = 0.
       do i = 1, n_comps
-         call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i), alpha(i))
+         if (present(alpha)) then
+            call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i), alpha(i))
+         else
+            call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i))
+         end if
       end do
    end subroutine get_s_zodi
 
