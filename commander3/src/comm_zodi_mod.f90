@@ -579,9 +579,9 @@ contains
          call open_hdf_file(trim(chainfile), file, "r")
          
          call int2string(initsamp, itext)
-         group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(i))))
+         group_name = trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx))))
          if (.not. hdf_group_exists(file, group_name)) then
-            print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(i))), "not found in chain:", trim(chainfile)
+            print *, "zodi component: ", trim(adjustl(cpar%zs_comp_labels(comp_idx))), "not found in chain:", trim(chainfile)
             stop
          end if 
 
@@ -700,7 +700,6 @@ contains
       real(dp), intent(in) :: emissivity_comp, albedo_comp
       real(dp), intent(in), optional :: alpha_comp
       integer(i4b) :: i, n_comps
-      
       if (present(alpha_comp)) then 
          s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp) * alpha_comp
       else 

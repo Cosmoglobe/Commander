@@ -12,11 +12,11 @@ module comm_zodi_samp_mod
    private
    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors
 
-   real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
+   real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    integer(i4b) :: n_samp_bands, reference_emissivity_band
    real(dp) :: EPS = TINY(1.0_dp)
    real(dp), dimension(2) :: emissivity_prior, albedo_prior
-   logical(lgt), allocatable :: powell_included_params(:)
+   logical(lgt), allocatable :: powell_included_params(:), ref_band(:)
 
 contains
    subroutine initialize_zodi_samp_mod(cpar)
@@ -39,7 +39,7 @@ contains
          if (.not. data(i)%tod%subtract_zodi) cycle
          n_samp_bands = n_samp_bands + 1
       end do
-
+      ref_band = cpar%ds_zodi_reference_band
       ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
       if (ref_band_count > 1) then
          stop "Error: cannot have more than one reference band for zodi emissivity."
@@ -875,16 +875,16 @@ contains
    subroutine minimize_zodi_with_powell(cpar)
       type(comm_params), intent(in) :: cpar
       logical(lgt), save :: first_call = .true.
-      real(dp), allocatable :: theta(:), theta_phys(:)
+      real(dp), allocatable :: theta(:), theta_phys(:), theta_new(:), emissivities(:, :), albedos(:, :)
       character(len=128), allocatable :: labels(:)
-      integer(i4b) :: i, j, ierr, flag, group_idx
+      integer(i4b) :: i, j, ierr, flag, group_idx, end_idx, n_bands
       real(dp) :: chisq_lnL
+      real(dp), allocatable, dimension(:) :: prior_vec_powell_min, prior_vec_powell_max, prior_vec_powell_type 
       integer(i4b), allocatable :: indices(:)
-      logical(lgt), allocatable :: trues(:)
 
       allocate(theta(zodi_model%n_params))
       call zodi_model%model_to_params(theta, labels)
-      
+      if (cpar%myid == 0) print *, "minimizing zodi parameters with powell"
       ! filter out parameters for powell search
       powell_included_params = .false.
       do group_idx = 1, cpar%zs_num_samp_groups
@@ -894,40 +894,97 @@ contains
             powell_included_params(indices(i)) = .true.
          end do
       end do
+      prior_vec_powell_min = prior_vec(:, 1)
+      prior_vec_powell_max = prior_vec(:, 2)
+      prior_vec_powell_type = prior_vec(:, 3)
 
-      allocate(trues(zodi_model%n_comps))
-      trues = .true.
-      ! add relevant emissivities to powellvec
+      ! Populate param_vec, included_params array and prior_vec with emissivity and albedos which we sample in powell
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
+         if (cpar%ds_zodi_reference_band(data(i)%id_abs)) cycle
          theta = [theta, data(i)%tod%zodi_emissivity]
-         powell_included_params = [powell_included_params, trues]
+         powell_included_params = [powell_included_params, [(.true. , i=1, zodi_model%n_comps)]]
+         prior_vec_powell_min = [prior_vec_powell_min, [(emissivity_prior(1) , i=1, zodi_model%n_comps)]]
+         prior_vec_powell_max = [prior_vec_powell_max, [(emissivity_prior(2) , i=1, zodi_model%n_comps)]]
+         prior_vec_powell_type = [prior_vec_powell_type, [(real(0, dp), i=1, zodi_model%n_comps)]]
       end do
+      
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
          if (.not. any(data(i)%tod%zodi_albedo > EPS)) cycle
          theta = [theta, data(i)%tod%zodi_albedo]
-         powell_included_params = [powell_included_params, trues]
+         powell_included_params = [powell_included_params, [(.true. , i=1, zodi_model%n_comps)]]
+         prior_vec_powell_min = [prior_vec_powell_min, [(albedo_prior(1) , i=1, zodi_model%n_comps)]]
+         prior_vec_powell_max = [prior_vec_powell_max, [(albedo_prior(2) , i=1, zodi_model%n_comps)]]
+         prior_vec_powell_type = [prior_vec_powell_type, [(real(0, dp), i=1, zodi_model%n_comps)]]
       end do
-      if (cpar%myid == 0) print *, size(powell_included_params), powell_included_params
-      call mpi_barrier(MPI_COMM_WORLD, ierr)
-      stop
       
+      allocate(prior_vec_powell(size(prior_vec_powell_min), 3))
+      prior_vec_powell(:, 1) = prior_vec_powell_min
+      prior_vec_powell(:, 2) = prior_vec_powell_max
+      prior_vec_powell(:, 3) = prior_vec_powell_type
+      ! if (cpar%myid == 0) print *, "prior_vec_powell", pack(prior_vec_powell(:, 2), powell_included_params)
+      ! if (cpar%myid == 0) print *, "theta_reduced", pack(theta, powell_included_params)
+      ! call mpi_barrier(MPI_COMM_WORLD, ierr)
+      ! stop
+
       theta_0 = theta
+
+      if (any(pack(theta_0, powell_included_params) == 0.)) stop "theta_0 contains zeros in zodi powell sampling. Cant compute physical units due to theta/theta_0"
+
       ! manually turn of specific parameters
       do i = 1, size(labels)
          ! if (index(trim(adjustl(labels(i))), "N_0") /= 0) powell_ignore_indices(i) = .false.
-         if (index(trim(adjustl(labels(i))), "T_0") /= 0) powell_included_params(i) = .false.
-         if (index(trim(adjustl(labels(i))), "T_DELTA") /= 0) powell_included_params(i) = .false.
+         ! if (index(trim(adjustl(labels(i))), "T_0") /= 0) powell_included_params(i) = .false.
+         ! if (index(trim(adjustl(labels(i))), "T_DELTA") /= 0) powell_included_params(i) = .false.
       end do
+
+      !----------------
+      n_bands = 0
+      do i = 1, numband
+         if (data(i)%tod_type == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         n_bands = n_bands + 1
+      end do
+      allocate(emissivities(n_bands, zodi_model%n_comps))
+      allocate(albedos(n_bands, zodi_model%n_comps))
+
+      j = 0
+      do i = numband, 1, -1
+         if (data(i)%tod_type == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         if (any(data(i)%tod%zodi_albedo > EPS)) then
+            j = j + 1
+            albedos(i, :) = theta(size(theta)-(j*zodi_model%n_comps)+1:size(theta)-(j-1)*zodi_model%n_comps)
+         else 
+            albedos(i, :) = data(i)%tod%zodi_albedo
+         end if 
+      end do
+      do i = numband, 1, -1
+         if (data(i)%tod_type == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         if (.not. ref_band(data(i)%id_abs)) then
+            j = j + 1
+            emissivities(i, :) = theta(size(theta) - j*zodi_model%n_comps + 1 : size(theta) - (j - 1) * zodi_model%n_comps)
+         else
+            emissivities(i, :) = 1.
+         end if
+      end do
+      if (cpar%myid == 0) print *, "em1", emissivities(1, :) !band 3 1.6598924040649741,1.6598924040649741,1.6598924040649741,1.6598924040649741,1.6598924040649741,1.6598924040649741
+      if (cpar%myid == 0) print *, "em2", emissivities(2, :) !band 6 1.0,1.0,1.0,1.0,1.0,1.0
+      if (cpar%myid == 0) print *, "em3", emissivities(3, :) !band 7 0.73338832616768868,1.2539242027824944,1.2539242027824944,1.2539242027824944,0.87266361378785184,0.87266361378785184
+      if (cpar%myid == 0) print *, "al1", emissivities(1, :) !band 3 0.21043660481632315,0.21043660481632315,0.21043660481632315,0.21043660481632315,0.21043660481632315,0.21043660481632315
+      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      stop
+      !----------------
 
       allocate(theta_phys(count(powell_included_params)))
       if (cpar%myid == cpar%root) then
          !filter out N_0 parameters and scale to physical units
          theta_phys = pack(theta / theta_0, powell_included_params)
-         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-2, niter=10)
+         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=1)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
       else
@@ -944,14 +1001,32 @@ contains
       call mpi_barrier(MPI_COMM_WORLD, ierr)
       call mpi_bcast(theta_phys, size(theta_phys), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
 
+      allocate(theta_new(zodi_model%n_params))
       j = 1
-      do i = 1, size(theta)
+      do i = 1, size(theta_new)
          if (powell_included_params(i)) then 
-            theta(i) = theta_phys(j) * theta_0(i)
+            theta_new(i) = theta_phys(j) * theta_0(i)
             j = j + 1
          end if
       end do   
-      call zodi_model%params_to_model(theta)
+      call zodi_model%params_to_model(theta_new)
+
+      ! update emissivities and albedos
+      j = 0
+      do i = numband, 1, -1
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+         if (.not. any(data(i)%tod%zodi_albedo > EPS)) cycle
+         j = j + 1
+         data(i)%tod%zodi_albedo = theta(size(theta)-(j*zodi_model%n_comps)+1:size(theta)-(j-1)*zodi_model%n_comps)
+      end do
+      do i = numband, 1, -1
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+         if (cpar%ds_zodi_reference_band(data(i)%id_abs)) cycle
+         j = j + 1
+         data(i)%tod%zodi_emissivity = theta(size(theta)-(j*zodi_model%n_comps)+1:size(theta)-(j-1)*zodi_model%n_comps)
+      end do
    end subroutine
 
    function lnL_zodi(p)
@@ -961,9 +1036,9 @@ contains
       real(dp) :: lnL_zodi
       type(ZodiModel) :: model
 
-      real(dp), allocatable :: theta(:), theta_phys(:)
+      real(dp), allocatable :: theta(:), theta_phys(:), emissivities(:, :), albedos(:, :)
       real(dp) :: chisq, chisq_tod, chisq_prior, box_width
-      integer(i4b) :: i, j, scan, ntod, ndet, nscan, flag, ierr
+      integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands
       character(len=4) :: scan_str
       type(hdf_file) :: tod_file
 
@@ -979,6 +1054,44 @@ contains
       end if
       call mpi_bcast(theta_phys, size(theta_phys), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
+      n_bands = 0
+      do i = 1, numband
+         if (data(i)%tod_type == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         n_bands = n_bands + 1
+      end do
+      allocate(emissivities(n_bands, zodi_model%n_comps))
+      allocate(albedos(n_bands, zodi_model%n_comps))
+      ! print *, "got here 1"
+      j = 0
+      print *, theta
+      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      stop
+      ! do i = numband, 1, -1
+      !    if (data(i)%tod_type == "none") cycle
+      !    if (.not. data(i)%tod%sample_zodi) cycle
+      !    if (any(data(i)%tod%zodi_albedo > EPS)) then
+      !       j = j + 1
+      !       albedos(i, :) = theta(size(theta)-(j*zodi_model%n_comps)+1:size(theta)-(j-1)*zodi_model%n_comps)
+      !    else 
+      !       albedos(i, :) = data(i)%tod%zodi_albedo
+      !    end if 
+      ! end do
+      do i = numband, 1, -1
+         if (data(i)%tod_type == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         if (.not. ref_band(data(i)%id_abs)) then
+            j = j + 1
+            emissivities(i, :) = theta(size(theta)-(j*zodi_model%n_comps)+1:size(theta)-(j-1)*zodi_model%n_comps)
+         else
+            emissivities(i, :) = 1.
+         end if
+      end do
+      print *, "got here 2"
+      print *, "nbands", n_bands, "em", emissivities, "al", albedos
+      call mpi_barrier(MPI_COMM_WORLD, ierr)
+      stop
+
       j = 1
       do i = 1, size(theta)
          if (powell_included_params(i)) then
@@ -990,9 +1103,10 @@ contains
       call model%params_to_model(theta)
       call model%model_to_params(theta) ! rescale parameters
       
-      chisq_tod = get_chisq_priors(theta, prior_vec)
+      chisq_tod = get_chisq_priors(theta, prior_vec_powell)
       chisq = 0.
       lnL_zodi = 0.
+
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
@@ -1028,8 +1142,8 @@ contains
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
                    & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                   & emissivity=data(i)%tod%zodi_emissivity, &
-                   & albedo=data(i)%tod%zodi_albedo &
+                   & emissivity=emissivities(i, :), &
+                   & albedo=albedos(i, :) &
                &)
 
                chisq_tod = chisq_tod + sum( &
@@ -1056,27 +1170,38 @@ contains
       end if
    end function
 
-   subroutine zodi_model_to_ascii(cpar, model, filename)
+   subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
       ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
       class(ZodiModel), target, intent(in) :: model
       type(comm_params), intent(in) :: cpar
       character(len=*), intent(in) :: filename
+      logical(lgt), intent(in), optional :: overwrite
 
       integer(i4b) :: io, i, j, running_idx
-      logical(lgt) :: exists
+      logical(lgt) :: exists, overwrite_
       real(dp), allocatable :: params(:)
       integer(i4b), allocatable :: comp_switch_indices(:)
       character(len=128), allocatable :: labels(:)
       character(len=512) :: concatenated_string, val
 
+      if (present(overwrite)) then
+         overwrite_ = overwrite
+      else
+         overwrite_ = .false.
+      end if
+
       if (cpar%myid_chain /= cpar%root) return
       inquire(file=trim(adjustl(filename)), exist=exists)
-      if (.not. exists) then
-         print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+      if (exists .and. (.not. overwrite_)) then
+         print *, "zodi asciifile: " // trim(adjustl(filename)) // " exists and overwrite = .false."
          stop
       end if
 
-      open(newunit=io, file=trim(adjustl(filename)), action="write")
+      if (overwrite_) then
+         open(newunit=io, file=trim(adjustl(filename)), action="write", status="old")
+      else 
+         open(newunit=io, file=trim(adjustl(filename)), action="write", status="new")
+      end if 
 
       allocate(params(model%n_params))
       call model%model_to_params(params, labels=labels)

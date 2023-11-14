@@ -122,7 +122,6 @@ contains
     if (tod%subtract_zodi) then
       call tod%clear_zodi_cache()
       allocate(self%s_zodi(self%ntod, self%ndet))
-      self%s_zodi = 0.
       allocate(self%s_zodi_scat(self%ntod, tod%zodi_n_comps, self%ndet))
       allocate(self%s_zodi_therm(self%ntod, tod%zodi_n_comps, self%ndet))
       if (tod%sample_zodi) allocate(self%mask_zodi(self%ntod, self%ndet))

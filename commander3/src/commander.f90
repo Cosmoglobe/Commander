@@ -39,6 +39,7 @@ program commander
   logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
+  character(len=6)  :: samptext
 
   ! param_vec for zodi (REMOVE THIS AFTER ATLAS)
    ! type(zodi_model) :: current_model, previous_model
@@ -331,7 +332,7 @@ program commander
       call timer%start(TOT_ZODI_SAMP)
       if (iter == 2) call downsamp_invariant_structs(cpar) !downsample and cache tod and pointing
       call project_and_downsamp_sky(cpar) ! project skymodel down to downsampled pointing
-      call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
+      ! call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
       select case (trim(adjustl(cpar%zs_operation)))
       case ("sample")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
@@ -390,6 +391,10 @@ program commander
 
      ! Output zodi ipd and tod parameters to chain
      if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) then
+         if (cpar%sample_zodi .and. cpar%zs_output_ascii) then 
+            call int2string(iter, samptext)
+            call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_ascii_k' // samptext // '.dat')
+         end if
          call zodi_model%model_to_chain(cpar, iter)
          do i = 1, numband
             if (data(i)%tod_type == 'none') cycle

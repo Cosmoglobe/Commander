@@ -267,7 +267,7 @@ module comm_param_mod
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_operation
      character(len=512), allocatable         :: zs_samp_groups(:)
-     logical(lgt)                            :: zs_output_comps
+     logical(lgt)                            :: zs_output_comps, zs_output_ascii
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
   end type comm_params
 
@@ -2918,7 +2918,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
           call get_parameter_hashtable(htbl, 'ZODI_COMP_TYPE'//itext2, par_string=cpar%zs_comp_types(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_LABEL'//itext2, par_string=cpar%zs_comp_labels(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_INIT_FROM_HDF'//itext2, par_string=cpar%zs_init_hdf(comp_idx))
-          if (trim(adjustl(cpar%zs_init_hdf(comp_idx))) /= "none") cycle 
           
           parameter_labels = cpar%zodi_param_labels%get_labels(cpar%zs_comp_types(comp_idx), add_common=.true.)
           do j = 1, size(parameter_labels)
@@ -2962,6 +2961,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      end do
      if (cpar%sample_zodi) then
           call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
+          call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_ASCII', par_lgt=cpar%zs_output_ascii)
+
           allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups
                call int2string(i, itext2)
