@@ -11,6 +11,16 @@ module comm_tod_zodi_mod
    private
    public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
 
+   type :: ZodiCompLOS
+       real(dp), allocatable :: gauss_nodes(:), gauss_weights(:)
+       real(dp), allocatable, dimension(:,:) :: X_unit_LOS, X_LOS
+       !real(dp), allocatable, dimension(:,:) :: X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree)
+       real(dp), allocatable, dimension(:) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+       real(dp) :: R_min=3.d-14, R_max = 5.2
+   end type
+
+
+
    ! Constants
    real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp)
 
@@ -18,6 +28,7 @@ module comm_tod_zodi_mod
    type(spline_type) :: earth_pos_spl_obj(3)
    real(dp), allocatable :: temperature_grid(:), gauss_nodes(:), gauss_weights(:), b_nu_integrals(:)
    real(dp) :: delta_t_reset, min_ipd_temp, max_ipd_temp
+   type(ZodiCompLOS), allocatable, dimension(:) :: comp_los
    integer(i4b) :: gauss_degree
 
 contains
@@ -32,16 +43,29 @@ contains
       type(comm_params), intent(in) :: cpar
       real(dp) :: min_temp = 40.0, max_temp = 550.0
       integer(i4b) :: n_interp_points = 100
+      integer(i4b) :: i
 
-      allocate (b_nu_integrals(n_interp_points))
+      allocate(comp_los(zodi_model%n_comps))
+      allocate(b_nu_integrals(n_interp_points))
 
       ! hyper parameters
       delta_t_reset = cpar%zs_delta_t_reset
-      gauss_degree = cpar%zs_los_steps
 
       ! Set up Gauss-Legendre quadrature
-      allocate (gauss_nodes(gauss_degree), gauss_weights(gauss_degree))
-      call leggaus(gauss_degree, gauss_nodes, gauss_weights)
+      do i = 1, zodi_model%n_comps
+          gauss_degree = cpar%zs_los_steps(i)
+          allocate (comp_los(i)%gauss_nodes(gauss_degree), comp_los(i)%gauss_weights(gauss_degree))
+          call leggaus(gauss_degree, comp_los(i)%gauss_nodes, comp_los(i)%gauss_weights)
+          allocate(comp_los(i)%X_unit_LOS(3, gauss_degree))
+          allocate(comp_los(i)%X_LOS(3, gauss_degree))
+          allocate(comp_los(i)%R_LOS(gauss_degree))
+          allocate(comp_los(i)%T_LOS(gauss_degree))
+          allocate(comp_los(i)%density_LOS(gauss_degree))
+          allocate(comp_los(i)%solar_flux_LOS(gauss_degree))
+          allocate(comp_los(i)%scattering_angle(gauss_degree))
+          allocate(comp_los(i)%phase_function(gauss_degree))
+          allocate(comp_los(i)%b_nu_LOS(gauss_degree))
+      end do
 
       ! Set up interpolation grid for evaluating temperature
       allocate (temperature_grid(n_interp_points))
@@ -92,11 +116,11 @@ contains
       logical(lgt), intent(in), optional :: always_scattering, use_lowres_pointing
       integer(i4b), intent(in), optional :: comp
 
-      integer(i4b) :: i, j, k, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
+      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
       logical(lgt) :: scattering, use_lowres
       real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2
-      real(dp) :: unit_vector(3), X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree), obs_pos(3), earth_pos(3)
-      real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+      real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
+      !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
       s_zodi_scat = 0.
       s_zodi_therm = 0.
@@ -174,24 +198,9 @@ contains
             unit_vector = tod%ind2vec_ecl(:, lookup_idx)
          end if
 
-         call get_R_max(unit_vector, obs_pos, R_obs, R_max)
+         call get_R_max(unit_vector, obs_pos, R_obs, R_CUTOFF, R_max)
 
-         do k = 1, 3
-            ! Convert quadrature range from [-1, 1] to [R_min, R_max]
-            X_unit_LOS(k, :) = (0.5 * (R_max - R_MIN)) * gauss_nodes + (0.5 * (R_max + R_MIN))
-            X_unit_LOS(k, :) = X_unit_LOS(k, :) * unit_vector(k)
-            X_LOS(k, :) = X_unit_LOS(k, :) + obs_pos(k)
-         end do
-         R_LOS = norm2(X_LOS, dim=1)
 
-         if (scattering) then
-            solar_flux_LOS = model%F_sun(tod%band)/R_LOS**2
-            call get_scattering_angle(X_LOS, X_unit_LOS, R_LOS, scattering_angle)
-            call get_phase_function(scattering_angle, C0, C1, C2, phase_normalization, phase_function)
-         end if
-
-         call get_dust_grain_temperature(R_LOS, T_LOS, model%T_0, model%delta)
-         call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), T_LOS, b_nu_LOS)
 
          do k = 1, model%n_comps
             ! If comp is present we only evaluate the zodi emission for that component.
@@ -199,16 +208,34 @@ contains
             if (present(comp)) then
                if (k /= comp .and. comp /= 0) cycle
             end if
-            call model%comps(k)%c%get_density(X_LOS, earth_lon, density_LOS)
+
+            do l = 1, 3
+               ! Convert quadrature range from [-1, 1] to [R_min, R_max]
+               comp_los(k)%X_unit_LOS(l, :) = (0.5 * (R_max - R_MIN)) * comp_los(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+               comp_los(k)%X_unit_LOS(l, :) = comp_los(k)%X_unit_LOS(l, :) * unit_vector(l)
+               comp_los(k)%X_LOS(l, :) = comp_los(k)%X_unit_LOS(l, :) + obs_pos(l)
+            end do
+            comp_los(k)%R_LOS = norm2(comp_los(k)%X_LOS, dim=1)
+
             if (scattering) then
-               s_zodi_scat(i, k) = sum(density_LOS*solar_flux_LOS*phase_function*gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+               comp_los(k)%solar_flux_LOS = model%F_sun(tod%band)/comp_los(k)%R_LOS**2
+               call get_scattering_angle(comp_los(k)%X_LOS, comp_los(k)%X_unit_LOS, comp_los(k)%R_LOS, comp_los(k)%scattering_angle)
+               call get_phase_function(comp_los(k)%scattering_angle, C0, C1, C2, phase_normalization, comp_los(k)%phase_function)
+            end if
+
+            call get_dust_grain_temperature(comp_los(k)%R_LOS, comp_los(k)%T_LOS, model%T_0, model%delta)
+            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_los(k)%T_LOS, comp_los(k)%b_nu_LOS)
+
+            call model%comps(k)%c%get_density(comp_los(k)%X_LOS, earth_lon, comp_los(k)%density_LOS)
+            if (scattering) then
+               s_zodi_scat(i, k) = sum(comp_los(k)%density_LOS*comp_los(k)%solar_flux_LOS*comp_los(k)%phase_function*comp_los(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
                if (use_lowres) then
                   tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
                else
                   tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                end if
             end if
-            s_zodi_therm(i, k) = sum(density_LOS*b_nu_LOS*gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+            s_zodi_therm(i, k) = sum(comp_los(k)%density_LOS*comp_los(k)%b_nu_LOS*comp_los(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
             if (use_lowres) then
                tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
             else
@@ -220,11 +247,11 @@ contains
 
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------
-   subroutine get_R_max(unit_vector, obs_pos, R_obs, R_max)
+   subroutine get_R_max(unit_vector, obs_pos, R_obs, R_CUTOFF, R_max)
       ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
 
       real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
-      real(dp), intent(in) :: R_obs
+      real(dp), intent(in) :: R_obs, R_CUTOFF
       real(dp), intent(out) :: R_max
       real(dp) :: lon, lat, cos_lat, b, d, q
 
@@ -253,7 +280,11 @@ contains
    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
       real(dp), intent(in) :: X_helio_vec_LOS(:, :), X_vec_LOS(:, :), R_helio_LOS(:)
       real(dp), dimension(:), intent(out) :: scattering_angle
-      real(dp), dimension(gauss_degree) :: cos_theta, R_LOS
+      real(dp), allocatable, dimension(:) :: cos_theta, R_LOS
+
+      allocate(cos_theta(size(X_vec_LOS, dim=1)))
+      allocate(R_LOS(size(X_vec_LOS, dim=1)))
+
 
       R_LOS = norm2(X_vec_LOS, dim=1)
       cos_theta = sum(X_helio_vec_LOS*X_vec_LOS, dim=1)/(R_LOS*R_helio_LOS)
