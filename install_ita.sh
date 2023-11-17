@@ -160,9 +160,7 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load intel/oneapi
-    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
-    module load mkl/latest
+    module load intel/oneapi mpi/latest icc/latest compiler/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
