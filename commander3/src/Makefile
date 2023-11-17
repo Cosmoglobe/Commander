@@ -25,6 +25,7 @@ FSOURCES=d1mach.f drc3jj.f
 F90SOURCES=hashtbl.f90 \
            hashtbl_4dmap.f90 \
            powell_mod.f90 \
+					 hmc_mod.f90 \
            comm_hdf_mod.f90 \
            sharp.f90 \
            sort_utils.f90 \
