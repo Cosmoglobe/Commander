@@ -10,8 +10,6 @@ module comm_zodi_mod
    private
    public initialize_zodi_mod, get_s_zodi, get_s_zodi_comp, ZodiModel, ZodiComponent, zodi_model
 
-   ! Global variables
-   real(dp) :: gauss_degree
 
    type, abstract :: ZodiComponent
       real(dp) :: x_0, y_0, z_0, incl, Omega, n_0
@@ -109,7 +107,6 @@ contains
       character(len=128), allocatable :: comp_labels(:)
 
       ! Set model and zodi_mod parameters from cpar
-      gauss_degree = cpar%zs_los_steps
       zodi_model%n_comps = cpar%zs_ncomps
       allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
       zodi_model%general_labels = cpar%zodi_param_labels%general
@@ -178,7 +175,7 @@ contains
       integer(i4b) :: i
       real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
-      do i = 1, gauss_degree
+      do i = 1, size(n_out)
          x_prime = X_vec(1, i) - self%x_0
          y_prime = X_vec(2, i) - self%y_0
          z_prime = X_vec(3, i) - self%z_0
@@ -205,7 +202,7 @@ contains
       integer(i4b) :: i
       real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, zeta, zeta_over_delta_zeta, term1, term2, term3, term4, R_ratio
 
-      do i = 1, gauss_degree
+      do i = 1, size(n_out)
          x_prime = X_vec(1, i) - self%x_0
          y_prime = X_vec(2, i) - self%y_0
          z_prime = X_vec(3, i) - self%z_0
@@ -240,7 +237,7 @@ contains
       integer(i4b) :: i
       real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2
 
-      do i = 1, gauss_degree
+      do i = 1, size(n_out)
          x_prime = X_vec(1, i) - self%x_0
          y_prime = X_vec(2, i) - self%y_0
          z_prime = X_vec(3, i) - self%z_0
@@ -262,7 +259,7 @@ contains
       integer(i4b) :: i
       real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, theta_prime, exp_term
 
-      do i = 1, gauss_degree
+      do i = 1, size(n_out)
          x_prime = X_vec(1, i) - self%x_0
          y_prime = X_vec(2, i) - self%y_0
          z_prime = X_vec(3, i) - self%z_0
@@ -292,7 +289,7 @@ contains
       integer(i4b) :: i
       real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
-      do i = 1, gauss_degree
+      do i = 1, size(n_out)
          n_out(i) = self%amp
       end do
    end subroutine get_density_interstellar

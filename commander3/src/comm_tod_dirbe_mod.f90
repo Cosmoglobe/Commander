@@ -367,18 +367,24 @@ contains
 
          ! For debugging: write TOD to hdf
          if (.false.) then
-            if (self%myid == 0 .and. i == 1) then 
+            ! scan id appears to be the worst chi2
+            if (self%scanid(i) == 47) then 
                print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
+               call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
+               call write_hdf(tod_file, '/s_sky', sd%s_sky)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
-               call write_hdf(tod_file, '/n0', self%scans(i)%d(1)%N_psd%sigma0)
+               call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
+               do k = 1, size(sd%s_zodi_therm, dim=2)
+                  call int2string(k, scantext)
+                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
+               end do
                call close_hdf_file(tod_file)
-               stop
             end if
          end if
 

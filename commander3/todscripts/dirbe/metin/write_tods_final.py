@@ -1,4 +1,5 @@
 """
+dir=chains_test_$d
 Final version of the commander h5 file script.
 
 This code generates 10 h5 files, one for each dirbe band, each containing 285 pid (chunks), one

@@ -261,7 +261,8 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)     :: cs_apply_jeffreys
 
      ! Zodi parameters
-     integer(i4b)                            :: zs_ncomps, zs_los_steps, zs_num_samp_groups, zs_covar_first, zs_covar_last
+     integer(i4b)                            :: zs_ncomps, zs_num_samp_groups, zs_covar_first, zs_covar_last
+     integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
@@ -2866,6 +2867,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      character(len=3) :: itext
      character(len=64), allocatable :: parameter_labels(:)
      character(len=512), dimension(4) :: value_and_priors_str
+     character(len=512), dimension(20) :: zs_comp_lens_str
      real(dp), dimension(4) :: value_and_priors
      character(len=64) :: value_string
      logical(lgt) :: use_comp
@@ -2874,7 +2876,6 @@ subroutine read_zodi_params_hash(htbl, cpar)
      real(dp), parameter :: DEFAULT_PRIOR_LOWER_LIMIT = -1d300, DEFAULT_PRIOR_UPPER_LIMIT = 1d300
 
      call get_parameter_hashtable(htbl, 'NUM_ZODI_COMPS', par_int=cpar%zs_ncomps)
-     call get_parameter_from_hash(htbl, 'ZODI_N_LOS_STEP', par_int=cpar%zs_los_steps)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_OPERATION', par_string=cpar%zs_operation)
@@ -2905,6 +2906,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      end do
      ! Read component parameters
      comp_idx = 0
+
      do i = 1, MAXZODICOMPS
           if (comp_idx == cpar%zs_ncomps) exit
           call int2string(i, itext2)
@@ -2918,6 +2920,9 @@ subroutine read_zodi_params_hash(htbl, cpar)
           call get_parameter_hashtable(htbl, 'ZODI_COMP_TYPE'//itext2, par_string=cpar%zs_comp_types(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_LABEL'//itext2, par_string=cpar%zs_comp_labels(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_INIT_FROM_HDF'//itext2, par_string=cpar%zs_init_hdf(comp_idx))
+          call get_parameter_hashtable(htbl, 'ZODI_COMP_N_LOS_STEP'//itext2, par_int=cpar%zs_los_steps(comp_idx))
+              
+
           
           parameter_labels = cpar%zodi_param_labels%get_labels(cpar%zs_comp_types(comp_idx), add_common=.true.)
           do j = 1, size(parameter_labels)
