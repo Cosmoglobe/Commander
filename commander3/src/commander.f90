@@ -330,10 +330,13 @@ program commander
 
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
-      if (iter == 2) call downsamp_invariant_structs(cpar) !downsample and cache tod and pointing
-      call project_and_downsamp_sky(cpar) ! project skymodel down to downsampled pointing
+      if (iter == 2) then 
+         call downsamp_invariant_structs(cpar)
+         call precompute_lowres_zodi_lookups(cpar)
+      end if
+      call project_and_downsamp_sky(cpar)
       call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
-      select case (trim(adjustl(cpar%zs_operation)))
+      select case (trim(adjustl(cpar%zs_sample_method)))
       case ("sample")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
