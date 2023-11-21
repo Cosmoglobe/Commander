@@ -158,7 +158,7 @@ clean:
 ars_mod.o                   : sort_utils.o
 comm_4d_map_mod.o           : comm_utils.o hashtbl_4dmap.o comm_hdf_mod.o
 comm_ame_lognormal_mod.o    : comm_param_mod.o comm_comp_mod.o comm_diffuse_comp_mod.o comm_map_mod.o comm_f_int_2d_mod.o comm_data_mod.o
-commander.o                 : comm_param_mod.o comm_data_mod.o comm_signal_mod.o comm_cr_mod.o comm_chisq_mod.o comm_output_mod.o comm_comp_mod.o comm_nonlin_mod.o comm_tod_simulations_mod.o comm_tod_gain_mod.o comm_tod_zodi_mod.o
+commander.o                 : comm_param_mod.o comm_data_mod.o comm_signal_mod.o comm_cr_mod.o comm_chisq_mod.o comm_output_mod.o comm_comp_mod.o comm_nonlin_mod.o comm_tod_simulations_mod.o comm_tod_gain_mod.o comm_tod_zodi_mod.o hmc_mod.o
 comm_b_bl_mod.o             : comm_param_mod.o comm_map_mod.o comm_b_mod.o comm_utils.o spline_1d_mod.o
 comm_b_firas_mod.o          : comm_param_mod.o comm_map_mod.o comm_b_mod.o comm_utils.o spline_1d_mod.o
 comm_beam_mod.o             : comm_b_mod.o comm_b_bl_mod.o comm_b_firas_mod.o

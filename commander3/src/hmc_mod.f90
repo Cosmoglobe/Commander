@@ -1,3 +1,16 @@
+! Example run
+!  ! HMC testing
+!  real(dp), dimension(5) :: param_test
+!  real(dp) :: time_step
+!  param_test = 1.d0
+!  time_step = 1d-1
+!
+!  if (cpar%myid == cpar%root) then
+!      write(*,*) "first", param_test(1)
+!      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!      write(*,*) "last", param_test(1)
+!  end if
 module hmc_mod
   use healpix_types
   use rngmod
@@ -55,17 +68,16 @@ contains
 
     integer(i4b) :: i, j, npar, L
     real(dp) :: alpha
-    real(dp), allocatable, dimension(:) :: p0, p, theta_prop, mass, theta_new, p_new
+    real(dp), dimension(size(theta)) :: p0, p, theta_prop, mass, theta_new, p_new
 
     npar = size(theta)
-
-    allocate(p0(npar), p(npar), theta_prop(npar), mass(npar), theta_new(npar), p_new(npar))
 
     if (present(M)) then
       mass = M
     else
       mass = 1.d0
     end if
+
     if (present(length)) then
       L = length
     else
@@ -82,7 +94,7 @@ contains
       p = p0
 
       do j = 1, L
-        call Leapfrog(theta_prop, p, eps, theta_new, p_new, grad_lnlike, mass)
+        call Leapfrog(theta_prop, p, theta_new, p_new, eps, grad_lnlike, mass)
         theta_prop = theta_new
         p = p_new
       end do
@@ -93,10 +105,183 @@ contains
       end if
     end do
 
-    deallocate(p0, p, theta_prop, mass)
-
 
   end subroutine hmc
+
+  subroutine nuts(theta, lnlike, grad_lnlike, n_steps, eps, handle, M)
+    ! Algorithm 3 from Hoffman & Gelman (2014), efficient NUTS with slice sampler
+    ! Does not take length as an argument, as it samples until the U-Turn
+    ! condition is reached (momentum and (theta_plus - theta_minus) are
+    ! perpendicular).
+
+    ! Takes theta, lnlike, grad_lnlike, n_steps, eps, adn handle as arguments,
+    ! with optional mass matrix M.
+    ! After performing n_steps samples, the subroutine will return the latest
+    ! sample. 
+    implicit none
+    real(dp), dimension(:),          intent(inout) :: theta
+    integer(i4b),                       intent(in) :: n_steps
+    real(dp),                           intent(in) :: eps
+    type(planck_rng),                intent(inout) :: handle
+    real(dp), optional, dimension(:),   intent(in) :: M
+    interface
+       function lnlike(theta)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in) :: theta
+         real(dp)                           :: lnlike
+       end function lnlike
+
+       function grad_lnlike(theta)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in) :: theta
+         real(dp), dimension(size(theta))   :: grad_lnlike
+       end function grad_lnlike
+    end interface
+
+
+    integer(i4b) :: i, j, k,  npar, L, n, s, vel, n_p, s_p, n_pp, s_pp
+    real(dp) :: alpha, logu
+    real(dp), dimension(size(theta)) :: theta_plus, theta_minus, theta_p
+    real(dp), dimension(size(theta)) :: p_plus, p_minus, p_p, p, buff1, buff2, mass
+
+    npar = size(theta)
+
+    if (present(M)) then
+      mass = M
+    else
+      mass = 1.d0
+    end if
+
+    do k = 1, n_steps
+      do j = 1, npar
+        p(j) = mass(j)*rand_gauss(handle)
+      end do
+      logu = lnlike(theta) - 0.5*sum(p**2/mass) + log(rand_uni(handle))
+      theta_minus = theta
+      theta_plus  = theta
+      p_minus = p
+      p_plus  = p
+
+      j = 0
+      n = 1
+      s = 1
+
+      do 
+        if (rand_uni(handle) < 0.5) then
+          vel = -1
+          call BuildTree(theta_minus, p_minus, logu, vel, j, eps, lnlike, grad_lnlike, mass, &
+              & theta_minus, p_minus, buff1, buff2, theta_p, n_p, s_p, handle)
+        else
+          vel = 1
+          call BuildTree(theta_plus,  p_plus,  logu, vel, j, eps, lnlike, grad_lnlike, mass, &
+              & buff1, buff2, theta_plus, p_plus,   theta_p, n_p, s_p, handle)
+        end if
+        if (s_p == 1) then
+          if (rand_uni(handle) < min(1, n_p/n)) then
+            theta = theta_p
+          end if
+        end if
+        n = n + n_p
+        if ((dot_product(theta_plus - theta_minus, p_minus) < 0) .or. &
+            (dot_product(theta_plus - theta_minus, p_plus) < 0)) then
+            s = 0
+        else
+            s = s_p
+        end if
+        j = j + 1
+
+        if (s .ne. 1) exit
+      end do
+
+    end do
+
+
+  end subroutine nuts
+
+  recursive subroutine BuildTree(theta, p, logu, v, j, eps, lnlike, grad_lnlike, mass, &
+                      & theta_minus, p_minus, theta_plus, p_plus, theta_p, n_p, s_p, handle)
+    implicit none
+    real(dp), dimension(:),          intent(inout) :: theta, p, theta_minus, p_minus, theta_plus, p_plus, theta_p, mass
+    real(dp),                           intent(in) :: logu, eps
+    integer(i4b),                       intent(in) :: v, j
+    integer(i4b),                       intent(out) :: n_p, s_p
+    type(planck_rng),                intent(inout) :: handle
+    interface
+       function lnlike(theta)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in) :: theta
+         real(dp)                           :: lnlike
+       end function lnlike
+
+       function grad_lnlike(theta)
+         use healpix_types
+         implicit none
+         real(dp), dimension(:), intent(in) :: theta
+         real(dp), dimension(size(theta))   :: grad_lnlike
+       end function grad_lnlike
+    end interface
+
+
+    integer(i4b) :: s, s_pp, n_pp
+    real(dp), dimension(size(theta)) :: p_p, buff1, buff2, theta_pp
+
+    real(dp) :: deltamax = 1000
+
+    if (j == 0) then
+      call Leapfrog(theta, p, theta_p, p_p, v*eps, grad_lnlike, mass)
+      if (logu < lnlike(theta_p) - 0.5*sum(p_p**2/mass)) then
+        n_p = 1
+      else
+        n_p = 0
+      end if
+
+      if (logu < deltamax + lnlike(theta_p) - 0.5*sum(p_p**2/mass)) then
+        s_p = 1
+      else
+        s_p = 0
+      end if
+
+      theta_minus = theta_p
+      theta_plus  = theta_p
+
+      p_plus  = p_p
+      p_minus = p_p
+
+    else
+      call BuildTree(theta, p, logu, v, j-1, eps, lnlike, grad_lnlike, mass, &
+          & theta_minus, p_minus, theta_plus, p_plus, theta_p, n_p, s_p, handle)
+
+      if (s_p == 1) then
+        if (v == -1) then
+            call BuildTree(theta_minus, p_minus, logu, v, j-1, eps, lnlike, grad_lnlike, mass, &
+                & theta_minus, p_minus, buff1, buff2, theta_pp, n_pp, s_pp, handle)
+        else
+            call BuildTree(theta_plus, p_plus, logu, v, j-1, eps, lnlike, grad_lnlike, mass, &
+                & buff1, buff2, theta_plus,  p_plus,  theta_pp, n_pp, s_pp, handle)
+        end if
+
+        if (rand_uni(handle)*(n_p + n_pp) < n_pp) then
+          theta_p = theta_pp
+        end if
+
+        if ((dot_product(theta_plus - theta_minus, p_minus) < 0) .or. &
+            (dot_product(theta_plus - theta_minus, p_plus) < 0)) then
+            s_p = 0
+        else
+            s_p = s_p*s_pp
+        end if
+
+        n_p = n_p + n_pp
+      end if
+
+
+    end if
+
+
+  end subroutine BuildTree
 
 
   function lnlike_hmc_test(theta)
@@ -104,9 +289,6 @@ contains
     implicit none
     real(dp), dimension(:), intent(in)  :: theta
     real(dp)                            :: lnlike_hmc_test
-    !
-    ! Using a multivariate standard normal Gaussian, and I want to estimate the means.
-    !
 
     lnlike_hmc_test = -sum(theta**2)/2
 
@@ -123,19 +305,6 @@ contains
   end function
 
 
-  ! Example run
-  !  ! HMC testing
-  !  real(dp), dimension(5) :: param_test
-  !  real(dp) :: time_step
-
-  !  param_test = 5.
-  !  time_step = 0.01
-
-  !  if (cpar%myid == cpar%root) then
-  !      write(*,*) "first", param_test(1)
-  !      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 100, time_step, handle)
-  !      write(*,*) "last", param_test(1)
-  !  end if
 
   subroutine Leapfrog(x, p, x_new, p_new, eps, grad_func, mass)
     implicit none
@@ -159,35 +328,27 @@ contains
       write(*,*) "Warning: Mass matrix in HMC has nonpositive values"
     end if
 
-    p_new = p + grad_func(x)*eps/2
-    x_new = x + eps*p/mass
+    p_new = p +     grad_func(x)    *eps/2
+    x_new = x +     p_new/mass      *eps
     p_new = p_new + grad_func(x_new)*eps/2
 
   end subroutine Leapfrog
 
 
   function FindReasonableEpsilon(theta, lnlike, grad_lnlike, handle, M)
-       ! def FindReasonableEpsilon(theta, lnlike, grad_lnlike):
-       !     eps = 1
-       !     r = np.random.randn(theta.size)
-       !     thetap, rp = Leapfrog(theta, r, eps, grad_lnlike)
-       !     # p = exp(lnlike(theta) - 0.5*r**2)
-       !     pp_over_p = np.exp(lnlike(thetap) - lnlike(theta)- 0.5*(rp.dot(rp) - r.dot(r)))
-       !     if pp_over_p > 0.5:
-       !         a = 1
-       !     else:
-       !         a = -1
-       !     while pp_over_p**a > 2**-a:
-       !         eps = 2**a*eps
-       !         thetap, rp = Leapfrog(theta, r, eps, grad_lnlike)
-       !         pp_over_p = np.exp(lnlike(thetap) - lnlike(theta)- 0.5*(rp.dot(rp) - r.dot(r)))
-       !     return eps
+    !
+    ! If you have no idea what the timestep should be, this will give the value
+    ! where the change in energy will be roughly 0.5 -- generally not a great
+    ! estimate, but good for starting a tuning run.
+    !
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
-    real(dp)                                       :: eps, a, npar, pp_over_p
+    real(dp)                                       :: FindReasonableEpsilon
+    real(dp)                                       :: eps, npar, pp_over_p
     real(dp), dimension(size(theta))               :: p, p0, theta_prop, mass, theta_new, p_new
+    integer(i4b)                                   :: i, a
     interface
        function lnlike(theta)
          use healpix_types
@@ -217,23 +378,27 @@ contains
       p(i) = rand_gauss(handle)
     end do
 
+    theta_new = theta
+    p_new = p
+
 
     call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
 
     pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.5*(sum(p_new**2/mass) - sum(p**2/mass)))
 
     if (pp_over_p > 0.5) then
-      a = 1.d0
+      a = 1
     else
-      a = -1.d0
+      a = -1
     end if
 
-    do
-      if ((pp_over_p)**a > 2**(-a)) exit
-      eps = 2**a*eps
+    do 
+      eps = eps*2.d0**a
       call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
       pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.5*(sum(p_new**2/mass) - sum(p**2/mass)))
+      if (pp_over_p**a > 2.d0**(-a)) exit
     end do
+
 
     FindReasonableEpsilon = eps
 
