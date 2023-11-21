@@ -966,10 +966,12 @@ contains
 
    subroutine remove_glitches_from_downsamped_zodi_quantities(cpar)
       type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, j, scan, ierr
+      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size
       real(dp) :: box_width, rms
       real(sp), allocatable :: res(:)
       logical(lgt), allocatable :: glitch_mask(:)
+      real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
+
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
@@ -985,6 +987,23 @@ contains
                data(i)%tod%scans(scan)%d(j)%downsamp_sky = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky, .not. glitch_mask)
                data(i)%tod%scans(scan)%d(j)%downsamp_zodi = pack(data(i)%tod%scans(scan)%d(j)%downsamp_zodi, .not. glitch_mask)
                data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix, .not. glitch_mask)
+               non_glitch_size = count(.not. glitch_mask)
+
+               ! pack doesnt work on multidimensional arrays so here we manually reallocate the zodi caches to the new sizes
+               allocate(downsamp_scat_comp(non_glitch_size, zodi_model%n_comps))
+               allocate(downsamp_therm_comp(non_glitch_size, zodi_model%n_comps))
+               do k = 1, zodi_model%n_comps
+                  downsamp_scat_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, k), .not. glitch_mask)
+                  downsamp_therm_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, k), .not. glitch_mask)
+               end do
+               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat)
+               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm)
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat(non_glitch_size, zodi_model%n_comps))
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm(non_glitch_size, zodi_model%n_comps))
+
+               data(i)%tod%scans(scan)%d(j)%downsamp_therm = downsamp_therm_comp
+               data(i)%tod%scans(scan)%d(j)%downsamp_scat = downsamp_scat_comp
+               deallocate(downsamp_scat_comp, downsamp_therm_comp)
             end do
          end do
       end do
