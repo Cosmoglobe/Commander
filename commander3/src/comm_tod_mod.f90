@@ -154,7 +154,7 @@ module comm_tod_mod
      real(sp), allocatable, dimension(:)     :: xi_n_P_rms      ! RMS for active noise PSD prior
      real(sp), allocatable, dimension(:,:)   :: xi_n_nu_fit     ! Frequency range used to fit noise PSD parameters
      integer(i4b)      :: nside, nside_param                    ! Nside for pixelized pointing
-     integer(i4b)      :: nobs                            ! Number of observed pixels for this core
+     integer(i4b)      :: nobs, nobs_lowres                     ! Number of observed pixels for this core
      integer(i4b)      :: n_bp_prop                       ! Number of consecutive bandpass proposals in each main iteration; should be 2 for MH
      integer(i4b) :: output_n_maps                                ! Output n_maps
      character(len=512) :: init_from_HDF                          ! Read from HDF file
@@ -2063,6 +2063,8 @@ contains
       ! `tod_out` as `allocate(downsampled_array(ext(1):ext(2)))`. Finally, we call the function again
       ! to get the downsampled tods: `tod%downsample_tod(tod_in, ext, downsampled_array)`.
       ! 
+      ! Remember to set `tod_out` to zero before passing it to this function to avoid floating invalid.
+      !
       ! Parameters
       ! ----------
       ! tod_in:
@@ -2858,37 +2860,7 @@ contains
          nest_pix = nest_pix / n_subpix
          call nest2ring(zodi_nside, nest_pix, self%udgrade_pix_zodi(i))
       end do
-      
-      allocate(self%pix2ind_lowres(0:npix_lowres - 1))
-      self%pix2ind_lowres = 0
-
-      allocate(ind2vec_zodi_temp(3, self%nobs))
-      ind2vec_zodi_temp = 0.
-      j = 1
-      do i = 1, self%nobs
-         pix_high = self%ind2pix(i)
-         pix_low = self%udgrade_pix_zodi(pix_high)
-         if (self%pix2ind_lowres(pix_low) /= 0) cycle
-         self%pix2ind_lowres(pix_low) = j
-         call pix2vec_ring(zodi_nside, pix_low, ind2vec_zodi_temp(:, j))
-         j =  j + 1
-      end do
-
-      nobs_lowres = j - 1
-
-      allocate(self%ind2vec_ecl_lowres(3, nobs_lowres))
-      self%ind2vec_ecl_lowres = ind2vec_zodi_temp(:, 1:nobs_lowres)
    
-      allocate(self%zodi_scat_cache_lowres(nobs_lowres, self%zodi_n_comps, self%ndet))
-      allocate(self%zodi_therm_cache_lowres(nobs_lowres, self%zodi_n_comps, self%ndet))
-      self%zodi_scat_cache_lowres = -1.d0
-      self%zodi_therm_cache_lowres = -1.d0
-
-      do i = 1, nobs_lowres
-         self%ind2vec_ecl_lowres(:, i) = matmul(self%ind2vec_ecl_lowres(:, i), rotation_matrix)
-      end do      
-
-
    end subroutine precompute_zodi_lookups
 
    subroutine clear_zodi_cache(self, obs_time)

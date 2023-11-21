@@ -10,7 +10,7 @@ module comm_zodi_samp_mod
    implicit none
 
    private
-   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors
+   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, remove_glitches_from_downsamped_zodi_quantities
 
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)
@@ -18,6 +18,7 @@ module comm_zodi_samp_mod
    real(dp) :: EPS = TINY(1.0_dp)
    real(dp), dimension(2) :: emissivity_prior, albedo_prior
    logical(lgt), allocatable :: powell_included_params(:), ref_band(:)
+   character(len=128), allocatable, dimension(:) :: implemented_sampling_algorithms
 
 contains
    subroutine initialize_zodi_samp_mod(cpar)
@@ -34,6 +35,14 @@ contains
       character(len=128), allocatable :: labels(:)
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
+
+      implemented_sampling_algorithms = ["powell", "gibbs"]
+      if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
+         if (cpar%myid == 0) then 
+            print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
+            stop
+         end if
+      end if
       n_samp_bands = 0
       do i = 1, numband
          if (data(i)%tod_type == 'none') cycle
@@ -42,19 +51,17 @@ contains
       end do
       ref_band = cpar%ds_zodi_reference_band
       ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
-      if (trim(adjustl(cpar%zs_operation)) /= "powell") then
+      if (trim(adjustl(cpar%zs_sample_method)) == "sample") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
          else if (ref_band_count == 0) then
             stop "Error: cannot sample zodi without the reference band being active."
          end if
       end if
-      if (trim(adjustl(cpar%zs_operation)) == "powell") then
+      if (trim(adjustl(cpar%zs_sample_method)) == "powell") then
          allocate(powell_albedo(n_samp_bands, zodi_model%n_comps))
          allocate(powell_emissivity(n_samp_bands, zodi_model%n_comps))
       end if
-      
-
 
       ! crappy way of picking initial stepsizes for the zodi parameters
       allocate (step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
@@ -614,9 +621,9 @@ contains
 
       integer(i4b) :: i, j, k, l, g, scan, npix, nmaps, ndelta, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth
       real(dp) :: box_width, dt_tod
-      real(sp), allocatable :: tod(:), mask(:), downsamp_vec(:, :), vec(:, :)
+      real(sp), allocatable :: tod(:), mask(:), downsamp_vec(:, :)
       integer(i4b), allocatable :: pix(:, :), psi(:, :), flag(:)
-      real(dp), allocatable, dimension(:, :) :: m_buf
+      real(dp), allocatable, dimension(:, :) :: m_buf, vec
       integer(i4b), allocatable, dimension(:) :: downsamp_pix
       logical(lgt), allocatable, dimension(:) :: downsamp_mask_idx
       real(sp), allocatable, dimension(:) :: downsamp_mask, downsamp_tod, downsamp_obs_time, obs_time
@@ -686,34 +693,32 @@ contains
                downsamp_mask = 0.
                downsamp_pix = 0
                downsamp_mask_idx = .true.
-               ! Decompress pointing and flags
+               downsamp_vec = 0. 
+
                call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
 
-               ! Decompress tod if necessary
                if (data(i)%tod%compressed_tod) then
                   call data(i)%tod%decompress_tod(scan, j, tod)
                else
                   tod = data(i)%tod%scans(scan)%d(j)%tod
                end if
 
-               ! Cache zodi sky mask + flags
                do k = 1, data(i)%tod%scans(scan)%ntod
                   mask(k) = procmask_zodi(pix(k, 1))
                   if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
-
-                  vec(:, k) = real(data(i)%tod%ind2vec(:, data(i)%tod%pix2ind(pix(k, 1))), sp)
+                  vec(:, k) = data(i)%tod%ind2vec(:, data(i)%tod%pix2ind(pix(k, 1)))
                end do
+
                where (mask > 0.5) 
-               mask = 1.
+                  mask = 1.
                elsewhere
                   mask = 0.
-                  end where
-                  
-                  ! Downsample unit vectors
-                  
-                  do k = 1, 3
-                  call data(i)%tod%downsample_tod(vec(k, :), ext, downsamp_vec(k, :), step=box_width)
+               end where
+
+               do k = 1, 3
+                  call data(i)%tod%downsample_tod(real(vec(k, :), sp), ext, downsamp_vec(k, :), step=box_width)
                end do
+
                do k = 0, ext(2)-padding
                   call vec2pix_ring(data(i)%tod%nside, real(downsamp_vec(:, k), dp), downsamp_pix(k))
                end do
@@ -748,12 +753,8 @@ contains
                ! call write_hdf(tod_file, '/dpix', downsamp_pix)
                ! call close_hdf_file(tod_file)
 
-               ! call mpi_barrier(cpar%comm_chain, ierr)
-               ! stop
-
                ! Allocate other downsampled quantities with same shape
                ndownsamp = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_sky(ndownsamp))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
@@ -763,6 +764,77 @@ contains
          end do
 
          deallocate (m_buf, procmask_zodi)
+      end do
+   end subroutine
+   
+
+   subroutine precompute_lowres_zodi_lookups(cpar)
+      ! Loop over each band with zodi and precompute lookup tables for lowres zodi caching
+      type(comm_params), intent(in) :: cpar
+      integer(i4b) :: i, j, k, l, scan, n_lowres_obs, nobs_downsamp, nobs_lowres, pix_high, pix_low, ierr
+      integer(i4b), allocatable :: pix2ind_highres(:), ind2pix_highres(:)
+      real(dp), allocatable :: ind2vec_zodi_temp(:, :)
+      real(dp) :: rotation_matrix(3, 3)
+
+      call ecl_to_gal_rot_mat(rotation_matrix)
+
+      do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+
+         allocate(pix2ind_highres(0:12*data(i)%tod%nside**2-1))         
+         pix2ind_highres = 0
+         
+         do scan = 1, data(i)%tod%nscan
+            if (.not. any(data(i)%tod%scans(scan)%d%accept)) cycle
+            do j = 1, data(i)%tod%ndet
+               do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
+                  pix2ind_highres(data(i)%tod%scans(scan)%d(j)%downsamp_pix(k)) = 1
+               end do
+            end do
+         end do
+         
+         nobs_downsamp = count(pix2ind_highres == 1)
+         
+         allocate(ind2vec_zodi_temp(3, nobs_downsamp))
+         allocate(ind2pix_highres(nobs_downsamp))
+
+         j = 1
+         do k = 0, 12*data(i)%tod%nside**2-1
+            if (pix2ind_highres(k) == 1) then
+               ind2pix_highres(j) = k
+               j = j+1
+            end if
+         end do
+
+         allocate(data(i)%tod%pix2ind_lowres(0:12*zodi_nside**2-1))
+         data(i)%tod%pix2ind_lowres = 0
+         ind2vec_zodi_temp = 0.
+
+         j = 1
+         do k = 1, nobs_downsamp
+            pix_high = ind2pix_highres(k)
+            pix_low = data(i)%tod%udgrade_pix_zodi(pix_high)
+            if (data(i)%tod%pix2ind_lowres(pix_low) == 0) then
+               data(i)%tod%pix2ind_lowres(pix_low) = j
+               call pix2vec_ring(zodi_nside, pix_low, ind2vec_zodi_temp(:, j))
+            end if
+            j =  j + 1
+         end do
+
+         nobs_lowres = j - 1
+         allocate(data(i)%tod%ind2vec_ecl_lowres(3, nobs_lowres))
+         data(i)%tod%ind2vec_ecl_lowres = ind2vec_zodi_temp(:, 1:nobs_lowres)
+         
+         allocate(data(i)%tod%zodi_scat_cache_lowres(nobs_lowres, data(i)%tod%zodi_n_comps, data(i)%tod%ndet))
+         allocate(data(i)%tod%zodi_therm_cache_lowres(nobs_lowres, data(i)%tod%zodi_n_comps, data(i)%tod%ndet))
+         data(i)%tod%zodi_scat_cache_lowres = -1.d0
+         data(i)%tod%zodi_therm_cache_lowres = -1.d0
+         
+         do k = 1, nobs_lowres
+            data(i)%tod%ind2vec_ecl_lowres(:, k) = matmul(data(i)%tod%ind2vec_ecl_lowres(:, k), rotation_matrix)
+         end do   
+         deallocate(ind2vec_zodi_temp, pix2ind_highres, ind2pix_highres)
       end do
    end subroutine
 
@@ -892,67 +964,49 @@ contains
       end do
    end subroutine
 
-   subroutine get_s_zodi_with_n0(s_therm, s_scat, s_zodi, emissivity, albedo, n_0_comp_ratio, comp)
-      real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
-      real(sp), dimension(:), intent(inout) :: s_zodi
-      real(dp), dimension(:), intent(in) :: emissivity, albedo, n_0_comp_ratio
-      integer(i4b) :: comp
-      integer(i4b) :: i
+   subroutine remove_glitches_from_downsamped_zodi_quantities(cpar)
+      type(comm_params), intent(in) :: cpar
+      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size
+      real(dp) :: box_width, rms
+      real(sp), allocatable :: res(:)
+      logical(lgt), allocatable :: glitch_mask(:)
+      real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
 
-      s_zodi = 0.
-      do i = 1, size(s_therm, dim= 2)
-         s_zodi = s_zodi + (s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)) * n_0_comp_ratio(i)
-      end do
-   end subroutine get_s_zodi_with_n0
+      do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
 
-   subroutine parse_samp_group_strings(samp_group_str, param_labels, param_indices)
-      character(len=*), intent(in) :: samp_group_str
-      character(len=*), intent(in) :: param_labels(:)
-      integer(i4b), allocatable, intent(inout) :: param_indices(:)
-      character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10)
-      character(len=128), allocatable :: tokens_trunc(:)
-      integer(i4b) :: i, j, n_params
-      logical(lgt) :: found
+         do scan = 1, data(i)%tod%nscan
+            box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+            do j = 1, data(i)%tod%ndet
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
+               rms = sqrt(mean(real(res**2, dp)))
+               glitch_mask = abs(res) > 5. * real(rms, sp)
+               data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(data(i)%tod%scans(scan)%d(j)%downsamp_tod, .not. glitch_mask)
+               data(i)%tod%scans(scan)%d(j)%downsamp_sky = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky, .not. glitch_mask)
+               data(i)%tod%scans(scan)%d(j)%downsamp_zodi = pack(data(i)%tod%scans(scan)%d(j)%downsamp_zodi, .not. glitch_mask)
+               data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix, .not. glitch_mask)
+               non_glitch_size = count(.not. glitch_mask)
 
+               ! pack doesnt work on multidimensional arrays so here we manually reallocate the zodi caches to the new sizes
+               allocate(downsamp_scat_comp(non_glitch_size, zodi_model%n_comps))
+               allocate(downsamp_therm_comp(non_glitch_size, zodi_model%n_comps))
+               do k = 1, zodi_model%n_comps
+                  downsamp_scat_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, k), .not. glitch_mask)
+                  downsamp_therm_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, k), .not. glitch_mask)
+               end do
+               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat)
+               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm)
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat(non_glitch_size, zodi_model%n_comps))
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm(non_glitch_size, zodi_model%n_comps))
 
-      if (allocated(param_indices)) deallocate(param_indices)
-
-      call get_tokens(samp_group_str, ',', tokens, n_params) 
-      tokens_trunc = tokens(1:n_params)
-      allocate(param_indices(n_params))
-      param_indices = -1
-      do i = 1, size(tokens_trunc)
-         call get_tokens(tokens_trunc(i), ':', comp_param) 
-         call toupper(comp_param(1))
-         call toupper(comp_param(2))
-         if (trim(adjustl(comp_param(2))) == "ALL") then
-            do j = 1, size(param_labels)
-               call get_tokens(param_labels(j), "_", param_label_tokens) 
-               call toupper(param_label_tokens(1))
-               if (trim(adjustl(param_label_tokens(2))) == "N_0") then ! dont add N_0 to sampling groups with comp:all
-                  cycle
-               end if
-               if (trim(adjustl(comp_param(1))) == param_label_tokens(1)) then
-                  if (.not. any(param_indices == j)) param_indices = [param_indices , j]
-               end if
+               data(i)%tod%scans(scan)%d(j)%downsamp_therm = downsamp_therm_comp
+               data(i)%tod%scans(scan)%d(j)%downsamp_scat = downsamp_scat_comp
+               deallocate(downsamp_scat_comp, downsamp_therm_comp)
             end do
-         else
-            found = .false.
-            label = trim(adjustl(comp_param(1)))//"_"//trim(adjustl(comp_param(2)))
-            do j = 1, size(param_labels)
-               if (label == param_labels(j)) then
-                  if (.not. any(param_indices == j)) param_indices(i) = j
-                  found = .true.
-                  exit
-               end if
-            end do
-            if (.not. found) then
-               print *, "Error: invalid zodi sampling group parameter label :" // trim(adjustl(label)) 
-               stop
-            end if 
-         end if
+         end do
       end do
-      param_indices = pack(param_indices, param_indices > 0)
    end subroutine
 
    subroutine minimize_zodi_with_powell(cpar)
@@ -1205,10 +1259,13 @@ contains
                ! call write_hdf(tod_file, '/dtod', data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                ! call write_hdf(tod_file, '/dzodi', data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
                ! call write_hdf(tod_file, '/dsky', data(i)%tod%scans(scan)%d(j)%downsamp_sky)
+               ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
             end do
          end do
       end do
+      ! call mpi_barrier(MPI_COMM_WORLD, ierr)
+      ! stop
 
       ! Reduce chisq to root process
       call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
@@ -1218,6 +1275,70 @@ contains
          print *, chisq, real(theta_full, sp)
       end if
    end function
+
+   subroutine get_s_zodi_with_n0(s_therm, s_scat, s_zodi, emissivity, albedo, n_0_comp_ratio, comp)
+      real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
+      real(sp), dimension(:), intent(inout) :: s_zodi
+      real(dp), dimension(:), intent(in) :: emissivity, albedo, n_0_comp_ratio
+      integer(i4b) :: comp
+      integer(i4b) :: i
+
+      s_zodi = 0.
+      do i = 1, size(s_therm, dim= 2)
+         s_zodi = s_zodi + (s_scat(:, i) * albedo(i) + (1. - albedo(i)) * emissivity(i) * s_therm(:, i)) * n_0_comp_ratio(i)
+      end do
+   end subroutine get_s_zodi_with_n0
+
+   subroutine parse_samp_group_strings(samp_group_str, param_labels, param_indices)
+      character(len=*), intent(in) :: samp_group_str
+      character(len=*), intent(in) :: param_labels(:)
+      integer(i4b), allocatable, intent(inout) :: param_indices(:)
+      character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10)
+      character(len=128), allocatable :: tokens_trunc(:)
+      integer(i4b) :: i, j, n_params
+      logical(lgt) :: found
+
+
+      if (allocated(param_indices)) deallocate(param_indices)
+
+      call get_tokens(samp_group_str, ',', tokens, n_params) 
+      tokens_trunc = tokens(1:n_params)
+      allocate(param_indices(n_params))
+      param_indices = -1
+      do i = 1, size(tokens_trunc)
+         call get_tokens(tokens_trunc(i), ':', comp_param) 
+         call toupper(comp_param(1))
+         call toupper(comp_param(2))
+         if (trim(adjustl(comp_param(2))) == "ALL") then
+            do j = 1, size(param_labels)
+               call get_tokens(param_labels(j), "_", param_label_tokens) 
+               call toupper(param_label_tokens(1))
+               if (trim(adjustl(param_label_tokens(2))) == "N_0") then ! dont add N_0 to sampling groups with comp:all
+                  cycle
+               end if
+               if (trim(adjustl(comp_param(1))) == param_label_tokens(1)) then
+                  if (.not. any(param_indices == j)) param_indices = [param_indices , j]
+               end if
+            end do
+         else
+            found = .false.
+            label = trim(adjustl(comp_param(1)))//"_"//trim(adjustl(comp_param(2)))
+            do j = 1, size(param_labels)
+               if (label == param_labels(j)) then
+                  if (.not. any(param_indices == j)) param_indices(i) = j
+                  found = .true.
+                  exit
+               end if
+            end do
+            if (.not. found) then
+               print *, "Error: invalid zodi sampling group parameter label :" // trim(adjustl(label)) 
+               stop
+            end if 
+         end if
+      end do
+      param_indices = pack(param_indices, param_indices > 0)
+   end subroutine
+
 
    subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
       ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.

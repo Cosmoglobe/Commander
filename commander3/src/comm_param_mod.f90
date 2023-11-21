@@ -266,7 +266,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
-     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_operation
+     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
@@ -2878,7 +2878,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_hashtable(htbl, 'NUM_ZODI_COMPS', par_int=cpar%zs_ncomps)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
-     call get_parameter_from_hash(htbl, 'ZODI_OPERATION', par_string=cpar%zs_operation)
+     call get_parameter_from_hash(htbl, 'ZODI_SAMP_METHOD', par_string=cpar%zs_sample_method)
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT
      cpar%zs_general_params(:, 2) = DEFAULT_PRIOR_LOWER_LIMIT
