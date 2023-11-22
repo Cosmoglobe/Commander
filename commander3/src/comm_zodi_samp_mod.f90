@@ -1081,7 +1081,7 @@ contains
       if (cpar%myid == cpar%root) then
          !filter out N_0 parameters and scale to physical units
          theta_phys = pack(theta / theta_0, powell_included_params)
-         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=1)
+         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=5)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
       else
@@ -1184,7 +1184,7 @@ contains
 
       call model%params_to_model(theta)
 
-      if (data(1)%tod%myid == 0) call print_zodi_model(theta, labels)
+      ! if (data(1)%tod%myid == 0) call print_zodi_model(theta, labels)
 
 
       j = 0
@@ -1280,7 +1280,7 @@ contains
 
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq
-         print *, 'chisq_lnL = ', chisq
+         call print_zodi_model(theta, labels, chisq)
       end if
    end function
 
@@ -1503,11 +1503,18 @@ contains
    end subroutine
 
 
-   subroutine print_zodi_model(theta, labels)
-      integer(i4b) :: i, j, k, l, idx, n_cols, comp
+   subroutine print_zodi_model(theta, labels, chisq)
       real(dp), allocatable, intent(in) :: theta(:)
       character(len=128), allocatable, intent(in) :: labels(:)
-      print *, ""
+      real(dp), intent(in), optional :: chisq
+      integer(i4b) :: i, j, k, l, idx, n_cols, comp
+      
+      if (present(chisq)) then
+         print *, "chisq = ", chisq
+      else
+         print *, ""
+      end if
+
       n_cols = 5
       comp = 1
       do i = 1, size(theta)
