@@ -10,7 +10,7 @@ module comm_zodi_samp_mod
    implicit none
 
    private
-   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups
+   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, remove_glitches_from_downsamped_zodi_quantities
 
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)
@@ -755,7 +755,6 @@ contains
 
                ! Allocate other downsampled quantities with same shape
                ndownsamp = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_sky(ndownsamp))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
@@ -960,6 +959,51 @@ contains
                    & model=model, &
                    & use_lowres_pointing=.true. &
                &)
+            end do
+         end do
+      end do
+   end subroutine
+
+   subroutine remove_glitches_from_downsamped_zodi_quantities(cpar)
+      type(comm_params), intent(in) :: cpar
+      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size
+      real(dp) :: box_width, rms
+      real(sp), allocatable :: res(:)
+      logical(lgt), allocatable :: glitch_mask(:)
+      real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
+
+      do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+
+         do scan = 1, data(i)%tod%nscan
+            box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
+            do j = 1, data(i)%tod%ndet
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
+               rms = sqrt(mean(real(res**2, dp)))
+               glitch_mask = abs(res) > 5. * real(rms, sp)
+               data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(data(i)%tod%scans(scan)%d(j)%downsamp_tod, .not. glitch_mask)
+               data(i)%tod%scans(scan)%d(j)%downsamp_sky = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky, .not. glitch_mask)
+               data(i)%tod%scans(scan)%d(j)%downsamp_zodi = pack(data(i)%tod%scans(scan)%d(j)%downsamp_zodi, .not. glitch_mask)
+               data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix, .not. glitch_mask)
+               non_glitch_size = count(.not. glitch_mask)
+
+               ! pack doesnt work on multidimensional arrays so here we manually reallocate the zodi caches to the new sizes
+               allocate(downsamp_scat_comp(non_glitch_size, zodi_model%n_comps))
+               allocate(downsamp_therm_comp(non_glitch_size, zodi_model%n_comps))
+               do k = 1, zodi_model%n_comps
+                  downsamp_scat_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, k), .not. glitch_mask)
+                  downsamp_therm_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, k), .not. glitch_mask)
+               end do
+               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat)
+               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm)
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat(non_glitch_size, zodi_model%n_comps))
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm(non_glitch_size, zodi_model%n_comps))
+
+               data(i)%tod%scans(scan)%d(j)%downsamp_therm = downsamp_therm_comp
+               data(i)%tod%scans(scan)%d(j)%downsamp_scat = downsamp_scat_comp
+               deallocate(downsamp_scat_comp, downsamp_therm_comp)
             end do
          end do
       end do
@@ -1224,10 +1268,13 @@ contains
                ! call write_hdf(tod_file, '/dtod', data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                ! call write_hdf(tod_file, '/dzodi', data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
                ! call write_hdf(tod_file, '/dsky', data(i)%tod%scans(scan)%d(j)%downsamp_sky)
+               ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
             end do
          end do
       end do
+      ! call mpi_barrier(MPI_COMM_WORLD, ierr)
+      ! stop
 
       ! Reduce chisq to root process
       call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
@@ -1237,7 +1284,6 @@ contains
          print *, 'chisq_lnL = ', chisq
       end if
    end function
-
 
    subroutine get_s_zodi_with_n0(s_therm, s_scat, s_zodi, emissivity, albedo, n_0_comp_ratio, comp)
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
