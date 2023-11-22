@@ -36,7 +36,7 @@ contains
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
-      implemented_sampling_algorithms = ["powell", "gibbs"]
+      implemented_sampling_algorithms = ["powell", "mh"]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
             print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
@@ -51,7 +51,7 @@ contains
       end do
       ref_band = cpar%ds_zodi_reference_band
       ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
-      if (trim(adjustl(cpar%zs_sample_method)) == "sample") then
+      if (trim(adjustl(cpar%zs_sample_method)) == "mh") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
          else if (ref_band_count == 0) then
@@ -1148,6 +1148,7 @@ contains
       type(ZodiModel) :: model
 
       real(dp), allocatable :: theta(:), theta_phys(:), theta_full(:)
+      character(len=128), allocatable :: labels(:)
       real(dp) :: chisq, chisq_tod, chisq_prior, box_width
       integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands
       character(len=4) :: scan_str
@@ -1165,7 +1166,7 @@ contains
       
 
       allocate(theta(model%n_params))
-      call model%model_to_params(theta)
+      call model%model_to_params(theta, labels)
 
       allocate(theta_full(size(powell_included_params)))
       theta_full(1:model%n_params) = theta
@@ -1183,9 +1184,7 @@ contains
 
       call model%params_to_model(theta)
 
-      if (data(1)%tod%myid == 0) then
-         print *, chisq, real(theta_full, sp)
-      end if
+      if (data(1)%tod%myid == 0) call print_zodi_model(theta, labels)
 
 
       j = 0
@@ -1504,35 +1503,35 @@ contains
    end subroutine
 
 
-   ! subroutine read_zodi_covariance(cpar, model)
-   !    type(comm_params), intent(in) :: cpar
-   !    class(ZodiModel), intent(in) :: model
-      
-   !    type(hdf_file) :: file
-   !    character(len=6) :: sample
-   !    integer(i4b) :: i, j, k, exist, l, comp, samp
-   !    character(len=128) :: labels(:)
-   !    real(dp), allocatable :: covar(:, :, :)
-
-      
-   !    if (cpar%myid == cpar%root) then
-
-   !       inquire (file=trim(cpar%zs_covar_chain), exist=exist)
-   !       if (.not. exist) call report_error('Zodi covar chain does not exist = '//trim(cpar%zs_covar_chain))
-   !       l = len(trim(cpar%zs_covar_chain))
-   !       if (.not. ((trim(cpar%zs_covar_chain(l-2:l)) == '.h5') .or. (trim(cpar%zs_covar_chain(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-
-   !       call hdf_open(trim(cpar%zs_covar_chain), file, "r")
-
-   !       do samp = cpar%zs_covar_first, cpar%zs_covar_last
-   !          call int2string(i, sample)
-   !          do comp = 1, model%comp_labels
-   !             labels = cpar%zodi_param_labels%get_labels(comp)
-   !          end do
-   !       end do
-
-   !    end if
-
-   ! end subroutine
-
+   subroutine print_zodi_model(theta, labels)
+      integer(i4b) :: i, j, k, l, idx, n_cols, comp
+      real(dp), allocatable, intent(in) :: theta(:)
+      character(len=128), allocatable, intent(in) :: labels(:)
+      print *, ""
+      n_cols = 5
+      comp = 1
+      do i = 1, size(theta)
+         idx = index(trim(adjustl(labels(i))), "_")
+         if (i < size(theta)) then
+            if (i == 1) then 
+               write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
+            else if (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i-1)(:idx)))) then
+               comp = comp + 1
+               ! write(*, *), ""
+               if (comp > zodi_model%n_comps) then
+                  write(*, "(a)", advance="no") "OTHER:  "
+               else 
+                  write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
+               end if
+            end if
+         end if
+         if (mod(i, n_cols) == 0 .or. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx))))) then
+            write(*, "(a,a,g0.4,a)") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
+         else
+            write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
+         end if
+      end do
+      print *, ""
+   end subroutine
+ 
 end module

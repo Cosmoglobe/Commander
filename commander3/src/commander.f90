@@ -345,7 +345,7 @@ program commander
          call remove_glitches_from_downsamped_zodi_quantities(cpar)
       end if 
       select case (trim(adjustl(cpar%zs_sample_method)))
-      case ("sample")
+      case ("mh")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          call minimize_zodi_with_powell(cpar)
