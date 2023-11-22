@@ -12,24 +12,16 @@ module comm_tod_zodi_mod
    public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
 
    type :: ZodiCompLOS
-       real(dp), allocatable :: gauss_nodes(:), gauss_weights(:)
-       real(dp), allocatable, dimension(:,:) :: X_unit_LOS, X_LOS
-       !real(dp), allocatable, dimension(:,:) :: X_unit_LOS(3, gauss_degree), X_LOS(3, gauss_degree)
-       real(dp), allocatable, dimension(:) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
-       real(dp) :: R_min=3.d-14, R_max = 5.2
+      real(dp) :: R_min, R_max
+      real(dp), allocatable, dimension(:) :: gauss_nodes, gauss_weights
+      real(dp), allocatable, dimension(:) :: R, T, n, F_sol, Theta, Phi, B_nu
+      real(dp), allocatable, dimension(:, :) :: X, X_unit
    end type
 
-
-
-   ! Constants
-   real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp)
-
-   ! Shared global parameters
+   real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp), delta_t_reset
+   real(dp), allocatable :: T_grid(:), B_nu_integrals(:)
+   type(ZodiCompLOS), allocatable, dimension(:) :: comp_LOS
    type(spline_type) :: earth_pos_spl_obj(3)
-   real(dp), allocatable :: temperature_grid(:), gauss_nodes(:), gauss_weights(:), b_nu_integrals(:)
-   real(dp) :: delta_t_reset, min_ipd_temp, max_ipd_temp
-   type(ZodiCompLOS), allocatable, dimension(:) :: comp_los
-   integer(i4b) :: gauss_degree
 
 contains
    subroutine initialize_tod_zodi_mod(cpar)
@@ -43,33 +35,39 @@ contains
       type(comm_params), intent(in) :: cpar
       real(dp) :: min_temp = 40.0, max_temp = 550.0
       integer(i4b) :: n_interp_points = 100
-      integer(i4b) :: i
+      integer(i4b) :: i, gauss_degree
 
-      allocate(comp_los(zodi_model%n_comps))
-      allocate(b_nu_integrals(n_interp_points))
+      allocate(comp_LOS(zodi_model%n_comps))
+      allocate(B_nu_integrals(n_interp_points))
 
       ! hyper parameters
       delta_t_reset = cpar%zs_delta_t_reset
 
       ! Set up Gauss-Legendre quadrature
       do i = 1, zodi_model%n_comps
-          gauss_degree = cpar%zs_los_steps(i)
-          allocate (comp_los(i)%gauss_nodes(gauss_degree), comp_los(i)%gauss_weights(gauss_degree))
-          call leggaus(gauss_degree, comp_los(i)%gauss_nodes, comp_los(i)%gauss_weights)
-          allocate(comp_los(i)%X_unit_LOS(3, gauss_degree))
-          allocate(comp_los(i)%X_LOS(3, gauss_degree))
-          allocate(comp_los(i)%R_LOS(gauss_degree))
-          allocate(comp_los(i)%T_LOS(gauss_degree))
-          allocate(comp_los(i)%density_LOS(gauss_degree))
-          allocate(comp_los(i)%solar_flux_LOS(gauss_degree))
-          allocate(comp_los(i)%scattering_angle(gauss_degree))
-          allocate(comp_los(i)%phase_function(gauss_degree))
-          allocate(comp_los(i)%b_nu_LOS(gauss_degree))
+         gauss_degree = cpar%zs_los_steps(i)
+         allocate (comp_LOS(i)%gauss_nodes(gauss_degree), comp_LOS(i)%gauss_weights(gauss_degree))
+         if (cpar%zs_r_min(i) == 0.) then
+            comp_LOS(i)%R_min = R_MIN
+         else 
+               comp_LOS(i)%R_min = cpar%zs_r_min(i)
+         end if
+         comp_LOS(i)%R_max = cpar%zs_r_max(i)
+         call leggaus(gauss_degree, comp_LOS(i)%gauss_nodes, comp_LOS(i)%gauss_weights)
+         allocate(comp_LOS(i)%X_unit(3, gauss_degree))
+         allocate(comp_LOS(i)%X(3, gauss_degree))
+         allocate(comp_LOS(i)%R(gauss_degree))
+         allocate(comp_LOS(i)%T(gauss_degree))
+         allocate(comp_LOS(i)%n(gauss_degree))
+         allocate(comp_LOS(i)%F_sol(gauss_degree))
+         allocate(comp_LOS(i)%Theta(gauss_degree))
+         allocate(comp_LOS(i)%Phi(gauss_degree))
+         allocate(comp_LOS(i)%B_nu(gauss_degree))
       end do
 
       ! Set up interpolation grid for evaluating temperature
-      allocate (temperature_grid(n_interp_points))
-      call linspace(min_temp, max_temp, temperature_grid)
+      allocate (T_grid(n_interp_points))
+      call linspace(min_temp, max_temp, T_grid)
 
       ! Read earth position from file and set up spline object
       call initialize_earth_pos_spline(cpar)
@@ -118,7 +116,7 @@ contains
 
       integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
       logical(lgt) :: scattering, use_lowres
-      real(dp) :: earth_lon, R_obs, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
       !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
@@ -199,10 +197,6 @@ contains
             unit_vector = tod%ind2vec_ecl(:, lookup_idx)
          end if
 
-         call get_R_max(unit_vector, obs_pos, R_obs, R_CUTOFF, R_max)
-
-
-
          do k = 1, model%n_comps
             ! If comp is present we only evaluate the zodi emission for that component.
             ! If comp == 0 then we evaluate the zodi emission for all components.
@@ -210,33 +204,37 @@ contains
                if (k /= comp .and. comp /= 0) cycle
             end if
 
+            ! Get line of sight integration range
+            call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_min, R_min)
+            call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_max, R_max)
+
             do l = 1, 3
                ! Convert quadrature range from [-1, 1] to [R_min, R_max]
-               comp_los(k)%X_unit_LOS(l, :) = (0.5 * (R_max - R_MIN)) * comp_los(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
-               comp_los(k)%X_unit_LOS(l, :) = comp_los(k)%X_unit_LOS(l, :) * unit_vector(l)
-               comp_los(k)%X_LOS(l, :) = comp_los(k)%X_unit_LOS(l, :) + obs_pos(l)
+               comp_LOS(k)%X_unit(l, :) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+               comp_LOS(k)%X_unit(l, :) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
+               comp_LOS(k)%X(l, :) = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
             end do
-            comp_los(k)%R_LOS = norm2(comp_los(k)%X_LOS, dim=1)
+            comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
 
             if (scattering) then
-               comp_los(k)%solar_flux_LOS = model%F_sun(tod%band)/comp_los(k)%R_LOS**2
-               call get_scattering_angle(comp_los(k)%X_LOS, comp_los(k)%X_unit_LOS, comp_los(k)%R_LOS, comp_los(k)%scattering_angle)
-               call get_phase_function(comp_los(k)%scattering_angle, C0, C1, C2, phase_normalization, comp_los(k)%phase_function)
+               comp_LOS(k)%F_sol = model%F_sun(tod%band)/comp_LOS(k)%R**2
+               call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
+               call get_phase_function(comp_LOS(k)%Theta, C0, C1, C2, phase_normalization, comp_LOS(k)%Phi)
             end if
 
-            call get_dust_grain_temperature(comp_los(k)%R_LOS, comp_los(k)%T_LOS, model%T_0, model%delta)
-            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_los(k)%T_LOS, comp_los(k)%b_nu_LOS)
+            call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
+            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
-            call model%comps(k)%c%get_density(comp_los(k)%X_LOS, earth_lon, comp_los(k)%density_LOS)
+            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
             if (scattering) then
-               s_zodi_scat(i, k) = sum(comp_los(k)%density_LOS*comp_los(k)%solar_flux_LOS*comp_los(k)%phase_function*comp_los(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+               s_zodi_scat(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
                if (use_lowres) then
                   tod%zodi_scat_cache_lowres(lookup_idx, k, det) = s_zodi_scat(i, k)
                else
                   tod%zodi_scat_cache(lookup_idx, k, det) = s_zodi_scat(i, k)
                end if
             end if
-            s_zodi_therm(i, k) = sum(comp_los(k)%density_LOS*comp_los(k)%b_nu_LOS*comp_los(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+            s_zodi_therm(i, k) = sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
             if (use_lowres) then
                tod%zodi_therm_cache_lowres(lookup_idx, k, det) = s_zodi_therm(i, k)
             else
@@ -248,22 +246,27 @@ contains
 
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------
-   subroutine get_R_max(unit_vector, obs_pos, R_obs, R_CUTOFF, R_max)
+   subroutine get_sphere_intersection(unit_vector, obs_pos, R_obs, R_cutoff, R_intersection)
       ! Computes R_max (the length of the LOS such that it stops exactly at los_cutoff_radius).
 
       real(dp), intent(in), dimension(:) :: unit_vector, obs_pos
-      real(dp), intent(in) :: R_obs, R_CUTOFF
-      real(dp), intent(out) :: R_max
+      real(dp), intent(in) :: R_obs, R_cutoff
+      real(dp), intent(out) :: R_intersection
       real(dp) :: lon, lat, cos_lat, b, d, q
+
+      if (R_obs > R_cutoff) then
+         R_intersection = EPS
+         return
+      end if
 
       lon = atan(unit_vector(2), unit_vector(1))
       lat = asin(unit_vector(3))
       cos_lat = cos(lat)
       b = 2.*(obs_pos(1)*cos_lat*cos(lon) + obs_pos(2)*cos_lat*sin(lon))
-      d = R_obs**2 - R_CUTOFF**2
+      d = R_obs**2 - R_cutoff**2
       q = -0.5*b*(1.+sqrt(b**2 - (4.*d))/abs(b))
-      R_max = max(q, d/q)
-   end subroutine get_R_max
+      R_intersection = max(q, d/q)
+   end subroutine get_sphere_intersection
 
    subroutine get_dust_grain_temperature(R, T_out, T_0, delta)
       real(dp), dimension(:), intent(in) :: R
@@ -369,12 +372,11 @@ contains
       integer(i4b) :: i, j
 
       allocate (b_nu(bandpass%p%n))
-      do i = 1, size(b_nu_integrals)
-         !write(*,*) 'alloc2', allocated(bandpass%p%nu)
-         call get_blackbody_emission(bandpass%p%nu, temperature_grid(i), b_nu)
-         b_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
+      do i = 1, size(B_nu_integrals)
+         call get_blackbody_emission(bandpass%p%nu, T_grid(i), b_nu)
+         B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
       end do
-      call spline_simple(tod%zodi_b_nu_spl_obj(det), temperature_grid, b_nu_integrals, regular=.true.)
+      call spline_simple(tod%zodi_b_nu_spl_obj(det), T_grid, B_nu_integrals, regular=.true.)
    end subroutine update_zodi_splines
 
    subroutine output_tod_params_to_hd5(cpar, model, tod, iter)
