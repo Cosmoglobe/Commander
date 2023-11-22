@@ -265,7 +265,7 @@ module comm_param_mod
      integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
-     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
+     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS)
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii
@@ -2921,8 +2921,9 @@ subroutine read_zodi_params_hash(htbl, cpar)
           call get_parameter_hashtable(htbl, 'ZODI_COMP_LABEL'//itext2, par_string=cpar%zs_comp_labels(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_INIT_FROM_HDF'//itext2, par_string=cpar%zs_init_hdf(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_N_LOS_STEP'//itext2, par_int=cpar%zs_los_steps(comp_idx))
-              
 
+          call get_parameter_hashtable(htbl, 'ZODI_COMP_R_MIN'//itext2, par_dp=cpar%zs_r_min(comp_idx))
+          call get_parameter_hashtable(htbl, 'ZODI_COMP_R_MAX'//itext2, par_dp=cpar%zs_r_max(comp_idx))
           
           parameter_labels = cpar%zodi_param_labels%get_labels(cpar%zs_comp_types(comp_idx), add_common=.true.)
           do j = 1, size(parameter_labels)
