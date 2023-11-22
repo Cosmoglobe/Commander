@@ -32,6 +32,7 @@ program commander
   use comm_zodi_mod
   use comm_zodi_samp_mod
   use comm_tod_zodi_mod
+  use hmc_mod
   implicit none
 
   integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
@@ -54,6 +55,8 @@ program commander
   character(len=*), parameter :: version = '1.0.0'
   character(len=32)           :: arg
   integer                     :: arg_indx
+
+  
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
@@ -97,6 +100,7 @@ program commander
   call init_status(status, trim(cpar%outdir)//'/comm_status.txt', cpar%numband, cpar%comm_chain)
   status%active = cpar%myid_chain == 0 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
+
 
 !!$  n = 100000
 !!$  q = 100000
