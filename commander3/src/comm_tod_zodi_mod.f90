@@ -157,6 +157,7 @@ contains
       else
          use_lowres = .false.
       end if
+      !use_lowres = .false.
 
       cache_hits = 0
       do i = 1, n_tod

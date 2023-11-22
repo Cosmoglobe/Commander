@@ -62,7 +62,9 @@ module comm_zodi_mod
    end type ZodiBand
 
    type, extends(ZodiComponent) :: ZodiRing
-      real(dp) :: R_0, sigma_r, sigma_z
+      real(dp) :: R_0, sigma_r, sigma_z, theta_0, sigma_theta
+      real(dp) :: theta_0_rad = 0.d0
+      real(dp) :: sigma_theta_rad = 0.d0
    contains
       procedure :: init => init_ring
       procedure :: get_density => get_density_ring
@@ -152,6 +154,8 @@ contains
 
    subroutine init_ring(self)
       class(ZodiRing) :: self
+      self%theta_0_rad = self%theta_0*deg2rad
+      self%sigma_theta_rad = self%sigma_theta*deg2rad
       call self%init_base_comp()
    end subroutine init_ring
 
@@ -235,19 +239,32 @@ contains
       real(dp), intent(in) :: theta
       real(dp), dimension(:), intent(out) :: n_out
       integer(i4b) :: i
-      real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2
+      real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2, theta_prime
 
       do i = 1, size(n_out)
          x_prime = X_vec(1, i) - self%x_0
          y_prime = X_vec(2, i) - self%y_0
          z_prime = X_vec(3, i) - self%z_0
+         theta_prime = atan2(y_prime, x_prime) - theta - self%theta_0_rad
+
+         ! Constraining the angle to the limit [-pi, pi]
+         do while (theta_prime < -pi)
+            theta_prime = theta_prime + 2.d0*pi
+         end do
+         do while (theta_prime > pi)
+            theta_prime = theta_prime - 2.d0*pi
+         end do
 
          R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
          Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
          term1 = -((R - self%R_0)**2)/self.sigma_r**2
          term2 = abs(Z_midplane/self.sigma_z)
 
-         n_out(i) = self%n_0*exp(term1 - term2)
+         if (abs(theta_prime) < self%sigma_theta_rad) then
+            n_out(i) = 0.d0
+         else
+            n_out(i) = self%n_0*exp(term1 - term2)
+         end if
       end do
    end subroutine get_density_ring
 
@@ -348,7 +365,9 @@ contains
                & z_0=params(i, 6), &
                & R_0=params(i, 7), &
                & sigma_r=params(i, 8), &
-               & sigma_z=params(i, 9) &
+               & sigma_z=params(i, 9), &
+               & theta_0=params(i, 10), &
+               & sigma_theta=params(i, 11) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring]
          case ('feature')
@@ -417,6 +436,8 @@ contains
             x(running_idx + 1) = comp%R_0
             x(running_idx + 2) = comp%sigma_r
             x(running_idx + 3) = comp%sigma_z
+            x(running_idx + 4) = comp%theta_0
+            x(running_idx + 5) = comp%sigma_theta
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          class is (ZodiFeature)
             x(running_idx + 1) = comp%R_0
@@ -478,6 +499,8 @@ contains
             comp%R_0 = x(running_idx + 1)
             comp%sigma_r = x(running_idx + 2)
             comp%sigma_z = x(running_idx + 3)
+            comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
+            comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          class is (ZodiFeature)
             comp%R_0 = x(running_idx + 1)

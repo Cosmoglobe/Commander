@@ -138,8 +138,8 @@ contains
       logical(lgt), intent(in), optional :: verbose
 
       call compute_downsamp_zodi(cpar, model)
-      if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
-      call sample_and_subtract_monopole(cpar, handle)
+      !if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
+      !call sample_and_subtract_monopole(cpar, handle)
       if (cpar%myid == cpar%root) print *, new_line('A'), "sampling n0"
       call sample_n0_emissivity_and_albedo(cpar, handle, gibbs_iter, model)
    end subroutine
@@ -1022,7 +1022,12 @@ contains
       prior_vec_powell(:, 2) = prior_vec_powell_max
       prior_vec_powell(:, 3) = prior_vec_powell_type
 
-      if (any(pack(theta, powell_included_params) == 0.)) stop "theta_0 contains zeros in zodi powell sampling. Cant compute physical units due to theta/theta_0"
+      if (any(pack(theta, powell_included_params) == 0.)) then
+         do i = 1, size(theta)
+            write(*,*) i, theta(i)
+         end do
+         stop "theta_0 contains zeros in zodi powell sampling. Cant compute physical units due to theta/theta_0"
+      end if
 
       allocate(theta_0(size(theta)))
       theta_0 = theta
@@ -1134,6 +1139,10 @@ contains
 
       call model%params_to_model(theta)
 
+      if (data(1)%tod%myid == 0) then
+         print *, chisq, real(theta_full, sp)
+      end if
+
 
       j = 0
       do i = numband, 1, -1
@@ -1225,7 +1234,7 @@ contains
 
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq
-         print *, chisq, real(theta_full, sp)
+         print *, 'chisq_lnL = ', chisq
       end if
    end function
 
