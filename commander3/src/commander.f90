@@ -186,11 +186,13 @@ program commander
   end if
 
   ! initialize zodi samp mod
-  if (cpar%sample_zodi .and. cpar%include_tod_zodi) call initialize_zodi_samp_mod(cpar)
+  if (cpar%sample_zodi .and. cpar%include_tod_zodi) then 
+      call initialize_zodi_samp_mod(cpar)
+      if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
+  end if
 
   ! if init from ascii -> override all other zodi initialization
-  if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
-
+  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
