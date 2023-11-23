@@ -187,13 +187,9 @@ program commander
 
   ! initialize zodi samp mod
   if (cpar%sample_zodi .and. cpar%include_tod_zodi) call initialize_zodi_samp_mod(cpar)
-!   call zodi_model_to_ascii(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
-   !  call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_k98_ascii.dat")
-!   call mpi_barrier(MPI_COMM_WORLD, ierr)
-!   stop
-! Example use case of zodi_to_ascii for HKE
-!   call zodi_model_to_ascii(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/chains/chains_testing/init_zodi.dat")
-!   call ascii_to_zodi_model(cpar, zodi_model, "/mn/stornext/u3/metins/dirbe/data/ascii_K98.dat")
+
+  ! if init from ascii -> override all other zodi initialization
+  if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
 
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")

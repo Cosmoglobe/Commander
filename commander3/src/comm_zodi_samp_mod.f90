@@ -1507,7 +1507,7 @@ contains
       real(dp), allocatable, intent(in) :: theta(:)
       character(len=128), allocatable, intent(in) :: labels(:)
       real(dp), intent(in), optional :: chisq
-      integer(i4b) :: i, j, k, l, idx, n_cols, comp
+      integer(i4b) :: i, j, k, l, idx, n_cols, comp, n_params
       
       if (present(chisq)) then
          print *, "chisq = ", chisq
@@ -1515,11 +1515,12 @@ contains
          print *, ""
       end if
 
+      n_params = size(theta)
       n_cols = 5
       comp = 1
-      do i = 1, size(theta)
+      do i = 1, n_params
          idx = index(trim(adjustl(labels(i))), "_")
-         if (i < size(theta)) then
+         if (i < n_params) then
             if (i == 1) then 
                write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
             else if (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i-1)(:idx)))) then
@@ -1532,7 +1533,7 @@ contains
                end if
             end if
          end if
-         if (mod(i, n_cols) == 0 .or. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx))))) then
+         if (mod(i, n_cols) == 0 .or. (i<n_params .and. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx)))))) then
             write(*, "(a,a,g0.4,a)") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
          else
             write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
