@@ -36,7 +36,7 @@ contains
       integer(i4b), allocatable :: indices(:)
       ! Figure out how many sampling bands there are and initialize the tod step sizes
 
-      implemented_sampling_algorithms = ["powell", "gibbs"]
+      implemented_sampling_algorithms = ["powell", "mh"]
       if (.not. any(implemented_sampling_algorithms == cpar%zs_sample_method)) then
          if (cpar%myid == 0) then 
             print *, "Error: invalid sampling method for zodi, must be one of: ", [(trim(adjustl(implemented_sampling_algorithms(i)))//", ", i=1, size(implemented_sampling_algorithms))]
@@ -51,7 +51,7 @@ contains
       end do
       ref_band = cpar%ds_zodi_reference_band
       ref_band_count = count(cpar%ds_zodi_reference_band == .true.)
-      if (trim(adjustl(cpar%zs_sample_method)) == "sample") then
+      if (trim(adjustl(cpar%zs_sample_method)) == "mh") then
          if (ref_band_count > 1) then
             stop "Error: cannot have more than one reference band for zodi emissivity."
          else if (ref_band_count == 0) then
@@ -138,8 +138,8 @@ contains
       logical(lgt), intent(in), optional :: verbose
 
       call compute_downsamp_zodi(cpar, model)
-      if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
-      call sample_and_subtract_monopole(cpar, handle)
+      !if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
+      !call sample_and_subtract_monopole(cpar, handle)
       if (cpar%myid == cpar%root) print *, new_line('A'), "sampling n0"
       call sample_n0_emissivity_and_albedo(cpar, handle, gibbs_iter, model)
    end subroutine
@@ -1066,7 +1066,12 @@ contains
       prior_vec_powell(:, 2) = prior_vec_powell_max
       prior_vec_powell(:, 3) = prior_vec_powell_type
 
-      if (any(pack(theta, powell_included_params) == 0.)) stop "theta_0 contains zeros in zodi powell sampling. Cant compute physical units due to theta/theta_0"
+      if (any(pack(theta, powell_included_params) == 0.)) then
+         do i = 1, size(theta)
+            write(*,*) i, theta(i)
+         end do
+         stop "theta_0 contains zeros in zodi powell sampling. Cant compute physical units due to theta/theta_0"
+      end if
 
       allocate(theta_0(size(theta)))
       theta_0 = theta
@@ -1076,7 +1081,7 @@ contains
       if (cpar%myid == cpar%root) then
          !filter out N_0 parameters and scale to physical units
          theta_phys = pack(theta / theta_0, powell_included_params)
-         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=1)
+         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=5)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
       else
@@ -1143,6 +1148,7 @@ contains
       type(ZodiModel) :: model
 
       real(dp), allocatable :: theta(:), theta_phys(:), theta_full(:)
+      character(len=128), allocatable :: labels(:)
       real(dp) :: chisq, chisq_tod, chisq_prior, box_width
       integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands
       character(len=4) :: scan_str
@@ -1160,7 +1166,7 @@ contains
       
 
       allocate(theta(model%n_params))
-      call model%model_to_params(theta)
+      call model%model_to_params(theta, labels)
 
       allocate(theta_full(size(powell_included_params)))
       theta_full(1:model%n_params) = theta
@@ -1177,6 +1183,8 @@ contains
       end do
 
       call model%params_to_model(theta)
+
+      ! if (data(1)%tod%myid == 0) call print_zodi_model(theta, labels)
 
 
       j = 0
@@ -1272,7 +1280,7 @@ contains
 
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq
-         print *, chisq, real(theta_full, sp)
+         call print_zodi_model(theta, labels, chisq)
       end if
    end function
 
@@ -1495,35 +1503,43 @@ contains
    end subroutine
 
 
-   ! subroutine read_zodi_covariance(cpar, model)
-   !    type(comm_params), intent(in) :: cpar
-   !    class(ZodiModel), intent(in) :: model
+   subroutine print_zodi_model(theta, labels, chisq)
+      real(dp), allocatable, intent(in) :: theta(:)
+      character(len=128), allocatable, intent(in) :: labels(:)
+      real(dp), intent(in), optional :: chisq
+      integer(i4b) :: i, j, k, l, idx, n_cols, comp, n_params
       
-   !    type(hdf_file) :: file
-   !    character(len=6) :: sample
-   !    integer(i4b) :: i, j, k, exist, l, comp, samp
-   !    character(len=128) :: labels(:)
-   !    real(dp), allocatable :: covar(:, :, :)
+      if (present(chisq)) then
+         print *, "chisq = ", chisq
+      else
+         print *, ""
+      end if
 
-      
-   !    if (cpar%myid == cpar%root) then
-
-   !       inquire (file=trim(cpar%zs_covar_chain), exist=exist)
-   !       if (.not. exist) call report_error('Zodi covar chain does not exist = '//trim(cpar%zs_covar_chain))
-   !       l = len(trim(cpar%zs_covar_chain))
-   !       if (.not. ((trim(cpar%zs_covar_chain(l-2:l)) == '.h5') .or. (trim(cpar%zs_covar_chain(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
-
-   !       call hdf_open(trim(cpar%zs_covar_chain), file, "r")
-
-   !       do samp = cpar%zs_covar_first, cpar%zs_covar_last
-   !          call int2string(i, sample)
-   !          do comp = 1, model%comp_labels
-   !             labels = cpar%zodi_param_labels%get_labels(comp)
-   !          end do
-   !       end do
-
-   !    end if
-
-   ! end subroutine
-
+      n_params = size(theta)
+      n_cols = 5
+      comp = 1
+      do i = 1, n_params
+         idx = index(trim(adjustl(labels(i))), "_")
+         if (i < n_params) then
+            if (i == 1) then 
+               write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
+            else if (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i-1)(:idx)))) then
+               comp = comp + 1
+               ! write(*, *), ""
+               if (comp > zodi_model%n_comps) then
+                  write(*, "(a)", advance="no") "OTHER:  "
+               else 
+                  write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
+               end if
+            end if
+         end if
+         if (mod(i, n_cols) == 0 .or. (i<n_params .and. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx)))))) then
+            write(*, "(a,a,g0.4,a)") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
+         else
+            write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
+         end if
+      end do
+      print *, ""
+   end subroutine
+ 
 end module

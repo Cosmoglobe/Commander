@@ -46,7 +46,7 @@ module comm_param_mod
      character(len=128), dimension(6) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
      character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
      character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=128), dimension(3) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z']
+     character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(1) :: interstellar = [character(len=128) :: 'R']
      character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
@@ -265,8 +265,8 @@ module comm_param_mod
      integer(i4b), dimension(:)              :: zs_los_steps(MAXZODICOMPS)
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
-     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4)
-     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method
+     real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS)
+     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
@@ -2879,6 +2879,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_SAMP_METHOD', par_string=cpar%zs_sample_method)
+     call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
+     
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT
      cpar%zs_general_params(:, 2) = DEFAULT_PRIOR_LOWER_LIMIT
@@ -2921,8 +2923,9 @@ subroutine read_zodi_params_hash(htbl, cpar)
           call get_parameter_hashtable(htbl, 'ZODI_COMP_LABEL'//itext2, par_string=cpar%zs_comp_labels(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_INIT_FROM_HDF'//itext2, par_string=cpar%zs_init_hdf(comp_idx))
           call get_parameter_hashtable(htbl, 'ZODI_COMP_N_LOS_STEP'//itext2, par_int=cpar%zs_los_steps(comp_idx))
-              
 
+          call get_parameter_hashtable(htbl, 'ZODI_COMP_R_MIN'//itext2, par_dp=cpar%zs_r_min(comp_idx))
+          call get_parameter_hashtable(htbl, 'ZODI_COMP_R_MAX'//itext2, par_dp=cpar%zs_r_max(comp_idx))
           
           parameter_labels = cpar%zodi_param_labels%get_labels(cpar%zs_comp_types(comp_idx), add_common=.true.)
           do j = 1, size(parameter_labels)
