@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi" #"gnu"
-buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
+buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -160,6 +160,7 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
+    #module load intel/oneapi mpi/2023.2.1 compiler/2023.2.1 mkl/2023.2.1
     module load intel/oneapi mpi/latest icc/latest compiler/latest mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then

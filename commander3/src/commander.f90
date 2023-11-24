@@ -56,6 +56,11 @@ program commander
   character(len=32)           :: arg
   integer                     :: arg_indx
 
+  real(dp), dimension(1) :: param_test
+  real(dp) :: time_step
+  param_test = 1.d0
+  time_step = 1d-1
+
   
 
   ! Giving the simple command line arguments for user to chose from.
@@ -101,6 +106,12 @@ program commander
   status%active = cpar%myid_chain == 0 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
+  if (cpar%myid == cpar%root) then
+      write(*,*) "first", param_test(1)
+      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+      write(*,*) "last", param_test(1)
+  end if
 
 !!$  n = 100000
 !!$  q = 100000
