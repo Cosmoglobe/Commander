@@ -153,14 +153,15 @@ then
 	then
 		# Compilers
 		fc="ifort"
-		cc="icc"
-		cxx="icpc"
+		cc="icx"
+		cxx="icpx"
 		# MPI compilers
 		mpifc="mpiifort" 
-		mpicc="mpiicc"
-		mpicxx="mpiicpc"
+		mpicc="mpiicx"
+		mpicxx="mpiicpx"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
     module load intel/oneapi mpi/latest icc/latest compiler/latest mkl/latest
+    # module load intel/oneapi mpi/latest compiler/2023.2.1 mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
