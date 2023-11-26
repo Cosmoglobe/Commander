@@ -684,7 +684,7 @@ contains
       ! alpha : optional
       !     Scale factor per component
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
-      real(sp), dimension(:), intent(inout) :: s_zodi
+      real(sp), dimension(:), intent(out)   :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
       real(dp), dimension(:), intent(in), optional :: alpha
       integer(i4b) :: i, n_comps
@@ -720,7 +720,7 @@ contains
       ! alpha_comp : optional
       !     Scale factor for a component
       real(sp), dimension(:), intent(in) :: s_scat_comp, s_therm_comp
-      real(sp), dimension(:), intent(out) :: s_zodi_comp
+      real(sp), dimension(:), intent(inout) :: s_zodi_comp
       real(dp), intent(in) :: emissivity_comp, albedo_comp
       real(dp), intent(in), optional :: alpha_comp
       integer(i4b) :: i, n_comps

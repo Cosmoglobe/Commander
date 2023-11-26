@@ -188,13 +188,16 @@ program commander
   ! initialize zodi samp mod
   if (cpar%sample_zodi .and. cpar%include_tod_zodi) then 
       call initialize_zodi_samp_mod(cpar)
-      if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
   end if
 
-  ! if init from ascii -> override all other zodi initialization
-  
+  ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
+
+    ! initialize zodi samp mod
+  if (cpar%include_tod_zodi) then 
+      if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
+  end if
 
 
 !write(*,*) 'Setting gain to 1'
@@ -400,7 +403,7 @@ program commander
 
      ! Output zodi ipd and tod parameters to chain
      if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) then
-         if (cpar%sample_zodi .and. cpar%zs_output_ascii) then 
+        if (cpar%zs_output_ascii) then
             call int2string(iter, samptext)
             call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_ascii_k' // samptext // '.dat', overwrite=.true.)
          end if

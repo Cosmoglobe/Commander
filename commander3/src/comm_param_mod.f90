@@ -266,6 +266,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS)
+     real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii
@@ -2880,6 +2881,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_SAMP_METHOD', par_string=cpar%zs_sample_method)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
+     call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_FACTOR', par_dp=cpar%zs_tod_thin_factor)
+     call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_THRESHOLD', par_dp=cpar%zs_tod_thin_threshold)
      
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT
@@ -2967,10 +2970,9 @@ subroutine read_zodi_params_hash(htbl, cpar)
                call validate_file(trim(cpar%ds_tod_procmask_zodi(i)))
           end if
      end do
+     call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_ASCII', par_lgt=cpar%zs_output_ascii)
      if (cpar%sample_zodi) then
           call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
-          call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_ASCII', par_lgt=cpar%zs_output_ascii)
-
           allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups
                call int2string(i, itext2)
