@@ -312,6 +312,9 @@ contains
         !    write(*,*) n_ap, n_app, alpha_p, alpha_pp
         !    stop
         !end if
+      else
+        n_alpha = n_ap
+        alpha = alpha_p
       end if
 
 
