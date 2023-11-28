@@ -160,7 +160,7 @@ then
 		mpicc="mpiicx"
 		mpicxx="mpiicpx"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    #module load intel/oneapi mpi/2023.2.1 compiler/2023.2.1 mkl/2023.2.1
+    #module load intel/oneapi compiler/2023.2.1 icc/2023.2.1 mpi/2021.11 mkl/2023.2.0
     module load intel/oneapi mpi/latest icc/latest compiler/latest mkl/latest
     # module load intel/oneapi mpi/latest compiler/2023.2.1 mkl/latest
 	elif [[ "$toolchain" =~ "gnu" ]]
@@ -255,3 +255,5 @@ then
 else
 	printf "TERMINATING: NOT ON ITA MACHINE!"
 fi
+
+ln -s $build_dir build
