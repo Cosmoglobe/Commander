@@ -335,22 +335,61 @@ program commander
 
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
-      call project_and_downsamp_sky(cpar)
-      if (iter == 2) then 
+      if (iter == 2) then
+         call project_and_downsamp_sky(cpar)
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
       end if
-      call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
+
+!!$      do i = 1, zodi_model%n_comps
+!!$         write(*,*) 'n0', zodi_model%comps(i)%c%n_0
+!!$      end do
+!!$      do i = 1, numband
+!!$         write(*,*) 'emissivity', data(i)%tod%zodi_emissivity, data(i)%tod%zodi_albedo
+!!$      end do
+      
+      call compute_downsamp_zodi(cpar, zodi_model)      
       if (iter == 2) then
+         call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
+         call compute_downsamp_zodi(cpar, zodi_model)      
          call remove_glitches_from_downsamped_zodi_quantities(cpar)
       end if 
-      select case (trim(adjustl(cpar%zs_sample_method)))
-      case ("mh")
+      
+!!$      select case (trim(adjustl(cpar%zs_sample_method)))
+!!$      case ("mh")
+!!$         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+!!$      case ("powell")
+!!$         call minimize_zodi_with_powell(cpar)
+!!$      end select
+!!$      if (mod(iter-2,10) == 0) then
+!!$         call zodi_model%params_to_model([&
+!!$              & 1.198d-7 + 0d-9*rand_gauss(handle), &
+!!$              & 2.10d0  + 0.0d0*rand_gauss(handle), &
+!!$              & 78.01d0 + 0.d0* rand_gauss(handle), &
+!!$              & 3.72d-2 + 0.000d0 * rand_gauss(handle), &
+!!$              & 8.71d-3 + 0.000d0 * rand_gauss(handle), &
+!!$              & -2.14d-3 + 0.000d0 * rand_gauss(handle), &
+!!$              & 0.951d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 3.50d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 0.822d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 0.183d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 1d-9 + 3d-10*rand_gauss(handle), &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 1.d0 + 0.3d0*rand_gauss(handle), &
+!!$              & 3.d0 + 0.3*rand_gauss(handle), &
+!!$              & 286d0, 0.466863d0])
+!!$      end if
+      if (mod(iter-1,2) == 0) then
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-      case ("powell")
+      else
          call minimize_zodi_with_powell(cpar)
-      end select
+      end if
+
       call timer%stop(TOT_ZODI_SAMP)
    end if
 
@@ -428,7 +467,7 @@ program commander
            write(*,*) '|  SAMPLE REJECTED'
         end if        
      end if
-     
+
      first = .false.
 
      call timer%stop(TOT_GIBBSSAMP)

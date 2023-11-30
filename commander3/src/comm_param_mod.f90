@@ -48,7 +48,7 @@ module comm_param_mod
      character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
      character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(1) :: interstellar = [character(len=128) :: 'R']
+     character(len=128), dimension(2) :: interstellar = [character(len=128) :: 'R', 'ALPHA']
      character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
      contains
             procedure :: get_labels
@@ -4007,6 +4007,8 @@ end subroutine
           labels = self%ring
      case ('FEATURE')
           labels = self%feature
+     case ('INTERSTELLAR')
+          labels = self%interstellar
      case default
           print *, 'Unknown component type: ', comp_type
           stop

@@ -80,7 +80,7 @@ module comm_zodi_mod
    end type ZodiFeature
 
    type, extends(ZodiComponent) :: ZodiInterstellar
-      real(dp) :: amp
+      real(dp)  :: R, alpha
    contains
       procedure :: init => init_interstellar
       procedure :: get_density => get_density_interstellar
@@ -167,8 +167,8 @@ contains
    end subroutine init_feature
 
    subroutine init_interstellar(self)
-      class(ZodiInterstellar) :: self
-      call self%init_base_comp()
+     class(ZodiInterstellar) :: self
+     call self%init_base_comp()
    end subroutine init_interstellar
 
    subroutine get_density_cloud(self, X_vec, theta, n_out)
@@ -307,7 +307,7 @@ contains
       real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
       do i = 1, size(n_out)
-         n_out(i) = self%amp
+         n_out(i) = self%n_0
       end do
    end subroutine get_density_interstellar
 
@@ -386,6 +386,19 @@ contains
                & sigma_theta=params(i, 11) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%feature]
+         case ('interstellar')
+            allocate (ZodiInterstellar::self%comps(i)%c)
+            self%comps(i)%c = ZodiInterstellar(&
+                 & n_0=params(i, 1), &
+                 & incl=params(i, 2), &
+                 & Omega=params(i, 3), &
+                 & x_0=params(i, 4), &
+                 & y_0=params(i, 5), &
+                 & z_0=params(i, 6), &
+                 & R=params(i, 7), &
+                 & alpha=params(i, 8) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%interstellar]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -446,6 +459,10 @@ contains
             x(running_idx + 4) = comp%theta_0
             x(running_idx + 5) = comp%sigma_theta
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiInterstellar)
+            x(running_idx + 1) = comp%R
+            x(running_idx + 2) = comp%alpha
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          if (present(labels)) then
             labels_copy = self%comps(i)%labels
@@ -470,11 +487,13 @@ contains
       real(dp), intent(in) :: x(:)
       integer(i4b) :: i, running_idx
 
-      if (size(x) /= self%n_params) stop "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`"
+      if (size(x) /= self%n_params) then
+         write(*,*) "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`", size(x), self%n_params
+         stop
+      end if
 
       running_idx = 0
       do i = 1, self%n_comps
-         ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
          self%comps(i)%c%n_0 = x(running_idx + 1)
          self%comps(i)%c%incl = mod(x(running_idx + 2), 360.) ! degree prior
          self%comps(i)%c%Omega = mod(x(running_idx + 3), 360.) ! degree prior
@@ -482,6 +501,8 @@ contains
          self%comps(i)%c%y_0 = x(running_idx + 5)
          self%comps(i)%c%z_0 = x(running_idx + 6)
          running_idx = running_idx + self%n_common_params
+         
+         ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
          select type (comp => self%comps(i)%c)
          class is (ZodiCloud)
             comp%alpha = x(running_idx + 1)
@@ -508,6 +529,10 @@ contains
             comp%sigma_z = x(running_idx + 3)
             comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
             comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiInterstellar)
+            comp%R = x(running_idx + 1)
+            comp%alpha = x(running_idx + 2)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()

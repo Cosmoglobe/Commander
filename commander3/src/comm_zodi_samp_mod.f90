@@ -137,7 +137,7 @@ contains
       type(ZodiModel), intent(inout) :: model
       logical(lgt), intent(in), optional :: verbose
 
-      call compute_downsamp_zodi(cpar, model)
+      !call compute_downsamp_zodi(cpar, model)
       !if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
       !call sample_and_subtract_monopole(cpar, handle)
       if (cpar%myid == cpar%root) print *, new_line('A'), "sampling n0"
@@ -412,11 +412,11 @@ contains
       end if
       if (is_root) print *, "n0 accept rate: ", (real(n_accepted)/real(nprop))*100.
       do i = 1, model%n_comps
-         model%comps(i)%c%n_0 = n0_new(i)
+         model%comps(i)%c%n_0 = n0_prev(i)
       end do
       do i = 1, numband
-         data(i)%tod%zodi_albedo = albedo_new(i, :)
-         data(i)%tod%zodi_emissivity = emissivity_new(i, :)
+         data(i)%tod%zodi_albedo = albedo_prev(i, :)
+         data(i)%tod%zodi_emissivity = emissivity_prev(i, :)
       end do
    end subroutine
 
@@ -447,7 +447,7 @@ contains
       previous_model = model
 
       tuning = .true.
-      n_proposals = 50
+      n_proposals = 500
 
       allocate(param_vec(current_model%n_params))
       call current_model%model_to_params(param_vec, param_labels)
@@ -584,7 +584,7 @@ contains
                param_idx = group_indices(i)
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx) / 2.
             end do
-         else if (accept_rate > 0.234) then
+         else if (accept_rate > 0.95) then
             do i = 1, size(group_indices)
                param_idx = group_indices(i)
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx) * 2.
@@ -984,12 +984,16 @@ contains
                
                ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
+               !write(*,*) 'a', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_tod**2, dp)))
+               !write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
+               !write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
                rms = sqrt(mean(real(res**2, dp)))
                glitch_mask = abs(res) > 5. * real(rms, sp)
 
                ! Apply TOD thinning
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                  if (mod(k,thinstep) /= 0 .and. abs(res(k))/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0 < cpar%zs_tod_thin_threshold) then
+                  !if (mod(k,thinstep) /= 0 .and. abs(res(k))/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)) < cpar%zs_tod_thin_threshold) then
+                  if (mod(k,thinstep) /= 0) then
                      glitch_mask(k) = .true.
                   end if
                end do
@@ -1094,7 +1098,7 @@ contains
          !filter out N_0 parameters and scale to physical units
          theta_phys = pack(theta / theta_0, powell_included_params)
          !call powell(theta_phys, lnL_zodi, ierr)
-         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=5)
+         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
       else
@@ -1268,7 +1272,7 @@ contains
                    & use_lowres_pointing=.true. &
                    &)
                call wall_time(t4)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
                call get_s_zodi(&
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
@@ -1277,17 +1281,20 @@ contains
                    & albedo=powell_albedo(i, :) &
                    &)
                call wall_time(t3)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
                
-               chisq_tod = chisq_tod + sum( &
+               chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                   & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                   &)
+               chisq_tod = chisq_tod + chisq
                call wall_time(t4)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
 
+
+               
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tod >= 1.d30) exit
                ! call int2string(data(i)%tod%scanid(scan), scan_str)
@@ -1299,6 +1306,7 @@ contains
                ! call close_hdf_file(tod_file)
 
                if (data(1)%tod%myid == 0 .and. scan == 1) then
+                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                   open(58,file='res.dat')
                   do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                      write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
@@ -1308,7 +1316,7 @@ contains
                   close(58)
                end if
                call wall_time(t3)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
 
             end do
          end do
@@ -1321,7 +1329,7 @@ contains
       call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
 
       call wall_time(t4)
-      if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
+      !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
 
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq
