@@ -86,6 +86,13 @@ module comm_zodi_mod
       procedure :: get_density => get_density_interstellar
    end type ZodiInterstellar
 
+   type, extends(ZodiComponent) :: ZodiFan
+      real(dp) :: Q, P, gamma, Z_midplane_0, R_outer
+   contains
+      procedure :: init => init_fan
+      procedure :: get_density => get_density_fan
+   end type ZodiFan
+
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=128), allocatable :: comp_labels(:), general_labels(:)
@@ -170,6 +177,11 @@ contains
      class(ZodiInterstellar) :: self
      call self%init_base_comp()
    end subroutine init_interstellar
+
+   subroutine init_fan(self)
+      class(ZodiFan) :: self
+      call self%init_base_comp()
+    end subroutine init_fan
 
    subroutine get_density_cloud(self, X_vec, theta, n_out)
       class(ZodiCloud) :: self
@@ -311,6 +323,41 @@ contains
       end do
    end subroutine get_density_interstellar
 
+   subroutine get_density_fan(self, X_vec, theta, n_out)
+      class(ZodiFan) :: self
+      real(dp), dimension(:, :), intent(in) :: X_vec
+      real(dp), intent(in) :: theta
+      real(dp), dimension(:), intent(out) :: n_out
+      integer(i4b) :: i
+      real(dp) :: R, Z_midplane, x_prime, y_prime, z_prime, beta, sin_beta, Z_midplane_abs, epsilon, f
+
+      do i = 1, size(n_out)
+         x_prime = X_vec(1, i) - self%x_0
+         y_prime = X_vec(2, i) - self%y_0
+         z_prime = X_vec(3, i) - self%z_0
+
+         R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+         if (R > self%R_outer) then
+            n_out(i) = 0.d0
+            cycle
+         end if
+
+         Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+
+         sin_beta = Z_midplane / R
+         beta = asin(sin_beta)
+         Z_midplane_abs = abs(Z_midplane)
+
+         if (Z_midplane_abs < self%Z_midplane_0) then
+            epsilon = 2. - (Z_midplane_abs / self%Z_midplane_0)
+         else
+            epsilon = 1.
+         end if
+         f = cos(beta) ** self%Q * exp(-self%P * sin(abs(beta) ** epsilon))
+         n_out(i) = self%n_0 * R ** (-self%gamma) * f
+      end do
+   end subroutine get_density_fan
+
    subroutine init_comps(self, params, comp_types, param_labels)
       ! Initializes the components in the zodi model and computes the number of parameters in the model.
       class(ZodiModel), target, intent(inout) :: self
@@ -399,6 +446,22 @@ contains
                  & alpha=params(i, 8) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%interstellar]
+         case ('fan')
+            allocate (ZodiFan::self%comps(i)%c)
+            self%comps(i)%c = ZodiFan(&
+                 & n_0=params(i, 1), &
+                 & incl=params(i, 2), &
+                 & Omega=params(i, 3), &
+                 & x_0=params(i, 4), &
+                 & y_0=params(i, 5), &
+                 & z_0=params(i, 6), &
+                 & Q=params(i, 7), &
+                 & P=params(i, 8), &
+                 & gamma=params(i, 9), &
+                 & Z_midplane_0=params(i, 10), &
+                 & R_outer=params(i, 11) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%fan]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -462,6 +525,13 @@ contains
          class is (ZodiInterstellar)
             x(running_idx + 1) = comp%R
             x(running_idx + 2) = comp%alpha
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiFan)
+            x(running_idx + 1) = comp%Q
+            x(running_idx + 2) = comp%P
+            x(running_idx + 3) = comp%gamma
+            x(running_idx + 4) = comp%Z_midplane_0
+            x(running_idx + 5) = comp%R_outer
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          if (present(labels)) then
@@ -533,6 +603,13 @@ contains
          class is (ZodiInterstellar)
             comp%R = x(running_idx + 1)
             comp%alpha = x(running_idx + 2)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiFan)
+            comp%Q = x(running_idx + 1)
+            comp%P = x(running_idx + 2)
+            comp%gamma = x(running_idx + 3)
+            comp%Z_midplane_0 = x(running_idx + 4)
+            comp%R_outer = x(running_idx + 5)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()

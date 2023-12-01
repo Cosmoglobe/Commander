@@ -49,7 +49,9 @@ module comm_param_mod
      character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(2) :: interstellar = [character(len=128) :: 'R', 'ALPHA']
+     character(len=128), dimension(5) :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
      character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
+     
      contains
             procedure :: get_labels
   end type InterplanetaryDustParamLabels
@@ -4009,6 +4011,8 @@ end subroutine
           labels = self%feature
      case ('INTERSTELLAR')
           labels = self%interstellar
+     case ('FAN')
+          labels = self%fan
      case default
           print *, 'Unknown component type: ', comp_type
           stop
