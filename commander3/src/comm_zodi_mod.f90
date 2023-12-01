@@ -93,6 +93,13 @@ module comm_zodi_mod
       procedure :: get_density => get_density_fan
    end type ZodiFan
 
+   type, extends(ZodiComponent) :: ZodiComet
+      real(dp) :: P, Z_midplane_0, R_inner, R_outer
+   contains
+      procedure :: init => init_comet
+      procedure :: get_density => get_density_comet
+   end type ZodiComet
+
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=128), allocatable :: comp_labels(:), general_labels(:)
@@ -182,6 +189,11 @@ contains
       class(ZodiFan) :: self
       call self%init_base_comp()
     end subroutine init_fan
+
+    subroutine init_comet(self)
+      class(ZodiComet) :: self
+      call self%init_base_comp()
+    end subroutine init_comet
 
    subroutine get_density_cloud(self, X_vec, theta, n_out)
       class(ZodiCloud) :: self
@@ -358,6 +370,40 @@ contains
       end do
    end subroutine get_density_fan
 
+   subroutine get_density_comet(self, X_vec, theta, n_out)
+      class(ZodiComet) :: self
+      real(dp), dimension(:, :), intent(in) :: X_vec
+      real(dp), intent(in) :: theta
+      real(dp), dimension(:), intent(out) :: n_out
+      integer(i4b) :: i
+      real(dp) :: R, Z_midplane, x_prime, y_prime, z_prime, beta, sin_beta, Z_midplane_abs, epsilon, f
+
+      do i = 1, size(n_out)
+         x_prime = X_vec(1, i) - self%x_0
+         y_prime = X_vec(2, i) - self%y_0
+         z_prime = X_vec(3, i) - self%z_0
+
+         R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+         if ((R > self%R_outer) .or. (R < self%R_inner)) then
+            n_out(i) = 0.d0
+            cycle
+         end if
+         Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+
+         sin_beta = Z_midplane / R
+         beta = asin(sin_beta)
+         Z_midplane_abs = abs(Z_midplane)
+
+         if (Z_midplane_abs < self%Z_midplane_0) then
+            epsilon = 2. - (Z_midplane_abs / self%Z_midplane_0)
+         else
+            epsilon = 1.
+         end if
+         f = exp(-self%P * sin(abs(beta) ** epsilon))
+         n_out(i) = 0.37 * self%n_0 * f / R
+      end do
+   end subroutine get_density_comet
+
    subroutine init_comps(self, params, comp_types, param_labels)
       ! Initializes the components in the zodi model and computes the number of parameters in the model.
       class(ZodiModel), target, intent(inout) :: self
@@ -462,6 +508,21 @@ contains
                  & R_outer=params(i, 11) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%fan]
+         case ('comet')
+            allocate (ZodiFan::self%comps(i)%c)
+            self%comps(i)%c = ZodiComet(&
+                 & n_0=params(i, 1), &
+                 & incl=params(i, 2), &
+                 & Omega=params(i, 3), &
+                 & x_0=params(i, 4), &
+                 & y_0=params(i, 5), &
+                 & z_0=params(i, 6), &
+                 & P=params(i, 7), &
+                 & Z_midplane_0=params(i, 8), &
+                 & R_inner=params(i, 9), &
+                 & R_outer=params(i, 10) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%comet]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -532,6 +593,12 @@ contains
             x(running_idx + 3) = comp%gamma
             x(running_idx + 4) = comp%Z_midplane_0
             x(running_idx + 5) = comp%R_outer
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+            class is (ZodiComet)
+            x(running_idx + 1) = comp%P
+            x(running_idx + 2) = comp%Z_midplane_0
+            x(running_idx + 3) = comp%R_inner
+            x(running_idx + 4) = comp%R_outer
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          if (present(labels)) then
@@ -610,6 +677,12 @@ contains
             comp%gamma = x(running_idx + 3)
             comp%Z_midplane_0 = x(running_idx + 4)
             comp%R_outer = x(running_idx + 5)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiComet)
+            comp%P = x(running_idx + 1)
+            comp%Z_midplane_0 = x(running_idx + 2)
+            comp%R_inner = x(running_idx + 3)
+            comp%R_outer = x(running_idx + 4)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()

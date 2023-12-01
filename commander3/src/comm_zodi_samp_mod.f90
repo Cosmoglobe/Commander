@@ -1121,14 +1121,22 @@ contains
       j = 1
       do i = 1, size(theta)
          if (powell_included_params(i)) then
-            if (i <= zodi_model%n_params) then 
-               theta_final(i) = theta_phys(j) * theta_0(i)
-            end if
             theta(i) = theta_phys(j) * theta_0(i)
             j = j + 1
          end if
       end do
 
+      call min_max_param_vec_with_priors(theta, prior_vec)
+
+      j = 1
+      do i = 1, size(theta)
+         if (powell_included_params(i)) then
+            if (i <= zodi_model%n_params) then 
+               theta_final(i) = theta_phys(j) * theta_0(i)
+            end if
+            j = j + 1
+         end if
+      end do
       ! update model with final parameters
       call zodi_model%params_to_model(theta_final)
 
@@ -1592,4 +1600,24 @@ contains
       print *, ""
    end subroutine
  
+   subroutine min_max_param_vec_with_priors(params, priors)
+      real(dp), intent(inout) :: params(:)
+      real(dp), intent(in) :: priors(:, :)
+      integer(i4b) :: i
+
+      if (size(params) /= size(priors)) then
+         write(*,*) "Error: params and priors must have the same size"
+         stop
+      end if
+      do i = 1, size(params)
+         if (priors(i, 3) == 1) cycle ! (0 is uniform, 1 is gaussian)
+         if (params(i) < priors(i, 1)) then
+            params(i) = priors(i, 1)
+         else if (params(i) > priors(i, 2)) then
+            params(i) = priors(i, 2)
+         end if
+      end do
+
+   end subroutine
+
 end module
