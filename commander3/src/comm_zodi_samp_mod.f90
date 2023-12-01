@@ -72,8 +72,13 @@ contains
          step_sizes_n0(i) = 0.01*zodi_model%comps(i)%c%n_0
       end do
       do i = 1, numband
-         step_sizes_emissivity(i,:) =  0.01 * data(i)%tod%zodi_emissivity
-         step_sizes_albedo(i, :) =  0.01 * data(i)%tod%zodi_albedo
+         if (data(i)%tod_type == 'none') then
+            step_sizes_emissivity(i,:) =  0.d0
+            step_sizes_albedo(i, :)    =  0.d0
+         else
+            step_sizes_emissivity(i,:) =  0.01d0 * data(i)%tod%zodi_emissivity
+            step_sizes_albedo(i, :)    =  0.01d0 * data(i)%tod%zodi_albedo
+         end if
       end do
 
       allocate(param_vec(zodi_model%n_params))
@@ -299,6 +304,7 @@ contains
       allocate(eta_emissivity(n_samp_bands, model%n_comps))
       allocate(eta_albedo(n_samp_bands, model%n_comps))
       do i = 1, numband
+         if (data(i)%tod_type == "none") cycle
          emissivity_prev(i, :) = data(i)%tod%zodi_emissivity
          albedo_prev(i, :) = data(i)%tod%zodi_albedo
       end do
@@ -415,6 +421,7 @@ contains
          model%comps(i)%c%n_0 = n0_prev(i)
       end do
       do i = 1, numband
+         if (data(i)%tod_type == "none") cycle
          data(i)%tod%zodi_albedo = albedo_prev(i, :)
          data(i)%tod%zodi_emissivity = emissivity_prev(i, :)
       end do
@@ -606,6 +613,7 @@ contains
          if (priors(i, 3) == 0) then
             prior_is_violated = params(i) <= priors(i, 1) .or. params(i) >= priors(i, 2)
             if (prior_is_violated) then
+               write(*,fmt='(a,i5,3e10.3)') 'Zodi parameter out of bounds ', i, priors(i, 1), params(i), priors(i, 2)
                chisq_prior = 1.d30
                return
             end if
@@ -1174,7 +1182,7 @@ contains
 
       real(dp), allocatable :: theta(:), theta_phys(:), theta_full(:)
       character(len=128), allocatable :: labels(:)
-      real(dp) :: chisq, chisq_tod, chisq_prior, box_width, t1, t2, t3, t4
+      real(dp) :: chisq, chisq_tod, chisq_prior, box_width, t1, t2, t3, t4, prior
       integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands, ndof, ndof_tot
       character(len=4) :: scan_str
       type(hdf_file) :: tod_file
@@ -1238,16 +1246,23 @@ contains
       ! rescale parameters 
       call model%model_to_params(theta)
       theta_full(1:model%n_params) = theta
-      
+
+      ! Check priors
       if (data(1)%tod%myid == 0) then
          call print_zodi_model(theta, labels, chisq)
+         chisq_tod = get_chisq_priors(theta_full, prior_vec_powell)
+         prior     = chisq_tod
+      else
+         chisq_tod = 0.d0
       end if
+      call mpi_bcast(prior, 1, MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
-      chisq_tod = get_chisq_priors(theta_full, prior_vec_powell)
-      chisq = 0.
-      lnL_zodi = 0.
+      if (prior >= 1.d30) then
+         lnL_zodi = 1.d30
+         return
+      end if
+      
       ndof = 0
-
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
@@ -1543,10 +1558,9 @@ contains
       call model%params_to_model(params)
 
       do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
          if (cpar%myid == 0) then
-            if (trim(data(i)%tod_type) == 'none') cycle
-            if (.not. data(i)%tod%subtract_zodi) cycle
-
             call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
             call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
             if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
