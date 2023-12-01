@@ -1174,7 +1174,7 @@ contains
 
       real(dp), allocatable :: theta(:), theta_phys(:), theta_full(:)
       character(len=128), allocatable :: labels(:)
-      real(dp) :: chisq, chisq_tod, chisq_prior, box_width, t1, t2, t3, t4
+      real(dp) :: chisq, chisq_tod, chisq_prior, box_width, t1, t2, t3, t4, prior
       integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands, ndof, ndof_tot
       character(len=4) :: scan_str
       type(hdf_file) :: tod_file
@@ -1238,16 +1238,23 @@ contains
       ! rescale parameters 
       call model%model_to_params(theta)
       theta_full(1:model%n_params) = theta
-      
+
+      ! Check priors
       if (data(1)%tod%myid == 0) then
          call print_zodi_model(theta, labels, chisq)
+         chisq_tod = get_chisq_priors(theta_full, prior_vec_powell)
+         prior     = chisq_tod
+      else
+         chisq_tod = 0.d0
       end if
+      call mpi_bcast(prior, 1, MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
-      chisq_tod = get_chisq_priors(theta_full, prior_vec_powell)
-      chisq = 0.
-      lnL_zodi = 0.
+      if (prior >= 1.d30) then
+         lnL_zodi = 1.d30
+         return
+      end if
+      
       ndof = 0
-
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
