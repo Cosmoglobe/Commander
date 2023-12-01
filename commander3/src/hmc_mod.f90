@@ -203,7 +203,7 @@ contains
         if (s .ne. 1) exit
       end do
 
-      !write(*,*) '4', lnlike(theta) - 0.5*sum(p**2/mass), theta(1), alpha,n_alpha
+      write(*,*) '4', lnlike(theta) - 0.5*sum(p**2/mass), alpha/n_alpha
 
     end do
 

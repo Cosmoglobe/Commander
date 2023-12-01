@@ -59,7 +59,7 @@ program commander
   real(dp), dimension(1) :: param_test
   real(dp) :: time_step
   param_test = 1.d0
-  time_step = 1d-1
+  time_step = 1d0
 
   
 
