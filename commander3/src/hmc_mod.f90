@@ -45,7 +45,7 @@ contains
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     integer(i4b),                       intent(in) :: n_steps
-    real(dp),                           intent(in) :: eps
+    real(dp),                        intent(inout) :: eps
     type(planck_rng),                intent(inout) :: handle
     integer(i4b), optional,             intent(in) :: length
     real(dp), optional, dimension(:),   intent(in) :: M
@@ -66,9 +66,18 @@ contains
     end interface
 
 
-    integer(i4b) :: i, j, npar, L
-    real(dp) :: alpha
+    integer(i4b) :: i, j, npar, L, t0, M_adapt
+    real(dp) :: alpha, H_m, logeps, logepsbar, gamm, kappa, mu, delta
     real(dp), dimension(size(theta)) :: p0, p, theta_prop, mass, theta_new, p_new
+
+    H_m = 0
+    mu = log(10*eps)
+    logepsbar = 0d0
+    logeps = log(eps)
+    gamm = 0.05
+    t0 = 10
+    kappa = 0.75
+    delta = 0.65
 
     npar = size(theta)
 
@@ -86,12 +95,16 @@ contains
 
     theta_prop = theta
 
-    do i = 1, n_steps
+    M_adapt = n_steps/10
+
+    do i = 1, n_steps + M_adapt
       do j = 1, npar
         p0(j) = rand_gauss(handle)*mass(j)
       end do
       theta_prop = theta
       p = p0
+
+      L = max(1, int(1/eps, i4b))
 
       do j = 1, L
         call Leapfrog(theta_prop, p, theta_new, p_new, eps, grad_lnlike, mass)
@@ -108,7 +121,20 @@ contains
         theta = theta
         p = p0
       end if
-      !write(*,*) '2', lnlike(theta) - 0.5*sum(p**2/mass), theta(1), p(1)
+
+      if (i .le. M_adapt) then
+        H_m = (1d0 - 1d0/real(i+t0,dp))*H_m + (delta - alpha)/real(i+t0,dp)
+        logeps = mu - sqrt(real(i,dp))/gamm*H_m
+        logepsbar = i**(-kappa)*logeps + (1-i**(-kappa))*logepsbar
+        eps = exp(logeps)
+        write(*,*) '2', theta(1), eps, exp(logepsbar)
+      else
+        write(*,*) '2', theta(1)
+      end if
+      if (i .eq. M_adapt) then
+        eps = exp(logepsbar)
+      end if
+
     end do
 
 
@@ -127,7 +153,7 @@ contains
     implicit none
     real(dp), dimension(:),          intent(inout) :: theta
     integer(i4b),                       intent(in) :: n_steps
-    real(dp),                           intent(in) :: eps
+    real(dp),                           intent(inout) :: eps
     type(planck_rng),                intent(inout) :: handle
     real(dp), optional, dimension(:),   intent(in) :: M
     interface
@@ -148,12 +174,21 @@ contains
 
 
     integer(i4b) :: i, j, k,  npar, L, n, s, vel, n_p, s_p, n_pp, s_pp
-    integer(i8b) :: n_alpha
-    real(dp) :: alpha, logu
+    integer(i4b) :: n_alpha, t0, M_adapt
+    real(dp) :: alpha, logu, H_m, logeps, logepsbar, gamm, kappa, mu, delta
     real(dp), dimension(size(theta)) :: theta_plus, theta_minus, theta_p
     real(dp), dimension(size(theta)) :: p_plus, p_minus, p_p, p, buff1, buff2, mass
 
     npar = size(theta)
+
+    H_m = 0
+    mu = log(10*eps)
+    logepsbar = 0d0
+    logeps = log(eps)
+    gamm = 0.05
+    t0 = 10
+    kappa = 0.75
+    delta = 0.65
 
     if (present(M)) then
       mass = M
@@ -161,7 +196,9 @@ contains
       mass = 1.d0
     end if
 
-    do k = 1, n_steps
+    M_adapt = n_steps/10
+
+    do k = 1, n_steps + M_adapt
       do j = 1, npar
         p(j) = mass(j)*rand_gauss(handle)
       end do
@@ -203,7 +240,19 @@ contains
         if (s .ne. 1) exit
       end do
 
-      write(*,*) '4', lnlike(theta) - 0.5*sum(p**2/mass), alpha/n_alpha
+      !write(*,*) '4', lnlike(theta) - 0.5*sum(p**2/mass), theta(1)
+      if (k .le. M_adapt) then
+        H_m = (1d0 - 1d0/real(k+t0,dp))*H_m + (delta - alpha/n_alpha)/real(k+t0,dp)
+        logeps = mu - sqrt(real(k,dp))/gamm*H_m
+        logepsbar = k**(-kappa)*logeps + (1-k**(-kappa))*logepsbar
+        eps = exp(logeps)
+        write(*,*) '4', theta(1), eps, exp(logepsbar)
+      else
+        write(*,*) '4', theta(1)
+      end if
+      if (k .eq. M_adapt) then
+        eps = exp(logepsbar)
+      end if
 
     end do
 
@@ -218,7 +267,7 @@ contains
     real(dp),                           intent(in) :: logu, eps
     integer(i4b),                       intent(in) :: v, j
     integer(i4b),                       intent(out) :: n_p, s_p
-    integer(i8b),                       intent(out) :: n_alpha
+    integer(i4b),                       intent(out) :: n_alpha
     real(dp),                           intent(out) :: alpha
     type(planck_rng),                intent(inout) :: handle
     interface
@@ -239,7 +288,7 @@ contains
 
 
     integer(i4b) :: s, s_pp, n_pp
-    integer(i8b) :: n_ap, n_app
+    integer(i4b) :: n_ap, n_app
     real(dp) :: alpha_p, alpha_pp, E0, Ep
     real(dp), dimension(size(theta)) :: buff1, buff2, theta_pp, p_pp
 
@@ -436,7 +485,8 @@ contains
       eps = eps*2.d0**a
       call Leapfrog(theta, p, theta_new, p_new, eps, grad_lnlike, mass)
       pp_over_p =  exp(lnlike(theta_new) - lnlike(theta) - 0.5*(sum(p_new**2/mass) - sum(p**2/mass)))
-      if (pp_over_p**a > 2.d0**(-a)) exit
+      write(*,*) eps, pp_over_p
+      if (pp_over_p**a < 2.d0**(-a)) exit
     end do
 
 
