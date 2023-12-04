@@ -335,8 +335,8 @@ program commander
 
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
+      call project_and_downsamp_sky(cpar)
       if (iter == 2) then
-         call project_and_downsamp_sky(cpar)
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
@@ -356,12 +356,12 @@ program commander
          call remove_glitches_from_downsamped_zodi_quantities(cpar)
       end if 
       
-!!$      select case (trim(adjustl(cpar%zs_sample_method)))
-!!$      case ("mh")
-!!$         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-!!$      case ("powell")
-!!$         call minimize_zodi_with_powell(cpar)
-!!$      end select
+      select case (trim(adjustl(cpar%zs_sample_method)))
+      case ("mh")
+         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+      case ("powell")
+         call minimize_zodi_with_powell(cpar)
+      end select
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
 !!$              & 1.198d-7 + 0d-9*rand_gauss(handle), &
@@ -384,11 +384,11 @@ program commander
 !!$              & 3.d0 + 0.3*rand_gauss(handle), &
 !!$              & 286d0, 0.466863d0])
 !!$      end if
-      if (mod(iter-1,2) == 0) then
-         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
-      else
-         call minimize_zodi_with_powell(cpar)
-      end if
+!!$      if (mod(iter-1,2) == 0) then
+!!$         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+!!$      else
+!!$         call minimize_zodi_with_powell(cpar)
+!!$      end if
 
       call timer%stop(TOT_ZODI_SAMP)
    end if

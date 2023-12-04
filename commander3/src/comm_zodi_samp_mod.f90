@@ -611,7 +611,7 @@ contains
       chisq_prior = 0.
       do i = 1, size(params)
          if (priors(i, 3) == 0) then
-            prior_is_violated = params(i) <= priors(i, 1) .or. params(i) >= priors(i, 2)
+            prior_is_violated = params(i) < priors(i, 1) .or. params(i) > priors(i, 2)
             if (prior_is_violated) then
                write(*,fmt='(a,i5,3e10.3)') 'Zodi parameter out of bounds ', i, priors(i, 1), params(i), priors(i, 2)
                chisq_prior = 1.d30
@@ -989,12 +989,13 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
                
                ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
-               !write(*,*) 'a', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_tod**2, dp)))
-               !write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
-               !write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
+!!$               write(*,*) 'a', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_tod**2, dp)))
+!!$               write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
+!!$               write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
                rms = sqrt(mean(real(res**2, dp)))
                glitch_mask = abs(res) > 5. * real(rms, sp)
 
@@ -1134,7 +1135,7 @@ contains
          end if
       end do
 
-      call min_max_param_vec_with_priors(theta, prior_vec)
+      call min_max_param_vec_with_priors(theta, prior_vec_powell)
 
       j = 1
       do i = 1, size(theta)
@@ -1619,8 +1620,8 @@ contains
       real(dp), intent(in) :: priors(:, :)
       integer(i4b) :: i
 
-      if (size(params) /= size(priors)) then
-         write(*,*) "Error: params and priors must have the same size"
+      if (size(params) /= size(priors,1)) then
+         write(*,*) "Error: params and priors must have the same size", size(params), size(priors,1)
          stop
       end if
       do i = 1, size(params)

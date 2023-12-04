@@ -2152,6 +2152,7 @@ contains
           if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
           lnL = lnL - 0.5d0 * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a)**2 / &
                & data(l)%N%rms_pix(pix,p_lnL)**2
+          !write(*,*) data(l)%res%map(pix,p_lnL), data(l)%N%rms_pix(pix,p_lnL), c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a
        end do
           
     end do
@@ -2176,7 +2177,7 @@ contains
 
        ! Return chi-square
        lnL_ptsrc_multi = -2.d0*lnL_ptsrc_multi
-       !write(*,fmt='(f16.3,f8.3,f16.3)') amp, theta(1), lnL_ptsrc_multi
+       !write(*,fmt='(a,f16.3,2f8.3,f16.3)') 'amp, theta, lnL', amp, theta, lnL_ptsrc_multi
     end if
 
     deallocate(theta)
