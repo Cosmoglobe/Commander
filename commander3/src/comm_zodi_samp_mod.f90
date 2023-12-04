@@ -989,7 +989,7 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
+               !if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
                
                ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
