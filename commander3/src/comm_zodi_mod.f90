@@ -80,11 +80,25 @@ module comm_zodi_mod
    end type ZodiFeature
 
    type, extends(ZodiComponent) :: ZodiInterstellar
-      real(dp) :: amp
+      real(dp)  :: R, alpha
    contains
       procedure :: init => init_interstellar
       procedure :: get_density => get_density_interstellar
    end type ZodiInterstellar
+
+   type, extends(ZodiComponent) :: ZodiFan
+      real(dp) :: Q, P, gamma, Z_midplane_0, R_outer
+   contains
+      procedure :: init => init_fan
+      procedure :: get_density => get_density_fan
+   end type ZodiFan
+
+   type, extends(ZodiComponent) :: ZodiComet
+      real(dp) :: P, Z_midplane_0, R_inner, R_outer
+   contains
+      procedure :: init => init_comet
+      procedure :: get_density => get_density_comet
+   end type ZodiComet
 
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
@@ -167,9 +181,19 @@ contains
    end subroutine init_feature
 
    subroutine init_interstellar(self)
-      class(ZodiInterstellar) :: self
-      call self%init_base_comp()
+     class(ZodiInterstellar) :: self
+     call self%init_base_comp()
    end subroutine init_interstellar
+
+   subroutine init_fan(self)
+      class(ZodiFan) :: self
+      call self%init_base_comp()
+    end subroutine init_fan
+
+    subroutine init_comet(self)
+      class(ZodiComet) :: self
+      call self%init_base_comp()
+    end subroutine init_comet
 
    subroutine get_density_cloud(self, X_vec, theta, n_out)
       class(ZodiCloud) :: self
@@ -307,9 +331,78 @@ contains
       real(dp) :: R, Z_midplane, zeta, g, x_prime, y_prime, z_prime
 
       do i = 1, size(n_out)
-         n_out(i) = self%amp
+         n_out(i) = self%n_0
       end do
    end subroutine get_density_interstellar
+
+   subroutine get_density_fan(self, X_vec, theta, n_out)
+      class(ZodiFan) :: self
+      real(dp), dimension(:, :), intent(in) :: X_vec
+      real(dp), intent(in) :: theta
+      real(dp), dimension(:), intent(out) :: n_out
+      integer(i4b) :: i
+      real(dp) :: R, Z_midplane, x_prime, y_prime, z_prime, beta, sin_beta, Z_midplane_abs, epsilon, f
+
+      do i = 1, size(n_out)
+         x_prime = X_vec(1, i) - self%x_0
+         y_prime = X_vec(2, i) - self%y_0
+         z_prime = X_vec(3, i) - self%z_0
+
+         R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+         if (R > self%R_outer) then
+            n_out(i) = 0.d0
+            cycle
+         end if
+
+         Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+
+         sin_beta = Z_midplane / R
+         beta = asin(sin_beta)
+         Z_midplane_abs = abs(Z_midplane)
+
+         if (Z_midplane_abs < self%Z_midplane_0) then
+            epsilon = 2. - (Z_midplane_abs / self%Z_midplane_0)
+         else
+            epsilon = 1.
+         end if
+         f = cos(beta) ** self%Q * exp(-self%P * sin(abs(beta) ** epsilon))
+         n_out(i) = self%n_0 * R ** (-self%gamma) * f
+      end do
+   end subroutine get_density_fan
+
+   subroutine get_density_comet(self, X_vec, theta, n_out)
+      class(ZodiComet) :: self
+      real(dp), dimension(:, :), intent(in) :: X_vec
+      real(dp), intent(in) :: theta
+      real(dp), dimension(:), intent(out) :: n_out
+      integer(i4b) :: i
+      real(dp) :: R, Z_midplane, x_prime, y_prime, z_prime, beta, sin_beta, Z_midplane_abs, epsilon, f
+
+      do i = 1, size(n_out)
+         x_prime = X_vec(1, i) - self%x_0
+         y_prime = X_vec(2, i) - self%y_0
+         z_prime = X_vec(3, i) - self%z_0
+
+         R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+         if ((R > self%R_outer) .or. (R < self%R_inner)) then
+            n_out(i) = 0.d0
+            cycle
+         end if
+         Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+
+         sin_beta = Z_midplane / R
+         beta = asin(sin_beta)
+         Z_midplane_abs = abs(Z_midplane)
+
+         if (Z_midplane_abs < self%Z_midplane_0) then
+            epsilon = 2. - (Z_midplane_abs / self%Z_midplane_0)
+         else
+            epsilon = 1.
+         end if
+         f = exp(-self%P * sin(abs(beta) ** epsilon))
+         n_out(i) = 0.37 * self%n_0 * f / R
+      end do
+   end subroutine get_density_comet
 
    subroutine init_comps(self, params, comp_types, param_labels)
       ! Initializes the components in the zodi model and computes the number of parameters in the model.
@@ -386,6 +479,50 @@ contains
                & sigma_theta=params(i, 11) &
             &)
             self%comps(i)%labels = [self%comps(i)%labels, param_labels%feature]
+         case ('interstellar')
+            allocate (ZodiInterstellar::self%comps(i)%c)
+            self%comps(i)%c = ZodiInterstellar(&
+                 & n_0=params(i, 1), &
+                 & incl=params(i, 2), &
+                 & Omega=params(i, 3), &
+                 & x_0=params(i, 4), &
+                 & y_0=params(i, 5), &
+                 & z_0=params(i, 6), &
+                 & R=params(i, 7), &
+                 & alpha=params(i, 8) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%interstellar]
+         case ('fan')
+            allocate (ZodiFan::self%comps(i)%c)
+            self%comps(i)%c = ZodiFan(&
+                 & n_0=params(i, 1), &
+                 & incl=params(i, 2), &
+                 & Omega=params(i, 3), &
+                 & x_0=params(i, 4), &
+                 & y_0=params(i, 5), &
+                 & z_0=params(i, 6), &
+                 & Q=params(i, 7), &
+                 & P=params(i, 8), &
+                 & gamma=params(i, 9), &
+                 & Z_midplane_0=params(i, 10), &
+                 & R_outer=params(i, 11) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%fan]
+         case ('comet')
+            allocate (ZodiFan::self%comps(i)%c)
+            self%comps(i)%c = ZodiComet(&
+                 & n_0=params(i, 1), &
+                 & incl=params(i, 2), &
+                 & Omega=params(i, 3), &
+                 & x_0=params(i, 4), &
+                 & y_0=params(i, 5), &
+                 & z_0=params(i, 6), &
+                 & P=params(i, 7), &
+                 & Z_midplane_0=params(i, 8), &
+                 & R_inner=params(i, 9), &
+                 & R_outer=params(i, 10) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%comet]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -446,6 +583,23 @@ contains
             x(running_idx + 4) = comp%theta_0
             x(running_idx + 5) = comp%sigma_theta
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiInterstellar)
+            x(running_idx + 1) = comp%R
+            x(running_idx + 2) = comp%alpha
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiFan)
+            x(running_idx + 1) = comp%Q
+            x(running_idx + 2) = comp%P
+            x(running_idx + 3) = comp%gamma
+            x(running_idx + 4) = comp%Z_midplane_0
+            x(running_idx + 5) = comp%R_outer
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+            class is (ZodiComet)
+            x(running_idx + 1) = comp%P
+            x(running_idx + 2) = comp%Z_midplane_0
+            x(running_idx + 3) = comp%R_inner
+            x(running_idx + 4) = comp%R_outer
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          if (present(labels)) then
             labels_copy = self%comps(i)%labels
@@ -470,11 +624,13 @@ contains
       real(dp), intent(in) :: x(:)
       integer(i4b) :: i, running_idx
 
-      if (size(x) /= self%n_params) stop "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`"
+      if (size(x) /= self%n_params) then
+         write(*,*) "Error: argument 'x' has the wrong size. must be `size(zodi_model%n_params)`", size(x), self%n_params
+         stop
+      end if
 
       running_idx = 0
       do i = 1, self%n_comps
-         ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
          self%comps(i)%c%n_0 = x(running_idx + 1)
          self%comps(i)%c%incl = mod(x(running_idx + 2), 360.) ! degree prior
          self%comps(i)%c%Omega = mod(x(running_idx + 3), 360.) ! degree prior
@@ -482,6 +638,8 @@ contains
          self%comps(i)%c%y_0 = x(running_idx + 5)
          self%comps(i)%c%z_0 = x(running_idx + 6)
          running_idx = running_idx + self%n_common_params
+         
+         ! The order of these operations much match the order tabulated in the labels in `InterplanetaryDustParamLabels`
          select type (comp => self%comps(i)%c)
          class is (ZodiCloud)
             comp%alpha = x(running_idx + 1)
@@ -508,6 +666,23 @@ contains
             comp%sigma_z = x(running_idx + 3)
             comp%theta_0 = mod(x(running_idx + 4), 360.) ! degree prior
             comp%sigma_theta = mod(x(running_idx + 5), 360.) ! degree prior
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiInterstellar)
+            comp%R = x(running_idx + 1)
+            comp%alpha = x(running_idx + 2)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiFan)
+            comp%Q = x(running_idx + 1)
+            comp%P = x(running_idx + 2)
+            comp%gamma = x(running_idx + 3)
+            comp%Z_midplane_0 = x(running_idx + 4)
+            comp%R_outer = x(running_idx + 5)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiComet)
+            comp%P = x(running_idx + 1)
+            comp%Z_midplane_0 = x(running_idx + 2)
+            comp%R_inner = x(running_idx + 3)
+            comp%R_outer = x(running_idx + 4)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()
@@ -684,7 +859,7 @@ contains
       ! alpha : optional
       !     Scale factor per component
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
-      real(sp), dimension(:), intent(inout) :: s_zodi
+      real(sp), dimension(:), intent(out)   :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
       real(dp), dimension(:), intent(in), optional :: alpha
       integer(i4b) :: i, n_comps
@@ -720,7 +895,7 @@ contains
       ! alpha_comp : optional
       !     Scale factor for a component
       real(sp), dimension(:), intent(in) :: s_scat_comp, s_therm_comp
-      real(sp), dimension(:), intent(out) :: s_zodi_comp
+      real(sp), dimension(:), intent(inout) :: s_zodi_comp
       real(dp), intent(in) :: emissivity_comp, albedo_comp
       real(dp), intent(in), optional :: alpha_comp
       integer(i4b) :: i, n_comps

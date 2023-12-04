@@ -72,8 +72,13 @@ contains
          step_sizes_n0(i) = 0.01*zodi_model%comps(i)%c%n_0
       end do
       do i = 1, numband
-         step_sizes_emissivity(i,:) =  0.01 * data(i)%tod%zodi_emissivity
-         step_sizes_albedo(i, :) =  0.01 * data(i)%tod%zodi_albedo
+         if (data(i)%tod_type == 'none') then
+            step_sizes_emissivity(i,:) =  0.d0
+            step_sizes_albedo(i, :)    =  0.d0
+         else
+            step_sizes_emissivity(i,:) =  0.01d0 * data(i)%tod%zodi_emissivity
+            step_sizes_albedo(i, :)    =  0.01d0 * data(i)%tod%zodi_albedo
+         end if
       end do
 
       allocate(param_vec(zodi_model%n_params))
@@ -137,7 +142,7 @@ contains
       type(ZodiModel), intent(inout) :: model
       logical(lgt), intent(in), optional :: verbose
 
-      call compute_downsamp_zodi(cpar, model)
+      !call compute_downsamp_zodi(cpar, model)
       !if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
       !call sample_and_subtract_monopole(cpar, handle)
       if (cpar%myid == cpar%root) print *, new_line('A'), "sampling n0"
@@ -299,6 +304,7 @@ contains
       allocate(eta_emissivity(n_samp_bands, model%n_comps))
       allocate(eta_albedo(n_samp_bands, model%n_comps))
       do i = 1, numband
+         if (data(i)%tod_type == "none") cycle
          emissivity_prev(i, :) = data(i)%tod%zodi_emissivity
          albedo_prev(i, :) = data(i)%tod%zodi_albedo
       end do
@@ -412,11 +418,12 @@ contains
       end if
       if (is_root) print *, "n0 accept rate: ", (real(n_accepted)/real(nprop))*100.
       do i = 1, model%n_comps
-         model%comps(i)%c%n_0 = n0_new(i)
+         model%comps(i)%c%n_0 = n0_prev(i)
       end do
       do i = 1, numband
-         data(i)%tod%zodi_albedo = albedo_new(i, :)
-         data(i)%tod%zodi_emissivity = emissivity_new(i, :)
+         if (data(i)%tod_type == "none") cycle
+         data(i)%tod%zodi_albedo = albedo_prev(i, :)
+         data(i)%tod%zodi_emissivity = emissivity_prev(i, :)
       end do
    end subroutine
 
@@ -447,7 +454,7 @@ contains
       previous_model = model
 
       tuning = .true.
-      n_proposals = 50
+      n_proposals = 500
 
       allocate(param_vec(current_model%n_params))
       call current_model%model_to_params(param_vec, param_labels)
@@ -584,7 +591,7 @@ contains
                param_idx = group_indices(i)
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx) / 2.
             end do
-         else if (accept_rate > 0.234) then
+         else if (accept_rate > 0.95) then
             do i = 1, size(group_indices)
                param_idx = group_indices(i)
                step_sizes_ipd(param_idx) = step_sizes_ipd(param_idx) * 2.
@@ -604,8 +611,9 @@ contains
       chisq_prior = 0.
       do i = 1, size(params)
          if (priors(i, 3) == 0) then
-            prior_is_violated = params(i) <= priors(i, 1) .or. params(i) >= priors(i, 2)
+            prior_is_violated = params(i) < priors(i, 1) .or. params(i) > priors(i, 2)
             if (prior_is_violated) then
+               write(*,fmt='(a,i5,3e10.3)') 'Zodi parameter out of bounds ', i, priors(i, 1), params(i), priors(i, 2)
                chisq_prior = 1.d30
                return
             end if
@@ -966,12 +974,13 @@ contains
 
    subroutine remove_glitches_from_downsamped_zodi_quantities(cpar)
       type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size
+      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size, thinstep
       real(dp) :: box_width, rms
       real(sp), allocatable :: res(:)
       logical(lgt), allocatable :: glitch_mask(:)
       real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
 
+      thinstep = nint(1.d0/cpar%zs_tod_thin_factor)
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
@@ -980,9 +989,25 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
+               
+               ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
+!!$               write(*,*) 'a', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_tod**2, dp)))
+!!$               write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
+!!$               write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
                rms = sqrt(mean(real(res**2, dp)))
                glitch_mask = abs(res) > 5. * real(rms, sp)
+
+               ! Apply TOD thinning
+               do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                  !if (mod(k,thinstep) /= 0 .and. abs(res(k))/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)) < cpar%zs_tod_thin_threshold) then
+                  if (mod(k,thinstep) /= 0) then
+                     glitch_mask(k) = .true.
+                  end if
+               end do
+              
+               ! Remove flagged samples
                data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(data(i)%tod%scans(scan)%d(j)%downsamp_tod, .not. glitch_mask)
                data(i)%tod%scans(scan)%d(j)%downsamp_sky = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky, .not. glitch_mask)
                data(i)%tod%scans(scan)%d(j)%downsamp_zodi = pack(data(i)%tod%scans(scan)%d(j)%downsamp_zodi, .not. glitch_mask)
@@ -1081,7 +1106,8 @@ contains
       if (cpar%myid == cpar%root) then
          !filter out N_0 parameters and scale to physical units
          theta_phys = pack(theta / theta_0, powell_included_params)
-         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3, niter=5)
+         !call powell(theta_phys, lnL_zodi, ierr)
+         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
       else
@@ -1104,14 +1130,22 @@ contains
       j = 1
       do i = 1, size(theta)
          if (powell_included_params(i)) then
-            if (i <= zodi_model%n_params) then 
-               theta_final(i) = theta_phys(j) * theta_0(i)
-            end if
             theta(i) = theta_phys(j) * theta_0(i)
             j = j + 1
          end if
       end do
 
+      call min_max_param_vec_with_priors(theta, prior_vec_powell)
+
+      j = 1
+      do i = 1, size(theta)
+         if (powell_included_params(i)) then
+            if (i <= zodi_model%n_params) then 
+               theta_final(i) = theta_phys(j) * theta_0(i)
+            end if
+            j = j + 1
+         end if
+      end do
       ! update model with final parameters
       call zodi_model%params_to_model(theta_final)
 
@@ -1149,11 +1183,12 @@ contains
 
       real(dp), allocatable :: theta(:), theta_phys(:), theta_full(:)
       character(len=128), allocatable :: labels(:)
-      real(dp) :: chisq, chisq_tod, chisq_prior, box_width
-      integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands
+      real(dp) :: chisq, chisq_tod, chisq_prior, box_width, t1, t2, t3, t4, prior
+      integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, n_bands, ndof, ndof_tot
       character(len=4) :: scan_str
       type(hdf_file) :: tod_file
 
+      call wall_time(t1)
       model = zodi_model
       allocate(theta_phys(count(powell_included_params)))
       
@@ -1213,10 +1248,22 @@ contains
       call model%model_to_params(theta)
       theta_full(1:model%n_params) = theta
 
-      chisq_tod = get_chisq_priors(theta_full, prior_vec_powell)
-      chisq = 0.
-      lnL_zodi = 0.
+      ! Check priors
+      if (data(1)%tod%myid == 0) then
+         call print_zodi_model(theta, labels, chisq)
+         chisq_tod = get_chisq_priors(theta_full, prior_vec_powell)
+         prior     = chisq_tod
+      else
+         chisq_tod = 0.d0
+      end if
+      call mpi_bcast(prior, 1, MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
 
+      if (prior >= 1.d30) then
+         lnL_zodi = 1.d30
+         return
+      end if
+      
+      ndof = 0
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
@@ -1237,6 +1284,7 @@ contains
             do j = 1, ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
 
+               call wall_time(t3)
                call get_zodi_emission(&
                    & tod=data(i)%tod, &
                    & pix=data(i)%tod%scans(scan)%d(j)%downsamp_pix, &
@@ -1246,7 +1294,9 @@ contains
                    & s_zodi_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & model=model, &
                    & use_lowres_pointing=.true. &
-               &)
+                   &)
+               call wall_time(t4)
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
                call get_s_zodi(&
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
@@ -1254,13 +1304,22 @@ contains
                    & emissivity=powell_emissivity(i, :), &
                    & albedo=powell_albedo(i, :) &
                    &)
-
-               chisq_tod = chisq_tod + sum( &
+               call wall_time(t3)
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
+               
+               chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                   & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
-               &)
+                  &)
+               chisq_tod = chisq_tod + chisq
+               call wall_time(t4)
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
+
+
+               
+               ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tod >= 1.d30) exit
                ! call int2string(data(i)%tod%scanid(scan), scan_str)
                ! call open_hdf_file(trim(adjustl("/mn/stornext/u3/metins/dirbe/chains/chains_downsamp/dtodlnl_"//scan_str//".h5")), tod_file, 'w')
@@ -1269,6 +1328,20 @@ contains
                ! call write_hdf(tod_file, '/dsky', data(i)%tod%scans(scan)%d(j)%downsamp_sky)
                ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
+
+               if (data(1)%tod%myid == 0 .and. scan == 1) then
+                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
+                  open(58,file='res.dat')
+                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
+                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
+                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k)
+                  end do
+                  close(58)
+               end if
+               call wall_time(t3)
+               !if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
+
             end do
          end do
       end do
@@ -1276,11 +1349,18 @@ contains
       ! stop
 
       ! Reduce chisq to root process
-      call mpi_reduce(chisq_tod, chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
+      call mpi_reduce(chisq_tod, chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(1)%tod%comm, ierr)
+      call mpi_reduce(ndof,      ndof_tot, 1, MPI_INTEGER, MPI_SUM, 0, data(1)%tod%comm, ierr)
+
+      call wall_time(t4)
+      !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
 
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq
-         call print_zodi_model(theta, labels, chisq)
+         call wall_time(t2)
+         if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
+         write(*,*)
+         ! call print_zodi_model(theta, labels, chisq)
       end if
    end function
 
@@ -1479,10 +1559,9 @@ contains
       call model%params_to_model(params)
 
       do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
          if (cpar%myid == 0) then
-            if (trim(data(i)%tod_type) == 'none') cycle
-            if (.not. data(i)%tod%subtract_zodi) cycle
-
             call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
             call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
             if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
@@ -1509,12 +1588,6 @@ contains
       real(dp), intent(in), optional :: chisq
       integer(i4b) :: i, j, k, l, idx, n_cols, comp, n_params
       
-      if (present(chisq)) then
-         print *, "chisq = ", chisq
-      else
-         print *, ""
-      end if
-
       n_params = size(theta)
       n_cols = 5
       comp = 1
@@ -1542,4 +1615,24 @@ contains
       print *, ""
    end subroutine
  
+   subroutine min_max_param_vec_with_priors(params, priors)
+      real(dp), intent(inout) :: params(:)
+      real(dp), intent(in) :: priors(:, :)
+      integer(i4b) :: i
+
+      if (size(params) /= size(priors,1)) then
+         write(*,*) "Error: params and priors must have the same size", size(params), size(priors,1)
+         stop
+      end if
+      do i = 1, size(params)
+         if (priors(i, 3) == 1) cycle ! (0 is uniform, 1 is gaussian)
+         if (params(i) < priors(i, 1)) then
+            params(i) = priors(i, 1)
+         else if (params(i) > priors(i, 2)) then
+            params(i) = priors(i, 2)
+         end if
+      end do
+
+   end subroutine
+
 end module

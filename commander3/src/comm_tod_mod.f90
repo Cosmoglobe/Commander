@@ -1403,9 +1403,9 @@ contains
          end if
 
        ! Distribute according to consecutive PID
-!!$       do i = 1, n_tot
-!!$          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
-!!$       end do
+       do i = 1, n_tot
+          proc(i) = max(min(int(real(i-1,sp)/real(n_tot-1,sp) * np),np-1),0)
+       end do
 
          deallocate(filenum)
 
