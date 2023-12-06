@@ -2269,18 +2269,13 @@ contains
     chisq       = 0.d0
     n           = 0
     g           = self%scans(scan)%d(det)%gain
-    ! As of this commit, the baseline is included in the correlated noise
-    !b           = self%scans(scan)%d(det)%baseline
-!    if (det == 1) open(58,file='chisq.dat', recl=1024)
     do i = 1, self%scans(scan)%ntod
        if (mask(i) < 0.5) cycle
        n     = n+1
        d0    = tod(i) - (g * s_spur(i) + n_corr(i))
        if (present(s_jump)) d0 = d0 - s_jump(i)
        chisq = chisq + (d0 - g * s_sky(i))**2
-!       if (det == 1) write(58,*) i, mask(i), tod(i), s_spur(i), n_corr(i), b, g*s_sky(i), d0 - g*s_sky(i), (d0 - g*s_sky(i))/self%scans(scan)%d(det)%N_psd%sigma0, chisq
     end do
-!    if (det == 1) close(58)
 
     if (self%scans(scan)%d(det)%N_psd%sigma0 <= 0.d0) then
        if (present(absbp)) then
@@ -2293,20 +2288,13 @@ contains
        if (present(absbp)) then
           self%scans(scan)%d(det)%chisq_prop   = chisq
        else
-          !write(*,*) 'nc',n
           self%scans(scan)%d(det)%chisq        = (chisq - n) / sqrt(2.d0*n)
-          !write(*,*) 'chisq in routine:',scan, det, n, self%scans(scan)%d(det)%N_psd%sigma0, chisq, self%scans(scan)%d(det)%chisq
        end if
     end if
     if (present(verbose)) then
       if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
          & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%N_psd%sigma0, n
     end if
-!!$    if (abs(self%scans(scan)%d(det)%chisq) > 20.d0 .or. &
-!!$      & isNaN(self%scans(scan)%d(det)%chisq)) then
-!!$        write(*,fmt='(a,i10,i3,a,f16.2)') 'scan, det = ', self%scanid(scan), det, &
-!!$             & ', chisq = ', self%scans(scan)%d(det)%chisq
-!!$    end if
 
     call timer%stop(TOD_CHISQ, self%band)
 

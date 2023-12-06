@@ -351,7 +351,8 @@ contains
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
+            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
+              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
          end do
 
          ! Select data
@@ -366,9 +367,9 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf
-         if (.false.) then
+         if (.true.) then
             ! scan id appears to be the worst chi2
-            if (self%scanid(i) == 47) then 
+            if (self%scanid(i) < 10000) then 
                print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
@@ -376,6 +377,9 @@ contains
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
+               call write_hdf(tod_file, '/n_corr', sd%n_corr)
+               call write_hdf(tod_file, '/s_sl', sd%s_sl)
+               call write_hdf(tod_file, '/s_orb', sd%s_orb)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)

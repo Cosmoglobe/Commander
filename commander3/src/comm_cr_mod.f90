@@ -81,53 +81,6 @@ contains
        write(*,fmt='(a,f8.2)') ' |  CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
-!!$    call print_precond_mat
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
-!!$    k = 6
-!!$    l = n/3+k
-!!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(k,2)%n
-!!$    if (cpar%myid == root) write(*,*) 1.d0/P_cr%invM_diff(k,2)%M(1,1)
-!!$    if (cpar%myid == root) write(*,*)
-
-!!$    l = 10
-!!$!    if (cpar%myid == root) x    = 0.d0
-!!$    do i = 0, size(x)-1
-!!$       x(i)    = mod(i,123654)
-!!$    end do
-!!$    !x    = 0.d0
-!!$    !if (cpar%myid == root) x(l) = 1.d0
-!!$    q     = cr_matmulA(x, samp_group)
-!!$    !if (cpar%myid == root) write(*,*) q(l-1:l+1)
-!!$
-!!$!    x    = 0.d0
-!!$!    if (cpar%myid == root) x(l) = 1.d0
-!!$    s  = cr_invM(cpar%comm_chain, x, samp_group) 
-!!$    r = (s-q)/abs(s+q)
-!!$    do i = 1, size(q)
-!!$       if (abs(r(i) > 1d-4)) write(*,*) cpar%myid, i, real(s(i),sp), real(q(i),sp), real(r(i),sp)
-!!$    end do
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
-
-!!$    !if (cpar%myid == root) write(*,*) P_cr%invM_src(k,2)%M(1,1)
-!!$    
-!!$    do i = 2*n/3+5, 3*n/3
-!!$       if (cpar%myid == root) x    = 0.d0
-!!$       if (cpar%myid == root) x(i) = 1.d0
-!!$       q     = cr_matmulA(x)
-!!$       j     = i-2*n/3
-!!$       if (cpar%myid == root) write(*,*) i, q(i)/P_cr%invM_diff(j-1,3)%M(1,1)
-!!$    end do
-!    if (cpar%myid == root) x    = 0.d0
-!    if (cpar%myid == root) x(2) = 1.d0
-!    q     = cr_matmulA(x)
-!    if (cpar%myid == root) write(*,*) q
-
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     ! Initialize the CG search
     if (cpar%cg_init_zero) then

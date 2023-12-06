@@ -77,6 +77,7 @@ module comm_ptsrc_comp_mod
      procedure :: projectBand   => projectPtsrcBand
      procedure :: updateMixmat  => updateF
      procedure :: S             => evalSED
+     procedure :: S_grad        => evalSED_grad
      procedure :: getScale
      procedure :: initHDF       => initPtsrcHDF
      procedure :: sampleSpecInd => samplePtsrcSpecInd
@@ -348,6 +349,40 @@ contains
     end select
     
   end function evalSED
+
+  function evalSED_grad(self, nu, band, pol, theta)
+    class(comm_ptsrc_comp),    intent(in)           :: self
+    real(dp),                  intent(in), optional :: nu
+    integer(i4b),              intent(in), optional :: band
+    integer(i4b),              intent(in), optional :: pol
+    real(dp), dimension(1:),   intent(in), optional :: theta
+    real(dp)                                        :: evalSED
+    real(dp), dimension(:), allocatable             :: evalSED_grad
+
+    real(dp) :: x
+
+    allocate(evalSED_grad(self%npar))
+    
+    select case (trim(self%type))
+    case ("radio")
+       evalSED_grad(1) = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) * log(nu/self%nu_ref(pol))
+       evalSED_grad(2) = 0d0
+    case ("fir")
+       x = h/(k_B*theta(2))
+       evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
+       evalSED_grad(1) = (nu/self%nu_ref(pol))**(theta(1)+1.d0) * &
+         & x**2 * ( (exp(x*self%nu_ref(pol))-1.d0) * exp(x*nu) * nu -  &
+         &          (exp(x*nu) - 1d0) * exp(x*self%nu_ref(pol)) * self%nu_ref(pol)) &
+         &      / (exp(x*nu) - 1d0)**2
+       evalSED_grad(2) = evalSED * log(nu/self%nu_ref(pol))
+    case ("sz")
+       call report_error('SZ is parameter-less, should not have a gradient')
+    case default
+       write(*,*) 'Unsupported point source type'
+       stop
+    end select
+    
+  end function evalSED_grad
 
   function evalPtsrcBand(self, band, amp_in, pix, alm_out, det)
     implicit none
@@ -2092,6 +2127,83 @@ contains
     real(dp)             :: lnL_ptsrc
     lnL_ptsrc = 0.d0
   end function lnL_ptsrc
+
+
+  function lnL_ptsrc_total(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in) :: p
+    real(dp)                                     :: lnL_ptsrc_total
+
+    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    real(dp)     :: lnL, amp, s, a
+    real(dp), allocatable, dimension(:) :: theta
+
+    lnL_ptsrc_total = 0d0
+
+    do l = 1, numband
+       if (c_lnL%F_null(l)) cycle
+       if (p_lnL == 1 .and. data(l)%pol_only) cycle
+       if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
+          
+       ! Compute mixing matrix
+       s = c_lnL%F_int(1,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          
+       ! Compute predicted source amplitude for current band
+       a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
+          
+       ! Compute likelihood by summing over pixels
+       do q = 1, c_lnL%src(k_lnL)%T(l)%np
+          pix = c_lnL%src(k_lnL)%T(l)%pix(q,1)
+          if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
+          lnL = lnL - 0.5d0 * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a)**2 / &
+               & data(l)%N%rms_pix(pix,p_lnL)**2
+          !write(*,*) data(l)%res%map(pix,p_lnL), data(l)%N%rms_pix(pix,p_lnL), c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a
+       end do
+          
+    end do
+  end function lnL_ptsrc_total
+
+  function grad_lnL_ptsrc_total(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in) :: p
+    real(dp), dimension(size(p))       :: grad_lnL_ptsrc_total
+
+    integer(i4b) :: i, l, k, q, pix, ierr, flag
+    real(dp)     :: lnL, amp, s, a
+    real(dp), allocatable, dimension(:) :: theta
+
+    amp = p(1)
+
+    theta = p(2:1+c_lnL%npar)
+
+    grad_lnL_ptsrc_total = 0d0
+
+    do l = 1, numband
+       if (c_lnL%F_null(l)) cycle
+       if (p_lnL == 1 .and. data(l)%pol_only) cycle
+       if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
+          
+       ! Compute mixing matrix
+       s = c_lnL%F_int(1,l,0)%p%eval(theta) * data(l)%gain * c_lnL%cg_scale
+          
+       ! Compute predicted source amplitude for current band
+       a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
+          
+       ! Compute likelihood by summing over pixels
+       do q = 1, c_lnL%src(k_lnL)%T(l)%np
+          pix = c_lnL%src(k_lnL)%T(l)%pix(q,1)
+          if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
+
+          grad_lnL_ptsrc_total(1) = grad_lnL_ptsrc_total(1) + &
+            &   (data(l)%res%map(pix,p_lnL) - c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a) &
+            & * (c_lnL%src(k_lnL)%T(l)%map(q,p_lnL) * s) /  data(l)%N%rms_pix(pix,p_lnL)**2
+
+       end do
+          
+    end do
+  end function grad_lnL_ptsrc_total
 
   function lnL_ptsrc_multi(p)
     use healpix_types
