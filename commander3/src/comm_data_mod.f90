@@ -48,6 +48,9 @@ module comm_data_mod
      integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only, subtract_zodi
 
+     complex(spc), allocatable, dimension(:, :)  :: zodi_fourier_cube
+     real(dp) :: zodi_fft_dt
+     
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_mapinfo), pointer :: rmsinfo   => null()
      class(comm_map),     pointer :: map       => null()
@@ -97,7 +100,7 @@ contains
 
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
-
+    integer(i4b)                        :: nfft_max = 64
     character(len=1) :: j_str
 
     ! Read all data sets
@@ -194,6 +197,10 @@ contains
           end if
        end if
        call update_status(status, "data_tod")
+
+       if ((.not. trim(data(n)%tod_type) == 'none') .and. data(n)%tod%subtract_zodi) then
+         allocate(data(n)%zodi_fourier_cube(nfft_max, nside2npix(zodi_nside)))
+       end if
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 

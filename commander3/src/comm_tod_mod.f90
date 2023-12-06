@@ -83,8 +83,6 @@ module comm_tod_mod
      real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end f chunk
      real(dp)       :: x0_obs(3)                                   ! Observatory position (x,y,z) for start of chunk
      real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end f chunk
-     real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end f chunk
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
@@ -178,7 +176,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:,:)   :: satpos   ! Satellite position for all scans
      real(dp),           allocatable, dimension(:)     :: mjds     ! MJDs for all scans(nscan_tot)
      real(dp),           allocatable, dimension(:,:)   :: v_sun    ! Sun velocities for all scans (3, nscan_tot)
-     type(spline_type)                                 :: x_obs_spline(3), x_earth_spline(3) ! splines to compute observer and earth positions
+     type(spline_type)                                 :: x_obs_spline(3) ! splines to compute observer positions
      type(comm_scan),    allocatable, dimension(:)     :: scans    ! Array of all scans
      integer(i4b),       allocatable, dimension(:)     :: scanid   ! List of scan IDs
      integer(i4b),       allocatable, dimension(:)     :: nscanprproc   ! List of scan IDs
@@ -930,11 +928,9 @@ contains
     call read_hdf(file, slabel // "/common/time_end",  self%t1, opt=.true.)
 
     ! HKE: LFI files should be regenerated with (x,y,z) info
-    ! Read in satellite and earth position at the start and end of each scan (if available)
+    ! Read in satellite postion at the start and end of each scan (if available)
     call read_hdf(file, slabel // "/common/satpos",  self%x0_obs, opt=.true.)
     call read_hdf(file, slabel // "/common/satpos_end",  self%x1_obs, opt=.true.)
-    call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
-    call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -2756,19 +2752,16 @@ contains
       type(comm_params),       intent(in) :: cpar
 
       integer(i4b) :: i, j, ierr, pix, pix_high, pix_low, nest_pix, n_subpix, nobs_lowres, npix_lowres, npix_highres
-      real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), x0_earth(:, :), x1_earth(:, :), t0(:), t1(:), ind2vec_zodi_temp(:, :)
-      real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), x0_earth_packed(:, :), x1_earth_packed(:, :), t0_packed(:), t1_packed(:)
+      real(dp), allocatable :: x0_obs(:, :), x1_obs(:, :), t0(:), t1(:), ind2vec_zodi_temp(:, :)
+      real(dp), allocatable :: x0_obs_packed(:, :), x1_obs_packed(:, :), t0_packed(:), t1_packed(:)
       real(dp) :: r, obs_time_end, dt_tod, SECOND_TO_DAY, rotation_matrix(3, 3)
-      real(dp), allocatable :: time(:), x_obs(:, :), x_earth(:, :)
+      real(dp), allocatable :: time(:), x_obs(:, :)
 
       allocate(x0_obs(3, self%nscan_tot), x1_obs(3, self%nscan_tot))
-      allocate(x0_earth(3, self%nscan_tot), x1_earth(3, self%nscan_tot))
       allocate(t0(self%nscan_tot), t1(self%nscan_tot))
 
       x0_obs = 0.
       x1_obs = 0.
-      x0_earth = 0.
-      x1_earth = 0.
       t0 = 0.
       t1 = 0.
 
@@ -2777,8 +2770,6 @@ contains
          t1(self%scanid(i)) = self%scans(i)%t1(1)
          x0_obs(:, self%scanid(i)) = self%scans(i)%x0_obs
          x1_obs(:, self%scanid(i)) = self%scans(i)%x1_obs
-         x0_earth(:, self%scanid(i)) = self%scans(i)%x0_earth
-         x1_earth(:, self%scanid(i)) = self%scans(i)%x1_earth
       end do
 
       
@@ -2786,8 +2777,6 @@ contains
       call mpi_allreduce(MPI_IN_PLACE, t1, size(t1), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
       call mpi_allreduce(MPI_IN_PLACE, x0_obs, size(x0_obs), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
       call mpi_allreduce(MPI_IN_PLACE, x1_obs, size(x1_obs), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, x0_earth, size(x0_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
-      call mpi_allreduce(MPI_IN_PLACE, x1_earth, size(x1_earth), MPI_DOUBLE_PRECISION, MPI_SUM, self%comm, ierr)
 
       ! filter out non zero values
       t0_packed = pack(t0, t0 /= 0.)
@@ -2796,26 +2785,20 @@ contains
   
 
       allocate(x0_obs_packed(3, size(t0_packed)), x1_obs_packed(3, size(t0_packed)))
-      allocate(x0_earth_packed(3, size(t0_packed)), x1_earth_packed(3, size(t0_packed)))
       do i = 1, 3
          x0_obs_packed(i, :) = pack(x0_obs(i, :), x0_obs(i, :) /= 0.)
          x1_obs_packed(i, :) = pack(x1_obs(i, :), x1_obs(i, :) /= 0.)
-         x0_earth_packed(i, :) = pack(x0_earth(i, :), x0_earth(i, :) /= 0.)
-         x1_earth_packed(i, :) = pack(x1_earth(i, :), x1_earth(i, :) /= 0.)
       end do
 
       ! make new time, obs_pos and earth_pos arrays containing both chunk start and chunk end values
       allocate(time(size(t0_packed) * 2))
       allocate(x_obs(3, size(t0_packed) * 2))
-      allocate(x_earth(3, size(t0_packed) * 2))
       do i = 1, size(t0_packed) * 2 , 2
          j = (i - 1) / 2 + 1 ! index from 1, to size(t0)
          time(i) = t0_packed(j)
          time(i + 1) = t1_packed(j)
          x_obs(:, i) = x0_obs_packed(:, j)
          x_obs(:, i + 1) = x1_obs_packed(:, j)
-         x_earth(:, i) = x0_earth_packed(:, j)
-         x_earth(:, i + 1) = x1_earth_packed(:, j)
       end do
 
       do i = 2, size(time)
@@ -2824,7 +2807,6 @@ contains
 
       do i = 1, 3
          call spline_simple(self%x_obs_spline(i), time, x_obs(i, :))
-         call spline_simple(self%x_earth_spline(i), time, x_earth(i, :))
       end do
 
       self%zodi_init_cache_time = self%scans(1)%t0(1)

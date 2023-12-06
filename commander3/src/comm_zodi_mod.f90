@@ -62,13 +62,20 @@ module comm_zodi_mod
    end type ZodiBand
 
    type, extends(ZodiComponent) :: ZodiRing
+   real(dp) :: R_0, sigma_r, sigma_z
+contains
+   procedure :: init => init_ring
+   procedure :: get_density => get_density_ring
+end type ZodiRing
+
+   type, extends(ZodiComponent) :: ZodiRingWithHole
       real(dp) :: R_0, sigma_r, sigma_z, theta_0, sigma_theta
       real(dp) :: theta_0_rad = 0.d0
       real(dp) :: sigma_theta_rad = 0.d0
    contains
-      procedure :: init => init_ring
-      procedure :: get_density => get_density_ring
-   end type ZodiRing
+      procedure :: init => init_ring_with_hole
+      procedure :: get_density => get_density_ring_with_hole
+   end type ZodiRingWithHole
 
    type, extends(ZodiComponent) :: ZodiFeature
       real(dp) :: R_0, sigma_r, sigma_z, theta_0, sigma_theta
@@ -109,6 +116,7 @@ module comm_zodi_mod
       real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
+      type(spline_type) :: earth_pos_interpolator(3)
    contains
       procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, comp_from_chain
    end type ZodiModel
@@ -129,7 +137,9 @@ contains
       zodi_model%comp_labels = cpar%zs_comp_labels(1:zodi_model%n_comps)
       zodi_model%n_common_params = size(cpar%zodi_param_labels%common)
       zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
-      
+
+      call get_earth_pos_interpolator(cpar, zodi_model%earth_pos_interpolator)
+
       comp_params = cpar%zs_comp_params(:, :, 1)
       do i = 1, zodi_model%n_comps
          if (trim(adjustl(cpar%zs_init_hdf(i))) /= 'none') then 
@@ -168,10 +178,15 @@ contains
 
    subroutine init_ring(self)
       class(ZodiRing) :: self
+      call self%init_base_comp()
+   end subroutine init_ring
+
+   subroutine init_ring_with_hole(self)
+      class(ZodiRingWithHole) :: self
       self%theta_0_rad = self%theta_0*deg2rad
       self%sigma_theta_rad = self%sigma_theta*deg2rad
       call self%init_base_comp()
-   end subroutine init_ring
+   end subroutine init_ring_with_hole
 
    subroutine init_feature(self)
       class(ZodiFeature) :: self
@@ -257,8 +272,31 @@ contains
       end do
    end subroutine get_density_band
 
+
    subroutine get_density_ring(self, X_vec, theta, n_out)
       class(ZodiRing) :: self
+      real(dp), dimension(:, :), intent(in)  :: X_vec
+      real(dp), intent(in) :: theta
+      real(dp), dimension(:), intent(out) :: n_out
+      integer(i4b) :: i
+      real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane, term1, term2
+
+      do i = 1, size(n_out)
+         x_prime = X_vec(1, i) - self%x_0
+         y_prime = X_vec(2, i) - self%y_0
+         z_prime = X_vec(3, i) - self%z_0
+
+         R = sqrt(x_prime*x_prime + y_prime*y_prime + z_prime*z_prime)
+         Z_midplane = (x_prime*self%sin_omega - y_prime*self%cos_omega)*self%sin_incl + z_prime*self%cos_incl
+         term1 = -((R - self%R_0)**2)/self.sigma_r**2
+         term2 = abs(Z_midplane/self.sigma_z)
+
+         n_out(i) = self%n_0*exp(term1 - term2)
+      end do
+   end subroutine get_density_ring
+
+   subroutine get_density_ring_with_hole(self, X_vec, theta, n_out)
+      class(ZodiRingWithHole) :: self
       real(dp), dimension(:, :), intent(in)  :: X_vec
       real(dp), intent(in) :: theta
       real(dp), dimension(:), intent(out) :: n_out
@@ -290,7 +328,7 @@ contains
             n_out(i) = self%n_0*exp(term1 - term2)
          end if
       end do
-   end subroutine get_density_ring
+   end subroutine get_density_ring_with_hole
 
    subroutine get_density_feature(self, X_vec, theta, n_out)
       class(ZodiFeature) :: self
@@ -458,11 +496,25 @@ contains
                & z_0=params(i, 6), &
                & R_0=params(i, 7), &
                & sigma_r=params(i, 8), &
+               & sigma_z=params(i, 9) &
+            &)
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring]
+         case ('ring_with_hole')
+            allocate (ZodiRingWithHole::self%comps(i)%c)
+            self%comps(i)%c = ZodiRingWithHole(&
+               & n_0=params(i, 1), &
+               & incl=params(i, 2), &
+               & Omega=params(i, 3), &
+               & x_0=params(i, 4), &
+               & y_0=params(i, 5), &
+               & z_0=params(i, 6), &
+               & R_0=params(i, 7), &
+               & sigma_r=params(i, 8), &
                & sigma_z=params(i, 9), &
                & theta_0=params(i, 10), &
                & sigma_theta=params(i, 11) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring]
+            self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring_with_hole]
          case ('feature')
             allocate (ZodiFeature::self%comps(i)%c)
             self%comps(i)%c = ZodiFeature(&
@@ -573,6 +625,11 @@ contains
             x(running_idx + 1) = comp%R_0
             x(running_idx + 2) = comp%sigma_r
             x(running_idx + 3) = comp%sigma_z
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+            class is (ZodiRingWithHole)
+            x(running_idx + 1) = comp%R_0
+            x(running_idx + 2) = comp%sigma_r
+            x(running_idx + 3) = comp%sigma_z
             x(running_idx + 4) = comp%theta_0
             x(running_idx + 5) = comp%sigma_theta
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
@@ -654,6 +711,11 @@ contains
             comp%p = x(running_idx + 4)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          class is (ZodiRing)
+            comp%R_0 = x(running_idx + 1)
+            comp%sigma_r = x(running_idx + 2)
+            comp%sigma_z = x(running_idx + 3)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+            class is (ZodiRingWithHole)
             comp%R_0 = x(running_idx + 1)
             comp%sigma_r = x(running_idx + 2)
             comp%sigma_z = x(running_idx + 3)
@@ -905,4 +967,27 @@ contains
          s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp)
       end if
    end subroutine get_s_zodi_comp
+
+   subroutine get_earth_pos_interpolator(cpar, earth_pos_interpolator)
+      type(comm_params), intent(in) :: cpar
+      type(spline_type), intent(out) :: earth_pos_interpolator(3)
+
+      integer :: i, n_earthpos, unit
+      real(dp), allocatable :: tabulated_earth_time(:), tabulated_earth_pos(:, :)
+      unit = getlun()
+      open (unit, file=trim(trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")))
+      read (unit, *) n_earthpos
+      read (unit, *) ! skip header
+
+      allocate (tabulated_earth_pos(3, n_earthpos))
+      allocate (tabulated_earth_time(n_earthpos))
+      do i = 1, n_earthpos
+         read (unit, *) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
+      end do
+      close (unit)
+      do i = 1, 3
+         call spline_simple(earth_pos_interpolator(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
+      end do
+   end subroutine get_earth_pos_interpolator
+
 end module comm_zodi_mod

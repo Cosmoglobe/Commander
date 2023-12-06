@@ -9,7 +9,7 @@ module comm_tod_zodi_mod
    implicit none
 
    private
-   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params
+   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_instantaneous_zodi_emission
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -21,7 +21,6 @@ module comm_tod_zodi_mod
    real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp), delta_t_reset
    real(dp), allocatable :: T_grid(:), B_nu_integrals(:)
    type(ZodiCompLOS), allocatable, dimension(:) :: comp_LOS
-   type(spline_type) :: earth_pos_spl_obj(3)
 
 contains
    subroutine initialize_tod_zodi_mod(cpar)
@@ -49,8 +48,8 @@ contains
          allocate (comp_LOS(i)%gauss_nodes(gauss_degree), comp_LOS(i)%gauss_weights(gauss_degree))
          if (cpar%zs_r_min(i) == 0.) then
             comp_LOS(i)%R_min = R_MIN
-         else 
-               comp_LOS(i)%R_min = cpar%zs_r_min(i)
+         else
+            comp_LOS(i)%R_min = cpar%zs_r_min(i)
          end if
          comp_LOS(i)%R_max = cpar%zs_r_max(i)
          call leggaus(gauss_degree, comp_LOS(i)%gauss_nodes, comp_LOS(i)%gauss_weights)
@@ -68,9 +67,6 @@ contains
       ! Set up interpolation grid for evaluating temperature
       allocate (T_grid(n_interp_points))
       call linspace(min_temp, max_temp, T_grid)
-
-      ! Read earth position from file and set up spline object
-      call initialize_earth_pos_spline(cpar)
 
    end subroutine initialize_tod_zodi_mod
 
@@ -125,10 +121,12 @@ contains
       n_tod = size(pix, dim=1)
 
       dt_tod = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-      obs_pos = tod%scans(scan)%x0_obs
-      earth_pos = tod%scans(scan)%x0_earth
-      R_obs = norm2(obs_pos)
       obs_time = tod%scans(scan)%t0(1)
+      do i = 1, 3
+         earth_pos(i) = splint_simple(model%earth_pos_interpolator(i), obs_time)
+      end do
+      obs_pos = earth_pos!tod%scans(scan)%x0_obs
+      R_obs = norm2(obs_pos)
       earth_lon = atan(earth_pos(2), earth_pos(1))
 
       C0 = zodi_model%C0(tod%band)
@@ -155,7 +153,6 @@ contains
       else
          use_lowres = .false.
       end if
-      !use_lowres = .false.
 
       cache_hits = 0
       do i = 1, n_tod
@@ -168,8 +165,8 @@ contains
          end if
          if ((obs_time - tod%zodi_cache_time) >= delta_t_reset) then
             do j = 1, 3
-               earth_pos(j) = splint_simple(tod%x_earth_spline(j), obs_time)
-               obs_pos(j) = splint_simple(tod%x_obs_spline(j), obs_time)
+               earth_pos(j) = splint_simple(model%earth_pos_interpolator(j), obs_time)
+               obs_pos(j) = earth_pos(j) !splint_simple(tod%x_obs_spline(j), obs_time)
             end do
             R_obs = norm2(obs_pos)
             earth_lon = atan(earth_pos(2), earth_pos(1))
@@ -244,6 +241,112 @@ contains
       end do
    end subroutine get_zodi_emission
 
+
+   subroutine get_instantaneous_zodi_emission(tod, pix, obs_time, obs_pos, det, s_zodi, model)
+      ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
+      !
+      ! Parameters
+      ! ----------
+      ! tod : class(comm_tod)
+      !     The TOD object holding the spline objects to update.
+      ! pix : integer(i4b), dimension(ntod)
+      !     The pixel indices of each time-ordered observation.
+      ! det : integer(i4b)
+      !     The detector index.
+      ! scan : integer(i4b)
+      !     The scan number.
+      ! s_zodi_scat : real(sp), dimension(ntod, ncomps)
+      !     Contribution from scattered sunlight light.
+      ! s_zodi_therm : real(sp), dimension(ntod, ncomps)
+      !     Contribution from thermal interplanetary dust emission.
+      ! model : type(ZodiModel)
+      !     The zodiacal emission model.
+      ! always_scattering : logical(lgt), optional
+      !     If present, this overrides the default behavior of only including scattering when the albedo is non-zero.
+      ! use_lowres_pointing : logical(lgt), optional
+      !     If present, the input pixels are converted to low resolution pixels before evaluating the zodiacal emission.
+      ! comp : integer(i4b), optional
+      !     If present, only evaluate the zodiacal emission for this component.
+      !
+      ! Returns
+      ! -------
+      ! s_zodi_scat : real(sp), dimension(ntod, ncomps, ndet)
+      !     Contribution from scattered sunlight light.
+      ! s_zodi_therm : real(sp), dimension(ntod, ncomps, ndet)
+      !     Contribution from thermal interplanetary dust emission.
+      !
+      class(comm_tod), intent(inout) :: tod
+      integer(i4b), intent(in) :: pix(:), det
+      real(dp) :: obs_time, obs_pos(3)
+      real(sp), dimension(:, :), intent(inout) :: s_zodi
+      type(ZodiModel), intent(in) :: model
+
+      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
+      logical(lgt) :: scattering, use_lowres
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, phase_normalization, C0, C1, C2
+      real(dp) :: unit_vector(3), earth_pos(3), rotation_matrix(3, 3)
+      !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
+
+      s_zodi = 0.
+      n_tod = size(pix)
+
+      R_obs = norm2(obs_pos)
+      obs_pos = obs_pos
+      do i = 1, 3
+         earth_pos(i) = splint_simple(model%earth_pos_interpolator(i), obs_time)
+      end do
+      earth_lon = atan(earth_pos(2), earth_pos(1))
+
+      call ecl_to_gal_rot_mat(rotation_matrix)
+
+      C0 = zodi_model%C0(tod%band)
+      C1 = zodi_model%C1(tod%band)
+      C2 = zodi_model%C2(tod%band)
+      phase_normalization = get_phase_normalization(C0, C1, C2)
+
+      scattering = any(tod%zodi_albedo > EPS)
+
+      R_obs = norm2(obs_pos)
+      earth_lon = atan(earth_pos(2), earth_pos(1))
+      
+      do i = 1, n_tod
+         ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
+         
+         ! Get lookup index for cache. If the pixel is already cached, used that value.
+         call pix2vec_ring(zodi_nside, pix(i), unit_vector)
+         unit_vector = matmul(unit_vector, rotation_matrix)
+         ! print*, unit_vector
+         do k = 1, model%n_comps
+            ! Get line of sight integration range
+            call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_min, R_min)
+            call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_max, R_max)
+
+            do l = 1, 3
+               ! Convert quadrature range from [-1, 1] to [R_min, R_max]
+               comp_LOS(k)%X_unit(l, :) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+               comp_LOS(k)%X_unit(l, :) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
+               comp_LOS(k)%X(l, :) = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
+            end do
+            comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
+            if (scattering) then
+               comp_LOS(k)%F_sol = model%F_sun(tod%band)/comp_LOS(k)%R**2
+               call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
+               call get_phase_function(comp_LOS(k)%Theta, C0, C1, C2, phase_normalization, comp_LOS(k)%Phi)
+            end if
+
+            call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
+            call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
+
+            call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
+            if (scattering) then
+               s_zodi(i, k) = s_zodi(i, k) + tod%zodi_albedo(k) * sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+            end if
+            s_zodi(i, k) = s_zodi(i, k) +  (1. - tod%zodi_albedo(k)) * tod%zodi_emissivity(k) * sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+         end do
+      end do
+   end subroutine get_instantaneous_zodi_emission
+
+
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------
    subroutine get_sphere_intersection(unit_vector, obs_pos, R_obs, R_cutoff, R_intersection)
@@ -317,29 +420,6 @@ contains
       term4 = (exp(C2 * pi) + 1.)/(C2**2 + 1.)
       N = 1. / (term1 * (term2 + term3 + term4))
    end function
-
-   subroutine initialize_earth_pos_spline(cpar)
-      ! Returns the spline object which is used to evaluate the earth position
-
-      type(comm_params), intent(in) :: cpar
-
-      integer :: i, n_earthpos, unit
-      real(dp), allocatable :: tabulated_earth_time(:), tabulated_earth_pos(:, :)
-      unit = getlun()
-      open (unit, file=trim(trim(cpar%datadir)//'/'//trim("earth_pos_1980-2050_ephem_de432s.txt")))
-      read (unit, *) n_earthpos
-      read (unit, *) ! skip header
-
-      allocate (tabulated_earth_pos(3, n_earthpos))
-      allocate (tabulated_earth_time(n_earthpos))
-      do i = 1, n_earthpos
-         read (unit, *) tabulated_earth_time(i), tabulated_earth_pos(1, i), tabulated_earth_pos(2, i), tabulated_earth_pos(3, i)
-      end do
-      close (unit)
-      do i = 1, 3
-         call spline_simple(earth_pos_spl_obj(i), tabulated_earth_time, tabulated_earth_pos(i, :), regular=.true.)
-      end do
-   end subroutine initialize_earth_pos_spline
 
    subroutine update_zodi_splines(tod, bandpass, det, model)
       ! Updates the spectral spline objects in the TOD object.
@@ -445,12 +525,12 @@ contains
             lambda = (c / tod%nu_c(1)) * 1e6 ! in microns
             if ((lambda_min < lambda) .and. (lambda_max > lambda)) then
                tod%zodi_albedo(i) = 0.5
-            else 
+            else
                tod%zodi_albedo(i) = 0.
             end if
             cycle
          end if
-         
+
          if (cpar%myid == cpar%root) then
             unit = getlun()
             call get_chainfile_and_samp(trim(cpar%zs_init_hdf(i)), chainfile, initsamp)
@@ -459,25 +539,25 @@ contains
             l = len(trim(chainfile))
             if (.not. ((trim(chainfile(l-2:l)) == '.h5') .or. (trim(chainfile(l-3:l)) == '.hd5'))) call report_error('Zodi init chain must be a .h5 file')
             call open_hdf_file(trim(chainfile), file, "r")
-            
+
             call int2string(initsamp, itext)
-            
+
             tod_path = trim(adjustl(itext//"/zodi/tod/"))
             band_path = trim(adjustl(tod_path))//trim(adjustl(tod%freq))
 
             if (.not. hdf_group_exists(file, band_path)) then
                print *, "Zodi init chain does not contain emissivities or albedos for band: " // trim(adjustl(tod%freq))
                stop
-            end if 
+            end if
 
             comp_path = trim(adjustl(band_path))//'/'//trim(adjustl(model%comp_labels(i)))//'/'
             if (hdf_group_exists(file, comp_path)) then
                call read_hdf(file, trim(adjustl(comp_path))//'/emissivity', tod%zodi_emissivity(i))
                call read_hdf(file, trim(adjustl(comp_path))//'/albedo', tod%zodi_albedo(i))
-            else 
+            else
                tod%zodi_emissivity(i) = 1.
                tod%zodi_albedo(i) = 0.
-            end if 
+            end if
          end if
       end do
       call mpi_bcast(tod%zodi_emissivity, size(tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)

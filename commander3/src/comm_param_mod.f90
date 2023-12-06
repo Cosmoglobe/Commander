@@ -46,7 +46,8 @@ module comm_param_mod
      character(len=128), dimension(6) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
      character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
      character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(3) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z']
+     character(len=128), dimension(5) :: ring_with_hole = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
      character(len=128), dimension(2) :: interstellar = [character(len=128) :: 'R', 'ALPHA']
      character(len=128), dimension(5) :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
@@ -4008,6 +4009,8 @@ end subroutine
           labels = self%band
      case ('RING')
           labels = self%ring
+     case ('RING_WITH_HOLE')
+          labels = self%ring_with_hole
      case ('FEATURE')
           labels = self%feature
      case ('INTERSTELLAR')
