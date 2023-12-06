@@ -1190,7 +1190,11 @@ contains
 
       ! Apply approximate Metropolis rule, using reduced chisq instead of chisq
       if (cpar%myid == cpar%root) then
-         accept = rand_uni(handle) < exp(-0.5d0*(chisq_red-chisq_red_current))
+         if (chisq_red_current == 1.d30) then
+            accept = .true.
+         else
+            accept = rand_uni(handle) < exp(-0.5d0*(chisq_red-chisq_red_current))
+         end if
       end if
       call mpi_bcast(accept, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
       
