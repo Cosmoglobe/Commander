@@ -61,6 +61,7 @@ module comm_tod_mod
      real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
+     logical(lgt),       allocatable, dimension(:)    :: zodi_glitch_mask
      integer(i4b),       allocatable, dimension(:)    :: downsamp_pix
      real(sp),           allocatable, dimension(:)    :: downsamp_tod
      real(sp),           allocatable, dimension(:)    :: downsamp_sky

@@ -10,7 +10,7 @@ module comm_zodi_samp_mod
    implicit none
 
    private
-   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, remove_glitches_from_downsamped_zodi_quantities
+   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_glitch_mask, apply_zodi_glitch_mask
 
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)
@@ -20,6 +20,10 @@ module comm_zodi_samp_mod
    logical(lgt), allocatable :: powell_included_params(:), ref_band(:)
    character(len=128), allocatable, dimension(:) :: implemented_sampling_algorithms
 
+   real(dp) :: chisq_red_current
+   real(dp), allocatable, dimension(:) :: param_vec_current
+
+   
 contains
    subroutine initialize_zodi_samp_mod(cpar)
       ! Initialize the zodi sampling module.
@@ -120,7 +124,8 @@ contains
       ! if (trim(adjustl(cpar%zs_covar_chain)) /= "none") then
       !    call read_zodi_covariance(cpar)
       ! end if 
-   end subroutine initialize_zodi_samp_mod
+
+    end subroutine initialize_zodi_samp_mod
 
    function get_boxwidth(samprate_lowres, samprate) result(box_width)
       ! Returns the boxcar width for downsampling the zodi tods
@@ -972,12 +977,11 @@ contains
       end do
    end subroutine
 
-   subroutine remove_glitches_from_downsamped_zodi_quantities(cpar)
+   subroutine create_zodi_glitch_mask(cpar)
       type(comm_params), intent(in) :: cpar
       integer(i4b) :: i, j, k, scan, ierr, non_glitch_size, thinstep
       real(dp) :: box_width, rms
       real(sp), allocatable :: res(:)
-      logical(lgt), allocatable :: glitch_mask(:)
       real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
 
       thinstep = nint(1.d0/cpar%zs_tod_thin_factor)
@@ -989,7 +993,7 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
+               !if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
                
                ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
@@ -997,52 +1001,84 @@ contains
 !!$               write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
 !!$               write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
                rms = sqrt(mean(real(res**2, dp)))
-               glitch_mask = abs(res) > 5. * real(rms, sp)
+               data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask = abs(res) > 5. * real(rms, sp)
 
                ! Apply TOD thinning
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                  !if (mod(k,thinstep) /= 0 .and. abs(res(k))/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)) < cpar%zs_tod_thin_threshold) then
                   if (mod(k,thinstep) /= 0) then
-                     glitch_mask(k) = .true.
+                     data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(k) = .true.
                   end if
                end do
-              
-               ! Remove flagged samples
-               data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(data(i)%tod%scans(scan)%d(j)%downsamp_tod, .not. glitch_mask)
-               data(i)%tod%scans(scan)%d(j)%downsamp_sky = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky, .not. glitch_mask)
-               data(i)%tod%scans(scan)%d(j)%downsamp_zodi = pack(data(i)%tod%scans(scan)%d(j)%downsamp_zodi, .not. glitch_mask)
-               data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix, .not. glitch_mask)
-               non_glitch_size = count(.not. glitch_mask)
-
-               ! pack doesnt work on multidimensional arrays so here we manually reallocate the zodi caches to the new sizes
-               allocate(downsamp_scat_comp(non_glitch_size, zodi_model%n_comps))
-               allocate(downsamp_therm_comp(non_glitch_size, zodi_model%n_comps))
-               do k = 1, zodi_model%n_comps
-                  downsamp_scat_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, k), .not. glitch_mask)
-                  downsamp_therm_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, k), .not. glitch_mask)
-               end do
-               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat)
-               deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm)
-               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat(non_glitch_size, zodi_model%n_comps))
-               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm(non_glitch_size, zodi_model%n_comps))
-
-               data(i)%tod%scans(scan)%d(j)%downsamp_therm = downsamp_therm_comp
-               data(i)%tod%scans(scan)%d(j)%downsamp_scat = downsamp_scat_comp
-               deallocate(downsamp_scat_comp, downsamp_therm_comp)
             end do
          end do
       end do
    end subroutine
 
-   subroutine minimize_zodi_with_powell(cpar)
+   subroutine apply_zodi_glitch_mask(cpar)
       type(comm_params), intent(in) :: cpar
+      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size
+      real(sp), allocatable :: res(:)
+      real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
+      integer(i4b), allocatable :: downsamp_pix(:)
+
+      do i = 1, numband
+         if (trim(data(i)%tod_type) == 'none') cycle
+         if (.not. data(i)%tod%subtract_zodi) cycle
+
+         do scan = 1, data(i)%tod%nscan
+            do j = 1, data(i)%tod%ndet
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               !if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
+               
+               ! Remove flagged samples
+               non_glitch_size = count(.not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_pix) /= non_glitch_size) data(i)%tod%scans(scan)%d(j)%downsamp_pix = pack(data(i)%tod%scans(scan)%d(j)%downsamp_pix, .not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) /= non_glitch_size) data(i)%tod%scans(scan)%d(j)%downsamp_tod = pack(data(i)%tod%scans(scan)%d(j)%downsamp_tod, .not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_sky) /= non_glitch_size) data(i)%tod%scans(scan)%d(j)%downsamp_sky = pack(data(i)%tod%scans(scan)%d(j)%downsamp_sky, .not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_zodi) /= non_glitch_size) data(i)%tod%scans(scan)%d(j)%downsamp_zodi = pack(data(i)%tod%scans(scan)%d(j)%downsamp_zodi, .not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+
+               ! pack doesnt work on multidimensional arrays so here we manually reallocate the zodi caches to the new sizes
+               if (size(data(i)%tod%scans(scan)%d(j)%downsamp_therm,1) /= non_glitch_size) then
+                  allocate(downsamp_scat_comp(non_glitch_size, zodi_model%n_comps))
+                  allocate(downsamp_therm_comp(non_glitch_size, zodi_model%n_comps))
+                  do k = 1, zodi_model%n_comps
+                     downsamp_scat_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_scat(:, k), .not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+                     downsamp_therm_comp(:, k) = pack(data(i)%tod%scans(scan)%d(j)%downsamp_therm(:, k), .not. data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)
+                  end do
+                  deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat)
+                  deallocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm)
+                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_scat(non_glitch_size, zodi_model%n_comps))
+                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_therm(non_glitch_size, zodi_model%n_comps))
+                  data(i)%tod%scans(scan)%d(j)%downsamp_therm = downsamp_therm_comp
+                  data(i)%tod%scans(scan)%d(j)%downsamp_scat = downsamp_scat_comp
+                  deallocate(downsamp_scat_comp, downsamp_therm_comp)
+               end if
+
+
+            end do
+         end do
+      end do
+   end subroutine
+
+   subroutine minimize_zodi_with_powell(cpar, handle)
+      type(comm_params), intent(in) :: cpar
+      type(planck_rng),  intent(inout)   :: handle
       logical(lgt), save :: first_call = .true.
+      logical(lgt) :: accept
       real(dp), allocatable :: theta(:), theta_phys(:), theta_new(:), theta_final(:)
       character(len=128), allocatable :: labels(:)
       integer(i4b) :: i, j, ierr, flag, group_idx, end_idx, n_bands
-      real(dp) :: chisq_lnL
+      real(dp) :: chisq_lnL, chisq_red
       real(dp), allocatable, dimension(:) :: prior_vec_powell_min, prior_vec_powell_max, prior_vec_powell_type 
       integer(i4b), allocatable :: indices(:)
+
+      if (allocated(param_vec_current)) then
+         ! Start at a new random point 
+         call randomize_zodi_init(cpar, handle)
+      else
+         allocate(param_vec_current(zodi_model%n_params))
+         chisq_red_current = 1.d30
+      end if
 
       allocate(theta(zodi_model%n_params))
       call zodi_model%model_to_params(theta, labels)
@@ -1100,7 +1136,7 @@ contains
 
       allocate(theta_0(size(theta)))
       theta_0 = theta
-
+         
       allocate(theta_phys(count(powell_included_params)))
       
       if (cpar%myid == cpar%root) then
@@ -1110,6 +1146,7 @@ contains
          call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
+         chisq_red = lnL_zodi(theta_phys)
       else
          do while (.true.)
              call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
@@ -1118,11 +1155,14 @@ contains
              else
                  exit
              end if
-         end do
+          end do
+          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
+          chisq_red = lnL_zodi() 
       end if
 
       call mpi_barrier(MPI_COMM_WORLD, ierr)
       call mpi_bcast(theta_phys, size(theta_phys), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      call mpi_bcast(chisq_red, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       
       allocate(theta_final(zodi_model%n_params))
       theta_final = theta(1:zodi_model%n_params)
@@ -1135,7 +1175,8 @@ contains
          end if
       end do
 
-      call min_max_param_vec_with_priors(theta, prior_vec_powell)
+      !call min_max_param_vec_with_priors(theta, prior_vec_powell)
+      
 
       j = 1
       do i = 1, size(theta)
@@ -1146,6 +1187,28 @@ contains
             j = j + 1
          end if
       end do
+
+      ! Apply approximate Metropolis rule, using reduced chisq instead of chisq
+      if (cpar%myid == cpar%root) then
+         if (chisq_red_current == 1.d30) then
+            accept = .true.
+         else
+            accept = rand_uni(handle) < exp(-0.5d0*(chisq_red-chisq_red_current))
+         end if
+      end if
+      call mpi_bcast(accept, 1, MPI_LOGICAL, cpar%root, cpar%comm_chain, ierr)
+      
+      if (accept) then
+         ! Accept new point; update
+         param_vec_current = theta_final
+         chisq_red_current = chisq_red
+      else
+         ! Reject new solution, reset to previous solution
+         call zodi_model%params_to_model(param_vec_current)         
+         deallocate(prior_vec_powell, theta_0, powell_included_params)
+         return
+      end if
+      
       ! update model with final parameters
       call zodi_model%params_to_model(theta_final)
 
@@ -1356,7 +1419,7 @@ contains
       !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
 
       if (data(1)%tod%myid == 0) then
-         lnL_zodi = chisq
+         lnL_zodi = chisq/ndof_tot
          call wall_time(t2)
          if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
          write(*,*)
@@ -1606,7 +1669,10 @@ contains
                end if
             end if
          end if
-         if (mod(i, n_cols) == 0 .or. (i<n_params .and. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx)))))) then
+
+         if (i == n_params) then
+            write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
+         else if (mod(i, n_cols) == 0 .or. (i<n_params .and. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx)))))) then
             write(*, "(a,a,g0.4,a)") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
          else
             write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
@@ -1635,4 +1701,28 @@ contains
 
    end subroutine
 
+   subroutine randomize_zodi_init(cpar, handle)
+     implicit none
+     type(comm_params), intent(in) :: cpar
+     type(planck_rng),  intent(inout)   :: handle
+     
+     integer(i4b) :: i, ierr
+     real(dp)     :: eps
+     real(dp), allocatable :: param_vec(:)
+
+     eps = 0.01d0
+
+     allocate(param_vec(zodi_model%n_params))
+     if (cpar%myid == 0) then
+        do i = 1, zodi_model%n_params
+           param_vec(i) = param_vec_current(i) * (1.d0 + eps*rand_gauss(handle))
+        end do
+        call min_max_param_vec_with_priors(param_vec, prior_vec)
+     end if
+     call mpi_bcast(param_vec, size(param_vec), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+     call zodi_model%params_to_model(param_vec)
+     deallocate(param_vec)
+
+   end subroutine randomize_zodi_init
+   
 end module

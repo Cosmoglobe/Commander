@@ -206,7 +206,7 @@ program commander
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
-    ! initialize zodi samp mod
+  ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
   end if
@@ -365,14 +365,15 @@ program commander
       if (iter == 2) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)      
-         call remove_glitches_from_downsamped_zodi_quantities(cpar)
+         call create_zodi_glitch_mask(cpar)
       end if 
+      call apply_zodi_glitch_mask(cpar)
       
       select case (trim(adjustl(cpar%zs_sample_method)))
       case ("mh")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
-         call minimize_zodi_with_powell(cpar)
+         call minimize_zodi_with_powell(cpar, handle)
       end select
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
