@@ -187,12 +187,10 @@ contains
   end subroutine sample_gain
 
 
-  subroutine sample_gain_firas(operation, outdir, chain, &
-                            &  iter, resamp_hard_prior, cpar, handle, handle_noise)
+  subroutine sample_gain_firas(operation, outdir, &
+                            &  cpar, handle, handle_noise)
     implicit none
     character(len=*),               intent(in)    :: operation, outdir
-    integer(i4b),                   intent(in)    :: chain, iter
-    logical(lgt),                   intent(in)    :: resamp_hard_prior
     type(planck_rng),               intent(inout) :: handle, handle_noise
     type(comm_params) :: cpar
 
@@ -303,11 +301,6 @@ contains
         chisq_old = chisq_old + chisq
     end do
 
-    if (data(bands_firas(1))%info%myid == root) then
-       write(*,*) chisq_old
-    end if
-
-
 
     ! MH Step
     sigma = 0.05
@@ -318,8 +311,6 @@ contains
         gains_new(i) = gains_old(i) + rand_gauss(handle)*sigma
         data(bands_sample(i))%gain = gains_new(i)
       end do
-      write(*,*) gains_old, 'old gains'
-      write(*,*) gains_new, 'new gains'
     end if
     do i = 1, n_sample
        call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)  
@@ -375,11 +366,16 @@ contains
         chisq_new = chisq_new + chisq
     end do
     if (data(bands_firas(1))%info%myid == root) then
-       write(*,*) chisq_new
+       write(*,*) 'chisq_new, chisq_old: ', chisq_new, chisq_old
+       write(*,*) gains_old, 'old gains'
+       write(*,*) gains_new, 'new gains'
     end if
 
 
     if (log(rand_uni(handle)) > (chisq_old - chisq_old)/2) then
+      if (data(bands_firas(1))%info%myid == root) then
+        write(*,*) 'MH step rejected, sampling amplitudes with original gains'
+      end if
       ! MH step rejected,  revert gains back
       do i = 1, n_sample
         data(bands_sample(i))%gain = gains_old(i)
@@ -399,6 +395,11 @@ contains
 
       end do
       call timer%stop(TOT_AMPSAMP)
+    else
+      if (data(bands_firas(1))%info%myid == root) then
+        write(*,*) 'MH step accepted'
+        write(*,*) 'New gains are', gains_new
+      end if
     end if
 
 

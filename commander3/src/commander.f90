@@ -280,7 +280,6 @@ program commander
   ! Will make only one full gibbs loop to produce simulations
   !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
   !----------------------------------------------------------------------------------
-  call sample_gain_firas(cpar%operation, cpar%outdir, cpar%mychain, 1, .false., cpar, handle, handle_noise)
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
@@ -444,6 +443,12 @@ program commander
         call timer%stop(TOT_CLS)
      end if
 
+
+     ! Sample gains off of absolutely calibrated FIRAS maps
+     if (iter > 2) then
+        call sample_gain_firas(cpar%operation, cpar%outdir, cpar, handle, handle_noise)
+     end if
+
      ! Sample power spectra
      call timer%start(TOT_CLS)
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
@@ -472,6 +477,8 @@ program commander
             call output_tod_params_to_hd5(cpar, zodi_model, data(i)%tod, iter)
          end do
      end if
+
+
 
      call wall_time(t2)
      if (ok) then

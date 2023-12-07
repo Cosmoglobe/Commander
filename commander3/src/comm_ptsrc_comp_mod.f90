@@ -1749,8 +1749,7 @@ contains
                 call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
                 call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
                 if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
-                
-                if (self%myid == 0 .and. k<20) write(*,*) k, real(a,sp), &
+                if (self%myid == 0 .and. mod(k,10000) == 0) write(*,*) k, real(a,sp), &
                      & real(self%src(k)%theta(2,1),sp), real(self%src(k)%red_chisq,sp)
              end do
           end do
