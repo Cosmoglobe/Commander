@@ -370,7 +370,7 @@ contains
          if (.true.) then
             ! scan id appears to be the worst chi2
             if (self%scanid(i) < 10000) then 
-               print *, self%scanid(i)
+               !print *, self%scanid(i)
                call int2string(self%scanid(i), scantext)
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
