@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi" #"gnu"
-buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
+buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -134,7 +134,9 @@ then
 	# Unloading any loaded module
 	module purge
 	# Loading GNU Autotools (autoconf, libtool, automake etc.), GIT and CMake
-	module load gnu git/2.30.1 cmake/3.21.1
+	#module load gnu git/2.43.0 cmake/3.27.7
+	module load git/2.43.0 cmake/3.27.7
+  echo "bla"
 	# Choosing which compiler toolchain to use
 	if [[ "$toolchain" =~ "intel" ]]
 	then
@@ -225,27 +227,27 @@ then
 		mkdir $abs_path_to_build 
 	fi
 	#------------------------------------------------------------------------------
-	#rm -rf $abs_path_to_build/CMakeCache.txt
-	##------------------------------------------------------------------------------
-	## Executing CMake commands for the first time
-	##------------------------------------------------------------------------------
-	#cmake \
-	#-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
-	#-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
-	#-DCMAKE_BUILD_TYPE="$buildtype" \
-	#-DCMAKE_Fortran_COMPILER=$fc \
-	#-DCMAKE_C_COMPILER=$cc \
-	#-DCMAKE_CXX_COMPILER=$cxx \
-	#-DMPI_C_COMPILER=$mpicc \
-	#-DMPI_CXX_COMPILER=$mpicxx \
-	#-DMPI_Fortran_COMPILER=$mpifc \
-	#-DCFITSIO_USE_CURL:BOOL=OFF \
-	#-DUSE_SYSTEM_FFTW:BOOL=OFF \
-	#-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	#-DUSE_SYSTEM_HDF5:BOOL=OFF \
-	#-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	#-DUSE_SYSTEM_BLAS:BOOL=ON \
-	#-S $comm3_root_dir -B $abs_path_to_build
+	rm -rf $abs_path_to_build/CMakeCache.txt
+	#------------------------------------------------------------------------------
+	# Executing CMake commands for the first time
+	#------------------------------------------------------------------------------
+	cmake \
+	-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
+	-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
+	-DCMAKE_BUILD_TYPE="$buildtype" \
+	-DCMAKE_Fortran_COMPILER=$fc \
+	-DCMAKE_C_COMPILER=$cc \
+	-DCMAKE_CXX_COMPILER=$cxx \
+	-DMPI_C_COMPILER=$mpicc \
+	-DMPI_CXX_COMPILER=$mpicxx \
+	-DMPI_Fortran_COMPILER=$mpifc \
+	-DCFITSIO_USE_CURL:BOOL=OFF \
+	-DUSE_SYSTEM_FFTW:BOOL=OFF \
+	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
+	-DUSE_SYSTEM_HDF5:BOOL=OFF \
+	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
+	-DUSE_SYSTEM_BLAS:BOOL=ON \
+	-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------

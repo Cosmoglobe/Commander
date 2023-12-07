@@ -29,6 +29,12 @@
 #endif()
 
 if(COMPILE_HEALPIX)
+
+	# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP
+	if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+		cmake_policy(SET CMP0135 NEW)
+	endif()
+
 	# Writing this to be consistent with fftw.cmake, otherwise 
 	# the if statement is unnecessary.
 	#if(NOT HEALPIX_Fortran_FOUND)
