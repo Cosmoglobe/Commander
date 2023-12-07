@@ -134,9 +134,7 @@ then
 	# Unloading any loaded module
 	module purge
 	# Loading GNU Autotools (autoconf, libtool, automake etc.), GIT and CMake
-	#module load gnu git/2.43.0 cmake/3.27.7
-	module load git/2.43.0 cmake/3.27.7
-  echo "bla"
+	module load git cmake
 	# Choosing which compiler toolchain to use
 	if [[ "$toolchain" =~ "intel" ]]
 	then

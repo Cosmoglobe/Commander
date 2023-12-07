@@ -367,7 +367,7 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf
-         if (.true.) then
+         if (.false.) then
             ! scan id appears to be the worst chi2
             if (self%scanid(i) < 10000) then 
                !print *, self%scanid(i)
