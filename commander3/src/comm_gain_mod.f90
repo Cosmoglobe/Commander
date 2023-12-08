@@ -318,10 +318,10 @@ contains
 
     ! Do component separation
 
+    if (cpar%myid_chain == 0) write(*,*) 'MH sampling gain based on FIRAS'
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
        if (cpar%myid_chain == 0) then
-          write(*,*) 'MH sampling gain based on FIRAS'
           write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                & samp_group, ' of ', cpar%cg_num_user_samp_groups
        end if
@@ -365,11 +365,15 @@ contains
         my_chisq    = sum(res%map * invN_res%map)
         call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
         chisq_new = chisq_new + chisq
+        if (data(bands_firas(1))%info%myid == root) then
+          write(*,*) 'chisq ', trim(data(bands_firas(band))%label), chisq
+        end if
     end do
     if (data(bands_firas(1))%info%myid == root) then
        write(*,*) 'chisq_new, chisq_old, diff: ', chisq_new, chisq_old, chisq_new-chisq_old
-       write(*,*) gains_old, 'old gains'
-       write(*,*) gains_new, 'new gains'
+       do i = 1, n_sample
+         write(*,*) trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' new:', gains_new(i)
+       end do
     end if
 
 
@@ -401,7 +405,7 @@ contains
         write(*,*) 'MH step accepted'
         write(*,*) 'New gains are'
         do i = 1, n_sample
-          write(*,*) trim(data(bands_firas(i))%label), ':', gains_new(i)
+          write(*,*) trim(data(bands_sample(i))%label), ':', gains_new(i)
         end do
       end if
     end if
