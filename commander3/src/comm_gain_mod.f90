@@ -401,7 +401,7 @@ contains
         write(*,*) 'MH step accepted'
         write(*,*) 'New gains are'
         do i = 1, n_sample
-          write(*,*) trim(bands_firas(i)%label) ':', gains_new(i)
+          write(*,*) trim(data(bands_firas(i))%label), ':', gains_new(i)
         end do
       end if
     end if
