@@ -321,6 +321,7 @@ contains
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
        if (cpar%myid_chain == 0) then
+          write(*,*) 'MH sampling gain based on FIRAS'
           write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                & samp_group, ' of ', cpar%cg_num_user_samp_groups
        end if
@@ -366,13 +367,13 @@ contains
         chisq_new = chisq_new + chisq
     end do
     if (data(bands_firas(1))%info%myid == root) then
-       write(*,*) 'chisq_new, chisq_old: ', chisq_new, chisq_old
+       write(*,*) 'chisq_new, chisq_old, diff: ', chisq_new, chisq_old, chisq_new-chisq_old
        write(*,*) gains_old, 'old gains'
        write(*,*) gains_new, 'new gains'
     end if
 
 
-    if (log(rand_uni(handle)) > (chisq_old - chisq_old)/2) then
+    if (log(rand_uni(handle)) > (chisq_old - chisq_new)/2) then
       if (data(bands_firas(1))%info%myid == root) then
         write(*,*) 'MH step rejected, sampling amplitudes with original gains'
       end if
@@ -398,7 +399,10 @@ contains
     else
       if (data(bands_firas(1))%info%myid == root) then
         write(*,*) 'MH step accepted'
-        write(*,*) 'New gains are', gains_new
+        write(*,*) 'New gains are'
+        do i = 1, n_sample
+          write(*,*) trim(bands_firas(i)%label) ':', gains_new(i)
+        end do
       end if
     end if
 
