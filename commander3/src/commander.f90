@@ -180,8 +180,16 @@ program commander
      do i = 1, numband
           if (data(i)%tod_type == 'none') cycle
           if (.not. data(i)%tod%subtract_zodi) cycle        
+
           call data(i)%tod%precompute_zodi_lookups(cpar)
+
+          do j = 1, data(i)%tod%ndet
+             call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+          end do
           call read_tod_zodi_params(cpar, zodi_model, data(i)%tod)
+
+          call compute_zodi_fourier_maps(cpar, zodi_model)
+          data(i)%tod%zodi_fourier_cube = data(i)%zodi_fourier_cube
      end do
   end if
 

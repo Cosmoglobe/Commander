@@ -233,6 +233,8 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
      logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering, udgrade_zodi
+     complex(spc), allocatable, dimension(:, :)    :: zodi_fourier_cube
+
    contains
      procedure                           :: read_tod
      procedure                           :: diode2tod_inst
@@ -2827,7 +2829,7 @@ contains
       end do
       
       ! If zodi sampling is turned on we precompute lowres zodi lookups
-      if (.not. cpar%sample_zodi) return
+      ! if (.not. cpar%sample_zodi) return
       ! Skip if zodi nside = tod nside
       if (self%nside == zodi_nside) return
       n_subpix = (self%nside / zodi_nside)**2

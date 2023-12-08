@@ -9,7 +9,7 @@ module comm_tod_zodi_mod
    implicit none
 
    private
-   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_instantaneous_zodi_emission
+   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_instantaneous_zodi_emission, get_interp_zodi_emission
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -109,13 +109,12 @@ contains
       type(ZodiModel), intent(in) :: model
       logical(lgt), intent(in), optional :: always_scattering, use_lowres_pointing
       integer(i4b), intent(in), optional :: comp
-
       integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
       logical(lgt) :: scattering, use_lowres
       real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
       !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
-
+      
       s_zodi_scat = 0.
       s_zodi_therm = 0.
       n_tod = size(pix, dim=1)
@@ -346,6 +345,99 @@ contains
       end do
    end subroutine get_instantaneous_zodi_emission
 
+
+   subroutine get_interp_zodi_emission(tod, pix, scan, s_zodi)
+      class(comm_tod), intent(inout) :: tod
+      integer(i4b), intent(in) :: pix(:)
+      integer(i4b), intent(in) :: scan
+      real(sp), dimension(:), intent(inout) :: s_zodi
+
+      integer(i4b) :: i, nobs, k, ncoeffs
+      real(dp), allocatable :: obs_time_samp(:), freqs(:)
+      real(dp) :: dt_tod, obs_time, period, dt, tmp
+
+      
+      nobs = size(tod%zodi_fourier_cube, dim=1)
+      ncoeffs = nobs/2 + 1
+
+      period = 365.242199
+
+      obs_time_samp = [(i * (period/real(nobs)), i = 1, nobs)]
+      obs_time_samp = obs_time_samp +  47871.0100490336
+      dt = obs_time_samp(2) - obs_time_samp(1)
+
+      allocate(freqs(0:nobs-1))
+
+      freqs = 0.
+      do k = 1, ncoeffs
+         if (k < nobs/2.) then
+            freqs(k) = k / (dt * nobs)
+         else
+            freqs(k) = (k - nobs) / (dt * nobs)
+         end if
+         if (k < ncoeffs - 1) freqs(nobs - k) = - freqs(k)
+      end do
+
+      dt_tod = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
+      obs_time = tod%scans(scan)%t0(1)
+      
+      ! print *,"pix bounds:", lbound(pix), ubound(pix)
+      ! print *,"pix min max:", minval(pix), maxval(pix)
+      ! print *,"udgrade_pix_zodi bounds:", lbound(tod%udgrade_pix_zodi), ubound(tod%udgrade_pix_zodi)
+      ! print *,"udgrade_pix_zodi min max:", minval(tod%udgrade_pix_zodi), maxval(tod%udgrade_pix_zodi)
+      ! stop
+      do i = 1, size(pix)
+         ! print *, "coeffs:", tod%zodi_fourier_cube(:, pix(i))
+         ! print *, "freqs:", freqs
+         ! print *, "obs_time:", obs_time
+         ! print *, "obs_time_samp(1):", obs_time_samp(1)
+         ! stop
+         call fft_interp_zodi(tod%zodi_fourier_cube(:, tod%udgrade_pix_zodi(pix(i))), freqs, obs_time, obs_time_samp(1), tmp)
+         s_zodi(i) = real(tmp, sp)
+         obs_time = obs_time + dt_tod
+      end do
+
+   end subroutine get_interp_zodi_emission
+
+   subroutine fft_interp_zodi(fft_coeffs, fft_freqs, t, t_0, s_zodi_pix)
+      complex(spc), intent(in) :: fft_coeffs(:)
+      real(dp), intent(in) :: fft_freqs(:), t, t_0
+      real(dp), intent(out) :: s_zodi_pix
+
+      complex(spc) :: i = cmplx(0., 1.)
+      integer(i4b) :: k
+
+      s_zodi_pix = 0
+      do k = 1, size(fft_coeffs)
+         s_zodi_pix = s_zodi_pix + fft_coeffs(k) * exp(i * 2. * pi  * fft_freqs(k) * (t-t_0))
+         ! s_zodi_pix = s_zodi_pix + exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
+      end do
+      s_zodi_pix = s_zodi_pix / size(fft_coeffs)
+   end subroutine fft_interp_zodi
+
+   ! subroutine fft_interp_zodi(fft_coeffs, fft_freqs, t, t_0, s_zodi_pix)
+   !    complex(spc), intent(in) :: fft_coeffs(:)
+   !    real(dp), intent(in) :: fft_freqs(:), t, t_0
+   !    real(sp), intent(out) :: s_zodi_pix
+
+   !    complex(spc) :: s_zodi_pix_complex
+   !    complex(spc) :: i = cmplx(0., 1.)
+   !    integer(i4b) :: k
+
+   !    s_zodi_pix_complex = cmplx(0., 0.)
+   !    do k = 1, size(fft_coeffs)
+   !       ! print *, "s_zodi_pix_complex", s_zodi_pix_complex
+   !       ! print *, "fft_coeffs(k)", fft_coeffs(k)
+   !       ! print *, "fft_freqs(k)", fft_freqs(k)
+   !       ! print *, "mod(t, t_0)", mod(t, t_0)
+   !       ! print *, "i", i
+   !       ! print *, "exp", exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
+
+   !       ! s_zodi_pix_complex = s_zodi_pix_complex + fft_coeffs(k) * exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
+   !       s_zodi_pix_complex = s_zodi_pix_complex + fft_coeffs(k)
+   !    end do
+   !    s_zodi_pix = real(s_zodi_pix_complex, sp) / size(fft_coeffs)
+   ! end subroutine fft_interp_zodi
 
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------

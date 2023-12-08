@@ -77,7 +77,7 @@ contains
     logical(lgt),                              intent(in),   optional :: init_s_bp
     logical(lgt),                              intent(in),   optional :: init_s_bp_prop
     logical(lgt),                              intent(in),   optional :: init_s_sky_prop
-    integer(i4b) :: i, j, k, ndelta
+    integer(i4b) :: i, j, k, ndelta, ierr
     logical(lgt) :: init_s_bp_, init_s_bp_prop_, init_s_sky_prop_
  
     call timer%start(TOD_ALLOC, tod%band)
@@ -235,24 +235,29 @@ contains
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
        do j = 1, self%ndet
-          call get_zodi_emission(&
-            & tod=tod, &
-            & pix=self%pix(:, j, 1), &
-            & scan=scan, &
-            & det=j, &
-            & s_zodi_scat=self%s_zodi_scat(:, :, j), &
-            & s_zodi_therm=self%s_zodi_therm(:, :, j), &
-            & model=zodi_model &
-          &)
-          call get_s_zodi(&
-            & s_therm=self%s_zodi_therm(:, :, j), &
-            & s_scat=self%s_zodi_scat(:, :, j), &
-            & s_zodi=self%s_zodi(:, j), &
-            & emissivity=tod%zodi_emissivity, &
-            & albedo=tod%zodi_albedo &
-          &)
+         call get_interp_zodi_emission(tod, self%pix(:, j, 1), scan, self%s_zodi(:, j))
        end do
-       call timer%stop(TOD_ZODI, tod%band)
+      !  call mpi_barrier(tod%info%comm, ierr)
+      !  stop
+      !  do j = 1, self%ndet
+      !     call get_zodi_emission(&
+      !       & tod=tod, &
+      !       & pix=self%pix(:, j, 1), &
+      !       & scan=scan, &
+      !       & det=j, &
+      !       & s_zodi_scat=self%s_zodi_scat(:, :, j), &
+      !       & s_zodi_therm=self%s_zodi_therm(:, :, j), &
+      !       & model=zodi_model &
+      !     &)
+      !     call get_s_zodi(&
+      !       & s_therm=self%s_zodi_therm(:, :, j), &
+      !       & s_scat=self%s_zodi_scat(:, :, j), &
+      !       & s_zodi=self%s_zodi(:, j), &
+      !       & emissivity=tod%zodi_emissivity, &
+      !       & albedo=tod%zodi_albedo &
+      !     &)
+      !  end do
+      !  call timer%stop(TOD_ZODI, tod%band)
     end if
     !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 

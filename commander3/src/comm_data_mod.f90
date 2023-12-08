@@ -199,7 +199,7 @@ contains
        call update_status(status, "data_tod")
 
        if ((.not. trim(data(n)%tod_type) == 'none') .and. data(n)%tod%subtract_zodi) then
-         allocate(data(n)%zodi_fourier_cube(nfft_max, nside2npix(zodi_nside)))
+         allocate(data(n)%zodi_fourier_cube(8, 0:nside2npix(zodi_nside)-1))
        end if
 
        ! Initialize beam structures
