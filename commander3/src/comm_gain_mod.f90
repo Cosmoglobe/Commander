@@ -299,6 +299,9 @@ contains
         my_chisq    = sum(res%map * invN_res%map)
         call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
         chisq_old = chisq_old + chisq
+        if (data(bands_firas(1))%info%myid == root) then
+          write(*,*) 'chisq old ', trim(data(bands_firas(band))%label), chisq
+        end if
     end do
 
 
@@ -315,10 +318,16 @@ contains
     do i = 1, n_sample
        call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)  
     end do
+    call mpi_bcast(gains_old, size(gains_old), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
+    call mpi_bcast(gains_new, size(gains_new), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
 
     ! Do component separation
 
-    if (cpar%myid_chain == 0) write(*,*) 'MH sampling gain based on FIRAS'
+    if (cpar%myid_chain == 0) then
+      write(*,*) '|'
+      write(*,*) '| MH sampling gain based on FIRAS'
+      write(*,*) '|'
+    end if
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
        if (cpar%myid_chain == 0) then
@@ -365,11 +374,11 @@ contains
         my_chisq    = sum(res%map * invN_res%map)
         call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
         chisq_new = chisq_new + chisq
-        if (data(bands_firas(1))%info%myid == root) then
-          write(*,*) 'chisq ', trim(data(bands_firas(band))%label), chisq
+        if (cpar%myid_chain == root) then
+          write(*,*) 'chisq new ', trim(data(bands_firas(band))%label), chisq
         end if
     end do
-    if (data(bands_firas(1))%info%myid == root) then
+    if (cpar%myid_chain == root) then
        write(*,*) 'chisq_new, chisq_old, diff: ', chisq_new, chisq_old, chisq_new-chisq_old
        do i = 1, n_sample
          write(*,*) trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' new:', gains_new(i)
@@ -378,28 +387,31 @@ contains
 
 
     if (log(rand_uni(handle)) > (chisq_old - chisq_new)/2) then
-      if (data(bands_firas(1))%info%myid == root) then
+      if (cpar%myid_chain == 0) then
         write(*,*) 'MH step rejected, sampling amplitudes with original gains'
       end if
-      ! MH step rejected,  revert gains back
       do i = 1, n_sample
         data(bands_sample(i))%gain = gains_old(i)
-        call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)  
       end do
+      !do i = 1, n_sample
+      !  write(*,*) 'brodcasting', i, cpar%myid_chain
+      !  !call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)  
+      !end do
 
       ! Do component separation again, with non-rejected gains
-      call timer%start(TOT_AMPSAMP)
-      do samp_group = 1, cpar%cg_num_user_samp_groups
-         if (cpar%myid_chain == 0) then
-            write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                 & samp_group, ' of ', cpar%cg_num_user_samp_groups
-         end if
-         call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+      !call timer%start(TOT_AMPSAMP)
+      !do samp_group = 1, cpar%cg_num_user_samp_groups
+      !   if (cpar%myid_chain == 0) then
+      !      write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+      !           & samp_group, ' of ', cpar%cg_num_user_samp_groups
+      !   end if
+      !   call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
-         if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+      !   if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
-      end do
-      call timer%stop(TOT_AMPSAMP)
+      !end do
+      !call timer%stop(TOT_AMPSAMP)
+
     else
       if (data(bands_firas(1))%info%myid == root) then
         write(*,*) 'MH step accepted'

@@ -411,6 +411,12 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
 
+
+     ! Sample gains off of absolutely calibrated FIRAS maps
+     if (iter > 0) then
+        call sample_gain_firas(cpar%operation, cpar%outdir, cpar, handle, handle_noise)
+     end if
+
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
@@ -444,10 +450,6 @@ program commander
      end if
 
 
-     ! Sample gains off of absolutely calibrated FIRAS maps
-     if (iter > 2) then
-        call sample_gain_firas(cpar%operation, cpar%outdir, cpar, handle, handle_noise)
-     end if
 
      ! Sample power spectra
      call timer%start(TOT_CLS)
