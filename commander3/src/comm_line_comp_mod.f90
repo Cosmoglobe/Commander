@@ -84,7 +84,7 @@ contains
        end do
        if (trim(data(i)%label) == trim(cpar%cs_band_ref(id_abs))) ref_exist = .true.
     end do
-    if (.not. ref_exist) call report_error("Line component reference band does not exist")
+    if (.not. ref_exist) call report_error("Line component reference band does not exist, need "//trim(cpar%cs_band_ref(id_abs)))
 
     allocate(constructor%ind2band(n))
     constructor%npar = n
