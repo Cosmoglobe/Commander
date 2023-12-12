@@ -198,12 +198,12 @@ contains
     integer(i4b)  :: i, l, n_firas, n_sample, band, ntok, root, ierr, samp_group
     real(dp)      :: chisq, my_chisq, sigma, chisq_old, chisq_new, chisq_prop
     real(dp)      :: MAX_DELTA_G = 0.3d0
-    logical(lgt)  :: include_comp, accept
+    logical(lgt)  :: include_comp, reject
     character(len=4) :: chain_text
     character(len=6) :: iter_text
     character(len=512) :: tokens(10), str_buff
     integer(i4b), allocatable,  dimension(:) :: bands_sample, bands_firas
-    real(dp), allocatable, dimension(:) :: gains_new, gains_old
+    real(dp), allocatable, dimension(:) :: gains_prop, gains_old
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
@@ -246,7 +246,7 @@ contains
       write(*,*) 'No gains specified to be sampled wrt FIRAS'
     end if
 
-    allocate(bands_firas(n_firas), bands_sample(n_sample), gains_new(n_sample), gains_old(n_sample))
+    allocate(bands_firas(n_firas), bands_sample(n_sample), gains_prop(n_sample), gains_old(n_sample))
     n_sample = 0
     n_firas = 0
     do i = 1, numband
@@ -311,8 +311,8 @@ contains
     do i = 1, n_sample
       if (data(bands_sample(i))%info%myid == root) then
         gains_old(i) = data(bands_sample(i))%gain
-        gains_new(i) = gains_old(i) + rand_gauss(handle)*sigma
-        data(bands_sample(i))%gain = gains_new(i)
+        gains_prop(i) = gains_old(i) + rand_gauss(handle)*sigma
+        data(bands_sample(i))%gain = gains_prop(i)
       end if
 
       call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)
@@ -320,8 +320,7 @@ contains
     end do
 
     call mpi_bcast(gains_old, size(gains_old), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
-    call mpi_bcast(gains_new, size(gains_new), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
-    !write(*,*) cpar%myid, gains_new
+    call mpi_bcast(gains_prop, size(gains_prop), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
 
     ! Do component separation
 
@@ -383,26 +382,22 @@ contains
     if (cpar%myid_chain == root) then
        write(*,*) 'chisq_prop, chisq_old, diff: ', chisq_prop, chisq_old, chisq_prop-chisq_old
        do i = 1, n_sample
-         write(*,*) trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' new:', gains_new(i)
+         write(*,*) trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' prop:', gains_prop(i)
        end do
     end if
 
 
-    accept = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
-    call mpi_bcast(accept, 1, MPI_LOGICAL, root, data(bands_sample(1))%info%comm, ierr)
+    reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
+    call mpi_bcast(reject, 1, MPI_LOGICAL, root, data(bands_sample(1))%info%comm, ierr)
 
 
-    if (accept) then
+    if (reject) then
       if (cpar%myid_chain == 0) then
         write(*,*) 'MH step rejected, sampling amplitudes with original gains'
       end if
       do i = 1, n_sample
         data(bands_sample(i))%gain = gains_old(i)
-        write(*,*) data(bands_sample(i))%gain
       end do
-
-      write(*,*) cpar%myid, ' waiting', data(bands_sample(1))%gain
-      call mpi_barrier(data(bands_sample(1))%info%comm, ierr)
 
       call timer%start(TOT_AMPSAMP)
       do samp_group = 1, cpar%cg_num_user_samp_groups
@@ -422,7 +417,7 @@ contains
         write(*,*) 'MH step accepted'
         write(*,*) 'New gains are'
         do i = 1, n_sample
-          write(*,*) trim(data(bands_sample(i))%label), ':', gains_new(i)
+          write(*,*) trim(data(bands_sample(i))%label), ':', gains_prop(i)
         end do
       end if
     end if
@@ -464,14 +459,8 @@ contains
           write(*,*) 'chisq new ', trim(data(bands_firas(band))%label), chisq
         end if
     end do
-    if (cpar%myid_chain == root) then
-       write(*,*) 'chisq_new, chisq_old, diff: ', chisq_new, chisq_old, chisq_new-chisq_old
-       do i = 1, n_sample
-         write(*,*) trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' new:', gains_new(i)
-       end do
-     end if
 
-    deallocate(bands_firas, bands_sample, gains_new, gains_old)
+    deallocate(bands_firas, bands_sample, gains_prop, gains_old)
     call invN_res%dealloc(); deallocate(invN_res)
 
   end subroutine sample_gain_firas
