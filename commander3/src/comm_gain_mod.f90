@@ -187,10 +187,9 @@ contains
   end subroutine sample_gain
 
 
-  subroutine sample_gain_firas(operation, outdir, &
-                            &  cpar, handle, handle_noise)
+  subroutine sample_gain_firas(outdir, cpar, handle, handle_noise)
     implicit none
-    character(len=*),               intent(in)    :: operation, outdir
+    character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
     type(comm_params) :: cpar
 
@@ -201,15 +200,16 @@ contains
     logical(lgt)  :: include_comp, reject
     character(len=4) :: chain_text
     character(len=6) :: iter_text
-    character(len=512) :: tokens(10), str_buff
+    character(len=512) :: tokens(10), str_buff, operation
     integer(i4b), allocatable,  dimension(:) :: bands_sample, bands_firas
-    real(dp), allocatable, dimension(:) :: gains_prop, gains_old
+    real(dp), allocatable, dimension(:) :: gains_prop, gains_old, chisqs_old, chisqs_prop
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
 
 
     root = 0
+
 
 
     ! Gain sampling for 545, 857, and 100-240 um, using FIRAS as the calibrator. 
@@ -247,6 +247,8 @@ contains
     end if
 
     allocate(bands_firas(n_firas), bands_sample(n_sample), gains_prop(n_sample), gains_old(n_sample))
+    allocate(chisqs_old(n_firas), chisqs_prop(n_firas))
+
     n_sample = 0
     n_firas = 0
     do i = 1, numband
@@ -299,20 +301,17 @@ contains
         my_chisq    = sum(res%map * invN_res%map)
         call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(bands_firas(band))%info%comm, ierr)
         chisq_old = chisq_old + chisq
-        if (data(bands_firas(1))%info%myid == root) then
-          write(*,*) 'chisq old ', trim(data(bands_firas(band))%label), chisq
-        end if
+        chisqs_old(band) = chisq
     end do
 
 
     ! MH Step
-    sigma = 0.05
+    sigma = 0.005
 
     do i = 1, n_sample
       if (data(bands_sample(i))%info%myid == root) then
         gains_old(i) = data(bands_sample(i))%gain
         gains_prop(i) = gains_old(i) + rand_gauss(handle)*sigma
-        data(bands_sample(i))%gain = gains_prop(i)
       end if
 
       call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)
@@ -322,13 +321,29 @@ contains
     call mpi_bcast(gains_old, size(gains_old), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
     call mpi_bcast(gains_prop, size(gains_prop), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
 
+    do i = 1, n_sample
+       data(bands_sample(i))%gain = gains_prop(i)
+    end do
+
+
+    ! Update mixing matrices
+    c => compList
+    do while (associated(c))
+       call c%updateMixmat
+       c => c%next()
+    end do
+
     ! Do component separation
 
     if (cpar%myid_chain == 0) then
       write(*,*) '|'
       write(*,*) '| MH sampling gain based on FIRAS'
       write(*,*) '|'
+      do i = 1, n_sample
+         write(*,*) '| ', trim(data(bands_sample(i))%label), gains_old(i), gains_prop(i)
+      end do
     end if
+
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
        if (cpar%myid_chain == 0) then
@@ -343,6 +358,12 @@ contains
     call timer%stop(TOT_AMPSAMP)
 
     chisq_prop = 0d0
+
+    if (data(bands_firas(1))%info%myid == root) then
+       do band = 1, n_firas
+          write(*,*) '| chisq old ', trim(data(bands_firas(band))%label), chisqs_old(band)
+       end do
+    end if
 
     do band = 1, n_firas
         ! Build reference signal
@@ -375,15 +396,20 @@ contains
         my_chisq    = sum(res%map * invN_res%map)
         call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
         chisq_prop = chisq_prop + chisq
+        chisqs_prop(band) = chisq
         if (cpar%myid_chain == root) then
-          write(*,*) 'chisq prop ', trim(data(bands_firas(band))%label), chisq
+          write(*,*) '| chisq prop ', trim(data(bands_firas(band))%label), chisqs_prop(band)
         end if
     end do
     if (cpar%myid_chain == root) then
-       write(*,*) 'chisq_prop, chisq_old, diff: ', chisq_prop, chisq_old, chisq_prop-chisq_old
        do i = 1, n_sample
-         write(*,*) trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' prop:', gains_prop(i)
+         write(*,*) '| ', trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' prop:', gains_prop(i)
        end do
+       write(*,*) '| chisq diffs per band:'
+       do i = 1, n_firas
+         write(*,*) '|  ', trim(data(bands_firas(i))%label), chisqs_prop(i) - chisqs_old(i)
+       end do
+       write(*,*) '| chisq diff: ', chisq_prop-chisq_old
     end if
 
 
@@ -393,75 +419,32 @@ contains
 
     if (reject) then
       if (cpar%myid_chain == 0) then
-        write(*,*) 'MH step rejected, sampling amplitudes with original gains'
+        write(*,*) '| MH step rejected, sampling amplitudes with original gains'
       end if
       do i = 1, n_sample
         data(bands_sample(i))%gain = gains_old(i)
       end do
 
-      call timer%start(TOT_AMPSAMP)
-      do samp_group = 1, cpar%cg_num_user_samp_groups
-         if (cpar%myid_chain == 0) then
-            write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                 & samp_group, ' of ', cpar%cg_num_user_samp_groups
-         end if
-         call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
-
-         if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
+      ! Update mixing matrices
+      c => compList
+      do while (associated(c))
+         call c%updateMixmat
+         c => c%next()
       end do
-      call timer%stop(TOT_AMPSAMP)
 
     else
       if (data(bands_firas(1))%info%myid == root) then
-        write(*,*) 'MH step accepted'
-        write(*,*) 'New gains are'
+        write(*,*) '| MH step accepted'
+        write(*,*) '| New gains are'
         do i = 1, n_sample
-          write(*,*) trim(data(bands_sample(i))%label), ':', gains_prop(i)
+          write(*,*) '| ', trim(data(bands_sample(i))%label), ':', gains_prop(i)
         end do
       end if
     end if
 
-    chisq_new = 0d0
-
-    do band = 1, n_firas
-        ! Build reference signal
-        sig => comm_map(data(bands_firas(band))%info)
-        res => comm_map(data(bands_firas(band))%info)
-        c => compList
-        do while (associated(c))
-           call get_tokens(trim(adjustl(data(bands_firas(band))%gain_comp)), ',', tokens, num=ntok)
-           include_comp = .false.
-           do i = 1, ntok
-              if (trim(c%label) == trim(tokens(i)) .or. trim(tokens(i)) == 'all') then
-                 include_comp = .true.
-                 exit
-              end if
-           end do
-           c => c%next()
-        end do
-
-        ! Compute residual
-        res                => compute_residual(bands_firas(band))
-        data(bands_firas(band))%res%map =  res%map
-
-        invN_res     => comm_map(res)
-        call data(bands_firas(band))%N%invN(invN_res)! Multiply with (invN)
-
-        if (associated(data(bands_firas(band))%gainmask)) then
-           res%map      = res%map      * data(bands_firas(band))%gainmask%map
-        end if
-
-        my_chisq    = sum(res%map * invN_res%map)
-        call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
-        chisq_new = chisq_new + chisq
-        if (cpar%myid_chain == root) then
-          write(*,*) 'chisq new ', trim(data(bands_firas(band))%label), chisq
-        end if
-    end do
-
     deallocate(bands_firas, bands_sample, gains_prop, gains_old)
     call invN_res%dealloc(); deallocate(invN_res)
+    !cpar%operation = operation
 
   end subroutine sample_gain_firas
 
