@@ -237,14 +237,20 @@ contains
 
     end do
 
-    if (n_firas .eq. 0) then
+    if (n_sample .eq. 0) then
+      return
+    else if (n_firas .eq. 0 .and. n_sample > 0) then
       write(*,*) 'No FIRAS bands loaded, cannot calibrate as asked'
       stop
+    else
+      if (cpar%myid == root) then
+         write(*,*) '|'
+         write(*,*) '| MH sampling gain based on FIRAS'
+         write(*,*) '|'
+      end if
     end if
+       
 
-    if (n_sample  .eq. 0) then
-      write(*,*) 'No gains specified to be sampled wrt FIRAS'
-    end if
 
     allocate(bands_firas(n_firas), bands_sample(n_sample), gains_prop(n_sample), gains_old(n_sample))
     allocate(chisqs_old(n_firas), chisqs_prop(n_firas))
@@ -336,12 +342,10 @@ contains
     ! Do component separation
 
     if (cpar%myid_chain == 0) then
-      write(*,*) '|'
-      write(*,*) '| MH sampling gain based on FIRAS'
-      write(*,*) '|'
       do i = 1, n_sample
          write(*,*) '| ', trim(data(bands_sample(i))%label), gains_old(i), gains_prop(i)
       end do
+      write(*,*) '|  Generating chisq for proposal gains'
     end if
 
     call timer%start(TOT_AMPSAMP)
@@ -360,9 +364,11 @@ contains
     chisq_prop = 0d0
 
     if (data(bands_firas(1))%info%myid == root) then
+       write(*,*) '|'
        do band = 1, n_firas
-          write(*,*) '| chisq old ', trim(data(bands_firas(band))%label), chisqs_old(band)
+          write(*,*) '|  chisq old ', trim(data(bands_firas(band))%label), chisqs_old(band)
        end do
+       write(*,*) '|'
     end if
 
     do band = 1, n_firas
@@ -398,13 +404,15 @@ contains
         chisq_prop = chisq_prop + chisq
         chisqs_prop(band) = chisq
         if (cpar%myid_chain == root) then
-          write(*,*) '| chisq prop ', trim(data(bands_firas(band))%label), chisqs_prop(band)
+          write(*,*) '|  chisq prop ', trim(data(bands_firas(band))%label), chisqs_prop(band)
         end if
     end do
     if (cpar%myid_chain == root) then
+       write(*,*) '|'
        do i = 1, n_sample
          write(*,*) '| ', trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' prop:', gains_prop(i)
        end do
+       write(*,*) '|'
        write(*,*) '| chisq diffs per band:'
        do i = 1, n_firas
          write(*,*) '|  ', trim(data(bands_firas(i))%label), chisqs_prop(i) - chisqs_old(i)
@@ -419,7 +427,9 @@ contains
 
     if (reject) then
       if (cpar%myid_chain == 0) then
+        write(*,*) '| '
         write(*,*) '| MH step rejected, sampling amplitudes with original gains'
+        write(*,*) '| '
       end if
       do i = 1, n_sample
         data(bands_sample(i))%gain = gains_old(i)
@@ -434,11 +444,13 @@ contains
 
     else
       if (data(bands_firas(1))%info%myid == root) then
+        write(*,*) '| '
         write(*,*) '| MH step accepted'
         write(*,*) '| New gains are'
         do i = 1, n_sample
           write(*,*) '| ', trim(data(bands_sample(i))%label), ':', gains_prop(i)
         end do
+        write(*,*) '| '
       end if
     end if
 

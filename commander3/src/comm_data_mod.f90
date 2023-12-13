@@ -148,12 +148,10 @@ contains
        data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
 
-       if (data(n)%sample_gain) then
-          ! Read calibration mask
-          if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
-             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
-                  & udgrade=.true.)
-          end if
+       ! Read calibration mask
+       if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
+          data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
+               & udgrade=.true.)
        end if
 
        ! Initialize TOD structures
