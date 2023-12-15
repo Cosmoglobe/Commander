@@ -2970,7 +2970,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
           if (cpar%sample_zodi .and. cpar%ds_tod_subtract_zodi(i)) then
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_REFERENCE_BAND'//itext, len_itext=len_itext, par_lgt=cpar%ds_zodi_reference_band(i))
                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_MASK'//itext, len_itext=len_itext, par_string=cpar%ds_tod_procmask_zodi(i), path=.true.)
-               call validate_file(trim(cpar%ds_tod_procmask_zodi(i)))
+               call validate_file(trim(cpar%ds_tod_procmask_zodi(i)), 'BAND_TOD_ZODI_MASK'//itext)
           end if
      end do
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_ASCII', par_lgt=cpar%zs_output_ascii)
@@ -3392,6 +3392,7 @@ end subroutine
 
     integer(i4b) :: i, j
     character(len=512) :: chaindir
+    character(len=2) :: itext, jtext
     logical(lgt) :: exist
 
     chaindir = trim(cpar%outdir) // '/'
@@ -3407,7 +3408,7 @@ end subroutine
 
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') then
-          call validate_file(trim(cpar%cg_samp_group_mask(i)))
+          call validate_file(trim(cpar%cg_samp_group_mask(i)), 'CG_SAMPLING_GROUP_MASK'//itext)
        end if
     end do
 
@@ -3415,35 +3416,37 @@ end subroutine
     do i = 1, cpar%numband
        if (.not. cpar%ds_active(i)) cycle
 
-       call validate_file(trim(cpar%ds_mapfile(i)))           ! Map file
-       call validate_file(trim(cpar%ds_noisefile(i)))         ! Noise file
+       call int2string(i, itext)
+       call validate_file(trim(cpar%ds_mapfile(i)),   'BAND_MAPFILE'//itext)           ! Map file
+       call validate_file(trim(cpar%ds_noisefile(i)), 'BAND_NOISEFILE'//itext)        ! Noise file
        if (trim(cpar%ds_maskfile(i)) /= 'fullsky') then
-             call validate_file(trim(cpar%ds_maskfile(i)))   ! Mask file
+             call validate_file(trim(cpar%ds_maskfile(i)), 'BAND_MASKFILE'//itext)   ! Mask file
        end if
        if (trim(cpar%ds_bptype(i)) /= 'delta') &
-            & call validate_file(trim(cpar%ds_bpfile(i)))     ! Bandpass
-       call validate_file(trim(cpar%ds_pixwin(i)))            ! Pixel window
-       call validate_file(trim(cpar%ds_blfile(i)))            ! Beam b_l file
+            & call validate_file(trim(cpar%ds_bpfile(i)), 'BAND_BANDPASSFILE'//itext)     ! Bandpass
+       call validate_file(trim(cpar%ds_pixwin(i)), 'BAND_PIXEL_WINDOW'//itext)            ! Pixel window
+       call validate_file(trim(cpar%ds_blfile(i)), 'BAND_BEAM_B_L_FILE'//itext)            ! Beam b_l file
        if (trim(cpar%ds_btheta_file(i)) /= 'none') then
-            call validate_file(trim(cpar%ds_btheta_file(i))) ! Point source file
+            call validate_file(trim(cpar%ds_btheta_file(i)), 'BAND_BEAM_B_PTSRC_FILE'//itext) ! Point source file
        end if
 
        do j = 1, cpar%num_smooth_scales
           if (trim(cpar%ds_noise_rms_smooth(i,j)) /= 'none') then
-             call validate_file(trim(cpar%ds_noise_rms_smooth(i,j)))  ! Smoothed RMS file
+             call int2string(j, jtext)          
+             call validate_file(trim(cpar%ds_noise_rms_smooth(i,j)), 'BAND_NOISE_RMS'//itext//'_SMOOTH'//jtext)  ! Smoothed RMS file
           end if
        end do
 
        if (cpar%enable_TOD_analysis .and. trim(cpar%ds_tod_type(i)) /= 'none') then
-          call validate_file(trim(cpar%ds_tod_procmask1(i)))  ! Procmask1
-          call validate_file(trim(cpar%ds_tod_procmask2(i)))  ! Procmask2
-          call validate_file(trim(cpar%ds_tod_filelist(i)))   ! Filelist
+          call validate_file(trim(cpar%ds_tod_procmask1(i)), 'BAND_TOD_MAIN_PROCMASK'//itext)  ! Procmask1
+          call validate_file(trim(cpar%ds_tod_procmask2(i)), 'BAND_TOD_SMALL_PROCMASK'//itext)  ! Procmask2
+          call validate_file(trim(cpar%ds_tod_filelist(i)), 'BAND_TOD_FILELIST'//itext)   ! Filelist
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') then
-            call validate_file(trim(cpar%ds_tod_jumplist(i)))   ! Jumplist
+            call validate_file(trim(cpar%ds_tod_jumplist(i)), 'BAND_TOD_JUMPLIST'//itext)   ! Jumplist
           end if
-          call validate_file(trim(cpar%ds_tod_instfile(i)))   ! Instrument file, RIMO
+          call validate_file(trim(cpar%ds_tod_instfile(i)), 'BAND_TOD_RIMO'//itext)   ! Instrument file, RIMO
           if (trim(cpar%ds_tod_bp_init(i)) /= 'none') then
-            call validate_file(trim(cpar%ds_tod_bp_init(i)))    ! BP prop and init
+            call validate_file(trim(cpar%ds_tod_bp_init(i)), 'BAND_TOD_BP_INIT_PROP'//itext)    ! BP prop and init
           end if
        end if
 
@@ -3451,15 +3454,15 @@ end subroutine
 
     ! Instrument data base
     if (trim(cpar%cs_inst_parfile) /= 'none') then
-      call validate_file(trim(cpar%cs_inst_parfile))  ! Instrument data base
+      call validate_file(trim(cpar%cs_inst_parfile), 'INSTRUMENT_PARAM_FILE')  ! Instrument data base
     end if
 
     if (trim(cpar%ds_sourcemask) /= 'none') then
-      call validate_file(trim(cpar%ds_sourcemask))    ! Source mask
+      call validate_file(trim(cpar%ds_sourcemask), 'SOURCE_MASKFILE')    ! Source mask
     end if
 
     if (trim(cpar%ds_procmask) /= 'none') then
-      call validate_file(trim(cpar%ds_procmask))      ! Processing mask
+      call validate_file(trim(cpar%ds_procmask), 'PROCESSING_MASKFILE')      ! Processing mask
     end if
 
     ! Check component files
@@ -3467,118 +3470,118 @@ end subroutine
        if (.not. cpar%cs_include(i)) cycle
 
        if (trim(cpar%cs_type(i)) == 'md') then
-          call validate_file(trim(cpar%cs_SED_template(1,i)))
+          call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_MD_DEFINITION_FILE'//itext)
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
           if (trim(cpar%cs_input_amp(i)) /= 'none') then
-               call validate_file(trim(cpar%cs_input_amp(i)))
+               call validate_file(trim(cpar%cs_input_amp(i)), 'COMP_AMP_INPUT_MAP'//itext)
           end if
           if (trim(cpar%cs_prior_amp(i)) /= 'none') then
-               call validate_file(trim(cpar%cs_prior_amp(i)))
+               call validate_file(trim(cpar%cs_prior_amp(i)), 'COMP_AMP_PRIOR_MAP'//itext)
           end if
           if (trim(cpar%cs_cltype(i)) == 'binned') then
-             call validate_file(trim(cpar%cs_binfile(i)))
-             call validate_file(trim(cpar%cs_clfile(i)))             
+             call validate_file(trim(cpar%cs_binfile(i)), 'COMP_CL_BIN_FILE'//itext)
+             call validate_file(trim(cpar%cs_clfile(i)), 'COMP_CL_DEFAULT_FILE'//itext)             
           end if
           if (trim(cpar%cs_mask(i)) /= 'fullsky') then
-               call validate_file(trim(cpar%cs_mask(i)))
+               call validate_file(trim(cpar%cs_mask(i)), 'COMP_MASK'//itext)
           end if   
           if (trim(cpar%cs_indmask(i)) /= 'fullsky') then
-               call validate_file(trim(cpar%cs_indmask(i)))
+               call validate_file(trim(cpar%cs_indmask(i)), 'COMP_INDMASK'//itext)
           end if  
 
           select case (trim(cpar%cs_type(i)))
           case ('power_law')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)),'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('exponential')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)),'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('physdust')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
-             call validate_file(trim(cpar%cs_SED_template(1,i)))
-             call validate_file(trim(cpar%cs_SED_template(2,i)))
-             call validate_file(trim(cpar%cs_SED_template(3,i)))
-             call validate_file(trim(cpar%cs_SED_template(4,i)))
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
+             call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
+             call validate_file(trim(cpar%cs_SED_template(2,i)), 'COMP_SIL_FILE2_'//itext)
+             call validate_file(trim(cpar%cs_SED_template(3,i)), 'COMP_CARB_FILE1_'//itext)
+             call validate_file(trim(cpar%cs_SED_template(4,i)), 'COMP_CARB_FILE2_'//itext)
           case ('spindust')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
-             call validate_file(trim(cpar%cs_SED_template(1,i)))             
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
+             call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)             
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('spindust2')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(2,i)))
-             call validate_file(trim(cpar%cs_SED_template(1,i)))
+                  call validate_file(trim(cpar%cs_input_ind(2,i)), 'COMP_DBETA_INPUT_MAP'//itext)
+             call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
              if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)), 'COMP_DBETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('MBB')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(2,i)))
+                  call validate_file(trim(cpar%cs_input_ind(2,i)), 'COMP_DBETA_INPUT_MAP'//itext)
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
              if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('MBBtab')
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)
              if (trim(cpar%cs_input_ind(2,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(2,i)))
+                  call validate_file(trim(cpar%cs_input_ind(2,i)), 'COMP_DBETA_INPUT_MAP'//itext)
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
              if (cpar%cs_spec_mono_combined(i,2) .and. trim(cpar%cs_spec_mono_mask(i,2)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)))
-             call validate_file(trim(cpar%cs_SED_template(1,i)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,2)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
+             call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
           case ('freefree')
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)))             
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)             
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)))
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
           case ('line')
-             call validate_file(trim(cpar%cs_SED_template(1,i)))
+             call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
           case ('pah')
-             call validate_file(trim(cpar%cs_SED_template(1,i)))
+             call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
           end select
 
        else if (trim(cpar%cs_class(i)) == 'ptsrc') then
-          call validate_file(trim(cpar%cs_catalog(i)))
+          call validate_file(trim(cpar%cs_catalog(i)), 'COMP_CATALOG'//itext)
           if (trim(cpar%cs_init_catalog(i)) /= 'none') then
-             call validate_file(trim(cpar%cs_init_catalog(i)))
+             call validate_file(trim(cpar%cs_init_catalog(i)), 'COMP_INIT_CATALOG'//itext)
           end if
-          call validate_file(trim(cpar%cs_ptsrc_template(i)), &
+          call validate_file(trim(cpar%cs_ptsrc_template(i)), 'COMP_PTSRC_TEMPLATE'//itext, &
                & should_exist=.not. cpar%cs_output_ptsrc_beam(i))
        else if (trim(cpar%cs_type(i)) == 'template' .or. trim(cpar%cs_type(i)) == 'cmb_relquad') then
-          call validate_file(trim(cpar%cs_SED_template(1,i)))
+          call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
        end if
 
     end do
 
   end subroutine validate_params
 
-  subroutine validate_file(filename, should_exist)
+  subroutine validate_file(filename, pfile_arg, should_exist)
     implicit none
-    character(len=*), intent(in)           :: filename
+    character(len=*), intent(in)           :: filename, pfile_arg
     logical(lgt),     intent(in), optional :: should_exist
     logical(lgt) :: exist, default
     default = .true.; if (present(should_exist)) default = should_exist
     inquire(file=trim(filename), exist=exist)
     if (exist .neqv. default) then
        if (default) then
-          call report_error('Error: File does not exist = '//trim(filename))
+          call report_error('Error: File does not exist = '//trim(filename)//trim(pfile_arg))
        else
-          call report_error('Error: File already exists = '//trim(filename))
+          call report_error('Error: File already exists = '//trim(filename)//trim(pfile_arg))
        end if
     else
     end if
