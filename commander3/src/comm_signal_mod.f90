@@ -249,7 +249,7 @@ contains
        c => c%next()
     end do
 
-    
+   
     ! Solve the linear system
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
          & handle, handle_noise, mask, samp_group, rhs)

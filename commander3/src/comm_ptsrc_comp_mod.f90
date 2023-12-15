@@ -77,7 +77,7 @@ module comm_ptsrc_comp_mod
      procedure :: projectBand   => projectPtsrcBand
      procedure :: updateMixmat  => updateF
      procedure :: S             => evalSED
-     procedure :: S_grad        => evalSED_grad
+     !procedure :: S_grad        => evalSED_grad
      procedure :: getScale
      procedure :: initHDF       => initPtsrcHDF
      procedure :: sampleSpecInd => samplePtsrcSpecInd
@@ -338,6 +338,7 @@ contains
        !     & (self%nu_ref/nu)**2
        evalSED = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) 
     case ("fir")
+       ! Note that this is in K_RJ, so a factor of nu^2 is divided out when compared to the MJy/sr form.
        x = h/(k_B*theta(2))
        evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
     case ("sz")
@@ -350,39 +351,37 @@ contains
     
   end function evalSED
 
-  function evalSED_grad(self, nu, band, pol, theta)
-    class(comm_ptsrc_comp),    intent(in)           :: self
-    real(dp),                  intent(in), optional :: nu
-    integer(i4b),              intent(in), optional :: band
-    integer(i4b),              intent(in), optional :: pol
-    real(dp), dimension(1:),   intent(in), optional :: theta
-    real(dp)                                        :: evalSED
-    real(dp), dimension(:), allocatable             :: evalSED_grad
+  !function evalSED_grad(self, nu, band, pol, theta)
+  !  class(comm_ptsrc_comp),    intent(in)           :: self
+  !  real(dp),                  intent(in), optional :: nu
+  !  integer(i4b),              intent(in), optional :: band
+  !  integer(i4b),              intent(in), optional :: pol
+  !  real(dp), dimension(1:),   intent(in), optional :: theta
+  !  real(dp)                                        :: evalSED
+  !  real(dp), dimension(:), allocatable             :: evalSED_grad
 
-    real(dp) :: x
+  !  real(dp) :: x
 
-    allocate(evalSED_grad(self%npar))
-    
-    select case (trim(self%type))
-    case ("radio")
-       evalSED_grad(1) = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) * log(nu/self%nu_ref(pol))
-       evalSED_grad(2) = 0d0
-    case ("fir")
-       x = h/(k_B*theta(2))
-       evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
-       evalSED_grad(1) = (nu/self%nu_ref(pol))**(theta(1)+1.d0) * &
-         & x**2 * ( (exp(x*self%nu_ref(pol))-1.d0) * exp(x*nu) * nu -  &
-         &          (exp(x*nu) - 1d0) * exp(x*self%nu_ref(pol)) * self%nu_ref(pol)) &
-         &      / (exp(x*nu) - 1d0)**2
-       evalSED_grad(2) = evalSED * log(nu/self%nu_ref(pol))
-    case ("sz")
-       call report_error('SZ is parameter-less, should not have a gradient')
-    case default
-       write(*,*) 'Unsupported point source type'
-       stop
-    end select
-    
-  end function evalSED_grad
+  !  allocate(evalSED_grad(self%npar))
+  !  
+  !  select case (trim(self%type))
+  !  case ("radio")
+  !     evalSED_grad(1) = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) * log(nu/self%nu_ref(pol))
+  !     evalSED_grad(2) = 0d0
+  !  case ("fir")
+  !     x = h/(k_B*theta(2))
+  !     evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
+  !     evalSED_grad(1) = evalSED * h/(k_B*theta(2)**2) * &
+  !       & (nu*exp(x*nu)/(exp(nu*x)-1) - self%nu_ref(pol)*exp(x*self%nu_ref(pol))/(exp(x*self%nu_ref(pol)-1)))
+  !     evalSED_grad(2) = evalSED * log(nu/self%nu_ref(pol))
+  !  case ("sz")
+  !     call report_error('SZ is parameter-less, should not have a gradient')
+  !  case default
+  !     write(*,*) 'Unsupported point source type'
+  !     stop
+  !  end select
+  !  
+  !end function evalSED_grad
 
   function evalPtsrcBand(self, band, amp_in, pix, alm_out, det)
     implicit none
@@ -872,7 +871,7 @@ contains
     integer(i4b),       intent(in)    :: band
 
 
-    integer(i4b)       :: i, j, k, n, m, p, q, s, pix, ext(1), ierr
+    integer(i4b)       :: i, j, k, n, m, p, q, s, pix, ext(1), ierr, outfreq
     character(len=128) :: itext
     type(hdf_file)     :: file
     type(Tnu), pointer :: T
@@ -883,6 +882,8 @@ contains
     real(dp),     allocatable, dimension(:,:)   :: buffer
 
     if (myid_pre == 0) call open_hdf_file(filename, file, 'r')
+
+    outfreq = (10**floor(log10(real(self%nsrc, dp)), i4b))/2
 
     do s = 1, self%nsrc
 
@@ -899,7 +900,7 @@ contains
        end if
 
        if (myid_pre == 0) then
-          if (mod(s,50000) == 0) then
+          if (mod(s,outfreq) == 0) then
              write(*,fmt='(a,i6,a,i6,a,a)') ' |    Initializing src ', s, ' of ', self%nsrc, ', ', trim(data(band)%label) 
           end if
 
@@ -1727,6 +1728,14 @@ contains
                 call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
                 call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
                 self%src(k)%theta(:,p) = theta
+
+                if (self%myid == 0) then
+                   write(*,*) 'trying to take a gradient'
+                end if
+                allocate(x(1+self%npar))
+                x(1)                   = self%x(k,p)
+                x(2:1+self%npar)       = self%src(k)%theta(:,p)
+                write(*,*) lnL_ptsrc_multi_grad(x)
                 
                 ! Update residuals
                 chisq = 0.d0
@@ -1749,8 +1758,10 @@ contains
                 call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
                 call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
                 if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
-                if (self%myid == 0 .and. mod(k,10000) == 0) write(*,*) k, real(a,sp), &
-                     & real(self%src(k)%theta(2,1),sp), real(self%src(k)%red_chisq,sp)
+                if (self%myid == 0 .and. mod(k,10000) == 0) then
+                  write(*,*) 'src, amp,     beta, red_chisq'
+                  write(*,*) k, real(a,sp), real(self%src(k)%theta(2,1),sp), real(self%src(k)%red_chisq,sp)
+                end if
              end do
           end do
        end do
@@ -2053,9 +2064,7 @@ contains
              ! Update residuals
              chisq = 0.d0
              n_pix = 0
-             !if (k == 3499 .and. self%myid == 0) open(79,file='src.dat', recl=1024)
              do l = 1, numband
-                !if (k == 3499 .and. self%myid == 0) write(*,*) l, p, data(l)%pol_only, self%src(k)%T(l)%np
                 if (self%F_null(l)) cycle
                 if (p == 1 .and. data(l)%pol_only) cycle
 
@@ -2065,10 +2074,6 @@ contains
                 ! Compute likelihood by summing over pixels
                 do q = 1, self%src(k)%T(l)%np
                    pix = self%src(k)%T(l)%pix(q,1)
-!!$                   if (k == 3499) then
-!!$                      write(*,*) p, l, pix, data(l)%N%rms_pix(pix,p), data(l)%pol_only, self%nu_min_ind(1), data(l)%bp(0)%p%nu_c, self%nu_max_ind(1), self%src(k)%glon*RAD2DEG, self%src(k)%glat*RAD2DEG, self%x(k,1)*self%cg_scale
-!!$
-!!$                   end if
                    if (data(l)%N%rms_pix(pix,p) == 0.d0) cycle
                    if (p == 1 .and. data(l)%pol_only) cycle
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
@@ -2080,18 +2085,12 @@ contains
                    n_pix = n_pix + 1
                 end do
              end do
-             !if (k == 3499 .and. self%myid == 0) close(79)
-             !if (k == 3499) write(*,*) 'chisq_myid = ', chisq, n_pix
 
              call mpi_reduce(chisq, chisq_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%comm, ierr)
              call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
              if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
-             !if (k == 3499 .and. self%myid == 0) write(*,*) 'chisq_tot = ', chisq_tot, n_pix_tot, self%src(k)%red_chisq
-
-             !if (self%myid == 0) write(*,*) 'amp = ', real(amp(k,p),sp), real(mu,sp), real(sigma,sp)
 
              if (self%myid == 0 .and. k == 1) write(68,*) iter2, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
-             !if (self%myid == 0 .and. iter==n_gibbs) write(*,*) iter, amp(k,p), self%src(k)%theta(:,1), self%src(k)%red_chisq
              
           end do
        end do
@@ -2294,6 +2293,88 @@ contains
     deallocate(theta)
 
   end function lnL_ptsrc_multi
+
+  function lnL_ptsrc_multi_grad(p)
+    use healpix_types
+    implicit none
+    real(dp), dimension(:), intent(in) :: p
+    real(dp), dimension(size(p))       :: lnL_ptsrc_multi_grad
+
+    integer(i4b) :: i, j, l, k, q, pix, ierr, flag
+    real(dp)     :: amp, s, a, a_grad
+    real(dp), allocatable, dimension(:) :: theta, lnL_grad
+
+    allocate(theta(c_lnL%npar), lnL_grad(c_lnL%npar))
+    if (c_lnL%myid == 0) then
+       flag = 1
+       call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
+       amp   = p(1)
+       theta = p(2:1+c_lnL%npar)
+       do l = 1, c_lnL%npar
+          if (c_lnL%p_gauss(2,l) == 0.d0 .or. c_lnL%p_uni(1,l) == c_lnL%p_uni(2,l)) &
+               & theta(l) = c_lnL%p_gauss(1,l)
+       end do
+    end if
+    call mpi_bcast(amp,             1, MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+    call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, c_lnL%comm, ierr)
+
+    ! Check amplitude prior
+    if (c_lnL%apply_pos_prior .and. p_lnL == 1 .and. amp < 0.d0) then
+       lnL_ptsrc_multi_grad = 0
+       deallocate(theta)
+       return
+    end if
+    
+    ! Check spectral index priors
+    do l = 1, c_lnL%npar
+       if (theta(l) < c_lnL%p_uni(1,l) .or. theta(l) > c_lnL%p_uni(2,l)) then
+          lnL_ptsrc_multi_grad = 0
+          deallocate(theta)
+          return
+       end if
+    end do
+
+    lnL_grad = 0.d0
+    do j = 1, c_lnL%npar + 1
+       do l = 1, numband
+          if (c_lnL%F_null(l)) cycle
+          if (p_lnL == 1 .and. data(l)%pol_only) cycle
+          if (data(l)%bp(0)%p%nu_c < c_lnL%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > c_lnL%nu_max_ind(1)) cycle
+             
+          ! Compute mixing matrix
+          s = c_lnL%F_int(1,l,0)%p%eval(theta)    * data(l)%gain * c_lnL%cg_scale
+             
+          ! Compute predicted source amplitude for current band
+          a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
+          if (j .eq. 1) then
+              a_grad = c_lnL%getScale(l,k_lnL,p_lnL) * s
+          else
+              a_grad = c_lnL%getScale(l,k_lnL,p_lnL) * &
+                    &  c_lnL%F_int(1,l,0)%p%eval_deriv(theta, j-1) * data(l)%gain * c_lnL%cg_scale
+          end if
+             
+          ! Compute likelihood by summing over pixels
+          do q = 1, c_lnL%src(k_lnL)%T(l)%np
+             pix = c_lnL%src(k_lnL)%T(l)%pix(q,1)
+             if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
+             lnL_grad(j) = lnL_grad(j) + a_grad * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(l)%map(q,p_lnL)*a) / &
+                  & data(l)%N%rms_pix(pix,p_lnL)**2
+          end do
+             
+       end do
+    end do
+    
+    ! Collect results from all cores
+    call mpi_reduce(lnL_grad, lnL_ptsrc_multi_grad, size(lnL_grad), MPI_DOUBLE_PRECISION, MPI_SUM, 0, c_lnL%comm, ierr)
+
+
+    ! Making this the gradient of the chisquare just to test.
+    lnL_ptsrc_multi_grad = -2.d0*lnL_ptsrc_multi_grad
+    
+
+    deallocate(theta)
+
+  end function lnL_ptsrc_multi_grad
 
   subroutine updatePtsrcFInt(self, band)
     implicit none
