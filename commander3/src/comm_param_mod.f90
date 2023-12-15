@@ -3469,6 +3469,7 @@ end subroutine
     do i = 1, cpar%cs_ncomp_tot
        if (.not. cpar%cs_include(i)) cycle
 
+       call int2string(i, itext)
        if (trim(cpar%cs_type(i)) == 'md') then
           call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_MD_DEFINITION_FILE'//itext)
        else if (trim(cpar%cs_class(i)) == 'diffuse') then
@@ -3546,9 +3547,9 @@ end subroutine
 !!$             if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
 !!$                  call validate_file(trim(cpar%cs_input_ind(1,i)))
              if (trim(cpar%cs_input_ind(1,i)) /= 'default') &
-                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_BETA_INPUT_MAP'//itext)             
+                  call validate_file(trim(cpar%cs_input_ind(1,i)), 'COMP_T_E_INPUT_MAP'//itext)             
              if (cpar%cs_spec_mono_combined(i,1) .and. trim(cpar%cs_spec_mono_mask(i,1)) /= 'fullsky') &
-                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_BETA_COMBINED_MONOPOLE_MASK'//itext)
+                  & call validate_file(trim(cpar%cs_spec_mono_mask(i,1)), 'COMP_T_E_COMBINED_MONOPOLE_SAMPLING'//itext)
           case ('line')
              call validate_file(trim(cpar%cs_SED_template(1,i)), 'COMP_SIL_FILE1_'//itext)
           case ('pah')
@@ -3579,9 +3580,9 @@ end subroutine
     inquire(file=trim(filename), exist=exist)
     if (exist .neqv. default) then
        if (default) then
-          call report_error('Error: File does not exist = '//trim(filename)//trim(pfile_arg))
+          call report_error('Error: File does not exist = '//trim(filename)//', '//trim(pfile_arg))
        else
-          call report_error('Error: File already exists = '//trim(filename)//trim(pfile_arg))
+          call report_error('Error: File already exists = '//trim(filename)//', '//trim(pfile_arg))
        end if
     else
     end if
