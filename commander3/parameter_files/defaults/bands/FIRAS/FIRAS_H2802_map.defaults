@@ -35,7 +35,7 @@ BAND_DEFAULT_NOISEAMP&&&       =   1.
 BAND_COMPONENT_SENSITIVITY&&&  = broadband
 
 BAND_TOD_TYPE&&&               = none
-BAND_MAPFILE&&&                = FIRAS_map_2802GHz_highf.fits
+BAND_MAPFILE&&&                = FIRAS_map_2802GHz_highf_zc.fits
 BAND_NOISEFILE&&&              = FIRAS_rms_2802GHz_highf.fits
 BAND_REG_NOISEFILE&&&          = none   
 BAND_NOISE_RMS&&&_SMOOTH01     = none

@@ -818,7 +818,7 @@ contains
           ! Construct beam on-the-fly
           do j = 1, self%nsrc
              if (mod(j,1000) == 0 .and. self%myid == 0) &
-                  & write(*,fmt='(a,i6,a,i6)') ' |    Initializing src no. ', j, ' of ', self%nsrc
+                  & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc
              self%src(j)%T(i)%nside   = data(i)%info%nside
              self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
              allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps,0:data(i)%ndet))

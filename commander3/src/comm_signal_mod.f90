@@ -500,6 +500,7 @@ contains
           call rms%dealloc
           deallocate(regnoise)
        end do
+
     else if (cpar%resamp_CMB) then
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
