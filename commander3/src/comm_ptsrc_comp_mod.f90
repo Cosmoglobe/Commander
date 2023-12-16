@@ -784,7 +784,7 @@ contains
           ! Construct beam on-the-fly
           do j = 1, self%nsrc
              if (mod(j,1000) == 0 .and. self%myid == 0) &
-                  & write(*,fmt='(a,i6,a,i6)') ' |    Initializing src no. ', j, ' of ', self%nsrc
+                  & write(*,fmt='(a,i8,a,i8)') ' |    Initializing src no. ', j, ' of ', self%nsrc
              self%src(j)%T(i)%nside   = data(i)%info%nside
              self%src(j)%T(i)%nmaps   = min(data(i)%info%nmaps, self%nmaps)
              allocate(self%src(j)%T(i)%F(self%src(j)%T(i)%nmaps,0:data(i)%ndet))
@@ -865,7 +865,7 @@ contains
 
        if (myid_pre == 0) then
           if (mod(s,50000) == 0) then
-             write(*,fmt='(a,i6,a,i6,a,a)') ' |    Initializing src ', s, ' of ', self%nsrc, ', ', trim(data(band)%label) 
+             write(*,fmt='(a,i8,a,i8,a,a)') ' |    Initializing src ', s, ' of ', self%nsrc, ', ', trim(data(band)%label) 
           end if
 
           ! Find center pixel number for current source

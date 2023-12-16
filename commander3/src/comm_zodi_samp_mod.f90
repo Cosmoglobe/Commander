@@ -150,7 +150,7 @@ contains
       !call compute_downsamp_zodi(cpar, model)
       !if (cpar%myid == cpar%root) print *, new_line('A'), "sampling and subtracting monopole"
       !call sample_and_subtract_monopole(cpar, handle)
-      if (cpar%myid == cpar%root) print *, new_line('A'), "sampling n0"
+      !if (cpar%myid == cpar%root) print *, new_line('A'), "sampling n0"
       call sample_n0_emissivity_and_albedo(cpar, handle, gibbs_iter, model)
    end subroutine
 
@@ -382,9 +382,12 @@ contains
                ln_accept_prob = -0.5 * chisq_diff
                select case (cpar%operation)
                   case ("sample")
-                     accepted = ln_accept_prob > log(rand_uni(handle))
+                     accepted = ln_accept_prob > log(rand_uni(handle)) .and. &
+                          & all (emissivity_new > 0.) .and. all (emissivity_new < 5.) .and. &
+                          & all (albedo_new > 0.) .and. all (albedo_new < 1.) 
                   case ("optimize")
-                     accepted = chisq_diff < 0.
+                     accepted = chisq_diff < 0. .and. all (emissivity_new > 0.) .and. all (emissivity_new < 5.) .and. &
+                          & all (albedo_new > 0.) .and. all (albedo_new < 1.)
                   case default
                      stop "Error: invalid cpar%operation in comm_zodi_samp_mod sample_n0 routine"
                end select
@@ -1067,7 +1070,7 @@ contains
       logical(lgt) :: accept
       real(dp), allocatable :: theta(:), theta_phys(:), theta_new(:), theta_final(:)
       character(len=128), allocatable :: labels(:)
-      integer(i4b) :: i, j, ierr, flag, group_idx, end_idx, n_bands
+      integer(i4b) :: i, j, k, ierr, flag, group_idx, end_idx, n_bands
       real(dp) :: chisq_lnL, chisq_red
       real(dp), allocatable, dimension(:) :: prior_vec_powell_min, prior_vec_powell_max, prior_vec_powell_type 
       integer(i4b), allocatable :: indices(:)
@@ -1143,7 +1146,9 @@ contains
          !filter out N_0 parameters and scale to physical units
          theta_phys = pack(theta / theta_0, powell_included_params)
          !call powell(theta_phys, lnL_zodi, ierr)
-         call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3)
+         do k = 1, 2
+            call powell(theta_phys, lnL_zodi, ierr, tolerance=1d-3)
+         end do
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
          chisq_red = lnL_zodi(theta_phys)
@@ -1200,10 +1205,12 @@ contains
       
       if (accept) then
          ! Accept new point; update
+         if (cpar%myid == cpar%root) write(*,fmt='(a,f8.2,a,f8.2)') 'Zodi sample accepted, chisq_new =', chisq_red, ', chisq_old = ', chisq_red_current
          param_vec_current = theta_final
          chisq_red_current = chisq_red
       else
          ! Reject new solution, reset to previous solution
+         if (cpar%myid == cpar%root) write(*,fmt='(a,f8.2,a,f8.2)') 'Zodi sample rejected, chisq_new =', chisq_red, ', chisq_old = ', chisq_red_current
          call zodi_model%params_to_model(param_vec_current)         
          deallocate(prior_vec_powell, theta_0, powell_included_params)
          return
@@ -1392,16 +1399,16 @@ contains
                ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
 
-               if (data(1)%tod%myid == 0 .and. scan == 1) then
-                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
-                  open(58,file='res.dat')
-                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
-                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k)
-                  end do
-                  close(58)
-               end if
+!!$               if (data(1)%tod%myid == 0 .and. scan == 1) then
+!!$                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
+!!$                  open(58,file='res.dat')
+!!$                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+!!$                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
+!!$                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
+!!$                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k)
+!!$                  end do
+!!$                  close(58)
+!!$               end if
                call wall_time(t3)
                !if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
 
@@ -1710,7 +1717,7 @@ contains
      real(dp)     :: eps
      real(dp), allocatable :: param_vec(:)
 
-     eps = 0.01d0
+     eps = 0.00d0
 
      allocate(param_vec(zodi_model%n_params))
      if (cpar%myid == 0) then

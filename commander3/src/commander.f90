@@ -199,7 +199,6 @@ program commander
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
   end if
 
-
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
 
@@ -265,6 +264,7 @@ program commander
   ! Will make only one full gibbs loop to produce simulations
   !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
   !----------------------------------------------------------------------------------
+
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
@@ -280,6 +280,11 @@ program commander
            curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
            if (cpar%myid_chain == 0) write(*,*) '|  Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
+           ! initialize zodi samp mod; hack -- should be taken from HDF file, but needs a little rewrite
+           if (cpar%include_tod_zodi) then
+              call int2string(curr_samp, samptext)
+              call ascii_to_zodi_model(cpar, zodi_model, trim(cpar%outdir) // '/zodi_ascii_k' // samptext // '.dat')
+           end if
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
@@ -336,7 +341,7 @@ program commander
    if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
-      if (iter == 2) then
+      if (iter == 2 .or. (first_sample > 1 .and. iter == first_sample)) then
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
@@ -350,7 +355,7 @@ program commander
 !!$      end do
       
       call compute_downsamp_zodi(cpar, zodi_model)      
-      if (iter == 2) then
+      if (iter == 2 .or. (first_sample > 1 .and. iter == first_sample)) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)      
          call create_zodi_glitch_mask(cpar)
@@ -613,7 +618,11 @@ contains
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+             if (trim(data(i)%tod%tod_type) == 'DIRBE') then
+                call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
+             else
+                call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+             end if
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
              !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
@@ -695,7 +704,9 @@ contains
        deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr
-       call nullify_monopole_amp(data(i)%label)
+       if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
+          call nullify_monopole_amp(data(i)%label)
+       end if
        
     end do
     if (associated(gainmap)) call gainmap%dealloc()

@@ -1113,6 +1113,9 @@ contains
        data(i)%res%map =  res%map
        call res%dealloc(); deallocate(res)
        nullify(res)
+!!$       call data(i)%res%writeFITS('res_'//trim(data(i)%label)//'.fits')
+!!$       call mpi_finalize(ierr)
+!!$       stop
     end do
 
     ! Sample poltype index poltype_id of spec. ind. par_id of component comp_id
