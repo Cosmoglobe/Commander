@@ -413,7 +413,7 @@ program commander
 
 
      ! Sample gains off of absolutely calibrated FIRAS maps
-     if (iter > 1) then
+     if (iter > 5) then
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
      end if
 
