@@ -133,7 +133,7 @@ contains
 
     ! Sample calibration factors
     do i = 1, numband
-       if (.not. data(i)%sample_gain) cycle
+       if (.not. data(i)%sample_gain .or. index(data(i)%gain_comp, 'firas') .ne. 0) cycle
        call sample_gain(cpar%operation, i, cpar%outdir, cpar%mychain, iter, mod(iter,cpar%resamp_hard_gain_prior_nth_iter)==0, handle)
     end do
 

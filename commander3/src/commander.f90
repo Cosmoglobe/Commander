@@ -32,6 +32,7 @@ program commander
   use comm_zodi_mod
   use comm_zodi_samp_mod
   use comm_tod_zodi_mod
+  use comm_gain_mod
   use hmc_mod
   implicit none
 
@@ -55,6 +56,13 @@ program commander
   character(len=*), parameter :: version = '1.0.0'
   character(len=32)           :: arg
   integer                     :: arg_indx
+
+  real(dp), allocatable :: param_test(:)
+  real(dp) :: time_step
+  integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
+
+  bands_to_sample = (/1,2/)
+  bands_to_calibrate_against= (/1,2/)
 
   
 
@@ -101,6 +109,15 @@ program commander
   status%active = cpar%myid_chain == 0 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
+!!!  if (cpar%myid == cpar%root) then
+!!!      allocate(param_test(200))
+!!!      param_test = 0.5d0
+!!!      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
+!!!      write(*,*) "first", param_test(1)
+!!!      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!!!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!!!      write(*,*) "last", param_test(1)
+!!!  end if
 
 !!$  n = 100000
 !!$  q = 100000
@@ -123,6 +140,8 @@ program commander
 !!$  end do
 !!$  deallocate(arr)
 !!$  stop
+
+
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -167,13 +186,9 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
-  ! Initialising Bandpass
-  ! TODO: Add QUIET stuff into bandpass module
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
-  ! Initialising Data -- load it into memory?
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
-  ! Debug statement to actually see whether
-  ! QUIET is loaded into memory
+
 
   ! Precompute zodi lookups
   if (cpar%enable_tod_analysis .and. cpar%include_tod_zodi) then
@@ -274,6 +289,8 @@ program commander
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
         write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
+
+
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
@@ -399,6 +416,12 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
 
+
+     ! Sample gains off of absolutely calibrated FIRAS maps
+     if (iter > 1) then
+        call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
+     end if
+
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
@@ -431,6 +454,8 @@ program commander
         call timer%stop(TOT_CLS)
      end if
 
+
+
      ! Sample power spectra
      call timer%start(TOT_CLS)
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
@@ -459,6 +484,8 @@ program commander
             call output_tod_params_to_hd5(cpar, zodi_model, data(i)%tod, iter)
          end do
      end if
+
+
 
      call wall_time(t2)
      if (ok) then
@@ -527,7 +554,7 @@ contains
 
 
 
-    do i = 1, numband  
+    do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
        if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
            if (cpar%myid == 0) then

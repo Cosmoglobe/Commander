@@ -134,7 +134,7 @@ then
 	# Unloading any loaded module
 	module purge
 	# Loading GNU Autotools (autoconf, libtool, automake etc.), GIT and CMake
-	module load gnu git/2.30.1 cmake/3.21.1
+	module load git cmake
 	# Choosing which compiler toolchain to use
 	if [[ "$toolchain" =~ "intel" ]]
 	then
@@ -153,15 +153,14 @@ then
 	then
 		# Compilers
 		fc="ifort"
-		cc="icx"
-		cxx="icpx"
+		cc="icc"
+		cxx="icpc"
 		# MPI compilers
 		mpifc="mpiifort" 
-		mpicc="mpiicx"
-		mpicxx="mpiicpx"
+		mpicc="mpiicc"
+		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load intel/oneapi mpi/latest icc/latest compiler/latest mkl/latest
-    # module load intel/oneapi mpi/latest compiler/2023.2.1 mkl/latest
+    module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -226,27 +225,27 @@ then
 		mkdir $abs_path_to_build 
 	fi
 	#------------------------------------------------------------------------------
-	rm -rf $abs_path_to_build/CMakeCache.txt
-	#------------------------------------------------------------------------------
-	# Executing CMake commands for the first time
-	#------------------------------------------------------------------------------
-	cmake \
-	-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
-	-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
-	-DCMAKE_BUILD_TYPE="$buildtype" \
-	-DCMAKE_Fortran_COMPILER=$fc \
-	-DCMAKE_C_COMPILER=$cc \
-	-DCMAKE_CXX_COMPILER=$cxx \
-	-DMPI_C_COMPILER=$mpicc \
-	-DMPI_CXX_COMPILER=$mpicxx \
-	-DMPI_Fortran_COMPILER=$mpifc \
-	-DCFITSIO_USE_CURL:BOOL=OFF \
-	-DUSE_SYSTEM_FFTW:BOOL=OFF \
-	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	-DUSE_SYSTEM_HDF5:BOOL=OFF \
-	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=ON \
-	-S $comm3_root_dir -B $abs_path_to_build
+	#rm -rf $abs_path_to_build/CMakeCache.txt
+	##------------------------------------------------------------------------------
+	## Executing CMake commands for the first time
+	##------------------------------------------------------------------------------
+	#cmake \
+	#-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
+	#-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
+	#-DCMAKE_BUILD_TYPE="$buildtype" \
+	#-DCMAKE_Fortran_COMPILER=$fc \
+	#-DCMAKE_C_COMPILER=$cc \
+	#-DCMAKE_CXX_COMPILER=$cxx \
+	#-DMPI_C_COMPILER=$mpicc \
+	#-DMPI_CXX_COMPILER=$mpicxx \
+	#-DMPI_Fortran_COMPILER=$mpifc \
+	#-DCFITSIO_USE_CURL:BOOL=OFF \
+	#-DUSE_SYSTEM_FFTW:BOOL=OFF \
+	#-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
+	#-DUSE_SYSTEM_HDF5:BOOL=OFF \
+	#-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
+	#-DUSE_SYSTEM_BLAS:BOOL=ON \
+	#-S $comm3_root_dir -B $abs_path_to_build
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
