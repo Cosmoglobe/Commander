@@ -1399,16 +1399,16 @@ contains
                ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
 
-!!$               if (data(1)%tod%myid == 0 .and. scan == 1) then
-!!$                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
-!!$                  open(58,file='res.dat')
-!!$                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-!!$                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
-!!$                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-!!$                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k)
-!!$                  end do
-!!$                  close(58)
-!!$               end if
+               if (data(1)%tod%myid == 0 .and. scan == 1) then
+                  !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
+                  open(58,file='res'//trim(data(i)%tod%freq)//'.dat')
+                  do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
+                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
+                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k)
+                  end do
+                  close(58)
+               end if
                call wall_time(t3)
                !if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
 
@@ -1717,7 +1717,7 @@ contains
      real(dp)     :: eps
      real(dp), allocatable :: param_vec(:)
 
-     eps = 0.00d0
+     eps = 0.003d0
 
      allocate(param_vec(zodi_model%n_params))
      if (cpar%myid == 0) then
