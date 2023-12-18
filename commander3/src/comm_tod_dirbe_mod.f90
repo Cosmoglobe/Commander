@@ -111,9 +111,9 @@ contains
       allocate(constructor%xi_n_P_rms(constructor%n_xi))
 
       constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] 
-      ! [sigma0, fknee, alpha]; sigma\0 is not used
+      ! [sigma0, fknee, alpha]; sigma0 is not used
       do i = 1, constructor%n_xi 
-         constructor%xi_n_nu_fit(i,:) = [0.d0, 0.3d0] 
+         constructor%xi_n_nu_fit(i,:) = [0.d0, 0.01d0] 
       end do
       constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
       constructor%xi_n_P_uni(2,:) = [0.00001d0, 0.3d0]  ! fknee
@@ -225,7 +225,7 @@ contains
       type(map_ptr),       dimension(1:,1:),    intent(inout), optional :: map_gain       ! (ndet,1)
       real(dp)            :: t1, t2
       integer(i4b)        :: i, j, k, l, ierr, ndelta, nside, npix, nmaps, tod_start_idx, n_tod_tot, n_comps_to_fit
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, sample_gain, output_scanlist, sample_zodi, use_k98_samp_groups, output_zodi_comps, sample_ncorr
       type(comm_binmap)   :: binmap
       type(comm_scandata) :: sd
       character(len=4)    :: ctext, myid_text
@@ -258,7 +258,14 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-      
+      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
+        & trim(self%freq) == '03' .or. &
+        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
+         sample_ncorr = .true.
+      else
+         sample_ncorr = .false.
+      end if
+         
       ! Initialize local variables
       ndelta          = size(delta,3)
       self%n_bp_prop  = ndelta-1
@@ -341,18 +348,20 @@ contains
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Sample correlated noise
-         !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-         ! call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1))
-         sd%n_corr = 0.d0
-
-         ! Compute noise spectrum parameters
-         ! call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         if (sample_ncorr) then
+            !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+            call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1)) 
+           ! Compute noise spectrum parameters
+            call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+         else
+            sd%n_corr = 0.d0
+         end if
 
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
+              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j), verbose=.true.)
          end do
 
          ! Select data
