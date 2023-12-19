@@ -216,6 +216,9 @@ contains
     ! That is, we make a MH proposal to change the gain of all of these channels, 
     ! compute one step of the compsep amplitude sampling, and make an accept/reject decision based on the FIRAS chisq.
 
+    !operation = cpar%operation
+    !cpar%operation = 'optimize'
+
 
     n_sample = 0
     n_firas = 0
@@ -250,8 +253,6 @@ contains
       end if
     end if
        
-
-
     allocate(bands_firas(n_firas), bands_sample(n_sample), gains_prop(n_sample), gains_old(n_sample))
     allocate(chisqs_old(n_firas), chisqs_prop(n_firas))
 
@@ -313,6 +314,7 @@ contains
 
     ! MH Step
     sigma = 0.005
+    !sigma = 1e-6
 
     do i = 1, n_sample
       if (data(bands_sample(i))%info%myid == root) then
@@ -428,7 +430,7 @@ contains
     if (reject) then
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
-        write(*,*) '| MH step rejected, sampling amplitudes with original gains'
+        write(*,*) '| MH step rejected, returning to original gains.'
         write(*,*) '| '
       end if
       do i = 1, n_sample
