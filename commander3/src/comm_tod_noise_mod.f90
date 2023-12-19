@@ -460,6 +460,7 @@ contains
     n_gibbs  = 1
 
     ! Sample sigma_0 from pairwise differenced TOD
+!    open(58,file='res.dat')
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        s    = 0.d0
@@ -469,11 +470,13 @@ contains
           if (any(mask(j:j+1,i) < 0.5)) cycle
           res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
                & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
+          !write(58,*) j, res
           s    = s    + res**2
           nval = nval + 1
        end do
        if (nval > 100) self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
     end do
+    !close(58)
 
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))

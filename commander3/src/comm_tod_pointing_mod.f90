@@ -39,7 +39,7 @@ contains
       real(sp),     dimension(:,:),      intent(out)            :: s_sky, tmask
       real(sp),     dimension(:,:),      intent(out), optional  :: s_bp
 
-      integer(i4b)                                      :: i, p, det, nmap
+      integer(i4b)                                      :: i, j, k, p, det, nmap
       real(sp)                                          :: s
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
@@ -92,6 +92,17 @@ contains
          end do
       end if
 
+      ! Apply dynamic mask if it exists
+      do det = 1, tod%ndet
+         if (allocated(tod%scans(scan_id)%d(det)%mask_dyn)) then
+            do i = 1, size(tod%scans(scan_id)%d(det)%mask_dyn,2)
+               j = tod%scans(scan_id)%d(det)%mask_dyn(1,i)
+               k = tod%scans(scan_id)%d(det)%mask_dyn(2,i)
+               tmask(j:k,det) = 0.
+            end do
+         end if
+      end do
+      
    end subroutine project_sky
 
    ! Sky signal template

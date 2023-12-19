@@ -53,6 +53,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:,:)  :: diode          ! (ndiode, ntod) array of undifferenced data
      type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
      byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
+     integer(i4b),       allocatable, dimension(:,:)  :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked samples
      type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
      type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
      integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
@@ -71,6 +72,8 @@ module comm_tod_mod
 
      real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
      real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
+   contains
+     procedure :: create_dynamic_mask
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -2874,4 +2877,81 @@ contains
       end if
    end subroutine clear_zodi_cache
 
+   subroutine create_dynamic_mask(self, res, mask, threshold)
+     implicit none
+     class(comm_detscan),               intent(inout) :: self
+     real(sp),            dimension(:), intent(in)    :: res
+     real(sp),            dimension(:), intent(inout) :: mask
+     real(sp),                          intent(in)    :: threshold
+     
+      integer(i4b) :: i, j, k, n, ntod, nmax
+      real(dp) :: box_width, rms
+      integer(i4b), allocatable, dimension(:,:) :: bad, buffer
+
+      ntod = size(res)
+      nmax = 1000
+      
+      ! Compute rms
+      rms = 0.d0
+      n   = 0
+      do i = 1, ntod
+         if (mask(i) /= 1.) cycle
+         rms = rms + res(i)**2
+         n   = n   + 1
+      end do
+      rms = sqrt(rms/n)
+
+      allocate(bad(2,nmax))
+      
+      ! Look for strong outliers, save bad ranges
+      bad = -1
+      n   = 0
+      do i = 1, ntod
+         if (mask(i) /= 1) cycle
+         if (abs(res(i)) > threshold*rms) then
+            ! Start new range if not already active
+            if (bad(1,n+1) == -1) bad(1,n+1) = i
+            ! Remove sample from current mask
+            mask(i) = 0.
+         else
+            ! Close active range
+            if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+               bad(2,n+1) = i-1
+               n          = n+1
+            end if
+         end if
+
+         ! Close open range if needed at the end
+         if (i == ntod .and. bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+            bad(2,n+1) = ntod
+            n          = n+1
+         end if
+
+         ! Increase array size if needed
+         if (n == nmax) then
+            nmax = 2*nmax
+            allocate(buffer(2,nmax))
+            buffer = -1
+            buffer(:,1:nmax/2) = bad
+            deallocate(bad)
+            allocate(bad(2,nmax))
+            bad = buffer
+            deallocate(buffer)
+         end if
+      end do
+
+      ! Store final array
+      if (n > 0) then
+         allocate(self%mask_dyn(2,n))
+         self%mask_dyn = bad(:,1:n)
+
+!!$         do i = 1, n
+!!$            write(*,*) i, bad(:,i)
+!!$         end do
+      end if
+
+      deallocate(bad)
+   end subroutine
+
+   
 end module comm_tod_mod

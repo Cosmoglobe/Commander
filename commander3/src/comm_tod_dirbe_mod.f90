@@ -347,6 +347,14 @@ contains
          call wall_time(t1)
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
+         ! Create dynamic mask
+         if (self%first_call) then
+            do j = 1, sd%ndet
+               if (.not. self%scans(i)%d(j)%accept) cycle
+               call self%scans(i)%d(j)%create_dynamic_mask(sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), sd%mask(:,j), 5.0)
+            end do
+         end if
+         
          ! Sample correlated noise
          if (sample_ncorr) then
             !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
