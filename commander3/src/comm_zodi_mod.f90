@@ -14,17 +14,20 @@ module comm_zodi_mod
    type, abstract :: ZodiComponent
       real(dp) :: x_0, y_0, z_0, incl, Omega, n_0
       real(dp), allocatable :: sin_omega, cos_omega, sin_incl, cos_incl
-      !priors
    contains
       procedure :: init_base_comp
-      procedure(init_interface), deferred :: init
+      procedure(init_interface),    deferred :: init
       procedure(density_interface), deferred :: get_density
+      procedure(prior_interface),   deferred :: init_priors_and_scales
+      procedure(p2m_interface),     deferred :: param2model
+      procedure(m2p_interface),     deferred :: model2param
    end type ZodiComponent
 
    type :: ZodiComponentContainer
+      integer(i4b) :: npar, start_ind
       class(ZodiComponent), allocatable :: c
       character(len=32), allocatable :: labels(:)
-   end type
+   end type ZodiComponentContainer
 
    abstract interface
       subroutine init_interface(self)
@@ -35,7 +38,6 @@ module comm_zodi_mod
       subroutine density_interface(self, X_vec, theta, n_out)
          ! Returns the dust density (n) of the component at heliocentric
          ! coordinates (x, y, z) and the earths longitude (theta).
-
          import i4b, dp, ZodiComponent
          class(ZodiComponent) :: self
          real(dp), intent(in) :: X_vec(:, :)
@@ -44,6 +46,26 @@ module comm_zodi_mod
          real(dp) :: x_prime, y_prime, z_prime, R, Z_midplane
       end subroutine density_interface
 
+      subroutine prior_interface(self, start_ind, prior, scale)
+        import dp, i4b, ZodiComponent
+        class(ZodiComponent),       intent(in)    :: self
+        integer(i4b),               intent(in)    :: start_ind
+        real(dp), dimension(1:,1:), intent(inout) :: prior
+        real(dp), dimension(1:),    intent(inout) :: scale
+      end subroutine prior_interface
+
+      subroutine p2m_interface(self, x)
+        import dp,ZodiComponent
+        class(ZodiComponent),       intent(inout) :: self
+        real(dp), dimension(1:),    intent(in)    :: x
+      end subroutine p2m_interface
+
+      subroutine m2p_interface(self, x)
+        import dp,ZodiComponent
+        class(ZodiComponent),       intent(in)  :: self
+        real(dp), dimension(1:),    intent(out) :: x
+      end subroutine m2p_interface
+
    end interface
 
    type, extends(ZodiComponent) :: ZodiCloud
@@ -51,6 +73,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_cloud
       procedure :: get_density => get_density_cloud
+      procedure :: init_priors_and_scales => init_cloud_priors_and_scales
+      procedure :: param2model => param2model_cloud
+      procedure :: model2param => model2param_cloud
    end type ZodiCloud
 
    type, extends(ZodiComponent) :: ZodiBand
@@ -59,6 +84,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_band
       procedure :: get_density => get_density_band
+      procedure :: init_priors_and_scales => init_band_priors_and_scales
+      procedure :: param2model => param2model_band
+      procedure :: model2param => model2param_band
    end type ZodiBand
 
    type, extends(ZodiComponent) :: ZodiRing
@@ -68,6 +96,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_ring
       procedure :: get_density => get_density_ring
+      procedure :: init_priors_and_scales => init_ring_priors_and_scales
+      procedure :: param2model => param2model_ring
+      procedure :: model2param => model2param_ring
    end type ZodiRing
 
    type, extends(ZodiComponent) :: ZodiFeature
@@ -77,6 +108,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_feature
       procedure :: get_density => get_density_feature
+      procedure :: init_priors_and_scales => init_feature_priors_and_scales
+      procedure :: param2model => param2model_feature
+      procedure :: model2param => model2param_feature
    end type ZodiFeature
 
    type, extends(ZodiComponent) :: ZodiInterstellar
@@ -84,6 +118,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_interstellar
       procedure :: get_density => get_density_interstellar
+      procedure :: init_priors_and_scales => init_interstellar_priors_and_scales
+      procedure :: param2model => param2model_interstellar
+      procedure :: model2param => model2param_interstellar
    end type ZodiInterstellar
 
    type, extends(ZodiComponent) :: ZodiFan
@@ -91,6 +128,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_fan
       procedure :: get_density => get_density_fan
+      procedure :: init_priors_and_scales => init_fan_priors_and_scales
+      procedure :: param2model => param2model_fan
+      procedure :: model2param => model2param_fan
    end type ZodiFan
 
    type, extends(ZodiComponent) :: ZodiComet
@@ -98,6 +138,9 @@ module comm_zodi_mod
    contains
       procedure :: init => init_comet
       procedure :: get_density => get_density_comet
+      procedure :: init_priors_and_scales => init_comet_priors_and_scales
+      procedure :: param2model => param2model_comet
+      procedure :: model2param => model2param_comet
    end type ZodiComet
 
    type :: ZodiModel
@@ -109,19 +152,37 @@ module comm_zodi_mod
       real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
       real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
-   contains
-      procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, comp_from_chain
+
+      integer(i4b) :: npar_tot
+      integer(i4b), allocatable, dimension(:,:) :: theta_stat
+      integer(i4b), allocatable, dimension(:)   :: theta2band
+      real(dp),     allocatable, dimension(:,:) :: theta_prior
+      real(dp),     allocatable, dimension(:)   :: theta_scale
+    contains
+      procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales
    end type ZodiModel
    type(ZodiModel), target :: zodi_model
-
+   integer(i4b)            :: numband
+   character(len=128)      :: zodi_refband
+   character(len=128), allocatable, dimension(:) :: band_labels
+   character(len=128), allocatable, dimension(:) :: band_todtype
+   real(dp),           allocatable, dimension(:) :: band_nu_c
+   
 contains
    subroutine initialize_zodi_mod(cpar)
       type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, ierr
+      integer(i4b) :: i, j, ierr, ind, npar
       character(len=256) :: file_path
       real(dp), allocatable :: comp_params(:, :)
       character(len=128), allocatable :: comp_labels(:)
 
+      ! Find number of bands and labels
+      numband      = count(cpar%ds_active)
+      band_labels  = pack(cpar%ds_label, cpar%ds_active)
+      band_todtype = pack(cpar%ds_tod_type, cpar%ds_active)
+      band_nu_c    = pack(cpar%ds_nu_c, cpar%ds_active)
+      zodi_refband = cpar%zs_refband
+      
       ! Set model and zodi_mod parameters from cpar
       zodi_model%n_comps = cpar%zs_ncomps
       allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
@@ -138,7 +199,76 @@ contains
       end do
       call zodi_model%init_comps(comp_params, cpar%zs_comp_types, cpar%zodi_param_labels)
       call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
-   end subroutine initialize_zodi_mod
+
+      ! Find total number of free parameters, and set up parameter mapping
+      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband
+      zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
+      do i = 1, zodi_model%n_comps
+         zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
+         if (i < zodi_model%n_comps) then
+            zodi_model%comps(i+1)%start_ind = zodi_model%comps(i)%start_ind + &
+                 & zodi_model%comps(i)%npar + 2*numband
+         end if
+      end do
+
+      ! stat =  0  -> sample freely
+      ! stat = -1  -> fix to input
+      ! stat = -2  -> fix to zero
+      ! stat = -3  -> fix to unity
+      ! stat >  0  -> set equal to parameter stat
+      allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
+      allocate(zodi_model%theta2band(zodi_model%npar_tot))
+      allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
+      allocate(zodi_model%theta_scale(zodi_model%npar_tot))
+
+      ! Set up sampling groups
+      do i = 1, cpar%zs_num_samp_groups
+         call samp_group2stat(cpar%zs_samp_groups(i), zodi_model%theta_stat(:,i))
+      end do
+      do i = 1, zodi_model%npar_tot
+         zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
+      end do
+
+      ! Initialize parameter-band mapping
+      zodi_model%theta2band(1:zodi_model%n_general_params) = 0 ! General paraneters affect all bands
+      do i = 1, zodi_model%n_comps
+         ind  = zodi_model%comps(i)%start_ind
+         npar = zodi_model%comps(i)%npar
+         zodi_model%theta2band(ind:ind+npar-1) = 0 ! Shape paraneters affect all band
+         do j = 1, numband
+            zodi_model%theta2band(ind+npar+j-1) = j   ! Emissivity only affect band j
+            zodi_model%theta2band(ind+npar+numband+j-1) = j ! The same for albedo
+         end do
+      end do
+
+      ! Initialize priors and scale factors
+      call zodi_model%init_general_priors_and_scales(zodi_model%theta_prior, &
+           & zodi_model%theta_scale)
+      do i = 1, zodi_model%n_comps
+         ! Shape parameters
+         call zodi_model%comps(i)%c%init_priors_and_scales(zodi_model%comps(i)%start_ind, &
+              & zodi_model%theta_prior, zodi_model%theta_scale)
+         ! Emissivity and albedo
+         ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
+         do j = 1, numband
+            zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
+            zodi_model%theta_scale(ind+j)   = 1.d0
+            zodi_model%theta_prior(:,ind+numband+j) = [0.d0, 1.d0, 0.3d0, -1.d0] ! Albedo
+            zodi_model%theta_scale(ind+numband+j)   = 1.d0
+         end do
+      end do
+
+      if (cpar%myid_chain == 0) then
+         write(*,*) ' Total number of free zodi parameters = ', count(zodi_model%theta_stat(:,0)==0)
+!!$         do i = 1, zodi_model%npar_tot
+!!$            !write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:), ', band=', zodi_model%theta2band(i), ', prior=', zodi_model%theta_prior(:,i), ', scale=', zodi_model%theta_scale(i)
+!!$            write(*,*) i,  ', band=', zodi_model%theta2band(i)
+!!$         end do
+      end if
+!!$      call mpi_finalize(ierr)
+!!$      stop
+      
+    end subroutine initialize_zodi_mod
 
    subroutine init_general_params(self, general_params)
       class(ZodiModel), intent(inout) :: self
@@ -148,11 +278,11 @@ contains
    end subroutine
 
    subroutine init_base_comp(self)
-      class(ZodiComponent) :: self
+     class(ZodiComponent) :: self
       self%sin_omega = sin(self%Omega*deg2rad)
       self%cos_omega = cos(self%Omega*deg2rad)
-      self%sin_incl = sin(self%incl*deg2rad)
-      self%cos_incl = cos(self%incl*deg2rad)
+      self%sin_incl  = sin(self%incl*deg2rad)
+      self%cos_incl  = cos(self%incl*deg2rad)
    end subroutine init_base_comp
 
    subroutine init_cloud(self)
@@ -161,7 +291,7 @@ contains
    end subroutine init_cloud
 
    subroutine init_band(self)
-      class(ZodiBand) :: self
+     class(ZodiBand) :: self
       self%delta_zeta_rad = self%delta_zeta*deg2rad
       call self%init_base_comp()
    end subroutine init_band
@@ -195,6 +325,468 @@ contains
       call self%init_base_comp()
     end subroutine init_comet
 
+    subroutine init_general_priors_and_scales(self, prior, scale)
+      implicit none
+      class(ZodiModel),           intent(in)    :: self
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
+      scale(1)   = 286.d0
+      prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
+      scale(2)   = 0.4d0      
+    end subroutine init_general_priors_and_scales
+
+    subroutine init_cloud_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiCloud),           intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+      
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+      prior(:,start_ind+6) = [1.d0, 1.5d0, 1.34d0, -1.d0] ! alpha
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [3.d0, 5d0, 4.14d0, -1.d0] ! beta
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! gamma
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [0.1d0, 0.4d0, 0.189d0, -1.d0] ! mu
+      scale(start_ind+9)   = 1.d0      
+    end subroutine init_cloud_priors_and_scales
+
+    subroutine init_band_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiBand),            intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+      prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! v
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [0.1d0, 0.6d0, 0.189d0, -1.d0] ! p
+      scale(start_ind+9)   = 1.d0      
+    end subroutine init_band_priors_and_scales
+
+    subroutine init_ring_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiRing),            intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+      scale(start_ind+9)   = 1.d0      
+      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+      scale(start_ind+10)   = 1.d0      
+    end subroutine init_ring_priors_and_scales
+
+    subroutine init_feature_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiFeature),         intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+!!$      scale(start_ind+6)   = 1.d0      
+!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+!!$      scale(start_ind+7)   = 1.d0      
+!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+!!$      scale(start_ind+8)   = 1.d0      
+!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+!!$      scale(start_ind+9)   = 1.d0      
+!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+!!$      scale(start_ind+10)   = 1.d0      
+    end subroutine init_feature_priors_and_scales
+
+    subroutine init_interstellar_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiInterstellar),    intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [0.d0, 00.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [0.d0, 0.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+!!$      scale(start_ind+6)   = 1.d0      
+!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+!!$      scale(start_ind+7)   = 1.d0      
+!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+!!$      scale(start_ind+8)   = 1.d0      
+!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+!!$      scale(start_ind+9)   = 1.d0      
+!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+!!$      scale(start_ind+10)   = 1.d0      
+    end subroutine init_interstellar_priors_and_scales
+
+    subroutine init_fan_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiFan),             intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [0.d0, 00.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [0.d0, 0.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+!!$      scale(start_ind+6)   = 1.d0      
+!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+!!$      scale(start_ind+7)   = 1.d0      
+!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+!!$      scale(start_ind+8)   = 1.d0      
+!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+!!$      scale(start_ind+9)   = 1.d0      
+!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+!!$      scale(start_ind+10)   = 1.d0      
+    end subroutine init_fan_priors_and_scales
+
+    subroutine init_comet_priors_and_scales(self, start_ind, prior, scale)
+      implicit none
+      class(ZodiComet),           intent(in)    :: self
+      integer(i4b),               intent(in)    :: start_ind
+      real(dp), dimension(1:,1:), intent(inout) :: prior
+      real(dp), dimension(1:),    intent(inout) :: scale
+
+      ! Common parameters
+      prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
+      scale(start_ind+0)   = 1.d-9
+      prior(:,start_ind+1) = [0.d0, 00.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1)   = 1.d0      
+      prior(:,start_ind+2) = [0.d0, 0.d0, 0.d0, -1.d0] ! Omega
+      scale(start_ind+2)   = 1.d0      
+      prior(:,start_ind+3) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3)   = 1.d0      
+      prior(:,start_ind+4) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4)   = 1.d0      
+      prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5)   = 1.d0      
+      ! Component-specific parameters
+!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+!!$      scale(start_ind+6)   = 1.d0      
+!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+!!$      scale(start_ind+7)   = 1.d0      
+!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+!!$      scale(start_ind+8)   = 1.d0      
+!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+!!$      scale(start_ind+9)   = 1.d0      
+!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+!!$      scale(start_ind+10)   = 1.d0      
+    end subroutine init_comet_priors_and_scales
+
+    subroutine param2model_cloud(self, x)
+      implicit none
+      class(ZodiCloud),                intent(inout) :: self
+      real(dp),         dimension(1:), intent(in)    :: x
+      self%n_0   = x(1)
+      self%incl  = x(2)
+      self%Omega = x(3)
+      self%x_0   = x(4)
+      self%y_0   = x(5)
+      self%z_0   = x(6)
+      self%alpha = x(7)
+      self%beta  = x(8)
+      self%gamma = x(9)
+      self%mu    = x(10)      
+    end subroutine param2model_cloud
+
+    subroutine model2param_cloud(self, x)
+      implicit none
+      class(ZodiCloud),                intent(in)  :: self
+      real(dp),         dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+      x(7)  = self%alpha 
+      x(8)  = self%beta  
+      x(9)  = self%gamma 
+      x(10) = self%mu    
+    end subroutine model2param_cloud
+
+    subroutine param2model_band(self, x)
+      implicit none
+      class(ZodiBand),                 intent(inout) :: self
+      real(dp),         dimension(1:), intent(in)    :: x
+      self%n_0        = x(1)
+      self%incl       = x(2)
+      self%Omega      = x(3)
+      self%x_0        = x(4)
+      self%y_0        = x(5)
+      self%z_0        = x(6)
+      self%delta_zeta = x(7)
+      self%delta_r    = x(8)
+      self%v          = x(9)
+      self%p          = x(10)      
+    end subroutine param2model_band
+
+    subroutine model2param_band(self, x)
+      implicit none
+      class(ZodiBand),                 intent(in)  :: self
+      real(dp),         dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+      x(7)  = self%delta_zeta 
+      x(8)  = self%delta_r
+      x(9)  = self%v
+      x(10) = self%p    
+    end subroutine model2param_band
+
+    subroutine param2model_ring(self, x)
+      implicit none
+      class(ZodiRing),                 intent(inout) :: self
+      real(dp),         dimension(1:), intent(in)    :: x
+      self%n_0         = x(1)
+      self%incl        = x(2)
+      self%Omega       = x(3)
+      self%x_0         = x(4)
+      self%y_0         = x(5)
+      self%z_0         = x(6)
+      self%R_0         = x(7)
+      self%sigma_r     = x(8)
+      self%sigma_z     = x(9)
+      self%theta_0     = x(10)
+      self%sigma_theta = x(11)      
+    end subroutine param2model_ring
+
+    subroutine model2param_ring(self, x)
+      implicit none
+      class(ZodiRing),                 intent(in)  :: self
+      real(dp),         dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+      x(7)  = self%R_0 
+      x(8)  = self%sigma_r  
+      x(9)  = self%sigma_z 
+      x(10) = self%theta_0
+      x(11) = self%sigma_theta
+    end subroutine model2param_ring
+
+    subroutine param2model_feature(self, x)
+      implicit none
+      class(ZodiFeature),                intent(inout) :: self
+      real(dp),           dimension(1:), intent(in)    :: x
+      self%n_0         = x(1)
+      self%incl        = x(2)
+      self%Omega       = x(3)
+      self%x_0         = x(4)
+      self%y_0         = x(5)
+      self%z_0         = x(6)
+      self%R_0         = x(7)
+      self%sigma_r     = x(8)
+      self%sigma_z     = x(9)
+      self%theta_0     = x(10)
+      self%sigma_theta = x(11)      
+    end subroutine param2model_feature
+
+    subroutine model2param_feature(self, x)
+      implicit none
+      class(ZodiFeature),                intent(in)  :: self
+      real(dp),           dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+      x(7)  = self%R_0 
+      x(8)  = self%sigma_r  
+      x(9)  = self%sigma_z 
+      x(10) = self%theta_0
+      x(11) = self%sigma_theta
+    end subroutine model2param_feature
+
+    subroutine param2model_interstellar(self, x)
+      implicit none
+      class(ZodiInterstellar),                intent(inout) :: self
+      real(dp),                dimension(1:), intent(in)    :: x
+      self%n_0   = x(1)
+      self%incl  = x(2)
+      self%Omega = x(3)
+      self%x_0   = x(4)
+      self%y_0   = x(5)
+      self%z_0   = x(6)
+    end subroutine param2model_interstellar
+
+    subroutine model2param_interstellar(self, x)
+      implicit none
+      class(ZodiInterstellar),                intent(in)  :: self
+      real(dp),                dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+    end subroutine model2param_interstellar
+
+    subroutine param2model_fan(self, x)
+      implicit none
+      class(ZodiFan),                intent(inout) :: self
+      real(dp),       dimension(1:), intent(in)    :: x
+      self%n_0          = x(1)
+      self%incl         = x(2)
+      self%Omega        = x(3)
+      self%x_0          = x(4)
+      self%y_0          = x(5)
+      self%z_0          = x(6)
+      self%Q            = x(7)
+      self%P            = x(8)
+      self%gamma        = x(9)
+      self%Z_midplane_0 = x(10)
+      self%R_outer      = x(11)
+    end subroutine param2model_fan
+
+    subroutine model2param_fan(self, x)
+      implicit none
+      class(ZodiFan),                intent(in)  :: self
+      real(dp),       dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+      x(7)  = self%Q 
+      x(8)  = self%P  
+      x(9)  = self%gamma 
+      x(10) = self%Z_midplane_0
+      x(11) = self%R_outer
+    end subroutine model2param_fan
+
+    subroutine param2model_comet(self, x)
+      implicit none
+      class(ZodiComet),                intent(inout) :: self
+      real(dp),         dimension(1:), intent(in)    :: x
+      self%n_0          = x(1)
+      self%incl         = x(2)
+      self%Omega        = x(3)
+      self%x_0          = x(4)
+      self%y_0          = x(5)
+      self%z_0          = x(6)
+      self%P            = x(7)
+      self%Z_midplane_0 = x(8)
+      self%R_inner      = x(9)
+      self%R_outer      = x(10)      
+    end subroutine param2model_comet
+
+    subroutine model2param_comet(self, x)
+      implicit none
+      class(ZodiComet),                intent(in)  :: self
+      real(dp),         dimension(1:), intent(out) :: x
+      x(1)  = self%n_0  
+      x(2)  = self%incl 
+      x(3)  = self%Omega 
+      x(4)  = self%x_0   
+      x(5)  = self%y_0   
+      x(6)  = self%z_0   
+      x(7)  = self%P 
+      x(8)  = self%Z_midplane_0  
+      x(9)  = self%R_inner
+      x(10) = self%R_outer    
+    end subroutine model2param_comet
+
+    
    subroutine get_density_cloud(self, X_vec, theta, n_out)
       class(ZodiCloud) :: self
       real(dp), dimension(:, :), intent(in) :: X_vec
@@ -527,12 +1119,15 @@ contains
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
          end select
+         self%comps(i)%npar = size(self%comps(i)%labels)
          call self%comps(i)%c%init()
          self%n_params = self%n_params + size(self%comps(i)%labels)
       end do
    end subroutine
 
-   subroutine model_to_params(self, x, labels)
+
+
+    subroutine model_to_params2(self, x, labels)
       ! Dumps a zodi model to a parameter vector `x`. If `labels` is present, it is populated with
       ! the corresponding parameter labels.
       class(ZodiModel), intent(in) :: self
@@ -616,9 +1211,9 @@ contains
       if (present(labels)) then
          labels = [labels, self%general_labels]
       end if
-   end subroutine model_to_params
+    end subroutine model_to_params2
 
-   subroutine params_to_model(self, x)
+   subroutine params_to_model2(self, x)
       ! Dumps a zodi model to a parameter vector `x`.
       class(ZodiModel), intent(inout) :: self
       real(dp), intent(in) :: x(:)
@@ -689,7 +1284,7 @@ contains
       end do
       self%T_0 = x(running_idx + 1)
       self%delta = x(running_idx + 2)
-   end subroutine params_to_model
+    end subroutine params_to_model2
 
    subroutine model_to_chain(self, cpar, iter)
       ! Dumps the zodi model to the chain file
@@ -727,7 +1322,7 @@ contains
       call create_hdf_group(file, trim(adjustl(comp_group_path)))
 
       allocate(params(self%n_params))
-      call self%model_to_params(params, labels)
+      call self%model_to_params2(params, labels)
       
       param_idx = 0 
       do i = 1, self%n_comps
@@ -905,4 +1500,214 @@ contains
          s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp)
       end if
    end subroutine get_s_zodi_comp
-end module comm_zodi_mod
+
+   function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string)
+     implicit none
+     class(ZodiModel),     intent(in)           :: self
+     class(ZodiComponentContainer), intent(in), target, optional :: comp
+     character(len=*),     intent(in), optional :: comp_str
+     character(len=*),     intent(in), optional :: param
+     integer(i4b),         intent(in), optional :: em_band, al_band
+     character(len=*),     intent(in), optional :: em_string, al_string
+     integer(i4b)                               :: get_par_ind
+     
+     integer(i4b) :: i
+     class(ZodiComponentContainer), pointer :: c
+     character(len=128) :: str1, str2
+     
+     if (present(comp) .or. present(comp_str)) then
+        if (present(comp_str)) then
+           i =  get_string_index(self%comp_labels, comp_str)
+           c => zodi_model%comps(i)
+        else
+           c => comp
+        end if
+
+        if (present(param)) then
+           get_par_ind = c%start_ind + get_string_index(c%labels, param)-1
+        else if (present(em_band)) then
+           get_par_ind = c%start_ind + c%npar + em_band - 1
+        else if (present(al_band)) then
+           get_par_ind = c%start_ind + c%npar + numband + al_band - 1
+        else if (present(em_string)) then
+           get_par_ind = c%start_ind + c%npar + get_string_index(band_labels, em_string) - 1
+        else if (present(al_string)) then
+           get_par_ind = c%start_ind + c%npar + numband + get_string_index(band_labels, al_string) - 1
+        else
+           write(*,*) 'get_par_ind error: Need parameter specification'
+           stop
+        end if
+     else
+        if (present(param)) then
+           ! General parameter
+           get_par_ind = get_string_index(self%general_labels, param)
+        else
+           write(*,*) 'get_par_ind error: Need parameter specification'
+           stop
+        end if
+     end if
+     
+   end function get_par_ind
+
+   subroutine samp_group2stat(str, stat)
+     implicit none     
+     character(len=*),               intent(in)    :: str
+     integer(i4b),     dimension(:), intent(inout) :: stat
+
+     integer(i4b) :: i
+     character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10)
+     character(len=128), allocatable :: tokens_trunc(:)
+     integer(i4b) :: c, j, first, last, n_params, n, m, ind, em_global, al_global
+
+     ! Default: Fix everything at input
+     stat = -1
+     
+     ! Parse user directives
+     call get_tokens(str, ',', tokens, n_params) 
+     tokens_trunc = tokens(1:n_params)
+     
+     em_global = 0
+     al_global = 0
+     do i = 1, size(tokens_trunc)
+        call get_tokens(tokens_trunc(i), ':', comp_param, num=n)
+        if (n == 1) then
+           ! General parameter
+           !write(*,*) 'a', trim(comp_param(1))
+           ind = zodi_model%get_par_ind(param=comp_param(1))
+           stat(ind) = 0
+        else if (n == 2) then
+           label = comp_param(2)
+           !write(*,*) 'b', trim(label)
+           c     = get_string_index(zodi_model%comp_labels, comp_param(1))
+           first = zodi_model%comps(c)%start_ind
+           if (trim(label) == 'all') then
+              last  = first + zodi_model%comps(c)%npar + 2*numband - 1
+              stat(first:last) = 0 ! Activate all
+           else if (trim(label(1:2)) == 'em') then
+              ! Emissivity
+              call get_tokens(label, '@', comp_param, num=n)
+              if (n == 1) then
+                 first = first + zodi_model%comps(c)%npar
+                 last  = first + numband - 1
+                 stat(first:last) = 0 ! Activate all
+              else if (trim(comp_param(2)) == 'global') then
+                 first = first + zodi_model%comps(c)%npar
+                 last  = first + numband - 1
+                 stat(first:last) = 0 ! Activate all
+                 em_global        = c
+              else
+                 !write(*,*) 'c', trim(comp_param(2))
+                 ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_string=comp_param(2))
+                 stat(ind) = 0
+              end if
+           else if (trim(label(1:2)) == 'al') then
+              ! Albedo
+              call get_tokens(label, '@', comp_param, num=n)
+              if (n == 1) then
+                 first = first + zodi_model%comps(c)%npar + numband
+                 last  = first + numband - 1
+                 stat(first:last) = 0 ! Activate all
+              else if (trim(comp_param(2)) == 'global') then
+                 first = first + zodi_model%comps(c)%npar + numband
+                 last  = first + numband - 1
+                 stat(first:last) = 0 ! Activate all
+                 al_global        = c
+              else
+                 ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), al_string=comp_param(2))
+                 stat(ind) = 0
+              end if
+           else
+              ! Shape parameter
+              ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), param=comp_param(2))
+              stat(ind) = 0
+           end if
+        else
+           write(*,*) 'Invalid zodi samp group element = ', trim(tokens_trunc(i))
+           stop
+        end if
+     end do
+
+     ! Apply global directives
+     if (em_global > 0) then
+        do i = 1, zodi_model%n_comps
+           if (i == em_global) cycle
+           do j = 1, numband
+              ind   = zodi_model%get_par_ind(comp=zodi_model%comps(em_global), em_band=j)
+              first = zodi_model%get_par_ind(comp=zodi_model%comps(i), em_band=j)
+              stat(first) = ind
+           end do
+        end do
+     end if
+
+     if (al_global > 0) then
+        do i = 1, zodi_model%n_comps
+           if (i == al_global) cycle
+           do j = 1, numband
+              ind   = zodi_model%get_par_ind(comp=zodi_model%comps(al_global), al_band=j)
+              first = zodi_model%get_par_ind(comp=zodi_model%comps(i), al_band=j)
+              stat(first) = ind
+           end do
+        end do
+     end if
+
+     ! Apply absolute constraints
+     do j = 1, numband
+        if (band_todtype(j) == 'none') then
+           do i = 1, zodi_model%n_comps
+              ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), em_band=j)
+              stat(ind)         = -2 ! Fix emissivity to zero
+              stat(ind+numband) = -2 ! Fix albedo to zero
+           end do
+        end if
+
+        if (band_todtype(j) /= 'none' .and. band_nu_c(j) > 1d14) then
+           do i = 1, zodi_model%n_comps
+              ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), em_band=j)
+              stat(ind)         = -3 ! Fix emissivity to unity
+           end do
+        end if
+
+        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 5d13) then
+           do i = 1, zodi_model%n_comps
+              ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), al_band=j)
+              stat(ind)         = -2 ! Fix albedo to zero
+           end do
+        end if
+
+        if (trim(zodi_refband) == trim(band_labels(j))) then
+           do i = 1, zodi_model%n_comps
+              ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), em_band=j)
+              stat(ind)         = -3 ! Fix emissivity to unity
+           end do
+        end if
+     end do
+
+   end subroutine samp_group2stat
+
+   function get_string_index(arr, str)
+     implicit none
+     character(len=*), dimension(:), intent(in) :: arr
+     character(len=*),               intent(in) :: str
+     integer(i4b)                               :: get_string_index
+
+     integer(i4b) :: i
+     character(len=128) :: str1, str2
+
+     str1 = str
+     call toupper(str1)
+     do i = 1, size(arr)
+        str2 = arr(i)
+        call toupper(str2)
+        if (trim(str1) == trim(str2)) then
+           get_string_index = i
+           exit
+        end if
+     end do
+     if (i > size(arr)) then
+        write(*,*) 'get_string_index: String not found = ', trim(str)
+        stop
+     end if
+
+   end function get_string_index
+
+ end module comm_zodi_mod

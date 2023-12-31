@@ -1427,10 +1427,12 @@ contains
     call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
+          if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle
@@ -1465,10 +1467,12 @@ contains
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
+          if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle                
@@ -1512,6 +1516,7 @@ contains
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !!$OMP PARALLEL PRIVATE(i,l,m,j,p)
        !!$OMP DO SCHEDULE(guided)
        do i = 0, info_pre%nalm-1

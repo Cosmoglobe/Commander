@@ -30,7 +30,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike)
+  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike, nomono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -71,11 +71,12 @@ contains
     real(sp),         dimension(1:,1:), intent(out)    :: n_corr
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: dospike
+    logical(lgt),                       intent(in), optional :: nomono
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged
+    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
     real(dp)     :: power, fft_norm
     character(len=1024) :: filename
@@ -85,6 +86,8 @@ contains
 
     call timer%start(TOD_NCORR, self%band)
 
+    nomono_ = .false.; if (present(nomono)) nomono_ = nomono
+    
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
     nomp     = 1 !omp_get_max_threads()
@@ -157,9 +160,11 @@ contains
        !alpha    = self%scans(scan)%d(i)%N_psd%alpha
        !nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
 
+       ! Remove monopole if requested by user
+       if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
        
        pcg_converged = .false.
-       call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
+       call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)
 
        if (.not. pcg_converged) then
@@ -170,7 +175,9 @@ contains
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
           call timer%stop(TOT_FFT)
 
-          if (trim(self%operation) == "sample") then
+          if (nomono_) then
+             dv(0)    = 0.d0
+          else if (trim(self%operation) == "sample") then
              dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
           end if
 
@@ -228,7 +235,7 @@ contains
   end subroutine sample_n_corr
 
 
-  subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
+  subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band, nomono)
     implicit none
     type(planck_rng),                intent(inout)  :: handle
     integer*8,                       intent(in)     :: plan_fwd, plan_back
@@ -239,6 +246,7 @@ contains
     character(len=*),                intent(in)     :: band
     real(sp),          dimension(:), intent(out)    :: ncorr
     real(sp),          dimension(:), intent(in)     :: d_prime, mask
+    logical(lgt),                    intent(in)     :: nomono
 
     real(dp)            :: r2, r2new, alp, bet, eps, d2, sigma_bp
     real(sp)            :: freq
@@ -264,7 +272,11 @@ contains
     allocate(x(ntod), b(ntod), r(ntod), d(ntod), Mr(ntod), Ad(ntod))
     allocate(u(nmask), bp(nmask), xp(nmask), rp(nmask), p(nmask))
 
-    invNcorr(0) = 0.d0
+    if (nomono) then
+       invNcorr(0) = 1d12
+    else
+       invNcorr(0) = 0.d0
+    end if
     invM(0)     = 1.d0
     do l = 1, n-1
        freq        = l*(samprate/2)/(n-1)
@@ -430,7 +442,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask)
+  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask, only_sigma0)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     real(sp),         dimension(1:,1:), intent(in)     :: tod
@@ -438,6 +450,7 @@ contains
     integer(i4b),                       intent(in)     :: scan
     real(sp),         dimension(:,:),   intent(in)     :: mask, s_tot, n_corr
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
+    logical(lgt),                       intent(in), optional :: only_sigma0
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs
@@ -460,7 +473,7 @@ contains
     n_gibbs  = 1
 
     ! Sample sigma_0 from pairwise differenced TOD
-!    open(58,file='res.dat')
+    if (self%scanid(scan) == 1) open(58,file='res.dat', recl=1024)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
        s    = 0.d0
@@ -470,14 +483,19 @@ contains
           if (any(mask(j:j+1,i) < 0.5)) cycle
           res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
                & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
-          !write(58,*) j, res
+          if (self%scanid(scan) == 1) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
           s    = s    + res**2
           nval = nval + 1
        end do
        if (nval > 100) self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
     end do
-    !close(58)
+    if (self%scanid(scan) == 1) close(58)
 
+    ! Exit if user only wants to estimate sigma0
+    if (present(only_sigma0)) then
+       if (only_sigma0) return
+    end if
+    
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
     call timer%start(TOT_FFT)

@@ -2296,8 +2296,8 @@ contains
        end if
     end if
     if (present(verbose)) then
-      if (verbose) write(*,*) "chi2 :  ", scan, det, self%scanid(scan), &
-         & self%scans(scan)%d(det)%chisq, self%scans(scan)%d(det)%N_psd%sigma0, n
+      if (verbose) write(*,fmt='(a,i8,i3,e16.8,i10,f16.3)') "chi2 :  ", self%scanid(scan), det, &
+         &self%scans(scan)%d(det)%N_psd%sigma0, n, self%scans(scan)%d(det)%chisq
     end if
 
     call timer%stop(TOD_CHISQ, self%band)
@@ -2877,17 +2877,21 @@ contains
       end if
    end subroutine clear_zodi_cache
 
-   subroutine create_dynamic_mask(self, res, mask, threshold)
+   subroutine create_dynamic_mask(self, res, mask, threshold, negativeonly)
      implicit none
      class(comm_detscan),               intent(inout) :: self
      real(sp),            dimension(:), intent(in)    :: res
      real(sp),            dimension(:), intent(inout) :: mask
      real(sp),                          intent(in)    :: threshold
+     logical(lgt),                      intent(in), optional :: negativeonly
      
       integer(i4b) :: i, j, k, n, ntod, nmax
       real(dp) :: box_width, rms
+      logical(lgt) :: negativeonly_, cut
       integer(i4b), allocatable, dimension(:,:) :: bad, buffer
 
+      negativeonly_ = .false.; if (present(negativeonly)) negativeonly_ = negativeonly
+      
       ntod = size(res)
       nmax = 1000
       
@@ -2908,7 +2912,15 @@ contains
       n   = 0
       do i = 1, ntod
          if (mask(i) /= 1) cycle
-         if (abs(res(i)) > threshold*rms) then
+
+         ! Apply selection criterium
+         if (negativeonly_) then
+            cut = res(i) < 0.d0
+         else
+            cut = abs(res(i)) > threshold*rms
+         end if
+         
+         if (cut) then
             ! Start new range if not already active
             if (bad(1,n+1) == -1) bad(1,n+1) = i
             ! Remove sample from current mask
@@ -2945,9 +2957,9 @@ contains
          allocate(self%mask_dyn(2,n))
          self%mask_dyn = bad(:,1:n)
 
-!!$         do i = 1, n
-!!$            write(*,*) i, bad(:,i)
-!!$         end do
+         do i = 1, n
+            write(*,*) i, bad(:,i)
+         end do
       end if
 
       deallocate(bad)

@@ -40,7 +40,7 @@ COMP_AMP_PRIOR_MAP&&          = none
 COMP_IND_LMAX&&               = -1
 
 COMP_BETA_NU_MIN&&            = 30          # Lowest frequency for index estimation in GHz
-COMP_BETA_NU_MAX&&            = 2540        # Highest frequency for index estimation in GHz
+COMP_BETA_NU_MAX&&            = 1000 2540        # Highest frequency for index estimation in GHz
 COMP_BETA_INPUT_MAP&&         = none init_dust_beta_BP8.1_v1.fits
 COMP_BETA_DEFAULT&&           =   1.56 
 COMP_BETA_PRIOR_UNI_LOW&&     =   0.4
@@ -59,7 +59,7 @@ COMP_T_SMOOTHING_SCALE&&      = 1
 COMP_T_POLTYPE&&              = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 COMP_T_INPUT_MAP&&            = none init_dust_T_BP8.1_v1.fits
 COMP_T_NU_MIN&&               = 30         # Lowest frequency for index estimation in GHz
-COMP_T_NU_MAX&&               = 2540        # Highest frequency for index estimation in GHz
+COMP_T_NU_MAX&&               = 1000 2540        # Highest frequency for index estimation in GHz
 
 COMP_APPLY_JEFFREYS_PRIOR&&   = .true.
 COMP_OUTPUT_EB_MAP&&          = .false.
