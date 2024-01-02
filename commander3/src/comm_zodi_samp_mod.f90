@@ -631,7 +631,8 @@ contains
 
          if (params(j) < zodi_model%theta_prior(1,i) .or. &
               & params(j) > zodi_model%theta_prior(2,i)) then
-            write(*,fmt='(a,3e16.8)') 'Parameter out of bounds', i, zodi_model%theta_prior(1,i), params(j), zodi_model%theta_prior(2,i)
+            write(*,fmt='(a,a, 3e16.8)') 'Out of bounds -- ', trim(zodi_model%par_labels(i))//':', zodi_model%theta_prior(1,i), params(j), zodi_model%theta_prior(2,i)
+            !write(*,*) 'Parameter out of bounds', i, zodi_model%theta_prior(1,i), params(j), zodi_model%theta_prior(2,i)
             chisq_prior = 1.d30
             return
          end if
@@ -1129,7 +1130,6 @@ contains
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
 
          ! Apply approximate Metropolis rule, using reduced chisq instead of chisq
-         write(*,*) chisq_old, chisq_new
          if (chisq_new < chisq_old) then
             accept = .true. 
          else
@@ -1224,7 +1224,7 @@ contains
       end if
 
       call params_to_model(zodi_model, theta, 0)
-      !call print_zodi_model(theta, labels, chisq)
+      if (data(1)%tod%myid == 0) call print_zodi_model(theta, 0)
       
       ndof = 0
       do i = 1, numband
@@ -1334,7 +1334,7 @@ contains
          lnL_zodi = chisq/ndof_tot
          call wall_time(t2)
          if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
-         !write(*,*)
+         write(*,*)
       end if
 
       theta_prev = theta
@@ -1966,40 +1966,56 @@ contains
    end subroutine
 
 
-   subroutine print_zodi_model(theta, labels, chisq)
-      real(dp), allocatable, intent(in) :: theta(:)
-      character(len=128), allocatable, intent(in) :: labels(:)
-      real(dp), intent(in), optional :: chisq
-      integer(i4b) :: i, j, k, l, idx, n_cols, comp, n_params
+   subroutine print_zodi_model(theta, samp_group)
+     implicit none
+     real(dp),     allocatable, intent(in) :: theta(:)
+     integer(i4b),              intent(in) :: samp_group
       
-      n_params = size(theta)
+      integer(i4b) :: i, j, k, l, n, idx, n_cols, col, comp, n_params
+      logical(lgt) :: newline
+      
       n_cols = 5
-      comp = 1
-      do i = 1, n_params
-         idx = index(trim(adjustl(labels(i))), "_")
-         if (i < n_params) then
-            if (i == 1) then 
-               write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
-            else if (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i-1)(:idx)))) then
-               comp = comp + 1
-               ! write(*, *), ""
-               if (comp > zodi_model%n_comps) then
-                  write(*, "(a)", advance="no") "OTHER:  "
-               else 
-                  write(*, "(a, a)", advance="no") trim(adjustl(labels(i)(:idx-1))), ":  "
-               end if
-            end if
-         end if
+      n_params = size(theta)
 
-         if (i == n_params) then
-            write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
-         else if (mod(i, n_cols) == 0 .or. (i<n_params .and. (trim(adjustl(labels(i)(:idx))) /= trim(adjustl(labels(i+1)(:idx)))))) then
-            write(*, "(a,a,g0.4,a)") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
-         else
-            write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(labels(i)(idx+1:))), "=", theta(i), ",  "
-         end if
+      ! General parameters
+      k = 1
+      if (any(zodi_model%theta_stat(1:zodi_model%n_general_params,samp_group)==0)) then
+         write(*, "(a)", advance="no") 'General: '
+         col = 1
+         do i = 1, zodi_model%n_general_params
+            if (zodi_model%theta_stat(i,samp_group)==0) then
+               if (col > n_cols .or. i == zodi_model%n_general_params) then
+                  write(*, "(a,a,g0.4,a)") trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
+                  col = 1
+               else
+                  write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
+                  col = col+1
+               end if
+               k = k+1
+            end if
+         end do
+      end if
+
+      ! Component parameters
+      do j = 1, zodi_model%n_comps
+         idx = zodi_model%comps(j)%start_ind
+         n   = zodi_model%comps(j)%npar + 2*numband
+         if (all(zodi_model%theta_stat(idx:idx+n-1,samp_group)/=0)) cycle
+         write(*, "(a,a)", advance="no") trim(adjustl(zodi_model%comp_labels(j))),': '
+         col = 1
+         do i = idx, idx+n-1
+            newline = (i==idx+n-1) .or. col == n_cols-1
+            if (zodi_model%theta_stat(i,samp_group)==0) then
+               write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
+               k   = k+1
+               col = col+1
+            end if
+            if (newline .and. col>1) then
+               write(*,*)
+               col = 1
+            end if
+         end do
       end do
-      print *, ""
    end subroutine
  
    subroutine min_max_param_vec_with_priors(params, priors)

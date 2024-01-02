@@ -145,7 +145,7 @@ module comm_zodi_mod
 
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
-      character(len=128), allocatable :: comp_labels(:), general_labels(:)
+      character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:)
       integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
       real(dp) :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
@@ -161,6 +161,7 @@ module comm_zodi_mod
     contains
       procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales
    end type ZodiModel
+
    type(ZodiModel), target :: zodi_model
    integer(i4b)            :: numband
    character(len=128)      :: zodi_refband
@@ -220,6 +221,7 @@ contains
       allocate(zodi_model%theta2band(zodi_model%npar_tot))
       allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
       allocate(zodi_model%theta_scale(zodi_model%npar_tot))
+      allocate(zodi_model%par_labels(zodi_model%npar_tot))
 
       ! Set up sampling groups
       do i = 1, cpar%zs_num_samp_groups
@@ -244,17 +246,26 @@ contains
       ! Initialize priors and scale factors
       call zodi_model%init_general_priors_and_scales(zodi_model%theta_prior, &
            & zodi_model%theta_scale)
+      zodi_model%par_labels(1:zodi_model%n_general_params) = &
+           & zodi_model%general_labels
       do i = 1, zodi_model%n_comps
          ! Shape parameters
-         call zodi_model%comps(i)%c%init_priors_and_scales(zodi_model%comps(i)%start_ind, &
+         ind = zodi_model%comps(i)%start_ind
+         call zodi_model%comps(i)%c%init_priors_and_scales(ind, &
               & zodi_model%theta_prior, zodi_model%theta_scale)
+         zodi_model%par_labels(ind:ind+zodi_model%comps(i)%npar-1) = &
+              & zodi_model%comps(i)%labels
+
          ! Emissivity and albedo
          ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
          do j = 1, numband
             zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
             zodi_model%theta_scale(ind+j)   = 1.d0
+            zodi_model%par_labels(ind+j)    = 'em@'//trim(band_labels(j))
+
             zodi_model%theta_prior(:,ind+numband+j) = [0.d0, 1.d0, 0.3d0, -1.d0] ! Albedo
             zodi_model%theta_scale(ind+numband+j)   = 1.d0
+            zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
          end do
       end do
 
