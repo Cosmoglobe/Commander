@@ -453,7 +453,11 @@ contains
          
          if (cpar%myid == cpar%root) then
             unit = getlun()
-            call get_chainfile_and_samp(trim(cpar%zs_init_hdf(i)), chainfile, initsamp)
+            if (trim(cpar%zs_init_hdf(i)) == 'default') then
+               call get_chainfile_and_samp(trim(cpar%init_chain_prefixes(1)), chainfile, initsamp)
+            else
+               call get_chainfile_and_samp(trim(cpar%zs_init_hdf(i)), chainfile, initsamp)
+            end if
             inquire(file=trim(chainfile), exist=exist)
             if (.not. exist) call report_error('Zodi init chain does not exist = ' // trim(chainfile))
             l = len(trim(chainfile))

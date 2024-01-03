@@ -270,7 +270,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS), zs_randomize_rms
      real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold
-     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband
+     character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
      character(len=512), allocatable         :: zs_samp_groups(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
@@ -2884,6 +2884,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_SAMP_METHOD', par_string=cpar%zs_sample_method)
      call get_parameter_from_hash(htbl, 'ZODI_REFERENCE_BAND', par_string=cpar%zs_refband)
+     call get_parameter_from_hash(htbl, 'ZODI_GLOBAL_EMISSIVITY_COMPONENT', par_string=cpar%zs_em_global)
+     call get_parameter_from_hash(htbl, 'ZODI_GLOBAL_ALBEDO_COMPONENT', par_string=cpar%zs_al_global)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_FACTOR', par_dp=cpar%zs_tod_thin_factor)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_THRESHOLD', par_dp=cpar%zs_tod_thin_threshold)

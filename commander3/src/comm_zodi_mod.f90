@@ -225,7 +225,7 @@ contains
 
       ! Set up sampling groups
       do i = 1, cpar%zs_num_samp_groups
-         call samp_group2stat(cpar%zs_samp_groups(i), zodi_model%theta_stat(:,i))
+         call samp_group2stat(cpar, i, zodi_model%theta_stat(:,i))
       end do
       do i = 1, zodi_model%npar_tot
          zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
@@ -1371,7 +1371,11 @@ contains
       character(len=512) :: chainfile, group_name
 
       if (cpar%myid == cpar%root) then
-         call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
+         if (trim(cpar%zs_init_hdf(comp_idx)) == 'default') then
+            call get_chainfile_and_samp(trim(cpar%init_chain_prefixes(1)), chainfile, initsamp)
+         else
+            call get_chainfile_and_samp(trim(cpar%zs_init_hdf(comp_idx)), chainfile, initsamp)
+         end if
          inquire (file=trim(chainfile), exist=exist)
          if (.not. exist) call report_error('Zodi init chain does not exist = '//trim(chainfile))
          l = len(trim(chainfile))
@@ -1560,25 +1564,28 @@ contains
      
    end function get_par_ind
 
-   subroutine samp_group2stat(str, stat)
+   subroutine samp_group2stat(cpar, samp_group, stat)
      implicit none     
-     character(len=*),               intent(in)    :: str
+     type(comm_params), intent(in) :: cpar
+     integer(i4b),                   intent(in)    :: samp_group
      integer(i4b),     dimension(:), intent(inout) :: stat
 
      integer(i4b) :: i
-     character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10)
+     character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10), str
      character(len=128), allocatable :: tokens_trunc(:)
      integer(i4b) :: c, j, first, last, n_params, n, m, ind, em_global, al_global
 
      ! Default: Fix everything at input
+     str  = cpar%zs_samp_groups(samp_group)
      stat = -1
      
      ! Parse user directives
      call get_tokens(str, ',', tokens, n_params) 
      tokens_trunc = tokens(1:n_params)
      
-     em_global = 0
-     al_global = 0
+     em_global = 0; al_global = 0
+     if (cpar%zs_em_global /= 'none') em_global = get_string_index(zodi_model%comp_labels, cpar%zs_em_global)
+     if (cpar%zs_al_global /= 'none') al_global = get_string_index(zodi_model%comp_labels, cpar%zs_al_global)
      do i = 1, size(tokens_trunc)
         call get_tokens(tokens_trunc(i), ':', comp_param, num=n)
         if (n == 1) then
@@ -1587,8 +1594,23 @@ contains
            ind = zodi_model%get_par_ind(param=comp_param(1))
            stat(ind) = 0
         else if (n == 2) then
-           label = comp_param(2)
            !write(*,*) 'b', trim(label)
+           if (trim(comp_param(1)) == 'em') then
+              do j = 1, zodi_model%n_comps
+                 ind       = zodi_model%get_par_ind(comp=zodi_model%comps(j), em_string=comp_param(2))
+                 stat(ind) = 0
+              end do
+              cycle
+           else if (trim(comp_param(1)) == 'al') then
+              do j = 1, zodi_model%n_comps
+                 ind       = zodi_model%get_par_ind(comp=zodi_model%comps(j), al_string=comp_param(2))
+                 stat(ind) = 0
+              end do
+              cycle
+           end if
+
+           ! Component parameters
+           label = comp_param(2)
            c     = get_string_index(zodi_model%comp_labels, comp_param(1))
            first = zodi_model%comps(c)%start_ind
            if (trim(label) == 'all') then
@@ -1601,11 +1623,6 @@ contains
                  first = first + zodi_model%comps(c)%npar
                  last  = first + numband - 1
                  stat(first:last) = 0 ! Activate all
-              else if (trim(comp_param(2)) == 'global') then
-                 first = first + zodi_model%comps(c)%npar
-                 last  = first + numband - 1
-                 stat(first:last) = 0 ! Activate all
-                 em_global        = c
               else
                  !write(*,*) 'c', trim(comp_param(2))
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_string=comp_param(2))
@@ -1618,11 +1635,6 @@ contains
                  first = first + zodi_model%comps(c)%npar + numband
                  last  = first + numband - 1
                  stat(first:last) = 0 ! Activate all
-              else if (trim(comp_param(2)) == 'global') then
-                 first = first + zodi_model%comps(c)%npar + numband
-                 last  = first + numband - 1
-                 stat(first:last) = 0 ! Activate all
-                 al_global        = c
               else
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), al_string=comp_param(2))
                  stat(ind) = 0

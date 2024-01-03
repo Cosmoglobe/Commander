@@ -355,10 +355,10 @@ program commander
         exit
      end if
 
-   if (iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+   if (mod(iter-1,2) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
-      if (iter == 2 .or. (first_sample > 1 .and. iter == first_sample)) then
+      if (iter == 3 .or. (first_sample > 1 .and. iter == first_sample)) then
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
@@ -372,7 +372,7 @@ program commander
 !!$      end do
       
       call compute_downsamp_zodi(cpar, zodi_model)      
-      if (iter == 2 .or. (first_sample > 1 .and. iter == first_sample)) then
+      if (iter == 3 .or. (first_sample > 1 .and. iter == first_sample)) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)      
          call create_zodi_glitch_mask(cpar)
@@ -383,7 +383,9 @@ program commander
       case ("mh")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
-         call minimize_zodi_with_powell(cpar, handle)
+         do i = 0, 0 !cpar%zs_num_samp_groups
+            call minimize_zodi_with_powell(cpar, handle, i)
+         end do
       end select
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -417,6 +419,7 @@ program commander
    end if
 
 
+   if (mod(iter,2) == 0) then
      ! Sample gains off of absolutely calibrated FIRAS maps
      if (iter > 5) then
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
@@ -461,6 +464,8 @@ program commander
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
      call timer%stop(TOT_CLS)
 
+  end if
+     
      ! Output sample to disk
      call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)

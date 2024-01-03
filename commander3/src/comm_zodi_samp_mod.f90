@@ -1077,38 +1077,36 @@ contains
       end do
    end subroutine
 
-   subroutine minimize_zodi_with_powell(cpar, handle)
+   subroutine minimize_zodi_with_powell(cpar, handle, samp_group)
       implicit none 
       type(comm_params), intent(in) :: cpar
       type(planck_rng),  intent(inout)   :: handle
+      integer(i4b),      intent(in)      :: samp_group
 
       logical(lgt) :: accept
-      logical(lgt), save :: first_call = .true.
       real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
       real(dp), allocatable, dimension(:) :: theta_prev, chisq_prev
       integer(i4b) :: i, j, k, ierr, flag, ntot, npar
       real(dp) :: chisq_old, chisq_new
 
-      if (cpar%myid == 0) print *, "minimizing zodi parameters with powell"
+      if (cpar%myid == 0) print *, "minimizing zodi parameters with powell, samp_group =", samp_group
       
-      npar = count(zodi_model%theta_stat(:,0)==0)
+      npar = count(zodi_model%theta_stat(:,samp_group)==0)
       ntot = zodi_model%npar_tot
       allocate(theta_old(npar), theta_new(npar), theta(npar))
       allocate(theta_prev(npar), chisq_prev(numband), scale(npar))
 
       ! Get chisq of old point
-      scale = pack(zodi_model%theta_scale, zodi_model%theta_stat(:,0)==0)
-      call model_to_params(zodi_model, theta_old, 0)
+      scale = pack(zodi_model%theta_scale, zodi_model%theta_stat(:,samp_group)==0)
+      call model_to_params(zodi_model, theta_old, samp_group)
 
-      ! Enforce priors in first call
-      if (first_call) call randomize_zodi_init(theta_old, 0, cpar, handle, rms=0.d0)
-      first_call = .false.
+      ! Enforce priors; rms = 0
+      call randomize_zodi_init(theta_old, samp_group, cpar, handle, rms=0.d0)
       
       theta_prev = 0.d0
       chisq_prev = 0.d0
       if (cpar%myid == cpar%root) then
          theta = theta_old/scale
-         write(*,*) 'theta_prev = ', theta_old
          chisq_old  = lnL_zodi(theta)
       else
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
@@ -1117,7 +1115,7 @@ contains
 
       ! Initialize new point
       theta_new = theta_old
-      call randomize_zodi_init(theta_new, 0, cpar, handle)
+      call randomize_zodi_init(theta_new, samp_group, cpar, handle)
 
       ! Rescale 
       theta = theta_new/scale
@@ -1160,7 +1158,7 @@ contains
       call mpi_bcast(theta_new, size(theta_new), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       
       ! update model with final parameters
-      call params_to_model(zodi_model, theta_new, 0)
+      call params_to_model(zodi_model, theta_new, samp_group)
 
       deallocate(theta_old, theta_new, theta, theta_prev, chisq_prev, scale)
       
@@ -1194,7 +1192,7 @@ contains
       update_band = .false.
       j = 0
       do i = 1, zodi_model%npar_tot
-         if (zodi_model%theta_stat(i,0) /= 0) cycle
+         if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
          j = j+1
          if (theta(j) /= theta_prev(j)) then
             !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
@@ -1210,7 +1208,7 @@ contains
       
       ! Check priors
       if (data(1)%tod%myid == 0) then
-         chisq_tot = get_chisq_priors(theta, samp_group=0)
+         chisq_tot = get_chisq_priors(theta, samp_group)
          accept    = chisq_tot < 1.d30
       else
          chisq_tot = 0.d0
@@ -1223,8 +1221,8 @@ contains
          return
       end if
 
-      call params_to_model(zodi_model, theta, 0)
-      if (data(1)%tod%myid == 0) call print_zodi_model(theta, 0)
+      call params_to_model(zodi_model, theta, samp_group)
+      if (data(1)%tod%myid == 0) call print_zodi_model(theta, samp_group)
       
       ndof = 0
       do i = 1, numband
