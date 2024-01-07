@@ -37,7 +37,7 @@ module comm_data_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit, comp_sens, noise_format
+     character(len=512)           :: label, instlabel, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
      logical(lgt)                 :: sample_gain
      real(dp)                     :: gain, gain_prior(2)
@@ -111,6 +111,7 @@ contains
        n                      = n+1
        data(n)%id_abs         = i
        data(n)%label          = cpar%ds_label(i)
+       data(n)%instlabel      = cpar%ds_instlabel(i)
        data(n)%period         = cpar%ds_period(i)
        data(n)%unit           = cpar%ds_unit(i)
        data(n)%sample_gain    = cpar%ds_sample_gain(i)

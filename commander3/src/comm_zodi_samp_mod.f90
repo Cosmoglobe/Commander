@@ -1270,7 +1270,7 @@ contains
                    & use_lowres_pointing=.true. &
                    &)
                call wall_time(t4)
-               !if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
+               if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
                call get_s_zodi(&
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
@@ -1279,7 +1279,7 @@ contains
                    & albedo=data(i)%tod%zodi_albedo &
                    &)
                call wall_time(t3)
-               !if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
+               if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
                
                chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
@@ -1290,7 +1290,7 @@ contains
                chisq_tot     = chisq_tot     + chisq
                chisq_prev(i) = chisq_prev(i) + chisq
                call wall_time(t4)
-               !if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
+               if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
                
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tot >= 1.d30) exit
@@ -1302,7 +1302,7 @@ contains
                ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
 
-               if (data(1)%tod%myid == 0 .and. scan == 1) then
+               if (.false. .and. data(1)%tod%myid == 0 .and. scan == 1) then
                   !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                   open(58,file='res'//trim(data(i)%tod%freq)//'.dat')
                   do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
@@ -1313,7 +1313,7 @@ contains
                   close(58)
                end if
                call wall_time(t3)
-               !if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
+               if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
 
             end do
          end do

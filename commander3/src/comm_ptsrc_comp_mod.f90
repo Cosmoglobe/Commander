@@ -844,7 +844,7 @@ contains
        if (trim(tempfile) /= 'none' .and. &
             & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
           ! Read from precomputed file
-          call self%read_febecop_beam(cpar, tempfile, data(i)%label, i)
+          call self%read_febecop_beam(cpar, tempfile, data(i)%instlabel, i)
        else if (filename(n-2:n) == '.h5') then
           ! Read precomputed Febecop beam from HDF file
           call self%read_febecop_beam(cpar, filename, 'none', i)
@@ -1084,11 +1084,11 @@ contains
           if (self%F_null(i)) cycle
           ia = self%b2a(i)
           if (myid_pre == 0 .and. k == 1) &
-               & call create_hdf_group(file, trim(adjustl(data(i)%label)))
+               & call create_hdf_group(file, trim(adjustl(data(i)%instlabel)))
           nmaps = self%src(k)%T(ia)%nmaps
           call ang2pix_ring(data(i)%info%nside, 0.5d0*pi-self%src(k)%glat, self%src(k)%glon, p)
           write(itext,*) p
-          itext = trim(adjustl(data(i)%label))//'/'//trim(adjustl(itext))
+          itext = trim(adjustl(data(i)%instlabel))//'/'//trim(adjustl(itext))
           if (myid_pre == 0) then
              call h5eset_auto_f(0, hdferr)
              call h5oget_info_by_name_f(file%filehandle, trim(adjustl(itext)), object_info, hdferr)
@@ -1793,8 +1793,8 @@ contains
                 call mpi_reduce(n_pix, n_pix_tot, 1, MPI_INTEGER,          MPI_SUM, 0, self%comm, ierr)
                 if (self%myid == 0) self%src(k)%red_chisq = (chisq_tot - n_pix_tot) / sqrt(2.d0*n_pix_tot)
                 if (self%myid == 0 .and. mod(k,10000) == 0) then
-                  write(*,*) 'src, amp,     beta, red_chisq'
-                  write(*,*) k, real(a,sp), real(self%src(k)%theta(2,1),sp), real(self%src(k)%red_chisq,sp)
+                  write(*,*) 'src, amp,     beta, T, red_chisq'
+                  write(*,*) k, real(a,sp), real(self%src(k)%theta(:,1),sp), real(self%src(k)%red_chisq,sp)
                 end if
              end do
           end do
@@ -2322,8 +2322,11 @@ contains
        ! Apply index priors
        do l = 1, c_lnL%npar
           if (c_lnL%p_gauss(2,l) > 0.d0) then
+             !write(*,*) "before", l, c_lnL%p_gauss(:,l), theta(l), lnL_ptsrc_multi
+
              lnL_ptsrc_multi = lnL_ptsrc_multi - 0.5d0 * (theta(l)-c_lnL%p_gauss(1,l))**2 / &
-                  & c_lnL%p_gauss(2,l)**2 
+                  & c_lnL%p_gauss(2,l)**2
+             !write(*,*) "after ", l, c_lnL%p_gauss(:,l), theta(l), lnL_ptsrc_multi
           end if
        end do
 

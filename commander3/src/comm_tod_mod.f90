@@ -101,6 +101,7 @@ module comm_tod_mod
 
   type, abstract :: comm_tod
      character(len=512) :: freq
+     character(len=512) :: instlabel
      character(len=512) :: filelist
      character(len=512) :: procmaskf1
      character(len=512) :: procmaskf2
@@ -356,6 +357,7 @@ contains
     self%info          => info
     self%init_from_HDF = cpar%ds_tod_initHDF(id_abs)
     self%freq          = cpar%ds_label(id_abs)
+    self%instlabel     = cpar%ds_instlabel(id_abs)
     self%operation     = cpar%operation
     self%outdir        = cpar%outdir
     self%first_call    = .true.

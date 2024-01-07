@@ -36,7 +36,7 @@ program commander
   use hmc_mod
   implicit none
 
-  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
+  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
   real(dp)            :: t0, t1, t2, t3, dbp
   logical(lgt)        :: ok, first
   type(comm_params)   :: cpar
@@ -273,6 +273,7 @@ program commander
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
+  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind)) modfact = 2
   !----------------------------------------------------------------------------------
   ! Part of Simulation routine
   !----------------------------------------------------------------------------------
@@ -355,10 +356,10 @@ program commander
         exit
      end if
 
-   if (mod(iter-1,2) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+   if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
-      if (iter == 3 .or. (first_sample > 1 .and. iter == first_sample)) then
+      if (iter == modfact+1 .or. (first_sample > 1 .and. iter == first_sample)) then
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
@@ -372,12 +373,13 @@ program commander
 !!$      end do
       
       call compute_downsamp_zodi(cpar, zodi_model)      
-      if (iter == 3 .or. (first_sample > 1 .and. iter == first_sample)) then
+      if (iter == modfact+1 .or. (first_sample > 1 .and. iter == first_sample)) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)      
-         call create_zodi_glitch_mask(cpar)
+!         call create_zodi_glitch_mask(cpar)
       end if 
-      call apply_zodi_glitch_mask(cpar)
+      !      call apply_zodi_glitch_mask(cpar)
+      write(*,*) 'disabling glitch mask'
       
       select case (trim(adjustl(cpar%zs_sample_method)))
       case ("mh")
@@ -419,7 +421,7 @@ program commander
    end if
 
 
-   if (mod(iter,2) == 0) then
+   if (mod(iter,modfact) == 0) then
      ! Sample gains off of absolutely calibrated FIRAS maps
      if (iter > 5) then
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)

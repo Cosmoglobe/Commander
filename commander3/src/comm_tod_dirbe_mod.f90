@@ -258,9 +258,10 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
-        & trim(self%freq) == '03' .or. &
-        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
+!!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
+!!$        & trim(self%freq) == '03' .or. &
+!!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
+      if (trim(self%freq) == '09' .or. trim(self%freq) == '10') then
          sample_ncorr = .true.
       else
          sample_ncorr = .false.
@@ -357,7 +358,7 @@ contains
          end if
          
          ! Sample correlated noise
-         if (.false. .and. sample_ncorr) then
+         if (sample_ncorr) then
             !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
             call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), nomono=.true.) 
            ! Compute noise spectrum parameters

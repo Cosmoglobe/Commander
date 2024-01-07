@@ -166,6 +166,7 @@ module comm_zodi_mod
    integer(i4b)            :: numband
    character(len=128)      :: zodi_refband
    character(len=128), allocatable, dimension(:) :: band_labels
+   character(len=128), allocatable, dimension(:) :: band_instlabels
    character(len=128), allocatable, dimension(:) :: band_todtype
    real(dp),           allocatable, dimension(:) :: band_nu_c
    
@@ -178,11 +179,12 @@ contains
       character(len=128), allocatable :: comp_labels(:)
 
       ! Find number of bands and labels
-      numband      = count(cpar%ds_active)
-      band_labels  = pack(cpar%ds_label, cpar%ds_active)
-      band_todtype = pack(cpar%ds_tod_type, cpar%ds_active)
-      band_nu_c    = pack(cpar%ds_nu_c, cpar%ds_active)
-      zodi_refband = cpar%zs_refband
+      numband         = count(cpar%ds_active)
+      band_labels     = pack(cpar%ds_label, cpar%ds_active)
+      band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
+      band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
+      band_nu_c       = pack(cpar%ds_nu_c, cpar%ds_active)
+      zodi_refband    = cpar%zs_refband
       
       ! Set model and zodi_mod parameters from cpar
       zodi_model%n_comps = cpar%zs_ncomps
@@ -1570,10 +1572,9 @@ contains
      integer(i4b),                   intent(in)    :: samp_group
      integer(i4b),     dimension(:), intent(inout) :: stat
 
-     integer(i4b) :: i
+     integer(i4b) :: i, c, j, first, last, n_params, n, m, ind, em_global, al_global
      character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10), str
      character(len=128), allocatable :: tokens_trunc(:)
-     integer(i4b) :: c, j, first, last, n_params, n, m, ind, em_global, al_global
 
      ! Default: Fix everything at input
      str  = cpar%zs_samp_groups(samp_group)
@@ -1673,6 +1674,23 @@ contains
         end do
      end if
 
+     ! Match emissivity and albedo for bands with identical instruments
+     do i = 1, numband
+        do j = i+1, numband
+           if (trim(band_instlabels(j)) == trim(band_instlabels(i))) then
+              do c = 1, zodi_model%n_comps
+                 ind   = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_band=i)
+                 first = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_band=j)
+                 stat(first) = ind
+                 
+                 ind   = zodi_model%get_par_ind(comp=zodi_model%comps(c), al_band=i)
+                 first = zodi_model%get_par_ind(comp=zodi_model%comps(c), al_band=j)
+                 stat(first) = ind
+              end do
+           end if
+        end do
+     end do
+     
      ! Apply absolute constraints
      do j = 1, numband
         if (band_todtype(j) == 'none') then

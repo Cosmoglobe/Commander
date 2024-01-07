@@ -2,6 +2,7 @@
 # NOTE: data dir in parameter file
 
 BAND_LABEL&&&                  = 03
+BAND_INSTRUMENT_LABEL&&&       = 03
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 512

@@ -122,6 +122,7 @@ module comm_param_mod
      integer(i4b),       allocatable, dimension(:)   :: ds_nside
      integer(i4b),       allocatable, dimension(:)   :: ds_lmax
      character(len=512), allocatable, dimension(:)   :: ds_label
+     character(len=512), allocatable, dimension(:)   :: ds_instlabel
      character(len=512), allocatable, dimension(:)   :: ds_unit
      character(len=512), allocatable, dimension(:)   :: ds_noise_format
      integer(i4b),       allocatable, dimension(:)   :: ds_noise_lcut
@@ -551,7 +552,7 @@ contains
     call get_parameter_hashtable(htbl, 'PROCESSING_MASKFILE', par_string=cpar%ds_procmask, path=.true.)
 
     n = cpar%numband
-    allocate(cpar%ds_active(n), cpar%ds_label(n))
+    allocate(cpar%ds_active(n), cpar%ds_label(n), cpar%ds_instlabel(n))
     allocate(cpar%ds_polarization(n), cpar%ds_nside(n), cpar%ds_lmax(n))
     allocate(cpar%ds_unit(n), cpar%ds_noise_format(n), cpar%ds_mapfile(n))
     allocate(cpar%ds_noisefile(n), cpar%ds_maskfile(n), cpar%ds_maskfile_calib(n))
@@ -577,6 +578,7 @@ contains
        if (.not. cpar%ds_active(i)) cycle
        call get_parameter_hashtable(htbl, 'BAND_OBS_PERIOD'//itext, len_itext=len_itext, par_int=cpar%ds_period(i))
        call get_parameter_hashtable(htbl, 'BAND_LABEL'//itext, len_itext=len_itext, par_string=cpar%ds_label(i))
+       call get_parameter_hashtable(htbl, 'BAND_INSTRUMENT_LABEL'//itext, len_itext=len_itext, par_string=cpar%ds_instlabel(i))
        call get_parameter_hashtable(htbl, 'BAND_POLARIZATION'//itext, len_itext=len_itext, par_lgt=cpar%ds_polarization(i))
        call get_parameter_hashtable(htbl, 'BAND_NSIDE'//itext, len_itext=len_itext, par_int=cpar%ds_nside(i))
        call get_parameter_hashtable(htbl, 'BAND_LMAX'//itext, len_itext=len_itext, par_int=cpar%ds_lmax(i))
