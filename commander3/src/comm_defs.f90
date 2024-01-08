@@ -34,7 +34,7 @@ module comm_defs
   real(dp)            :: EXP_OVERFLOW = 700.d0
   real(dp)            :: SECOND_TO_DAY = 1.1574074074074073e-05
   integer(i4b)        :: zodi_nside = 64
-
+  real(dp), parameter :: EARTH_ORBIT_PERIOD = 365.256363004d0
   !**************************************************
   !               Counters
   !**************************************************

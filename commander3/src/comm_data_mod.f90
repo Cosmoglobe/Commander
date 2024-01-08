@@ -36,6 +36,10 @@ module comm_data_mod
   use comm_bp_utils
   implicit none
 
+  type ZodiFourierCube
+     complex(spc), allocatable, dimension(:) :: coeffs
+     real(dp), allocatable, dimension(:) :: freqs
+  end type
   type comm_data_set
      character(len=512)           :: label, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
@@ -48,8 +52,7 @@ module comm_data_mod
      integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only, subtract_zodi
 
-     complex(spc), allocatable, dimension(:, :)  :: zodi_fourier_cube
-     real(dp) :: zodi_fft_dt
+     type(ZodiFourierCube), allocatable, dimension(:) :: zodi_fourier_cube
      
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_mapinfo), pointer :: rmsinfo   => null()
@@ -77,7 +80,6 @@ module comm_data_mod
   integer(i4b) :: numband
   type(comm_data_set), allocatable, dimension(:) :: data
   integer(i4b),        allocatable, dimension(:) :: ind_ds
-
   
 contains
 
@@ -199,7 +201,7 @@ contains
        call update_status(status, "data_tod")
 
        if ((.not. trim(data(n)%tod_type) == 'none') .and. data(n)%tod%subtract_zodi) then
-         allocate(data(n)%zodi_fourier_cube(8, 0:nside2npix(zodi_nside)-1))
+         allocate(data(n)%zodi_fourier_cube(0:nside2npix(zodi_nside)-1))
        end if
 
        ! Initialize beam structures

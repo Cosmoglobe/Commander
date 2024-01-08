@@ -10,7 +10,7 @@ module comm_zodi_samp_mod
    implicit none
 
    private
-   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, remove_glitches_from_downsamped_zodi_quantities, compute_zodi_fourier_maps
+   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, remove_glitches_from_downsamped_zodi_quantities, build_zodi_fourier_cube
 
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)
@@ -775,13 +775,12 @@ contains
       end do
    end subroutine
 
-
-   subroutine compute_zodi_fourier_maps(cpar, model)
+   subroutine build_zodi_fourier_cube(cpar, model)
       type(comm_params), intent(in) :: cpar
       type(ZodiModel), intent(in) :: model
 
-      real(sp), allocatable :: zodi_time_maps(:, :), s_zodi_comps(:, :)
-      real(dp) :: dt, period, s_zodi_test
+      real(sp), allocatable :: s_zodi_comps(:, :)
+      real(dp) :: dt, s_zodi_test, start_time
       real(dp), dimension(3) :: earth_pos, obs_pos
       real(dp), allocatable :: tabulated_earth_time(:), tabulated_earth_pos(:, :)
       real(dp), allocatable :: obs_time(:), freqs(:)
@@ -792,41 +791,40 @@ contains
       real(sp), allocatable :: s_zodi_time(:, :), s_zodi(:)
       complex(spc), allocatable, dimension(:) :: fft_coefficients, fft_coefficients_mirr
       integer*8    :: plan_fwd, plan_back
-      
-      
-      period = 365.242199
+      type(ZodiFourierCube), allocatable :: high_quality_cube(:)
 
-      ! obs_time = [real(dp) :: 58849, 58880, 58909, 58940, 58970, 59001, 59031, 59062, 59093, 59123, 59154, 59184, 59215]
-
+      ! distribute pixels to cores
       npix = nside2npix(zodi_nside)
-      
-      allocate(pixels(npix))
-      pixels = [(i, i = 0, npix-1)]
-
       npix_start = cpar%myid * (npix / cpar%numprocs)
       npix_end = (cpar%myid + 1) * (npix / cpar%numprocs) - 1
-      print *, cpar%myid, "npix_start: ", npix_start, "npix_end: ", npix_end
-      call mpi_barrier(cpar%comm_chain, ierr)
-      stop
+      if (cpar%myid == cpar%numprocs - 1) npix_end = npix - 1
       
-      nobs = 8
+      allocate(high_quality_cube(0:npix-1))
+      
+      allocate(pixels(npix_end-npix_start))
+      pixels = [(i, i = npix_start, npix_end)]
+
+      ! build a high quality cube used to deterimine the optimal number of fourier coefficients
+      nobs = 128
       ncoeffs = nobs/2 + 1
-
-
-      obs_time = [(i * (period/real(nobs)), i = 1, nobs)]
-      obs_time = obs_time + 47871.0100490336
-      dt = obs_time(2) - obs_time(1)
       
       allocate(s_zodi_comps(0:npix-1, zodi_model%n_comps))
       allocate(s_zodi_time(0:npix-1, nobs))
-      allocate(zodi_time_maps(nobs, 0:npix-1))
-      
-      allocate(s_zodi(nobs)) !dt
-      allocate(fft_coefficients(0:ncoeffs-1))  !dv
-      allocate(fft_coefficients_mirr(0:nobs-1))  !dv
+      allocate(s_zodi(nobs))
+      s_zodi_comps = 0.
+      s_zodi_time = 0.
+      s_zodi = 0.
 
+      allocate(fft_coefficients(0:ncoeffs-1))
+      allocate(fft_coefficients_mirr(0:nobs-1))
       allocate(freqs(0:nobs-1))
+      
+      start_time = 47871.0100490336
 
+      dt = EARTH_ORBIT_PERIOD / real(nobs)
+      obs_time = [(i * dt, i = 1, nobs)]
+      obs_time = obs_time + start_time
+      
       freqs = 0.
       do k = 1, ncoeffs
          if (k < nobs/2.) then
@@ -842,68 +840,184 @@ contains
       call sfftw_plan_with_nthreads(n_threads)
       call sfftw_plan_dft_r2c_1d(plan_fwd,  nobs, s_zodi, fft_coefficients, fftw_estimate + fftw_unaligned)
       
-      test_pix = 323
-      test_time = 4
+      
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
-         data(i)%zodi_fft_dt = dt
 
          do time_idx = 1, nobs
-            if (cpar%myid == cpar%root) print *, "computing zodi fourier maps for band: ", i, "time_idx: ", time_idx
             do j = 1, 3
                earth_pos(j) = splint_simple(zodi_model%earth_pos_interpolator(j), obs_time(time_idx))
             end do
             call get_instantaneous_zodi_emission(data(i)%tod, pixels, obs_time(time_idx), earth_pos, 1, s_zodi_comps, model)
             s_zodi_time(:, time_idx) = sum(s_zodi_comps, dim=2)
-            
-            ! do pix = 0, npix-1
-            ! end do
-            ! if (cpar%myid == cpar%root) print *, "s_zodi_time", shape(s_zodi_time), s_zodi_time(test_pix, time_idx)
          end do
-         
-         if (cpar%myid == cpar%root) print *,"looping over pix..."
-         
-         do pix = 0, npix - 1
+         do pix = npix_start, npix_end
             s_zodi = s_zodi_time(pix, :)
             call sfftw_execute_dft_r2c(plan_fwd, s_zodi, fft_coefficients)
             fft_coefficients_mirr(0:ncoeffs-1) = fft_coefficients(0:ncoeffs-1)
             do k = ncoeffs, nobs-1
                fft_coefficients_mirr(k) = conjg(fft_coefficients(nobs-k))
             end do
-            data(i)%zodi_fourier_cube(:, pix) = fft_coefficients_mirr
+            data(i)%zodi_fourier_cube(pix)%coeffs = fft_coefficients_mirr
+            data(i)%zodi_fourier_cube(pix)%freqs = freqs
          end do
-
-         ! if (cpar%myid == 0) then
-         !    call fft_interp_zodi(data(i)%zodi_fourier_cube(:, test_pix), freqs, obs_time(test_time), obs_time(1), s_zodi_test)
-
-         !    print *, "interp:", s_zodi_test, "og:", s_zodi_time(test_pix, test_time)
-         ! end if
-         ! if (.false. .and. cpar%myid == cpar%root) then
-         !    call open_hdf_file(trim(adjustl("/mn/stornext/u3/metins/dirbe/chains/chains_downsamp/coeffs.h5")), tod_file, 'w')
-         !    call write_hdf(tod_file, '/z', s_zodi)
-         !    call write_hdf(tod_file, '/t', obs_time)
-         !    call close_hdf_file(tod_file)
-         ! end if
-         ! call mpi_barrier(cpar%comm_chain, ierr)
-         ! stop
+         call mpi_allreduce(mpi_in_place, data(i)%zodi_fourier_cube, size(data(i)%zodi_fourier_cube), MPI_COMPLEX, MPI_SUM, cpar%comm_chain, ierr)
       end do
+
+
+
+      deallocate(s_zodi_comps, s_zodi_time, s_zodi, fft_coefficients, fft_coefficients_mirr, freqs)
+
+      ! nobs = 2
+      ! do while (.true.)
+      !    nobs = nobs * nobs
+      !    ncoeffs = nobs/2 + 1
+         
+      !    allocate(s_zodi_comps(0:npix-1, zodi_model%n_comps))
+      !    allocate(s_zodi_time(0:npix-1, nobs))
+      !    allocate(s_zodi(nobs))
+      !    s_zodi_comps = 0.
+      !    s_zodi_time = 0.
+      !    s_zodi = 0.
+
+      !    allocate(fft_coefficients(0:ncoeffs-1))
+      !    allocate(fft_coefficients_mirr(0:nobs-1))
+      !    allocate(freqs(0:nobs-1))
+
+      !    dt = period/real(nobs)
+      !    obs_time = [(i * dt, i = 1, nobs)]
+      !    obs_time = obs_time + 47871.0100490336
+         
+      !    freqs = 0.
+      !    do k = 1, ncoeffs
+      !       if (k < nobs/2.) then
+      !          freqs(k) = k / (dt * nobs)
+      !       else
+      !          freqs(k) = (k - nobs) / (dt * nobs)
+      !       end if
+      !       if (k < ncoeffs - 1) freqs(nobs - k) = - freqs(k)
+      !    end do
+   
+      !    n_threads = 1
+      !    call sfftw_init_threads(err)
+      !    call sfftw_plan_with_nthreads(n_threads)
+      !    call sfftw_plan_dft_r2c_1d(plan_fwd,  nobs, s_zodi, fft_coefficients, fftw_estimate + fftw_unaligned)
+         
+
+
+
+
+      !    deallocate(s_zodi_comps, s_zodi_time, s_zodi, fft_coefficients, fft_coefficients_mirr, freqs)
+      ! end do
+
    end subroutine
 
-   ! subroutine fft_interp_zodi(fft_coeffs, fft_freqs, t, t_0, s_zodi_pix)
-   !    complex(spc), intent(in) :: fft_coeffs(:)
-   !    real(dp), intent(in) :: fft_freqs(:), t, t_0
-   !    real(dp), intent(out) :: s_zodi_pix
 
-   !    complex(spc) :: i = cmplx(0., 1.)
-   !    integer(i4b) :: k
+   ! subroutine compute_zodi_fourier_maps(cpar, model)
+   !    type(comm_params), intent(in) :: cpar
+   !    type(ZodiModel), intent(in) :: model
 
-   !    s_zodi_pix = 0
-   !    do k = 1, size(fft_coeffs)
-   !       s_zodi_pix = s_zodi_pix + fft_coeffs(k) * exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
+   !    real(sp), allocatable :: s_zodi_comps(:, :)
+   !    real(dp) :: dt, period, s_zodi_test
+   !    real(dp), dimension(3) :: earth_pos, obs_pos
+   !    real(dp), allocatable :: tabulated_earth_time(:), tabulated_earth_pos(:, :)
+   !    real(dp), allocatable :: obs_time(:), freqs(:)
+   !    integer(i4b), allocatable :: pixels(:), unit
+   !    integer(i4b) :: i, j, k, test_pix, npix_start, npix_end, test_time, pix, nscan, nobs, ncoeffs, ntod, ndet, scan, d, npix, ierr, n_earthpos, time_idx, n_threads, err, m, n
+   !    type(hdf_file) :: tod_file
+   !    type(spline_type) :: earth_pos_spl_obj(3)
+   !    real(sp), allocatable :: s_zodi_time(:, :), s_zodi(:)
+   !    complex(spc), allocatable, dimension(:) :: fft_coefficients, fft_coefficients_mirr
+   !    integer*8    :: plan_fwd, plan_back
+      
+      
+   !    period = 365.242199
+
+   !    ! obs_time = [real(dp) :: 58849, 58880, 58909, 58940, 58970, 59001, 59031, 59062, 59093, 59123, 59154, 59184, 59215]
+
+   !    npix = nside2npix(zodi_nside)
+   !    npix_start = cpar%myid * (npix / cpar%numprocs)
+   !    npix_end = (cpar%myid + 1) * (npix / cpar%numprocs) - 1
+   !    if (cpar%myid == cpar%numprocs - 1) npix_end = npix - 1
+      
+   !    allocate(pixels(npix_end-npix_start))
+   !    pixels = [(i, i = npix_start, npix_end)]
+
+   !    nobs = size(data(1)%zodi_fourier_cube, dim=1)
+   !    ncoeffs = nobs/2 + 1
+   !    dt = period/real(nobs)
+   !    obs_time = [(i * dt, i = 1, nobs)]
+   !    obs_time = obs_time + 47871.0100490336
+      
+   !    allocate(s_zodi_comps(0:npix-1, zodi_model%n_comps))
+   !    allocate(s_zodi_time(0:npix-1, nobs))
+   !    s_zodi_comps = 0.
+   !    s_zodi_time = 0.
+
+   !    allocate(s_zodi(nobs)) !dt
+   !    s_zodi = 0.
+   !    allocate(fft_coefficients(0:ncoeffs-1))  !dv
+   !    allocate(fft_coefficients_mirr(0:nobs-1))  !dv
+
+   !    allocate(freqs(0:nobs-1))
+
+   !    freqs = 0.
+   !    do k = 1, ncoeffs
+   !       if (k < nobs/2.) then
+   !          freqs(k) = k / (dt * nobs)
+   !       else
+   !          freqs(k) = (k - nobs) / (dt * nobs)
+   !       end if
+   !       if (k < ncoeffs - 1) freqs(nobs - k) = - freqs(k)
    !    end do
-   !    s_zodi_pix = s_zodi_pix / size(fft_coeffs)
-   ! end subroutine fft_interp_zodi
+
+   !    n_threads = 1
+   !    call sfftw_init_threads(err)
+   !    call sfftw_plan_with_nthreads(n_threads)
+   !    call sfftw_plan_dft_r2c_1d(plan_fwd,  nobs, s_zodi, fft_coefficients, fftw_estimate + fftw_unaligned)
+      
+   !    do i = 1, numband
+   !       if (trim(data(i)%tod_type) == 'none') cycle
+   !       if (.not. data(i)%tod%subtract_zodi) cycle
+
+   !       do time_idx = 1, nobs
+   !          do j = 1, 3
+   !             earth_pos(j) = splint_simple(zodi_model%earth_pos_interpolator(j), obs_time(time_idx))
+   !          end do
+   !          call get_instantaneous_zodi_emission(data(i)%tod, pixels, obs_time(time_idx), earth_pos, 1, s_zodi_comps, model)
+   !          s_zodi_time(:, time_idx) = sum(s_zodi_comps, dim=2)
+   !       end do
+   !       do pix = npix_start, npix_end
+   !          s_zodi = s_zodi_time(pix, :)
+   !          call sfftw_execute_dft_r2c(plan_fwd, s_zodi, fft_coefficients)
+   !          fft_coefficients_mirr(0:ncoeffs-1) = fft_coefficients(0:ncoeffs-1)
+   !          do k = ncoeffs, nobs-1
+   !             fft_coefficients_mirr(k) = conjg(fft_coefficients(nobs-k))
+   !          end do
+   !          data(i)%zodi_fourier_cube(:, pix) = fft_coefficients_mirr
+   !       end do
+   !       call mpi_allreduce(mpi_in_place, data(i)%zodi_fourier_cube, size(data(i)%zodi_fourier_cube), MPI_COMPLEX, MPI_SUM, cpar%comm_chain, ierr)
+   !    end do
+   ! end subroutine
+
+   subroutine combine_fft_coeffs(prev_coeffs, new_coeffs, coeffs)
+      complex(spc), intent(in) :: prev_coeffs(:), new_coeffs(:)
+      complex(spc), allocatable, intent(inout) :: coeffs(:)
+      integer(i4b) :: i, j, n
+      
+      if (allocated(coeffs)) deallocate(coeffs)
+      
+      n = size(prev_coeffs)+size(new_coeffs)
+      allocate(coeffs(n))
+
+      j = 1
+      do i = 1, n, 2
+          coeffs(i) = prev_coeffs(j)
+          coeffs(i+1) = new_coeffs(j)
+          j = j + 1
+      end do
+   end subroutine
 
    subroutine precompute_lowres_zodi_lookups(cpar)
       ! Loop over each band with zodi and precompute lookup tables for lowres zodi caching

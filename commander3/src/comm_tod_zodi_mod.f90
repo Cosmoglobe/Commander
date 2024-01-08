@@ -280,7 +280,7 @@ contains
       real(sp), dimension(:, :), intent(inout) :: s_zodi
       type(ZodiModel), intent(in) :: model
 
-      integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
+      integer(i4b) :: i, j, k, l, p, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
       logical(lgt) :: scattering, use_lowres
       real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, phase_normalization, C0, C1, C2
       real(dp) :: unit_vector(3), earth_pos(3), rotation_matrix(3, 3)
@@ -312,7 +312,9 @@ contains
          ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
          
          ! Get lookup index for cache. If the pixel is already cached, used that value.
-         call pix2vec_ring(zodi_nside, pix(i), unit_vector)
+         p = pix(i)
+         ! print *, tod%myid, "pix:", p
+         call pix2vec_ring(zodi_nside, p, unit_vector)
          unit_vector = matmul(unit_vector, rotation_matrix)
          ! print*, unit_vector
          do k = 1, model%n_comps
@@ -338,9 +340,9 @@ contains
 
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
             if (scattering) then
-               s_zodi(i, k) = s_zodi(i, k) + tod%zodi_albedo(k) * sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+               s_zodi(p + 1, k) = s_zodi(p + 1, k) + tod%zodi_albedo(k) * sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
             end if
-            s_zodi(i, k) = s_zodi(i, k) +  (1. - tod%zodi_albedo(k)) * tod%zodi_emissivity(k) * sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
+            s_zodi(p + 1, k) = s_zodi(p + 1, k) +  (1. - tod%zodi_albedo(k)) * tod%zodi_emissivity(k) * sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
          end do
       end do
    end subroutine get_instantaneous_zodi_emission
@@ -380,18 +382,8 @@ contains
 
       dt_tod = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
       obs_time = tod%scans(scan)%t0(1)
-      
-      ! print *,"pix bounds:", lbound(pix), ubound(pix)
-      ! print *,"pix min max:", minval(pix), maxval(pix)
-      ! print *,"udgrade_pix_zodi bounds:", lbound(tod%udgrade_pix_zodi), ubound(tod%udgrade_pix_zodi)
-      ! print *,"udgrade_pix_zodi min max:", minval(tod%udgrade_pix_zodi), maxval(tod%udgrade_pix_zodi)
-      ! stop
+
       do i = 1, size(pix)
-         ! print *, "coeffs:", tod%zodi_fourier_cube(:, pix(i))
-         ! print *, "freqs:", freqs
-         ! print *, "obs_time:", obs_time
-         ! print *, "obs_time_samp(1):", obs_time_samp(1)
-         ! stop
          call fft_interp_zodi(tod%zodi_fourier_cube(:, tod%udgrade_pix_zodi(pix(i))), freqs, obs_time, obs_time_samp(1), tmp)
          s_zodi(i) = real(tmp, sp)
          obs_time = obs_time + dt_tod

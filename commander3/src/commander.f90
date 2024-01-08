@@ -188,7 +188,7 @@ program commander
           end do
           call read_tod_zodi_params(cpar, zodi_model, data(i)%tod)
 
-          call compute_zodi_fourier_maps(cpar, zodi_model)
+          call build_zodi_fourier_cube(cpar, zodi_model)
           data(i)%tod%zodi_fourier_cube = data(i)%zodi_fourier_cube
      end do
   end if
@@ -356,7 +356,7 @@ program commander
 !!$      do i = 1, numband
 !!$         write(*,*) 'emissivity', data(i)%tod%zodi_emissivity, data(i)%tod%zodi_albedo
 !!$      end do
-      call compute_zodi_fourier_maps(cpar, zodi_model)
+      ! call compute_zodi_fourier_maps(cpar, zodi_model)
       call compute_downsamp_zodi(cpar, zodi_model)      
       if (iter == 2) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
