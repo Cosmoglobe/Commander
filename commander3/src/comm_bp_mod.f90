@@ -411,9 +411,9 @@ contains
        if (Inu0 == 0.d0) then
          SED2F = 0.d0
       else
-          K     = tsum(self%nu, self%tau * self%a2f_arr*f) / tsum(self%nu, self%tau * self%nu_c/self%nu)
-         !  SED2F = K * Inu0
-         SED2F = K
+         K     = tsum(self%nu, self%tau * self%a2f_arr*f/Inu0) / tsum(self%nu, self%tau * self%nu_c/self%nu)
+         SED2F = K * Inu0
+         !SED2F = K
          !  print *, SED2F, tsum(self%nu, self%tau * self%a2f_arr*f) / tsum(self%nu, self%tau * self%nu_c/self%nu)
        end if
     case ('WMAP')

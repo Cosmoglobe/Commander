@@ -543,7 +543,7 @@ contains
                          & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
                          & emissivity=data(i)%tod%zodi_emissivity, &
                          & albedo=data(i)%tod%zodi_albedo &
-                     &)
+                         &)
 
                      chisq_tod = chisq_tod + sum( &
                         & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
@@ -997,7 +997,7 @@ contains
    subroutine create_zodi_glitch_mask(cpar)
       type(comm_params), intent(in) :: cpar
       integer(i4b) :: i, j, k, scan, ierr, non_glitch_size, thinstep
-      real(dp) :: box_width, rms
+      real(dp) :: box_width, rms, frac
       real(sp), allocatable :: res(:)
       real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
 
@@ -1010,17 +1010,18 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-               !if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
-               
+
                ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
-!!$               write(*,*) 'a', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_tod**2, dp)))
-!!$               write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
-!!$               write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
                rms = sqrt(mean(real(res**2, dp)))
-               data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask = abs(res) > 5. * real(rms, sp)
+               data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask = abs(res) > 10. * real(rms, sp)
+               frac = count(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)/real(size(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask),dp)
+               if (frac > 0.01d0) then
+                  write(*,*) 'Warning: Removing high fraction of glitches = ', frac
+               end if
 
                ! Apply TOD thinning
+               !allocate(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(data(i)%tod%scans(scan)%ntod))
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                   if (mod(k,thinstep) /= 0) then
                      data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(k) = .true.
@@ -1189,21 +1190,22 @@ contains
       call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
       
       ! Check which parameters have changed
-      update_band = .false.
-      j = 0
-      do i = 1, zodi_model%npar_tot
-         if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
-         j = j+1
-         if (theta(j) /= theta_prev(j)) then
-            !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
-            if (zodi_model%theta2band(i) == 0) then
-               update_band = .true.
-               exit
-            else
-               update_band(zodi_model%theta2band(i)) = .true.
-            end if
-         end if
-      end do
+      update_band = .true.
+!!$      update_band = .false.
+!!$      j = 0
+!!$      do i = 1, zodi_model%npar_tot
+!!$         if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
+!!$         j = j+1
+!!$         if (theta(j) /= theta_prev(j)) then
+!!$            !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
+!!$            if (zodi_model%theta2band(i) == 0) then
+!!$               update_band = .true.
+!!$               exit
+!!$            else
+!!$               update_band(zodi_model%theta2band(i)) = .true.
+!!$            end if
+!!$         end if
+!!$      end do
       !if (data(1)%tod%myid == 0) write(*,*) data(1)%tod%myid, ' -- update =', update_band, all(theta == theta_prev)
       
       ! Check priors
@@ -1236,6 +1238,7 @@ contains
 
          if (.not. update_band(i)) then
             !write(*,*) 'skipping', i, chisq_prev(i)
+            if (data(1)%tod%myid == 0) write(*,*) 'skipping band ', i, chisq_prev(i)
             chisq_tot = chisq_tot + chisq_prev(i)
             do scan = 1, nscan
                do j = 1, ndet
@@ -1256,7 +1259,10 @@ contains
          do scan = 1, nscan
             ! Skip scan if no accepted data
             do j = 1, ndet
-               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) then
+                  !write(*,*) '   Scan rejected:', data(i)%tod%scanid(scan), data(1)%tod%myid
+                  cycle
+               end if
 
                call wall_time(t3)
                call get_zodi_emission(&
@@ -1270,7 +1276,7 @@ contains
                    & use_lowres_pointing=.true. &
                    &)
                call wall_time(t4)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU1 = ', t4-t3
                call get_s_zodi(&
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
@@ -1279,7 +1285,7 @@ contains
                    & albedo=data(i)%tod%zodi_albedo &
                    &)
                call wall_time(t3)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
                
                chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
@@ -1290,7 +1296,7 @@ contains
                chisq_tot     = chisq_tot     + chisq
                chisq_prev(i) = chisq_prev(i) + chisq
                call wall_time(t4)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
                
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tot >= 1.d30) exit
@@ -1313,7 +1319,7 @@ contains
                   close(58)
                end if
                call wall_time(t3)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU4 = ', t3-t4
 
             end do
          end do

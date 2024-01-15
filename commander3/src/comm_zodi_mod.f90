@@ -149,9 +149,9 @@ module comm_zodi_mod
       integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
       real(dp) :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
-      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
 
       integer(i4b) :: npar_tot
       integer(i4b), allocatable, dimension(:,:) :: theta_stat
@@ -364,11 +364,11 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [1.d0, 1.5d0, 1.34d0, -1.d0] ! alpha
@@ -395,11 +395,11 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
@@ -426,11 +426,11 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
@@ -439,9 +439,9 @@ contains
       scale(start_ind+7)   = 1.d0      
       prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
       scale(start_ind+8)   = 1.d0      
-      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+      prior(:,start_ind+9) = [-60.d-3, 60.d-3, 0.d0, -1.d0] ! theta
       scale(start_ind+9)   = 1.d0      
-      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+      prior(:,start_ind+10) = [0.d0, 0.001d0, 0.d0, -1.d0] ! sigma_theta
       scale(start_ind+10)   = 1.d0      
     end subroutine init_ring_priors_and_scales
 
@@ -459,23 +459,23 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
-!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-!!$      scale(start_ind+6)   = 1.d0      
-!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-!!$      scale(start_ind+7)   = 1.d0      
-!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-!!$      scale(start_ind+8)   = 1.d0      
-!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
-!!$      scale(start_ind+9)   = 1.d0      
-!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
-!!$      scale(start_ind+10)   = 1.d0      
+      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [-20.d0, 20.d0, 0.d0, -1.d0] ! theta
+      scale(start_ind+9)   = 1.d0      
+      prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
+      scale(start_ind+10)   = 1.d0      
     end subroutine init_feature_priors_and_scales
 
     subroutine init_interstellar_priors_and_scales(self, start_ind, prior, scale)

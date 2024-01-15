@@ -122,6 +122,7 @@ module comm_tod_mod
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
      integer(i4b) :: band                                        ! Band ID
+     integer(i4b) :: zodiband                                        ! Band ID for zodi
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
      integer(i4b) :: nhorn                                        ! Number of horns
@@ -379,7 +380,8 @@ contains
     self%accept_threshold = 0.9d0 ! default
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
-
+    self%zodiband        = -1
+    
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
@@ -901,7 +903,6 @@ contains
     integer(i4b), allocatable, dimension(:)       :: hsymb
     real(sp),     allocatable, dimension(:)       :: buffer_sp, xi_n, hsymb_sp
     integer(i4b), allocatable, dimension(:)       :: htree
-
 
     self%chunk_num = scan
     call int2string(scan, slabel)

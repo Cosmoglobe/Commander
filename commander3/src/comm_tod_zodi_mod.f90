@@ -116,7 +116,7 @@ contains
 
       integer(i4b) :: i, j, k, l, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
       logical(lgt) :: scattering, use_lowres
-      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, obs_time, phase_normalization, C0, C1, C2, lat, lon
       real(dp) :: unit_vector(3), obs_pos(3), earth_pos(3)
       !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
@@ -131,9 +131,9 @@ contains
       obs_time = tod%scans(scan)%t0(1)
       earth_lon = atan(earth_pos(2), earth_pos(1))
 
-      C0 = zodi_model%C0(tod%band)
-      C1 = zodi_model%C1(tod%band)
-      C2 = zodi_model%C2(tod%band)
+      C0 = zodi_model%C0(tod%zodiband)
+      C1 = zodi_model%C1(tod%zodiband)
+      C2 = zodi_model%C2(tod%zodiband)
       phase_normalization = get_phase_normalization(C0, C1, C2)
       if (present(always_scattering)) then
          scattering = always_scattering
@@ -147,7 +147,7 @@ contains
          else
             if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
             if (.not. allocated(tod%scans(scan)%downsamp_obs_time)) then
-               print *, tod%band, scan, "lowres obs_time not allocated"
+               print *, tod%zodiband, scan, "lowres obs_time not allocated"
                stop
             end if
             use_lowres = .true.
@@ -158,6 +158,7 @@ contains
       !use_lowres = .false.
 
       cache_hits = 0
+!!$      open(58,file="zodi.dat",recl=1024)
       do i = 1, n_tod
          ! Reset cache if time between last cache update and current time is larger than `delta_t_reset`.
          ! NOTE: this cache is only effective if the scans a core handles are in chronological order.
@@ -217,7 +218,7 @@ contains
             comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
 
             if (scattering) then
-               comp_LOS(k)%F_sol = model%F_sun(tod%band)/comp_LOS(k)%R**2
+               comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
                call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
                call get_phase_function(comp_LOS(k)%Theta, C0, C1, C2, phase_normalization, comp_LOS(k)%Phi)
             end if
@@ -241,8 +242,27 @@ contains
                tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
             end if
          end do
+         call vec2ang(unit_vector, lat, lon)
+!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
+!!$
+!!$         write(*,*) "X", comp_LOS(1)%X(1,:)
+!!$         write(*,*) "Y", comp_LOS(1)%X(2,:)
+!!$         write(*,*) "Z", comp_LOS(1)%X(3,:)
+!!$         write(*,*) "R", comp_LOS(1)%R
+!!$         write(*,*) "scat", comp_LOS(1)%F_sol*comp_LOS(1)%Phi
+!!$         write(*,*) "n", comp_LOS(1)%n
+!!$         write(*,*) "F_sun", model%F_sun(tod%zodiband)
+!!$         write(*,*) "F", comp_LOS(1)%F_sol*1.d20
+!!$         write(*,*) "Phi", comp_LOS(1)%Phi
+!!$         write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0 
+
       end do
-   end subroutine get_zodi_emission
+
+!!$      close(58)
+!!$      call mpi_finalize(i)
+!!$      stop
+
+    end subroutine get_zodi_emission
 
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------
@@ -278,7 +298,22 @@ contains
    subroutine get_blackbody_emission(nus, T, b_nu)
       real(dp), intent(in) :: nus(:), T
       real(dp), dimension(:), intent(out) :: b_nu
-      b_nu = ((2.*h*nus**3)/(c*c))/(exp((h*nus)/(k_B*T)) - 1.)
+      integer(i4b) :: i
+      real(dp) :: x
+      do i = 1, size(nus)
+         x = h*nus(i)/(k_B*T)
+         if (x < 0.001d0) then
+            ! Use RJ approximation
+            b_nu(i) = 2.d0*nus(i)**2*k_B*T/c**2
+         else if (x > 50.d0) then
+            ! Use Wien approximation
+            b_nu(i) = 2.d0*h*nus(i)**3/c**2 * exp(-x)
+         else
+            ! Use exact expression
+            b_nu(i) = 2.d0*h*nus(i)**3/c**2 / (exp(x) - 1.d0)
+         end if
+      end do
+      !b_nu = b_nu * 1d20 ! Convert from W/(m^2*sr*Hz) to MJy/sr
    end subroutine get_blackbody_emission
 
    subroutine get_scattering_angle(X_helio_vec_LOS, X_vec_LOS, R_helio_LOS, scattering_angle)
@@ -370,11 +405,15 @@ contains
 
       real(dp), allocatable :: b_nu(:)
       integer(i4b) :: i, j
+      real(dp)     :: K, Inu0(1)
 
       allocate (b_nu(bandpass%p%n))
       do i = 1, size(B_nu_integrals)
-         call get_blackbody_emission(bandpass%p%nu, T_grid(i), b_nu)
-         B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
+         call get_blackbody_emission( bandpass%p%nu,    T_grid(i), b_nu)
+         call get_blackbody_emission([bandpass%p%nu_c], T_grid(i), Inu0) ! Center frequency for color correction
+         K     = tsum(bandpass%p%nu, bandpass%p%tau * b_nu/Inu0(1)) / tsum(bandpass%p%nu, bandpass%p%tau * bandpass%p%nu_c/bandpass%p%nu) ! Color correction
+         B_nu_integrals(i) = K * Inu0(1)
+         !B_nu_integrals(i) = tsum(bandpass%p%nu, bandpass%p%tau*b_nu)
       end do
       call spline_simple(tod%zodi_b_nu_spl_obj(det), T_grid, B_nu_integrals, regular=.true.)
    end subroutine update_zodi_splines

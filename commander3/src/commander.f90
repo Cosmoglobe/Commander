@@ -376,10 +376,10 @@ program commander
       if (iter == modfact+1 .or. (first_sample > 1 .and. iter == first_sample)) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)      
-!         call create_zodi_glitch_mask(cpar)
+        call create_zodi_glitch_mask(cpar)
       end if 
-      !      call apply_zodi_glitch_mask(cpar)
-      write(*,*) 'disabling glitch mask'
+      call apply_zodi_glitch_mask(cpar)
+      !write(*,*) 'disabling glitch mask'
       
       select case (trim(adjustl(cpar%zs_sample_method)))
       case ("mh")
