@@ -19,13 +19,10 @@ module comm_zodi_samp_mod
    real(dp), dimension(2) :: emissivity_prior, albedo_prior
    logical(lgt), allocatable :: powell_included_params(:), ref_band(:)
    character(len=128), allocatable, dimension(:) :: implemented_sampling_algorithms
-
-   real(dp) :: chisq_red_current
-   real(dp), allocatable, dimension(:) :: param_vec_current
-   !integer(i4b), allocatable, dimension(:) :: param2band
    
 contains
-   subroutine initialize_zodi_samp_mod(cpar)
+  subroutine initialize_zodi_samp_mod(cpar)
+    implicit none
       ! Initialize the zodi sampling module.
       !
       ! Parameters
@@ -358,14 +355,15 @@ contains
                do j = 1, ndet
                   if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
                   ! rescale downsampled zodi comp-wise emission with newly proposed n0s
-                  call get_s_zodi(&
-                     & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                     & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                     & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                     & emissivity=emissivity_new(i, :), &
-                     & albedo=albedo_new(i, :), &
-                     & alpha=n0_new/n0_prev &
-                  &)
+                  ! HKE: Commented out for now, since alpha is no longer supported
+!!$                  call get_s_zodi(&
+!!$                     & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+!!$                     & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
+!!$                     & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
+!!$                     & emissivity=emissivity_new(i, :), &
+!!$                     & albedo=albedo_new(i, :), &
+!!$                     & alpha=n0_new/n0_prev &
+!!$                  &)
                   chisq_scan = chisq_scan + sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &

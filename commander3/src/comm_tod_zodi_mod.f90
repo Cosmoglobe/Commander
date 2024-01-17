@@ -242,19 +242,20 @@ contains
                tod%zodi_therm_cache(lookup_idx, k, det) = s_zodi_therm(i, k)
             end if
          end do
-         call vec2ang(unit_vector, lat, lon)
-!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
+!!$         call vec2ang(unit_vector, lat, lon)
+!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:))!, sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
 !!$
 !!$         write(*,*) "X", comp_LOS(1)%X(1,:)
 !!$         write(*,*) "Y", comp_LOS(1)%X(2,:)
 !!$         write(*,*) "Z", comp_LOS(1)%X(3,:)
 !!$         write(*,*) "R", comp_LOS(1)%R
-!!$         write(*,*) "scat", comp_LOS(1)%F_sol*comp_LOS(1)%Phi
+!!$         !write(*,*) "scat", comp_LOS(1)%F_sol*comp_LOS(1)%Phi
 !!$         write(*,*) "n", comp_LOS(1)%n
-!!$         write(*,*) "F_sun", model%F_sun(tod%zodiband)
-!!$         write(*,*) "F", comp_LOS(1)%F_sol*1.d20
-!!$         write(*,*) "Phi", comp_LOS(1)%Phi
-!!$         write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0 
+!!$         !write(*,*) "F_sun", model%F_sun(tod%zodiband)
+!!$         !write(*,*) "F", comp_LOS(1)%F_sol*1.d20
+!!$         !write(*,*) "Phi", comp_LOS(1)%Phi
+!!$         !write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0
+!!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
 
       end do
 

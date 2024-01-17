@@ -8,7 +8,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, get_s_zodi_comp, ZodiModel, ZodiComponent, zodi_model
+   public initialize_zodi_mod, get_s_zodi, ZodiModel, ZodiComponent, zodi_model
 
 
    type, abstract :: ZodiComponent
@@ -180,6 +180,7 @@ contains
 
       ! Find number of bands and labels
       numband         = count(cpar%ds_active)
+      allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband))
       band_labels     = pack(cpar%ds_label, cpar%ds_active)
       band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
       band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
@@ -406,9 +407,9 @@ contains
       scale(start_ind+6)   = 1.d0      
       prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
       scale(start_ind+7)   = 1.d0      
-      prior(:,start_ind+8) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! v
+      prior(:,start_ind+8) = [0.01d0, 1.1d0, 0.942d0, -1.d0] ! v
       scale(start_ind+8)   = 1.d0      
-      prior(:,start_ind+9) = [0.1d0, 0.6d0, 0.189d0, -1.d0] ! p
+      prior(:,start_ind+9) = [0.1d0, 5d0, 0.189d0, -1.d0] ! p
       scale(start_ind+9)   = 1.d0      
     end subroutine init_band_priors_and_scales
 
@@ -889,10 +890,10 @@ contains
          term1 = -((R - self%R_0)**2)/self.sigma_r**2
          term2 = abs(Z_midplane/self.sigma_z)
 
-         if (abs(theta_prime) < self%sigma_theta_rad) then
-            n_out(i) = 0.d0
-         else
+         if (self%sigma_theta_rad <= 0.d0 .or. abs(theta_prime) > self%sigma_theta_rad) then
             n_out(i) = self%n_0*exp(term1 - term2)
+         else 
+            n_out(i) = 0.d0
          end if
       end do
    end subroutine get_density_ring
@@ -1020,7 +1021,7 @@ contains
       self%n_params = self%n_general_params
       ! NOTE: The order of the parameters in the `params` array must match the below order of readin
       do i = 1, self%n_comps
-         self%comps(i)%labels = [param_labels%common]
+         !self%comps(i)%labels = [param_labels%common]
          select case (trim(adjustl(comp_types(i))))
          case ('cloud')
             allocate (ZodiCloud::self%comps(i)%c)
@@ -1035,8 +1036,9 @@ contains
                 & beta=params(i, 8), &
                 & gamma=params(i, 9), &
                 & mu=params(i, 10) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%cloud]
+                &)
+            allocate(self%comps(i)%labels(10))
+            self%comps(i)%labels = [param_labels%common, param_labels%cloud]
          case ('band')
             allocate (ZodiBand::self%comps(i)%c)
             self%comps(i)%c = ZodiBand(&
@@ -1051,7 +1053,8 @@ contains
                 & v=params(i, 9), &
                 & p=params(i, 10) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%band]
+            allocate(self%comps(i)%labels(10))
+            self%comps(i)%labels = [param_labels%common, param_labels%band]
          case ('ring')
             allocate (ZodiRing::self%comps(i)%c)
             self%comps(i)%c = ZodiRing(&
@@ -1067,7 +1070,8 @@ contains
                & theta_0=params(i, 10), &
                & sigma_theta=params(i, 11) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring]
+            allocate(self%comps(i)%labels(11))
+            self%comps(i)%labels = [param_labels%common, param_labels%ring]
          case ('feature')
             allocate (ZodiFeature::self%comps(i)%c)
             self%comps(i)%c = ZodiFeature(&
@@ -1082,8 +1086,9 @@ contains
                & sigma_z=params(i, 9), &
                & theta_0=params(i, 10), &
                & sigma_theta=params(i, 11) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%feature]
+               &)
+            allocate(self%comps(i)%labels(11))
+            self%comps(i)%labels = [param_labels%common, param_labels%feature]
          case ('interstellar')
             allocate (ZodiInterstellar::self%comps(i)%c)
             self%comps(i)%c = ZodiInterstellar(&
@@ -1095,8 +1100,9 @@ contains
                  & z_0=params(i, 6), &
                  & R=params(i, 7), &
                  & alpha=params(i, 8) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%interstellar]
+                 &)
+            allocate(self%comps(i)%labels(8))
+            self%comps(i)%labels = [param_labels%common, param_labels%interstellar]
          case ('fan')
             allocate (ZodiFan::self%comps(i)%c)
             self%comps(i)%c = ZodiFan(&
@@ -1112,7 +1118,8 @@ contains
                  & Z_midplane_0=params(i, 10), &
                  & R_outer=params(i, 11) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%fan]
+            allocate(self%comps(i)%labels(11))
+            self%comps(i)%labels = [param_labels%common, param_labels%fan]
          case ('comet')
             allocate (ZodiFan::self%comps(i)%c)
             self%comps(i)%c = ZodiComet(&
@@ -1126,8 +1133,9 @@ contains
                  & Z_midplane_0=params(i, 8), &
                  & R_inner=params(i, 9), &
                  & R_outer=params(i, 10) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%comet]
+                 &)
+            allocate(self%comps(i)%labels(10))
+            self%comps(i)%labels = [param_labels%common, param_labels%comet]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -1354,6 +1362,7 @@ contains
          call write_hdf(file, trim(adjustl(param_label)), params(param_idx + i))
       end do
       call close_hdf_file(file)
+      deallocate(params,labels)
    end subroutine
 
    subroutine comp_from_chain(self, cpar, params, comp_idx)
@@ -1361,7 +1370,7 @@ contains
       class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
       real(dp), intent(inout) :: params(:, :)
-      integer(i4b) :: comp_idx
+      integer(i4b), intent(in) :: comp_idx
 
       logical(lgt) :: exist
       integer(i4b) :: i, j, l, ierr, initsamp
@@ -1397,6 +1406,7 @@ contains
             call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
                   & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
          end do
+         deallocate(param_labels)
       end if
       ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
@@ -1452,7 +1462,7 @@ contains
 
    ! end subroutine model_from_chain
 
-   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, alpha)
+   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
       ! integrated thermal zodiacal emission and scattered zodiacal light.
       !
@@ -1468,55 +1478,21 @@ contains
       !     Emissivity of the zodiacal components.
       ! albedo :
       !     Albedo of the zodiacal components.
-      ! alpha : optional
-      !     Scale factor per component
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
       real(sp), dimension(:), intent(out)   :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
-      real(dp), dimension(:), intent(in), optional :: alpha
-      integer(i4b) :: i, n_comps
+      integer(i4b),           intent(in), optional :: comp
 
-      n_comps = size(emissivity)
+      integer(i4b) :: i
+
       s_zodi = 0.
-      do i = 1, n_comps
-         if (present(alpha)) then
-            call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i), alpha(i))
-         else
-            call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i))
+      do i = 1, size(emissivity)
+         if (present(comp)) then
+            if (i /= comp) cycle
          end if
+         s_zodi = s_zodi + ((s_scat(:,i) * albedo(i)) + (1. - albedo(i)) * emissivity(i) * s_therm(:,i))
       end do
    end subroutine get_s_zodi
-
-   subroutine get_s_zodi_comp(s_therm_comp, s_scat_comp, s_zodi_comp, emissivity_comp, albedo_comp, alpha_comp)
-      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
-      ! integrated thermal zodiacal emission and scattered zodiacal light for a single
-      ! component.
-      !
-      ! Parameters:
-      ! -----------
-      ! s_scat_comp :
-      !     Integrated contribution from scattered sunlight light.
-      ! s_therm_comp :
-      !     Integrated contribution from thermal interplanetary dust emission.
-      ! s_zodi :
-      !     Zodiacal signal.
-      ! albedo_comp :
-      !     Albedo of the zodiacal component.
-      ! emissivity_comp :
-      !     Emissivity of the zodiacal component.
-      ! alpha_comp : optional
-      !     Scale factor for a component
-      real(sp), dimension(:), intent(in) :: s_scat_comp, s_therm_comp
-      real(sp), dimension(:), intent(inout) :: s_zodi_comp
-      real(dp), intent(in) :: emissivity_comp, albedo_comp
-      real(dp), intent(in), optional :: alpha_comp
-      integer(i4b) :: i, n_comps
-      if (present(alpha_comp)) then 
-         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp) * alpha_comp
-      else 
-         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp)
-      end if
-   end subroutine get_s_zodi_comp
 
    function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string)
      implicit none
@@ -1574,7 +1550,6 @@ contains
 
      integer(i4b) :: i, c, j, first, last, n_params, n, m, ind, em_global, al_global
      character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10), str
-     character(len=128), allocatable :: tokens_trunc(:)
 
      ! Default: Fix everything at input
      str  = cpar%zs_samp_groups(samp_group)
@@ -1582,13 +1557,12 @@ contains
      
      ! Parse user directives
      call get_tokens(str, ',', tokens, n_params) 
-     tokens_trunc = tokens(1:n_params)
      
      em_global = 0; al_global = 0
      if (cpar%zs_em_global /= 'none') em_global = get_string_index(zodi_model%comp_labels, cpar%zs_em_global)
      if (cpar%zs_al_global /= 'none') al_global = get_string_index(zodi_model%comp_labels, cpar%zs_al_global)
-     do i = 1, size(tokens_trunc)
-        call get_tokens(tokens_trunc(i), ':', comp_param, num=n)
+     do i = 1, n_params
+        call get_tokens(tokens(i), ':', comp_param, num=n)
         if (n == 1) then
            ! General parameter
            !write(*,*) 'a', trim(comp_param(1))
@@ -1646,7 +1620,7 @@ contains
               stat(ind) = 0
            end if
         else
-           write(*,*) 'Invalid zodi samp group element = ', trim(tokens_trunc(i))
+           write(*,*) 'Invalid zodi samp group element = ', trim(tokens(i))
            stop
         end if
      end do
@@ -1708,7 +1682,7 @@ contains
            end do
         end if
 
-        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 5d13) then
+        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 70000d9) then
            do i = 1, zodi_model%n_comps
               ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), al_band=j)
               stat(ind)         = -2 ! Fix albedo to zero
