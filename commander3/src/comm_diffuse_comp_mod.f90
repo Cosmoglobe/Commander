@@ -36,7 +36,8 @@ module comm_diffuse_comp_mod
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, res_lowres, dust_lowres, hotpah_lowres, rms_smooth, print_precond_mat, nullify_monopole_amp, recompute_diffuse_precond, precond_type, diff_ptr
+       & res_smooth, res_lowres, dust_lowres, hotpah_lowres, rms_smooth, print_precond_mat, nullify_monopole_amp, &
+       & get_monopole_amp, set_monopole_amp, recompute_diffuse_precond, precond_type, diff_ptr
   
   !**************************************************
   !            Diffuse component class
@@ -493,6 +494,18 @@ interface
     implicit none
     character(len=*), intent(in) :: band
   end subroutine nullify_monopole_amp
+
+  module function get_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp)                     :: get_monopole_amp
+  end function get_monopole_amp
+
+  module subroutine set_monopole_amp(band, mono)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp),         intent(in) :: mono
+  end subroutine set_monopole_amp
 
 end interface
 

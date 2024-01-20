@@ -147,6 +147,7 @@ module comm_zodi_mod
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:)
       integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
+      logical(lgt) :: joint_mono
       real(dp) :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
       real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
@@ -190,10 +191,11 @@ contains
       ! Set model and zodi_mod parameters from cpar
       zodi_model%n_comps = cpar%zs_ncomps
       allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
-      zodi_model%general_labels = cpar%zodi_param_labels%general
-      zodi_model%comp_labels = cpar%zs_comp_labels(1:zodi_model%n_comps)
-      zodi_model%n_common_params = size(cpar%zodi_param_labels%common)
+      zodi_model%general_labels   = cpar%zodi_param_labels%general
+      zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
+      zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
       zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
+      zodi_model%joint_mono       = cpar%zs_joint_mono
       
       comp_params = cpar%zs_comp_params(:, :, 1)
       do i = 1, zodi_model%n_comps
@@ -205,7 +207,7 @@ contains
       call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
 
       ! Find total number of free parameters, and set up parameter mapping
-      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband
+      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband + numband
       zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
       do i = 1, zodi_model%n_comps
          zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
@@ -271,17 +273,24 @@ contains
             zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
          end do
       end do
-
+      ! Monopoles
+      do j = 1, numband
+         ind = zodi_model%npar_tot - numband + j
+         zodi_model%theta_prior(:,ind) = [-1d30, 1d30, 0.d0, -1.d0] ! Priors
+         zodi_model%theta_scale(ind)   = 1.d0
+         zodi_model%par_labels(ind)    = 'm@'//trim(band_labels(j))
+      end do
+      
       if (cpar%myid_chain == 0) then
          write(*,*) ' Total number of free zodi parameters = ', count(zodi_model%theta_stat(:,0)==0)
 !!$         do i = 1, zodi_model%npar_tot
-!!$            !write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:), ', band=', zodi_model%theta2band(i), ', prior=', zodi_model%theta_prior(:,i), ', scale=', zodi_model%theta_scale(i)
-!!$            write(*,*) i,  ', band=', zodi_model%theta2band(i)
+!!$            write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:)
 !!$         end do
       end if
+
 !!$      call mpi_finalize(ierr)
 !!$      stop
-      
+!!$      
     end subroutine initialize_zodi_mod
 
    subroutine init_general_params(self, general_params)
@@ -1462,7 +1471,7 @@ contains
 
    ! end subroutine model_from_chain
 
-   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, comp)
+   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
       ! integrated thermal zodiacal emission and scattered zodiacal light.
       !
@@ -1481,30 +1490,26 @@ contains
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
       real(sp), dimension(:), intent(out)   :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
-      integer(i4b),           intent(in), optional :: comp
 
       integer(i4b) :: i
 
       s_zodi = 0.
       do i = 1, size(emissivity)
-         if (present(comp)) then
-            if (i /= comp) cycle
-         end if
          s_zodi = s_zodi + ((s_scat(:,i) * albedo(i)) + (1. - albedo(i)) * emissivity(i) * s_therm(:,i))
       end do
    end subroutine get_s_zodi
 
-   function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string)
+   function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
      implicit none
      class(ZodiModel),     intent(in)           :: self
      class(ZodiComponentContainer), intent(in), target, optional :: comp
      character(len=*),     intent(in), optional :: comp_str
      character(len=*),     intent(in), optional :: param
-     integer(i4b),         intent(in), optional :: em_band, al_band
-     character(len=*),     intent(in), optional :: em_string, al_string
+     integer(i4b),         intent(in), optional :: em_band, al_band, mono_band
+     character(len=*),     intent(in), optional :: em_string, al_string, mono_string
      integer(i4b)                               :: get_par_ind
      
-     integer(i4b) :: i
+     integer(i4b) :: i, band
      class(ZodiComponentContainer), pointer :: c
      character(len=128) :: str1, str2
      
@@ -1534,6 +1539,14 @@ contains
         if (present(param)) then
            ! General parameter
            get_par_ind = get_string_index(self%general_labels, param)
+        else if (present(mono_string) .or. present(mono_band)) then
+           ! Monopoles are always last
+           if (present(mono_string)) then
+              band = get_string_index(band_labels, mono_string)
+           else
+              band = mono_band
+           end if
+           get_par_ind = self%npar_tot - numband + band
         else
            write(*,*) 'get_par_ind error: Need parameter specification'
            stop
@@ -1548,8 +1561,8 @@ contains
      integer(i4b),                   intent(in)    :: samp_group
      integer(i4b),     dimension(:), intent(inout) :: stat
 
-     integer(i4b) :: i, c, j, first, last, n_params, n, m, ind, em_global, al_global
-     character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10), str
+     integer(i4b) :: i, c, j, first, last, n_params, n, m, ind, em_global, al_global, c_to, c_from
+     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), str, em_from(2), em_to(2)
 
      ! Default: Fix everything at input
      str  = cpar%zs_samp_groups(samp_group)
@@ -1625,6 +1638,61 @@ contains
         end if
      end do
 
+     ! Set up monopoles
+     do i = 1, numband
+        ind = zodi_model%get_par_ind(mono_band=i)
+        if (cpar%zs_joint_mono .and. band_todtype(i) /= 'none') then
+           stat(ind) = 0
+        else
+           stat(ind) = -2
+        end if
+     end do
+     
+     ! Apply explicit parameter wiring
+     call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 
+     do i = 1, n_params
+        if (trim(tokens(1)) == 'none') exit
+        
+        call get_tokens(tokens(i), '>', comp_param, num=n)
+        if (n /= 2) then
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', tokens(i)
+           stop
+        end if
+
+        call get_tokens(comp_param(1), ':', wire_from, num=n)
+        call get_tokens(comp_param(2), ':', wire_to,   num=m)
+        if (n /= 2) then
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', trim(tokens(i))!, trim(comp_param(1)), trim(wire_from(1)), trim(wire_from(2))
+           stop
+        end if
+        if (m /= 2) then
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', trim(tokens(i))!, trim(comp_param(2)), trim(wire_to(1)), trim(wire_to(2))
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', trim(comp_param(2))!, trim(wire_to(1)), trim(wire_to(2))
+           stop
+        end if
+
+        if (trim(wire_from(2)(1:2)) == 'em') then
+           call get_tokens(wire_from(2), '@', em_from, num=n)
+           call get_tokens(wire_to(2), '@', em_to, num=n)
+           if (n == 1) then
+              ! Attach all bands
+              do c = 1, numband
+                 c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_band=c)
+                 c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_band=c)
+                 stat(c_from) = c_to
+              end do
+           else
+              ! Attach specified band
+              c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_string=em_from(2))
+              c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_string=em_to(2))
+              stat(c_from) = c_to
+           end if
+        else
+           write(*,*) 'Unsupported zodi wire = ', trim(tokens(i))
+           stop
+        end if
+     end do
+     
      ! Apply global directives
      if (em_global > 0) then
         do i = 1, zodi_model%n_comps
@@ -1697,6 +1765,19 @@ contains
         end if
      end do
 
+     ! Short-cut multi-leg wires
+     do i = 1, size(stat)
+        if (stat(i) > 0) then
+           j = stat(i)
+           do while (stat(j) > 0)
+              stat(i) = stat(j)
+              j       = stat(i)
+              if (j <= 0) exit
+           end do
+        end if
+     end do
+
+     
    end subroutine samp_group2stat
 
    function get_string_index(arr, str)

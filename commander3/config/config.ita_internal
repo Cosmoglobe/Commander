@@ -35,7 +35,7 @@
 # ================= Compilers ====================
 
 # Serial Fortran 90 compiler.  Default is "f90".
-export F90 := ifx
+export F90 := ifort
 
 # MPI Fortran 90 compiler.  Default is "mpif90".
 export MPF90 := mpiifort #-fc=ifx
