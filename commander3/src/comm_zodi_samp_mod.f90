@@ -1252,6 +1252,7 @@ contains
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
+         if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
          ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
          if (chisq_tot >= 1.d30) exit
 

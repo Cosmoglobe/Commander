@@ -384,7 +384,7 @@ program commander
       case ("mh")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
-         do i = 0, 0 !cpar%zs_num_samp_groups
+         do i = 1, cpar%zs_num_samp_groups
             call minimize_zodi_with_powell(cpar, handle, i)
          end do
       end select

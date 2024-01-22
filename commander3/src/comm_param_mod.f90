@@ -270,10 +270,10 @@ module comm_param_mod
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS), zs_randomize_rms
-     real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold
+     real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_min_solar_elong, zs_max_solar_elong
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
-     character(len=512)                      :: zs_wiring
-     character(len=512), allocatable         :: zs_samp_groups(:)
+     character(len=2048)                     :: zs_wiring
+     character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
   end type comm_params
@@ -2894,6 +2894,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_FACTOR', par_dp=cpar%zs_tod_thin_factor)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_THRESHOLD', par_dp=cpar%zs_tod_thin_threshold)
+     call get_parameter_from_hash(htbl, 'ZODI_MIN_SOLAR_ELONGATION', par_dp=cpar%zs_min_solar_elong)
+     call get_parameter_from_hash(htbl, 'ZODI_MAX_SOLAR_ELONGATION', par_dp=cpar%zs_max_solar_elong)
      
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT
@@ -2985,10 +2987,12 @@ subroutine read_zodi_params_hash(htbl, cpar)
      if (cpar%sample_zodi) then
         call get_parameter_hashtable(htbl, 'NUM_ZODI_SAMPLING_GROUPS', par_int=cpar%zs_num_samp_groups)
         call get_parameter_hashtable(htbl, 'ZODI_RMS_RANDOMIZE_BETWEEN_STEPS', par_dp=cpar%zs_randomize_rms)
-          allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
+        allocate(cpar%zs_samp_groups(cpar%zs_num_samp_groups))
+        allocate(cpar%zs_samp_group_bands(cpar%zs_num_samp_groups))
           do i = 1, cpar%zs_num_samp_groups
                call int2string(i, itext2)
                call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP'//itext2, par_string=cpar%zs_samp_groups(i))
+               call get_parameter_hashtable(htbl, 'ZODI_SAMPLING_GROUP_BANDS'//itext2, par_string=cpar%zs_samp_group_bands(i))
           end do
      end if
 
