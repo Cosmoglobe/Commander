@@ -3846,4 +3846,62 @@ contains
   end subroutine nullify_monopole_amp
 
 
+  module function get_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp)                     :: get_monopole_amp
+
+    integer(i4b) :: l, m, ierr
+    real(dp)     :: mono
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             mono = -1.d100
+             if (c%x%info%nalm > 0) then
+                call c%x%info%i2lm(0,l,m)
+                if (l == 0) then
+                   mono = 1.d0/sqrt(4.d0*pi) * c%x%alm(0,1) * c%RJ2unit_(1)
+                end if
+             end if
+             call mpi_allreduce(MPI_IN_PLACE, mono, 1, MPI_DOUBLE_PRECISION, MPI_MAX, c%x%info%comm, ierr)
+             get_monopole_amp = mono
+             return
+          end if
+       end select
+       c => c%next()
+    end do
+
+  end function get_monopole_amp
+
+  module subroutine set_monopole_amp(band, mono)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp),         intent(in) :: mono
+
+    integer(i4b) :: l, m
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             if (c%x%info%nalm > 0) then
+                call c%x%info%i2lm(0,l,m)
+                if (l == 0) then
+                   c%x%alm(0,1) = sqrt(4.d0*pi) * mono /c%RJ2unit_(1)
+                end if
+             end if
+             return
+          end if
+       end select
+       c => c%next()
+    end do
+
+  end subroutine set_monopole_amp
+
 end submodule comm_diffuse_comp_smod

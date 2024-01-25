@@ -123,6 +123,7 @@ contains
       call constructor%tod_constructor(cpar, id_abs, info, tod_type)
 
       ! Initialize instrument-specific parameters
+      read(constructor%freq(1:2),*) constructor%zodiband
       constructor%samprate_lowres = 1.  ! Lowres samprate in Hz
       constructor%nhorn           = 1
       constructor%ndiode          = 1
@@ -248,6 +249,9 @@ contains
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
+
+      !call timer%start(TOD_ALLOC, self%band)
+
       
       ! Toggle optional operations
       sample_zodi           = self%sample_zodi .and. self%subtract_zodi ! Sample zodi parameters
@@ -261,7 +265,7 @@ contains
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      if (trim(self%freq) == '09' .or. trim(self%freq) == '10') then
+      if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
       else
          sample_ncorr = .false.
@@ -372,7 +376,7 @@ contains
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
             call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
-              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j), verbose=.true.)
+              & sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:, j), sd%n_corr(:,j), sd%tod(:,j))
          end do
 
          ! Select data

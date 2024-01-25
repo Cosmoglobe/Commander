@@ -250,7 +250,6 @@ program commander
      write(*,*) '|  Starting Gibbs sampling'
   end if
 
-
   ! Prepare chains 
   call init_chain_file(cpar, first_sample)
   !first_sample = 1
@@ -261,7 +260,7 @@ program commander
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
      !first_sample = 10
-     first_sample=first_sample-1 ! Reject last sample, which may be corrupt
+     !first_sample=first_sample-1 ! Reject last sample, which may be corrupt
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
@@ -376,16 +375,16 @@ program commander
       if (iter == modfact+1 .or. (first_sample > 1 .and. iter == first_sample)) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)      
-!         call create_zodi_glitch_mask(cpar)
+        call create_zodi_glitch_mask(cpar)
       end if 
-      !      call apply_zodi_glitch_mask(cpar)
-      write(*,*) 'disabling glitch mask'
+      call apply_zodi_glitch_mask(cpar)
+      !write(*,*) 'disabling glitch mask'
       
       select case (trim(adjustl(cpar%zs_sample_method)))
       case ("mh")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
-         do i = 0, 0 !cpar%zs_num_samp_groups
+         do i = 1, cpar%zs_num_samp_groups
             call minimize_zodi_with_powell(cpar, handle, i)
          end do
       end select

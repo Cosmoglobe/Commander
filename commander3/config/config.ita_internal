@@ -38,10 +38,10 @@
 export F90 := ifort
 
 # MPI Fortran 90 compiler.  Default is "mpif90".
-export MPF90 := mpiifort
+export MPF90 := mpiifort #-fc=ifx
 
 # MPI Fortran 77 compiler.  Default is "mpif77".
-export MPF77 := mpiifort
+export MPF77 := mpiifort #-fc=ifx
 
 # MPI C++ compiler.  Default is "mpicxx".
 export MPCC := mpiicc
@@ -57,7 +57,7 @@ export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp
 
 #debug
 #
-#export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -fpe0 -check noarg_temp_created -ftrapuv -diag-disable=10448
+#export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -fpe0 -check noarg_temp_created -ftrapuv -diag-disable=10448 -check uninit -debug extended -diag-disable=5268
 
 
 #export F90FLAGS := -fpe0 -march=native -C -g -check noarg_temp_created -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -ftrapuv

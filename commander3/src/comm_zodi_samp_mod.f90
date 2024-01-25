@@ -19,13 +19,10 @@ module comm_zodi_samp_mod
    real(dp), dimension(2) :: emissivity_prior, albedo_prior
    logical(lgt), allocatable :: powell_included_params(:), ref_band(:)
    character(len=128), allocatable, dimension(:) :: implemented_sampling_algorithms
-
-   real(dp) :: chisq_red_current
-   real(dp), allocatable, dimension(:) :: param_vec_current
-   !integer(i4b), allocatable, dimension(:) :: param2band
    
 contains
-   subroutine initialize_zodi_samp_mod(cpar)
+  subroutine initialize_zodi_samp_mod(cpar)
+    implicit none
       ! Initialize the zodi sampling module.
       !
       ! Parameters
@@ -140,7 +137,7 @@ contains
       box_width = samprate/samprate_lowres
       box_width = real(nint(box_width))
       if (box_width < 1.) stop "Cannot downsample zodi tods if box car width is less than 1 sample!"
-      if (mod(int(box_width), 2) == 0) box_width = box_width + 1.
+      !if (mod(int(box_width), 2) == 0) box_width = box_width + 1.
    end function
 
 
@@ -297,10 +294,12 @@ contains
       type(ZodiModel), intent(inout) :: model
 
       integer(i4b) :: i, j, prop, nprop, ndet, scan, nscan, ierr, n_accepted, comp
-      real(dp) :: box_width, chisq_scan, chisq_new, chisq_prev, chisq_diff, ln_accept_prob, accept_rate
+      real(dp) :: box_width, chisq_scan, chisq_new, chisq_prev, chisq_diff, ln_accept_prob, accept_rate, n0_ratio
       real(dp), allocatable :: n0_new(:), n0_prev(:), eta_n0(:), eta_emissivity(:, :), eta_albedo(:, :), emissivity_new(:, :), emissivity_prev(:, :), albedo_new(:, :), albedo_prev(:, :)
       logical(lgt) :: is_root, accepted, tuning, first_prop, scattering
 
+      return
+      
       nprop = 1000
       tuning = gibbs_iter <= 25
       is_root = cpar%myid == cpar%root
@@ -358,14 +357,23 @@ contains
                do j = 1, ndet
                   if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
                   ! rescale downsampled zodi comp-wise emission with newly proposed n0s
-                  call get_s_zodi(&
-                     & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
-                     & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                     & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                     & emissivity=emissivity_new(i, :), &
-                     & albedo=albedo_new(i, :), &
-                     & alpha=n0_new/n0_prev &
-                  &)
+                  !call get_s_zodi(&
+                  !   & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+                  !   & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
+                  !   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
+                  !   & emissivity=emissivity_new(i, :), &
+                  !   & albedo=albedo_new(i, :) &
+                  !   &)
+                  write(*,*) i, "a0", n0_new, n0_prev
+                  write(*,*) i, scan, j, data(i)%tod%scanid(scan), cpar%myid, "a", data(i)%tod%scans(scan)%d(j)%N_psd%sigma0, box_width
+                  write(*,*) i, data(i)%tod%scanid(scan), "b", any(data(i)%tod%scans(scan)%d(j)%downsamp_tod /= data(i)%tod%scans(scan)%d(j)%downsamp_tod), minval(data(i)%tod%scans(scan)%d(j)%downsamp_tod), maxval(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+                  write(*,*) i, data(i)%tod%scanid(scan), "c", any(data(i)%tod%scans(scan)%d(j)%downsamp_sky /= data(i)%tod%scans(scan)%d(j)%downsamp_sky), minval(data(i)%tod%scans(scan)%d(j)%downsamp_sky), maxval(data(i)%tod%scans(scan)%d(j)%downsamp_sky)
+                  write(*,*) i, data(i)%tod%scanid(scan), "d0", allocated(data(i)%tod%scans(scan)%d(j)%downsamp_zodi), size(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
+                  write(*,*) i, data(i)%tod%scanid(scan), "d1", any(data(i)%tod%scans(scan)%d(j)%downsamp_zodi /= data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
+                  write(*,*) i, data(i)%tod%scanid(scan), "d2", minval(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
+                  write(*,*) i, data(i)%tod%scanid(scan), "d3", maxval(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)
+                  data(i)%tod%scans(scan)%d(j)%downsamp_zodi = data(i)%tod%scans(scan)%d(j)%downsamp_zodi * n0_new/n0_prev
+                  
                   chisq_scan = chisq_scan + sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
@@ -543,7 +551,7 @@ contains
                          & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
                          & emissivity=data(i)%tod%zodi_emissivity, &
                          & albedo=data(i)%tod%zodi_albedo &
-                     &)
+                         &)
 
                      chisq_tod = chisq_tod + sum( &
                         & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
@@ -900,7 +908,7 @@ contains
 
          allocate (sky_signal(data(i)%tod%ndet, ndelta))
          do j = 1, data(i)%tod%ndet
-            call get_sky_signal(i, j, sky_signal(j, ndelta)%p, mono=.true.)
+            call get_sky_signal(i, j, sky_signal(j, ndelta)%p, mono=.false.)
          end do
 
          allocate (map_sky(nmaps, data(i)%tod%nobs, 0:data(i)%tod%ndet, 1))
@@ -989,6 +997,13 @@ contains
                    & model=model, &
                    & use_lowres_pointing=.true. &
                &)
+               call get_s_zodi(&
+                   & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
+                   & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
+                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
+                   & emissivity=data(i)%tod%zodi_emissivity, &
+                   & albedo=data(i)%tod%zodi_albedo &
+                   &)
             end do
          end do
       end do
@@ -997,7 +1012,7 @@ contains
    subroutine create_zodi_glitch_mask(cpar)
       type(comm_params), intent(in) :: cpar
       integer(i4b) :: i, j, k, scan, ierr, non_glitch_size, thinstep
-      real(dp) :: box_width, rms
+      real(dp) :: box_width, rms, frac
       real(sp), allocatable :: res(:)
       real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
 
@@ -1010,17 +1025,18 @@ contains
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
-               !if (size(data(i)%tod%scans(scan)%d(j)%downsamp_tod) < 10) cycle
-               
+
                ! Search for strong outliers
                res = data(i)%tod%scans(scan)%d(j)%downsamp_tod - data(i)%tod%scans(scan)%d(j)%downsamp_sky - data(i)%tod%scans(scan)%d(j)%downsamp_zodi
-!!$               write(*,*) 'a', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_tod**2, dp)))
-!!$               write(*,*) 'b', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_sky**2, dp)))
-!!$               write(*,*) 'c', sqrt(mean(real(data(i)%tod%scans(scan)%d(j)%downsamp_zodi**2, dp)))
                rms = sqrt(mean(real(res**2, dp)))
-               data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask = abs(res) > 5. * real(rms, sp)
+               data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask = abs(res) > 10. * real(rms, sp)
+               frac = count(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask)/real(size(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask),dp)
+               if (frac > 0.01d0) then
+                  write(*,*) 'Warning: Removing high fraction of glitches = ', frac
+               end if
 
                ! Apply TOD thinning
+               !allocate(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(data(i)%tod%scans(scan)%ntod))
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                   if (mod(k,thinstep) /= 0) then
                      data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(k) = .true.
@@ -1099,6 +1115,13 @@ contains
       ! Get chisq of old point
       scale = pack(zodi_model%theta_scale, zodi_model%theta_stat(:,samp_group)==0)
       call model_to_params(zodi_model, theta_old, samp_group)
+!!$      if (cpar%myid == cpar%root) then
+!!$         do i = 1, npar
+!!$            write(*,*) i, theta_old(i)
+!!$         end do
+!!$      end if
+!!$      call mpi_finalize(ierr)
+!!$      stop
 
       ! Enforce priors; rms = 0
       call randomize_zodi_init(theta_old, samp_group, cpar, handle, rms=0.d0)
@@ -1171,7 +1194,7 @@ contains
       real(dp)                                     :: lnL_zodi
 
       real(dp), allocatable :: theta(:)
-      real(dp) :: chisq, chisq_tot, box_width, t1, t2, t3, t4
+      real(dp) :: chisq, chisq_tot, box_width, t1, t2, t3, t4, mono
       integer(i4b) :: i, j, k, scan, ntod, ndet, nscan, flag, ierr, ndof, ndof_tot
       logical(lgt) :: accept
       logical(lgt), dimension(numband) :: update_band
@@ -1189,21 +1212,22 @@ contains
       call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, data(1)%tod%comm, ierr)
       
       ! Check which parameters have changed
-      update_band = .false.
-      j = 0
-      do i = 1, zodi_model%npar_tot
-         if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
-         j = j+1
-         if (theta(j) /= theta_prev(j)) then
-            !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
-            if (zodi_model%theta2band(i) == 0) then
-               update_band = .true.
-               exit
-            else
-               update_band(zodi_model%theta2band(i)) = .true.
-            end if
-         end if
-      end do
+      update_band = .true.
+!!$      update_band = .false.
+!!$      j = 0
+!!$      do i = 1, zodi_model%npar_tot
+!!$         if (zodi_model%theta_stat(i,samp_group) /= 0) cycle
+!!$         j = j+1
+!!$         if (theta(j) /= theta_prev(j)) then
+!!$            !if (data(1)%tod%myid == 0) write(*,*) j, theta(j), theta_prev(j), zodi_model%theta2band(i)
+!!$            if (zodi_model%theta2band(i) == 0) then
+!!$               update_band = .true.
+!!$               exit
+!!$            else
+!!$               update_band(zodi_model%theta2band(i)) = .true.
+!!$            end if
+!!$         end if
+!!$      end do
       !if (data(1)%tod%myid == 0) write(*,*) data(1)%tod%myid, ' -- update =', update_band, all(theta == theta_prev)
       
       ! Check priors
@@ -1228,6 +1252,7 @@ contains
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
          if (.not. data(i)%tod%sample_zodi) cycle
+         if (.not. zodi_model%sampgroup_active_band(i,samp_group)) cycle
          ! If chisq is already too large, skip rest of the evaluation and go directly to rejection
          if (chisq_tot >= 1.d30) exit
 
@@ -1236,6 +1261,7 @@ contains
 
          if (.not. update_band(i)) then
             !write(*,*) 'skipping', i, chisq_prev(i)
+            if (data(1)%tod%myid == 0) write(*,*) 'skipping band ', i, chisq_prev(i)
             chisq_tot = chisq_tot + chisq_prev(i)
             do scan = 1, nscan
                do j = 1, ndet
@@ -1245,6 +1271,13 @@ contains
             end do
             cycle
          end if
+
+         ! Get monopole
+         mono = get_monopole_amp(data(i)%label)
+!!$         if (data(1)%tod%myid == 0) then
+!!$            write(*,*) 'theta =', theta
+!!$            write(*,*) 'mono =', mono
+!!$         end if
          
          box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
 
@@ -1256,7 +1289,10 @@ contains
          do scan = 1, nscan
             ! Skip scan if no accepted data
             do j = 1, ndet
-               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) then
+                  !write(*,*) '   Scan rejected:', data(i)%tod%scanid(scan), data(1)%tod%myid
+                  cycle
+               end if
 
                call wall_time(t3)
                call get_zodi_emission(&
@@ -1270,7 +1306,7 @@ contains
                    & use_lowres_pointing=.true. &
                    &)
                call wall_time(t4)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU1 = ', t4-t3
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU1 = ', t4-t3
                call get_s_zodi(&
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
@@ -1279,18 +1315,19 @@ contains
                    & albedo=data(i)%tod%zodi_albedo &
                    &)
                call wall_time(t3)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU2 = ', t3-t4
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
                
                chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
+                  &   - mono &
                   & )/(data(i)%tod%scans(scan)%d(j)%N_psd%sigma0/sqrt(box_width)))**2 &
                   &)
                chisq_tot     = chisq_tot     + chisq
                chisq_prev(i) = chisq_prev(i) + chisq
                call wall_time(t4)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU3 = ', t4-t3
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
                
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tot >= 1.d30) exit
@@ -1308,12 +1345,13 @@ contains
                   do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                      write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
                           &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
-                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k)
+                          &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
+                          &   - mono
                   end do
                   close(58)
                end if
                call wall_time(t3)
-               if (data(1)%tod%myid == 0) write(*,*) ' CPU4 = ', t3-t4
+               !if (data(1)%tod%myid == 10) write(*,*) ' CPU4 = ', t3-t4
 
             end do
          end do
@@ -2014,6 +2052,23 @@ contains
             end if
          end do
       end do
+
+      ! Monopoles
+      col = 1
+      write(*, "(a)", advance="no") 'Mono : '
+      do j = 1, numband
+         idx = zodi_model%npar_tot - numband + j
+         if (zodi_model%theta_stat(idx,samp_group)==0) then
+            write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(data(j)%label)), "=", theta(k), ",  "
+            k   = k+1
+            col = col+1
+         end if
+         if ((col == n_cols-1 .and. col>1) .or. j == numband) then
+            write(*,*)
+            col = 1
+         end if
+      end do
+      
    end subroutine
  
    subroutine min_max_param_vec_with_priors(params, priors)
@@ -2088,7 +2143,7 @@ contains
         call zodi%comps(i)%c%model2param(z(idx+1:idx+zodi%comps(i)%npar))
         idx = idx + zodi%comps(i)%npar
 
-        ! Emisdivity and albedo
+        ! Emissivity and albedo
         do j = 1, numband
            if (data(j)%tod_type == "none") then
               z(idx        +j) = 0.d0
@@ -2101,6 +2156,17 @@ contains
         idx = idx + 2*numband
      end do
 
+     ! Monopoles
+     do i = 1, numband
+        idx = idx+1
+        if (data(i)%tod_type /= "none") then
+           z(idx) = get_monopole_amp(data(i)%label)
+           !write(*,*) 'get', i, trim(data(i)%label), z(idx)
+        else
+           z(idx) = 0.d0
+        end if
+     end do
+     
      if (present(samp_group)) then
         x = pack(z, zodi%theta_stat(:,samp_group)==0)
      else
@@ -2159,7 +2225,7 @@ contains
         call zodi%comps(i)%c%param2model(z(idx+1:idx+zodi%comps(i)%npar))
         call zodi%comps(i)%c%init()
 
-        ! Emisdivity and albedo
+        ! Emissivity and albedo
         idx = idx + zodi%comps(i)%npar
         do j = 1, numband
            if (data(j)%tod_type /= "none") then
@@ -2170,6 +2236,15 @@ contains
         idx = idx + 2*numband
      end do
 
+     ! Monopoles
+     do i = 1, numband
+        idx = idx+1
+        if (zodi%joint_mono .and. data(i)%tod_type /= "none") then
+           !write(*,*) 'set', i, trim(data(i)%label), z(idx)
+           call set_monopole_amp(data(i)%label, z(idx))
+        end if
+     end do
+     
      deallocate(z)
      
    end subroutine params_to_model

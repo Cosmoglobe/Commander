@@ -419,5 +419,5 @@ contains
        c => c%nextLink
     end do
   end subroutine update_mixing_matrices
-  
+
 end module comm_comp_mod

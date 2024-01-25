@@ -454,10 +454,10 @@ contains
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs
-    integer(i4b) :: ndet
+    integer(i4b) :: ndet, outscan
     real(sp)     :: f
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n
-    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2)
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
@@ -471,25 +471,37 @@ contains
     n        = ntod/2 + 1
     samprate = self%samprate
     n_gibbs  = 1
+    threshold = 5.d0 ! Remove outliers
+    outscan   = -1 !92
 
     ! Sample sigma_0 from pairwise differenced TOD
-    if (self%scanid(scan) == 1) open(58,file='res.dat', recl=1024)
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
-       s    = 0.d0
-       nval = 0
 
-       do j = 1, self%scans(scan)%ntod-1
-          if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
-               & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
-          if (self%scanid(scan) == 1) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
-          s    = s    + res**2
-          nval = nval + 1
+       ! Remove outliers
+       s0 = 1d30
+       do k = 1, 3
+          if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
+          s    = 0.d0
+          nval = 0
+          do j = 1, self%scans(scan)%ntod-1
+             if (any(mask(j:j+1,i) < 0.5)) cycle
+             res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
+                  & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
+             if (abs(res) > s0) cycle
+             if (self%scanid(scan) == outscan) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
+             s    = s    + res**2
+             nval = nval + 1
+          end do
+          if (nval > 100) then
+             self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+             s0 = threshold * sqrt(s/(nval-1))
+          else
+             exit
+          end if
+          if (self%scanid(scan) == outscan) close(58)
        end do
-       if (nval > 100) self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
     end do
-    if (self%scanid(scan) == 1) close(58)
 
     ! Exit if user only wants to estimate sigma0
     if (present(only_sigma0)) then

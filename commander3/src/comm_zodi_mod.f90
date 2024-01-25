@@ -8,7 +8,7 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, get_s_zodi_comp, ZodiModel, ZodiComponent, zodi_model
+   public initialize_zodi_mod, get_s_zodi, ZodiModel, ZodiComponent, zodi_model
 
 
    type, abstract :: ZodiComponent
@@ -147,14 +147,17 @@ module comm_zodi_mod
       class(ZodiComponentContainer), allocatable :: comps(:)
       character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:)
       integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
-      real(dp) :: T_0, delta
+      logical(lgt) :: joint_mono
+      real(dp)     :: min_solar_elong, max_solar_elong
+      real(dp)     :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
-      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
 
       integer(i4b) :: npar_tot
       integer(i4b), allocatable, dimension(:,:) :: theta_stat
+      logical(lgt), allocatable, dimension(:,:) :: sampgroup_active_band
       integer(i4b), allocatable, dimension(:)   :: theta2band
       real(dp),     allocatable, dimension(:,:) :: theta_prior
       real(dp),     allocatable, dimension(:)   :: theta_scale
@@ -173,13 +176,15 @@ module comm_zodi_mod
 contains
    subroutine initialize_zodi_mod(cpar)
       type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, j, ierr, ind, npar
+      integer(i4b) :: i, j, k, ierr, ind, npar, ntok
       character(len=256) :: file_path
       real(dp), allocatable :: comp_params(:, :)
       character(len=128), allocatable :: comp_labels(:)
+      character(len=128) :: tokens(100)
 
       ! Find number of bands and labels
       numband         = count(cpar%ds_active)
+      allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband))
       band_labels     = pack(cpar%ds_label, cpar%ds_active)
       band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
       band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
@@ -189,10 +194,11 @@ contains
       ! Set model and zodi_mod parameters from cpar
       zodi_model%n_comps = cpar%zs_ncomps
       allocate(comp_params(zodi_model%n_comps, size(cpar%zs_comp_params, dim=1)))
-      zodi_model%general_labels = cpar%zodi_param_labels%general
-      zodi_model%comp_labels = cpar%zs_comp_labels(1:zodi_model%n_comps)
-      zodi_model%n_common_params = size(cpar%zodi_param_labels%common)
+      zodi_model%general_labels   = cpar%zodi_param_labels%general
+      zodi_model%comp_labels      = cpar%zs_comp_labels(1:zodi_model%n_comps)
+      zodi_model%n_common_params  = size(cpar%zodi_param_labels%common)
       zodi_model%n_general_params = size(cpar%zodi_param_labels%general)
+      zodi_model%joint_mono       = cpar%zs_joint_mono
       
       comp_params = cpar%zs_comp_params(:, :, 1)
       do i = 1, zodi_model%n_comps
@@ -204,7 +210,7 @@ contains
       call zodi_model%init_general_params(cpar%zs_general_params(:, 1))
 
       ! Find total number of free parameters, and set up parameter mapping
-      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband
+      zodi_model%npar_tot = zodi_model%n_general_params + 2*zodi_model%n_comps*numband + numband
       zodi_model%comps(1)%start_ind = zodi_model%n_general_params + 1
       do i = 1, zodi_model%n_comps
          zodi_model%npar_tot = zodi_model%npar_tot + zodi_model%comps(i)%npar
@@ -224,10 +230,17 @@ contains
       allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
       allocate(zodi_model%theta_scale(zodi_model%npar_tot))
       allocate(zodi_model%par_labels(zodi_model%npar_tot))
-
+      
       ! Set up sampling groups
+      allocate(zodi_model%sampgroup_active_band(numband,cpar%zs_num_samp_groups))
+      zodi_model%sampgroup_active_band = .false.
       do i = 1, cpar%zs_num_samp_groups
-         call samp_group2stat(cpar, i, zodi_model%theta_stat(:,i))
+         call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
+         do j = 1, ntok
+            k = get_string_index(band_labels, tokens(j))
+            zodi_model%sampgroup_active_band(k,i) = .true.
+         end do
+         call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
       end do
       do i = 1, zodi_model%npar_tot
          zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
@@ -270,17 +283,24 @@ contains
             zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
          end do
       end do
-
+      ! Monopoles
+      do j = 1, numband
+         ind = zodi_model%npar_tot - numband + j
+         zodi_model%theta_prior(:,ind) = [0.d0, 1d30, 0.d0, -1.d0] ! Priors
+         zodi_model%theta_scale(ind)   = 1.d0
+         zodi_model%par_labels(ind)    = 'm@'//trim(band_labels(j))
+      end do
+      
       if (cpar%myid_chain == 0) then
          write(*,*) ' Total number of free zodi parameters = ', count(zodi_model%theta_stat(:,0)==0)
 !!$         do i = 1, zodi_model%npar_tot
-!!$            !write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:), ', band=', zodi_model%theta2band(i), ', prior=', zodi_model%theta_prior(:,i), ', scale=', zodi_model%theta_scale(i)
-!!$            write(*,*) i,  ', band=', zodi_model%theta2band(i)
+!!$            write(*,*) i,  ', stat=', zodi_model%theta_stat(i,:)
 !!$         end do
       end if
+
 !!$      call mpi_finalize(ierr)
 !!$      stop
-      
+!!$      
     end subroutine initialize_zodi_mod
 
    subroutine init_general_params(self, general_params)
@@ -364,11 +384,11 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [1.d0, 1.5d0, 1.34d0, -1.d0] ! alpha
@@ -395,20 +415,20 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
       scale(start_ind+6)   = 1.d0      
       prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
       scale(start_ind+7)   = 1.d0      
-      prior(:,start_ind+8) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! v
+      prior(:,start_ind+8) = [0.01d0, 1.1d0, 0.942d0, -1.d0] ! v
       scale(start_ind+8)   = 1.d0      
-      prior(:,start_ind+9) = [0.1d0, 0.6d0, 0.189d0, -1.d0] ! p
+      prior(:,start_ind+9) = [0.1d0, 5d0, 0.189d0, -1.d0] ! p
       scale(start_ind+9)   = 1.d0      
     end subroutine init_band_priors_and_scales
 
@@ -426,11 +446,11 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
@@ -439,9 +459,9 @@ contains
       scale(start_ind+7)   = 1.d0      
       prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
       scale(start_ind+8)   = 1.d0      
-      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
+      prior(:,start_ind+9) = [-60.d-3, 60.d-3, 0.d0, -1.d0] ! theta
       scale(start_ind+9)   = 1.d0      
-      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
+      prior(:,start_ind+10) = [0.d0, 0.001d0, 0.d0, -1.d0] ! sigma_theta
       scale(start_ind+10)   = 1.d0      
     end subroutine init_ring_priors_and_scales
 
@@ -459,23 +479,23 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.1d0, 0.1d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
-!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-!!$      scale(start_ind+6)   = 1.d0      
-!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-!!$      scale(start_ind+7)   = 1.d0      
-!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-!!$      scale(start_ind+8)   = 1.d0      
-!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
-!!$      scale(start_ind+9)   = 1.d0      
-!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
-!!$      scale(start_ind+10)   = 1.d0      
+      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [-20.d0, 20.d0, 0.d0, -1.d0] ! theta
+      scale(start_ind+9)   = 1.d0      
+      prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
+      scale(start_ind+10)   = 1.d0      
     end subroutine init_feature_priors_and_scales
 
     subroutine init_interstellar_priors_and_scales(self, start_ind, prior, scale)
@@ -889,10 +909,10 @@ contains
          term1 = -((R - self%R_0)**2)/self.sigma_r**2
          term2 = abs(Z_midplane/self.sigma_z)
 
-         if (abs(theta_prime) < self%sigma_theta_rad) then
-            n_out(i) = 0.d0
-         else
+         if (self%sigma_theta_rad <= 0.d0 .or. abs(theta_prime) > self%sigma_theta_rad) then
             n_out(i) = self%n_0*exp(term1 - term2)
+         else 
+            n_out(i) = 0.d0
          end if
       end do
    end subroutine get_density_ring
@@ -1020,7 +1040,7 @@ contains
       self%n_params = self%n_general_params
       ! NOTE: The order of the parameters in the `params` array must match the below order of readin
       do i = 1, self%n_comps
-         self%comps(i)%labels = [param_labels%common]
+         !self%comps(i)%labels = [param_labels%common]
          select case (trim(adjustl(comp_types(i))))
          case ('cloud')
             allocate (ZodiCloud::self%comps(i)%c)
@@ -1035,8 +1055,9 @@ contains
                 & beta=params(i, 8), &
                 & gamma=params(i, 9), &
                 & mu=params(i, 10) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%cloud]
+                &)
+            allocate(self%comps(i)%labels(10))
+            self%comps(i)%labels = [param_labels%common, param_labels%cloud]
          case ('band')
             allocate (ZodiBand::self%comps(i)%c)
             self%comps(i)%c = ZodiBand(&
@@ -1051,7 +1072,8 @@ contains
                 & v=params(i, 9), &
                 & p=params(i, 10) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%band]
+            allocate(self%comps(i)%labels(10))
+            self%comps(i)%labels = [param_labels%common, param_labels%band]
          case ('ring')
             allocate (ZodiRing::self%comps(i)%c)
             self%comps(i)%c = ZodiRing(&
@@ -1067,7 +1089,8 @@ contains
                & theta_0=params(i, 10), &
                & sigma_theta=params(i, 11) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%ring]
+            allocate(self%comps(i)%labels(11))
+            self%comps(i)%labels = [param_labels%common, param_labels%ring]
          case ('feature')
             allocate (ZodiFeature::self%comps(i)%c)
             self%comps(i)%c = ZodiFeature(&
@@ -1082,8 +1105,9 @@ contains
                & sigma_z=params(i, 9), &
                & theta_0=params(i, 10), &
                & sigma_theta=params(i, 11) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%feature]
+               &)
+            allocate(self%comps(i)%labels(11))
+            self%comps(i)%labels = [param_labels%common, param_labels%feature]
          case ('interstellar')
             allocate (ZodiInterstellar::self%comps(i)%c)
             self%comps(i)%c = ZodiInterstellar(&
@@ -1095,8 +1119,9 @@ contains
                  & z_0=params(i, 6), &
                  & R=params(i, 7), &
                  & alpha=params(i, 8) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%interstellar]
+                 &)
+            allocate(self%comps(i)%labels(8))
+            self%comps(i)%labels = [param_labels%common, param_labels%interstellar]
          case ('fan')
             allocate (ZodiFan::self%comps(i)%c)
             self%comps(i)%c = ZodiFan(&
@@ -1112,7 +1137,8 @@ contains
                  & Z_midplane_0=params(i, 10), &
                  & R_outer=params(i, 11) &
             &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%fan]
+            allocate(self%comps(i)%labels(11))
+            self%comps(i)%labels = [param_labels%common, param_labels%fan]
          case ('comet')
             allocate (ZodiFan::self%comps(i)%c)
             self%comps(i)%c = ZodiComet(&
@@ -1126,8 +1152,9 @@ contains
                  & Z_midplane_0=params(i, 8), &
                  & R_inner=params(i, 9), &
                  & R_outer=params(i, 10) &
-            &)
-            self%comps(i)%labels = [self%comps(i)%labels, param_labels%comet]
+                 &)
+            allocate(self%comps(i)%labels(10))
+            self%comps(i)%labels = [param_labels%common, param_labels%comet]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -1354,6 +1381,7 @@ contains
          call write_hdf(file, trim(adjustl(param_label)), params(param_idx + i))
       end do
       call close_hdf_file(file)
+      deallocate(params,labels)
    end subroutine
 
    subroutine comp_from_chain(self, cpar, params, comp_idx)
@@ -1361,7 +1389,7 @@ contains
       class(ZodiModel), target, intent(inout) :: self
       type(comm_params), intent(in) :: cpar
       real(dp), intent(inout) :: params(:, :)
-      integer(i4b) :: comp_idx
+      integer(i4b), intent(in) :: comp_idx
 
       logical(lgt) :: exist
       integer(i4b) :: i, j, l, ierr, initsamp
@@ -1397,6 +1425,7 @@ contains
             call read_hdf(file, trim(adjustl(itext)//'/zodi/comps/'//trim(adjustl(cpar%zs_comp_labels(comp_idx)))// &
                   & '/'//trim(adjustl(param_labels(j)))), params(comp_idx, j))
          end do
+         deallocate(param_labels)
       end if
       ! call mpi_bcast(params, sum(shape(params)), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call mpi_bcast(params, size(params, dim=1) * size(params, dim=2), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
@@ -1452,7 +1481,7 @@ contains
 
    ! end subroutine model_from_chain
 
-   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo, alpha)
+   subroutine get_s_zodi(s_therm, s_scat, s_zodi, emissivity, albedo)
       ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
       ! integrated thermal zodiacal emission and scattered zodiacal light.
       !
@@ -1468,67 +1497,29 @@ contains
       !     Emissivity of the zodiacal components.
       ! albedo :
       !     Albedo of the zodiacal components.
-      ! alpha : optional
-      !     Scale factor per component
       real(sp), dimension(:, :), intent(in) :: s_scat, s_therm
       real(sp), dimension(:), intent(out)   :: s_zodi
       real(dp), dimension(:), intent(in) :: emissivity, albedo
-      real(dp), dimension(:), intent(in), optional :: alpha
-      integer(i4b) :: i, n_comps
 
-      n_comps = size(emissivity)
+      integer(i4b) :: i
+
       s_zodi = 0.
-      do i = 1, n_comps
-         if (present(alpha)) then
-            call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i), alpha(i))
-         else
-            call get_s_zodi_comp(s_therm(:, i), s_scat(:, i), s_zodi, emissivity(i), albedo(i))
-         end if
+      do i = 1, size(emissivity)
+         s_zodi = s_zodi + ((s_scat(:,i) * albedo(i)) + (1. - albedo(i)) * emissivity(i) * s_therm(:,i))
       end do
    end subroutine get_s_zodi
 
-   subroutine get_s_zodi_comp(s_therm_comp, s_scat_comp, s_zodi_comp, emissivity_comp, albedo_comp, alpha_comp)
-      ! Evaluates the zodiacal signal (eq. 20 in ZodiPy paper [k98 model]) given
-      ! integrated thermal zodiacal emission and scattered zodiacal light for a single
-      ! component.
-      !
-      ! Parameters:
-      ! -----------
-      ! s_scat_comp :
-      !     Integrated contribution from scattered sunlight light.
-      ! s_therm_comp :
-      !     Integrated contribution from thermal interplanetary dust emission.
-      ! s_zodi :
-      !     Zodiacal signal.
-      ! albedo_comp :
-      !     Albedo of the zodiacal component.
-      ! emissivity_comp :
-      !     Emissivity of the zodiacal component.
-      ! alpha_comp : optional
-      !     Scale factor for a component
-      real(sp), dimension(:), intent(in) :: s_scat_comp, s_therm_comp
-      real(sp), dimension(:), intent(inout) :: s_zodi_comp
-      real(dp), intent(in) :: emissivity_comp, albedo_comp
-      real(dp), intent(in), optional :: alpha_comp
-      integer(i4b) :: i, n_comps
-      if (present(alpha_comp)) then 
-         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp) * alpha_comp
-      else 
-         s_zodi_comp = s_zodi_comp + ((s_scat_comp * albedo_comp) + (1. - albedo_comp) * emissivity_comp * s_therm_comp)
-      end if
-   end subroutine get_s_zodi_comp
-
-   function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string)
+   function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
      implicit none
      class(ZodiModel),     intent(in)           :: self
      class(ZodiComponentContainer), intent(in), target, optional :: comp
      character(len=*),     intent(in), optional :: comp_str
      character(len=*),     intent(in), optional :: param
-     integer(i4b),         intent(in), optional :: em_band, al_band
-     character(len=*),     intent(in), optional :: em_string, al_string
+     integer(i4b),         intent(in), optional :: em_band, al_band, mono_band
+     character(len=*),     intent(in), optional :: em_string, al_string, mono_string
      integer(i4b)                               :: get_par_ind
      
-     integer(i4b) :: i
+     integer(i4b) :: i, band
      class(ZodiComponentContainer), pointer :: c
      character(len=128) :: str1, str2
      
@@ -1558,6 +1549,14 @@ contains
         if (present(param)) then
            ! General parameter
            get_par_ind = get_string_index(self%general_labels, param)
+        else if (present(mono_string) .or. present(mono_band)) then
+           ! Monopoles are always last
+           if (present(mono_string)) then
+              band = get_string_index(band_labels, mono_string)
+           else
+              band = mono_band
+           end if
+           get_par_ind = self%npar_tot - numband + band
         else
            write(*,*) 'get_par_ind error: Need parameter specification'
            stop
@@ -1566,43 +1565,49 @@ contains
      
    end function get_par_ind
 
-   subroutine samp_group2stat(cpar, samp_group, stat)
+   subroutine samp_group2stat(cpar, samp_group, active, stat)
      implicit none     
      type(comm_params), intent(in) :: cpar
      integer(i4b),                   intent(in)    :: samp_group
+     logical(lgt),     dimension(:), intent(in)    :: active
      integer(i4b),     dimension(:), intent(inout) :: stat
 
-     integer(i4b) :: i, c, j, first, last, n_params, n, m, ind, em_global, al_global
-     character(len=128) :: tokens(100), comp_param(2), label, param_label_tokens(10), str
-     character(len=128), allocatable :: tokens_trunc(:)
-
+     integer(i4b) :: i, c, j, k, first, last, n_params, n, m, ind, em_global, al_global, c_to, c_from, band
+     character(len=128) :: tokens(100), comp_param(2), wire_from(2), wire_to(2), label, param_label_tokens(10), em_from(2), em_to(2)
+     character(len=2048) :: str
+     
      ! Default: Fix everything at input
      str  = cpar%zs_samp_groups(samp_group)
      stat = -1
      
      ! Parse user directives
      call get_tokens(str, ',', tokens, n_params) 
-     tokens_trunc = tokens(1:n_params)
-     
+
+     write(*,*) 'a'
      em_global = 0; al_global = 0
      if (cpar%zs_em_global /= 'none') em_global = get_string_index(zodi_model%comp_labels, cpar%zs_em_global)
      if (cpar%zs_al_global /= 'none') al_global = get_string_index(zodi_model%comp_labels, cpar%zs_al_global)
-     do i = 1, size(tokens_trunc)
-        call get_tokens(tokens_trunc(i), ':', comp_param, num=n)
+     do i = 1, n_params
+        call get_tokens(tokens(i), ':', comp_param, num=n)
+        write(*,*) 'a1', tokens(i)
         if (n == 1) then
            ! General parameter
-           !write(*,*) 'a', trim(comp_param(1))
            ind = zodi_model%get_par_ind(param=comp_param(1))
            stat(ind) = 0
         else if (n == 2) then
-           !write(*,*) 'b', trim(label)
            if (trim(comp_param(1)) == 'em') then
+              write(*,*) 'a2', tokens(i)
+              band = get_string_index(band_labels, comp_param(2))
+              if (.not. active(band)) cycle
               do j = 1, zodi_model%n_comps
                  ind       = zodi_model%get_par_ind(comp=zodi_model%comps(j), em_string=comp_param(2))
                  stat(ind) = 0
               end do
               cycle
            else if (trim(comp_param(1)) == 'al') then
+              write(*,*) 'a3', tokens(i)
+              band = get_string_index(band_labels, comp_param(2))
+              if (.not. active(band)) cycle
               do j = 1, zodi_model%n_comps
                  ind       = zodi_model%get_par_ind(comp=zodi_model%comps(j), al_string=comp_param(2))
                  stat(ind) = 0
@@ -1615,47 +1620,121 @@ contains
            c     = get_string_index(zodi_model%comp_labels, comp_param(1))
            first = zodi_model%comps(c)%start_ind
            if (trim(label) == 'all') then
-              last  = first + zodi_model%comps(c)%npar + 2*numband - 1
+              write(*,*) 'a4', label
+              last  = first + zodi_model%comps(c)%npar - 1
               stat(first:last) = 0 ! Activate all
+              do j = 1, numband
+                 if (.not. active(j)) cycle
+                 stat(last+j)         = 0
+                 stat(last+numband+j) = 0
+              end do
+              last = last + 2*numband
            else if (trim(label(1:2)) == 'em') then
+              write(*,*) 'a5', label
               ! Emissivity
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
                  first = first + zodi_model%comps(c)%npar
-                 last  = first + numband - 1
-                 stat(first:last) = 0 ! Activate all
+                 do j = 1, numband
+                    if (active(j)) stat(first+j-1) = 0 
+                 end do
               else
-                 !write(*,*) 'c', trim(comp_param(2))
+                 band = get_string_index(band_labels, comp_param(2))
+                 if (.not. active(band)) cycle
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_string=comp_param(2))
                  stat(ind) = 0
               end if
            else if (trim(label(1:2)) == 'al') then
+              write(*,*) 'a6', label
               ! Albedo
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
                  first = first + zodi_model%comps(c)%npar + numband
-                 last  = first + numband - 1
-                 stat(first:last) = 0 ! Activate all
+                 do j = 1, numband
+                    if (active(j)) stat(first+j-1) = 0 
+                 end do
               else
+                 band = get_string_index(band_labels, comp_param(2))
+                 if (.not. active(band)) cycle
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), al_string=comp_param(2))
                  stat(ind) = 0
               end if
            else
+              write(*,*) 'a7', label
               ! Shape parameter
               ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), param=comp_param(2))
               stat(ind) = 0
            end if
         else
-           write(*,*) 'Invalid zodi samp group element = ', trim(tokens_trunc(i))
+           write(*,*) 'Invalid zodi samp group element = ', trim(tokens(i))
            stop
         end if
      end do
 
+          write(*,*) 'b'
+     ! Set up monopoles
+     do i = 1, numband
+        ind = zodi_model%get_par_ind(mono_band=i)
+        if (active(i) .and. cpar%zs_joint_mono .and. band_todtype(i) /= 'none') stat(ind) = 0
+     end do
+
+          write(*,*) 'c'
+     ! Apply explicit parameter wiring
+     call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 
+     do i = 1, n_params
+        if (trim(tokens(1)) == 'none') exit
+        
+        call get_tokens(tokens(i), '>', comp_param, num=n)
+        if (n /= 2) then
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', tokens(i)
+           stop
+        end if
+
+        call get_tokens(comp_param(1), ':', wire_from, num=n)
+        call get_tokens(comp_param(2), ':', wire_to,   num=m)
+        if (n /= 2) then
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', trim(tokens(i))!, trim(comp_param(1)), trim(wire_from(1)), trim(wire_from(2))
+           stop
+        end if
+        if (m /= 2) then
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', trim(tokens(i))!, trim(comp_param(2)), trim(wire_to(1)), trim(wire_to(2))
+           write(*,*) 'Error: Zodi wiring must contain two tokens: ', trim(comp_param(2))!, trim(wire_to(1)), trim(wire_to(2))
+           stop
+        end if
+
+        if (trim(wire_from(2)(1:2)) == 'em') then
+           call get_tokens(wire_from(2), '@', em_from, num=n)
+           call get_tokens(wire_to(2), '@', em_to, num=n)
+           if (n == 1) then
+              ! Attach all bands
+              do c = 1, numband
+                 if (.not. active(c)) cycle
+                 c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_band=c)
+                 c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_band=c)
+                 stat(c_from) = c_to
+              end do
+           else
+              ! Attach specified band
+              j = get_string_index(band_labels, em_from(2))
+              k = get_string_index(band_labels, em_to(2))
+              if (.not. active(j) .or. .not. active(k)) cycle
+              c_from = zodi_model%get_par_ind(comp_str=wire_from(1), em_string=em_from(2))
+              c_to   = zodi_model%get_par_ind(comp_str=wire_to(1),   em_string=em_to(2))
+              stat(c_from) = c_to
+           end if
+        else
+           write(*,*) 'Unsupported zodi wire = ', trim(tokens(i))
+           stop
+        end if
+     end do
+
+          write(*,*) 'd'
      ! Apply global directives
      if (em_global > 0) then
         do i = 1, zodi_model%n_comps
            if (i == em_global) cycle
            do j = 1, numband
+              if (.not. active(j)) cycle
               ind   = zodi_model%get_par_ind(comp=zodi_model%comps(em_global), em_band=j)
               first = zodi_model%get_par_ind(comp=zodi_model%comps(i), em_band=j)
               stat(first) = ind
@@ -1667,6 +1746,7 @@ contains
         do i = 1, zodi_model%n_comps
            if (i == al_global) cycle
            do j = 1, numband
+              if (.not. active(j)) cycle
               ind   = zodi_model%get_par_ind(comp=zodi_model%comps(al_global), al_band=j)
               first = zodi_model%get_par_ind(comp=zodi_model%comps(i), al_band=j)
               stat(first) = ind
@@ -1674,9 +1754,12 @@ contains
         end do
      end if
 
+          write(*,*) 'e'
      ! Match emissivity and albedo for bands with identical instruments
      do i = 1, numband
+        if (.not. active(i)) cycle
         do j = i+1, numband
+           if (.not. active(j)) cycle
            if (trim(band_instlabels(j)) == trim(band_instlabels(i))) then
               do c = 1, zodi_model%n_comps
                  ind   = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_band=i)
@@ -1690,7 +1773,8 @@ contains
            end if
         end do
      end do
-     
+
+          write(*,*) 'f'
      ! Apply absolute constraints
      do j = 1, numband
         if (band_todtype(j) == 'none') then
@@ -1708,7 +1792,7 @@ contains
            end do
         end if
 
-        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 5d13) then
+        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 70000d9) then
            do i = 1, zodi_model%n_comps
               ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), al_band=j)
               stat(ind)         = -2 ! Fix albedo to zero
@@ -1723,6 +1807,21 @@ contains
         end if
      end do
 
+          write(*,*) 'g'
+     ! Short-cut multi-leg wires
+     do i = 1, size(stat)
+        if (stat(i) > 0) then
+           j = stat(i)
+           do while (stat(j) > 0)
+              stat(i) = stat(j)
+              j       = stat(i)
+              if (j <= 0) exit
+           end do
+        end if
+     end do
+
+          write(*,*) 'h'
+     
    end subroutine samp_group2stat
 
    function get_string_index(arr, str)
