@@ -121,7 +121,7 @@ end type ZodiRing
       procedure :: init_comps, init_general_params, params_to_model, model_to_params, model_to_chain, comp_from_chain
    end type ZodiModel
    type(ZodiModel), target :: zodi_model
-
+      
 contains
    subroutine initialize_zodi_mod(cpar)
       type(comm_params), intent(in) :: cpar

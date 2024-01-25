@@ -9,7 +9,7 @@ module comm_tod_zodi_mod
    implicit none
 
    private
-   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_instantaneous_zodi_emission, get_interp_zodi_emission
+   public initialize_tod_zodi_mod, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_instantaneous_zodi_emission, get_zodi_emission_pix
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -18,7 +18,8 @@ module comm_tod_zodi_mod
       real(dp), allocatable, dimension(:, :) :: X, X_unit
    end type
 
-   real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp), delta_t_reset
+   real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp)
+   real(dp) :: delta_t_reset
    real(dp), allocatable :: T_grid(:), B_nu_integrals(:)
    type(ZodiCompLOS), allocatable, dimension(:) :: comp_LOS
 
@@ -34,7 +35,7 @@ contains
       type(comm_params), intent(in) :: cpar
       real(dp) :: min_temp = 40.0, max_temp = 550.0
       integer(i4b) :: n_interp_points = 100
-      integer(i4b) :: i, gauss_degree
+      integer(i4b) :: i, gauss_degree, ierr
 
       allocate(comp_LOS(zodi_model%n_comps))
       allocate(B_nu_integrals(n_interp_points))
@@ -52,6 +53,7 @@ contains
             comp_LOS(i)%R_min = cpar%zs_r_min(i)
          end if
          comp_LOS(i)%R_max = cpar%zs_r_max(i)
+         ! if (cpar%myid == 0) print *, i , comp_LOS(i)%R_max, gauss_degree
          call leggaus(gauss_degree, comp_LOS(i)%gauss_nodes, comp_LOS(i)%gauss_weights)
          allocate(comp_LOS(i)%X_unit(3, gauss_degree))
          allocate(comp_LOS(i)%X(3, gauss_degree))
@@ -63,7 +65,8 @@ contains
          allocate(comp_LOS(i)%Phi(gauss_degree))
          allocate(comp_LOS(i)%B_nu(gauss_degree))
       end do
-
+      ! call mpi_barrier(MPI_COMM_WORLD, ierr)
+      ! stop
       ! Set up interpolation grid for evaluating temperature
       allocate (T_grid(n_interp_points))
       call linspace(min_temp, max_temp, T_grid)
@@ -139,7 +142,7 @@ contains
       end if
       ! select the correct cache
       if (present(use_lowres_pointing)) then
-         if (tod%nside == zodi_nside) then
+         if (tod%nside == ZODI_NSIDE) then
             use_lowres = .false.
          else
             if (.not. allocated(tod%zodi_therm_cache_lowres)) stop "zodi cache not allocated. `use_lowres_pointing` should only be true when sampling zodi."
@@ -241,7 +244,7 @@ contains
    end subroutine get_zodi_emission
 
 
-   subroutine get_instantaneous_zodi_emission(tod, pix, obs_time, obs_pos, det, s_zodi, model)
+   subroutine get_instantaneous_zodi_emission(tod, pix, obs_pos, earth_pos, det, s_zodi, model)
       ! Returns the predicted zodiacal emission for a scan (chunk of time-ordered data).
       !
       ! Parameters
@@ -276,24 +279,20 @@ contains
       !
       class(comm_tod), intent(inout) :: tod
       integer(i4b), intent(in) :: pix(:), det
-      real(dp) :: obs_time, obs_pos(3)
+      real(dp) :: obs_pos(3), earth_pos(3)
       real(sp), dimension(:, :), intent(inout) :: s_zodi
       type(ZodiModel), intent(in) :: model
 
       integer(i4b) :: i, j, k, l, p, pix_at_zodi_nside, lookup_idx, n_tod, ierr, cache_hits
       logical(lgt) :: scattering, use_lowres
       real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, phase_normalization, C0, C1, C2
-      real(dp) :: unit_vector(3), earth_pos(3), rotation_matrix(3, 3)
+      real(dp) :: unit_vector(3), rotation_matrix(3, 3)
       !real(dp), dimension(gauss_degree) :: R_LOS, T_LOS, density_LOS, solar_flux_LOS, scattering_angle, phase_function, b_nu_LOS
 
       s_zodi = 0.
       n_tod = size(pix)
 
       R_obs = norm2(obs_pos)
-      obs_pos = obs_pos
-      do i = 1, 3
-         earth_pos(i) = splint_simple(model%earth_pos_interpolator(i), obs_time)
-      end do
       earth_lon = atan(earth_pos(2), earth_pos(1))
 
       call ecl_to_gal_rot_mat(rotation_matrix)
@@ -314,7 +313,7 @@ contains
          ! Get lookup index for cache. If the pixel is already cached, used that value.
          p = pix(i)
          ! print *, tod%myid, "pix:", p
-         call pix2vec_ring(zodi_nside, p, unit_vector)
+         call pix2vec_ring(ZODI_NSIDE, p, unit_vector)
          unit_vector = matmul(unit_vector, rotation_matrix)
          ! print*, unit_vector
          do k = 1, model%n_comps
@@ -348,88 +347,66 @@ contains
    end subroutine get_instantaneous_zodi_emission
 
 
-   subroutine get_interp_zodi_emission(tod, pix, scan, s_zodi)
-      class(comm_tod), intent(inout) :: tod
-      integer(i4b), intent(in) :: pix(:)
-      integer(i4b), intent(in) :: scan
+   subroutine get_zodi_emission_pix(tod, pix, obs_pos, earth_pos, det, model, s_zodi)
+      class(comm_tod), intent(in) :: tod
+      integer(i4b), intent(in) :: pix, det
+      real(dp), intent(in) :: obs_pos(3), earth_pos(3)
       real(sp), dimension(:), intent(inout) :: s_zodi
+      type(ZodiModel), intent(in) :: model
 
-      integer(i4b) :: i, nobs, k, ncoeffs
-      real(dp), allocatable :: obs_time_samp(:), freqs(:)
-      real(dp) :: dt_tod, obs_time, period, dt, tmp
+      integer(i4b) :: i, j, k, l, p
+      logical(lgt) :: scattering
+      real(dp) :: earth_lon, R_obs, R_min, R_max, dt_tod, phase_normalization, C0, C1, C2
+      real(dp) :: unit_vector(3), rotation_matrix(3, 3)
 
+      s_zodi = 0.
+
+      R_obs = norm2(obs_pos)
+      earth_lon = atan(earth_pos(2), earth_pos(1))
+
+      call ecl_to_gal_rot_mat(rotation_matrix)
+
+      C0 = zodi_model%C0(tod%band)
+      C1 = zodi_model%C1(tod%band)
+      C2 = zodi_model%C2(tod%band)
+      phase_normalization = get_phase_normalization(C0, C1, C2)
+
+      scattering = any(tod%zodi_albedo > EPS)
+
+      R_obs = norm2(obs_pos)
+      earth_lon = atan(earth_pos(2), earth_pos(1))
       
-      nobs = size(tod%zodi_fourier_cube, dim=1)
-      ncoeffs = nobs/2 + 1
+      call pix2vec_ring(ZODI_NSIDE, pix, unit_vector)
+      unit_vector = matmul(unit_vector, rotation_matrix)
 
-      period = 365.242199
+      do k = 1, model%n_comps
+         ! Get line of sight integration range
+         call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_min, R_min)
+         call get_sphere_intersection(unit_vector, obs_pos, R_obs, comp_LOS(k)%R_max, R_max)
 
-      obs_time_samp = [(i * (period/real(nobs)), i = 1, nobs)]
-      obs_time_samp = obs_time_samp +  47871.0100490336
-      dt = obs_time_samp(2) - obs_time_samp(1)
-
-      allocate(freqs(0:nobs-1))
-
-      freqs = 0.
-      do k = 1, ncoeffs
-         if (k < nobs/2.) then
-            freqs(k) = k / (dt * nobs)
-         else
-            freqs(k) = (k - nobs) / (dt * nobs)
+         do l = 1, 3
+            ! Convert quadrature range from [-1, 1] to [R_min, R_max]
+            comp_LOS(k)%X_unit(l, :) = (0.5 * (R_max - R_MIN)) * comp_LOS(k)%gauss_nodes + (0.5 * (R_max + R_MIN))
+            comp_LOS(k)%X_unit(l, :) = comp_LOS(k)%X_unit(l, :) * unit_vector(l)
+            comp_LOS(k)%X(l, :) = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
+         end do
+         comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
+         if (scattering) then
+            comp_LOS(k)%F_sol = model%F_sun(tod%band)/comp_LOS(k)%R**2
+            call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
+            call get_phase_function(comp_LOS(k)%Theta, C0, C1, C2, phase_normalization, comp_LOS(k)%Phi)
          end if
-         if (k < ncoeffs - 1) freqs(nobs - k) = - freqs(k)
+
+         call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
+         call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
+
+         call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
+         if (scattering) then
+            s_zodi(k) = s_zodi(k) + tod%zodi_albedo(k) * sum(comp_LOS(k)%n*comp_LOS(k)%F_sol*comp_LOS(k)%Phi*comp_LOS(k)%gauss_weights) * 0.5*(R_max - R_MIN) * 1d20
+         end if
+         s_zodi(k) = s_zodi(k) +  (1. - tod%zodi_albedo(k)) * tod%zodi_emissivity(k) * sum(comp_LOS(k)%n*comp_LOS(k)%B_nu*comp_LOS(k)%gauss_weights) * 0.5 * (R_max - R_MIN) * 1d20
       end do
-
-      dt_tod = (1./tod%samprate)*SECOND_TO_DAY ! dt between two samples in units of days (assumes equispaced tods)
-      obs_time = tod%scans(scan)%t0(1)
-
-      do i = 1, size(pix)
-         call fft_interp_zodi(tod%zodi_fourier_cube(:, tod%udgrade_pix_zodi(pix(i))), freqs, obs_time, obs_time_samp(1), tmp)
-         s_zodi(i) = real(tmp, sp)
-         obs_time = obs_time + dt_tod
-      end do
-
-   end subroutine get_interp_zodi_emission
-
-   subroutine fft_interp_zodi(fft_coeffs, fft_freqs, t, t_0, s_zodi_pix)
-      complex(spc), intent(in) :: fft_coeffs(:)
-      real(dp), intent(in) :: fft_freqs(:), t, t_0
-      real(dp), intent(out) :: s_zodi_pix
-
-      complex(spc) :: i = cmplx(0., 1.)
-      integer(i4b) :: k
-
-      s_zodi_pix = 0
-      do k = 1, size(fft_coeffs)
-         s_zodi_pix = s_zodi_pix + fft_coeffs(k) * exp(i * 2. * pi  * fft_freqs(k) * (t-t_0))
-         ! s_zodi_pix = s_zodi_pix + exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
-      end do
-      s_zodi_pix = s_zodi_pix / size(fft_coeffs)
-   end subroutine fft_interp_zodi
-
-   ! subroutine fft_interp_zodi(fft_coeffs, fft_freqs, t, t_0, s_zodi_pix)
-   !    complex(spc), intent(in) :: fft_coeffs(:)
-   !    real(dp), intent(in) :: fft_freqs(:), t, t_0
-   !    real(sp), intent(out) :: s_zodi_pix
-
-   !    complex(spc) :: s_zodi_pix_complex
-   !    complex(spc) :: i = cmplx(0., 1.)
-   !    integer(i4b) :: k
-
-   !    s_zodi_pix_complex = cmplx(0., 0.)
-   !    do k = 1, size(fft_coeffs)
-   !       ! print *, "s_zodi_pix_complex", s_zodi_pix_complex
-   !       ! print *, "fft_coeffs(k)", fft_coeffs(k)
-   !       ! print *, "fft_freqs(k)", fft_freqs(k)
-   !       ! print *, "mod(t, t_0)", mod(t, t_0)
-   !       ! print *, "i", i
-   !       ! print *, "exp", exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
-
-   !       ! s_zodi_pix_complex = s_zodi_pix_complex + fft_coeffs(k) * exp(i * 2. * pi  * fft_freqs(k) * mod(t, t_0))
-   !       s_zodi_pix_complex = s_zodi_pix_complex + fft_coeffs(k)
-   !    end do
-   !    s_zodi_pix = real(s_zodi_pix_complex, sp) / size(fft_coeffs)
-   ! end subroutine fft_interp_zodi
+   end subroutine
 
    ! Functions for evaluating the zodiacal emission
    ! -----------------------------------------------------------------------------------

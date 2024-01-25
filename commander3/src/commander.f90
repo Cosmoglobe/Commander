@@ -188,8 +188,7 @@ program commander
           end do
           call read_tod_zodi_params(cpar, zodi_model, data(i)%tod)
 
-          call build_zodi_fourier_cube(cpar, zodi_model)
-          data(i)%tod%zodi_fourier_cube = data(i)%zodi_fourier_cube
+         call construct_tod_zodi_cube(cpar, data(i)%tod, zodi_model)
      end do
   end if
 

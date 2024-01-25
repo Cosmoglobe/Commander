@@ -36,10 +36,14 @@ module comm_data_mod
   use comm_bp_utils
   implicit none
 
-  type ZodiFourierCube
-     complex(spc), allocatable, dimension(:) :: coeffs
-     real(dp), allocatable, dimension(:) :: freqs
-  end type
+!   type ZodiFourierCube
+!      integer(i4b) :: ncoeffs
+!      real(dp) :: t0
+!      complex(spc), allocatable, dimension(:) :: coeffs
+!      real(dp), allocatable, dimension(:) :: freqs
+!      contains 
+!       procedure :: get_fft_interp_zodi
+!   end type
   type comm_data_set
      character(len=512)           :: label, unit, comp_sens, noise_format
      integer(i4b)                 :: period, id_abs
@@ -52,7 +56,7 @@ module comm_data_mod
      integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only, subtract_zodi
 
-     type(ZodiFourierCube), allocatable, dimension(:) :: zodi_fourier_cube
+   !   type(ZodiFourierCube), allocatable, dimension(:) :: zodi_fourier_cube
      
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_mapinfo), pointer :: rmsinfo   => null()
@@ -200,9 +204,9 @@ contains
        end if
        call update_status(status, "data_tod")
 
-       if ((.not. trim(data(n)%tod_type) == 'none') .and. data(n)%tod%subtract_zodi) then
-         allocate(data(n)%zodi_fourier_cube(0:nside2npix(zodi_nside)-1))
-       end if
+      !  if ((.not. trim(data(n)%tod_type) == 'none') .and. data(n)%tod%subtract_zodi) then
+      !    allocate(data(n)%zodi_fourier_cube(0:nside2npix(zodi_nside)-1))
+      !  end if
 
        ! Initialize beam structures
        allocate(data(n)%B(0:data(n)%ndet)) 
@@ -701,5 +705,23 @@ contains
     end if
 
   end subroutine get_mapfile
+
+! pure function get_fft_interp_zodi(self, t, t_0) result(s_zodi_pix)
+! implicit none
+!    class(ZodiFourierCube), intent(in) :: self
+!    real(dp), intent(in) :: t, t_0
+
+!    real(dp) :: s_zodi_pix
+
+!    complex(spc) :: i
+!    integer(i4b) :: k
+
+!    i = cmplx(0.,1.)
+!    s_zodi_pix = 0
+!    do k = 1, self%ncoeffs
+!       s_zodi_pix = s_zodi_pix + self%coeffs(k) * exp(i * 2. * pi  * self%freqs(k) * (t-t_0))
+!    end do
+!    s_zodi_pix = s_zodi_pix / self%ncoeffs
+! end function get_fft_interp_zodi
 
 end module comm_data_mod

@@ -233,7 +233,9 @@ module comm_tod_mod
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
      logical(lgt)                              :: zodi_tod_params_are_initialized, zodi_scattering, udgrade_zodi
-     complex(spc), allocatable, dimension(:, :)    :: zodi_fourier_cube
+   !   complex(spc), allocatable, dimension(:, :)    :: zodi_fourier_cube
+     type(ZodiFourierCube), allocatable, dimension(:) :: zodi_fourier_cube
+
 
    contains
      procedure                           :: read_tod
@@ -270,6 +272,7 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
+     procedure                           :: get_s_zodi
 
   end type comm_tod
 
@@ -292,6 +295,14 @@ module comm_tod_mod
   type tod_pointer
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
+
+  type ZodiFourierCube
+     real(dp) :: t0
+     complex(spc), allocatable, dimension(:, :) :: coeffs ! (ncoeffs, ncomps)
+     real(dp), allocatable, dimension(:) :: freqs
+     contains 
+      procedure :: get_ifft_pix
+  end type
 
 contains
 
@@ -378,6 +389,7 @@ contains
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
+      allocate(self%zodi_fourier_cube(0:nside2npix(ZODI_NSIDE)-1))
     end if
 
     if (trim(self%tod_type)=='SPIDER') then
@@ -2831,10 +2843,10 @@ contains
       ! If zodi sampling is turned on we precompute lowres zodi lookups
       ! if (.not. cpar%sample_zodi) return
       ! Skip if zodi nside = tod nside
-      if (self%nside == zodi_nside) return
-      n_subpix = (self%nside / zodi_nside)**2
+      if (self%nside == ZODI_NSIDE) return
+      n_subpix = (self%nside / ZODI_NSIDE)**2
 
-      npix_lowres = 12*zodi_nside**2
+      npix_lowres = 12*ZODI_NSIDE**2
       npix_highres = 12*self%nside**2
 
       ! Make lookup table for highres pixels to lowres pixels
@@ -2842,7 +2854,7 @@ contains
       do i = 0, npix_highres - 1
          call ring2nest(self%nside, i, nest_pix)
          nest_pix = nest_pix / n_subpix
-         call nest2ring(zodi_nside, nest_pix, self%udgrade_pix_zodi(i))
+         call nest2ring(ZODI_NSIDE, nest_pix, self%udgrade_pix_zodi(i))
       end do
    
    end subroutine precompute_zodi_lookups
@@ -2868,5 +2880,43 @@ contains
          self%zodi_therm_cache_lowres = -1.d0
       end if
    end subroutine clear_zodi_cache
+
+   pure function get_ifft_pix(self, t) result(s_zodi)
+      ! Computes the inverse fourier transform of the component-wise zodi signal at a time t for a single pixel
+      implicit none
+      class(ZodiFourierCube), intent(in) :: self
+      real(dp), intent(in) :: t
+   
+      real(dp) :: s_zodi(size(self%coeffs, dim=2))
+      complex(spc) :: i, s_zodi_cmplx(size(self%coeffs, dim=2))
+      integer(i4b) :: k
+
+      i = cmplx(0.,1.)
+      s_zodi_cmplx = 0.
+      do k = 0, size(self%freqs) - 1
+         s_zodi_cmplx(:) = s_zodi_cmplx(:) + self%coeffs(k, :) * exp(i * 2. * pi  * self%freqs(k) * (t-self%t0))
+      end do
+      s_zodi = real(s_zodi_cmplx) / size(self%freqs)
+   end function
+
+   subroutine get_s_zodi(self, pixels, scan_id, s_zodi)
+      ! Returns a timeseries of the component-wise zodi signal for a pixel array
+      implicit none
+      class(comm_tod), intent(in) :: self
+      integer(i4b), intent(in) :: pixels(:), scan_id
+      real(sp), intent(inout) :: s_zodi(:, :)
+
+      real(dp) :: t, dt
+      integer(i4b) :: i, p
+
+      t = self%scans(scan_id)%t0(1)
+      dt = SECOND_TO_DAY / self%samprate
+
+      do i = 1, size(pixels)
+         p = self%udgrade_pix_zodi(pixels(i))
+         s_zodi(i, :) = real(self%zodi_fourier_cube(p)%get_ifft_pix(t), sp)
+         t = t + dt
+      end do
+   end subroutine
 
 end module comm_tod_mod
