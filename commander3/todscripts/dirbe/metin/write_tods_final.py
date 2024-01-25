@@ -224,7 +224,6 @@ def get_yday_cio_data(
     attack_vecs = data["AttackV"].astype(np.float64)
     attack_vecs[attack_vecs * TSCAL >= TSCAL] += 0.5 * TSCAL
     attack_vecs[attack_vecs * TSCAL <= -TSCAL] -= 0.5 * TSCAL
-
     natv = attack_vecs / np.expand_dims(np.linalg.norm(attack_vecs, axis=1), axis=1)
 
     # Get unit vectors from pixel 15 centers (uses quadcube package)
@@ -269,7 +268,7 @@ def get_yday_cio_data(
         )
 
         # Rotate ecliptic vectors to galactic (commander convention) and apply time ordered sorting
-        unit_vectors = los[:, time_sorted_inds]
+        unit_vectors = new_los[:, time_sorted_inds]
         unit_vectors_gal = ROTATOR(unit_vectors)
 
         # Convert unit vectors to requested nside resolution healpix pixels
@@ -474,7 +473,6 @@ def write_to_commander_tods(
         break
     if n_pids == 0:
         raise ValueError("No CIOs found")
-
     # Currently, writing commander h5 files uses a pretty unoptimal interface which is difficult to
     # parallelize without corrupting the written files. This is the go to way to concurrently write files
     # which is pretty ugly.
@@ -508,11 +506,11 @@ def write_to_commander_tods(
 def main() -> None:
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
-    nside_out = 256
+    nside_out = 512
 
     start_time = time.perf_counter()
-    color_corr = True
-    version = 18
+    color_corr = False
+    version = 21
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"{version=}, {nside_out=}")
@@ -540,7 +538,7 @@ def main() -> None:
     print(f"time spent writing to h5: {(h5_time/60):2.2f} minutes\n")
     print(f"total time: {((h5_time + cio_time)/60):2.2f} minutes")
     print(f"{'':=^50}")
-    exit()
+    # exit()
     # print(cio.time.shape)
     # print(cio.tod["04"].shape)
     # import matplotlib.pyplot as plt
