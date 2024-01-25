@@ -19,8 +19,8 @@ NSIDE = 128
 TEMP_LMAX = NSIDE * 3
 TEMP_MMAX = 100
 TEMP_ELIP = 1
-TEMP_PSI_ELL = 0
-TEMP_MBEAM_EFF = 0
+TEMP_PSI_ELL = 0.1
+TEMP_MBEAM_EFF = 0.1
 
 
 def write_dirbe_instrument_file(output_path: str, version: int) -> None:
@@ -95,7 +95,7 @@ def _add_fields(
 
 def main() -> None:
 
-    version = 2
+    version = 3
     write_dirbe_instrument_file(output_path=TEMP_OUTPUT_PATH, version=version)
 
 
