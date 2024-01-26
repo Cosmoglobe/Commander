@@ -274,7 +274,7 @@ module comm_param_mod
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
      character(len=2048)                     :: zs_wiring
      character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
-     logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono
+     logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
   end type comm_params
 
@@ -2886,6 +2886,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_DELTA_T_RESET', par_dp=cpar%zs_delta_t_reset)
      call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_COMP_MAPS', par_lgt=cpar%zs_output_comps)
      call get_parameter_from_hash(htbl, 'ZODI_JOINT_MONOPOLE_SAMPLING', par_lgt=cpar%zs_joint_mono)
+     call get_parameter_from_hash(htbl, 'ZODI_OUTPUT_TOD_RESIDUALS', par_lgt=cpar%zs_output_tod_res)
      call get_parameter_from_hash(htbl, 'ZODI_SAMP_METHOD', par_string=cpar%zs_sample_method)
      call get_parameter_from_hash(htbl, 'ZODI_REFERENCE_BAND', par_string=cpar%zs_refband)
      call get_parameter_from_hash(htbl, 'ZODI_GLOBAL_EMISSIVITY_COMPONENT', par_string=cpar%zs_em_global)

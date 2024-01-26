@@ -528,10 +528,5 @@ contains
       call mpi_bcast(tod%zodi_albedo, size(tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
    end subroutine read_tod_zodi_params
 
-   subroutine compute_solar_elongation()
-     implicit none
-
-
-   end subroutine compute_solar_elongation
 
  end module comm_tod_zodi_mod
