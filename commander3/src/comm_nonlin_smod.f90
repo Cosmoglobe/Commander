@@ -4201,30 +4201,43 @@ contains
     type(planck_rng),               intent(inout) :: handle, handle_noise
     type(comm_params) :: cpar
 
-    real(dp)     :: chisq_temp
-    integer(i4b) :: i, samp_group
+    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
+    integer(i4b) :: band, samp_group, ierr
+    logical(lgt)  :: include_comp, reject
+    character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
+    class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
-    !! Calculate chisquared
-    !c => compList
-    !do while (associated(c))
-    !   if (c%npar == 0) then
-    !      c => c%next()
-    !      cycle
-    !   end if
-    !   select type (c)
-    !   class is (comm_diffuse_comp)
-    !     if (allocated(c%indmask)) then
-    !        !call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask, lowres_eval=.true., evalpol=.true.)
-    !        call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask)
-    !     else
-    !        !call compute_chisq(c%comm, chisq_fullsky=chisq_temp, lowres_eval=.true., evalpol=.true.)
-    !        call compute_chisq(c%comm, chisq_fullsky=chisq_temp)
-    !     end if
-    !   class default
-    !     write(*,*) "No need class is ", trim(c%class)
-    !   end select
-    !end do
+
+
+
+    ! Calculate initial chisq
+
+    do band = 1, numband
+        sig => comm_map(data(band)%info)
+        res => comm_map(data(band)%info)
+        c => compList
+
+        ! Compute residual
+        res                => compute_residual(band)
+        data(band)%res%map =  res%map
+
+        invN_res     => comm_map(res)
+        call data(band)%N%invN(invN_res)! Multiply with (invN)
+
+        if (associated(data(band)%gainmask)) then
+           res%map      = res%map      * data(band)%gainmask%map
+        end if
+
+        my_chisq    = sum(res%map * invN_res%map)
+        call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(band)%info%comm, ierr)
+        chisq_old = chisq_old + chisq
+
+    end do
+
+    if (cpar%myid_chain .eq. 0) then
+      write(*,*) 'Old chisq is ', chisq_old
+    end if
 
     ! Propose spectral index MH step - for a given component or all components?
 
@@ -4250,19 +4263,56 @@ contains
     call timer%stop(TOT_AMPSAMP)
 
     ! Compute new chi squared
+    do band = 1, numband
+        sig => comm_map(data(band)%info)
+        res => comm_map(data(band)%info)
+        c => compList
+
+        ! Compute residual
+        res                => compute_residual(band)
+        data(band)%res%map =  res%map
+
+        invN_res     => comm_map(res)
+        call data(band)%N%invN(invN_res)! Multiply with (invN)
+
+        if (associated(data(band)%gainmask)) then
+           res%map      = res%map      * data(band)%gainmask%map
+        end if
+
+        my_chisq    = sum(res%map * invN_res%map)
+        call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, data(band)%info%comm, ierr)
+        chisq_new = chisq_new+ chisq
+
+    end do
+
+    if (cpar%myid_chain .eq. 0) then
+      write(*,*) 'New chisq is ', chisq_new
+    end if
 
     ! Check MH statistic
+    reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
+    call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
 
-    !     If accepted
-    !         return
-    !     Else
-    !         reset spectral indices
-    !         c => compList
-    !         do while (associated(c))
-    !            call c%updateMixmat
-    !            c => c%next()
-    !         end do
-    !         update mixing matrices
+    if (reject) then
+      if (cpar%myid_chain == 0) then
+        write(*,*) '| '
+        write(*,*) '| MH step rejected, returning to original gains.'
+        write(*,*) '| '
+      end if
+
+      ! Update mixing matrices
+      c => compList
+      do while (associated(c))
+         call c%updateMixmat
+         c => c%next()
+      end do
+
+    else
+      if (cpar%myid_chain == 0) then
+        write(*,*) '| '
+        write(*,*) '| MH step accepted'
+      end if
+    end if
 
   end subroutine sample_specind_mh_sample
 

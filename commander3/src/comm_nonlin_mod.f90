@@ -660,9 +660,12 @@ interface
     type(planck_rng),               intent(inout) :: handle, handle_noise
     type(comm_params) :: cpar
 
-    real(dp)     :: chisq_temp
-    integer(i4b) :: i, samp_group
+    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
+    integer(i4b) :: band, samp_group, ierr
+    logical(lgt)  :: include_comp, reject
+    character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
+    class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
 
   end subroutine sample_specind_mh_sample
 
