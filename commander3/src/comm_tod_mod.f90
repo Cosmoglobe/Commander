@@ -69,6 +69,7 @@ module comm_tod_mod
      real(sp),           allocatable, dimension(:)    :: downsamp_zodi
      real(sp),           allocatable, dimension(:, :) :: downsamp_scat
      real(sp),           allocatable, dimension(:, :) :: downsamp_therm
+     real(sp),           allocatable, dimension(:, :) :: downsamp_point  ! (ntod,{lat_gal, lon_gal, lat_ecl, lon_ecl, solar elongation}
 
      real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
      real(sp),           allocatable, dimension(:, :) :: s_therm_lowres

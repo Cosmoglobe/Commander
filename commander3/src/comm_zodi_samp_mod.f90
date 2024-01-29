@@ -658,7 +658,7 @@ contains
       type(comm_params), intent(in) :: cpar
 
       integer(i4b) :: i, j, k, l, g, scan, npix, nmaps, ndelta, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth
-      real(dp) :: box_width, dt_tod
+      real(dp) :: box_width, dt_tod, theta, phi, vec0(3), vec1(3), M_ecl2gal(3,3), day, lambda_solar, lat, lon
       real(sp), allocatable :: tod(:), mask(:), downsamp_vec(:, :)
       integer(i4b), allocatable :: pix(:, :), psi(:, :), flag(:)
       real(dp), allocatable, dimension(:, :) :: m_buf, vec
@@ -673,6 +673,8 @@ contains
       if (cpar%myid == cpar%root) print *, "downsampling tod and pointing"
       ! For each zodi band, create downsampled residual time stream
 
+      call ecl_to_gal_rot_mat(M_ecl2gal)
+      
       do i = 1, numband
          ! Only generate downsampled arrays for tod bands and bands where we have zodi
          if (trim(data(i)%tod_type) == 'none') cycle
@@ -796,6 +798,47 @@ contains
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
                allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
+
+               ! Compute downsampled pointing in various coordinates
+               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ndownsamp,5))
+               do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
+!!$                  call pix2ang_ring(data(i)%tod%nside, data(i)%tod%scans(scan)%d(j)%downsamp_pix(k), lat, lon)
+!!$                  phi = phi * 180.d0/pi
+!!$                  lon = 90.d0 - lon * 180.d0/pi
+!!$                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,1) = lon    ! Ecliptic longitude
+!!$                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,2) = lat    ! Ecliptic latitude
+!!$                  day          = data(i)%tod%scanid(scan)
+!!$                  lambda_solar = (-80.598349 + 0.98564736 * day + 1.912 * cos(2.d0*pi/365.25 * (day-94.8))) * pi/180.d0
+!!$                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,5) = acos(cos(lat*pi/180.d0) * cos(lon*pi/180.d0 - lambda_solar)) * 180.d0/pi ! Solar elongation
+!!$                  call pix2vec_ring(data(i)%tod%nside, data(i)%tod%scans(scan)%d(j)%downsamp_pix(k), vec1)
+!!$                  !vec0 = -0.5d0 * (data(i)%tod%scans(scan)%x0_obs + data(i)%tod%scans(scan)%x1_obs)
+!!$                  !vec0 = vec0/sqrt(sum(vec0**2))
+!!$                  !theta = dot_product(vec0, vec1)
+!!$                  !data(i)%tod%scans(scan)%d(j)%downsamp_point(k,5) = acos(theta)*180.d0/pi                   ! Solar elongation
+!!$                  vec1 = matmul(M_ecl2gal, vec1)
+!!$                  call vec2ang(vec1, theta, phi)
+!!$                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,3) = phi*180.d0/pi                 ! Galactic longitude
+!!$                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,4) = (0.5d0*pi-theta)*180.d0/pi    ! Galactic latitude
+
+                  call pix2ang_ring(data(i)%tod%nside, data(i)%tod%scans(scan)%d(j)%downsamp_pix(k), lat, lon)
+                  lon = lon * 180.d0/pi
+                  if (lon > 180.d0) lon = lon - 360.d0
+                  lat = 90.d0 - lat * 180.d0/pi
+                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,3) = lon    ! Galactic longitude
+                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,4) = lat    ! Galactic latitude
+                  call pix2vec_ring(data(i)%tod%nside, data(i)%tod%scans(scan)%d(j)%downsamp_pix(k), vec1)
+                  vec1 = matmul(transpose(M_ecl2gal), vec1)
+                  call vec2ang(vec1, lat, lon)
+                  lon = lon * 180.d0/pi
+                  if (lon > 180.d0) lon = lon - 360.d0
+                  lat = 90.d0 - lat * 180.d0/pi
+                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,1) = lon    ! Galactic longitude
+                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,2) = lat    ! Galactic latitude
+                  day          = data(i)%tod%scanid(scan)
+                  lambda_solar = (-80.598349 + 0.98564736 * day + 1.912 * cos(2.d0*pi/365.25 * (day-94.8))) * pi/180.d0
+                  data(i)%tod%scans(scan)%d(j)%downsamp_point(k,5) = acos(cos(lat*pi/180.d0) * cos(lon*pi/180.d0 - lambda_solar)) * 180.d0/pi ! Solar elongation
+               end do
+               
             end do
             deallocate (obs_time, downsamp_obs_time)
             deallocate (pix, psi, vec, flag, tod, mask, downsamp_tod, downsamp_mask, downsamp_pix, downsamp_mask_idx, downsamp_vec)
@@ -1135,6 +1178,10 @@ contains
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
          chisq_old  = lnL_zodi()
       end if
+      if (cpar%zs_output_tod_res) then
+         call mpi_finalize(ierr)
+         stop
+      end if
 
       ! Initialize new point
       theta_new = theta_old
@@ -1339,11 +1386,13 @@ contains
                ! call write_hdf(tod_file, '/dpix', data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                ! call close_hdf_file(tod_file)
 
-               if (.false. .and. data(1)%tod%myid == 0 .and. scan == 1) then
+               !if (.false. .and. data(1)%tod%myid == 0 .and. scan == 1) then
+               if (cpar%zs_output_tod_res) then
+                  call int2string(data(i)%tod%scanid(scan), scan_str)
                   !write(*,*) "scan = ", data(i)%tod%scanid(scan), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_tod)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_sky)), sum(abs(data(i)%tod%scans(scan)%d(j)%downsamp_zodi)), data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
-                  open(58,file='res'//trim(data(i)%tod%freq)//'.dat')
+                  open(58,file=trim(cpar%outdir)//'/todres_'//trim(data(i)%tod%freq)//'_'//scan_str//'.dat', recl=2048)
                   do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
+                     write(58,*) data(i)%tod%scans(scan)%d(j)%downsamp_point(k,:), data(i)%tod%scans(scan)%d(j)%downsamp_tod(k) &
                           &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky(k) &
                           &   - data(i)%tod%scans(scan)%d(j)%downsamp_zodi(k) &
                           &   - mono
