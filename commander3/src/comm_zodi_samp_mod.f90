@@ -59,49 +59,49 @@ contains
             stop "Error: cannot sample zodi without the reference band being active."
          end if
       end if
-      if (trim(adjustl(cpar%zs_sample_method)) == "powell") then
-         allocate(powell_albedo(n_samp_bands, zodi_model%n_comps))
-         allocate(powell_emissivity(n_samp_bands, zodi_model%n_comps))
-      end if
+!!$      if (trim(adjustl(cpar%zs_sample_method)) == "powell") then
+!!$         allocate(powell_albedo(n_samp_bands, zodi_model%n_comps))
+!!$         allocate(powell_emissivity(n_samp_bands, zodi_model%n_comps))
+!!$      end if
 
       ! crappy way of picking initial stepsizes for the zodi parameters
-      allocate (step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
-      allocate (step_sizes_emissivity(n_samp_bands, zodi_model%n_comps))
-      allocate (step_sizes_n0(zodi_model%n_comps))
+!!$      allocate (step_sizes_albedo(n_samp_bands, zodi_model%n_comps))
+!!$      allocate (step_sizes_emissivity(n_samp_bands, zodi_model%n_comps))
+!!$      allocate (step_sizes_n0(zodi_model%n_comps))
+!!$
+!!$      do i = 1, zodi_model%n_comps
+!!$         step_sizes_n0(i) = 0.01*zodi_model%comps(i)%c%n_0
+!!$      end do
+!!$      do i = 1, numband
+!!$         if (data(i)%tod_type == 'none') then
+!!$            step_sizes_emissivity(i,:) =  0.d0
+!!$            step_sizes_albedo(i, :)    =  0.d0
+!!$         else
+!!$            step_sizes_emissivity(i,:) =  0.01d0 * data(i)%tod%zodi_emissivity
+!!$            step_sizes_albedo(i, :)    =  0.01d0 * data(i)%tod%zodi_albedo
+!!$         end if
+!!$      end do
 
-      do i = 1, zodi_model%n_comps
-         step_sizes_n0(i) = 0.01*zodi_model%comps(i)%c%n_0
-      end do
-      do i = 1, numband
-         if (data(i)%tod_type == 'none') then
-            step_sizes_emissivity(i,:) =  0.d0
-            step_sizes_albedo(i, :)    =  0.d0
-         else
-            step_sizes_emissivity(i,:) =  0.01d0 * data(i)%tod%zodi_emissivity
-            step_sizes_albedo(i, :)    =  0.01d0 * data(i)%tod%zodi_albedo
-         end if
-      end do
+!!$      allocate(param_vec(zodi_model%n_params))
+!!$      call zodi_model%model_to_params2(param_vec, labels)
 
-      allocate(param_vec(zodi_model%n_params))
-      call zodi_model%model_to_params2(param_vec, labels)
-
-      allocate (step_sizes_ipd(zodi_model%n_params))
-      step_sizes_ipd = 0.005*param_vec
-
-      allocate (prior_vec(zodi_model%n_params, 3))
-      idx_start = 1
-      do i = 1, zodi_model%n_comps
-         idx_stop = idx_start + size(zodi_model%comps(i)%labels) - 1
-         prior_vec(idx_start:idx_stop, :) = cpar%zs_comp_params(i, :size(zodi_model%comps(i)%labels), 2:)
-         idx_start = idx_stop + 1
-      end do 
-      do i = 1, zodi_model%n_general_params
-         prior_vec(idx_start, :) = cpar%zs_general_params(i, 2:)
-         idx_start = idx_start + 1
-      end do
-
-      emissivity_prior = [0., 5.]
-      albedo_prior = [0., 1.]
+!!$      allocate (step_sizes_ipd(zodi_model%n_params))
+!!$      step_sizes_ipd = 0.005*param_vec
+!!$
+!!$      allocate (prior_vec(zodi_model%n_params, 3))
+!!$      idx_start = 1
+!!$      do i = 1, zodi_model%n_comps
+!!$         idx_stop = idx_start + size(zodi_model%comps(i)%labels) - 1
+!!$         prior_vec(idx_start:idx_stop, :) = cpar%zs_comp_params(i, :size(zodi_model%comps(i)%labels), 2:)
+!!$         idx_start = idx_stop + 1
+!!$      end do 
+!!$      do i = 1, zodi_model%n_general_params
+!!$         prior_vec(idx_start, :) = cpar%zs_general_params(i, 2:)
+!!$         idx_start = idx_start + 1
+!!$      end do
+!!$
+!!$      emissivity_prior = [0., 5.]
+!!$      albedo_prior = [0., 1.]
 
       ! validate sampling group parameters
 !!$      do group_idx = 1, cpar%zs_num_samp_groups

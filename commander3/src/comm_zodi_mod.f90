@@ -1583,20 +1583,17 @@ contains
      ! Parse user directives
      call get_tokens(str, ',', tokens, n_params) 
 
-     write(*,*) 'a'
      em_global = 0; al_global = 0
      if (cpar%zs_em_global /= 'none') em_global = get_string_index(zodi_model%comp_labels, cpar%zs_em_global)
      if (cpar%zs_al_global /= 'none') al_global = get_string_index(zodi_model%comp_labels, cpar%zs_al_global)
      do i = 1, n_params
         call get_tokens(tokens(i), ':', comp_param, num=n)
-        write(*,*) 'a1', tokens(i)
         if (n == 1) then
            ! General parameter
            ind = zodi_model%get_par_ind(param=comp_param(1))
            stat(ind) = 0
         else if (n == 2) then
            if (trim(comp_param(1)) == 'em') then
-              write(*,*) 'a2', tokens(i)
               band = get_string_index(band_labels, comp_param(2))
               if (.not. active(band)) cycle
               do j = 1, zodi_model%n_comps
@@ -1605,7 +1602,6 @@ contains
               end do
               cycle
            else if (trim(comp_param(1)) == 'al') then
-              write(*,*) 'a3', tokens(i)
               band = get_string_index(band_labels, comp_param(2))
               if (.not. active(band)) cycle
               do j = 1, zodi_model%n_comps
@@ -1620,7 +1616,6 @@ contains
            c     = get_string_index(zodi_model%comp_labels, comp_param(1))
            first = zodi_model%comps(c)%start_ind
            if (trim(label) == 'all') then
-              write(*,*) 'a4', label
               last  = first + zodi_model%comps(c)%npar - 1
               stat(first:last) = 0 ! Activate all
               do j = 1, numband
@@ -1630,7 +1625,6 @@ contains
               end do
               last = last + 2*numband
            else if (trim(label(1:2)) == 'em') then
-              write(*,*) 'a5', label
               ! Emissivity
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
@@ -1645,7 +1639,6 @@ contains
                  stat(ind) = 0
               end if
            else if (trim(label(1:2)) == 'al') then
-              write(*,*) 'a6', label
               ! Albedo
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
@@ -1660,7 +1653,6 @@ contains
                  stat(ind) = 0
               end if
            else
-              write(*,*) 'a7', label
               ! Shape parameter
               ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), param=comp_param(2))
               stat(ind) = 0
@@ -1671,14 +1663,12 @@ contains
         end if
      end do
 
-          write(*,*) 'b'
      ! Set up monopoles
      do i = 1, numband
         ind = zodi_model%get_par_ind(mono_band=i)
         if (active(i) .and. cpar%zs_joint_mono .and. band_todtype(i) /= 'none') stat(ind) = 0
      end do
 
-          write(*,*) 'c'
      ! Apply explicit parameter wiring
      call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 
      do i = 1, n_params
@@ -1728,7 +1718,6 @@ contains
         end if
      end do
 
-          write(*,*) 'd'
      ! Apply global directives
      if (em_global > 0) then
         do i = 1, zodi_model%n_comps
@@ -1754,7 +1743,6 @@ contains
         end do
      end if
 
-          write(*,*) 'e'
      ! Match emissivity and albedo for bands with identical instruments
      do i = 1, numband
         if (.not. active(i)) cycle
@@ -1774,7 +1762,6 @@ contains
         end do
      end do
 
-          write(*,*) 'f'
      ! Apply absolute constraints
      do j = 1, numband
         if (band_todtype(j) == 'none') then
@@ -1807,7 +1794,6 @@ contains
         end if
      end do
 
-          write(*,*) 'g'
      ! Short-cut multi-leg wires
      do i = 1, size(stat)
         if (stat(i) > 0) then
@@ -1820,8 +1806,6 @@ contains
         end if
      end do
 
-          write(*,*) 'h'
-     
    end subroutine samp_group2stat
 
    function get_string_index(arr, str)
