@@ -2301,7 +2301,6 @@ contains
        ! Compute likelihood by summing over pixels
        do q = 1, c_lnL%src(k_lnL)%T(la)%np
           pix = c_lnL%src(k_lnL)%T(la)%pix(q,1)
-          write(*,*) data(l)%info%myid, q, pix, p_lnL, l, data(l)%N%rms_pix(pix,p_lnL)
           if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle
           lnL = lnL - 0.5d0 * (data(l)%res%map(pix,p_lnL)-c_lnL%src(k_lnL)%T(la)%map(q,p_lnL)*a)**2 / &
                & data(l)%N%rms_pix(pix,p_lnL)**2
