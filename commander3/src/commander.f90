@@ -36,9 +36,9 @@ program commander
   use hmc_mod
   implicit none
 
-  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
+  integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
   real(dp)            :: t0, t1, t2, t3, dbp
-  logical(lgt)        :: ok, first
+  logical(lgt)        :: ok, first, first_zodi
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
   character(len=6)  :: samptext
@@ -63,8 +63,6 @@ program commander
 
   bands_to_sample = (/1,2/)
   bands_to_calibrate_against= (/1,2/)
-
-  
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
@@ -272,6 +270,7 @@ program commander
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
+  first_zodi = .true.
   modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind)) modfact = 2
   !----------------------------------------------------------------------------------
   ! Part of Simulation routine
@@ -358,10 +357,11 @@ program commander
    if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
-      if (iter == modfact+1 .or. (first_sample > 1 .and. iter == first_sample)) then
+      if (first_zodi) then
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
+         first_zodi = .false.
       end if
 
 !!$      do i = 1, zodi_model%n_comps

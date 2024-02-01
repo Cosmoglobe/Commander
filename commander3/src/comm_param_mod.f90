@@ -297,6 +297,10 @@ contains
     ! read parameter file once, save to ascii array
     ! Guess at file size, will be resized later if needed
 
+    ! Initialize global constants 
+    infinity = ieee_value(1.0d0, ieee_positive_inf)
+
+    ! Read parameters into cache
     if (cpar%myid == cpar%root) then
        paramfile_len = 512
        allocate(paramfile_cache(paramfile_len))
