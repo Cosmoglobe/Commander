@@ -46,6 +46,29 @@ contains
     class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub
     class(comm_mapinfo), pointer :: info, info_lowres
 
+      !
+      ! Function that computes goodness-of-fit in map space for entire model.
+      !
+      ! Arguments:
+      ! ----------
+      ! comm :          integer
+      !                 MPI communicator label
+      ! chisq_map :     comm_map, optional
+      !                 Map object that 
+      ! chisq_fullsky : dp, optional
+      !                 Full resolution chisq map. Same as chisq_map%map, 
+      !                 but for highest possible resolution.
+      ! mask :          map_ptr, array, optional
+      !                 Used as argument for chisq calculation. Array length must be same length
+      !                 as numband. Written with the indmask object in mind.
+      ! lowres_eval :   logical, optional
+      !                 Evalutes chi^2 for low resolution maps. 
+      !                 Usually used for maps with dense covariance matrices.
+      ! evalpol :       lgt, optional
+      !                 If set, allows for polarization chi^2 only (true), or temperature only
+      !                 (false). Otherwise, both are evaluated.
+
+
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
@@ -63,7 +86,10 @@ contains
           res => compute_residual(i)
 
           apply_mask = present(mask)
-          if (apply_mask) apply_mask = associated(mask(i)%p)
+          if (apply_mask) then
+            if (size(mask) .ne. numband) write(*,*) 'Need as many masks as bands'
+            apply_mask = associated(mask(i)%p)
+          end if
           if (apply_mask) then
              res%map = res%map * mask(i)%p%map
              !call res%writeFITS("chisq.fits")

@@ -428,7 +428,7 @@ program commander
 
 
      ! Testing the spectral index xampling
-     ! call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
+     call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then

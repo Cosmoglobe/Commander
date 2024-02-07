@@ -562,6 +562,7 @@ contains
        allocate(self%B_smooth_amp(self%npar))
        allocate(self%B_smooth_specpar(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
+       allocate(self%theta_pixreg_buff(0:k,3,self%npar))
        allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
