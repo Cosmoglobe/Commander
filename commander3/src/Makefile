@@ -77,6 +77,7 @@ F90SOURCES=hashtbl.f90 \
            comm_ptsrc_comp_mod.f90 \
            comm_gain_mod.f90 \
            comm_nonlin_mod.f90 comm_nonlin_smod.f90 \
+					 comm_mh_specind_mod.f90 \ 
            comm_n_mod.f90 \
            comm_n_rms_mod.f90 \
            comm_n_rms_qucov_mod.f90 \

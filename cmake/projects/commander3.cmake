@@ -160,6 +160,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_diffuse_comp_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_nonlin_smod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_mh_specind_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_mod.f90
   ${COMMANDER3_SOURCE_DIR}/comm_tod_adc_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_ame_lognormal_mod.f90

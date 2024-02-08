@@ -27,6 +27,7 @@ program commander
   use comm_output_mod
   use comm_comp_mod
   use comm_nonlin_mod
+  use comm_mh_specind_mod
   use comm_tod_simulations_mod
   use comm_tod_gain_mod
   use comm_zodi_mod
