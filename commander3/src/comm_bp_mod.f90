@@ -409,7 +409,7 @@ contains
        !  if (Inu0 < TINY(1.0_dp)) then
        if (Inu0 == 0.d0) then
          SED2F = 0.d0
-      else
+       else
          K     = tsum(self%nu, self%tau * self%a2f_arr*f/Inu0) / tsum(self%nu, self%tau * self%nu_c/self%nu)
          SED2F = K * Inu0
          !SED2F = K

@@ -27,6 +27,7 @@ program commander
   use comm_output_mod
   use comm_comp_mod
   use comm_nonlin_mod
+  use comm_mh_specind_mod
   use comm_tod_simulations_mod
   use comm_tod_gain_mod
   use comm_zodi_mod
@@ -425,6 +426,10 @@ program commander
      if (iter > 5) then
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
      end if
+
+
+     ! Testing the spectral index xampling
+     call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then

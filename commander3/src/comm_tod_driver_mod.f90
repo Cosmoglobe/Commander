@@ -880,11 +880,11 @@ contains
     do j = 1, tod%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        s_buf(:,j) =  sd%s_sl(:,j) + sd%s_orb(:,j)
-       call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky(:,j), &
+       call tod%compute_tod_chisq(scan, j, sd%mask2(:,j), sd%s_sky(:,j), &
             & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
        chisq(j,1) = chisq(j,1) + tod%scans(scan)%d(j)%chisq_prop
        do k = 2, tod%n_bp_prop+1
-          call tod%compute_chisq(scan, j, sd%mask2(:,j), sd%s_sky_prop(:,j,k), &
+          call tod%compute_tod_chisq(scan, j, sd%mask2(:,j), sd%s_sky_prop(:,j,k), &
                & s_buf(:,j), sd%n_corr(:,j), sd%tod(:,j), absbp=.true.)
           chisq(j,k) = chisq(j,k) + tod%scans(scan)%d(j)%chisq_prop
        end do
