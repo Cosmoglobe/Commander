@@ -112,6 +112,7 @@ module comm_param_mod
      character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group
      character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group_mask
      integer(i4b),       dimension(MAXSAMPGROUP) :: cg_samp_group_maxiter
+     character(len=512), dimension(MAXSAMPGROUP) :: cg_samp_group_bands
 
      ! Data parameters
      integer(i4b)       :: numband
@@ -729,6 +730,7 @@ contains
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP'//itext, par_string=cpar%cg_samp_group(i))
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_MASK'//itext, par_string=cpar%cg_samp_group_mask(i), path=.true.)
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_MAXITER'//itext, par_int=cpar%cg_samp_group_maxiter(i))
+       call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_BANDS'//itext, par_string=cpar%cg_samp_group_bands(i))
     end do
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
     call get_parameter_hashtable(htbl, 'LOCALSAMP_OUTPUT_MAPS', par_lgt=cpar%cs_output_localsamp_maps)
