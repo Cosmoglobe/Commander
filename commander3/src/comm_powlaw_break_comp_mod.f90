@@ -102,7 +102,7 @@ contains
           constructor%nu_max_ind(i) = cpar%cs_nu_max(id_abs,i)
        end if
     end do
-    constructor%indlabel = ['beta','dbeta']
+    constructor%indlabel = ['beta ','dbeta']
 
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &

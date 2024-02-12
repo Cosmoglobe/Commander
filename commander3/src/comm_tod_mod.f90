@@ -1701,7 +1701,7 @@ contains
     real(dp)     :: psi_, unwrap, x0, x1
 
     real(dp), dimension(:), allocatable :: sub_sl, x_sl
-    type(spline_type) :: spline
+    type(spline_type) :: spl
 
     subsamp = 5
     !subsamp = 1
@@ -1718,10 +1718,10 @@ contains
        x_sl(j) = k
     end do
 
-    call spline_simple(spline, x_sl, sub_sl, regular=.true.)
+    call spline_simple(spl, x_sl, sub_sl, regular=.true.)
 
     do j = 1, size(sub_sl)*subsamp  
-      s_sl(j) = splint_simple(spline, real(j, dp))
+      s_sl(j) = splint_simple(spl, real(j, dp))
     end do
 
     !do last few samples
@@ -1732,7 +1732,7 @@ contains
     end do
 
     deallocate(sub_sl, x_sl)
-    call free_spline(spline)
+    call free_spline(spl)
 
   end subroutine construct_sl_template
 

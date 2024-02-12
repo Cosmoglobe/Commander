@@ -6,8 +6,8 @@
 #------------------------------------------------------------------------------
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
-toolchain="oneapi" #"gnu"
-buildtype="Release" #"Debug" #"Release" #"RelWithDebInfo"
+toolchain="gnu" #"gnu"
+buildtype="Debug" #"Debug" #"Release" #"RelWithDebInfo"
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -119,7 +119,7 @@ then
 	# Unloading any loaded module
 	module purge
 	# Loading GNU Autotools (autoconf, libtool, automake etc.), GIT and CMake
-	module load gnu git/2.30.1 cmake/3.21.1
+	module load git cmake
 	# Choosing which compiler toolchain to use
 	if [[ "$toolchain" =~ "intel" ]]
 	then
@@ -166,9 +166,10 @@ then
 		#export LD_LIBRARY_PATH="/usr/local/opt/openmpi-4.0.5/lib:$LD_LIBRARY_PATH"
 		#module load gcc/10.2.1
 		#module load myopenmpi/4.0.3
-    module load gcc/11.2.1
-    export PATH="/usr/local/opt/gcc11/openmpi-4.1.3/bin:$PATH"
-    export LD_LIBRARY_PATH="/usr/local/opt/gcc11/openmpi-4.1.3/lib:$LD_LIBRARY_PATH"
+    module load gcc/13.1
+    module load openmpi/gcc13/5.0.2
+    #export PATH="/usr/local/opt/gcc11/openmpi-4.1.3/bin:$PATH"
+    #export LD_LIBRARY_PATH="/usr/local/opt/gcc11/openmpi-4.1.3/lib:$LD_LIBRARY_PATH"
 		#module load gcc/9.3.1 Mellanox/2.8.1/gcc/hpcx
 		printf "\n"
 		$mpifc --version
