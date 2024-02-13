@@ -71,6 +71,7 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
+     real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg_buff    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: prior_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
      real(dp),           allocatable, dimension(:,:,:) :: pixreg_priors   ! individual priors for pixel regions
@@ -120,6 +121,9 @@ module comm_diffuse_comp_mod
      real(dp),        dimension(:,:), allocatable :: invM_def   ! (0:nalm-1,0:nalm-1)
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
+     integer(i4b) :: ntab
+     real(dp), allocatable, dimension(:,:) :: SEDtab
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling

@@ -603,8 +603,8 @@ contains
         call timer%start(TOD_CHISQ, self%band)
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
-         !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
-           call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
+         !   call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+           call self%compute_tod_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
         end do
         call timer%stop(TOD_CHISQ, self%band)
 

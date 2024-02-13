@@ -522,6 +522,8 @@ contains
     ! Add channel dependent terms
     do i = 1, numband
 
+       if (.not. data(i)%cr_active) cycle
+       
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
 
@@ -800,6 +802,8 @@ contains
     ! Add frequency dependent terms
     do i = 1, numband
 
+       if (.not. data(i)%cr_active) cycle
+       
        ! Compute component-summed map, ie., column-wise matrix elements
        call wall_time(t1)
        map  => comm_map(data(i)%info)   ! For diffuse components

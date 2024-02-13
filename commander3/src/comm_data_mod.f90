@@ -47,6 +47,7 @@ module comm_data_mod
      character(len=128)           :: tod_type
      integer(i4b)                 :: tod_freq
      logical(lgt)                 :: pol_only, subtract_zodi
+     logical(lgt)                 :: cr_active
 
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_mapinfo), pointer :: rmsinfo   => null()

@@ -1376,6 +1376,9 @@ contains
                call wall_time(t4)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU3 = ', t4-t3
                
+!!$               write(*,*) 'a', i, scan!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+!!$               write(*,*) 'b', j!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+               write(*,*) 'do not remove -- memory corruption bug "fix"', ndof!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tot >= 1.d30) exit
                ! call int2string(data(i)%tod%scanid(scan), scan_str)

@@ -261,7 +261,7 @@ module comm_tod_mod
      procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
      procedure                           :: downsample_tod
-     procedure                           :: compute_chisq
+     procedure                           :: compute_tod_chisq
      procedure                           :: get_total_chisq
      procedure                           :: symmetrize_flags
      procedure                           :: decompress_pointing_and_flags
@@ -2257,7 +2257,7 @@ contains
 
 
   ! Compute chisquare
-  subroutine compute_chisq(self, scan, det, mask, s_sky, s_spur, &
+  subroutine compute_tod_chisq(self, scan, det, mask, s_sky, s_spur, &
        & n_corr, tod, s_jump, absbp, verbose)
     implicit none
     class(comm_tod),                 intent(inout)  :: self
@@ -2306,7 +2306,7 @@ contains
 
     call timer%stop(TOD_CHISQ, self%band)
 
-  end subroutine compute_chisq
+  end subroutine compute_tod_chisq
 
   function get_total_chisq(self, det)
     implicit none
