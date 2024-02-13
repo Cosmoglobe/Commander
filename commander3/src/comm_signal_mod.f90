@@ -216,9 +216,10 @@ contains
     integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle, handle_noise
 
-    integer(i4b) :: stat, i, l, m
+    integer(i4b) :: stat, i, j, l, m, nactive
     real(dp)     :: Nscale = 1.d-4
     class(comm_comp), pointer :: c => null()
+    character(len=32) :: cr_active_bands(100)
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
 
     allocate(x(ncr), mask(ncr))
@@ -230,6 +231,18 @@ contains
        c => c%next()
     end do
 
+    ! Activate requested frequency bands
+    call get_tokens(cpar%cg_samp_group_bands(samp_group), ',', cr_active_bands, nactive)
+    data%cr_active = .false.
+    do i = 1, nactive
+       do j = 1, numband
+          if (trim(cr_active_bands(i)) == trim(data(j)%label)) then
+             data(j)%cr_active = .true.
+             exit
+          end if
+       end do
+    end do
+    
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
     do while (associated(c))

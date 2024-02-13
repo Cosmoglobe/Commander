@@ -405,17 +405,16 @@ contains
     case ('DIRBE') 
        !SED2F = tsum(self%nu, self%tau * 2.d0*k_B*self%nu**2/c**2 * f) !* 1d14
        i     = locate(self%nu, self%nu_c)
-       a2fc  = 2.d0*k_B*self%nu_c**2/c**2 * 1.d-14
-       Inu0  = a2fc * (f(i) + (f(i+1)-f(i))*(self%nu_c-self%nu(i))/(self%nu(i+1)-self%nu(i)))
-       if (Inu0 < TINY(1.0_dp)) then
-       !if (Inu0 == 0.d0) then
+       Inu0  = (self%a2f_arr(i)*f(i) + (self%a2f_arr(i+1)*f(i+1)-self%a2f_arr(i)*f(i))*(self%nu_c-self%nu(i))/(self%nu(i+1)-self%nu(i)))
+       !  if (Inu0 < TINY(1.0_dp)) then
+       if (Inu0 == 0.d0) then
          SED2F = 0.d0
        else
          K     = tsum(self%nu, self%tau * self%a2f_arr*f/Inu0) / tsum(self%nu, self%tau * self%nu_c/self%nu)
          SED2F = K * Inu0
          !SED2F = K
          !  print *, SED2F, tsum(self%nu, self%tau * self%a2f_arr*f) / tsum(self%nu, self%tau * self%nu_c/self%nu)
-       end if
+      end if
     case ('WMAP')
        SED2F = sum(self%tau * f)
     case ('dame') ! NEW
@@ -479,7 +478,7 @@ contains
             & tsum(self%nu, self%tau/self%nu**2 * bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_cmb', 'PSM_LFI', 'SPIDER') 
+    case ('HFI_cmb', 'HFI_submm', 'PSM_LFI', 'SPIDER', 'DIRBE', 'FIRAS') 
           
        allocate(bnu_prime_RJ(self%n))
        bnu_prime_RJ = comp_bnu_prime_RJ(self%nu)
@@ -487,10 +486,10 @@ contains
             & tsum(self%nu, self%tau*bnu_prime_RJ)
        deallocate(bnu_prime_RJ)
 
-    case ('HFI_submm') 
-       
-       lineAmp_RJ = tau * nu/c * compute_bnu_prime_RJ_single(nu) / &
-            & (tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d-14)
+!!$    case ('HFI_submm') 
+!!$       
+!!$       lineAmp_RJ = tau * nu/c * compute_bnu_prime_RJ_single(nu) / &
+!!$            & (tsum(self%nu, self%tau * (self%nu_c/self%nu)**ind_iras) * 1.d-14)
 
     ! NEW
     case ('dame') 
