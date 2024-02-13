@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi" #"gnu"
-buildtype="RelWithDebInfo" #"Debug" #"Release" #"RelWithDebInfo"
+buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -30,11 +30,16 @@ bee4345="$prefix+(4[3-5])+$suffix"
 bee46="$prefix+(46)+$suffix"
 bee47="$prefix+(47)+$suffix"
 prefix="hyades"
-hya13="$prefix+([1-3])+$suffix"
+hya1="$prefix+$suffix"
+hya2="$prefix+(2)+$suffix"
+hya34="$prefix+([3-4])+$suffix"
 hya5="$prefix+(5)+$suffix"
 hya6="$prefix+(6)+$suffix"
 hya79="$prefix+([7-9])+$suffix"
 hya1016="$prefix+(1[0-6])+$suffix"
+hya1719="$prefix+(1[7-9])+$suffix"
+hya20="$prefix+(20)+$suffix"
+hya21="$prefix+(21)+$suffix"
 #------------------------------------------------------------------------------
 # Will compile commander only if on owl/beehive/hyades!
 #------------------------------------------------------------------------------
@@ -103,23 +108,33 @@ then
     build_dir="build_bee46_$toolchain"
   elif [[ "${HOSTNAME}" =~ $bee47 ]]; then
     build_dir="build_bee47_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya1 ]]; then
+    build_dir="build_hya1_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya2 ]]; then
+    build_dir="build_hya2_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya34 ]]; then
+    build_dir="build_hya34_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
     build_dir="build_hya5_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya6 ]]; then
     build_dir="build_hya6_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya79 ]]; then
-    build_dir="build_hya716_$toolchain"
+    build_dir="build_hya79_$toolchain"
   elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
-    build_dir="build_hya716_$toolchain"
-  elif [[ "${HOSTNAME}" =~ $hya13 ]]; then
-    build_dir="build_hya13_$toolchain"
+    build_dir="build_hya1016_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
+    build_dir="build_hya1719_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya20 ]]; then
+    build_dir="build_hya20_$toolchain"
+  elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
+    build_dir="build_hya21_$toolchain"
 	fi
   echo $build_dir
 	#------------------------------------------------------------------------------
 	# Unloading any loaded module
 	module purge
 	# Loading GNU Autotools (autoconf, libtool, automake etc.), GIT and CMake
-	module load gnu git/2.30.1 cmake/3.21.1
+	module load git cmake
 	# Choosing which compiler toolchain to use
 	if [[ "$toolchain" =~ "intel" ]]
 	then
@@ -145,9 +160,7 @@ then
 		mpicc="mpiicc"
 		mpicxx="mpiicpc"
 		printf "Using Intel:\nFC=$fc\nCC=$cc\nCXX=$cxx\nMPIF90=$mpifc\nMPICC=$mpicc\nMPICXX=$mpicxx"
-    module load intel/oneapi
-    module load intel/oneapi mpi/latest icc/latest compiler-rt/latest
-    module load mkl/latest
+    module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
 	elif [[ "$toolchain" =~ "gnu" ]]
 	then
 		# Compilers
@@ -212,10 +225,10 @@ then
 		mkdir $abs_path_to_build 
 	fi
 	#------------------------------------------------------------------------------
-	rm -rf $abs_path_to_build/CMakeCache.txt
-	#------------------------------------------------------------------------------
-	# Executing CMake commands for the first time
-	#------------------------------------------------------------------------------
+	#rm -rf $abs_path_to_build/CMakeCache.txt
+	##------------------------------------------------------------------------------
+	## Executing CMake commands for the first time
+	##------------------------------------------------------------------------------
 	cmake \
 	-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
 	-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
@@ -229,7 +242,7 @@ then
 	-DCFITSIO_USE_CURL:BOOL=OFF \
 	-DUSE_SYSTEM_FFTW:BOOL=OFF \
 	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	-DUSE_SYSTEM_HDF5:BOOL=ON \
+	-DUSE_SYSTEM_HDF5:BOOL=OFF \
 	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
 	-DUSE_SYSTEM_BLAS:BOOL=ON \
 	-S $comm3_root_dir -B $abs_path_to_build
