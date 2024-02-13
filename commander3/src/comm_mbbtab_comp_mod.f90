@@ -34,8 +34,9 @@ module comm_MBBtab_comp_mod
   !      Modified Black Body (MBBtab) component
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
-     integer(i4b) :: ntab
-     real(dp), allocatable, dimension(:,:) :: SEDtab
+     !integer(i4b) :: ntab
+     !real(dp), allocatable, dimension(:,:) :: SEDtab
+     !real(dp), allocatable, dimension(:,:) :: SEDtab_buff
    contains
      procedure :: S    => evalSED
      procedure :: read_SED_table
@@ -202,6 +203,7 @@ contains
 1   close(unit)
 
     allocate(self%SEDtab(3,self%ntab))
+    allocate(self%SEDtab_buff(3,self%ntab))
     open(unit, file=trim(filename))
     i = 0
     do while (.true.)
@@ -214,6 +216,7 @@ contains
 2   close(unit)
 
     self%SEDtab(1:2,:) = self%SEDtab(1:2,:) * 1d9
+    self%SEDtab_buff = self%SEDtab
 
   end subroutine read_SED_table
 

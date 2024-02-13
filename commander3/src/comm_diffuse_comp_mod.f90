@@ -121,6 +121,9 @@ module comm_diffuse_comp_mod
      real(dp),        dimension(:,:), allocatable :: invM_def   ! (0:nalm-1,0:nalm-1)
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
+     integer(i4b) :: ntab
+     real(dp), allocatable, dimension(:,:) :: SEDtab
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling

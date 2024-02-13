@@ -2636,8 +2636,15 @@ contains
 
           end if
 
+
+
+
        end do
-       !call update_status(status, "writeFITS_8")
+
+       ! Output Sampled SED's
+       if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
+         call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+       end if
        
        ! Write mixing matrices
        if (self%output_mixmat) then
