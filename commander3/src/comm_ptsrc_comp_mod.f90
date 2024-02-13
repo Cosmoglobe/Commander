@@ -977,7 +977,7 @@ contains
             if(trim(data(i)%instlabel) == trim(band_list(j))) then ! band is in catalog
               star_catalog(self%b2a(i),:) = catalog(j,:)
               found = .true.
-              write(*,*) "Found band ", trim(data(i)%label), " at position ", j
+              !write(*,*) "Found band ", trim(data(i)%label), " at position ", j
               exit
             end if
           end do

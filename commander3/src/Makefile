@@ -25,7 +25,7 @@ FSOURCES=d1mach.f drc3jj.f
 F90SOURCES=hashtbl.f90 \
            hashtbl_4dmap.f90 \
            powell_mod.f90 \
-					 hmc_mod.f90 \
+           hmc_mod.f90 \
            comm_hdf_mod.f90 \
            sharp.f90 \
            sort_utils.f90 \
@@ -77,8 +77,8 @@ F90SOURCES=hashtbl.f90 \
            comm_ptsrc_comp_mod.f90 \
            comm_gain_mod.f90 \
            comm_nonlin_mod.f90 comm_nonlin_smod.f90 \
-					 comm_mh_specind_mod.f90 \ 
-           comm_n_mod.f90 \
+           comm_mh_specind_mod.f90 \
+	   comm_n_mod.f90 \
            comm_n_rms_mod.f90 \
            comm_n_rms_qucov_mod.f90 \
            comm_n_qucov_mod.f90 \
@@ -116,8 +116,8 @@ F90SOURCES=hashtbl.f90 \
            comm_tod_wmap_mod.f90 \
            comm_tod_simulations_mod.f90 \
            comm_tod_lb_mod.f90 \
-	       comm_tod_dirbe_mod.f90 \
-	       comm_tod_hfi_mod.f90 \
+	   comm_tod_dirbe_mod.f90 \
+	   comm_tod_hfi_mod.f90 \
            comm_camb_mod.f90 \
            comm_tod_adc_mod.f90 comm_tod_adc_smod.f90 \
 	   comm_timing_mod.f90 \
