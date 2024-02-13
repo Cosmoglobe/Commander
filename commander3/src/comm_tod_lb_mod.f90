@@ -252,7 +252,7 @@ contains
     sample_abs_bandpass   = .false.                ! don't sample absolute bandpasses
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
-    sample_gain           = .true.                ! Gain sampling, LB TOD sims have perfect gain
+    sample_gain           = .false.                ! Gain sampling, LB TOD sims have perfect gain
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -330,7 +330,8 @@ contains
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
-        ! Skip scan if no accepted data
+       !write(*,*) "Scan number", i
+       ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
 
@@ -349,8 +350,8 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
-          !sd%n_corr = 0.d0
+          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          sd%n_corr = 0.
        end if
       
        ! Compute noise spectrum parameters
@@ -412,9 +413,9 @@ contains
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, rms_out, 1.d0)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 

@@ -437,8 +437,10 @@ contains
 
           !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
           if (allocated(c%indmask)) then
+             write(*,*) 'a -- mask'
              call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
           else
+             write(*,*) 'a -- no mask'
              call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true., evalpol=.true.)
           end if
 
@@ -473,6 +475,7 @@ contains
                 end if
 
                 ! Output init sample
+                write(*,*) " chisq: " , chisq(0)
                 write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
                 if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
 
@@ -688,6 +691,7 @@ contains
                 end if
                 
                 ! Output chisq and diff and mean alm
+                write(*,*) 'chisq = ', chisq(i), chisq_prior
                 write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f10.2)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 !write(*,*) trim(outmessage)

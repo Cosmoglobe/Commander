@@ -236,7 +236,6 @@ contains
        else
           self%alpha_nu(1) = 0.d0
        end if
-
        if (self%nmaps == 3) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)

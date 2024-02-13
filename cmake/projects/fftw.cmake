@@ -115,7 +115,8 @@ if(COMPILE_FFTW)
 					# Which libraries to produce
 					-DENABLE_OPENMP:BOOL=ON
 					-DENABLE_THREADS:BOOL=ON
-					-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
+					#-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
+					-DENABLE_AVX2:BOOL=OFF
 					${_fftw_arg_}
 					# ensuring it will be installed inside `lib` and not `lib64`
 					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
