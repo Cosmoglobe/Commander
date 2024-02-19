@@ -461,7 +461,7 @@ contains
       scale(start_ind+8)   = 1.d0      
       prior(:,start_ind+9) = [-60.d-3, 60.d-3, 0.d0, -1.d0] ! theta
       scale(start_ind+9)   = 1.d0      
-      prior(:,start_ind+10) = [0.d0, 0.001d0, 0.d0, -1.d0] ! sigma_theta
+      prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
       scale(start_ind+10)   = 1.d0      
     end subroutine init_ring_priors_and_scales
 
@@ -519,16 +519,10 @@ contains
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
-!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-!!$      scale(start_ind+6)   = 1.d0      
-!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-!!$      scale(start_ind+7)   = 1.d0      
-!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-!!$      scale(start_ind+8)   = 1.d0      
-!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
-!!$      scale(start_ind+9)   = 1.d0      
-!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
-!!$      scale(start_ind+10)   = 1.d0      
+      prior(:,start_ind+6) = [0.d0, 0.0d0, 0d0, -1.d0] ! R, inactive
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [0.d0, 0.0d0, 0.2d0, -1.d0] ! alpha, inactive
+      scale(start_ind+7)   = 1.d0      
     end subroutine init_interstellar_priors_and_scales
 
     subroutine init_fan_priors_and_scales(self, start_ind, prior, scale)
@@ -541,27 +535,27 @@ contains
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
       scale(start_ind+0)   = 1.d-9
-      prior(:,start_ind+1) = [0.d0, 00.d0, 0.d0, -1.d0] ! Incl
+      prior(:,start_ind+1) = [0.d0, 10.d0, 0.d0, -1.d0] ! Incl
       scale(start_ind+1)   = 1.d0      
-      prior(:,start_ind+2) = [0.d0, 0.d0, 0.d0, -1.d0] ! Omega
+      prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
-!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-!!$      scale(start_ind+6)   = 1.d0      
-!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-!!$      scale(start_ind+7)   = 1.d0      
-!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-!!$      scale(start_ind+8)   = 1.d0      
-!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
-!!$      scale(start_ind+9)   = 1.d0      
-!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
-!!$      scale(start_ind+10)   = 1.d0      
+      prior(:,start_ind+6) = [5d0, 15d0, 0d0, -1.d0] ! Q
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [1.d0, 3d0, 0.2d0, -1.d0] ! P
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.5d0, 2d0, 0.1d0, -1.d0] ! Gamma
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [0.d0, 0.3d0, 0.d0, -1.d0] ! Z
+      scale(start_ind+9)   = 1.d0      
+      prior(:,start_ind+10) = [1.d0, 5.d0, 0.d0, -1.d0] ! R_max
+      scale(start_ind+10)   = 1.d0      
     end subroutine init_fan_priors_and_scales
 
     subroutine init_comet_priors_and_scales(self, start_ind, prior, scale)
@@ -585,16 +579,14 @@ contains
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
-!!$      prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-!!$      scale(start_ind+6)   = 1.d0      
-!!$      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-!!$      scale(start_ind+7)   = 1.d0      
-!!$      prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-!!$      scale(start_ind+8)   = 1.d0      
-!!$      prior(:,start_ind+9) = [-60.d0, 60.d0, 0.d0, -1.d0] ! theta
-!!$      scale(start_ind+9)   = 1.d0      
-!!$      prior(:,start_ind+10) = [0.d0, 60.d0, 0.d0, -1.d0] ! sigma_theta
-!!$      scale(start_ind+10)   = 1.d0      
+      prior(:,start_ind+6) = [1d0, 5d0, 0d0, -1.d0] ! P
+      scale(start_ind+6)   = 1.d0      
+      prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! z_mid
+      scale(start_ind+7)   = 1.d0      
+      prior(:,start_ind+8) = [0.5d0, 1.5d0, 0.1d0, -1.d0] ! R_inner
+      scale(start_ind+8)   = 1.d0      
+      prior(:,start_ind+9) = [1.5d0, 5.d0, 0.d0, -1.d0] ! R_outer
+      scale(start_ind+9)   = 1.d0      
     end subroutine init_comet_priors_and_scales
 
     subroutine param2model_cloud(self, x)

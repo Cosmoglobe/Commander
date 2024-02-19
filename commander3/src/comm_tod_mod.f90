@@ -172,6 +172,7 @@ module comm_tod_mod
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light (defined in the parameter file)
      logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
      logical(lgt) :: output_zodi_comps                            ! Output zodi components
+     logical(lgt) :: compute_solar_pointing                       ! Compute solar centric pointing, for zodi or sidelobe mapping
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
@@ -387,7 +388,8 @@ contains
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
-    end if
+   end if
+   self%compute_solar_pointing = self%subtract_zodi
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.

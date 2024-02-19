@@ -41,6 +41,8 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
      integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix_sol       ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
+     integer(i4b), allocatable, dimension(:,:,:)   :: psi_sol       ! Discretized polarization angle in solar centric coordinates, for zodi and sidelobe mapping
      integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
 
      real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
