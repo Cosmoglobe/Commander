@@ -67,6 +67,7 @@ contains
 !    write(*,*) 'mu', trim(label), real(mu,sp)
 !    write(*,*) 'rms', trim(label), real(rms,sp)
     ! General parameters
+    write(*,*) 's1'
     allocate(constructor)
 
     ! Initialize comm_comp_mod parameters
@@ -97,6 +98,8 @@ contains
           exit
        end if
     end do
+
+    write(*,*) 's2'
 
     !constructor%ref_band = band
 
@@ -138,6 +141,8 @@ contains
     !     & constructor%nmaps, constructor%pol)
     info          => comm_mapinfo(cpar%comm_chain, 128, constructor%lmax_amp, &
          & constructor%nmaps, constructor%pol)
+
+    write(*,*) 's3'
 
     ! Diffuse preconditioner variables
     call add_to_npre(1,constructor%nside,1,1)
@@ -192,6 +197,8 @@ contains
           end do
        end if
     end do
+
+    write(*,*) 's4'
 
     ! Initialize output beam
     constructor%B_out => comm_B_bl(cpar, constructor%x%info, 0, 0, fwhm=0.d0, init_realspace=.false.)
@@ -263,6 +270,8 @@ contains
     ! Set up default values for prior sampling (to be potentially changed at end of init)  
     constructor%mono_from_prior=.false.
     constructor%mono_alm = 0.d0
+
+    write(*,*) 's5', trim(constructor%label)
     
   end function constructor
 
@@ -314,6 +323,7 @@ contains
           c => comm_md_comp(cpar, id+n, id_abs, i, label, mu, rms, def)
           call initialize_md_comps%add(c)
        end if
+!       write(*,*) 'cc', trim(c%label)
        n = n+1
     end do
 1   close(unit)

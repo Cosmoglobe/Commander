@@ -106,7 +106,7 @@ contains
 
     integer(i4b)       :: i, j, ndet
     character(len=512) :: label
-    character(len=16)  :: dets(1500)
+    character(len=25)  :: dets(1500)
     real(dp), allocatable, dimension(:) :: nu0, tau0
     
     label = cpar%ds_label(id_abs)
@@ -158,13 +158,18 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
-    else
        if (present(detlabel)) then
           call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
                & constructor%threshold, &
                & constructor%n, constructor%nu0, constructor%tau0)
        else 
-          call get_tokens(subdets, ",", dets, ndet)
+          if (index(subdets, '.txt') /=0) then
+               ndet = count_detectors(subdets)
+               call get_detectors(subdets, dets, ndet)
+          else
+               ndet = num_tokens(subdets, ",")
+               call get_tokens(subdets, ",", dets, ndet)
+          end if
           if (constructor%threshold == 0.d0) then
                call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(1), &
                     & constructor%threshold, &

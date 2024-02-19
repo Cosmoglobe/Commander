@@ -20,8 +20,10 @@
 #================================================================================
 
 import h5py
-import commander_tools.tod_tools.huffman as huffman
-import commander_tools.tod_tools.rice as rice
+#import commander_tools.tod_tools.huffman as huffman
+#import commander_tools.tod_tools.rice as rice
+import tod_tools.huffman as huffman
+import tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -220,7 +222,8 @@ class commander_tod:
                 self.add_field(encoding, [self.encodings[encoding]])
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
-            self.add_field('/common/version', self.version)
+            print(self.version)
+            self.add_field('/common/version', np.string_(self.version))
             # [Maksym]: was getting the error:
             # ...
             # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
@@ -235,7 +238,9 @@ class commander_tod:
             # So needed to add `np.string_()`
             self.add_field('/common/pids', np.string_(list(self.pids.keys())))
 
+        print(self.filelists)
         if self.filelists is not None:
+            print(self.pids.keys())
             for pid in self.pids.keys():
                 self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
  
@@ -312,6 +317,7 @@ class commander_tod:
         return
 
     def make_filelists(self):
+        print(self.filelists)
         for freq in self.filelists.keys():
             outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
             outfile.write(str(len(self.filelists[freq])) + '\n')

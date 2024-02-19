@@ -109,12 +109,12 @@ contains
     allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
     allocate(constructor%xi_n_P_rms(constructor%n_xi))
     
-    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
+    constructor%xi_n_P_rms      = [-1.0, 0.02, 1.0] ! [sigma0, fknee, alpha]; sigma0 is not used
     if (.true.) then
        constructor%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
        constructor%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
        constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+       constructor%xi_n_P_uni(3,:) = [0.0, 2.0]   ! alpha
     else
        write(*,*) 'Invalid LiteBIRD frequency label = ', trim(constructor%freq)
        stop
@@ -132,18 +132,25 @@ contains
     constructor%correct_orb     = .true.
     constructor%orb_4pi_beam    = .false.
     constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
+    constructor%chisq_threshold = 2000000.d0 ! 9.d0
     constructor%nmaps           = info%nmaps
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+       constructor%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
+    else
+       constructor%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    end if
     nside_beam                  = 512
     nmaps_beam                  = 3
     pol_beam                    = .true.
     constructor%nside_beam      = nside_beam
 
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
-
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+        call get_detectors(cpar%ds_tod_dets(id_abs), constructor%label)
+    else
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label)
+    end if
+        
     ! Define detector partners
     do i = 1, constructor%ndet
        if (mod(i,2) == 1) then
@@ -169,7 +176,8 @@ contains
 
     ! Allocate sidelobe convolution data structures
     allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    !constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    constructor%orb_dp => comm_orbdipole(comm=info%comm)
 
   end function constructor
 
@@ -240,6 +248,7 @@ contains
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band) 
 
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -268,8 +277,8 @@ contains
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
     allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
-    call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
-    call distribute_sky_maps(self, map_gain, 1.e0, m_gain) ! uK to K
+    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -289,7 +298,7 @@ contains
        end do
     end if
 
-!    write(*,*) 'qqq', self%myid
+!    (*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
 !!$    call mpi_finalize(ierr)
 !!$    stop
@@ -324,7 +333,7 @@ contains
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
-
+       !write(*,*) "Scan number", i
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
@@ -344,9 +353,10 @@ contains
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          sd%n_corr = 0.
        end if
-
+      
        ! Compute noise spectrum parameters
        call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
@@ -361,11 +371,10 @@ contains
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-
+       
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
-
        ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
 !!$       if (self%output_4D_map > 0) then
 !!$          if (mod(iter-1,self%output_4D_map) == 0) then
@@ -380,7 +389,7 @@ contains
 
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-
+       
        ! Update scan list
        call wall_time(t2)
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
@@ -399,15 +408,17 @@ contains
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
+    call update_status(status, "finalizing maps, BP")
+
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, rms_out, 1.d0)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 
@@ -442,7 +453,7 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
-
+    call timer%stop(TOD_TOT, self%band) 
   end subroutine process_LB_tod   
 
 

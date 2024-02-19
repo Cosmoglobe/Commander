@@ -463,6 +463,8 @@ contains
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
 
+    ! Subroutine to fit noise parameters, alpha, 1/f sigma_0
+
     call timer%start(TOD_XI_N, self%band)
     
     ntod     = self%scans(scan)%ntod
@@ -529,6 +531,7 @@ contains
              n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
              n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
              dt     = n_corr(:,i)
+
              call timer%start(TOT_FFT)
              call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
              call timer%stop(TOT_FFT)
@@ -544,7 +547,6 @@ contains
              x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
              x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
              x_in(2) = 0.5 * (x_in(1) + x_in(3))
-
              xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
@@ -553,7 +555,6 @@ contains
     end do
     deallocate(dt, dv)
     deallocate(ps)
-
     call sfftw_destroy_plan(plan_fwd)
 
     call timer%stop(TOD_XI_N, self%band)

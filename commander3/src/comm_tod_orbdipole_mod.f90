@@ -177,7 +177,7 @@ contains
     !   v_ref: double, array of length 3
     !        velocity of observer in km/s, Galactic coordinates
     !   relativistic: logical
-    !        if True, comoputes relativistic correction
+    !        if True, computes relativistic correction
     !   beam_4pi: logical
     !        if True, uses the full main beam map, else uses pencil beam.
     !   P: double, array

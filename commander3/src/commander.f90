@@ -446,8 +446,8 @@ program commander
         call timer%start(TOT_AMPSAMP)
         do samp_group = 1, cpar%cg_num_user_samp_groups
            if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                   & samp_group, ' of ', cpar%cg_num_user_samp_groups
+              write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+                   & samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', trim(cpar%cg_samp_group(samp_group))
            end if
            call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
@@ -663,7 +663,7 @@ contains
                 call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
              end if
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
-             !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
+             !call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
 
           ! Evaluate sky for each detector for absolute gain calibration
@@ -680,7 +680,7 @@ contains
 
        end do
 
-       !       call s_sky(1,1)%p%writeFITS('sky.fits')
+              !call s_sky(1,1)%p%writeFITS('sky.fits')
 
        rms => comm_map(data(i)%rmsinfo)
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)

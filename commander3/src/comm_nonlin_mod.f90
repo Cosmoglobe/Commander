@@ -115,6 +115,7 @@ interface
   end subroutine sample_specind_alm
 
   module subroutine sample_specind_local(cpar, iter, handle, comp_id, par_id)
+
     !
     ! Routine that sets up the sampling using the local sampling routine  for the spectral parameter given by
     ! par_id for the component given by the comp_id parameter. 
