@@ -362,7 +362,6 @@ program commander
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
          call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
-         first_zodi = .false.
       end if
 
 !!$      do i = 1, zodi_model%n_comps
@@ -373,10 +372,11 @@ program commander
 !!$      end do
       
       call compute_downsamp_zodi(cpar, zodi_model)      
-      if (iter == modfact+1 .or. (first_sample > 1 .and. iter == first_sample)) then
+      if (first_zodi) then
          call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)
-        call create_zodi_glitch_mask(cpar)
+         call create_zodi_glitch_mask(cpar, handle)
+         first_zodi = .false.
       end if 
       call apply_zodi_glitch_mask(cpar)
       !write(*,*) 'disabling glitch mask'

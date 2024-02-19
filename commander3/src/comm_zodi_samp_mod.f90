@@ -1052,9 +1052,10 @@ contains
       end do
    end subroutine
 
-   subroutine create_zodi_glitch_mask(cpar)
-      type(comm_params), intent(in) :: cpar
-      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size, thinstep
+   subroutine create_zodi_glitch_mask(cpar, handle)
+     type(comm_params), intent(in) :: cpar
+     type(planck_rng), intent(inout) :: handle
+      integer(i4b) :: i, j, k, scan, ierr, non_glitch_size, thinstep, offset
       real(dp) :: box_width, rms, frac
       real(sp), allocatable :: res(:)
       real(sp), allocatable :: downsamp_scat_comp(:, :), downsamp_therm_comp(:, :)
@@ -1065,6 +1066,7 @@ contains
          if (.not. data(i)%tod%subtract_zodi) cycle
 
          do scan = 1, data(i)%tod%nscan
+            offset    = rand_uni(handle) * thinstep
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
             do j = 1, data(i)%tod%ndet
                if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
@@ -1081,7 +1083,7 @@ contains
                ! Apply TOD thinning
                !allocate(data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(data(i)%tod%scans(scan)%ntod))
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-                  if (mod(k,thinstep) /= 0) then
+                  if (mod(k+offset,thinstep) /= 0) then
                      data(i)%tod%scans(scan)%d(j)%zodi_glitch_mask(k) = .true.
                   end if
                end do
@@ -1192,7 +1194,7 @@ contains
          
       if (cpar%myid == cpar%root) then
          ! Perform search
-         call powell(theta, lnL_zodi, ierr, tolerance=1d-3)
+         call powell(theta, lnL_zodi, ierr, tolerance=1d-5)
          chisq_new = lnL_zodi(theta)
          flag = 0
          call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)
@@ -1378,7 +1380,7 @@ contains
                
 !!$               write(*,*) 'a', i, scan!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
 !!$               write(*,*) 'b', j!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
-               write(*,*) 'do not remove -- memory corruption bug "fix"', ndof!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
+               !write(*,*) 'do not remove -- memory corruption bug "fix"', ndof!, allocated(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                ndof = ndof + size(data(i)%tod%scans(scan)%d(j)%downsamp_tod)
                if (chisq_tot >= 1.d30) exit
                ! call int2string(data(i)%tod%scanid(scan), scan_str)
