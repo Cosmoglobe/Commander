@@ -158,6 +158,7 @@ contains
     integer(i4b) :: i
     real(dp) :: x, x_ref, beta, T
 
+
     ! First check if requested frequency is in tabulated range
     do i = 1, self%ntab
        if (nu > self%SEDtab(1,i) .and. nu <= self%SEDtab(2,i)) then

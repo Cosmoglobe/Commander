@@ -428,7 +428,8 @@ program commander
      end if
 
 
-     ! Testing the spectral index xampling
+     ! Spectral index mh sampling
+
      !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
      !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
 
