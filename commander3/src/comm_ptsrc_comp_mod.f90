@@ -59,13 +59,14 @@ module comm_ptsrc_comp_mod
      real(dp),  allocatable, dimension(:,:)   :: theta_rms ! RMS of spectral parameters (npar,nmaps)
      real(dp),  allocatable, dimension(:,:,:) :: P_theta   ! Gaussian prior on spectral params (npar,nmaps,2)
      real(dp),  allocatable, dimension(:,:)   :: P_x       ! Gaussian prior on amplitudes (nmaps,2)
+     real(dp),  allocatable, dimension(:)     :: amp_precomp  ! precomputed amplitude read in from file, (nactive)
   end type ptsrc
   
   type, extends (comm_comp) :: comm_ptsrc_comp
      character(len=512) :: outprefix
      real(dp)           :: cg_scale, amp_rms_scale
      integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet, nactive
-     logical(lgt)       :: apply_pos_prior, burn_in
+     logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
      logical(lgt),    allocatable, dimension(:)     :: F_null ! Frequency mask
@@ -153,6 +154,7 @@ contains
     constructor%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
     constructor%burn_in         = cpar%cs_burn_in(id_abs)
     constructor%amp_rms_scale   = cpar%cs_amp_rms_scale(id_abs)
+    constructor%precomputed_amps= .false.
 
     if (.not. constructor%apply_pos_prior) recompute_ptsrc_precond = .true.
 
@@ -252,13 +254,24 @@ contains
              end do
           end do
        end do
+    case("stars") ! not sure what to do here
+       constructor%npar = 0
+       constructor%precomputed_amps = .true.
+       write(*,*) "WARNING: Stars doesn't work yet as a pointsource type"
+
+
     case default
        call report_error("Unknown point source model: " // trim(constructor%type))
     end select
 
     ! Read and allocate source structures
     call update_status(status, "init_ptsrc2")
-    call read_sources(constructor, cpar, id, id_abs)
+    if( trim(constructor%type) == 'stars') then
+      ! stars uses an hdf catalogue instead of a txt file
+      call read_star_catalogue(constructor, cpar, id, id_abs)
+    else 
+      call read_sources(constructor, cpar, id, id_abs)
+    end if 
 
     ! Update mixing matrix
     call update_status(status, "init_ptsrc3")
@@ -297,8 +310,13 @@ contains
     integer(i4b),                      intent(in),    optional :: par
 
     integer(i4b) :: i, ia, j, k
-    
+
+    ! if we have fixed precomputed amps, we don't change mixing matrix
+    if(self%precomputed_amps) return
+
+
     do j = 1, self%nsrc
+
        if (present(beta)) then
           self%src(j)%theta = beta(:,:,j)
        end if
@@ -338,7 +356,7 @@ contains
              end if
           end do
        end do
-    end do
+    end do 
     
   end subroutine updateF
 
@@ -364,6 +382,9 @@ contains
     case ("sz")
        evalSED = 0.d0
        call report_error('SZ not implemented yet')
+    case ("stars")
+    !TODO: figure out what to do here   
+    !evalSED = self%star_catalog(self%b2a(band), self%star_sources(1, )) * self%star_sources(2, )   
     case default
        write(*,*) 'Unsupported point source type'
        stop
@@ -414,8 +435,10 @@ contains
     real(dp),        dimension(:,:), allocatable                        :: evalPtsrcBand
 
     integer(i4b) :: i, j, p, q, ierr, d, band_active
-    real(dp)     :: a
+    real(dp)     :: a, m
     real(dp), allocatable, dimension(:,:) :: amp
+
+    call update_status(status, "eval_ptsrc_band")
 
     d = 0; if (present(det)) d = det
 
@@ -442,8 +465,14 @@ contains
     evalPtsrcBand = 0.d0
     do i = 1, self%nsrc
        do j = 1, self%src(i)%T(band_active)%nmaps
+          if(self%precomputed_amps) then
+            ! so far just used for stars
+            m = self%src(i)%amp_precomp(band_active)
+          else
+            m = self%src(i)%T(band_active)%F(j,d) * amp(i,j)
+          end if
           ! Scale to correct frequency through multiplication with mixing matrix
-          a = self%getScale(band,i,j) * self%src(i)%T(band_active)%F(j,d) *  amp(i,j)
+          a = self%getScale(band,i,j) * m
 
           ! Project with beam
           do q = 1, self%src(i)%T(band_active)%np
@@ -468,7 +497,7 @@ contains
     real(dp),        dimension(:,:), allocatable                        :: projectPtsrcBand
 
     integer(i4b) :: i, j, q, p, ierr, d, band_active
-    real(dp)     :: val
+    real(dp)     :: val, m
     real(dp), allocatable, dimension(:,:) :: amp, amp2
 
     d = 0; if (present(det)) d = det
@@ -493,8 +522,15 @@ contains
              val = val + self%src(i)%T(band_active)%map(q,j) * map%map(p,j)
           end do
 
+          if(self%precomputed_amps) then
+            ! so far just used for stars
+            m = self%src(i)%amp_precomp(band_active)
+          else
+            m = self%src(i)%T(band_active)%F(j,d)
+          end if
+
           ! Scale to correct frequency through multiplication with mixing matrix
-          val = self%getScale(band,i,j) * self%src(i)%T(band_active)%F(j,d) * val
+          val = self%getScale(band,i,j) * m * val
 
           ! Return value
           amp(i,j) = val
@@ -545,14 +581,17 @@ contains
           path = trim(adjustl(itext))//'/'//trim(adjustl(self%label))          
           call create_hdf_group(chainfile, trim(adjustl(path)))
           call write_hdf(chainfile, trim(adjustl(path))//'/amp',   self%x(1:self%nsrc,:)*self%cg_scale)
-          allocate(theta(self%nsrc,self%nmaps,self%npar))
-          do i = 1, self%nsrc
-             do j = 1, self%nmaps
-                theta(i,j,:) = self%src(i)%theta(:,j)
-             end do
-          end do
-          call write_hdf(chainfile, trim(adjustl(path))//'/specind', theta)
-          deallocate(theta)
+
+          if(.not. self%precomputed_amps) then
+            allocate(theta(self%nsrc,self%nmaps,self%npar))
+            do i = 1, self%nsrc
+               do j = 1, self%nmaps
+                  theta(i,j,:) = self%src(i)%theta(:,j)
+               end do
+            end do
+            call write_hdf(chainfile, trim(adjustl(path))//'/specind', theta)
+            deallocate(theta)
+          end if
        end if
        
        unit     = getlun()
@@ -687,6 +726,9 @@ contains
        npar = 2
     case ("sz")
        npar = 0
+    case ("stars")
+       write(*,*) "Error: Stars should not be read in with read_sources"
+       stop
     end select
     allocate(amp(nmaps), amp_rms(nmaps), beta(npar,nmaps), beta_rms(npar,nmaps))
     call update_status(status, "read_ptsrc2")
@@ -832,7 +874,23 @@ contains
 4      close(unit)
     end if
     call update_status(status, "read_ptsrc6")
-    
+  
+    deallocate(amp, amp_rms, beta, beta_rms)
+ 
+    call init_beam_templates(self, cpar, id, id_abs)
+
+  end subroutine read_sources
+
+
+  subroutine init_beam_templates(self, cpar, id, id_abs)
+    implicit none
+    class(comm_ptsrc_comp), intent(inout) :: self
+    class(comm_params),     intent(in)    :: cpar
+    integer(i4b),           intent(in)    :: id, id_abs
+
+    character(len=1024) :: tempfile, filename
+    integer(i4b) :: i, n, ia, j
+ 
     ! Initialize beam templates
     tempfile = trim(cpar%cs_ptsrc_template(id_abs))
     do i = 1, numband
@@ -886,10 +944,97 @@ contains
 !!$          end do
 !!$       end do
 !!$    end if
-
-    deallocate(amp, amp_rms, beta, beta_rms)
     
-  end subroutine read_sources
+  end subroutine init_beam_templates
+
+! Reads in a formatted hdf catalogue of stars instead of from a text file
+
+  subroutine read_star_catalogue(self, cpar, id, id_abs)
+    implicit none
+    class(comm_ptsrc_comp), intent(inout) :: self
+    class(comm_params),     intent(in)    :: cpar
+    integer(i4b),           intent(in)    :: id, id_abs
+
+   
+    type(hdf_file)                      :: stars_file
+    integer(i4b)                        :: i, j
+    character(len=512), dimension(:), allocatable    :: band_list
+    logical(lgt)                        :: found
+    real(dp), dimension(:,:), allocatable :: catalog, star_catalog, coords
+ 
+    call open_hdf_file(trim(adjustl(cpar%cs_catalog(id_abs))), stars_file, 'r')
+    
+
+    call read_alloc_hdf(stars_file, '/reported_values', catalog) !nstars, nbands        
+    call read_alloc_hdf(stars_file, '/band_column_mapping', band_list)
+     ! trim unused bands from star catalog
+    allocate(star_catalog(self%nactive, size(catalog(1,:))))
+
+    do i=1, numband
+        if (.not. self%F_null(i)) then !band is included in ptsrcs
+          found = .false.
+          do j=1, size(band_list)
+            if(trim(data(i)%instlabel) == trim(band_list(j))) then ! band is in catalog
+              star_catalog(self%b2a(i),:) = catalog(j,:)
+              found = .true.
+              !write(*,*) "Found band ", trim(data(i)%label), " at position ", j
+              exit
+            end if
+          end do
+          if(.not. found) then 
+            write(*,*) "Band ", trim(data(i)%label), " included in analysis but not found in star catalog ", trim(cpar%cs_catalog(id_abs))
+          end if
+        end if
+    end do
+
+    deallocate(catalog)
+
+    self%nsrc = size(star_catalog(1, :))
+
+    call read_alloc_hdf(stars_file, 'coordinates', coords)
+
+    allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
+
+    !store each pointsource in a source object
+    do i=1, self%nsrc
+      allocate(self%src(i)%amp_precomp(self%nactive))
+      allocate(self%src(i)%T(self%nactive)) 
+      self%src(i)%glon = coords(1,i) * DEG2RAD
+      self%src(i)%glat = coords(2,i) * DEG2RAD 
+      self%src(i)%amp_precomp = star_catalog(:,i)
+
+      do j=1, self%nactive
+        self%src(i)%T(j)%nside = data(self%b2a(j))%info%nside 
+        self%src(i)%T(j)%nside_febecop = self%nside_febecop
+        !self%src(i)%T(j)%np = 
+        self%src(i)%T(j)%nmaps = self%nmaps
+      end do
+
+      ! Check for processing mask; disable source if within mask
+!      call ang2pix_ring(data(1)%info%nside, 0.5d0*pi-glat*DEG2RAD, glon*DEG2RAD, pix)
+!      p = locate(data(1)%info%pix, pix)
+!      if (associated(data(1)%procmask)) then
+!        if (p > 0) then
+!          if (data(1)%info%pix(p) == pix) then
+!            do j = 1, self%nmaps
+!              if (data(1)%procmask%map(p,j) < 0.5d0) then
+!                mask(i,j) = 0
+!              end if
+!            end do
+!          end if
+!        end if
+!      end if
+
+    end do
+
+    deallocate(star_catalog, coords)   
+    call close_hdf_file(stars_file)
+
+
+    !load in the beam information
+    call init_beam_templates(self, cpar, id, id_abs)
+
+  end subroutine read_star_catalogue
 
 
   subroutine read_febecop_beam(self, cpar, filename, label, band)
@@ -1688,6 +1833,8 @@ contains
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
+    if(self%precomputed_amps) return
+
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
@@ -2428,6 +2575,8 @@ contains
     integer(i4b),           intent(in),   optional :: band
 
     integer(i4b) :: i, j, k, ka
+
+    if(self%precomputed_amps) return
 
     if (present(band)) then
        if (self%F_null(band)) return

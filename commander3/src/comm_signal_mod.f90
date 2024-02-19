@@ -232,16 +232,20 @@ contains
     end do
 
     ! Activate requested frequency bands
-    call get_tokens(cpar%cg_samp_group_bands(samp_group), ',', cr_active_bands, nactive)
-    data%cr_active = .false.
-    do i = 1, nactive
-       do j = 1, numband
-          if (trim(cr_active_bands(i)) == trim(data(j)%label)) then
-             data(j)%cr_active = .true.
-             exit
-          end if
-       end do
-    end do
+    if(trim(cpar%cg_samp_group_bands(samp_group)) == 'all') then
+      data%cr_active = .true.
+    else
+      call get_tokens(cpar%cg_samp_group_bands(samp_group), ',', cr_active_bands, nactive)
+      data%cr_active = .false.
+      do i = 1, nactive
+         do j = 1, numband
+            if (trim(cr_active_bands(i)) == trim(data(j)%label)) then
+               data(j)%cr_active = .true.
+               exit
+            end if
+         end do
+      end do
+    end if
     
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList

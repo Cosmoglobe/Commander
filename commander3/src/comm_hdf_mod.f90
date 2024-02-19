@@ -5297,7 +5297,7 @@ contains
     !write(*,*) trim(file%setname), type_id, space, file%sethandle, file%status, ext
     call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
     !write(*,*) ' HDF status = ', file%status
-    !call h5eprint_f(file%status)
+    call h5eprint_f(file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot create data set "//trim(file%filename)//', '//trim(setname))
     call h5sclose_f(space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")
