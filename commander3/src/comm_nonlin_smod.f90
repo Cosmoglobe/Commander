@@ -379,11 +379,13 @@ contains
 
           !   if (c%theta(j)%p%info%nalm > 0) c%theta(j)%p%alm = (-4.d0 + 0.02d0*p)*sqrt(4.d0*pi)
           if (allocated(c%indmask)) then
-             write(*,*) 'a -- mask'
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
+             !write(*,*) 'a -- mask'
+             !call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask, lowres_eval=.true., evalpol=.true.)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0), mask=c%indmask)
           else
-             write(*,*) 'a -- no mask'
-             call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true., evalpol=.true.)
+             !write(*,*) 'a -- no mask'
+             !call compute_chisq(c%comm, chisq_fullsky=chisq(0), lowres_eval=.true., evalpol=.true.)
+             call compute_chisq(c%comm, chisq_fullsky=chisq(0))
           end if
 
           ! Use chisq from last iteration
@@ -418,14 +420,14 @@ contains
 
                 ! Output init sample
                 write(*,*) " chisq: " , chisq(0)
-                write(*,fmt='(a, i6, a, f12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                write(*,fmt='(a, i6, a, e12.2, a, f6.2, a, 3f7.2)') " | # sample: ", 0, " - chisq: " , chisq(0), " prior: ", chisq_prior,  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
                 if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
 
                 chisq(0) = chisq(0) + chisq_prior 
                 !chisq(0) = chisq_prior ! test2
 
              else 
-                write(*,fmt='(a, i6, a, f12.2, a, 3f7.2)') " |# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
+                write(*,fmt='(a, i6, a, e12.2, a, 3f7.2)') " |# sample: ", 0, " - chisq: " , chisq(0),  " - a_00: ", alms(0,0,:)/sqrt(4.d0*PI)
              end if
 
           end if
@@ -566,9 +568,11 @@ contains
 
              ! Calculate proposed chisq
              if (allocated(c%indmask)) then
-                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask, lowres_eval=.true., evalpol=.true.)
+                !call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask, lowres_eval=.true., evalpol=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, mask=c%indmask)
              else
-                call compute_chisq(c%comm, chisq_fullsky=chisq_temp, lowres_eval=.true., evalpol=.true.)
+                !call compute_chisq(c%comm, chisq_fullsky=chisq_temp, lowres_eval=.true., evalpol=.true.)
+                call compute_chisq(c%comm, chisq_fullsky=chisq_temp)
              end if
 
              chisq(i) = chisq_temp
@@ -634,7 +638,7 @@ contains
                 
                 ! Output chisq and diff and mean alm
                 write(*,*) 'chisq = ', chisq(i), chisq_prior
-                write(outmessage,fmt='(a, i6, a, f12.2, a, f8.2, a, f10.2)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff
+                write(outmessage,fmt='(a, i6, a, e16.8, a, e16.8, a, e16.8)') "| "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff
                 write(*,*) adjustl(trim(ar_tag)//trim(outmessage)//trim(achar(27)//'[0m'))
                 !write(*,*) trim(outmessage)
 
@@ -694,7 +698,7 @@ contains
                 ! Write to screen every out_every'th
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
-                   write(*,fmt='(a, i3, a, f12.2, a, f8.2, a, f7.2, a, f7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                   write(*,fmt='(a, i3, a, e12.2, a, e8.2, a, f7.2, a, e7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
 
                    ! Format region info
                    if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)

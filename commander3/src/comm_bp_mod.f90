@@ -158,6 +158,7 @@ contains
        constructor%n       = 1
        constructor%nu0(1)  = constructor%nu_c
        constructor%tau0(1) = 1.d0
+    else
        if (present(detlabel)) then
           call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
                & constructor%threshold, &
