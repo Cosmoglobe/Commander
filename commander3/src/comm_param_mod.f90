@@ -503,7 +503,9 @@ contains
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
-       call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',      par_lgt=cpar%sample_zodi)
+       if (cpar%include_TOD_zodi) then
+          call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',      par_lgt=cpar%sample_zodi)
+       end if
     end if
 
     if (cpar%resamp_CMB) then
@@ -656,8 +658,10 @@ contains
                   & par_int=cpar%ds_tod_flag(i))
              !call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
              !     & par_lgt=cpar%ds_tod_orb_abscal(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_SUBTRACTION'//itext, len_itext=len_itext, &
-                  & par_lgt=cpar%ds_tod_subtract_zodi(i))       
+             if (cpar%include_TOD_zodi) then
+                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_SUBTRACTION'//itext, len_itext=len_itext, &
+                     & par_lgt=cpar%ds_tod_subtract_zodi(i))
+             end if
              call get_parameter_hashtable(htbl, 'BAND_TOD_ABSCAL_COMP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_abscal(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
