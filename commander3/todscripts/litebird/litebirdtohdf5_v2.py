@@ -111,10 +111,10 @@ def get_data(nside, k, dfile, scale_loss, dets_nr, det_labels):
         pointings_ecl_all = np.array(readin_file.get("pointings"))
         #TODS:
         tod_cmb   = np.array(readin_file.get("tod_cmb"), dtype=dt)
-        #tod_dip   = np.array(readin_file.get("tod_dip"), dtype=dt)
+        tod_dip   = np.array(readin_file.get("tod_dip"), dtype=dt)
         tod_fg    = np.array(readin_file.get("tod_fg"), dtype=dt)
-        tod_wn    = np.array(readin_file.get("tod_wn"), dtype=dt)
-        #tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"), dtype=dt)
+        #tod_wn    = np.array(readin_file.get("tod_wn"), dtype=dt)
+        tod_wn_1f_30mHz = np.array(readin_file.get("tod_wn_1f_30mHz"), dtype=dt)
  
     # Number of samples in one TOD
     tod_len      = psi_all.shape[1]
@@ -124,12 +124,13 @@ def get_data(nside, k, dfile, scale_loss, dets_nr, det_labels):
     # Scale white noise level to reduced nr of detectors
     scale_nrdet  = np.sqrt(nr_det_out/nr_det)
     # Scale white noise level due to data loss (not done in LB TOD sims)
-    tod_wn       = tod_wn * scale_nrdet * scale_loss
+    #tod_wn       = tod_wn * scale_nrdet * scale_loss
     # Scalw wn and 1/f noise
-    #tod_wn_1f_30mHz = tod_wn_1f_30mHz * scale_nrdet * scale_loss
+    tod_wn_1f_30mHz = tod_wn_1f_30mHz * scale_nrdet * scale_loss
 
     # Add TODS
-    tod_cadd_all = tod_cmb + tod_wn + tod_fg #+ tod_dip
+    #tod_cadd_all = tod_cmb + tod_wn + tod_fg #+ tod_dip
+    tod_cadd_all = tod_cmb + tod_wn_1f_30mHz + tod_fg + tod_dip
     
     #sigma_0 = np.diff(tod_wn).std() / 2**0.5  # Using Eqn 20 of BP06
         
@@ -185,9 +186,10 @@ def main():
     npsi = 4096 # BeyondPlanck: 4096
     # Start time for observation
     start_time = '2030-04-01T00:00:00'
-    nside = 512
+#    nside = 512 # Defined further down - dependent on FWHM
     output_dir = pathlib.Path(
-         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS/"
+#         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS/"
+         "/mn/stornext/u3/eirikgje/data/litebird_tods/"
          )
     lbdata_dir = pathlib.Path(
          "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
@@ -209,12 +211,12 @@ def main():
     # ----------------------------------
     # Retrieving Instrument Data
     # ----------------------------------    
-    imo_db_interface = lbs.Imo()
+    imo_db_interface = lbs.Imo(flatfile_location='/mn/stornext/u3/eirikgje/src/litebird_imo/IMO/')
     imo_version = 'v1.3'
 
     # Get parameters for data loss (not taken into account in LB TOD sims)
     scan_params = imo_db_interface.query(
-        "/releases/v1.3/satellite/scanning_parameters"
+        f"/releases/{imo_version}/satellite/scanning_parameters"
         )
     metadata = scan_params.metadata
     margin    = metadata["margin"]
@@ -224,8 +226,8 @@ def main():
     # Scale white noise level due to data loss (not done in LB TOD sims)
     scale_loss = 1/np.sqrt(det_yield*margin*cos_ray*duty_cycl)
 
-    #instrument = ['LFT', 'MFT', 'HFT']
-    instrument = ['MFT', 'HFT']
+    instrument = ['LFT', 'MFT', 'HFT']
+#    instrument = ['MFT', 'HFT']
     imo_db_datapath = f"/releases/{imo_version}/satellite"
     for inst in instrument:
         print("Working with detectors on ", inst)
@@ -267,13 +269,18 @@ def main():
             fsamp      = metadata["sampling_rate_hz"]
             # FWHM in arcmin 
             fwhm       = metadata["fwhm_arcmin"]
+            if fwhm > 30:
+                nside = 512
+            else:
+                nside = 1024
             
             # ----------------------------------
             # Retrieving Simulations' Data
             # ----------------------------------
             folder = "detectors_" + inst + "_" + freq + "_T+B/tods"
             lbfreq_dir = lbdata_dir / folder
-            det_dir_out = output_dir / freq
+            output_freqname = '-'.join(freq.split('-')[::-1])
+            det_dir_out = output_dir / output_freqname
             
             if not pathlib.Path.is_dir(det_dir_out):
                 pathlib.Path.mkdir(det_dir_out)
@@ -356,7 +363,8 @@ def main():
             # ----------------------------------
 
             manager = mp.Manager()
-            dicts = {freq:manager.dict()}
+#            dicts = {freq:manager.dict()}
+            dicts = {output_freqname:manager.dict()}
             ctod = comm_tod.commander_tod(det_dir_out, 'LB', version, dicts=dicts, overwrite=True)
 
             # The Operational Day in Full Analogy with Planck
@@ -365,7 +373,7 @@ def main():
             # have unique identifier
             
             print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
-
+frei
             for i in range(1, len(file_ranges)):
                 print(f"Working with i = {i}:  {file_ranges[i-1]} -- {file_ranges[i]}")
 
@@ -470,8 +478,9 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
     Out: 
     """
     
+    output_freqname = '-'.join(freq.split('-')[::-1])
     # Initialising new file 
-    ctod.init_file(freq, ods + od + 1, mode='w')
+    ctod.init_file(output_freqname, ods + od + 1, mode='w')
     ndets = len(det_labels)
     
     for local_scan_id in range(scan_num): 
