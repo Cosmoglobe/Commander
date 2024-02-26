@@ -59,8 +59,6 @@ contains
     character(len=16), dimension(1000) :: comp_label
     type(comm_mapinfo), pointer :: info => null()
 
-!    write(*,*) 'mu', trim(label), real(mu,sp)
-!    write(*,*) 'rms', trim(label), real(rms,sp)
     ! General parameters
     allocate(c)
 
@@ -134,6 +132,7 @@ contains
     info          => comm_mapinfo(cpar%comm_chain, 128, c%lmax_amp, &
          & c%nmaps, c%pol)
 
+
     ! Diffuse preconditioner variables
     call add_to_npre(1,c%nside,1,1)
 
@@ -187,6 +186,7 @@ contains
           end do
        end if
     end do
+
 
     ! Initialize output beam
     c%B_out => comm_B_bl(cpar, c%x%info, 0, 0, fwhm=0.d0, init_realspace=.false.)
@@ -255,7 +255,6 @@ contains
           end if
        end do
     end do
-
 
     ! Set up default values for prior sampling (to be potentially changed at end of init)  
     c%mono_from_prior=.false.

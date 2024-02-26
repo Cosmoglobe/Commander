@@ -20,7 +20,8 @@
 #================================================================================
 
 import h5py
-import commander_tools.tod_tools.commander_instrument as inst
+#import commander_tools.tod_tools.commander_instrument as inst
+import tod_tools.commander_instrument as inst
 import os
 import numpy as np
 import healpy as hp

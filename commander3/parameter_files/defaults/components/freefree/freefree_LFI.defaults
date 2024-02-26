@@ -53,7 +53,7 @@ COMP_EM_NU_MIN&&              = 0.        # Lowest frequency for index estimatio
 COMP_EM_NU_MAX&&              = 80.        # Highest frequency for index estimation in GHz
 
 COMP_T_E_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_T_E_INPUT_MAP&&           = none  ff_Te_c0001_k000007_n1024.fits
+COMP_T_E_INPUT_MAP&&           = default ff_Te_c0001_k000007_n1024.fits
 COMP_T_E_SMOOTHING_SCALE&&     = 0
 COMP_T_E_DEFAULT&&             = 7000.
 COMP_T_E_PRIOR_UNI_LOW&&       = 1200.

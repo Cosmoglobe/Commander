@@ -313,7 +313,11 @@ contains
     ! Construct total sky signal
     do j = 1, self%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j) + self%s_zodi(:,j)
+       if (tod%subtract_zodi) then 
+           self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j) + self%s_zodi(:,j)
+       else
+           self%s_tot(:,j) = self%s_sky(:,j) + self%s_sl(:,j) + self%s_orb(:,j)
+       end if
        if (tod%sample_mono) self%s_tot(:,j) = self%s_tot(:,j) + self%s_mono(:,j)
        if (tod%apply_inst_corr) self%s_tot(:,j) = self%s_tot(:,j) + self%s_inst(:,j)
     end do

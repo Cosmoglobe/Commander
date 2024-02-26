@@ -30,7 +30,7 @@ module comm_tod_mod
 
   ! Structure for individual detectors
   type :: comm_detscan
-     character(len=10) :: label                             ! Detector label
+     character(len=30) :: label                             ! Detector label
      real(dp)          :: gain, dgain, gain_invsigma        ! Gain; assumed constant over scan
      real(dp)          :: gain_def                          ! Default parameters
      real(dp)          :: chisq
@@ -463,7 +463,6 @@ contains
       self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if
 
-
     ! Initialize jumplist
     call self%read_jumplist(cpar%ds_tod_jumplist(id_abs))
 
@@ -553,7 +552,8 @@ contains
                 do k = 2, self%scans(i)%ntod
                    pix(k)  = pix(k-1)  + pix(k)
                    if (pix(k) > 12*self%nside**2-1) then
-                      write(*,*) pix(k), k, pix(1), l, self%label(j),self%scans(i)%chunk_num
+                       write(*,*) "Error: pixel number out of range for:"
+                       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
                    end if
                    self%pix2ind(pix(k)) = 1
                 end do
@@ -632,9 +632,9 @@ contains
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'elip', self%elip(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'psi_ell', self%psi_ell(i))
        call read_hdf(h5_file, trim(adjustl(self%label(i)))//'/'//'centFreq', self%nu_c(i))
-       self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
-       self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
-       call self%mbeam(i)%p%Y()
+       !self%slbeam(i)%p => comm_map(self%slinfo, h5_file, .true., "sl", trim(self%label(i)))
+       !self%mbeam(i)%p => comm_map(self%mbinfo, h5_file, .true., "beam", trim(self%label(i)))
+       !call self%mbeam(i)%p%Y()
     end do
 
     call close_hdf_file(h5_file)
@@ -687,7 +687,6 @@ contains
        !call read_hdf(file, "/common/det",    det_buf)
        !write(det_buf, *) "27M, 27S, 28M, 28S"
        !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
-       
        if (index(det_buf(1:n), '.txt') /= 0) then
          ndet_tot = count_detectors(det_buf(1:n))
        else
@@ -705,7 +704,7 @@ contains
        else
          call get_tokens(trim(adjustl(det_buf(1:n))), ',', dets)
        end if
-
+      
 
 !!$       do i = 1, ndet_tot
 !!$          write(*,*) i, trim(adjustl(dets(i)))
@@ -1685,6 +1684,8 @@ contains
     integer(i4b) :: i
 
     do i = 1, self%ndet
+       !write(*,*) "From get_det_id:", trim(adjustl(label)), trim(adjustl(self%label(i)))
+       !write(*,*) self%ndet
        if (trim(adjustl(label)) == trim(adjustl(self%label(i)))) then
           get_det_id = i
           return
@@ -1702,7 +1703,7 @@ contains
 
     integer(i4b) :: j, k, ndet, npar, unit, par, ios
     real(dp)     :: val
-    character(len=16)   :: label, det1, det2
+    character(len=25)   :: label, det1, det2
     character(len=1024) :: line
 
     unit = getlun()
@@ -1758,10 +1759,10 @@ contains
     end do
 34  close(unit)
 
-    if (maxval(abs(self%prop_bp)) == 0) then
-        write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
-        stop
-    end if
+!    if (maxval(abs(self%prop_bp)) == 0) then
+!       write(*,*) 'Bandpass covariance file '//trim(filename)//' is improperly formatted'
+!       stop
+!    end if
 
 
 
@@ -1914,24 +1915,23 @@ contains
     do j = 1, self%ndet
        if (.not. self%scans(scan)%d(j)%accept) cycle
        if (self%orbital) then
-          v_ref = self%scans(scan)%v_sun
-       else
-          v_ref = v_solar
-       end if
 
-       if (self%orb_4pi_beam) then
-          v_ref = self%scans(scan)%v_sun
-          do i = 1, ntod
-             P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
-                     & self%ind2ang(1,self%pix2ind(pix(i,j))), &
-                     & self%psi(psi(i,j))] ! [phi, theta, psi]
-          end do
+         if (self%orb_4pi_beam) then
+           v_ref = self%scans(scan)%v_sun
+           do i = 1, ntod
+               P(:,i) = [self%ind2ang(2,self%pix2ind(pix(i,j))), &
+                       & self%ind2ang(1,self%pix2ind(pix(i,j))), &
+                       & self%psi(psi(i,j))] ! [phi, theta, psi]
+           end do
+         else
+            v_ref = self%scans(scan)%v_sun 
+            do i = 1, ntod
+             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
+            end do
+         end if
+
        else
           v_ref = v_solar
-         !  v_ref = self%scans(scan)%v_sun !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          do i = 1, ntod
-             P(:,i) =  self%ind2vec(:,self%pix2ind(pix(i,j))) ! [v_x, v_y, v_z]
-          end do
        end if
        call self%orb_dp%compute_CMB_dipole(j, v_ref, self%nu_c(j), &
             & self%orbital, self%orb_4pi_beam, P, s_dip(:,j))
@@ -2365,7 +2365,6 @@ contains
     integer(i4b),        dimension(:),  intent(out), optional :: flag
     integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
     integer(i4b) :: i, j
-
     do i=1, self%nhorn
        if (present(pix)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
