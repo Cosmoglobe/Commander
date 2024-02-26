@@ -71,13 +71,14 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_wmap_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_dirbe_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_smod.f90
+#	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_mod.f90
+#	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_lb_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_jump_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_driver_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_inst_mod.f90
 	# TOD simulations module (and submodules)
 	${COMMANDER3_SOURCE_DIR}/comm_tod_simulations_mod.f90
 	#
@@ -101,7 +102,6 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_ptsrc_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_zodi_samp_mod.f90
-	${COMMANDER3_SOURCE_DIR}/comm_tod_zodi_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_bp_utils.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefree_comp_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_freefreeEM_comp_mod.f90
@@ -143,6 +143,8 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_task_mod.f90
 	${COMMANDER3_SOURCE_DIR}/sharp.f90
 	${COMMANDER3_SOURCE_DIR}/comm_cr_utils.f90
+	${COMMANDER3_SOURCE_DIR}/comm_comp_interface_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_zodi_comp_mod.f90
 	# MPI (sub)modules
 	${COMMANDER3_SOURCE_DIR}/comm_mpi_mod.f90
 	# 
