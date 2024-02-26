@@ -7,10 +7,13 @@ module comm_tod_driver_mod
   use comm_tod_orbdipole_mod
   use comm_tod_simulations_mod
   use comm_tod_mapmaking_mod
-  use comm_tod_zodi_mod
+  use comm_tod_jump_mod
+  use comm_tod_adc_mod
   use comm_zodi_mod
   use comm_shared_arr_mod
   use comm_huffman_mod
+  use comm_4d_map_mod
+  !use comm_zodi_samp_mod
   use omp_lib
   implicit none
 
@@ -41,8 +44,6 @@ module comm_tod_driver_mod
      real(sp),     allocatable, dimension(:,:)     :: mask_zodi     ! Mask for sampling zodi
      integer(i4b), allocatable, dimension(:,:,:)   :: pix           ! Discretized pointing 
      integer(i4b), allocatable, dimension(:,:,:)   :: psi           ! Discretized polarization angle
-     integer(i4b), allocatable, dimension(:,:,:)   :: pix_sol       ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
-     integer(i4b), allocatable, dimension(:,:,:)   :: psi_sol       ! Discretized polarization angle in solar centric coordinates, for zodi and sidelobe mapping
      integer(i4b), allocatable, dimension(:,:)     :: flag          ! Quality flags
 
      real(sp),     allocatable, dimension(:,:)     :: s_totA        ! Total signal, horn A (differential only)
@@ -237,22 +238,23 @@ contains
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
        do j = 1, self%ndet
-          call get_zodi_emission(&
-            & tod=tod, &
-            & pix=self%pix(:, j, 1), &
-            & scan=scan, &
-            & det=j, &
-            & s_zodi_scat=self%s_zodi_scat(:, :, j), &
-            & s_zodi_therm=self%s_zodi_therm(:, :, j), &
-            & model=zodi_model &
-          &)
-          call get_s_zodi(&
-            & s_therm=self%s_zodi_therm(:, :, j), &
-            & s_scat=self%s_zodi_scat(:, :, j), &
-            & s_zodi=self%s_zodi(:, j), &
-            & emissivity=tod%zodi_emissivity, &
-            & albedo=tod%zodi_albedo &
-          &)
+!!$          call get_zodi_emission(&
+!!$            & tod=tod, &
+!!$            & pix=self%pix(:, j, 1), &
+!!$            & scan=scan, &
+!!$            & det=j, &
+!!$            & s_zodi_scat=self%s_zodi_scat(:, :, j), &
+!!$            & s_zodi_therm=self%s_zodi_therm(:, :, j), &
+!!$            & model=zodi_model &
+!!$          &)
+!!$          call get_s_zodi(&
+!!$            & s_therm=self%s_zodi_therm(:, :, j), &
+!!$            & s_scat=self%s_zodi_scat(:, :, j), &
+!!$            & s_zodi=self%s_zodi(:, j), &
+!!$            & emissivity=tod%zodi_emissivity, &
+!!$            & albedo=tod%zodi_albedo &
+!!$            &)
+          call get_s_tot_zodi(zodi_model, tod, j, scan, self%s_zodi(:, j), pix_dynamic=self%pix(:,j,:), pix_static=tod%scans(scan)%d(j)%pix_sol, s_scat=self%s_zodi_scat(:,:,j), s_therm=self%s_zodi_therm(:,:,j))
        end do
        call timer%stop(TOD_ZODI, tod%band)
     end if
@@ -959,7 +961,8 @@ contains
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
           do i = 1, size(sd%s_zodi_therm, dim=2)
-             call get_s_zodi(sd%s_zodi_therm(:, i:i, j), sd%s_zodi_scat(:, i:i, j), d_calib(8 + i, :, j), tod%zodi_emissivity(i:i), tod%zodi_albedo(i:i))
+             write(*,*) 'b',j,i,  tod%scanid(scan), any(sd%s_zodi_scat(:,i:i,j)/=sd%s_zodi_scat(:,i:i,j)), any(sd%s_zodi_therm(:,i:i,j)/=sd%s_zodi_therm(:,i:i,j))
+             call get_s_zodi(tod%id, sd%s_zodi_therm(:, i:i, j), sd%s_zodi_scat(:, i:i, j), d_calib(8 + i, :, j), comp_id=i)
          end do
        end if
       !  Bandpass proposals
@@ -972,48 +975,6 @@ contains
 
   end subroutine compute_calibrated_data
 
-  subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
-    implicit none
-    class(comm_tod),                       intent(in)     :: tod
-    type(map_ptr), dimension(1:,1:),       intent(inout)  :: map_in       ! (ndet,ndelta)    
-    real(sp),                              intent(in)     :: scale
-    real(sp),      dimension(1:,1:,0:,1:), intent(out)    :: map_out
-    real(dp),      dimension(1:, 0:), intent(out), optional   :: map_full
-
-    integer(i4b) :: i, j, k, l, npix, nmaps
-    real(dp),     allocatable, dimension(:,:) :: m_buf
-
-    npix  = map_in(1,1)%p%info%npix
-    nmaps = map_in(1,1)%p%info%nmaps
-    allocate(m_buf(0:npix-1,nmaps))
-    if (present(map_full)) map_full = 0
-    do j = 1, size(map_in,2)       ! ndelta
-       do i = 1, size(map_in,1)    ! ndet
-          map_in(i,j)%p%map = scale * map_in(i,j)%p%map ! unit conversion
-          call map_in(i,j)%p%bcast_fullsky_map(m_buf)
-          do k = 1, tod%nobs
-             map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
-          end do
-          if (present(map_full) .and. j .eq. 1) then
-            do k = 1, nmaps
-              do l = 0, npix-1
-                map_full(k, l) = map_full(k, l) + m_buf(l, k)
-              end do
-            end do
-          end if
-       end do
-       do k = 1, tod%nobs
-          do l = 1, tod%nmaps
-             map_out(l,k,0,j) = sum(map_out(l,k,1:tod%ndet,j))/tod%ndet
-          end do
-       end do
-    end do
-
-    if (present(map_full)) map_full = map_full/tod%ndet
-
-    deallocate(m_buf)
-
-  end subroutine distribute_sky_maps
 
 
   subroutine simulate_tod(self, scan_id, s_tot, n_corr, handle)

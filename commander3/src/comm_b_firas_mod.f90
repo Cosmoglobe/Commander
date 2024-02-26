@@ -19,11 +19,7 @@
 !
 !================================================================================
 module comm_B_FIRAS_mod
-  use comm_param_mod
-  use comm_map_mod
   use comm_B_mod
-  use comm_utils
-  use spline_1D_mod
   implicit none
 
   private
@@ -35,8 +31,8 @@ module comm_B_FIRAS_mod
      real(dp), allocatable, dimension(:,:) :: vecs
    contains
      ! Data procedures
-     procedure :: conv           => matmulB
-     procedure :: deconv         => matmulInvB
+     procedure :: conv           => matmulB_firas
+     procedure :: deconv         => matmulInvB_firas
      procedure :: update         => updateBeam
   end type comm_B_FIRAS
 
@@ -119,7 +115,7 @@ contains
        
   end function constructor
   
-  subroutine matmulB(self, trans, map)
+  subroutine matmulB_firas(self, trans, map)
     implicit none
     class(comm_B_FIRAS), intent(in)    :: self
     logical(lgt),        intent(in)    :: trans
@@ -189,9 +185,9 @@ contains
 
     deallocate(map_full, pixlist)
 
-  end subroutine matmulB
+  end subroutine matmulB_firas
 
-  subroutine matmulInvB(self, trans, map)
+  subroutine matmulInvB_firas(self, trans, map)
     implicit none
     class(comm_B_FIRAS), intent(in)    :: self
     logical(lgt),     intent(in)    :: trans
@@ -203,7 +199,7 @@ contains
     call mpi_finalize(i)
     stop
 
-  end subroutine matmulInvB
+  end subroutine matmulInvB_firas
 
   subroutine updateBeam(self, b_l_norm, mb_eff) 
     implicit none

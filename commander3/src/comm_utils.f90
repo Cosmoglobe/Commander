@@ -31,6 +31,10 @@ module comm_utils
   use sort_utils
   use spline_1D_mod
   use comm_mpi_mod
+  use locate_mod
+  use math_tools
+  use powell_mod
+  use hmc_mod
   implicit none
 
   !include "mpif.h"
@@ -521,7 +525,7 @@ contains
   subroutine read_map(filename, map)
     implicit none
 
-    character(len=128),                 intent(in)  :: filename
+    character(len=*),                 intent(in)  :: filename
     real(dp),         dimension(0:,1:), intent(out) :: map
 
     integer(i4b)   :: nside, nmaps, ordering, i, npix, nmaps_in, nside_in

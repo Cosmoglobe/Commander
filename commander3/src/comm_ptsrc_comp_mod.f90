@@ -19,21 +19,7 @@
 !
 !================================================================================
 module comm_ptsrc_comp_mod
-  use math_tools
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_F_int_mod
-  use comm_F_int_0D_mod
-  use comm_F_int_2D_mod
-  use comm_data_mod
-  use pix_tools
-  use comm_hdf_mod
-  use comm_cr_utils
-  use comm_cr_precond_mod
-  use locate_mod
-  use spline_1D_mod
-  use InvSamp_mod
-  use powell_mod
+  use comm_F_mod
   implicit none
 
   private
@@ -77,17 +63,17 @@ module comm_ptsrc_comp_mod
      procedure :: getBand       => evalPtsrcBand
      procedure :: projectBand   => projectPtsrcBand
      procedure :: updateMixmat  => updateF
-     procedure :: S             => evalSED
+     procedure :: S             => evalSED_ptsrc
      !procedure :: S_grad        => evalSED_grad
      procedure :: getScale
-     procedure :: initHDF       => initPtsrcHDF
+     procedure :: initHDFComp   => initPtsrcHDF
      procedure :: sampleSpecInd => samplePtsrcSpecInd
      procedure :: update_F_int  => updatePtsrcFInt
      procedure :: read_febecop_beam
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
-     procedure constructor
+     procedure constructor_ptsrc
   end interface comm_ptsrc_comp
 
   type ptsrc_ptr
@@ -112,11 +98,11 @@ module comm_ptsrc_comp_mod
 
 contains
 
-  function constructor(cpar, id, id_abs)
+  function constructor_ptsrc(cpar, id, id_abs) result(c)
     implicit none
     class(comm_params),       intent(in) :: cpar
     integer(i4b),             intent(in) :: id, id_abs
-    class(comm_ptsrc_comp),   pointer    :: constructor
+    class(comm_ptsrc_comp),   pointer    :: c
 
     integer(i4b) :: i, ia, j, k, n, nlist, npix, listpix(0:10000-1), hits(10000), nactive
     real(dp)     :: vec0(3), vec(3), r
@@ -125,178 +111,178 @@ contains
     call update_status(status, "init_ptsrc1")
     
     ! General parameters
-    allocate(constructor)
+    allocate(c)
 
     ! Initialize general parameters
     comm_pre                    = cpar%comm_chain
     myid_pre                    = cpar%myid_chain
     numprocs_pre                = cpar%numprocs_chain
-    constructor%class           = cpar%cs_class(id_abs)
-    constructor%type            = cpar%cs_type(id_abs)
-    constructor%label           = cpar%cs_label(id_abs)
-    constructor%id              = id
-    constructor%nmaps           = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3
-    constructor%nu_ref          = cpar%cs_nu_ref(id_abs,:)
-    constructor%nu_min          = cpar%cs_nu_min(id_abs)
-    constructor%nu_max          = cpar%cs_nu_max(id_abs)
-    constructor%nside           = cpar%cs_nside(id_abs)
-    constructor%nside_febecop   = 1024
-    constructor%outprefix       = trim(cpar%cs_label(id_abs))
-    constructor%cg_scale        = cpar%cs_cg_scale(1,id_abs)
-    allocate(constructor%poltype(1))
-    constructor%poltype         = cpar%cs_poltype(1,id_abs)
-    constructor%myid            = cpar%myid_chain
-    constructor%comm            = cpar%comm_chain
-    constructor%numprocs        = cpar%numprocs_chain
-    constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    c%class           = cpar%cs_class(id_abs)
+    c%type            = cpar%cs_type(id_abs)
+    c%label           = cpar%cs_label(id_abs)
+    c%id              = id
+    c%nmaps           = 1; if (cpar%cs_polarization(id_abs)) c%nmaps = 3
+    c%nu_ref          = cpar%cs_nu_ref(id_abs,:)
+    c%nu_min          = cpar%cs_nu_min(id_abs)
+    c%nu_max          = cpar%cs_nu_max(id_abs)
+    c%nside           = cpar%cs_nside(id_abs)
+    c%nside_febecop   = 1024
+    c%outprefix       = trim(cpar%cs_label(id_abs))
+    c%cg_scale        = cpar%cs_cg_scale(1,id_abs)
+    allocate(c%poltype(1))
+    c%poltype         = cpar%cs_poltype(1,id_abs)
+    c%myid            = cpar%myid_chain
+    c%comm            = cpar%comm_chain
+    c%numprocs        = cpar%numprocs_chain
+    c%init_from_HDF   = cpar%cs_initHDF(id_abs)
     ncomp_pre                   = ncomp_pre + 1
     operation                   = cpar%operation
-    constructor%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
-    constructor%burn_in         = cpar%cs_burn_in(id_abs)
-    constructor%amp_rms_scale   = cpar%cs_amp_rms_scale(id_abs)
-    constructor%precomputed_amps= .false.
+    c%apply_pos_prior = cpar%cs_apply_pos_prior(id_abs)
+    c%burn_in         = cpar%cs_burn_in(id_abs)
+    c%amp_rms_scale   = cpar%cs_amp_rms_scale(id_abs)
+    c%precomputed_amps= .false.
 
-    if (.not. constructor%apply_pos_prior) recompute_ptsrc_precond = .true.
+    if (.not. c%apply_pos_prior) recompute_ptsrc_precond = .true.
 
     call get_tokens(cpar%output_comps, ",", comp_label, n)
-    constructor%output = .false.
+    c%output = .false.
     do i = 1, n
-       if (trim(comp_label(i)) == trim(constructor%label) .or. trim(comp_label(i)) == 'all') then
-          constructor%output = .true.
+       if (trim(comp_label(i)) == trim(c%label) .or. trim(comp_label(i)) == 'all') then
+          c%output = .true.
           exit
        end if
     end do
 
     ! Find active bands
-    allocate(constructor%b2a(numband), constructor%F_null(numband))
-    constructor%b2a    = -1
-    constructor%F_null = .false.
+    allocate(c%b2a(numband), c%F_null(numband))
+    c%b2a    = -1
+    c%F_null = .false.
     nactive = 0
     do i = 1, numband
-       if (data(i)%bp(0)%p%nu_c < constructor%nu_min .or. &
-            & data(i)%bp(0)%p%nu_c > constructor%nu_max) then
-          constructor%F_null(i) = .true.
+       if (data(i)%bp(0)%p%nu_c < c%nu_min .or. &
+            & data(i)%bp(0)%p%nu_c > c%nu_max) then
+          c%F_null(i) = .true.
        else
           nactive                  = nactive + 1
-          constructor%b2a(nactive) = i
+          c%b2a(nactive) = i
        end if
     end do
-    constructor%nactive = nactive
+    c%nactive = nactive
     
     ! Initialize frequency scaling parameters
-    constructor%ndet = maxval(data%ndet)
-    allocate(constructor%F_int(3,nactive,0:constructor%ndet))
-    select case (trim(constructor%type))
+    c%ndet = maxval(data%ndet)
+    allocate(c%F_int(3,nactive,0:c%ndet))
+    select case (trim(c%type))
     case ("radio")
-       constructor%npar = 2   ! (alpha, beta)
-       allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
-       allocate(constructor%theta_def(constructor%npar))
-       allocate(constructor%nu_min_ind(constructor%npar), constructor%nu_max_ind(constructor%npar))
-       constructor%p_uni      = cpar%cs_p_uni(id_abs,:,:)
-       constructor%p_gauss    = cpar%cs_p_gauss(id_abs,:,:)
-       constructor%theta_def  = cpar%cs_theta_def(1:2,id_abs)
-       constructor%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
-       constructor%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
+       c%npar = 2   ! (alpha, beta)
+       allocate(c%p_uni(2,c%npar), c%p_gauss(2,c%npar))
+       allocate(c%theta_def(c%npar))
+       allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
+       c%p_uni      = cpar%cs_p_uni(id_abs,:,:)
+       c%p_gauss    = cpar%cs_p_gauss(id_abs,:,:)
+       c%theta_def  = cpar%cs_theta_def(1:2,id_abs)
+       c%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
+       c%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
           do i = 1, numband
-             if (constructor%F_null(i)) cycle
-             ia = constructor%b2a(i)
+             if (c%F_null(i)) cycle
+             ia = c%b2a(i)
              do j = 0, data(i)%ndet
                 if (k > 1) then
-                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                      constructor%F_int(k,ia,j)%p => constructor%F_int(k-1,ia,j)%p
+                   if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                      c%F_int(k,ia,j)%p => c%F_int(k-1,ia,j)%p
                       cycle
                    end if
                 end if
-                constructor%F_int(k,ia,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+                c%F_int(k,ia,j)%p => comm_F_int_2D(c, data(i)%bp(j)%p, k)
              end do
           end do
        end do
     case ("fir")
-       constructor%npar = 2   ! (beta, T_d)
-       allocate(constructor%p_uni(2,constructor%npar), constructor%p_gauss(2,constructor%npar))
-       allocate(constructor%theta_def(constructor%npar))
-       allocate(constructor%nu_min_ind(constructor%npar), constructor%nu_max_ind(constructor%npar))
-       constructor%p_uni     = cpar%cs_p_uni(id_abs,:,:)
-       constructor%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
-       constructor%theta_def = cpar%cs_theta_def(1:2,id_abs)
-       constructor%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
-       constructor%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
+       c%npar = 2   ! (beta, T_d)
+       allocate(c%p_uni(2,c%npar), c%p_gauss(2,c%npar))
+       allocate(c%theta_def(c%npar))
+       allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
+       c%p_uni     = cpar%cs_p_uni(id_abs,:,:)
+       c%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
+       c%theta_def = cpar%cs_theta_def(1:2,id_abs)
+       c%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
+       c%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
           do i = 1, numband
-             if (constructor%F_null(i)) cycle
-             ia = constructor%b2a(i)
+             if (c%F_null(i)) cycle
+             ia = c%b2a(i)
              do j = 0, data(i)%ndet
                 if (k > 1) then
-                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                      constructor%F_int(k,ia,j)%p => constructor%F_int(k-1,ia,j)%p
+                   if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                      c%F_int(k,ia,j)%p => c%F_int(k-1,ia,j)%p
                       cycle
                    end if
                 end if
-                constructor%F_int(k,ia,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+                c%F_int(k,ia,j)%p => comm_F_int_2D(c, data(i)%bp(j)%p, k)
              end do
           end do
        end do
     case ("sz")
-       constructor%npar = 0   ! (none)
+       c%npar = 0   ! (none)
        do k = 1, 3
           do i = 1, numband
-             if (constructor%F_null(i)) cycle
-             ia = constructor%b2a(i)
+             if (c%F_null(i)) cycle
+             ia = c%b2a(i)
              do j = 0, data(i)%ndet
                 if (k > 1) then
-                   if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                      constructor%F_int(k,ia,j)%p => constructor%F_int(k-1,ia,j)%p
+                   if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                      c%F_int(k,ia,j)%p => c%F_int(k-1,ia,j)%p
                       cycle
                    end if
                 end if
-                constructor%F_int(k,ia,j)%p => comm_F_int_0D(constructor, data(i)%bp(j)%p, k)
+                c%F_int(k,ia,j)%p => comm_F_int_0D(c, data(i)%bp(j)%p, k)
              end do
           end do
        end do
     case("stars") ! not sure what to do here
-       constructor%npar = 0
-       constructor%precomputed_amps = .true.
+       c%npar = 0
+       c%precomputed_amps = .true.
        write(*,*) "WARNING: Stars doesn't work yet as a pointsource type"
 
 
     case default
-       call report_error("Unknown point source model: " // trim(constructor%type))
+       call report_error("Unknown point source model: " // trim(c%type))
     end select
 
     ! Read and allocate source structures
     call update_status(status, "init_ptsrc2")
-    if( trim(constructor%type) == 'stars') then
+    if( trim(c%type) == 'stars') then
       ! stars uses an hdf catalogue instead of a txt file
-      call read_star_catalogue(constructor, cpar, id, id_abs)
+      call read_star_catalogue(c, cpar, id, id_abs)
     else 
-      call read_sources(constructor, cpar, id, id_abs)
+      call read_sources(c, cpar, id, id_abs)
     end if 
 
     ! Update mixing matrix
     call update_status(status, "init_ptsrc3")
-    call constructor%updateMixmat
+    call c%updateMixmat
 
     ! Set up CG sampling groups
-    allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
-    constructor%active_samp_group = .false.
+    allocate(c%active_samp_group(cpar%cg_num_samp_groups))
+    c%active_samp_group = .false.
     do i = 1, cpar%cg_num_samp_groups
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
-          if (trim(constructor%label) == trim(comp_label(j))) then
-             constructor%active_samp_group(i) = .true.
-             if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+          if (trim(c%label) == trim(comp_label(j))) then
+             c%active_samp_group(i) = .true.
+             if (n == 1) c%cg_unique_sampgroup = i ! Dedicated sampling group for this component
              exit
           end if
        end do
     end do
 
     ! Disable CG search when asking for positivity prior
-    if (constructor%apply_pos_prior)  constructor%active_samp_group = .false.
+    if (c%apply_pos_prior)  c%active_samp_group = .false.
 
     call update_status(status, "init_ptsrc4")
     
-  end function constructor
+  end function constructor_ptsrc
 
 
 
@@ -360,13 +346,13 @@ contains
     
   end subroutine updateF
 
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_ptsrc(self, nu, band, pol, theta)
     class(comm_ptsrc_comp),    intent(in)           :: self
     real(dp),                  intent(in), optional :: nu
     integer(i4b),              intent(in), optional :: band
     integer(i4b),              intent(in), optional :: pol
     real(dp), dimension(1:),   intent(in), optional :: theta
-    real(dp)                                        :: evalSED
+    real(dp)                                        :: evalSED_ptsrc
 
     real(dp) :: x
     
@@ -374,13 +360,13 @@ contains
     case ("radio")
        !evalSED = exp(theta(1) * (nu/self%nu_ref) + theta(2) * (log(nu/self%nu_ref))**2) * &
        !     & (self%nu_ref/nu)**2
-       evalSED = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) 
+       evalSED_ptsrc = (nu/self%nu_ref(pol))**(-2.d0+theta(1)) 
     case ("fir")
        ! Note that this is in K_RJ, so a factor of nu^2 is divided out when compared to the MJy/sr form.
        x = h/(k_B*theta(2))
-       evalSED = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
+       evalSED_ptsrc = (exp(x*self%nu_ref(pol))-1.d0)/(exp(x*nu)-1.d0) * (nu/self%nu_ref(pol))**(theta(1)+1.d0)
     case ("sz")
-       evalSED = 0.d0
+       evalSED_ptsrc = 0.d0
        call report_error('SZ not implemented yet')
     case ("stars")
     !TODO: figure out what to do here   
@@ -390,7 +376,7 @@ contains
        stop
     end select
     
-  end function evalSED
+  end function evalSED_ptsrc
 
   !function evalSED_grad(self, nu, band, pol, theta)
   !  class(comm_ptsrc_comp),    intent(in)           :: self
@@ -1515,7 +1501,7 @@ contains
              skip = .false.
           end select
           if (skip .or. j > pt1%nmaps) then
-             c1 => c1%next()
+             c1 => c1%nextComp()
              cycle
           end if
           do k1 = 1, pt1%nsrc
@@ -1533,7 +1519,7 @@ contains
                    skip = .false.
                 end select
                 if (skip .or. j > pt2%nmaps) then
-                   c2 => c2%next()
+                   c2 => c2%nextComp()
                    cycle
                 end if
                 do k2 = 1, pt2%nsrc
@@ -1586,10 +1572,10 @@ contains
                    end do
                    mat(i2,i1) = mat(i1,i2)
                 end do
-                c2 => c2%next()
+                c2 => c2%nextComp()
              end do
           end do
-          c1 => c1%next()
+          c1 => c1%nextComp()
        end do
 
        ! Collect contributions from all cores
@@ -1607,14 +1593,14 @@ contains
                 skip = .false.
              end select
              if (skip .or. j > pt1%nmaps) then
-                c1 => c1%next()
+                c1 => c1%nextComp()
                 cycle
              end if
              do k1 = 1, pt1%nsrc
                 i1         = i1+1
                 mat2(i1,:) = mat2(i1,:) * pt1%src(k1)%P_x(j,2)
              end do
-             c1 => c1%next()
+             c1 => c1%nextComp()
           end do
           ! Multiply with sqrtS from right side
           i1  = 0
@@ -1627,14 +1613,14 @@ contains
                 skip = .false.
              end select
              if (skip .or. j > pt1%nmaps) then
-                c1 => c1%next()
+                c1 => c1%nextComp()
                 cycle
              end if
              do k1 = 1, pt1%nsrc
                 i1         = i1+1
                 mat2(:,i1) = mat2(:,i1) * pt1%src(k1)%P_x(j,2)
              end do
-             c1 => c1%next()
+             c1 => c1%nextComp()
           end do
           ! Add unity
           do i1 = 1, npre
@@ -1694,7 +1680,7 @@ contains
           skip = .false.
        end select
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call cr_extract_comp(pt%id, x, amp)
@@ -1702,7 +1688,7 @@ contains
           y(l:l+pt%nsrc-1,k) = amp(:,k)
        end do
        l  = l + pt%nsrc
-       c => c%next()
+       c => c%nextComp()
        deallocate(amp)
     end do
 
@@ -1722,7 +1708,7 @@ contains
           skip = .false.
        end select
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        allocate(amp(pt%nsrc,pt%nmaps))
@@ -1731,7 +1717,7 @@ contains
        end do
        call cr_insert_comp(pt%id, .false., amp, x)
        l = l + pt%nsrc
-       c => c%next()
+       c => c%nextComp()
        deallocate(amp)
     end do
         
@@ -1845,7 +1831,7 @@ contains
                 k_lnL       = k
                 c           => compList     
                 do while (self%id /= c%id)
-                   c => c%next()
+                   c => c%nextComp()
                 end do
                 select type (c)
                 class is (comm_ptsrc_comp)

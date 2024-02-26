@@ -30,23 +30,7 @@ module comm_tod_DIRBE_mod
    !   process_DIRBE_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
-
-   use comm_tod_mod
-   use comm_param_mod
-   use comm_map_mod
-   use comm_conviqt_mod
-   use pix_tools
-   use healpix_types
-   use comm_huffman_mod
-   use comm_hdf_mod
-   use comm_fft_mod
-   use comm_shared_arr_mod
-   use spline_1D_mod
-   use comm_4D_map_mod
    use comm_tod_driver_mod
-   use comm_utils
-   use comm_bp_mod
-
    implicit none
 
    private
@@ -58,14 +42,14 @@ module comm_tod_DIRBE_mod
    end type comm_dirbe_tod
 
    interface comm_dirbe_tod
-      procedure constructor
+      procedure constructor_dirbe
    end interface comm_dirbe_tod
 
 contains
    !**************************************************
    !             Constructor
    !**************************************************
-   function constructor(cpar, id_abs, info, tod_type)
+   function constructor_dirbe(cpar, id, id_abs, info, tod_type) result(c)
       ! 
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -85,14 +69,12 @@ contains
       ! ----------
       ! constructor: pointer
       !              Pointer that contains all instrument data
-
-
       implicit none
       type(comm_params),       intent(in) :: cpar          !comm_param structure, list of all the input parameters
-      integer(i4b),            intent(in) :: id_abs        !index of the current band within the parameters 
+      integer(i4b),            intent(in) :: id, id_abs        !index of the current band within the parameters 
       class(comm_mapinfo),     target     :: info
       character(len=128),      intent(in) :: tod_type      !
-      class(comm_dirbe_tod),      pointer    :: constructor
+      class(comm_dirbe_tod),      pointer    :: c
 
       integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
       logical(lgt) :: pol_beam
@@ -100,79 +82,80 @@ contains
       call timer%start(TOD_INIT, id_abs)
 
       ! Allocate object
-      allocate(constructor)
+      allocate(c)
 
       ! Set up noise PSD type and priors
-      constructor%freq            = cpar%ds_label(id_abs)
-      constructor%n_xi            = 3
-      constructor%noise_psd_model = 'oof'
-      allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
-      allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-      allocate(constructor%xi_n_P_rms(constructor%n_xi))
+      c%freq            = cpar%ds_label(id_abs)
+      c%n_xi            = 3
+      c%noise_psd_model = 'oof'
+      allocate(c%xi_n_nu_fit(c%n_xi,2))
+      allocate(c%xi_n_P_uni(c%n_xi,2))
+      allocate(c%xi_n_P_rms(c%n_xi))
 
-      constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] 
+      c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] 
       ! [sigma0, fknee, alpha]; sigma0 is not used
-      do i = 1, constructor%n_xi 
-         constructor%xi_n_nu_fit(i,:) = [0.d0, 0.01d0] 
+      do i = 1, c%n_xi 
+         c%xi_n_nu_fit(i,:) = [0.d0, 0.01d0] 
       end do
-      constructor%xi_n_P_uni(1,:) = [0.d0, 0.d0]
-      constructor%xi_n_P_uni(2,:) = [0.00001d0, 0.3d0]  ! fknee
-      constructor%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
+      c%xi_n_P_uni(1,:) = [0.d0, 0.d0]
+      c%xi_n_P_uni(2,:) = [0.00001d0, 0.3d0]  ! fknee
+      c%xi_n_P_uni(3,:) = [-3.0d0, -0.4d0]   ! alpha
 
       ! Initialize common parameters
-      call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+      call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
       ! Initialize instrument-specific parameters
-      read(constructor%freq(1:2),*) constructor%zodiband
-      constructor%samprate_lowres = 1.  ! Lowres samprate in Hz
-      constructor%nhorn           = 1
-      constructor%ndiode          = 1
-      constructor%compressed_tod  = .false.
-      constructor%correct_sl      = .false.
-      constructor%correct_orb     = .false.
-      constructor%orb_4pi_beam    = .false.
-      constructor%sample_zodi     = cpar%sample_zodi .and. constructor%subtract_zodi ! Sample zodi parameters
-      constructor%symm_flags      = .false.
-      ! constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-      constructor%chisq_threshold = 50000.
-      constructor%nmaps           = info%nmaps
-      constructor%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
-
+      read(c%freq(1:2),*) c%zodiband
+      c%samprate_lowres = 1.  ! Lowres samprate in Hz
+      c%nhorn           = 1
+      c%ndiode          = 1
+      c%compressed_tod  = .false.
+      c%correct_sl      = .false.
+      c%correct_orb     = .false.
+      c%orb_4pi_beam    = .false.
+      c%sample_zodi     = cpar%sample_zodi .and. c%subtract_zodi ! Sample zodi parameters
+      c%symm_flags      = .false.
+      ! c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
+      c%chisq_threshold = 50000.
+      c%nmaps           = info%nmaps
+      c%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
+      c%sol_elong_range = cpar%zs_sol_elong
+      
       nside_beam                  = 128
       nmaps_beam                  = 1
       pol_beam                    = .false.
-      constructor%nside_beam      = nside_beam
+      c%nside_beam      = nside_beam
 
       ! Get detector labels
-      call get_tokens(trim(cpar%ds_tod_dets(id_abs)), ",", constructor%label)
+      call get_tokens(trim(cpar%ds_tod_dets(id_abs)), ",", c%label)
 
       ! Read the actual TOD
-      call constructor%read_tod(constructor%label)
+      call c%read_tod(c%label)
 
       ! Initialize bandpass mean and proposal matrix
-      call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
+      call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      call constructor%precompute_lookups()
+      call c%precompute_lookups()
 
       ! Load the instrument file
-      call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+      call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
    ! commenting this out for now
-      !do i=1, constructor%ndet
-      !  call init_noise_model(constructor, i)
+      !do i=1, c%ndet
+      !  call init_noise_model(c, i)
       !end do
 
       ! Allocate sidelobe convolution data structures
-      allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-      constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+      allocate(c%slconv(c%ndet), c%orb_dp)
+      c%orb_dp => comm_orbdipole(c%mbeam)
       ! Initialize all baseline corrections to zero
-      !do i = 1, constructor%nscan
-      !   constructor%scans(i)%d%baseline = 0.d0
+      !do i = 1, c%nscan
+      !   c%scans(i)%d%baseline = 0.d0
       !end do
       
       call timer%stop(TOD_INIT, id_abs)
-   end function constructor
+    end function constructor_dirbe
 
    !**************************************************
    !             Driver routine
@@ -353,13 +336,15 @@ contains
          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
 
          ! Create dynamic mask
-         if (.false. .and. self%first_call .and. sample_ncorr) then
+         if (self%first_call) then
             do j = 1, sd%ndet
                if (.not. self%scans(i)%d(j)%accept) cycle
-               !call self%scans(i)%d(j)%create_dynamic_mask(sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), sd%mask(:,j), 5.0)
-               !call self%scans(i)%d(j)%create_dynamic_mask(sd%tod(:,j), sd%mask(:,j), 5.0, negativeonly=.true.)
-               
+               call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
             end do
+            if (.not. any(self%scans(i)%d%accept)) then
+               call sd%dealloc
+               cycle
+            end if
          end if
 
          ! Sample correlated noise
@@ -389,6 +374,7 @@ contains
          ! Compute binned map
          allocate(d_calib(self%output_n_maps, sd%ntod, sd%ndet))
          d_calib = 0.d0
+         !write(*,*) 'a', self%scanid(i), any(sd%s_zodi_scat/=sd%s_zodi_scat), any(sd%s_zodi_therm/=sd%s_zodi_therm)
          call compute_calibrated_data(self, i, sd, d_calib)    
 
          ! For debugging: write TOD to hdf

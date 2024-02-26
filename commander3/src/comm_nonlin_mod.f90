@@ -19,18 +19,7 @@
 !
 !================================================================================
 module comm_nonlin_mod
-  use comm_param_mod
-  use comm_data_mod
-  use comm_comp_mod
-  use comm_chisq_mod
   use comm_gain_mod
-  use comm_line_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_signal_mod
-  use comm_utils
-  use InvSamp_mod
-  use powell_mod
-  use comm_output_mod
   implicit none
 
 interface
@@ -259,7 +248,7 @@ interface
 
   end subroutine gather_alms
 
-  module subroutine distribute_alms(alm, alms, nalm, lm, i, pl, pl_tar)
+  module subroutine distribute_alms_nonlin(alm, alms, nalm, lm, i, pl, pl_tar)
     implicit none
 
     real(dp), dimension(0:,1:),    intent(inout)    :: alm
@@ -269,7 +258,7 @@ interface
     integer(i4b) :: k, l, m, ind
     
 
-  end subroutine distribute_alms
+  end subroutine distribute_alms_nonlin
 
   module subroutine compute_corrlen(x, fix, n, maxit, corrlen)
     implicit none

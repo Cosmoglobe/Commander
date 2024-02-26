@@ -19,21 +19,10 @@
 !
 !================================================================================
 module comm_data_mod
-  use comm_param_mod
   use comm_bp_mod
   use comm_noise_mod
   use comm_beam_mod
-  use comm_map_mod
-  use comm_tod_mod
-  use comm_tod_LFI_mod
-  use comm_tod_SPIDER_mod
-  use comm_tod_dirbe_mod
-  use comm_tod_WMAP_mod
-  use comm_tod_LB_mod
-  use comm_tod_QUIET_mod
-  use comm_tod_HFI_mod
-  use locate_mod
-  use comm_bp_utils
+  use comm_tod_inst_mod
   implicit none
 
   type comm_data_set
@@ -160,26 +149,26 @@ contains
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LFI_tod(handle, cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
-             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_WMAP_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'DIRBE') then
-             data(n)%tod => comm_DIRBE_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_DIRBE_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_SPIDER_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
-             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LB_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           ! Adding QUIET data into a loop
-          else if (trim(data(n)%tod_type) == 'QUIET') then
+          !else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
-            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             !data(n)%tod => comm_QUIET_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
           else if (trim(data(n)%tod_type) == 'HFI') then
-             data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_HFI_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'

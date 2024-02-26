@@ -19,22 +19,9 @@
 !
 !================================================================================
 program commander
-  use comm_param_mod
-  use comm_data_mod
-  use comm_signal_mod
-  use comm_cr_mod
-  use comm_chisq_mod
-  use comm_output_mod
-  use comm_comp_mod
   use comm_nonlin_mod
   use comm_mh_specind_mod
-  use comm_tod_simulations_mod
-  use comm_tod_gain_mod
-  use comm_zodi_mod
   use comm_zodi_samp_mod
-  use comm_tod_zodi_mod
-  use comm_gain_mod
-  use hmc_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -178,10 +165,7 @@ program commander
   ! Initialize tod modules
   if (cpar%enable_tod_analysis) then 
     call initialize_tod_mod(cpar)
-    if (cpar%include_tod_zodi) then 
-      call initialize_zodi_mod(cpar)
-      call initialize_tod_zodi_mod(cpar)
-    end if
+    if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
   end if
 
   call define_cg_samp_groups(cpar)
@@ -335,7 +319,7 @@ program commander
       !             param_vec(i) = param_vec(i) + 0.1*param_vec(i)
       !          end if
       !          call base_zodi_model%param_vec_to_model(param_vec)
-      !          call process_TOD(cpar, cpar%mychain, iter, handle)
+      !          call process_all_TODs(cpar, cpar%mychain, iter, handle)
       !       end do
       !    end do
       ! end if 
@@ -345,17 +329,17 @@ program commander
         ! First iteration should just be component separation, in case sky model
         ! is off
         call timer%start(TOT_TODPROC)
-        call process_TOD(cpar, cpar%mychain, iter, handle)
+        call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
      end if
-
 
      if (cpar%enable_tod_simulations) then
         ! Skip other steps if TOD simulations
         exit
      end if
 
-   if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+     !if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+     if (.true.) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
       if (first_zodi) then
@@ -380,15 +364,20 @@ program commander
       end if 
       call apply_zodi_glitch_mask(cpar)
       !write(*,*) 'disabling glitch mask'
-      
+
+      ! Sample non-stationary zodi components with geometric 3D model
       select case (trim(adjustl(cpar%zs_sample_method)))
       case ("mh")
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
-            call minimize_zodi_with_powell(cpar, handle, i)
+!            call minimize_zodi_with_powell(cpar, handle, i)
          end do
       end select
+
+      ! Sample stationary zodi components with 2D model
+      call sample_static_zodi_model(cpar, handle)
+      
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
 !!$              & 1.198d-7 + 0d-9*rand_gauss(handle), &
@@ -539,7 +528,7 @@ program commander
 
 contains
 
-  subroutine process_TOD(cpar, chain, iter, handle)
+  subroutine process_all_TODs(cpar, chain, iter, handle)
     !
     ! Routine for TOD processing
     !
@@ -563,8 +552,6 @@ contains
     class(comm_N),    pointer :: N
 
     ndelta      = cpar%num_bp_prop + 1
-
-
 
     do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
@@ -591,7 +578,7 @@ contains
                 gainmap        => comm_map(c%x)
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
 
@@ -750,7 +737,7 @@ contains
     end do
     if (associated(gainmap)) call gainmap%dealloc()
 
-  end subroutine process_TOD
+  end subroutine process_all_TODs
 
   subroutine print_help()
     print '(a, /)', 'command-line options:'

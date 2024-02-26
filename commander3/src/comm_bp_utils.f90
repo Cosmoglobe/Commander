@@ -19,7 +19,6 @@
 !
 !================================================================================
 module comm_bp_utils
-  use sort_utils
   use comm_utils
   use comm_hdf_mod
   implicit none 

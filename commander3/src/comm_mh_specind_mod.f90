@@ -19,18 +19,7 @@
 !
 !================================================================================
 module comm_mh_specind_mod
-  use comm_param_mod
-  use comm_data_mod
-  use comm_comp_mod
-  use comm_chisq_mod
-  use comm_gain_mod
-  use comm_line_comp_mod
-  use comm_diffuse_comp_mod
   use comm_signal_mod
-  use comm_utils
-  use InvSamp_mod
-  use powell_mod
-  use comm_output_mod
   implicit none
 
 contains
@@ -66,7 +55,7 @@ contains
            todo = .false.
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -98,14 +87,14 @@ contains
        end select
        
        !go to next component
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Update mixing matrices
     c => compList
     do while (associated(c))
        call c%updateMixmat
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Perform component separation
@@ -138,7 +127,7 @@ contains
            todo = .false.
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -271,7 +260,7 @@ contains
            todo = .false.
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -286,7 +275,7 @@ contains
     c => compList
     do while (associated(c))
        if (c%npar == 0) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
                     
@@ -333,7 +322,7 @@ contains
        end do
        
        !go to next component
-       c => c%next()
+       c => c%nextComp()
            
     end do
 
@@ -341,7 +330,7 @@ contains
     c => compList
     do while (associated(c))
        call c%updateMixmat
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Perform component separation
@@ -374,7 +363,7 @@ contains
            todo = .false.
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -398,7 +387,7 @@ contains
       c => compList
       do while (associated(c))
          if (c%npar == 0) then
-            c => c%next()
+            c => c%nextComp()
             cycle
          end if
                       
@@ -427,7 +416,7 @@ contains
          end do
          
          !go to next component
-         c => c%next()
+         c => c%nextComp()
              
       end do
 
@@ -435,7 +424,7 @@ contains
       c => compList
       do while (associated(c))
          call c%updateMixmat
-         c => c%next()
+         c => c%nextComp()
       end do
 
       ! Perform component separation
@@ -467,7 +456,7 @@ contains
              todo = .false.
            end if
          end select
-         c => c%next()
+         c => c%nextComp()
       end do
 
       if (cpar%myid_chain == 0) then

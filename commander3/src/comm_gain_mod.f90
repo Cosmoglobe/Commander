@@ -19,12 +19,7 @@
 !
 !================================================================================
 module comm_gain_mod
-  use comm_param_mod
-  use comm_data_mod
-  use comm_comp_mod
-  use comm_chisq_mod
   use comm_signal_mod
-  use comm_cmb_comp_mod
   implicit none
 
 contains
@@ -88,7 +83,7 @@ contains
           sig%map = sig%map + m
           deallocate(m)
        end if
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Compute residual
@@ -291,7 +286,7 @@ contains
                  exit
               end if
            end do
-           c => c%next()
+           c => c%nextComp()
         end do
 
         ! Compute residual
@@ -338,7 +333,7 @@ contains
     c => compList
     do while (associated(c))
        call c%updateMixmat
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Do component separation
@@ -387,7 +382,7 @@ contains
                  exit
               end if
            end do
-           c => c%next()
+           c => c%nextComp()
         end do
 
         ! Compute residual
@@ -441,7 +436,7 @@ contains
       c => compList
       do while (associated(c))
          call c%updateMixmat
-         c => c%next()
+         c => c%nextComp()
       end do
 
     else

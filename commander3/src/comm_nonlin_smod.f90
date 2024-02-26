@@ -71,7 +71,7 @@ contains
        c => compList
        do while (associated(c))
           call c%updateMixmat
-          c => c%next()
+          c => c%nextComp()
        end do
     end if
 
@@ -83,7 +83,7 @@ contains
     c => compList
     do while (associated(c))
        if (c%npar == 0) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
                     
@@ -167,7 +167,7 @@ contains
        end do
        
        !go to next component
-       c => c%next()
+       c => c%nextComp()
            
     end do
 
@@ -244,7 +244,7 @@ contains
     ! Sample spectral parameter (parid) for the given signal component
     c => compList
     do while (c%id /= comp_id)
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (c%p_gauss(2,par_id) == 0.d0) return
@@ -540,19 +540,19 @@ contains
              if (c%poltype(j) == 1) then      ! {T+E+B}
                 do q = 1, c%theta(j)%p%info%nmaps
                    alms(i,:,q) = alms(i,:,pl) ! Save to all maps
-                   call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                   call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                 end do
              else if (c%poltype(j) == 2) then ! {T,E+B}
                 if (pl == 1) then
-                   call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                   call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                 else
                    do q = 2, c%theta(j)%p%info%nmaps
                       alms(i,:,q) = alms(i,:,pl)
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                      call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                    end do
                 end if
              else if (c%poltype(j) == 3) then ! {T,E,B}
-                call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
              end if
 
              ! Update mixing matrix with new alms
@@ -656,21 +656,21 @@ contains
                 if (c%poltype(j) == 1) then      ! {T+E+B}
                    do q = 1, c%theta(j)%p%info%nmaps
                       alms(i,:,q) = alms(i-1,:,pl) ! Save to all mapsb
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)
+                      call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)
                    end do
                 else if (c%poltype(j) == 2) then ! {T,E+B}
                    if (pl == 1) then
                       alms(i,:,pl) = alms(i-1,:,pl) 
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, 1)
+                      call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, 1)
                    else
                       do q = 2, c%theta(j)%p%info%nmaps
                          alms(i,:,q) = alms(i-1,:,pl)
-                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)                            
+                         call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, q, q)                            
                       end do
                    end if
                 else if (c%poltype(j) == 3) then ! {T,E,B}
                    alms(i,:,pl) = alms(i-1,:,pl)
-                   call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, pl)
+                   call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i-1, pl, pl)
                 end if
 
                 ! Revert results
@@ -832,19 +832,19 @@ contains
                 if (c%poltype(j) == 1) then      ! {T+E+B}
                    do q = 1, c%theta(j)%p%info%nmaps
                       alms(i,:,q) = alms(i,:,pl) ! Save to all maps
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                      call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                    end do
                 else if (c%poltype(j) == 2) then ! {T,E+B}
                    if (pl == 1) then
-                      call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                      call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                    else
                       do q = 2, c%theta(j)%p%info%nmaps
                          alms(i,:,q) = alms(i,:,pl)
-                         call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
+                         call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, q, q)
                       end do
                    end if
                 else if (c%poltype(j) == 3) then ! {T,E,B}
-                   call distribute_alms(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
+                   call distribute_alms_nonlin(c%theta(j)%p%alm, alms, c%theta(j)%p%info%nalm, c%theta(j)%p%info%lm, i, pl, pl)
                 end if
 
                 ! Update mixing matrix with new alms
@@ -1001,7 +1001,7 @@ contains
 
     c           => compList     
     do while (c%id /= comp_id)
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! HKE: Only perform joint Powell search
@@ -1417,7 +1417,7 @@ contains
     do j = 1, size(comp_labels)
        c_in => compList     
        do while (trim(c_in%label) /= trim(comp_labels(j)))
-          c_in => c_in%next()
+          c_in => c_in%nextComp()
        end do
        select type (c_in)
        class is (comm_diffuse_comp)
@@ -1869,7 +1869,7 @@ contains
 
   end subroutine gather_alms
 
-  module subroutine distribute_alms(alm, alms, nalm, lm, i, pl, pl_tar)
+  module subroutine distribute_alms_nonlin(alm, alms, nalm, lm, i, pl, pl_tar)
     implicit none
 
     real(dp), dimension(0:,1:),    intent(inout)    :: alm
@@ -1886,7 +1886,7 @@ contains
        alm(k,pl_tar) = alms(i,ind,pl)
     end do
 
-  end subroutine distribute_alms
+  end subroutine distribute_alms_nonlin
 
   module subroutine compute_corrlen(x, fix, n, maxit, corrlen)
     implicit none
@@ -1990,7 +1990,7 @@ contains
 
     c           => compList     
     do while (comp_id /= c%id)
-       c => c%next()
+       c => c%nextComp()
     end do
     select type (c)
     class is (comm_diffuse_comp)
@@ -2122,7 +2122,7 @@ contains
 
     c           => compList     
     do while (comp_id /= c%id)
-       c => c%next()
+       c => c%nextComp()
     end do
     select type (c)
     class is (comm_diffuse_comp)
@@ -2272,7 +2272,7 @@ contains
     id = par_id
     c           => compList     
     do while (comp_id /= c%id)
-       c => c%next()
+       c => c%nextComp()
     end do
     select type (c)
     class is (comm_diffuse_comp)
@@ -2442,7 +2442,7 @@ contains
 
     c           => compList     
     do while (comp_id /= c%id)
-       c => c%next()
+       c => c%nextComp()
     end do
     select type (c)
     class is (comm_diffuse_comp)
@@ -2623,7 +2623,7 @@ contains
                 end if
              end select
 
-             c2 => c2%next()
+             c2 => c2%nextComp()
           end do
           
        end if
@@ -2882,7 +2882,7 @@ contains
                       end if
                    end select
 
-                   c2 => c2%next()
+                   c2 => c2%nextComp()
                 end do
 
              end if
@@ -3864,7 +3864,7 @@ contains
                    end if
                 end select
 
-                c2 => c2%next()
+                c2 => c2%nextComp()
              end do
           end if
        end do

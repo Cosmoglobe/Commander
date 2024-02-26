@@ -19,12 +19,7 @@
 !
 !================================================================================
 module comm_freefreeEM_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_map_mod
-  use comm_F_int_2D_mod
-  use comm_data_mod
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -36,11 +31,11 @@ module comm_freefreeEM_comp_mod
   !*******************************************************
   type, extends (comm_diffuse_comp) :: comm_freefreeEM_comp
    contains
-     procedure :: S    => evalSED
+     procedure :: S    => evalSED_ffEM
   end type comm_freefreeEM_comp
 
   interface comm_freefreeEM_comp
-     procedure constructor
+     procedure constructor_ffEM
   end interface comm_freefreeEM_comp
 
 contains
@@ -48,11 +43,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor_ffEM(cpar, id, id_abs) result(c)
     implicit none
     type(comm_params),   intent(in) :: cpar
     integer(i4b),        intent(in) :: id, id_abs
-    class(comm_freefreeEM_comp), pointer   :: constructor
+    class(comm_freefreeEM_comp), pointer   :: c
 
     integer(i4b) :: i, j, k, l, m, n, p, ierr
     type(comm_mapinfo), pointer :: info => null()
@@ -64,89 +59,89 @@ contains
     class(comm_mapinfo), pointer :: info2 => null()
 
     ! General parameters
-    allocate(constructor)
+    allocate(c)
 
 
-    constructor%npar         = 2
-    allocate(constructor%poltype(constructor%npar))
-    do i = 1, constructor%npar
-       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
+    c%npar         = 2
+    allocate(c%poltype(c%npar))
+    do i = 1, c%npar
+       c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
-    call constructor%initLmaxSpecind(cpar, id, id_abs)
+    call c%initLmaxSpecind(cpar, id, id_abs)
 
-    call constructor%initDiffuse(cpar, id, id_abs)
+    call c%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
-    allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))
-    allocate(constructor%indlabel(2))
-    allocate(constructor%nu_min_ind(2), constructor%nu_max_ind(2))
+    allocate(c%theta_def(2), c%p_gauss(2,2), c%p_uni(2,2))
+    allocate(c%indlabel(2))
+    allocate(c%nu_min_ind(2), c%nu_max_ind(2))
     do i = 1, 2
-       constructor%theta_def(i)  = cpar%cs_theta_def(i,id_abs)
-       constructor%p_uni(:,i)    = cpar%cs_p_uni(id_abs,:,i)
-       constructor%p_gauss(:,i)  = cpar%cs_p_gauss(id_abs,:,i)
-       constructor%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
-       constructor%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
+       c%theta_def(i)  = cpar%cs_theta_def(i,id_abs)
+       c%p_uni(:,i)    = cpar%cs_p_uni(id_abs,:,i)
+       c%p_gauss(:,i)  = cpar%cs_p_gauss(id_abs,:,i)
+       c%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
+       c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
-    constructor%indlabel  = ['EM', 'Te']
+    c%indlabel  = ['EM', 'Te']
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    allocate(c%F_int(3,numband,0:c%ndet))
     do k = 1, 3
        do i = 1, numband
           do j = 0, data(i)%ndet
              if (k > 1) then
-                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                   c%F_int(k,i,j)%p => c%F_int(k-1,i,j)%p
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+             c%F_int(k,i,j)%p => comm_F_int_2D(c, data(i)%bp(j)%p, k)
           end do
        end do
     end do
 
     ! Initialize spectral index map
-    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & constructor%nmaps, constructor%pol)
+    info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
+         & c%nmaps, c%pol)
 
-    allocate(constructor%theta(constructor%npar))
-    do i = 1, constructor%npar
+    allocate(c%theta(c%npar))
+    do i = 1, c%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default' .or. trim(cpar%cs_input_ind(i,id_abs)) == 'none') then
-          constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(i)
+          c%theta(i)%p => comm_map(info)
+          c%theta(i)%p%map = c%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
+          c%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
           if (i == 1) then
-             constructor%theta(i)%p%map = log(constructor%theta(i)%p%map)
+             c%theta(i)%p%map = log(c%theta(i)%p%map)
           end if
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0
-       if (constructor%lmax_ind >= 0) then
+       if (c%lmax_ind >= 0) then
           ! if lmax >= 0 we can get alm values for the theta map
-          call constructor%theta(i)%p%YtW_scalar
+          call c%theta(i)%p%YtW_scalar
        end if
     end do
 
-    call constructor%initPixregSampling(cpar, id, id_abs)
+    call c%initPixregSampling(cpar, id, id_abs)
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
+    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    call c%updateMixmat
 
-  end function constructor
+  end function constructor_ffEM
 
   ! Definition:
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_ffEM(self, nu, band, pol, theta)
     implicit none
     class(comm_freefreeEM_comp),    intent(in)      :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
-    real(dp)                                      :: evalSED
+    real(dp)                                      :: evalSED_ffEM
     real(dp)     :: S, S_ref, EM, T_e
     real(dp)     :: g, g_ref, Z_i, tau, tau_ref, EM1, Te
 
@@ -156,9 +151,9 @@ contains
     g       = log(exp(5.960d0 - sqrt(3.d0)/pi * log(Z_i * nu/1.d9 * (Te/1.d4)**(-1.5d0))) + 2.71828d0)
     tau     = 5.468d-2 * Te**(-1.5d0) * (nu/1.d9)**(-2) * EM * g
 
-    evalSED = 1.d6 * Te * (1.d0 - exp(-tau)) 
+    evalSED_ffEM = 1.d6 * Te * (1.d0 - exp(-tau)) 
     
-  end function evalSED
+  end function evalSED_ffEM
 
   
 end module comm_freefreeEM_comp_mod

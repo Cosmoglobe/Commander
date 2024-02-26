@@ -19,13 +19,8 @@
 !
 !================================================================================
 module comm_chisq_mod
-  use comm_data_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_template_comp_mod
+  use comm_comp_interface_mod
   implicit none
-
 
 contains
 
@@ -257,7 +252,7 @@ contains
           if (c%active_samp_group(cg_samp_group)) skip = .true.
        end if
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
 
@@ -286,7 +281,7 @@ contains
           ptsrc%map = ptsrc%map + map
           deallocate(map)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     if (nonzero) call res%Y()
 
@@ -314,7 +309,7 @@ contains
     c => compList
     do while (associated(c))
        if (trim(c%type) /= 'cmb') then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        
@@ -340,7 +335,7 @@ contains
           deallocate(alm)
           call dipole%dealloc(); deallocate(dipole)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Clean up
@@ -389,7 +384,7 @@ contains
        c => compList
        do while (associated(c))
           if (trim(c%type) == 'md') then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
 
@@ -425,7 +420,7 @@ contains
           filename = trim(outdir)//'/'//trim(c%label)//'_'//trim(data(i)%label)//'_'//trim(postfix)//'.fits'
           !call data(i)%apply_proc_mask(out)
           if (.not. skip) call out%writeFITS(filename)
-          c => c%next()
+          c => c%nextComp()
        end do
        call out%dealloc; deallocate(out)
     end do
@@ -489,7 +484,7 @@ contains
     map_diff%alm = 0.d0
     do while (associated(c))
        if (.not. mono_ .and. trim(c%type)=="md") then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -534,7 +529,7 @@ contains
           end if
           deallocate(map)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     
     call map_diff%Y()

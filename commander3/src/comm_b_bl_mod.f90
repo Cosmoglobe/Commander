@@ -19,11 +19,7 @@
 !
 !================================================================================
 module comm_B_bl_mod
-  use comm_param_mod
-  use comm_map_mod
   use comm_B_mod
-  use comm_utils
-  use spline_1D_mod
   implicit none
 
   private
@@ -32,8 +28,8 @@ module comm_B_bl_mod
   type, extends (comm_B) :: comm_B_bl
    contains
      ! Data procedures
-     procedure :: conv           => matmulB
-     procedure :: deconv         => matmulInvB
+     procedure :: conv           => matmulB_bl
+     procedure :: deconv         => matmulInvB_bl
      procedure :: update         => updateBeam
   end type comm_B_bl
 
@@ -106,7 +102,7 @@ contains
     
   end function constructor
   
-  subroutine matmulB(self, trans, map)
+  subroutine matmulB_bl(self, trans, map)
     implicit none
     class(comm_B_bl), intent(in)    :: self
     logical(lgt),     intent(in)    :: trans
@@ -125,9 +121,9 @@ contains
        end if
     end do
 
-  end subroutine matmulB
+  end subroutine matmulB_bl
 
-  subroutine matmulInvB(self, trans, map)
+  subroutine matmulInvB_bl(self, trans, map)
     implicit none
     class(comm_B_bl), intent(in)    :: self
     logical(lgt),     intent(in)    :: trans
@@ -150,7 +146,7 @@ contains
        end if
     end do
 
-  end subroutine matmulInvB
+  end subroutine matmulInvB_bl
 
   subroutine updateBeam(self, b_l_norm, mb_eff) 
     implicit none
