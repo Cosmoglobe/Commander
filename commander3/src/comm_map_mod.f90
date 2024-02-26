@@ -36,7 +36,6 @@ module comm_map_mod
 
 !  include "mpif.h"
       
-  private
   public comm_map, comm_mapinfo, map_ptr, write_map
 
 

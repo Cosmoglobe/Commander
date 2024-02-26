@@ -31,23 +31,7 @@ module comm_tod_lfi_mod
   !   process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-  use comm_tod_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_conviqt_mod
-  use pix_tools
-  use healpix_types
-  use comm_huffman_mod
-  use comm_hdf_mod
-  use comm_fft_mod
-  use comm_shared_arr_mod
-  use spline_1D_mod
-  use comm_4D_map_mod
   use comm_tod_driver_mod
-  use comm_utils
-  use comm_tod_adc_mod
-  use comm_bp_mod
-
   implicit none
 
   private
@@ -84,7 +68,7 @@ module comm_tod_lfi_mod
   end type comm_lfi_tod
 
   interface comm_lfi_tod
-     procedure constructor
+     procedure constructor_lfi
   end interface comm_lfi_tod
 
   type double_pointer
@@ -96,7 +80,7 @@ interface
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor_lfi(handle, cpar, id, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -124,11 +108,11 @@ interface
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
-    integer(i4b),              intent(in)    :: id_abs
+    integer(i4b),              intent(in)    :: id, id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
     class(comm_lfi_tod),       pointer       :: res
-  end function constructor
+  end function constructor_lfi
 
   !**************************************************
   !             Driver routine

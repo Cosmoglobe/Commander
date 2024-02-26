@@ -30,22 +30,7 @@ module comm_tod_HFI_mod
   !   process_HFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-  use comm_tod_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_conviqt_mod
-  use pix_tools
-  use healpix_types
-  use comm_huffman_mod
-  use comm_hdf_mod
-  use comm_fft_mod
-  use comm_shared_arr_mod
-  use spline_1D_mod
-  use comm_4D_map_mod
   use comm_tod_driver_mod
-  use comm_utils
-  use comm_bp_mod
-
   implicit none
 
   private
@@ -61,7 +46,7 @@ module comm_tod_HFI_mod
   end type comm_HFI_tod
 
   interface comm_HFI_tod
-     procedure constructor
+     procedure constructor_hfi
   end interface comm_HFI_tod
 
 contains
@@ -69,7 +54,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info, tod_type)
+  function constructor_hfi(cpar, id, id_abs, info, tod_type) result(c)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -92,83 +77,83 @@ contains
 
     implicit none
     type(comm_params),       intent(in) :: cpar
-    integer(i4b),            intent(in) :: id_abs
+    integer(i4b),            intent(in) :: id, id_abs
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type
-    class(comm_HFI_tod),     pointer    :: constructor
+    class(comm_HFI_tod),     pointer    :: c
 
     integer(i4b) :: i, j, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
     ! Allocate object
-    allocate(constructor)
+    allocate(c)
 
     ! Set up noise PSD type and priors
-    constructor%freq            = cpar%ds_label(id_abs)
-    constructor%n_xi            = 3
-    constructor%noise_psd_model = 'oof'
-    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    c%freq            = cpar%ds_label(id_abs)
+    c%n_xi            = 3
+    c%noise_psd_model = 'oof'
+    allocate(c%xi_n_P_uni(c%n_xi,2))
+    allocate(c%xi_n_P_rms(c%n_xi))
 
     ! just so that it actually runs
-    constructor%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
-    constructor%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    !constructor%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
+    c%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
+    c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
+    !c%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
 
-    constructor%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
 
     ! Initialize common parameters
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
-    constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    constructor%nhorn           = 1
-    constructor%compressed_tod  = .true.
-    constructor%correct_sl      = .false.
-    constructor%correct_orb     = .true.
-    constructor%orb_4pi_beam    = .false.
-    constructor%symm_flags      = .false.
-    constructor%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
-    constructor%nmaps           = info%nmaps
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
-    constructor%ntime           = 1
-    constructor%HFI_flag        = .true.
-    constructor%partner         = -1
+    c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    c%nhorn           = 1
+    c%compressed_tod  = .true.
+    c%correct_sl      = .false.
+    c%correct_orb     = .true.
+    c%orb_4pi_beam    = .false.
+    c%symm_flags      = .false.
+    c%chisq_threshold = 1000.d0 !20.d0 ! 9.d0
+    c%nmaps           = info%nmaps
+    c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), "," )
+    c%ntime           = 1
+    c%HFI_flag        = .true.
+    c%partner         = -1
 
     nside_beam                  = 512
     nmaps_beam                  = 3
     pol_beam                    = .true.
-    constructor%nside_beam      = nside_beam
+    c%nside_beam      = nside_beam
 
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+    call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
     
     ! Read the actual TOD
-    call constructor%read_tod(constructor%label)
+    call c%read_tod(c%label)
 
     ! Initialize bandpass mean and proposal matrix
-    !call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    !call c%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    call constructor%precompute_lookups()
+    call c%precompute_lookups()
 
     ! Load the instrument file
-    call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Allocate sidelobe convolution data structures
-    !allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
+    !allocate(c%slconv(c%ndet), c%orb_dp)
     
-    allocate(constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    allocate(c%orb_dp)
+    c%orb_dp => comm_orbdipole(c%mbeam)
 
     ! Initialize all baseline corrections to zero
-    do i = 1, constructor%nscan
-      do j = 1, constructor%ndet
-       constructor%scans(i)%d(j)%baseline = 0.d0
+    do i = 1, c%nscan
+      do j = 1, c%ndet
+       c%scans(i)%d(j)%baseline = 0.d0
       end do
     end do
 
-  end function constructor
+  end function constructor_hfi
 
   !**************************************************
   !             Driver routine

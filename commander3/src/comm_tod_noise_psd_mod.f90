@@ -29,7 +29,6 @@ module comm_tod_noise_psd_mod
   !   comm_noise_psd_2oof
   !       Class for two-component 1/f noise model
   use comm_utils
-  use spline_1D_mod
   implicit none
 
   private

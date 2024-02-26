@@ -19,21 +19,11 @@
 !
 !================================================================================
 module comm_cr_mod
-  use comm_comp_mod
-  use comm_data_mod
-  use comm_param_mod
-  use comm_diffuse_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_template_comp_mod
-  use rngmod
-  use comm_cr_utils
-  use comm_cr_precond_mod
-  use math_tools
   use comm_output_mod
   implicit none
 
-  private
-  public solve_cr_eqn_by_CG, cr_amp2x, cr_x2amp, cr_computeRHS, cr_matmulA, cr_invM
+!  private
+!  public solve_cr_eqn_by_CG, cr_amp2x, cr_x2amp, cr_computeRHS, cr_matmulA, cr_invM
 
   interface cr_amp2x
      module procedure cr_amp2x_full
@@ -91,7 +81,7 @@ contains
        c       => compList
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -122,7 +112,7 @@ contains
                 deallocate(pamp)
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
     end if
 !!$    eps = 0
@@ -132,7 +122,7 @@ contains
 !!$       c   => compList
 !!$       do while (associated(c))
 !!$          if (.not. c%active_samp_group(samp_group)) then
-!!$             c => c%next()
+!!$             c => c%nextComp()
 !!$             cycle
 !!$          end if
 !!$          select type (c)
@@ -142,7 +132,7 @@ contains
 !!$             eps = eps + sum(abs(mp))
 !!$             deallocate(mp)
 !!$          end select
-!!$          c => c%next()
+!!$          c => c%nextComp()
 !!$       end do
 !!$    end do
 !!$    write(*,*) eps
@@ -236,7 +226,7 @@ contains
              c       => compList
              do while (associated(c))
                 if (.not. c%active_samp_group(samp_group)) then
-                   c => c%next()
+                   c => c%nextComp()
                    cycle
                 end if
                 select type (c)
@@ -267,7 +257,7 @@ contains
                       deallocate(pamp)
                    end if
                 end select
-                c => c%next()
+                c => c%nextComp()
              end do
              call cr_x2amp(samp_group, x_out)
              call output_FITS_sample(cpar, i, .false.)
@@ -307,7 +297,7 @@ contains
     c       => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -341,7 +331,7 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     !call update_status(status, "cr8")
 
@@ -380,7 +370,7 @@ contains
     c       => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -411,7 +401,7 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     call cr_x2amp(samp_group, x_out)
     call compute_chisq(comm, chisq_fullsky=chisq)
@@ -451,7 +441,7 @@ contains
              ind    = ind + 1
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine cr_amp2x_full
@@ -486,7 +476,7 @@ contains
              ind      = ind + 1
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     
   end subroutine cr_x2amp_full
@@ -578,7 +568,7 @@ contains
        c => compList
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -638,7 +628,7 @@ contains
              end if
              deallocate(Tp)
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
        call map%dealloc(); deallocate(map)
@@ -648,7 +638,7 @@ contains
     c => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -719,7 +709,7 @@ contains
              deallocate(eta)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
 
     end do
     nullify(c)
@@ -758,7 +748,7 @@ contains
 !    !write(*,*) 'df2'
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -792,7 +782,7 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     call wall_time(t2)
     !if (myid == 0) write(*,fmt='(a,f8.2)') 'sqrtS time = ', real(t2-t1,sp)
@@ -812,7 +802,7 @@ contains
     !write(*,*) 'df41'
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -849,9 +839,7 @@ contains
              pmap%map = pmap%map + m
              deallocate(pamp, m)
           end select
-    !write(*,*) 'df47'
-          c => c%next()
-    !write(*,*) 'df48'
+          c => c%nextComp()
        end do
        !call update_status(status, "A9")
     !write(*,*) 'df49'
@@ -895,7 +883,7 @@ contains
        !call update_status(status, "A13")
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -920,7 +908,7 @@ contains
              if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
              deallocate(pamp)
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
@@ -936,7 +924,7 @@ contains
     c   => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -984,7 +972,7 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     nullify(c)
     call wall_time(t2)
@@ -1050,7 +1038,7 @@ contains
              deallocate(alm, alm0)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     deallocate(Qx)
@@ -1083,7 +1071,7 @@ contains
              deallocate(alm, Qalm)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine applyDeflatePrecond
@@ -1104,7 +1092,7 @@ contains
           class is (comm_diffuse_comp)
              call c%updateDeflatePrecond()
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
     end if
 
@@ -1123,7 +1111,7 @@ contains
              call c%updateLowlPrecond()
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     first_call = .false.

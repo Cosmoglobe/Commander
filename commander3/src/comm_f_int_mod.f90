@@ -1,13 +1,12 @@
 module comm_F_int_mod
-  use comm_utils
   use comm_bp_mod
+  use comm_comp_mod
+  use spline_2d_mod
   implicit none
 
-  private
-  public comm_F_int, F_int_ptr
-  
   type, abstract :: comm_F_int
      class(comm_bp), pointer :: bp
+     class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
      procedure(evalIntF),     deferred :: eval

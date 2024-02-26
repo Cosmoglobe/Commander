@@ -1,17 +1,14 @@
 module comm_zodi_samp_mod
-   use comm_tod_mod
-   use comm_utils
-   use comm_data_mod
-   use comm_tod_zodi_mod
    use comm_zodi_mod
-   use comm_tod_driver_mod
    use comm_chisq_mod
    use powell_mod
    implicit none
 
    private
-   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi, zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_glitch_mask, apply_zodi_glitch_mask
-
+   public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi
+   public zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_glitch_mask
+   public apply_zodi_glitch_mask, sample_static_zodi_model
+   
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
    real(dp), allocatable :: powell_emissivity(:, :), powell_albedo(:, :)
    integer(i4b) :: n_samp_bands, reference_emissivity_band
@@ -202,12 +199,10 @@ contains
                   
                   n_downsamp_tod(i) = n_downsamp_tod(i) + size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
                   ! rescale downsampled zodi comp-wise emission with newly proposed n0s
-                  call get_s_zodi(&
+                  call get_s_zodi(i, &
                      & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                      & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                     & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                     & emissivity=data(i)%tod%zodi_emissivity, &
-                     & albedo=data(i)%tod%zodi_albedo &
+                     & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                   &)
                   ! compute monopole step size
                   if (first_prop) then 
@@ -313,8 +308,10 @@ contains
       allocate(eta_albedo(n_samp_bands, model%n_comps))
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
-         emissivity_prev(i, :) = data(i)%tod%zodi_emissivity
-         albedo_prev(i, :) = data(i)%tod%zodi_albedo
+         do j = 1, model%n_comps
+            emissivity_prev(i,j) = model%comps(j)%c%emissivity(i)
+            albedo_prev(i,j)     = model%comps(j)%c%albedo(i)
+         end do
       end do
       emissivity_new = emissivity_prev
       albedo_new = albedo_prev
@@ -352,7 +349,7 @@ contains
             ndet = data(i)%tod%ndet
             nscan = data(i)%tod%nscan
             box_width = get_boxwidth(data(i)%tod%samprate_lowres, data(i)%tod%samprate)
-            scattering = any(data(i)%tod%zodi_albedo > EPS)
+            !scattering = any(data(i)%tod%zodi_albedo > EPS)
             do scan = 1, nscan
                do j = 1, ndet
                   if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
@@ -442,8 +439,10 @@ contains
       end do
       do i = 1, numband
          if (data(i)%tod_type == "none") cycle
-         data(i)%tod%zodi_albedo = albedo_prev(i, :)
-         data(i)%tod%zodi_emissivity = emissivity_prev(i, :)
+         do j = 1, model%n_comps
+            model%comps(j)%c%emissivity(i) = emissivity_prev(i,j)
+            model%comps(j)%c%albedo(i)     = albedo_prev(i,j) 
+         end do
       end do
    end subroutine
 
@@ -545,12 +544,10 @@ contains
                          & model=current_model, &
                          & use_lowres_pointing=.true. &
                      &)
-                     call get_s_zodi(&
+                     call get_s_zodi(i, &
                          & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                          & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                         & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                         & emissivity=data(i)%tod%zodi_emissivity, &
-                         & albedo=data(i)%tod%zodi_albedo &
+                         & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                          &)
 
                      chisq_tod = chisq_tod + sum( &
@@ -659,7 +656,7 @@ contains
 
       integer(i4b) :: i, j, k, l, g, scan, npix, nmaps, ndelta, ext(2), padding, ierr, ntod, ndet, nhorn, ndownsamp, box_halfwidth
       real(dp) :: box_width, dt_tod, theta, phi, vec0(3), vec1(3), M_ecl2gal(3,3), day, lambda_solar, lat, lon
-      real(sp), allocatable :: tod(:), mask(:), downsamp_vec(:, :)
+      real(sp), allocatable :: tod(:), mask(:), downsamp_vec(:, :), s_static(:)
       integer(i4b), allocatable :: pix(:, :), psi(:, :), flag(:)
       real(dp), allocatable, dimension(:, :) :: m_buf, vec
       integer(i4b), allocatable, dimension(:) :: downsamp_pix
@@ -700,6 +697,7 @@ contains
             allocate (psi(ntod, nhorn))
             allocate (flag(ntod))
             allocate (tod(ntod))
+            allocate (s_static(ntod))
             allocate (mask(ntod))
             allocate (vec(3, ntod))
 
@@ -737,11 +735,14 @@ contains
 
                call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
 
+               ! Get TOD after subtracting static zodi
                if (data(i)%tod%compressed_tod) then
                   call data(i)%tod%decompress_tod(scan, j, tod)
                else
                   tod = data(i)%tod%scans(scan)%d(j)%tod
                end if
+               call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_static, pix_static=data(i)%tod%scans(scan)%d(j)%pix_sol)
+               tod = tod - s_static
 
                do k = 1, data(i)%tod%scans(scan)%ntod
                   mask(k) = procmask_zodi(pix(k, 1))
@@ -841,7 +842,7 @@ contains
                
             end do
             deallocate (obs_time, downsamp_obs_time)
-            deallocate (pix, psi, vec, flag, tod, mask, downsamp_tod, downsamp_mask, downsamp_pix, downsamp_mask_idx, downsamp_vec)
+            deallocate (pix, psi, vec, flag, tod, s_static,  mask, downsamp_tod, downsamp_mask, downsamp_pix, downsamp_mask_idx, downsamp_vec)
          end do
 
          deallocate (m_buf, procmask_zodi)
@@ -1040,12 +1041,10 @@ contains
                    & model=model, &
                    & use_lowres_pointing=.true. &
                &)
-               call get_s_zodi(&
+               call get_s_zodi(i, &
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                   & emissivity=data(i)%tod%zodi_emissivity, &
-                   & albedo=data(i)%tod%zodi_albedo &
+                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                    &)
             end do
          end do
@@ -1356,12 +1355,10 @@ contains
                    &)
                call wall_time(t4)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU1 = ', t4-t3
-               call get_s_zodi(&
+               call get_s_zodi(i, &
                    & s_therm=data(i)%tod%scans(scan)%d(j)%downsamp_therm, &
                    & s_scat=data(i)%tod%scans(scan)%d(j)%downsamp_scat, &
-                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi, &
-                   & emissivity=data(i)%tod%zodi_emissivity, &
-                   & albedo=data(i)%tod%zodi_albedo &
+                   & s_zodi=data(i)%tod%scans(scan)%d(j)%downsamp_zodi &
                    &)
                call wall_time(t3)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
@@ -1955,7 +1952,7 @@ contains
          if (.not. data(i)%tod%subtract_zodi) cycle
          concatenated_string = ""
          do j = 1, model%n_comps
-            write(val, fmt='(ES12.5)') data(i)%tod%zodi_emissivity(j)
+            write(val, fmt='(ES12.5)') model%comps(j)%c%emissivity(i) 
             concatenated_string = trim(adjustl(concatenated_string)) // "," // trim(adjustl(val))
          end do
          write(io, fmt='(a, T25, a, a)') trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), "= ", trim(adjustl(concatenated_string(2:)))
@@ -1967,7 +1964,7 @@ contains
          if (.not. data(i)%tod%subtract_zodi) cycle
          concatenated_string = ""
          do j = 1, model%n_comps
-            write(val, fmt='(ES12.5)') data(i)%tod%zodi_albedo(j)
+            write(val, fmt='(ES12.5)') model%comps(j)%c%albedo(i)
             concatenated_string = trim(adjustl(concatenated_string)) // "," // trim(adjustl(val))
          end do
          write(io, fmt='(a, T25, a, a)') trim(adjustl("ALBEDO_"//trim(adjustl(data(i)%tod%freq)))), "= ", trim(adjustl(concatenated_string(2:)))
@@ -1992,7 +1989,7 @@ contains
       real(dp), allocatable :: params(:)
 
       allocate(params(model%n_params))
-      if (cpar%myid_chain == cpar%root) then
+      !if (cpar%myid_chain == cpar%root) then
          inquire(file=trim(adjustl(filename)), exist=exists)
          if (.not. exists) then
             print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
@@ -2027,31 +2024,31 @@ contains
          do i = 1, size(labels)
             call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
          end do
-      end if
+      !end if
 
-      call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+      !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       call model%params_to_model2(params)
 
       do i = 1, numband
          if (trim(data(i)%tod_type) == 'none') cycle
          if (.not. data(i)%tod%subtract_zodi) cycle
-         if (cpar%myid == 0) then
+         !if (cpar%myid == 0) then
             call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
             call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
             if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
             do j = 1, n_comps
-               read(toks(j), *) data(i)%tod%zodi_emissivity(j)
+               read(toks(j), *) model%comps(j)%c%emissivity(i)
             end do
 
             call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
             call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
             if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
             do j = 1, n_comps
-               read(toks(j), *) data(i)%tod%zodi_albedo(j)
+               read(toks(j), *) model%comps(j)%c%albedo(i)
             end do
-         end if
-         call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-         call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+         !end if
+         !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+         !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       end do
    end subroutine
 
@@ -2203,8 +2200,8 @@ contains
               z(idx        +j) = 0.d0
               z(idx+numband+j) = 0.d0
            else
-              z(idx        +j) = data(j)%tod%zodi_emissivity(i)
-              z(idx+numband+j) = data(j)%tod%zodi_albedo(i)
+              z(idx        +j) = zodi%comps(i)%c%emissivity(j)
+              z(idx+numband+j) = zodi%comps(i)%c%albedo(j)
            end if
         end do
         idx = idx + 2*numband
@@ -2283,8 +2280,8 @@ contains
         idx = idx + zodi%comps(i)%npar
         do j = 1, numband
            if (data(j)%tod_type /= "none") then
-              data(j)%tod%zodi_emissivity(i) = z(idx+j)
-              data(j)%tod%zodi_albedo(i)     = z(idx+numband+j)
+              zodi%comps(i)%c%emissivity(j) = z(idx+j)
+              zodi%comps(i)%c%albedo(j)     = z(idx+numband+j)
            end if
         end do
         idx = idx + 2*numband
@@ -2302,6 +2299,140 @@ contains
      deallocate(z)
      
    end subroutine params_to_model
+   
+   subroutine sample_static_zodi_model(cpar, handle)
+     implicit none
+      type(comm_params), intent(inout) :: cpar
+      type(planck_rng), intent(inout) :: handle
 
+      integer(i4b) :: band, i, j, k, ndet, scan, nscan, npix, nmaps, p, ierr, ntod, nhorn, npix_band, ncomp
+      real(dp)     :: res, w
+      !type(comm_scandata) :: sd
+      real(dp),      allocatable, dimension(:)       :: A, b, em, al
+      real(sp),      allocatable, dimension(:)       :: s_sky
+      real(sp),      allocatable, dimension(:,:)     :: s_scat, s_therm
+      real(sp),      allocatable, dimension(:)       :: s_zodi
+      real(sp),      allocatable, dimension(:,:,:,:) :: map_sky
+      type(map_ptr), allocatable, dimension(:,:)     :: sky_signal
+      real(sp),      allocatable, dimension(:)       :: tod, mask, procmask_zodi
+      real(dp),      allocatable, dimension(:,:)     :: m_buf
+      integer(i4b),  allocatable, dimension(:,:)     :: pix, psi
+      integer(i4b),  allocatable, dimension(:)       :: flag
 
+      if (cpar%myid == 0) then
+         write(*,*) '   Sampling static zodi component'
+      end if
+      
+      npix  = 12*cpar%zodi_solar_nside**2
+      nmaps = 1
+      ncomp = zodi_model%n_comps
+      allocate(em(ncomp), al(ncomp))
+
+      ! Allocate temporary map structures
+      allocate(A(0:npix-1), b(0:npix-1))
+      A = 0.d0; b = 0.d0
+
+      ! Add up contributions from all bands
+      do i = 1, numband
+         if (data(i)%tod_type == "none") cycle
+         if (.not. data(i)%tod%sample_zodi) cycle
+         ndet      = data(i)%tod%ndet
+         nscan     = data(i)%tod%nscan
+         nhorn     = data(i)%tod%nhorn
+         npix_band = 12*data(i)%map%info%nside**2
+
+         ! Set up emissivity and albedo
+         em = 1.d0; al = 0.d0
+         
+         ! Get and distribute sky signal
+         allocate(sky_signal(data(i)%tod%ndet,1))
+         do j = 1, data(i)%tod%ndet
+            call get_sky_signal(i, j, sky_signal(j,1)%p, mono=.true.)
+         end do
+         allocate (map_sky(nmaps, data(i)%tod%nobs, 0:data(i)%tod%ndet, 1))
+         call distribute_sky_maps(data(i)%tod, sky_signal, 1.e0, map_sky)
+
+         ! Initialize frequency-specific mask
+         allocate(m_buf(0:npix_band-1, nmaps), procmask_zodi(0:npix_band-1))
+         call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:, 1)
+         deallocate(m_buf)
+         
+         do scan = 1, nscan
+            ntod = data(i)%tod%scans(scan)%ntod
+            allocate(s_scat(ntod,ncomp), s_therm(ntod,ncomp), s_zodi(ntod), s_sky(ntod))
+            
+            do j = 1, ndet
+               if (.not. data(i)%tod%scans(scan)%d(j)%accept) cycle
+               
+               ! Get data and pointing
+               allocate(pix(ntod, nhorn), psi(ntod, nhorn), flag(ntod), tod(ntod), mask(ntod))
+               call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
+               !allocate(flag(ntod), tod(ntod), mask(ntod))
+               !call data(i)%tod%decompress_pointing_and_flags(scan, j, flag=flag)
+               if (data(i)%tod%compressed_tod) then
+                  call data(i)%tod%decompress_tod(scan, j, tod)
+               else
+                  tod = data(i)%tod%scans(scan)%d(j)%tod
+               end if
+
+               ! Set up mask; remove flagged samples and foreground contaminated regions
+               do k = 1, data(i)%tod%scans(scan)%ntod
+                  mask(k) = procmask_zodi(pix(k, 1))
+                  if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
+                  !vec(:, k) = data(i)%tod%ind2vec(:, data(i)%tod%pix2ind(pix(k, 1)))
+               end do
+               where (mask > 0.5) 
+                  mask = 1.
+               elsewhere
+                  mask = 0.
+               end where
+
+               ! Compute non-stationary zodi TOD 
+               call get_s_tot_zodi(zodi_model, data(i)%tod, j, scan, s_zodi, pix_dynamic=pix)
+               
+               !call get_zodi_emission(tod=data(i)%tod, pix=pix(:,1), scan=scan, &
+               !    & det=j, s_zodi_scat=s_scat, s_zodi_therm=s_therm, model=zodi_model)
+               !call get_s_zodi(s_therm=s_therm, s_scat=s_scat, s_zodi=s_zodi, emissivity=em, albedo=al)
+
+               ! Add residual to mapmaking equation in solar centric coordinates
+               do k = 1, ntod
+                  if (mask(k) == 0) cycle
+                  p        = data(i)%tod%scans(scan)%d(j)%pix_sol(k,1)
+                  w        = 1.d0/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0**2
+                  s_sky(k) = map_sky(1, data(i)%tod%pix2ind(pix(k, 1)), j, 1)  ! zodi is only temperature (for now)
+                  res      = tod(k) - (s_zodi(k)+s_sky(k))
+                  A(p)     = A(p) + w 
+                  b(p)     = b(p) + w * res
+               end do
+               deallocate(pix, psi, flag, tod, mask)
+            end do
+            deallocate(s_scat, s_therm, s_zodi, s_sky)
+         end do
+         deallocate(procmask_zodi,map_sky, sky_signal)
+      end do
+
+      ! Gather information across cores
+      call mpi_allreduce(MPI_IN_PLACE, A, size(A), MPI_DOUBLE_PRECISION, MPI_SUM, cpar%comm_chain, ierr)
+      call mpi_allreduce(MPI_IN_PLACE, b, size(b), MPI_DOUBLE_PRECISION, MPI_SUM, cpar%comm_chain, ierr)
+
+      ! Solve for best-fit map
+      where (A > 0.d0)
+         zodi_model%map_static(:,1) = b/A
+      elsewhere
+         zodi_model%map_static(:,1) = -1.6375d30
+      end where
+
+      ! Output to disk
+      if (cpar%myid == 0) then
+         call write_map2('zodi_static.fits', zodi_model%map_static)
+      end if
+
+      ! Clean up
+      deallocate(A, b, em, al)
+      
+!!$      call mpi_finalize(ierr)
+!!$      stop
+      
+    end subroutine sample_static_zodi_model
+    
 end module

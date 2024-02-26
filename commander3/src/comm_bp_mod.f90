@@ -23,9 +23,6 @@ module comm_bp_mod
   use comm_bp_utils
   implicit none 
 
-  private
-  public comm_bp, comm_bp_ptr, initialize_bp_mod
-
   type :: comm_bp
      ! Data variables
      character(len=512) :: type, model
@@ -47,7 +44,7 @@ module comm_bp_mod
 
 
   interface comm_bp
-     procedure constructor
+     procedure constructor_bp
   end interface comm_bp
 
   real(dp) :: ind_iras = 1.d0
@@ -75,7 +72,7 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs, detlabel, subdets)
+  function constructor_bp(cpar, id, id_abs, detlabel, subdets) result(c)
     !
     ! Initialization routine (constructor) for bandpass objects. Reads in bandpass 
     ! data, and precomputes default unit conversions etc.
@@ -102,7 +99,7 @@ contains
     type(comm_params),                intent(in)           :: cpar
     integer(i4b),                     intent(in)           :: id, id_abs
     character(len=*),                 intent(in), optional :: detlabel, subdets
-    class(comm_bp),     pointer             :: constructor
+    class(comm_bp),     pointer                            :: c
 
     integer(i4b)       :: i, j, ndet
     character(len=512) :: label
@@ -112,57 +109,57 @@ contains
     label = cpar%ds_label(id_abs)
     
     ! General parameters
-    allocate(constructor)
+    allocate(c)
     
-    constructor%nu_c = cpar%ds_nu_c(id_abs)
+    c%nu_c = cpar%ds_nu_c(id_abs)
     ! Define special case parameters
-    constructor%type = cpar%ds_bptype(id_abs)
-    select case (trim(constructor%type))
+    c%type = cpar%ds_bptype(id_abs)
+    select case (trim(c%type))
     case ('delta')
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case ('LFI') 
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case ('WMAP') 
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case ('DIRBE') 
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case ('HFI_cmb') 
-       constructor%threshold = 1.d-7
+       c%threshold = 1.d-7
     case ('PSM_LFI') 
-       constructor%threshold = 1.d-7
+       c%threshold = 1.d-7
     case ('HFI_submm') 
-       constructor%threshold = 1.d-5
+       c%threshold = 1.d-5
     case ('dame') 
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case ('LB')
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case ('SPIDER')
-       constructor%threshold = 0.d0
+       c%threshold = 0.d0
     case default
-       call report_error('Error -- unsupported bandpass type = '//trim(constructor%type))
+       call report_error('Error -- unsupported bandpass type = '//trim(c%type))
     end select
 
     ! Initialize unit scale
     if (trim(cpar%ds_unit(id_abs)) == 'mK_cmb') then
-       constructor%unit_scale = 1.d-3
+       c%unit_scale = 1.d-3
     else if (trim(cpar%ds_unit(id_abs)) == 'K_cmb') then
-       constructor%unit_scale = 1.d-6
+       c%unit_scale = 1.d-6
     else
-       constructor%unit_scale = 1.d0
+       c%unit_scale = 1.d0
     end if
 
 
     ! Initialize raw bandpass
-    if (trim(constructor%type) == 'delta') then
-       allocate(constructor%nu0(1),constructor%tau0(1), constructor%nu(1), constructor%tau(1))
-       constructor%n       = 1
-       constructor%nu0(1)  = constructor%nu_c
-       constructor%tau0(1) = 1.d0
+    if (trim(c%type) == 'delta') then
+       allocate(c%nu0(1),c%tau0(1), c%nu(1), c%tau(1))
+       c%n       = 1
+       c%nu0(1)  = c%nu_c
+       c%tau0(1) = 1.d0
     else
        if (present(detlabel)) then
           call read_bandpass(trim(cpar%ds_bpfile(id_abs)), detlabel, &
-               & constructor%threshold, &
-               & constructor%n, constructor%nu0, constructor%tau0)
+               & c%threshold, &
+               & c%n, c%nu0, c%tau0)
        else 
           if (index(subdets, '.txt') /=0) then
                ndet = count_detectors(subdets)
@@ -173,53 +170,53 @@ contains
           end if
           if (constructor%threshold == 0.d0) then
                call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(1), &
-                    & constructor%threshold, &
-                    & constructor%n, constructor%nu0, constructor%tau0)
+                    & c%threshold, &
+                    & c%n, c%nu0, c%tau0)
                do i = 2, ndet
                     call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(i), &
-                        & constructor%threshold, constructor%n, nu0, tau0)
-                    constructor%tau0 = constructor%tau0 + tau0
+                        & c%threshold, c%n, nu0, tau0)
+                    c%tau0 = c%tau0 + tau0
                     deallocate(nu0, tau0)
                end do
-               constructor%tau0 = constructor%tau0 / ndet
+               c%tau0 = c%tau0 / ndet
           else
                print *, "got to nonzero threshold, aborting"
                stop
                call read_bandpass_nonzero_threshold(cpar%ds_bpfile(id_abs), dets, ndet, &
-                    & constructor%threshold, &
-                    & constructor%n, constructor%nu0, constructor%tau0)
+                    & c%threshold, &
+                    & c%n, c%nu0, c%tau0)
           end if
        end if
-       allocate(constructor%nu(constructor%n), constructor%tau(constructor%n))
-       if (trim(constructor%type) == 'DIRBE') then
-          allocate(constructor%a2f_arr(constructor%n))
+       allocate(c%nu(c%n), c%tau(c%n))
+       if (trim(c%type) == 'DIRBE') then
+          allocate(c%a2f_arr(c%n))
        end if
     end if
     ! Initialize fitting model
-    constructor%model = cpar%ds_bpmodel(id_abs)
-    if (trim(constructor%model) == 'additive_shift') then
-       constructor%npar = 1
-       allocate(constructor%delta(constructor%npar))
-       constructor%delta = 0.d0
-    else if (trim(constructor%model) == 'powlaw_tilt') then
-       constructor%npar = 1
-       allocate(constructor%delta(constructor%npar))
-       constructor%delta = 0.d0
+    c%model = cpar%ds_bpmodel(id_abs)
+    if (trim(c%model) == 'additive_shift') then
+       c%npar = 1
+       allocate(c%delta(c%npar))
+       c%delta = 0.d0
+    else if (trim(c%model) == 'powlaw_tilt') then
+       c%npar = 1
+       allocate(c%delta(c%npar))
+       c%delta = 0.d0
     else
-       call report_error('Error -- unsupported bandpass model = ' // trim(constructor%model))
+       call report_error('Error -- unsupported bandpass model = ' // trim(c%model))
     end if
 
     ! Read default delta from instrument parameter file
     call read_instrument_file(trim(cpar%cs_inst_parfile), &
-         & 'delta', cpar%ds_label(id_abs), 0.d0, constructor%delta(1))
+         & 'delta', cpar%ds_label(id_abs), 0.d0, c%delta(1))
 
     ! Initialize active bandpass 
-    call constructor%update_tau(constructor%delta)
+    call c%update_tau(c%delta)
 
     ! WARNING! Should be replaced with proper integral. See planck2013 HFI spectral response eq. 2
-    constructor%nu_eff = sum(constructor%tau*constructor%nu)/sum(constructor%tau)
+    c%nu_eff = sum(c%tau*c%nu)/sum(c%tau)
     
-  end function constructor
+  end function constructor_bp
   
 
   

@@ -20,10 +20,7 @@
 !================================================================================
 module comm_tod_mapmaking_mod
    use comm_tod_mod
-   use comm_utils
    use comm_shared_arr_mod
-   use comm_map_mod
-   use comm_param_mod
    implicit none
 
    type comm_binmap

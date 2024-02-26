@@ -30,23 +30,7 @@ module comm_tod_SPIDER_mod
    !   process_SPIDER_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
    !       Routine which processes the time ordered data
    !
-   use comm_tod_mod
-   use comm_param_mod
-   use comm_map_mod
-   use comm_conviqt_mod
-   use pix_tools
-   use healpix_types
-   use comm_huffman_mod
-   use comm_hdf_mod
-   use comm_fft_mod
-   use comm_shared_arr_mod
-   use spline_1D_mod
-   use comm_4D_map_mod
    use comm_tod_driver_mod
-   use comm_utils
-   use comm_tod_jump_mod
-   use comm_bp_mod
-
    implicit none
  
    private
@@ -62,7 +46,7 @@ module comm_tod_SPIDER_mod
    end type comm_SPIDER_tod
  
    interface comm_SPIDER_tod
-      procedure constructor
+      procedure constructor_spider
    end interface comm_SPIDER_tod
  
  interface
@@ -70,7 +54,7 @@ module comm_tod_SPIDER_mod
    !**************************************************
    !             Constructor
    !**************************************************
-   module function constructor(cpar, id_abs, info, tod_type)
+   module function constructor_spider(cpar, id, id_abs, info, tod_type) result(c)
      !
      ! Constructor function that gathers all the instrument parameters in a pointer
      ! and constructs the objects
@@ -93,12 +77,12 @@ module comm_tod_SPIDER_mod
  
      implicit none
      type(comm_params),       intent(in) :: cpar
-     integer(i4b),            intent(in) :: id_abs
+     integer(i4b),            intent(in) :: id, id_abs
      class(comm_mapinfo),     target     :: info
      character(len=128),      intent(in) :: tod_type
-     class(comm_SPIDER_tod),  pointer    :: constructor 
-   end function constructor
- 
+     class(comm_SPIDER_tod),  pointer    :: c
+   end function constructor_spider
+   
    !**************************************************
    !             Driver routine
    !**************************************************
