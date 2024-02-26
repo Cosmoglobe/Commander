@@ -565,6 +565,7 @@ contains
        allocate(self%theta_pixreg_buff(0:k,3,self%npar))
        allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
+       self%theta_pixreg_buff = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
        self%proplen_pixreg = 1.d0 ! default values, is set later in the code
 
@@ -1009,7 +1010,7 @@ contains
                 smooth_scale = self%smooth_scale(i)
                 if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
 
-                   !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                   !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
 
                    do k = 0,info2%np-1

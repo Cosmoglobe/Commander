@@ -422,15 +422,15 @@ program commander
 
 
    if (mod(iter,modfact) == 0) then
-     ! Sample gains off of absolutely calibrated FIRAS maps
-     if (iter > 5) then
+     if (iter > 1) then
+        ! Sample gains off of absolutely calibrated FIRAS maps
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
+        ! Testing the spectral index xampling
+        !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
+        !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
      end if
 
 
-     ! Testing the spectral index xampling
-     !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
-     !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
