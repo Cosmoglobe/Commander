@@ -339,7 +339,7 @@ program commander
      end if
 
      !if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-     if (.true.) then
+     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
       if (first_zodi) then

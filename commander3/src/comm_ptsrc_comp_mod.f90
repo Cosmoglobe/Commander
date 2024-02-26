@@ -1815,7 +1815,7 @@ contains
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
-    n_gibbs             = 1  !10
+    n_gibbs             = 3
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
@@ -1824,7 +1824,6 @@ contains
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
-          if (self%myid == 0) write(*,*) 'iter', iter2, n_gibbs
           do p = 1, self%nmaps
              do k = 1, self%nsrc             
                 p_lnL       = p
@@ -2007,7 +2006,7 @@ contains
 
     if (self%myid == 0) open(68,file=trim(cpar%outdir)//'/ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
-    if (self%myid == 0) write(*,*) '| Gibbs sampling radio parameters'
+    if (self%myid == 0) write(*,*) '| Gibbs sampling ', trim(self%type), ' parameters'
     if (self%myid == 0) write(*,*) '| Iteration, N_gibbs'
     do iter2 = 1, n_gibbs
 
