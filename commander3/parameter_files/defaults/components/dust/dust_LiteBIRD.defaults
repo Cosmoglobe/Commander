@@ -7,13 +7,11 @@ COMP_CG_SCALE_T&&             = 1.d0
 COMP_CG_SCALE_P&&             = 1.d0
 COMP_CG_SAMPLE_GROUP&&        = 1
 COMP_CG_SAMP_GROUP_MAXITER&&  = 35
-COMP_NSIDE&&                  = 512
+COMP_NSIDE&&                  = 1024
 COMP_MONOPOLE_PRIOR&&         = none   "monopole:mask_common_dx12_n1024_TQU.fits"
 #COMP_DEFLATION_MASK&&         = fullsky
-COMP_L_APOD&&                 = 800
-COMP_LMAX_AMP&&               = 800
-COMP_LMAX_IND&&               = 0       #-1: Use input map as is
-COMP_OUTPUT_FWHM&&            = 25.         # arcmin
+COMP_L_APOD&&                 = 3000
+COMP_OUTPUT_FWHM&&            = 18.         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_REF_T&&               = 402
 COMP_NU_REF_P&&               = 402
@@ -26,12 +24,12 @@ COMP_CL_POLTYPE&&             = 3  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
 COMP_CL_BETA_PRIOR_MEAN&&     = -0.0
 COMP_CL_BETA_PRIOR_RMS&&      =  0.0
 COMP_CL_L_PIVOT&&             = 50          # Pivot multipole
-COMP_CL_DEFAULT_AMP_T&&       =  1e7        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta
 COMP_CL_DEFAULT_AMP_E&&       =  50
 COMP_CL_DEFAULT_AMP_B&&       =  50
-COMP_CL_DEFAULT_BETA_T&&      =  10.d0
-COMP_CL_DEFAULT_BETA_E&&      =  10.d0
-COMP_CL_DEFAULT_BETA_B&&      =  10.d0	
+COMP_CL_DEFAULT_BETA_T&&      =  15.d0
+COMP_CL_DEFAULT_BETA_E&&      =  15.d0
+COMP_CL_DEFAULT_BETA_B&&      =  15.d0	
 COMP_DEFAULT_BETA&&           =   1.5
 COMP_PRIOR_UNI_BETA_LOW&&     =   1.0
 COMP_PRIOR_UNI_BETA_HIGH&&    =   2.0
@@ -52,7 +50,8 @@ COMP_PRIOR_AMP_MAP&&          = none
 
 COMP_BETA_NU_MIN&&            = 0         # Lowest frequency for index estimation in GHz
 COMP_BETA_NU_MAX&&            = 1000      # Highest frequency for index estimation in GHz
-COMP_BETA_INPUT_MAP&&         = input_dust_beta_n512_PYSM.fits
+#COMP_BETA_INPUT_MAP&&         = input_dust_beta_n512_PYSM.fits
+COMP_BETA_INPUT_MAP&&         = default
 COMP_BETA_DEFAULT&&           =   1.56 1.68  1.55
 COMP_BETA_PRIOR_UNI_LOW&&     =   0.4
 COMP_BETA_PRIOR_UNI_HIGH&&    =   3.0
@@ -67,14 +66,15 @@ COMP_T_PRIOR_GAUSS_MEAN&&     = 18.5
 COMP_T_PRIOR_GAUSS_RMS&&      =  0.1
 COMP_T_SMOOTHING_SCALE&&      = 1
 COMP_T_POLTYPE&&              = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
-COMP_T_INPUT_MAP&&            = input_dust_temp_n512_PYSM.fits
+#COMP_T_INPUT_MAP&&            = input_dust_temp_n512_PYSM.fits
+COMP_T_INPUT_MAP&&            = default
 COMP_T_NU_MIN&&               = 0         # Lowest frequency for index estimation in GHz
 COMP_T_NU_MAX&&               = 1000        # Highest frequency for index estimation in GHz
 COMP_APPLY_JEFFREYS_PRIOR&&   = .false.
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_INIT_FROM_HDF&&          = none default
 COMP_AMP_LMIN&&               = 0
-COMP_AMP_LMAX&&               = 800
+COMP_AMP_LMAX&&               = 3000
 COMP_AMP_INPUT_MAP&&          = none #init_cmb_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
@@ -112,7 +112,7 @@ COMP_T_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 COMP_APPLY_JEFFREYS_PRIOR&&   = .false.
 COMP_OUTPUT_EB_MAP&&          = .false.
 COMP_AMP_LMIN&&               = 0
-COMP_AMP_LMAX&&               = 800
+COMP_AMP_LMAX&&               = 3000
 COMP_AMP_INPUT_MAP&&          = none #init_cmb_amp_BP8.1_v1.fits
 COMP_AMP_PRIOR_MAP&&          = none
 
