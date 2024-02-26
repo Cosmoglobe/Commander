@@ -148,7 +148,7 @@ contains
 
       ! Allocate sidelobe convolution data structures
       allocate(c%slconv(c%ndet), c%orb_dp)
-      c%orb_dp => comm_orbdipole(c%mbeam)
+      c%orb_dp => comm_orbdipole(comm=info%comm)
       ! Initialize all baseline corrections to zero
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0

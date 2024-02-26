@@ -2306,7 +2306,7 @@ contains
       type(planck_rng), intent(inout) :: handle
 
       integer(i4b) :: band, i, j, k, ndet, scan, nscan, npix, nmaps, p, ierr, ntod, nhorn, npix_band, ncomp
-      real(dp)     :: res, w
+      real(dp)     :: res, w, vec(3), elon
       !type(comm_scandata) :: sd
       real(dp),      allocatable, dimension(:)       :: A, b, em, al
       real(sp),      allocatable, dimension(:)       :: s_sky
@@ -2366,7 +2366,6 @@ contains
                
                ! Get data and pointing
                allocate(pix(ntod, nhorn), psi(ntod, nhorn), flag(ntod), tod(ntod), mask(ntod))
-               call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
                !allocate(flag(ntod), tod(ntod), mask(ntod))
                !call data(i)%tod%decompress_pointing_and_flags(scan, j, flag=flag)
                if (data(i)%tod%compressed_tod) then
@@ -2376,6 +2375,7 @@ contains
                end if
 
                ! Set up mask; remove flagged samples and foreground contaminated regions
+               call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
                do k = 1, data(i)%tod%scans(scan)%ntod
                   mask(k) = procmask_zodi(pix(k, 1))
                   if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
@@ -2398,6 +2398,13 @@ contains
                do k = 1, ntod
                   if (mask(k) == 0) cycle
                   p        = data(i)%tod%scans(scan)%d(j)%pix_sol(k,1)
+                  
+                  call pix2vec_ring(data(i)%tod%nside, p, vec)
+                  elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi
+                  if (elon < data(i)%tod%sol_elong_range(1) .or. elon > data(i)%tod%sol_elong_range(2)) then
+                     write(*,*) data(i)%tod%scanid(scan), j, k, data(i)%tod%sol_elong_range(1), elon, data(i)%tod%sol_elong_range(2)
+                  end if
+                  
                   w        = 1.d0/data(i)%tod%scans(scan)%d(j)%N_psd%sigma0**2
                   s_sky(k) = map_sky(1, data(i)%tod%pix2ind(pix(k, 1)), j, 1)  ! zodi is only temperature (for now)
                   res      = tod(k) - (s_zodi(k)+s_sky(k))

@@ -2364,7 +2364,7 @@ contains
     integer(i4b),                       intent(in)            :: scan, det
     integer(i4b),        dimension(:),  intent(out), optional :: flag
     integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
-    integer(i4b) :: i, j
+    integer(i4b) :: i, j, k
     do i=1, self%nhorn
        if (present(pix)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
@@ -2385,6 +2385,15 @@ contains
     end do
     if (present(flag)) then
        call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+
+       ! Apply dynamic mask if it exists
+       if (allocated(self%scans(scan)%d(det)%mask_dyn)) then
+          do i = 1, size(self%scans(scan)%d(det)%mask_dyn,2)
+             j = self%scans(scan)%d(det)%mask_dyn(1,i)
+             k = self%scans(scan)%d(det)%mask_dyn(2,i)
+             flag(j:k) = huge(flag(j))
+          end do
+       end if
     end if
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
@@ -2934,17 +2943,15 @@ contains
      integer(i4b),                      intent(in)    :: scan, det
      real(sp),            dimension(:), intent(in)    :: res
      real(sp),            dimension(2), intent(in)    :: rms_range
-     real(sp),            dimension(:), intent(inout) :: mask
+     real(sp),            dimension(:), intent(in)    :: mask
 
      logical(lgt) :: cut
       integer(i4b) :: i, j, k, n, ntod, nmax
-      real(dp) :: box_width, rms, vec0(3), vec(3), elon
+      real(dp) :: box_width, rms, vec(3), elon
       integer(i4b), allocatable, dimension(:,:) :: bad, buffer
 
-      write(*,*) 'hei'
       ntod = size(res)
       nmax = 1000
-      vec0 = [1.d0, 0.d0, 0.d0] ! The Sun points to the center
       
       ! Compute rms
       rms = 0.d0
@@ -2962,20 +2969,22 @@ contains
       bad = -1
       n   = 0
       do i = 1, ntod
-         if (mask(i) /= 1) cycle
 
-         ! Apply selection criterium
-         cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms 
-
-         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
-         elon = acos(min(max(dot_product(vec, vec0),-1.d0),1.d0)) * 180.d0/pi
-         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
+         ! Apply RMS selection criterium
+         if (mask(i) == 1) then
+            cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms
+         else
+            cut = .false.
+         end if
          
+         ! Apply solar elongation selection criterium
+         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
+         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
+         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
+
          if (cut) then
             ! Start new range if not already active
             if (bad(1,n+1) == -1) bad(1,n+1) = i
-            ! Remove sample from current mask
-            mask(i) = 0.
          else
             ! Close active range
             if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
@@ -3007,11 +3016,10 @@ contains
       if (n > 0) then
          allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
          self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
-         if (all(mask == 0.)) self%scans(i)%d%accept = .false.
 !!$         do i = 1, n
 !!$            write(*,*) i, bad(:,i)
 !!$         end do
-         write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', scan, det
+         write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
       end if
       
       deallocate(bad)
