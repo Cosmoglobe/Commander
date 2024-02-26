@@ -120,9 +120,9 @@ contains
     c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
     c%nmaps           = info%nmaps
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-       constructor%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
+       c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
     else
-       constructor%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+       c%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
     end if
     nside_beam                  = 512
     nmaps_beam                  = 3
@@ -132,9 +132,9 @@ contains
     ! Get detector labels
 
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-        call get_detectors(cpar%ds_tod_dets(id_abs), constructor%label)
+        call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
     else
-        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", constructor%label)
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
     end if
         
     ! Define detector partners
