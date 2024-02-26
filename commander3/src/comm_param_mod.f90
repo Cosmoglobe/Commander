@@ -1252,7 +1252,7 @@ contains
     do j = 1,k
        if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
           call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_MAP'//itext, &
-               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i), path=.true.)
           exit
        end if
     end do
@@ -1262,19 +1262,19 @@ contains
     end do
     if (bool_flag .or. cpar%almsamp_pixreg) &
          & call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_INITVALUE_MAP'//itext, &
-         & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i))
+         & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i), path=.true.)
     if (any(cpar%cs_lmax_ind_pol(:k,1,i) >= 0)) &
          & call get_parameter_hashtable(htbl, 'COMP_BETA_ALMSAMP_INIT'//itext, &
-         & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i))
+         & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i), path=.true.)
     if (bool_flag) then
        call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(1,1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_NPROP'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
             & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
@@ -1401,7 +1401,7 @@ contains
          & par_dp=cpar%cs_p_gauss(i,1,2))
     call get_parameter_hashtable(htbl, 'COMP_DBETA_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,2))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_DBETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
@@ -1483,7 +1483,7 @@ contains
     do j = 1,k
        if (trim(cpar%cs_spec_pixreg(j,1,i)) == 'pixreg' .or. cpar%almsamp_pixreg) then
           call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_MAP'//itext, &
-               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i))
+               & len_itext=len_itext, par_string=cpar%cs_spec_pixreg_map(1,i), path=.true.)
           exit
        end if
     end do
@@ -1493,19 +1493,19 @@ contains
     end do
     if (bool_flag .or. cpar%almsamp_pixreg) &
          & call get_parameter_hashtable(htbl, 'COMP_BETA_PIXREG_INITVALUE_MAP'//itext, &
-         & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i))
+         & len_itext=len_itext, par_string=cpar%cs_pixreg_init_theta(1,i), path=.true.)
     if (any(cpar%cs_lmax_ind_pol(:k,1,i) >= 0)) &
          & call get_parameter_hashtable(htbl, 'COMP_BETA_ALMSAMP_INIT'//itext, &
-         & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i))
+         & len_itext=len_itext, par_string=cpar%cs_almsamp_init(1,i), path=.true.)
     if (bool_flag) then
        call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_LOW'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(1,1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_NPROP'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
             & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
@@ -1630,7 +1630,7 @@ contains
          & par_dp=cpar%cs_p_gauss(i,1,2))
     call get_parameter_hashtable(htbl, 'COMP_C_S_PRIOR_GAUSS_RMS'//itext, len_itext=len_itext,  &
          & par_dp=cpar%cs_p_gauss(i,2,2))
-    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i))
+    call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext,         par_string=cpar%cs_indmask(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_BETA_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     call get_parameter_hashtable(htbl, 'COMP_C_S_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
@@ -2435,7 +2435,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_BETA_MASK'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_mask(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_NPROP'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_nprop(1,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_BETA_PROPLEN'//itext, &
             & len_itext=len_itext, par_string=cpar%cs_spec_proplen(1,i))
        call get_parameter_hashtable(htbl, 'COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING'//itext, &
@@ -2526,7 +2526,7 @@ contains
        call get_parameter_hashtable(htbl, 'COMP_T_UNI_NPROP_HIGH'//itext, len_itext=len_itext,  &
             & par_int=cpar%cs_spec_uni_nprop(2,2,i))
        call get_parameter_hashtable(htbl, 'COMP_T_MASK'//itext, & 
-            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i))
+            & len_itext=len_itext, par_string=cpar%cs_spec_mask(2,i), path=.true.)
        call get_parameter_hashtable(htbl, 'COMP_T_NPROP'//itext, & 
             & len_itext=len_itext, par_string=cpar%cs_spec_nprop(2,i))
        call get_parameter_hashtable(htbl, 'COMP_T_PROPLEN'//itext, &
