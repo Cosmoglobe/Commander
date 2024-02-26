@@ -166,7 +166,7 @@ contains
          end select
          
          !go to next component
-         c => c%next()
+         c => c%nextComp()
       end do
 
       ! Update mixing matrices
@@ -201,7 +201,7 @@ contains
              todo = .false.
            end if
          end select
-         c => c%next()
+         c => c%nextComp()
       end do
 
       if (cpar%myid_chain == 0) then

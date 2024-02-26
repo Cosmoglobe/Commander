@@ -168,7 +168,7 @@ contains
                ndet = num_tokens(subdets, ",")
                call get_tokens(subdets, ",", dets, ndet)
           end if
-          if (constructor%threshold == 0.d0) then
+          if (c%threshold == 0.d0) then
                call read_bandpass(trim(cpar%ds_bpfile(id_abs)), dets(1), &
                     & c%threshold, &
                     & c%n, c%nu0, c%tau0)
