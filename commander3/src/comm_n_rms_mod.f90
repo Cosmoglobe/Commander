@@ -20,9 +20,6 @@
 !================================================================================
 module comm_N_rms_mod
   use comm_N_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_status_mod
   implicit none
 
   private
@@ -39,8 +36,8 @@ module comm_N_rms_mod
      procedure :: invN_lowres => matmulInvN_1map_lowres
      procedure :: N           => matmulN_1map
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
-     procedure :: rms         => returnRMS
-     procedure :: rms_pix     => returnRMSpix
+     procedure :: rms         => returnRMS_rms
+     procedure :: rms_pix     => returnRMS_rms_pix
      procedure :: update_N    => update_N_rms
   end type comm_N_rms
 
@@ -375,7 +372,7 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res, samp_group)
+  subroutine returnRMS_rms(self, res, samp_group)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
@@ -392,31 +389,31 @@ contains
           end where
        end if
     end if
-  end subroutine returnRMS
+  end subroutine returnRMS_rms
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group, ret_invN)
+  function returnRMS_rms_pix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_rms),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
-    real(dp)                                     :: returnRMSpix
+    real(dp)                                     :: returnRMS_rms_pix
     integer(i4b),        intent(in),   optional  :: samp_group
     logical(lgt),        intent(in),   optional  :: ret_invN
     if (self%siN%map(pix,pol) > 0.d0) then
-       returnRMSpix = 1.d0/self%siN%map(pix,pol)
+       returnRMS_rms_pix = 1.d0/self%siN%map(pix,pol)
     else
-       returnRMSpix = infinity
+       returnRMS_rms_pix = infinity
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           if (self%samp_group_mask(samp_group)%p%map(pix,pol) == 0.d0) then
-             returnRMSpix = infinity
+             returnRMS_rms_pix = infinity
           end if
        end if
     end if
     if (present(ret_invN)) then
-       if (ret_invN) returnRMSpix = self%siN%map(pix,pol)**2
+       if (ret_invN) returnRMS_rms_pix = self%siN%map(pix,pol)**2
     end if
-  end function returnRMSpix
+  end function returnRMS_rms_pix
 
 end module comm_N_rms_mod

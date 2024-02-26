@@ -19,17 +19,13 @@
 !
 !================================================================================
 module comm_comp_mod
-  use comm_param_mod
-  use comm_bp_utils
-  use comm_bp_mod
-  use comm_map_mod
   use comm_cr_utils
+  use comm_cr_precond_mod
   use comm_data_mod
-  use comm_hdf_mod
   implicit none
 
-  private
-  public  :: comm_comp, ncomp, compList, update_mixing_matrices, comp_ptr!, dumpCompMaps
+!  private
+!  public  :: comm_comp, ncomp, compList, update_mixing_matrices, comp_ptr!, dumpCompMaps
   
   !**************************************************
   !        Generic component class definition
@@ -57,10 +53,10 @@ module comm_comp_mod
 
    contains
      ! Linked list procedures
-     procedure :: next    ! get the link after this link
-     procedure :: prev    ! get the link before this link
-     procedure :: setNext ! set the link after this link
-     procedure :: add     ! add new link at the end
+     procedure :: nextComp    ! get the link after this link
+     procedure :: prevComp    ! get the link before this link
+     procedure :: setNextComp ! set the link after this link
+     procedure :: addComp     ! add new link at the end
 
      ! Data procedures
      procedure                          :: initComp
@@ -69,7 +65,7 @@ module comm_comp_mod
      procedure(projectBand),   deferred :: projectBand
      procedure                          :: dumpSED
      procedure(dumpFITS),      deferred :: dumpFITS
-     procedure(initHDF),       deferred :: initHDF
+     procedure(initHDFcomp),   deferred :: initHDFcomp
      procedure                          :: RJ2unit
      procedure(sampleSpecInd), deferred :: sampleSpecInd
      procedure                          :: CG_mask
@@ -161,13 +157,13 @@ module comm_comp_mod
      end subroutine dumpFITS
 
      ! Initialize from HDF chain file
-     subroutine initHDF(self, cpar, hdffile, hdfpath)
+     subroutine initHDFcomp(self, cpar, hdffile, hdfpath)
        import comm_comp, comm_params, hdf_file
        class(comm_comp),                        intent(inout)        :: self
        type(comm_params),                       intent(in)           :: cpar
        type(hdf_file),                          intent(in)           :: hdffile
        character(len=*),                        intent(in)           :: hdfpath
-     end subroutine initHDF
+     end subroutine initHDFcomp
 
      ! Sample spectral parameters
      subroutine sampleSpecInd(self, cpar, handle, id, iter)
@@ -365,25 +361,25 @@ contains
 
   end subroutine CG_mask
   
-  function next(self)
+  function nextComp(self)
     class(comm_comp) :: self
-    class(comm_comp), pointer :: next
-    next => self%nextLink
-  end function next
+    class(comm_comp), pointer :: nextComp
+    nextComp => self%nextLink
+  end function nextComp
 
-  function prev(self)
+  function prevComp(self)
     class(comm_comp) :: self
-    class(comm_comp), pointer :: prev
-    prev => self%prevLink
-  end function prev
+    class(comm_comp), pointer :: prevComp
+    prevComp => self%prevLink
+  end function prevComp
   
-  subroutine setNext(self,next)
+  subroutine setNextComp(self,nextComp)
     class(comm_comp) :: self
-    class(comm_comp), pointer :: next
-    self%nextLink => next
-  end subroutine setNext
+    class(comm_comp), pointer :: nextComp
+    self%nextLink => nextComp
+  end subroutine setNextComp
 
-  subroutine add(self,link)
+  subroutine addComp(self,link)
     class(comm_comp), target  :: self
     class(comm_comp), pointer :: link
 
@@ -395,7 +391,7 @@ contains
     end do
     link%prevLink => c
     c%nextLink    => link
-  end subroutine add
+  end subroutine addComp
 
   subroutine update_mixing_matrices(band, update_F_int)
     implicit none

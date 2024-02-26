@@ -19,12 +19,9 @@
 !
 !================================================================================
 module comm_B_mod
-  use comm_param_mod
   use comm_map_mod
-  use spline_1D_mod
   implicit none
 
-  private
   public comm_B, B_ptr
 
   type, abstract :: comm_B

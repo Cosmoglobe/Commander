@@ -19,13 +19,7 @@
 !
 !================================================================================
 module comm_spindust2_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_map_mod
-  use comm_F_int_2D_mod
-  use comm_data_mod
-  use spline_2D_mod
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -38,11 +32,11 @@ module comm_spindust2_comp_mod
      real(dp)          :: nu_p0, nu_min_SED, nu_max_SED
      type(spline_type) :: SED_spline
    contains
-     procedure :: S    => evalSED
+     procedure :: S    => evalSED_spindust2
   end type comm_spindust2_comp
 
   interface comm_spindust2_comp
-     procedure constructor
+     procedure constructor_spindust2
   end interface comm_spindust2_comp
 
 contains
@@ -50,11 +44,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor_spindust2(cpar, id, id_abs) result(c)
     implicit none
     type(comm_params),   intent(in) :: cpar
     integer(i4b),        intent(in) :: id, id_abs
-    class(comm_spindust2_comp), pointer   :: constructor
+    class(comm_spindust2_comp), pointer   :: c
 
     integer(i4b) :: ind(1)
     real(dp), allocatable, dimension(:,:) :: SED
@@ -70,98 +64,98 @@ contains
     class(comm_map),     pointer :: tp_smooth => null() 
 
     ! General parameters
-    allocate(constructor)
+    allocate(c)
 
-    constructor%npar         = 2
-    allocate(constructor%poltype(constructor%npar))
-    do i = 1, constructor%npar
-       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
+    c%npar         = 2
+    allocate(c%poltype(c%npar))
+    do i = 1, c%npar
+       c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
-    call constructor%initLmaxSpecind(cpar, id, id_abs)
+    call c%initLmaxSpecind(cpar, id, id_abs)
 
-    call constructor%initDiffuse(cpar, id, id_abs)
+    call c%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters for 2 parameter model
-    allocate(constructor%theta_def(2), constructor%p_gauss(2,2), constructor%p_uni(2,2))
-    allocate(constructor%indlabel(2))
-    allocate(constructor%nu_min_ind(2), constructor%nu_max_ind(2))
+    allocate(c%theta_def(2), c%p_gauss(2,2), c%p_uni(2,2))
+    allocate(c%indlabel(2))
+    allocate(c%nu_min_ind(2), c%nu_max_ind(2))
     do i = 1, 2
-       constructor%theta_def(i) = cpar%cs_theta_def(i,id_abs)
-       constructor%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
-       constructor%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
-       constructor%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
-       constructor%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
+       c%theta_def(i) = cpar%cs_theta_def(i,id_abs)
+       c%p_uni(:,i)   = cpar%cs_p_uni(id_abs,:,i)
+       c%p_gauss(:,i) = cpar%cs_p_gauss(id_abs,:,i)
+       c%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
+       c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
-    constructor%indlabel  = ['nu_p ','alpha']
+    c%indlabel  = ['nu_p ','alpha']
 
     ! Initialize spectral index map
-    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & constructor%nmaps, constructor%pol)
+    info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
+         & c%nmaps, c%pol)
 
-    allocate(constructor%theta(constructor%npar))
-    do i = 1, constructor%npar
+    allocate(c%theta(c%npar))
+    do i = 1, c%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default' .or. trim(cpar%cs_input_ind(i,id_abs)) == 'none') then
-          constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(i)
+          c%theta(i)%p => comm_map(info)
+          c%theta(i)%p%map = c%theta_def(i)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
+          c%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0
-       if (constructor%lmax_ind >= 0) then
+       if (c%lmax_ind >= 0) then
           ! if lmax >= 0 we can get alm values for the theta map
-          call constructor%theta(i)%p%YtW_scalar
+          call c%theta(i)%p%YtW_scalar
        end if
     end do
 
     ! Initialize spectral template !CHANGE??
     call read_spectrum(trim(cpar%cs_SED_template(1,id_abs)), SED)
     ind                    = maxloc(SED(:,2))
-    constructor%nu_p0      = SED(ind(1),1)
-    constructor%nu_min_SED = minval(SED(:,1))
-    constructor%nu_max_SED = maxval(SED(:,1))
+    c%nu_p0      = SED(ind(1),1)
+    c%nu_min_SED = minval(SED(:,1))
+    c%nu_max_SED = maxval(SED(:,1))
     SED                    = log(SED)
-    call spline(constructor%SED_spline, SED(:,1), SED(:,2))
+    call spline(c%SED_spline, SED(:,1), SED(:,2))
     deallocate(SED)
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    allocate(c%F_int(3,numband,0:c%ndet))
     do k = 1, 3
        do i = 1, numband
           do j = 0, data(i)%ndet
              if (k > 1) then
-                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                   c%F_int(k,i,j)%p => c%F_int(k-1,i,j)%p
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_2D(constructor, data(i)%bp(j)%p, k)
+             c%F_int(k,i,j)%p => comm_F_int_2D(c, data(i)%bp(j)%p, k)
           end do
        end do
     end do
 
-    call constructor%initPixregSampling(cpar, id, id_abs)
+    call c%initPixregSampling(cpar, id, id_abs)
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
+    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    call c%updateMixmat
 
-  end function constructor
+  end function constructor_spindust2
 
   ! Definition:
   !    SED  = (nu/nu_ref)**beta
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_spindust2(self, nu, band, pol, theta)
     implicit none
     class(comm_spindust2_comp), intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
-    real(dp)                                      :: evalSED
+    real(dp)                                      :: evalSED_spindust2
 
     real(dp) :: scale, nu_p, alpha
 
@@ -170,12 +164,12 @@ contains
     scale   = self%nu_p0 / (nu_p*1.d9) ! nu_p is in GHz
     
     if (scale*nu < self%nu_min_SED .or. scale*nu > self%nu_max_SED) then
-       evalSED = 0.d0
+       evalSED_spindust2 = 0.d0
     else
-       evalSED = exp(splint(self%SED_spline, log(scale*nu))) / &
+       evalSED_spindust2 = exp(splint(self%SED_spline, log(scale*nu))) / &
                & exp(splint(self%SED_spline, log(scale*self%nu_ref(pol)))) * (self%nu_ref(pol)/nu)**(2.d0-alpha)
     end if
 
-  end function evalSED
+  end function evalSED_spindust2
   
 end module comm_spindust2_comp_mod

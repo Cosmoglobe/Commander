@@ -24,7 +24,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor_lfi(handle, cpar, id, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -52,7 +52,7 @@ contains
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
-    integer(i4b),              intent(in)    :: id_abs
+    integer(i4b),              intent(in)    :: id, id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
     class(comm_lfi_tod),       pointer       :: res
@@ -163,7 +163,7 @@ contains
     boundary            = (0.d0, 1d30)
 
     ! Initialize common parameters
-    call res%tod_constructor(cpar, id_abs, info, tod_type)
+    call res%tod_constructor(cpar, id, id_abs, info, tod_type)
     if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Choose absolute bandpass sampling
@@ -596,8 +596,8 @@ contains
 
     call timer%stop(TOD_INIT, id_abs)
 
-  end function constructor
-
+  end function constructor_lfi
+  
   !**************************************************
   !             Driver routine
   !**************************************************

@@ -1281,7 +1281,7 @@ contains
              diffComps(i)%p => c
              i              =  i+1
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
@@ -1368,7 +1368,7 @@ contains
              diffComps(i)%p => c
              i              =  i+1
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
@@ -3726,7 +3726,7 @@ contains
                 end do
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
        ! MPI reduce existing and new monopole
@@ -3784,7 +3784,7 @@ contains
                    end do
                 end if
              end select
-             c => c%next()
+             c => c%nextComp()
           end do
        end if
 
@@ -3849,7 +3849,7 @@ contains
              end do
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine nullify_monopole_amp
@@ -3881,7 +3881,7 @@ contains
              return
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end function get_monopole_amp
@@ -3908,7 +3908,7 @@ contains
              return
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine set_monopole_amp

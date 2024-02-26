@@ -57,7 +57,7 @@ export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp
 
 #debug
 #
-#export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -fpe0 -check noarg_temp_created -ftrapuv -diag-disable=10448 -check uninit -debug extended -diag-disable=5268
+#export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -fpe0 -check noarg_temp_created -ftrapuv -diag-disable=10448 -check uninit -debug extended -diag-disable=5268 -I.
 
 
 #export F90FLAGS := -fpe0 -march=native -C -g -check noarg_temp_created -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -ftrapuv
@@ -131,6 +131,6 @@ export HDF_LINK_CPP := -L$(LOCAL)/lib -lhdf5_cpp -lhdf5
 export HDF_INCLUDE := -I$(LOCAL)/include/shared
 
 # =============== CAMB ============================                              
-export CAMB_LINK := -L$(LOCAL)/local/lib #-lcamb
-export CAMB_INCLUDE := -I$(LOCAL)/mod
+#export CAMB_LINK := -L$(LOCAL)/local/lib #-lcamb
+#export CAMB_INCLUDE := -I$(LOCAL)/mod
 

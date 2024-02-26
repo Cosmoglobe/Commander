@@ -56,15 +56,15 @@ module comm_template_comp_mod
      procedure :: dumpFITS      => dumpTemplateToFITS
      procedure :: getBand       => evalTemplateBand
      procedure :: projectBand   => projectTemplateBand
-     procedure :: S             => evalSED
-     procedure :: initHDF       => initTemplateHDF
+     procedure :: S             => evalSED_template
+     procedure :: initHDFComp   => initTemplateHDF
      procedure :: sampleSpecInd => sampleTempSpecInd
      procedure :: updateMixmat  => updateTempMixmat
      procedure :: update_F_int  => updateTempFInt
   end type comm_template_comp
 
   interface comm_template_comp
-     procedure constructor
+     procedure constructor_template
   end interface comm_template_comp
 
   type template_ptr
@@ -79,7 +79,7 @@ module comm_template_comp_mod
   
 contains
 
-  function constructor(cpar, id, id_abs, mu, rms, def, band, label, mapfile, maskfile)
+  function constructor_template(cpar, id, id_abs, mu, rms, def, band, label, mapfile, maskfile) result(c)
     implicit none
     class(comm_params),        intent(in)           :: cpar
     integer(i4b),              intent(in)           :: id, id_abs
@@ -87,72 +87,73 @@ contains
     integer(i4b),              intent(in), optional :: band
     character(len=*),          intent(in), optional :: label
     character(len=*),          intent(in), optional :: mapfile, maskfile
-    class(comm_template_comp), pointer              :: constructor
+    class(comm_template_comp), pointer              :: c
 
     integer(i4b) :: i, j, n
     character(len=24), dimension(1000) :: comp_label
     character(len=512) :: dir
 
     ! General parameters
-    allocate(constructor)
+    allocate(c)
 
 
     ! Initialize general parameters
-    constructor%class     = cpar%cs_class(id_abs)
-    constructor%type      = cpar%cs_type(id_abs)
-    constructor%label     = label !cpar%cs_label(id_abs)
-    constructor%id        = id
-    constructor%nmaps     = 1    ! Only used for CR book-keeping; must be 1 for templates
-    constructor%outprefix = trim(cpar%cs_label(id_abs))
-    constructor%init_from_HDF   = cpar%cs_initHDF(id_abs)
-    constructor%cg_scale  = 1.d0
-    constructor%output    = .true.
-    constructor%myid      = cpar%myid_chain
-    constructor%comm      = cpar%comm_chain
-    constructor%numprocs  = cpar%numprocs_chain
-    constructor%P         = [mu,rms]
+    c%class     = cpar%cs_class(id_abs)
+    c%type      = cpar%cs_type(id_abs)
+    c%label     = label !cpar%cs_label(id_abs)
+    c%id        = id
+    c%nmaps     = 1    ! Only used for CR book-keeping; must be 1 for templates
+    c%outprefix = trim(cpar%cs_label(id_abs))
+    c%init_from_HDF   = cpar%cs_initHDF(id_abs)
+    c%cg_scale  = 1.d0
+    c%output    = .true.
+    c%myid      = cpar%myid_chain
+    c%comm      = cpar%comm_chain
+    c%numprocs  = cpar%numprocs_chain
+    c%P         = [mu,rms]
     npre                  = npre + 1
     comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid_chain
     numprocs_pre          = cpar%numprocs_chain
 
-    if (constructor%myid == 0) then
-       constructor%ncr = 1
-       constructor%x   = def
+    if (c%myid == 0) then
+       c%ncr = 1
+       c%x   = def
     else
-       constructor%ncr = 0
+       c%ncr = 0
     end if
 
     if (present(mapfile)) then
-       constructor%band      = band
+       c%band      = band
 
        ! Read template and mask
-       constructor%T => comm_map(data(band)%info, trim(mapfile))
+       c%T => comm_map(data(band)%info, trim(mapfile))
        if (trim(maskfile) /= 'fullsky') then
-          constructor%mask  => comm_map(data(band)%info, trim(maskfile))
-          constructor%P_cg  =  constructor%P      ![mu,1.d-6]
+          c%mask  => comm_map(data(band)%info, trim(maskfile))
+          c%P_cg  =  c%P      ![mu,1.d-6]
        else
-          constructor%P_cg  =  constructor%P      
+          c%P_cg  =  c%P      
        end if
     end if
 
     ! Set up CG sampling groups
-    allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
-    constructor%active_samp_group = .false.
+    allocate(c%active_samp_group(cpar%cg_num_samp_groups))
+    c%active_samp_group = .false.
     if (mu > 0.d0) then
        do i = 1, cpar%cg_num_samp_groups
           call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
           do j = 1, n
-             if (trim(constructor%label) == trim(comp_label(j))) then
-                constructor%active_samp_group(i) = .true.
-                if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+             if (trim(c%label) == trim(comp_label(j))) then
+                c%active_samp_group(i) = .true.
+                if (n == 1) c%cg_unique_sampgroup = i ! Dedicated sampling group for this component
                 exit
              end if
           end do
        end do
     end if
 
-  end function constructor
+  end function constructor_template
+  
 
 
   function initialize_template_comps(cpar, id, id_abs, n)
@@ -187,7 +188,7 @@ contains
                & i, trim(cpar%cs_label(id_abs))//'_'//trim(label), mapfile, maskfile)
        else
           c => comm_template_comp(cpar, id+n, id_abs, mu, rms, def, i, trim(cpar%cs_label(id_abs))//'_'//trim(label), mapfile, maskfile)
-          call initialize_template_comps%add(c)
+          call initialize_template_comps%addComp(c)
        end if
        n = n+1
     end do
@@ -195,21 +196,21 @@ contains
   
   end function initialize_template_comps
 
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_template(self, nu, band, pol, theta)
     class(comm_template_comp),  intent(in)           :: self
     real(dp),                   intent(in), optional :: nu
     integer(i4b),               intent(in), optional :: band
     integer(i4b),               intent(in), optional :: pol
     real(dp), dimension(1:),    intent(in), optional :: theta
-    real(dp)                                        :: evalSED
+    real(dp)                                        :: evalSED_template
 
     if (band == self%band) then
-       evalSED = 1.d0
+       evalSED_template = 1.d0
     else
-       evalSED = 0.d0
+       evalSED_template = 0.d0
     end if
     
-  end function evalSED
+  end function evalSED_template
 
   function evalTemplateBand(self, band, amp_in, pix, alm_out, det)
     implicit none
@@ -359,7 +360,7 @@ contains
           if (c1%band /= 0) skip = .false.
        end select
        if (skip) then
-          c1 => c1%next()
+          c1 => c1%nextComp()
           cycle
        end if
        i1 = i1+1
@@ -377,7 +378,7 @@ contains
              if (pt2%band == pt1%band) skip = .false.
           end select
           if (skip) then
-             c2 => c2%next()
+             c2 => c2%nextComp()
              cycle
           end if
           i2 = i2+1
@@ -385,9 +386,9 @@ contains
 
           mat(i1,i2) = sum(invN_T%map * pt2%T%map)
           !mat(i2,i1) = mat(i1,i2)
-          c2 => c2%next()
+          c2 => c2%nextComp()
        end do
-       c1 => c1%next()
+       c1 => c1%nextComp()
     end do
 
     ! Collect contributions from all cores
@@ -407,12 +408,12 @@ contains
              if (c1%band /= 0) skip = .false.
           end select
           if (skip) then
-             c1 => c1%next()
+             c1 => c1%nextComp()
              cycle
           end if
           i1         = i1+1
           mat2(i1,:) = mat2(i1,:) * pt1%P_cg(2)
-          c1 => c1%next()
+          c1 => c1%nextComp()
        end do
        ! Multiply with sqrtS from right side
        i1  = 0
@@ -425,12 +426,12 @@ contains
              if (c1%band /= 0) skip = .false.
           end select
           if (skip) then
-             c1 => c1%next()
+             c1 => c1%nextComp()
              cycle
           end if
           i1         = i1+1
           mat2(:,i1) = mat2(:,i1) * pt1%P_cg(2)
-          c1 => c1%next()
+          c1 => c1%nextComp()
        end do
        ! Add unity
        do i1 = 1, npre
@@ -483,13 +484,13 @@ contains
           if (pt%band /= 0) skip = .false.
        end select
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call cr_extract_comp(pt%id, x, amp)
        y(l) = amp(0,1)
        l  = l + 1
-       c => c%next()
+       c => c%nextComp()
        deallocate(amp)
     end do
 
@@ -507,14 +508,14 @@ contains
           if (pt%band /= 0) skip = .false.
        end select
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        allocate(amp(0:0,1:1))
        amp(0,1) = y(l)
        call cr_insert_comp(pt%id, .false., amp, x)
        l = l + 1
-       c => c%next()
+       c => c%nextComp()
        deallocate(amp)
     end do
 

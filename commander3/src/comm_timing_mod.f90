@@ -45,8 +45,8 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_INSTCORR  = 25
   integer(i4b), parameter, public :: TOD_WRITE     = 26
 
-  private
-  public comm_timing
+!  private
+!  public comm_timing
 
   type comm_timing
      integer(i4b) :: numband, comm, myid, n_tot
@@ -61,12 +61,12 @@ module comm_timing_mod
   end type comm_timing
 
   interface comm_timing
-     procedure constructor
+     procedure constructor_timing
   end interface comm_timing
 
 contains
 
-  function constructor(numband, comm) result(res)
+  function constructor_timing(numband, comm) result(res)
     ! 
     ! Constructor routine for timer object
     ! 
@@ -95,7 +95,7 @@ contains
     res%t       = 0.d0
     res%t1      = 0.d0
 
-  end function constructor
+  end function constructor_timing
 
 
   subroutine comm_timer_start(self, timer_id, band)

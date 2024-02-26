@@ -19,18 +19,7 @@
 !
 !================================================================================
 module comm_mh_specind_mod
-  use comm_param_mod
-  use comm_data_mod
-  use comm_comp_mod
-  use comm_chisq_mod
-  use comm_gain_mod
-  use comm_line_comp_mod
-  use comm_diffuse_comp_mod
   use comm_signal_mod
-  use comm_utils
-  use InvSamp_mod
-  use powell_mod
-  use comm_output_mod
   implicit none
 
 contains
@@ -66,7 +55,7 @@ contains
            todo = .false.
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -98,15 +87,10 @@ contains
        end select
        
        !go to next component
-       c => c%next()
+       c => c%nextComp()
     end do
 
-    ! Update mixing matrices
-    c => compList
-    do while (associated(c))
-       call c%updateMixmat
-       c => c%next()
-    end do
+    call update_mixing_matrices(update_F_int=.true.)
 
     ! Perform component separation
     call timer%start(TOT_AMPSAMP)
@@ -138,7 +122,7 @@ contains
            todo = .false.
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -151,92 +135,88 @@ contains
     call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
 
 
-    !if (reject) then
-    !  if (cpar%myid_chain == 0) then
-    !    write(*,*) '| '
-    !    write(*,*) '| MH step rejected, returning to original tabulated values.'
-    !    write(*,*) '| Rejected chisq is ', chisq_old
-    !    write(*,*) '| '
-    !  end if
+    if (reject) then
+      if (cpar%myid_chain == 0) then
+        write(*,*) '| '
+        write(*,*) '| MH step rejected, returning to original tabulated values.'
+        write(*,*) '| Rejected chisq is ', chisq_old
+        write(*,*) '| '
+      end if
 
 
-    !  c => compList
-    !  do while (associated(c))
-    !                  
-    !     select type (c)
-    !     type is (comm_MBBtab_comp)
+      c => compList
+      do while (associated(c))
+                      
+         select type (c)
+         type is (comm_MBBtab_comp)
 
-    !       if (cpar%myid_chain .eq. 0) then
-    !         c%SEDtab_buff = c%SEDtab
-    !         do i = 1, c%ntab
-    !            c%SEDtab(3,i) = c%SEDtab_buff(3,i)
-    !         end do
-    !       end if
+           if (cpar%myid_chain .eq. 0) then
+             c%SEDtab_buff = c%SEDtab
+             do i = 1, c%ntab
+                c%SEDtab(3,i) = c%SEDtab_buff(3,i)
+             end do
+           end if
 
 
-    !       call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-    !         & 0, data(1)%info%comm, ierr)
-    !       call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-    !         & 0, data(1)%info%comm, ierr)
+           call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+             & 0, data(1)%info%comm, ierr)
+           call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+             & 0, data(1)%info%comm, ierr)
 
-    !     end select
-    !     
-    !     !go to next component
-    !     c => c%next()
-    !  end do
+         end select
+         
+         !go to next component
+         c => c%nextComp()
+      end do
 
-    !  ! Update mixing matrices
-    !  c => compList
-    !  do while (associated(c))
-    !     call c%updateMixmat
-    !     c => c%next()
-    !  end do
+      ! Update mixing matrices
+      call update_mixing_matrices(update_F_int=.true.)
 
-    !  ! Perform component separation
-    !  call timer%start(TOT_AMPSAMP)
-    !  do samp_group = 1, cpar%cg_num_user_samp_groups
-    !     if (cpar%myid_chain == 0) then
-    !        write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-    !             & samp_group, ' of ', cpar%cg_num_user_samp_groups
-    !     end if
-    !     call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+      ! Perform component separation
+      call timer%start(TOT_AMPSAMP)
+      do samp_group = 1, cpar%cg_num_user_samp_groups
+         if (cpar%myid_chain == 0) then
+            write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
+                 & samp_group, ' of ', cpar%cg_num_user_samp_groups
+         end if
+         call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
-    !     if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+         if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
-    !  end do
-    !  call timer%stop(TOT_AMPSAMP)
+      end do
+      call timer%stop(TOT_AMPSAMP)
 
-    !  todo = .true.
-    !  c => compList
-    !  chisq_old = 0d0
-    !  do while (associated(c))
-    !     select type (c)
-    !     type is (comm_md_comp)
-    !       continue
-    !     class is (comm_diffuse_comp)
-    !       if (todo) then
-    !         if (allocated(c%indmask)) then
-    !           call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-    !         end if
-    !         todo = .false.
-    !       end if
-    !     end select
-    !     c => c%next()
-    !  end do
+      todo = .true.
+      c => compList
+      chisq_old = 0d0
+      do while (associated(c))
+         select type (c)
+         type is (comm_md_comp)
+           continue
+         class is (comm_diffuse_comp)
+           if (todo) then
+             if (allocated(c%indmask)) then
+               call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+             end if
+             todo = .false.
+           end if
+         end select
+         c => c%nextComp()
+      end do
 
-    !  if (cpar%myid_chain == 0) then
-    !    write(*,*) '| '
-    !    write(*,*) '| Current MH chisq is ', chisq_old
-    !    write(*,*) '| '
-    !  end if
+      if (cpar%myid_chain == 0) then
+        write(*,*) '| '
+        write(*,*) '| Current MH chisq is ', chisq_old
+        write(*,*) '| '
+      end if
 
-    !else
-    !  if (cpar%myid_chain == 0) then
-    !    write(*,*) '| '
-    !    write(*,*) '| MH step accepted'
-    !    write(*,*) '| Current MH chisq is ', chisq_prop
-    !  end if
-    !end if
+    else
+      if (cpar%myid_chain == 0) then
+        write(*,*) '| '
+        write(*,*) '| MH step accepted'
+        write(*,*) '| Current MH chisq is ', chisq_prop
+      end if
+    end if
 
   end subroutine sample_mbbtab_mh_sample
 
@@ -272,7 +252,7 @@ contains
            end if
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (todo) then
@@ -290,7 +270,7 @@ contains
     c => compList
     do while (associated(c))
        if (c%npar == 0) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
                     
@@ -339,7 +319,7 @@ contains
        end do
        
        !go to next component
-       c => c%next()
+       c => c%nextComp()
            
     end do
 
@@ -347,7 +327,7 @@ contains
     c => compList
     do while (associated(c))
        call c%updateMixmat
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Perform component separation
@@ -380,7 +360,7 @@ contains
            end if
          end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
@@ -404,7 +384,7 @@ contains
       c => compList
       do while (associated(c))
          if (c%npar == 0) then
-            c => c%next()
+            c => c%nextComp()
             cycle
          end if
                       
@@ -443,7 +423,7 @@ contains
          end do
          
          !go to next component
-         c => c%next()
+         c => c%nextComp()
              
       end do
 
@@ -451,7 +431,7 @@ contains
       c => compList
       do while (associated(c))
          call c%updateMixmat
-         c => c%next()
+         c => c%nextComp()
       end do
 
       ! Perform component separation
@@ -483,7 +463,7 @@ contains
              end if
            end if
          end select
-         c => c%next()
+         c => c%nextComp()
       end do
 
       if (cpar%myid_chain == 0) then

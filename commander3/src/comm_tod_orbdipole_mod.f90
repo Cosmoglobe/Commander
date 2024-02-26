@@ -19,14 +19,8 @@
 !
 !================================================================================
 module comm_tod_orbdipole_mod
-  use comm_utils
-  use comm_defs
   use comm_map_mod
-  use spline_1D_mod
   implicit none
-
-  private 
-  public comm_orbdipole, orbdipole_pointer
 
   type :: comm_orbdipole
     integer(i4b) :: ndet!, subsample

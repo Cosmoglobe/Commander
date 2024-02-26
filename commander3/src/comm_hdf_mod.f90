@@ -22,7 +22,6 @@
 ! by using the handy tempita template language. All the machinery for
 ! doing this is included in the repository, so this should just work.
 module comm_hdf_mod
-  use healpix_types
   use comm_utils
   use hdf5
   implicit none

@@ -19,24 +19,14 @@
 !
 !================================================================================
 module comm_tod_mod
-  use comm_utils
-  use comm_param_mod
-  use comm_hdf_mod
-  use comm_map_mod
   use comm_fft_mod
   use comm_huffman_mod
   use comm_conviqt_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
-  use comm_bp_mod
-  use spline_1D_mod
-
+  use comm_shared_arr_mod
   USE ISO_C_BINDING
   implicit none
-
-  private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
-
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -48,18 +38,20 @@ module comm_tod_mod
      real(dp)          :: chisq_masked
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
-     real(sp),           allocatable, dimension(:)    :: tod            ! Detector values in time domain, (ntod)
-     byte,               allocatable, dimension(:)    :: ztod           ! compressed values in time domain, (ntod)
-     real(sp),           allocatable, dimension(:,:)  :: diode          ! (ndiode, ntod) array of undifferenced data
-     type(byte_pointer), allocatable, dimension(:)    :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
-     byte,               allocatable, dimension(:)    :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
-     integer(i4b),       allocatable, dimension(:,:)  :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked samples
-     type(byte_pointer), allocatable, dimension(:)    :: pix            ! pointer array of pixels length nhorn
-     type(byte_pointer), allocatable, dimension(:)    :: psi            ! pointer array of psi, length nhorn
-     integer(i4b),       allocatable, dimension(:,:)  :: offset_range   ! Beginning and end tod index of every offset region
-     real(sp),           allocatable, dimension(:)    :: offset_level   ! Amplitude of every offset region(step)
-     integer(i4b),       allocatable, dimension(:,:)  :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
-     real(dp),           allocatable, dimension(:)    :: baseline       ! Polynomial coefficients for baseline function
+     real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
+     byte,               allocatable, dimension(:)     :: ztod           ! compressed values in time domain, (ntod)
+     real(sp),           allocatable, dimension(:,:)   :: diode          ! (ndiode, ntod) array of undifferenced data
+     type(byte_pointer), allocatable, dimension(:)     :: zdiode         ! pointers to the compressed undifferenced diode data, len (ndiode)
+     byte,               allocatable, dimension(:)     :: flag           ! Compressed detector flag; 0 is accepted, /= 0 is rejected
+     integer(i4b),       allocatable, dimension(:,:)   :: mask_dyn       ! Dynamic online-generated mask, (2,ntod), each row gives a range of masked samples
+     type(byte_pointer), allocatable, dimension(:)     :: pix            ! pointer array of pixels length nhorn
+     type(byte_pointer), allocatable, dimension(:)     :: psi            ! pointer array of psi, length nhorn
+     integer(i4b),       allocatable, dimension(:,:)   :: offset_range   ! Beginning and end tod index of every offset region
+     real(sp),           allocatable, dimension(:)     :: offset_level   ! Amplitude of every offset region(step)
+     integer(i4b),       allocatable, dimension(:,:)   :: jumpflag_range ! Beginning and end tod index of regions where jumps occur
+     real(dp),           allocatable, dimension(:)     :: baseline       ! Polynomial coefficients for baseline function
+     integer(i4b),       allocatable, dimension(:,:)   :: pix_sol        ! Discretized pointing in solar centric coordinates, for zodi and sidelobe mapping
+     integer(i4b),       allocatable, dimension(:,:)   :: psi_sol        ! Discretized polarization angle in solar centric coordinates, for zodi and sidelobe mapping
 
      ! Zodi sampling structures (downsampled and precomputed quantities. only allocated if zodi sampling is true)
      logical(lgt),       allocatable, dimension(:)    :: zodi_glitch_mask
@@ -73,8 +65,6 @@ module comm_tod_mod
 
      real(sp),           allocatable, dimension(:, :) :: s_scat_lowres
      real(sp),           allocatable, dimension(:, :) :: s_therm_lowres
-   contains
-     procedure :: create_dynamic_mask
   end type comm_detscan
 
   ! Stores information about all detectors at once 
@@ -122,7 +112,8 @@ module comm_tod_mod
      integer(i4b) :: comm, myid, numprocs                         ! MPI parameters
      integer(i4b) :: comm_shared, myid_shared, numprocs_shared    ! MPI parameters
      integer(i4b) :: comm_inter, myid_inter                       ! MPI parameters
-     integer(i4b) :: band                                        ! Band ID
+     integer(i4b) :: band                                        ! Absolute band ID
+     integer(i4b) :: id                                          ! Relative band ID
      integer(i4b) :: zodiband                                        ! Band ID for zodi
      integer(i4b) :: nmaps                                        ! Number of Stokes parameters
      integer(i4b) :: ndet                                         ! Number of active detectors
@@ -172,7 +163,8 @@ module comm_tod_mod
      logical(lgt) :: subtract_zodi                                ! Subtract zodical light (defined in the parameter file)
      logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
      logical(lgt) :: output_zodi_comps                            ! Output zodi components
-     logical(lgt) :: compute_solar_pointing                       ! Compute solar centric pointing, for zodi or sidelobe mapping
+     logical(lgt) :: use_solar_point                              ! Compute solar centric pointing, for zodi or sidelobe mapping
+     real(sp)     :: sol_elong_range(2)                           ! Acceptable solar elongation range
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
@@ -238,7 +230,7 @@ module comm_tod_mod
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cache for zodi
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache_lowres, zodi_therm_cache_lowres ! Cache for lowresolution zodi (used for sampling)
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
-     real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
+     !real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
@@ -278,7 +270,7 @@ module comm_tod_mod
      procedure                           :: collect_v_sun
      procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
-
+     procedure                           :: create_dynamic_mask
   end type comm_tod
 
   abstract interface
@@ -314,7 +306,7 @@ contains
     call initialize_fft_mod(cpar)
   end subroutine initialize_tod_mod
 
-  subroutine tod_constructor(self, cpar, id_abs, info, tod_type)
+  subroutine tod_constructor(self, cpar, id, id_abs, info, tod_type)
     ! 
     ! Common constructor function for all TOD objects; allocatates and initializes general
     ! data structures. This routine is typically called from within an instrument-specific 
@@ -326,8 +318,11 @@ contains
     !           TOD object to be initialized
     ! cpar:     derived type
     !           Object containing parameters from the parameterfile.
+    ! id:       integer
+    !           The index of the current band ampng accepted bands
     ! id_abs:   integer
     !           The index of the current band within the parameters, related to cpar
+
     ! info:     map_info structure
     !           Information about the maps for this band, like how the maps are distributed in memory
     ! tod_type: string
@@ -339,15 +334,15 @@ contains
     !
     implicit none
     class(comm_tod),                intent(inout)  :: self
-    integer(i4b),                   intent(in)     :: id_abs
+    integer(i4b),                   intent(in)     :: id, id_abs
     type(comm_params),              intent(in)     :: cpar
     class(comm_mapinfo),            target         :: info
     character(len=128),             intent(in)     :: tod_type
 
     integer(i4b) :: i, ndelta, ierr, unit
     character(len=512) :: datadir
-    character(len=4)   :: id
 
+    self%id            = id
     self%band          = id_abs
     self%tod_type      = tod_type
     self%myid          = cpar%myid_chain
@@ -383,13 +378,14 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
     self%zodiband        = -1
+    self%sol_elong_range = [0., 180.]
     
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
       self%sample_zodi = cpar%sample_zodi .and. self%subtract_zodi
    end if
-   self%compute_solar_pointing = self%subtract_zodi
+   self%use_solar_point = self%subtract_zodi
 
     if (trim(self%tod_type)=='SPIDER') then
       self%orbital = .false.
@@ -427,7 +423,6 @@ contains
 
     if (trim(self%level) == 'L1') then
         if (.not. self%sample_L1_par) then
-          call int2string(self%myid, id)
           unit        = getlun()
           self%L2file = trim(self%datadir) // 'precomp_L2_'//trim(self%freq)//'.h5'
           inquire(file=trim(self%L2file), exist=self%L2_exist)
@@ -537,30 +532,38 @@ contains
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
        if (self%nhorn == 2) then
-         do l = 1, self%nhorn
-          call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
-          self%pix2ind(pix(1)) = 1
-          do k = 2, self%scans(i)%ntod
-             self%pix2ind(pix(k)) = 1
+          if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(1)%psi_sol(self%scans(i)%ntod,self%nhorn))
+          do l = 1, self%nhorn
+             call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
+             self%pix2ind(pix(1)) = 1
+             do k = 2, self%scans(i)%ntod
+                self%pix2ind(pix(k)) = 1
+             end do
+             if (self%use_solar_point) then
+                call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
+             end if
           end do
-        end do
        else
-         do j = 1, self%ndet
-           do l = 1, self%nhorn
-            call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-            self%pix2ind(pix(1)) = 1
-            do k = 2, self%scans(i)%ntod
-               pix(k)  = pix(k-1)  + pix(k)
-               if (pix(k) > 12*self%nside**2-1) then
-                   write(*,*) "Error: pixel number out of range for:"
-                   write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
-               end if
-               self%pix2ind(pix(k)) = 1
-            end do
-          end do
+          do j = 1, self%ndet
+             if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(j)%psi_sol(self%scans(i)%ntod,self%nhorn))
+             do l = 1, self%nhorn
+                call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
+                self%pix2ind(pix(1)) = 1
+                do k = 2, self%scans(i)%ntod
+                   pix(k)  = pix(k-1)  + pix(k)
+                   if (pix(k) > 12*self%nside**2-1) then
+                       write(*,*) "Error: pixel number out of range for:"
+                       write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
+                   end if
+                   self%pix2ind(pix(k)) = 1
+                end do
+                if (self%use_solar_point) then
+                   call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
+                end if
+             end do
          end do
-       end if
-       deallocate(pix)
+      end if
+      deallocate(pix)
     end do
     self%nobs = count(self%pix2ind == 1)
     allocate(self%ind2pix(self%nobs))
@@ -1406,7 +1409,14 @@ contains
                   pweight(proc(id(k))) = pweight(proc(id(k))) + weight(id(k))
                end do
             end if
+
+!!$            if (self%myid == 0) then
+!!$               do k = 1, n_tot
+!!$                  write(*,*) k, id(k), proc(k)
+!!$               end do
+!!$            end if
             
+            write(*,*) 
             write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
          end if
@@ -2350,27 +2360,32 @@ contains
 
   subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
     implicit none
-    class(comm_tod),                    intent(in)  :: self
-    integer(i4b),                       intent(in)  :: scan, det
-    integer(i4b),        dimension(:),  intent(out) :: flag
-    integer(i4b),        dimension(:,:),intent(out) :: psi, pix
+    class(comm_tod),                    intent(in)            :: self
+    integer(i4b),                       intent(in)            :: scan, det
+    integer(i4b),        dimension(:),  intent(out), optional :: flag
+    integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
     integer(i4b) :: i, j
     do i=1, self%nhorn
-      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
-      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
-
-      do j = 1, size(psi,1)
-         if (self%polang(det) /= 0.) then
-            psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
-         end if
-         if (psi(j,i) < 1) then
-            psi(j,i) = psi(j,i) + self%npsi
-         else if (psi(j,i) > self%npsi) then
-            psi(j,i) = psi(j,i) - self%npsi
-         end if
-      end do
+       if (present(pix)) then
+          call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
+       end if
+       if (present(psi)) then
+          call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+          if (self%polang(det) /= 0.) then
+             do j = 1, size(psi,1)
+                psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
+                if (psi(j,i) < 1) then
+                   psi(j,i) = psi(j,i) + self%npsi
+                else if (psi(j,i) > self%npsi) then
+                   psi(j,i) = psi(j,i) - self%npsi
+                end if
+             end do
+          end if
+       end if
     end do
-    call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    if (present(flag)) then
+       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+    end if
 
 !!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
 !!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
@@ -2501,7 +2516,37 @@ contains
 
   end subroutine decompress_tod
   
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine compute_solar_centered_pointing(tod, scan, det, pix, psi, pix_sol, psi_sol)
+    implicit none
+    class(comm_tod),                  intent(in)  :: tod
+    integer(i4b),                     intent(in)  :: scan, det
+    integer(i4b),        dimension(:),intent(in)  :: pix, psi
+    integer(i4b),        dimension(:),intent(out) :: pix_sol, psi_sol
+
+    integer(i4b) :: i, j
+    real(dp)     :: alpha, lat, lon, vec(3), vec0(3), M_sun(3,3), x_sun(3), theta_sun, phi_sun, M_ecl2gal(3,3)
+
+    call ecl_to_gal_rot_mat(M_ecl2gal)
+    
+    do j = 1, tod%scans(scan)%ntod
+       ! Set up transformation from Ecliptic to Solar centered coordinates
+       alpha = real(j-1,dp) / real(tod%scans(scan)%ntod-1,dp)
+       x_sun = - (1.d0-alpha) * tod%scans(scan)%x0_obs - alpha * tod%scans(scan)%x1_obs ! Sun position at time t in Ecliptic coordinates
+       call vec2ang(x_sun, theta_sun, phi_sun)
+       call compute_euler_matrix_zyz(-phi_sun, 0.d0, 0.d0, M_sun)
+       
+       ! Compute pointing in solar centered coordinates
+       call pix2vec_ring(tod%nside, pix(j), vec0) ! Galactic coordinates
+       vec0 = matmul(transpose(M_ecl2gal), vec0)    ! Ecliptic coordinates
+       vec0 = matmul(M_sun, vec0)                   ! Solar-centered coordinates
+       call vec2pix_ring(tod%nside, vec0, pix_sol(j))
+    end do
+    psi_sol = 0 ! Not computed yet
+    
+  end subroutine compute_solar_centered_pointing
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Subroutine to save time-ordered-data chunk
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine write_tod_chunk(filename, tod)
@@ -2883,23 +2928,23 @@ contains
       end if
    end subroutine clear_zodi_cache
 
-   subroutine create_dynamic_mask(self, res, mask, threshold, negativeonly)
+   subroutine create_dynamic_mask(self, scan, det, res, rms_range, mask)
      implicit none
-     class(comm_detscan),               intent(inout) :: self
+     class(comm_tod),                   intent(inout) :: self
+     integer(i4b),                      intent(in)    :: scan, det
      real(sp),            dimension(:), intent(in)    :: res
+     real(sp),            dimension(2), intent(in)    :: rms_range
      real(sp),            dimension(:), intent(inout) :: mask
-     real(sp),                          intent(in)    :: threshold
-     logical(lgt),                      intent(in), optional :: negativeonly
-     
+
+     logical(lgt) :: cut
       integer(i4b) :: i, j, k, n, ntod, nmax
-      real(dp) :: box_width, rms
-      logical(lgt) :: negativeonly_, cut
+      real(dp) :: box_width, rms, vec0(3), vec(3), elon
       integer(i4b), allocatable, dimension(:,:) :: bad, buffer
 
-      negativeonly_ = .false.; if (present(negativeonly)) negativeonly_ = negativeonly
-      
+      write(*,*) 'hei'
       ntod = size(res)
       nmax = 1000
+      vec0 = [1.d0, 0.d0, 0.d0] ! The Sun points to the center
       
       ! Compute rms
       rms = 0.d0
@@ -2909,7 +2954,7 @@ contains
          rms = rms + res(i)**2
          n   = n   + 1
       end do
-      rms = sqrt(rms/n)
+      rms = sqrt(rms/(n-1))
 
       allocate(bad(2,nmax))
       
@@ -2920,11 +2965,11 @@ contains
          if (mask(i) /= 1) cycle
 
          ! Apply selection criterium
-         if (negativeonly_) then
-            cut = res(i) < 0.d0
-         else
-            cut = abs(res(i)) > threshold*rms
-         end if
+         cut = res(i) < rms_range(1)*rms .or. res(i) > rms_range(2)*rms 
+
+         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
+         elon = acos(min(max(dot_product(vec, vec0),-1.d0),1.d0)) * 180.d0/pi
+         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
          
          if (cut) then
             ! Start new range if not already active
@@ -2938,13 +2983,7 @@ contains
                n          = n+1
             end if
          end if
-
-         ! Close open range if needed at the end
-         if (i == ntod .and. bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
-            bad(2,n+1) = ntod
-            n          = n+1
-         end if
-
+         
          ! Increase array size if needed
          if (n == nmax) then
             nmax = 2*nmax
@@ -2958,18 +2997,68 @@ contains
          end if
       end do
 
+      ! Close open range if needed at the end
+      if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then
+         bad(2,n+1) = ntod
+         n          = n+1
+      end if
+      
       ! Store final array
       if (n > 0) then
-         allocate(self%mask_dyn(2,n))
-         self%mask_dyn = bad(:,1:n)
-
-         do i = 1, n
-            write(*,*) i, bad(:,i)
-         end do
+         allocate(self%scans(scan)%d(det)%mask_dyn(2,n))
+         self%scans(scan)%d(det)%mask_dyn = bad(:,1:n)
+         if (all(mask == 0.)) self%scans(i)%d%accept = .false.
+!!$         do i = 1, n
+!!$            write(*,*) i, bad(:,i)
+!!$         end do
+         write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', scan, det
       end if
-
+      
       deallocate(bad)
    end subroutine
+
+   subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
+    implicit none
+    class(comm_tod),                       intent(in)     :: tod
+    type(map_ptr), dimension(1:,1:),       intent(inout)  :: map_in       ! (ndet,ndelta)    
+    real(sp),                              intent(in)     :: scale
+    real(sp),      dimension(1:,1:,0:,1:), intent(out)    :: map_out
+    real(dp),      dimension(1:, 0:), intent(out), optional   :: map_full
+
+    integer(i4b) :: i, j, k, l, npix, nmaps
+    real(dp),     allocatable, dimension(:,:) :: m_buf
+
+    npix  = map_in(1,1)%p%info%npix
+    nmaps = map_in(1,1)%p%info%nmaps
+    allocate(m_buf(0:npix-1,nmaps))
+    if (present(map_full)) map_full = 0
+    do j = 1, size(map_in,2)       ! ndelta
+       do i = 1, size(map_in,1)    ! ndet
+          map_in(i,j)%p%map = scale * map_in(i,j)%p%map ! unit conversion
+          call map_in(i,j)%p%bcast_fullsky_map(m_buf)
+          do k = 1, tod%nobs
+             map_out(:,k,i,j) = m_buf(tod%ind2pix(k),:)
+          end do
+          if (present(map_full) .and. j .eq. 1) then
+            do k = 1, nmaps
+              do l = 0, npix-1
+                map_full(k, l) = map_full(k, l) + m_buf(l, k)
+              end do
+            end do
+          end if
+       end do
+       do k = 1, tod%nobs
+          do l = 1, tod%nmaps
+             map_out(l,k,0,j) = sum(map_out(l,k,1:tod%ndet,j))/tod%ndet
+          end do
+       end do
+    end do
+
+    if (present(map_full)) map_full = map_full/tod%ndet
+
+    deallocate(m_buf)
+
+  end subroutine distribute_sky_maps
 
    
 end module comm_tod_mod

@@ -23,7 +23,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 module comm_param_mod
-  use comm_utils
   use comm_status_mod
   use hashtbl
   implicit none
@@ -82,7 +81,9 @@ module comm_param_mod
      integer(i4b)       :: tod_freq
      integer(i4b)       :: resamp_hard_gain_prior_nth_iter
      integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
-     logical(lgt)       :: include_tod_zodi, sample_zodi
+     logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
+     integer(i4b)       :: zodi_solar_nside
+     character(len=512) :: zodi_solar_initmap
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
@@ -271,7 +272,7 @@ module comm_param_mod
      real(dp), allocatable, dimension(:, :)  :: zs_phase_coeff ! (n_band, 3)
      real(dp), allocatable, dimension(:)     :: zs_nu_ref, zs_solar_irradiance ! (n_band)
      real(dp)                                :: zs_comp_params(MAXZODICOMPS, MAXZODIPARAMS, 4), zs_delta_t_reset, zs_general_params(MAXZODIPARAMS, 4), zs_r_min(MAXZODICOMPS), zs_r_max(MAXZODICOMPS), zs_randomize_rms
-     real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_min_solar_elong, zs_max_solar_elong
+     real(dp)                                :: zs_tod_thin_factor, zs_tod_thin_threshold, zs_sol_elong(2)
      character(len=128)                      :: zs_comp_labels(MAXZODICOMPS), zs_comp_types(MAXZODICOMPS), zs_init_hdf(MAXZODICOMPS), zs_sample_method, zs_init_ascii, zs_refband, zs_em_global, zs_al_global
      character(len=2048)                     :: zs_wiring
      character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
@@ -503,7 +504,14 @@ contains
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_4D_MAP_EVERY_NTH_ITER', par_int=cpar%output_4D_map_nth_iter)
        call get_parameter_hashtable(htbl, 'TOD_OUTPUT_AUXILIARY_MAPS_EVERY_NTH_ITER', par_int=cpar%output_aux_maps)
        call get_parameter_hashtable(htbl, 'TOD_INCLUDE_ZODI',      par_lgt=cpar%include_TOD_zodi)
-       call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',      par_lgt=cpar%sample_zodi)
+       if (cpar%include_TOD_zodi) then
+          call get_parameter_hashtable(htbl, 'SAMPLE_ZODI',      par_lgt=cpar%sample_zodi)
+          call get_parameter_hashtable(htbl, 'ZODI_USE_SOLAR_CENTRIC_COMP',  par_lgt=cpar%incl_zodi_solar_comp)
+          if (cpar%incl_zodi_solar_comp) then
+             call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_NSIDE',    par_int=cpar%zodi_solar_nside)
+             call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_INITMAP',  par_string=cpar%zodi_solar_initmap)
+          end if
+       end if
     end if
 
     if (cpar%resamp_CMB) then
@@ -656,8 +664,10 @@ contains
                   & par_int=cpar%ds_tod_flag(i))
              !call get_parameter_hashtable(htbl, 'BAND_TOD_ORBITAL_ONLY_ABSCAL'//itext, len_itext=len_itext, &
              !     & par_lgt=cpar%ds_tod_orb_abscal(i))
-             call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_SUBTRACTION'//itext, len_itext=len_itext, &
-                  & par_lgt=cpar%ds_tod_subtract_zodi(i))       
+             if (cpar%include_TOD_zodi) then
+                call get_parameter_hashtable(htbl, 'BAND_TOD_ZODI_SUBTRACTION'//itext, len_itext=len_itext, &
+                     & par_lgt=cpar%ds_tod_subtract_zodi(i))
+             end if
              call get_parameter_hashtable(htbl, 'BAND_TOD_ABSCAL_COMP'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_abscal(i))
              call get_parameter_hashtable(htbl, 'BAND_TOD_RIMO'//itext, len_itext=len_itext, &
@@ -2901,8 +2911,8 @@ subroutine read_zodi_params_hash(htbl, cpar)
      call get_parameter_from_hash(htbl, 'ZODI_INIT_FROM_ASCII', par_string=cpar%zs_init_ascii)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_FACTOR', par_dp=cpar%zs_tod_thin_factor)
      call get_parameter_from_hash(htbl, 'ZODI_TOD_THINNING_THRESHOLD', par_dp=cpar%zs_tod_thin_threshold)
-     call get_parameter_from_hash(htbl, 'ZODI_MIN_SOLAR_ELONGATION', par_dp=cpar%zs_min_solar_elong)
-     call get_parameter_from_hash(htbl, 'ZODI_MAX_SOLAR_ELONGATION', par_dp=cpar%zs_max_solar_elong)
+     call get_parameter_from_hash(htbl, 'ZODI_MIN_SOLAR_ELONGATION', par_dp=cpar%zs_sol_elong(1))
+     call get_parameter_from_hash(htbl, 'ZODI_MAX_SOLAR_ELONGATION', par_dp=cpar%zs_sol_elong(2))
      
      ! initialise priors
      cpar%zs_comp_params(:, :, 2) = DEFAULT_PRIOR_LOWER_LIMIT

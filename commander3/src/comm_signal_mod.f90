@@ -19,33 +19,25 @@
 !
 !================================================================================
 module comm_signal_mod
-  use comm_ame_lognormal_mod
   use comm_chisq_mod
+  use comm_cr_mod
   use comm_cmb_comp_mod
   use comm_cmb_relquad_comp_mod
-  use comm_comp_mod
-  use comm_cr_mod
-  use comm_cr_utils
-  use comm_curvature_comp_mod
-  use comm_data_mod
-  use comm_diffuse_comp_mod
-  use comm_freefree_comp_mod
-  use comm_freefreeEM_comp_mod
-  use comm_hdf_mod
-  use comm_line_comp_mod
-  use comm_MBB_comp_mod
-  use comm_MBBtab_comp_mod
-  use comm_md_comp_mod
-  use comm_param_mod
+  use comm_mbb_comp_mod
+  use comm_mbbtab_comp_mod
   use comm_powlaw_comp_mod
-  use comm_exp_comp_mod
-  use comm_powlaw_break_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_physdust_comp_mod
-  use comm_pah_comp_mod
+  use comm_curvature_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
-  use comm_template_comp_mod
+  use comm_md_comp_mod
+  use comm_line_comp_mod
+  use comm_freefree_comp_mod
+  use comm_freefreeEM_comp_mod
+  use comm_exp_comp_mod
+  use comm_physdust_comp_mod
+  use comm_pah_comp_mod
+  use comm_powlaw_break_comp_mod
+  use comm_ame_lognormal_mod
   implicit none
 
 contains
@@ -143,7 +135,7 @@ contains
        ind_comp(i,3) = c%nmaps
        ncr           = ncr + c%ncr
        i             = i+1
-       c             => c%next()
+       c             => c%nextComp()
     end do
 
 !    call mpi_finalize(i)
@@ -171,7 +163,7 @@ contains
                       prior_exists = .true.
                    end if
                 end select
-                c_two => c_two%next()
+                c_two => c_two%nextComp()
              end do
 
              if (.not. prior_exists) then
@@ -182,7 +174,7 @@ contains
 
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine initialize_signal_mod
@@ -203,7 +195,7 @@ contains
        write(unit,*) '# Component = ', trim(c%label)
        call c%dumpSED(unit)
        write(unit,*)
-       c => c%next()
+       c => c%nextComp()
     end do
     close(unit)
     
@@ -228,7 +220,7 @@ contains
     c => compList
     do while (associated(c))
        call c%CG_mask(samp_group, mask)
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Activate requested frequency bands
@@ -263,7 +255,7 @@ contains
              end if
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
    
@@ -285,7 +277,7 @@ contains
        class is (comm_diffuse_comp)
           if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! If mono-/dipole components is a zero-level prior, revert back to pre-sampling value if it has been sampled in the current CG group
@@ -315,7 +307,7 @@ contains
              end if
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_amps_by_CG
@@ -335,7 +327,7 @@ contains
     if (.not. associated(compList)) then
        compList => c
     else
-       call compList%add(c)
+       call compList%addComp(c)
     end if
   end subroutine add_to_complist
 
@@ -382,13 +374,13 @@ contains
        c   => compList
        do while (associated(c))
           if (.not. c%output) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           call update_status(status, "init_chain_"//trim(c%label))
           if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
-          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
-          c => c%next()
+          call c%initHDFComp(cpar, file, trim(adjustl(itext))//'/')
+          c => c%nextComp()
        end do
        call close_hdf_file(file)
        return
@@ -452,22 +444,22 @@ contains
        if (.not. present(init_from_output) .and. &
             & (trim(c%init_from_HDF) == 'none' .or. &
             & (trim(c%type) == 'cmb' .and. .not. present(first_call)))) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
        if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
        if (trim(c%init_from_HDF) == 'default' .or. trim(c%init_from_HDF) == 'none') then
-          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+          call c%initHDFComp(cpar, file, trim(adjustl(itext))//'/')
        else
           call get_chainfile_and_samp(c%init_from_HDF, &
                      & chainfile, initsamp2)
           call int2string(initsamp2, itext2)
           call open_hdf_file(chainfile, file2, 'r')
-          call c%initHDF(cpar, file2, trim(adjustl(itext2))//'/')
+          call c%initHDFComp(cpar, file2, trim(adjustl(itext2))//'/')
           call close_hdf_file(file2)
        end if
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Initialize TOD parameters
@@ -570,14 +562,14 @@ contains
     c  => compList
     do while (associated(c))
        if (trim(c%type) == 'md') then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
        class is (comm_diffuse_comp)
           call c%Cl%sampleCls(c%x, handle, ok)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_powspec
@@ -606,7 +598,7 @@ contains
           if (associated(pt%mask)) skip = .false.
        end select
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
 
@@ -645,7 +637,7 @@ contains
 
        deallocate(res, invN_T)
 
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_partialsky_tempamps
@@ -801,7 +793,7 @@ contains
           end do
 
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_joint_alm_Cl

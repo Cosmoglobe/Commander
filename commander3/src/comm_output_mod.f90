@@ -19,10 +19,7 @@
 !
 !================================================================================
 module comm_output_mod
-  use comm_param_mod
-  use comm_comp_mod
   use comm_chisq_mod
-  use comm_hdf_mod
   implicit none
 
 contains
@@ -179,7 +176,7 @@ contains
     do while (associated(c))
 !       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
        if (.not. c%output) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
@@ -187,9 +184,9 @@ contains
        class is (comm_diffuse_comp)
           if (output_hdf) then
              hdfpath = trim(adjustl(itext))//'/'//trim(adjustl(c%label))
-             call c%Cl%writeFITS(cpar%mychain, iter, hdffile=file, hdfpath=hdfpath)
+             call c%Cl%write_Cl_to_FITS(cpar%mychain, iter, hdffile=file, hdfpath=hdfpath)
           else
-             call c%Cl%writeFITS(cpar%mychain, iter)
+             call c%Cl%write_Cl_to_FITS(cpar%mychain, iter)
           end if
 
           !get mean values (and component labels) for fg mean print
@@ -307,7 +304,7 @@ contains
 
        end select
        call update_status(status, "output_"//trim(c%label))
-       c => c%next()
+       c => c%nextComp()
     end do
 
     

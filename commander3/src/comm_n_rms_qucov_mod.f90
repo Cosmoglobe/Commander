@@ -20,9 +20,6 @@
 !================================================================================
 module comm_N_rms_QUcov_mod
   use comm_N_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_status_mod
   implicit none
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! This module handles the case of a white noise matrix where there is
@@ -49,8 +46,8 @@ module comm_N_rms_QUcov_mod
      procedure :: invN_lowres => matmulInvN_1map_lowres
      procedure :: N           => matmulN_1map
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
-     procedure :: rms         => returnRMS
-     procedure :: rms_pix     => returnRMSpix
+     procedure :: rms         => returnRMS_rms_QUcov
+     procedure :: rms_pix     => returnRMS_rms_QUcov_pix
      procedure :: update_N    => update_N_rms_QUcov
   end type comm_N_rms_QUcov
 
@@ -424,7 +421,7 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res, samp_group)
+  subroutine returnRMS_rms_qucov(self, res, samp_group)
     implicit none
     class(comm_N_rms_QUcov), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
@@ -441,32 +438,32 @@ contains
           end where
        end if
     end if
-  end subroutine returnRMS
+  end subroutine returnRMS_rms_qucov
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group, ret_invN)
+  function returnRMS_rms_qucov_pix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_rms_QUcov),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
-    real(dp)                                     :: returnRMSpix
+    real(dp)                                     :: returnRMS_rms_qucov_pix
     integer(i4b),        intent(in),   optional  :: samp_group
     logical(lgt),        intent(in),   optional  :: ret_invN
     if (self%N_map%map(pix,pol) > 0.d0) then
-       returnRMSpix = sqrt(self%N_map%map(pix,pol))
+       returnRMS_rms_qucov_pix = sqrt(self%N_map%map(pix,pol))
     else
-       returnRMSpix = infinity
+       returnRMS_rms_qucov_pix = infinity
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           if (self%samp_group_mask(samp_group)%p%map(pix,pol) == 0.d0) then
-             returnRMSpix = infinity
+             returnRMS_rms_qucov_pix = infinity
           end if
        end if
     end if
     if (present(ret_invN)) then
-       if (ret_invN) returnRMSpix = 1d0/returnRMSpix**2
+       if (ret_invN) returnRMS_rms_qucov_pix = 1d0/returnRMS_rms_qucov_pix**2
     end if
-  end function returnRMSpix
+  end function returnRMS_rms_qucov_pix
 
   subroutine initialize_iN_siN(N, N_low, iN, siN, iN_low)
     implicit none

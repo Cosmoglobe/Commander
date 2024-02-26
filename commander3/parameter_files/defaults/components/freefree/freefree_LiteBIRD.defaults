@@ -1,17 +1,16 @@
 # freefree component ---------------------------------------------------------------------
-@START 04
 @DEFAULT components/freefree/freefree_LFI.defaults
-COMP_L_APOD&&                 = 1000
-COMP_LMAX_AMP&&               = 1000
+COMP_L_APOD&&                 = 3000
+COMP_AMP_LMAX&&               = 3000
 COMP_AMP_PRIOR_MAP&&          = none
 COMP_AMP_INPUT_MAP&&          = none
 COMP_MONOPOLE_PRIOR&&         = none
-COMP_NSIDE&&                  = 512
+COMP_NSIDE&&                  = 1024
 COMP_NU_REF_T&&               = 50.0
 COMP_NU_REF_P&&               = 50.0
+COMP_AMP_INPUT_MAP&&          = none
 # New Local sampling parameters. 'freefree, ff'
 @DEFAULT components/freefree/freefree_LFI_localsampler.defaults
 COMP_T_E_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 COMP_T_E_COMBINED_MONOPOLE_SAMPLING&& = .false.
 COMP_INIT_FROM_HDF&&          = default
-@END 04

@@ -19,19 +19,9 @@
 !
 !================================================================================
 module comm_diffuse_comp_mod
-  use comm_param_mod
   use comm_comp_mod
-  use comm_map_mod
-  use comm_data_mod
-  use comm_F_int_mod
   use comm_Cl_mod
-  use math_tools
-  use comm_cr_utils
-  use comm_cr_precond_mod
-  use comm_hdf_mod
-  use InvSamp_mod
-  use powell_mod
-  use comm_beam_mod
+  use comm_F_mod
   implicit none
 
   private
@@ -135,7 +125,7 @@ module comm_diffuse_comp_mod
      procedure :: getBand       => evalDiffuseBand
      procedure :: projectBand   => projectDiffuseBand
      procedure :: dumpFITS      => dumpDiffuseToFITS
-     procedure :: initHDF       => initDiffuseHDF
+     procedure :: initHDFComp   => initDiffuseHDF
      procedure :: sampleSpecInd => sampleDiffuseSpecInd
      procedure :: updateLowlPrecond
      procedure :: applyLowlPrecond
