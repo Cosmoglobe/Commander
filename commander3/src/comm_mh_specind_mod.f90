@@ -228,7 +228,7 @@ contains
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
     integer(i4b) :: band, samp_group, ierr, i, j, k, pol, pix
-    logical(lgt)  :: include_comp, reject, todo
+    logical(lgt)  :: include_comp, reject, todo, has_alms
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
@@ -246,21 +246,25 @@ contains
        class is (comm_diffuse_comp)
          if (todo) then
            if (allocated(c%indmask)) then
+             ! This is a hack, and should be replaced with a real mask call.
              call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+             todo = .false.
            end if
-           todo = .false.
          end if
        end select
        c => c%nextComp()
     end do
 
+    if (todo) then
+      write(*,*) 'Big oops'
+      stop
+    end if
+
     if (cpar%myid_chain .eq. 0) then
-      write(*,*) '| Old chisq is ', chisq_old
+      write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
     end if
 
     ! Propose spectral index MH step - for a given component or all components?
-    ! Let's assume we are doing this akin to the sample_specind_local arguments.
-
 
     ! From the sample_nonlin_params section
     c => compList
@@ -280,7 +284,7 @@ contains
 
             if (cpar%myid_chain .eq. 0) then
               write(*,*) trim(c%label), j
-              do pol = 1, 3
+              do pol = 1, c%theta(j)%p%info%nmaps
                  c%theta_pixreg_buff(1,pol,j) = c%theta_pixreg(1,pol,j)
                  c%theta_pixreg(1,pol,j) = c%theta_pixreg(1,pol,j) + rand_gauss(handle) * c%p_gauss(2,j)
               end do
@@ -294,18 +298,20 @@ contains
             call mpi_bcast(c%theta_pixreg,      size(c%theta_pixreg),      MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
 
-            !do pol = 1,3
+            do pol = 1,c%theta(j)%p%info%nmaps
                do pix = 0, c%theta(j)%p%info%np-1
-                  !if (cpar%myid_chain==0) write(*,*) c%ind_pixreg_arr(pix,pol,j), c%theta(j)%p%map(pix,1), cpar%myid_chain, pol, pix
-                  c%theta(j)%p%map(pix,1) = c%theta_pixreg(1,c%ind_pixreg_arr(pix,1,j),j)
+                  c%theta(j)%p%map(pix,pol) = c%theta_pixreg(pol,c%ind_pixreg_arr(pix,pol,j),j)
                end do
-            !end do
-            !call mpi_allreduce(theta_smooth%info%nalm, nalm_tot_reg, 1, MPI_INTEGER, MPI_SUM, info%comm, ierr)
-
-            c%theta(j)%p%map(:,1) = c%theta_pixreg(1,1,j)
+            end do
 
 
-            call c%theta(j)%p%YtW()
+            if (cpar%myid_chain .eq. 0 .and. c%theta(j)%p%info%nalm .ne. 0) then
+              has_alms = .true.
+            else
+              has_alms = .false.
+            end if
+            call mpi_bcast(has_alms, 1,  MPI_LOGICAL, 0, data(1)%info%comm, ierr)
+            if (has_alms) call c%theta(j)%p%YtW_scalar()
 
 
           end select
@@ -350,16 +356,16 @@ contains
          if (todo) then
            if (allocated(c%indmask)) then
              call compute_chisq(c%comm, chisq_fullsky=chisq_prop, mask=c%indmask)
+             todo = .false.
            end if
-           todo = .false.
          end if
        end select
        c => c%nextComp()
     end do
 
     if (cpar%myid_chain .eq. 0) then
-      write(*,*) "|    Proposal chisq is ", chisq_prop
-      write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
+      write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
+      write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
     end if
 
     ! Check MH statistic
@@ -371,7 +377,7 @@ contains
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
         write(*,*) '| MH step rejected, returning to original spectral indices.'
-        write(*,*) '| Rejected chisq is ', chisq_old
+        write(*,*) '| Rejected chisq is ', nint(chisq_old, i8b)
         write(*,*) '| '
       end if
 
@@ -390,18 +396,28 @@ contains
             class is (comm_diffuse_comp)
 
               if (cpar%myid_chain .eq. 0) then
-                do k = 1, 3
-                   c%theta_pixreg(1,k,j) = c%theta_pixreg_buff(1,k,j)
+                do pol = 1, c%theta(j)%p%info%nmaps
+                   c%theta_pixreg(1,pol,j) = c%theta_pixreg_buff(1,pol,j)
                 end do
               end if
 
               call mpi_bcast(c%theta_pixreg,      size(c%theta_pixreg),      MPI_DOUBLE_PRECISION, &
                 & 0, data(1)%info%comm, ierr)
 
-              c%theta(j)%p%map(:,1) = c%theta_pixreg_buff(1,1,j)
+              do pol = 1,c%theta(j)%p%info%nmaps
+                 do pix = 0, c%theta(j)%p%info%np-1
+                    c%theta(j)%p%map(pix,pol) = c%theta_pixreg(pol,c%ind_pixreg_arr(pix,pol,j),j)
+                 end do
+              end do
 
 
-              call c%theta(j)%p%YtW()
+              if (cpar%myid_chain .eq. 0 .and. c%theta(j)%p%info%nalm .ne. 0) then
+                has_alms = .true.
+              else
+                has_alms = .false.
+              end if
+              call mpi_bcast(has_alms, 1,  MPI_LOGICAL, 0, data(1)%info%comm, ierr)
+              if (has_alms) call c%theta(j)%p%YtW_scalar()
             end select
 
          end do
@@ -443,8 +459,8 @@ contains
            if (todo) then
              if (allocated(c%indmask)) then
                call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+               todo = .false.
              end if
-             todo = .false.
            end if
          end select
          c => c%nextComp()
@@ -452,7 +468,7 @@ contains
 
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
-        write(*,*) '| Current MH chisq is ', chisq_old
+        write(*,*) '| Current MH chisq is ', nint(chisq_old, i8b)
         write(*,*) '| '
       end if
 
@@ -460,7 +476,7 @@ contains
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
         write(*,*) '| MH step accepted'
-        write(*,*) '| Current MH chisq is ', chisq_prop
+        write(*,*) '| Current MH chisq is ', nint(chisq_prop, i8b)
       end if
     end if
 

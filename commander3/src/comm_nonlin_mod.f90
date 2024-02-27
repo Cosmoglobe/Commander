@@ -401,7 +401,7 @@ interface
     integer(i4b),                            intent(in)           :: par_id, comp_id, iter
 
     integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, id
-    integer(i4b) :: i_min, i_max, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps
+    integer(i4b) :: i_min, i_max,  n_pix, n_pix_tot, flag, npar, np, nmaps
     real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
     real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
     real(dp)     :: x(1), theta_min, theta_max
@@ -468,7 +468,7 @@ interface
 
     integer(i4b) :: i, j, k, l, m, n, q, pr, max_pr, pix, ierr, ind(1), counter, n_ok, id
     integer(i4b) :: i_mono,l_mono,m_mono, N_theta_MC, l_count
-    integer(i4b) :: i_min, i_max, n_gibbs, n_pix, n_pix_tot, flag, npar, np, nmaps, nsamp
+    integer(i4b) :: i_min, i_max,  n_pix, n_pix_tot, flag, npar, np, nmaps, nsamp
     real(dp)     :: a, b, a_tot, b_tot, s, t0, t1, t2, t3, t4, x_min, x_max, delta_lnL_threshold
     real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
     real(dp)     :: buff_init, theta_min, theta_max, running_accept, running_dlnL

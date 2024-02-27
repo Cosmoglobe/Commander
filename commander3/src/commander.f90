@@ -339,7 +339,7 @@ program commander
      end if
 
      !if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-     if (.true.) then
+     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
       if (first_zodi) then
@@ -411,16 +411,15 @@ program commander
 
 
    if (mod(iter,modfact) == 0) then
-     ! Sample gains off of absolutely calibrated FIRAS maps
-     if (iter > 5) then
+     if (iter > 1) then
+        ! Sample gains off of absolutely calibrated FIRAS maps
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
+        ! Testing the spectral index xampling
+        !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
+        !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
      end if
 
 
-     ! Spectral index mh sampling
-
-     !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
-     !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
 
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then

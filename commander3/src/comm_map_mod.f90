@@ -847,7 +847,7 @@ subroutine tod2file_dp3(filename,d)
        stop
     end if
     if (nside /= self%info%nside .and. .not. (present(udgrade))) then
-       if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename)
+       if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename), 'Expected ', self%info%nside
        call mpi_finalize(ierr)
        stop
     end if
