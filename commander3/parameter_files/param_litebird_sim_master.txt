@@ -1,0 +1,358 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT LiteBIRD.defaults
+
+OPERATION                     = sample   optimize  # {sample,optimize}
+VERBOSITY                     = 3       # [0,...,3]
+
+##############################################################
+#                   Algorithm specification                  #
+##############################################################
+
+NUMCHAIN                      = 1
+NUM_GIBBS_ITER                = 5000
+CHAIN_STATUS                  = new
+INIT_CHAIN01                  = none
+#INIT_CHAIN01                  = /mn/stornext/d5/data/hke/litebird/data/init_chain_lb_v1.h5:5
+
+ENABLE_TOD_ANALYSIS = .true.
+SAMPLE_ZODI = .false.
+
+##############################################################
+#                         Data sets                          #
+##############################################################
+
+DATA_DIRECTORY                = data
+NUMBAND                       = 22
+
+SOURCE_MASKFILE               = none
+PROCESSING_MASKFILE           = none
+PROCESSING_MASKFILE2          = none
+PROC_SMOOTH_SCALE             = 30.
+
+# Spectral index sampling options
+NUM_SMOOTHING_SCALES          = 1
+
+SMOOTHING_SCALE_FWHM01        = 90.      # Arcmin; 0 = native resolution
+SMOOTHING_SCALE_LMAX01        = 3000
+SMOOTHING_SCALE_NSIDE01       = 3000  # Must match NSIDE of component it is used for
+SMOOTHING_SCALE_PIXWIN01      = pixel_window_n1024.fits
+SMOOTHING_SCALE_FWHM_POSTPROC01 = 0.    # Smoothing FWHM after pixel-by-pixel fit
+
+#SMOOTHING_SCALE_FWHM02        = 300.      # Arcmin; 0 = native resolution
+#SMOOTHING_SCALE_LMAX02        = 96
+#SMOOTHING_SCALE_NSIDE02       = 512  # Must match NSIDE of component it is used for
+#SMOOTHING_SCALE_PIXWIN02      = pixel_window_n0512.fits
+#SMOOTHING_SCALE_FWHM_POSTPROC02 = 600.    # Smoothing FWHM after pixel-by-pixel fit
+
+# TOD sampling options
+TOD_NUM_BP_PROPOSALS_PER_ITER = 0
+NUMITER_RESAMPLE_HARD_GAIN_PRIORS = 3
+
+# BANDS #
+# LFT
+INCLUDE_BAND001               = .true.    # LB_040_L1
+#INCLUDE_BAND002               = .false.    # LB_050_L2
+INCLUDE_BAND002               = .true.    # LB_050_L2
+INCLUDE_BAND003               = .true.    # LB_060_L1
+#INCLUDE_BAND003               = .false.    # LB_060_L1
+INCLUDE_BAND004               = .false.    # LB_068_L3
+INCLUDE_BAND005               = .false.    # LB_068_L2
+INCLUDE_BAND006               = .false.    # LB_078_L4
+INCLUDE_BAND007               = .false.    # LB_078_L1
+INCLUDE_BAND008               = .true.    # LB_089_L3
+#INCLUDE_BAND008               = .false.    # LB_089_L3
+INCLUDE_BAND009               = .false.    # LB_089_L2
+INCLUDE_BAND010               = .false.    # LB_100_L4
+INCLUDE_BAND011               = .true.    # LB_119_L3 
+#INCLUDE_BAND011               = .false.    # LB_119_L3 
+INCLUDE_BAND012               = .false.    # LB_140_L4
+
+
+# MFT
+INCLUDE_BAND013               = .false.   # LB_100_M1
+INCLUDE_BAND014               = .false.   # LB_119_M2
+INCLUDE_BAND015               = .false.   # LB_140_M1
+INCLUDE_BAND016               = .false.   # LB_166_M2
+INCLUDE_BAND017               = .true.   # LB_195_M1
+
+# HFT
+INCLUDE_BAND018               = .false.   # LB_195_H1
+INCLUDE_BAND019               = .false.   # LB_235_H2
+INCLUDE_BAND020               = .false.   # LB_280_H1
+INCLUDE_BAND021               = .false.   # LB_337_H2
+INCLUDE_BAND022               = .true.   # LB_402_H3
+
+
+BAND_TOD_TYPE001 = LB
+BAND_TOD_TYPE002 = LB
+BAND_TOD_TYPE003 = LB
+BAND_TOD_TYPE004 = LB
+BAND_TOD_TYPE005 = LB
+BAND_TOD_TYPE006 = LB
+BAND_TOD_TYPE007 = LB
+BAND_TOD_TYPE008 = LB
+BAND_TOD_TYPE009 = LB
+BAND_TOD_TYPE010 = LB
+BAND_TOD_TYPE011 = LB
+BAND_TOD_TYPE012 = LB
+BAND_TOD_TYPE013 = LB
+BAND_TOD_TYPE014 = LB
+BAND_TOD_TYPE015 = LB
+BAND_TOD_TYPE016 = LB
+BAND_TOD_TYPE017 = LB
+BAND_TOD_TYPE018 = LB
+BAND_TOD_TYPE019 = LB
+BAND_TOD_TYPE020 = LB
+BAND_TOD_TYPE021 = LB
+BAND_TOD_TYPE022 = LB
+
+
+# # # # # # # Bands # # # # # # # # # # # #
+
+
+
+@START 001 
+@DEFAULT bands/LiteBIRD/LB_040_L1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_040_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 001
+
+@START 002 
+@DEFAULT bands/LiteBIRD/LB_050_L2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_050_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 002
+
+@START 003 
+@DEFAULT bands/LiteBIRD/LB_060_L1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_060_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 003
+
+@START 004 
+@DEFAULT bands/LiteBIRD/LB_068_L3_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_068_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 004
+
+@START 005 
+@DEFAULT bands/LiteBIRD/LB_068_L2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_068_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 005
+
+@START 006 
+@DEFAULT bands/LiteBIRD/LB_078_L4_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_078_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 006
+
+@START 007 
+@DEFAULT bands/LiteBIRD/LB_078_L1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_078_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 007
+
+@START 008 
+@DEFAULT bands/LiteBIRD/LB_089_L3_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_089_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 008
+
+@START 009 
+@DEFAULT bands/LiteBIRD/LB_089_L2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_089_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 009
+
+@START 010 
+@DEFAULT bands/LiteBIRD/LB_100_L4_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_100_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 010
+
+@START 011 
+@DEFAULT bands/LiteBIRD/LB_119_L3_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_119_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 011
+
+@START 012 
+@DEFAULT bands/LiteBIRD/LB_140_L4_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_140_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 012
+
+
+####################################
+############### MFT ################
+####################################
+
+@START 013 
+@DEFAULT bands/LiteBIRD/LB_100_M1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_100_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 013
+
+@START 014 
+@DEFAULT bands/LiteBIRD/LB_119_M2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_119_M2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 014
+
+@START 015 
+@DEFAULT bands/LiteBIRD/LB_140_M1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_140_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 015
+
+@START 016 
+@DEFAULT bands/LiteBIRD/LB_166_M2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_166_M2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 016
+
+@START 017 
+@DEFAULT bands/LiteBIRD/LB_195_M1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_195_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 017
+
+####################################
+############### HFT ################
+####################################
+
+@START 018 
+@DEFAULT bands/LiteBIRD/LB_195_H1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_195_H1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 018
+
+@START 019 
+@DEFAULT bands/LiteBIRD/LB_235_H2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_235_H2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 019
+
+@START 020 
+@DEFAULT bands/LiteBIRD/LB_280_H1_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_280_H1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 020
+
+@START 021 
+@DEFAULT bands/LiteBIRD/LB_337_H2_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_337_H2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 021
+
+@START 022 
+@DEFAULT bands/LiteBIRD/LB_402_H3_TOD.defaults
+BAND_TOD_FILELIST&&& = filelist_LB_402_H3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2.txt
+@END 022
+
+
+
+INSTRUMENT_PARAM_FILE = instrument_params_LB.dat
+INIT_INSTRUMENT_FROM_HDF = default
+CMB_DIPOLE_PRIOR = none
+
+
+###################################################
+#    Components
+###################################################
+
+
+NUM_SIGNAL_COMPONENTS = 7
+INCLUDE_COMP01 = .true. # cmb
+INCLUDE_COMP02 = .true. # synch
+INCLUDE_COMP03 = .true. # dust
+INCLUDE_COMP04 = .true. # ff
+INCLUDE_COMP05 = .true. # radio point sources
+INCLUDE_COMP06 = .false. # monopole
+INCLUDE_COMP07 = .true. # AME
+INCLUDE_COMP08 = .false.
+INCLUDE_COMP09 = .false.
+INCLUDE_COMP10 = .false.
+INCLUDE_COMP11 = .false.
+INCLUDE_COMP12 = .false.
+
+OUTPUT_COMPS_TO_CHAINDIR = all
+NUM_CG_SAMPLING_GROUPS = 4
+CG_SAMPLING_GROUP01          = cmb,dust
+CG_SAMPLING_GROUP_MASK01     = fullsky #mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER01  = 50
+CG_SAMPLING_GROUP_BANDS01    = all
+CG_SAMPLING_GROUP02          = synch,ff,ame
+CG_SAMPLING_GROUP_MASK02     = fullsky #mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER02  = 50
+CG_SAMPLING_GROUP_BANDS02    = all
+CG_SAMPLING_GROUP03          = cmb,dust,synch
+CG_SAMPLING_GROUP_MASK03     = fullsky #mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER03  = 300
+CG_SAMPLING_GROUP_BANDS03    = all
+CG_SAMPLING_GROUP04          = cmb,synch,ff
+CG_SAMPLING_GROUP_MASK04     = fullsky #mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER04  = 300
+CG_SAMPLING_GROUP_BANDS04    = all
+CG_SAMPLING_GROUP05          = md
+CG_SAMPLING_GROUP_MASK05     = mask_5deg_20p_M1-195.fits
+CG_SAMPLING_GROUP_MAXITER05  = 10
+CG_SAMPLING_GROUP_BANDS05    = all
+CG_SAMPLING_GROUP06          = all
+CG_SAMPLING_GROUP_MASK06     = fullsky #mask_common_dx12_n1024_TQU.fits
+CG_SAMPLING_GROUP_MAXITER06  = 300
+CG_SAMPLING_GROUP_BANDS06    = all
+
+@START 01
+@DEFAULT components/cmb/cmb_LiteBIRD.defaults
+@END 01
+
+
+@START 02
+@DEFAULT components/synch/synch_LiteBIRD.defaults
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.01
+@END 02
+
+
+@START 03
+@DEFAULT components/dust/dust_LiteBIRD.defaults
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0 #0.01
+COMP_T_PRIOR_GAUSS_RMS&&      = 0 #0.1
+@END 03
+
+
+# freefree component ---------------------------------------------------------------------
+@START 04
+@DEFAULT components/freefree/freefree_LiteBIRD.defaults
+#COMP_L_APOD&&                 = 3000
+#COMP_AMP_PRIOR_MAP&&          = none
+#COMP_AMP_INPUT_MAP&&          = none
+#COMP_MONOPOLE_PRIOR&&         = none
+#COMP_NSIDE&&                  = 1024
+#COMP_NU_REF_T&&               = 50.0
+#COMP_NU_REF_P&&               = 50.0
+# New Local sampling parameters. 'freefree, ff'
+#@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+#COMP_T_E_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
+#COMP_T_E_COMBINED_MONOPOLE_SAMPLING&& = .false.
+#COMP_INIT_FROM_HDF&&          = default
+#COMP_T_E_PRIOR_GAUSS_RMS&&    = 0.
+@END 04
+
+
+# Radio sources
+@START 05
+@DEFAULT components/radio/radio_LFI.defaults
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_CATALOG&&                 = radio_sources_40GHz_1000mJy.dat radio_BP10_sky_model_sims_init_v3.dat
+COMP_INIT_CATALOG&&            = radio_sources_40GHz_1000mJy.dat radio_BP10_sky_model_sims_init_v3.dat
+COMP_PTSRC_TEMPLATE&&          = radio_sources_40GHz_LB_output_v2_new_chan_names.h5
+COMP_INIT_FROM_HDF&&           = default
+COMP_NSIDE&&                   = 512
+COMP_POLARIZATION&&            = .false.
+COMP_NU_REF&&                  = 30
+COMP_NU_REF_T&&                = 30
+COMP_NU_REF_P&&                = 30
+@END 05
+
+
+# Mono- and dipole component
+@START 06
+@DEFAULT components/monodipole/md_LFI.defaults
+COMP_MD_MONO_FROM_PRIOR&&     = none
+COMP_MD_DEFINITION_FILE&&     = init_md_litebird.dat #md_c0001_k000005.dat
+COMP_INIT_FROM_HDF&&          = none
+@END 06
+
+
+# Low-frequency AME component ------------------------------------------------------------------
+@START 07
+@DEFAULT components/ame/ame_DIRBE.defaults
+@DEFAULT components/ame/ame_LFI_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = none
+COMP_NU_P_PRIOR_GAUSS_RMS&&   = 0.
+COMP_AMP_LMAX&&               = 3000
+COMP_L_APOD&&                 = 3000
+@END 07
