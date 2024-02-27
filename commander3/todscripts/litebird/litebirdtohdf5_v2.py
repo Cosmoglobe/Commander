@@ -189,7 +189,8 @@ def main():
 #    nside = 512 # Defined further down - dependent on FWHM
     output_dir = pathlib.Path(
 #         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS/"
-         "/mn/stornext/u3/eirikgje/data/litebird_tods/"
+#         "/mn/stornext/u3/eirikgje/data/litebird_tods/"
+         "/mn/stornext/d16/cmbco/litebird/TOD_analysis_temp_eirik/TODS_eirik_cmb_fg_wn_ncorr30_dipol_v2/"
          )
     lbdata_dir = pathlib.Path(
          "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
@@ -279,7 +280,7 @@ def main():
             # ----------------------------------
             folder = "detectors_" + inst + "_" + freq + "_T+B/tods"
             lbfreq_dir = lbdata_dir / folder
-            output_freqname = '-'.join(freq.split('-')[::-1])
+            output_freqname = 'LB_' + '_'.join(freq.split('-')[::-1])
             det_dir_out = output_dir / output_freqname
             
             if not pathlib.Path.is_dir(det_dir_out):
@@ -373,7 +374,6 @@ def main():
             # have unique identifier
             
             print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
-frei
             for i in range(1, len(file_ranges)):
                 print(f"Working with i = {i}:  {file_ranges[i-1]} -- {file_ranges[i]}")
 
@@ -478,7 +478,7 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
     Out: 
     """
     
-    output_freqname = '-'.join(freq.split('-')[::-1])
+    output_freqname = 'LB_' + '_'.join(freq.split('-')[::-1])
     # Initialising new file 
     ctod.init_file(output_freqname, ods + od + 1, mode='w')
     ndets = len(det_labels)

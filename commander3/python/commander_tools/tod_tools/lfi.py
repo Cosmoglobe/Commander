@@ -41,7 +41,7 @@ class lfi(object):
     #compression arrays 
     huffman = ['huffman', {'dictNum':1}]
     huffTod = ['huffman', {'dictNum':2}]
-    psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi}]
+    psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi, 'offset':1}] # Offset the index by one to match with Fortran indexing
     todDtype = ['dtype', {'dtype':'f4'}]
     todSigma = ['sigma', {'sigma0':None, 'nsigma':ntodsigma, 'offset':None}] 
     #fwhm, elipticity and psi_ell from https://www.aanda.org/articles/aa/full_html/2016/10/aa25809-15/T6.html

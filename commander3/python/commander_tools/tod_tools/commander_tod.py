@@ -149,12 +149,15 @@ class commander_tod:
 
                 elif compArr[0] == 'digitize':
                     bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
+                    offset = compArr[1].get('offset', 0)
                     data = np.digitize(data, bins)
+                    data += int(offset)
                     metaName = '/common/n' + fieldName.split('/')[-1]
                     self.add_encoding(metaName, compArr[1]['nbins'])
                     self.add_attribute(fieldName, 'min', compArr[1]['min'])
                     self.add_attribute(fieldName, 'max', compArr[1]['max'])
                     self.add_attribute(fieldName, 'nbins', compArr[1]['nbins'])
+                    self.add_attribute(fieldName, 'offset', offset)
                 
 
                 elif compArr[0] == 'huffman': #differenced huffman
@@ -385,9 +388,10 @@ class commander_tod:
                     nbins = self.outFile[field].attrs['nbins']
                     nmin = self.outFile[field].attrs['min']
                     nmax = self.outFile[field].attrs['max']
+                    offset = self.outFile[field].attrs['offset']
 
                     bins = np.linspace(nmin, nmax, num = nbins)
-                    dataBuf = bins[dataBuf.astype('int')]
+                    dataBuf = bins[dataBuf.astype('int') - int(offset)]
 
                 elif comp == 'huffman':
                     pid = field.split('/')[1]
