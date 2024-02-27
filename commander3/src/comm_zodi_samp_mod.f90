@@ -6,7 +6,7 @@ module comm_zodi_samp_mod
 
    private
    public initialize_zodi_samp_mod, downsamp_invariant_structs, project_and_downsamp_sky, compute_downsamp_zodi, sample_zodi_group, sample_linear_zodi
-   public zodi_model_to_ascii, ascii_to_zodi_model, minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_glitch_mask
+   public minimize_zodi_with_powell, get_chisq_priors, precompute_lowres_zodi_lookups, create_zodi_glitch_mask
    public apply_zodi_glitch_mask, sample_static_zodi_model
    
    real(dp), allocatable :: chisq_previous, step_size, prior_vec(:, :), prior_vec_powell(:, :), step_sizes_emissivity(:, :), step_sizes_albedo(:, :), step_sizes_ipd(:), step_sizes_n0(:), theta_0(:)
@@ -1899,228 +1899,228 @@ contains
    end subroutine
 
 
-   subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
-      ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
-      class(ZodiModel), target, intent(in) :: model
-      type(comm_params), intent(in) :: cpar
-      character(len=*), intent(in) :: filename
-      logical(lgt), intent(in), optional :: overwrite
-
-      integer(i4b) :: io, i, j, running_idx
-      logical(lgt) :: exists, overwrite_
-      real(dp), allocatable :: params(:)
-      integer(i4b), allocatable :: comp_switch_indices(:)
-      character(len=128), allocatable :: labels(:)
-      character(len=512) :: concatenated_string, val
-
-      if (present(overwrite)) then
-         overwrite_ = overwrite
-      else
-         overwrite_ = .false.
-      end if
-
-      if (cpar%myid_chain /= cpar%root) return
-      inquire(file=trim(adjustl(filename)), exist=exists)
-      if (exists .and. (.not. overwrite_)) then
-         print *, "zodi asciifile: " // trim(adjustl(filename)) // " exists and overwrite = .false."
-         stop
-      end if
-
-      open(newunit=io, file=trim(adjustl(filename)), action="write")
-      allocate(params(model%n_params))
-      call model%model_to_params2(params, labels=labels)
-
-      allocate(comp_switch_indices(model%n_comps))
-
-      running_idx = 0
-      do i = 1, model%n_comps
-         running_idx = running_idx + size(model%comps(i)%labels)
-         comp_switch_indices(i) = running_idx
-      end do
-
-      do i = 1, model%n_params
-         if (any(comp_switch_indices == i)) then
-               write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i), new_line('a')
-            else
-               write(io, fmt='(a, T25, a, ES12.5)') trim(adjustl(labels(i))), "= ", params(i)
-         end if
-      end do
-
-      write(io, fmt='(a)') ''
-      do i = 1, numband
-         if (trim(data(i)%tod_type) == 'none') cycle
-         if (.not. data(i)%tod%subtract_zodi) cycle
-         concatenated_string = ""
-         do j = 1, model%n_comps
-            write(val, fmt='(ES12.5)') model%comps(j)%c%emissivity(i) 
-            concatenated_string = trim(adjustl(concatenated_string)) // "," // trim(adjustl(val))
-         end do
-         write(io, fmt='(a, T25, a, a)') trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), "= ", trim(adjustl(concatenated_string(2:)))
-      end do
-
-      write(io, fmt='(a)') ''
-      do i = 1, numband
-         if (trim(data(i)%tod_type) == 'none') cycle
-         if (.not. data(i)%tod%subtract_zodi) cycle
-         concatenated_string = ""
-         do j = 1, model%n_comps
-            write(val, fmt='(ES12.5)') model%comps(j)%c%albedo(i)
-            concatenated_string = trim(adjustl(concatenated_string)) // "," // trim(adjustl(val))
-         end do
-         write(io, fmt='(a, T25, a, a)') trim(adjustl("ALBEDO_"//trim(adjustl(data(i)%tod%freq)))), "= ", trim(adjustl(concatenated_string(2:)))
-      end do
-
-      close(io)
-   end subroutine
-
-   subroutine ascii_to_zodi_model(cpar, model, filename)
-      ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
-      class(ZodiModel), target, intent(inout) :: model
-      type(comm_params), intent(in) :: cpar
-      character(len=*), intent(in) :: filename
-      type(hash_tbl_sll) :: htbl
-
-      integer(i4b) :: i, j, io, io_status, ierr, n_comps
-      logical(lgt) :: exists
-      character(len=512) :: key, val, line
-      character(len=128), allocatable :: labels(:)
-      characteR(len=128) :: toks(100)
-      characteR(len=512) :: concatenated_string
-      real(dp), allocatable :: params(:)
-
-      allocate(params(model%n_params))
-      !if (cpar%myid_chain == cpar%root) then
-         inquire(file=trim(adjustl(filename)), exist=exists)
-         if (.not. exists) then
-            print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
-            stop
-         end if
-         
-         call init_hash_tbl_sll(htbl, tbl_len=500)
-         
-         open(newunit=io, file=trim(adjustl(filename)), action="read")
-         io_status = 0
-         do while (io_status == 0)
-            read(io, "(a)", iostat=io_status) line
-            if (io_status == 0 .and. line /= "") then
-               j = index(line, "=")
-               if (j == 0) then
-                  print *, "Error: invalid line in ascii file: ", trim(adjustl(line))
-                  close(io)
-                  stop
-               end if
-
-               key = trim(adjustl(line(:j-1)))
-               val = trim(adjustl(line(j+1:)))
-               call tolower(key)
-               call put_hash_tbl_sll(htbl, trim(adjustl(key)), trim(adjustl(val))) 
-            end if
-         end do
-         close(io)
-
-         call model%model_to_params2(params, labels)
-         params = 0.
-         if (size(labels) /= size(params)) stop "Error: size of labels and params do not match"
-         do i = 1, size(labels)
-            call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
-         end do
-      !end if
-
-      !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      call model%params_to_model2(params)
-
-      do i = 1, numband
-         if (trim(data(i)%tod_type) == 'none') cycle
-         if (.not. data(i)%tod%subtract_zodi) cycle
-         !if (cpar%myid == 0) then
-            call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
-            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
-            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
-            do j = 1, n_comps
-               read(toks(j), *) model%comps(j)%c%emissivity(i)
-            end do
-
-            call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
-            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
-            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
-            do j = 1, n_comps
-               read(toks(j), *) model%comps(j)%c%albedo(i)
-            end do
-         !end if
-         !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-         !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
-      end do
-   end subroutine
-
-
-   subroutine print_zodi_model(theta, samp_group)
-     implicit none
-     real(dp),     allocatable, intent(in) :: theta(:)
-     integer(i4b),              intent(in) :: samp_group
-      
-      integer(i4b) :: i, j, k, l, n, idx, n_cols, col, comp, n_params
-      logical(lgt) :: newline
-      
-      n_cols = 5
-      n_params = size(theta)
-
-      ! General parameters
-      k = 1
-      if (any(zodi_model%theta_stat(1:zodi_model%n_general_params,samp_group)==0)) then
-         write(*, "(a)", advance="no") 'General: '
-         col = 1
-         do i = 1, zodi_model%n_general_params
-            if (zodi_model%theta_stat(i,samp_group)==0) then
-               if (col > n_cols .or. i == zodi_model%n_general_params) then
-                  write(*, "(a,a,g0.4,a)") trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
-                  col = 1
-               else
-                  write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
-                  col = col+1
-               end if
-               k = k+1
-            end if
-         end do
-      end if
-
-      ! Component parameters
-      do j = 1, zodi_model%n_comps
-         idx = zodi_model%comps(j)%start_ind
-         n   = zodi_model%comps(j)%npar + 2*numband
-         if (all(zodi_model%theta_stat(idx:idx+n-1,samp_group)/=0)) cycle
-         write(*, "(a,a)", advance="no") trim(adjustl(zodi_model%comp_labels(j))),': '
-         col = 1
-         do i = idx, idx+n-1
-            newline = (i==idx+n-1) .or. col == n_cols-1
-            if (zodi_model%theta_stat(i,samp_group)==0) then
-               write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
-               k   = k+1
-               col = col+1
-            end if
-            if (newline .and. col>1) then
-               write(*,*)
-               col = 1
-            end if
-         end do
-      end do
-
-      ! Monopoles
-      col = 1
-      write(*, "(a)", advance="no") 'Mono : '
-      do j = 1, numband
-         idx = zodi_model%npar_tot - numband + j
-         if (zodi_model%theta_stat(idx,samp_group)==0) then
-            write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(data(j)%label)), "=", theta(k), ",  "
-            k   = k+1
-            col = col+1
-         end if
-         if ((col == n_cols-1 .and. col>1) .or. j == numband) then
-            write(*,*)
-            col = 1
-         end if
-      end do
-      
-   end subroutine
+!!$   subroutine zodi_model_to_ascii(cpar, model, filename, overwrite)
+!!$      ! Dumps the zodi model to an ascii file on the format {COMP}_{PARAM} = {VALUE}.
+!!$      class(ZodiModel), target, intent(in) :: model
+!!$      type(comm_params), intent(in) :: cpar
+!!$      character(len=*), intent(in) :: filename
+!!$      logical(lgt), intent(in), optional :: overwrite
+!!$
+!!$      integer(i4b) :: io, i, j, running_idx
+!!$      logical(lgt) :: exists, overwrite_
+!!$      real(dp), allocatable :: params(:)
+!!$      integer(i4b), allocatable :: comp_switch_indices(:)
+!!$      character(len=128), allocatable :: labels(:)
+!!$      character(len=512) :: concatenated_string, val
+!!$
+!!$      if (present(overwrite)) then
+!!$         overwrite_ = overwrite
+!!$      else
+!!$         overwrite_ = .false.
+!!$      end if
+!!$
+!!$      if (cpar%myid_chain /= cpar%root) return
+!!$      inquire(file=trim(adjustl(filename)), exist=exists)
+!!$      if (exists .and. (.not. overwrite_)) then
+!!$         print *, "zodi asciifile: " // trim(adjustl(filename)) // " exists and overwrite = .false."
+!!$         stop
+!!$      end if
+!!$
+!!$      open(newunit=io, file=trim(adjustl(filename)), action="write")
+!!$      allocate(params(model%n_params))
+!!$      call model%model_to_params2(params, labels=labels)
+!!$
+!!$      allocate(comp_switch_indices(model%n_comps))
+!!$
+!!$      running_idx = 0
+!!$      do i = 1, model%n_comps
+!!$         running_idx = running_idx + size(model%comps(i)%labels)
+!!$         comp_switch_indices(i) = running_idx
+!!$      end do
+!!$
+!!$      do i = 1, model%n_params
+!!$         if (any(comp_switch_indices == i)) then
+!!$               write(io, fmt='(a, T25, a, ES12.5, a)') trim(adjustl(labels(i))), "= ", params(i), new_line('a')
+!!$            else
+!!$               write(io, fmt='(a, T25, a, ES12.5)') trim(adjustl(labels(i))), "= ", params(i)
+!!$         end if
+!!$      end do
+!!$
+!!$      write(io, fmt='(a)') ''
+!!$      do i = 1, numband
+!!$         if (trim(data(i)%tod_type) == 'none') cycle
+!!$         if (.not. data(i)%tod%subtract_zodi) cycle
+!!$         concatenated_string = ""
+!!$         do j = 1, model%n_comps
+!!$            write(val, fmt='(ES12.5)') model%comps(j)%c%emissivity(i) 
+!!$            concatenated_string = trim(adjustl(concatenated_string)) // "," // trim(adjustl(val))
+!!$         end do
+!!$         write(io, fmt='(a, T25, a, a)') trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), "= ", trim(adjustl(concatenated_string(2:)))
+!!$      end do
+!!$
+!!$      write(io, fmt='(a)') ''
+!!$      do i = 1, numband
+!!$         if (trim(data(i)%tod_type) == 'none') cycle
+!!$         if (.not. data(i)%tod%subtract_zodi) cycle
+!!$         concatenated_string = ""
+!!$         do j = 1, model%n_comps
+!!$            write(val, fmt='(ES12.5)') model%comps(j)%c%albedo(i)
+!!$            concatenated_string = trim(adjustl(concatenated_string)) // "," // trim(adjustl(val))
+!!$         end do
+!!$         write(io, fmt='(a, T25, a, a)') trim(adjustl("ALBEDO_"//trim(adjustl(data(i)%tod%freq)))), "= ", trim(adjustl(concatenated_string(2:)))
+!!$      end do
+!!$
+!!$      close(io)
+!!$   end subroutine
+!!$
+!!$   subroutine ascii_to_zodi_model(cpar, model, filename)
+!!$      ! Reads in and updates the zodi model from an ascii file on the format {COMP}_{PARAM} = {VALUE}.
+!!$      class(ZodiModel), target, intent(inout) :: model
+!!$      type(comm_params), intent(in) :: cpar
+!!$      character(len=*), intent(in) :: filename
+!!$      type(hash_tbl_sll) :: htbl
+!!$
+!!$      integer(i4b) :: i, j, io, io_status, ierr, n_comps
+!!$      logical(lgt) :: exists
+!!$      character(len=512) :: key, val, line
+!!$      character(len=128), allocatable :: labels(:)
+!!$      characteR(len=128) :: toks(100)
+!!$      characteR(len=512) :: concatenated_string
+!!$      real(dp), allocatable :: params(:)
+!!$
+!!$      allocate(params(model%n_params))
+!!$      !if (cpar%myid_chain == cpar%root) then
+!!$         inquire(file=trim(adjustl(filename)), exist=exists)
+!!$         if (.not. exists) then
+!!$            print *, "zodi asciifile: " // trim(adjustl(filename)) // " does not exist"
+!!$            stop
+!!$         end if
+!!$         
+!!$         call init_hash_tbl_sll(htbl, tbl_len=500)
+!!$         
+!!$         open(newunit=io, file=trim(adjustl(filename)), action="read")
+!!$         io_status = 0
+!!$         do while (io_status == 0)
+!!$            read(io, "(a)", iostat=io_status) line
+!!$            if (io_status == 0 .and. line /= "") then
+!!$               j = index(line, "=")
+!!$               if (j == 0) then
+!!$                  print *, "Error: invalid line in ascii file: ", trim(adjustl(line))
+!!$                  close(io)
+!!$                  stop
+!!$               end if
+!!$
+!!$               key = trim(adjustl(line(:j-1)))
+!!$               val = trim(adjustl(line(j+1:)))
+!!$               call tolower(key)
+!!$               call put_hash_tbl_sll(htbl, trim(adjustl(key)), trim(adjustl(val))) 
+!!$            end if
+!!$         end do
+!!$         close(io)
+!!$
+!!$         call model%model_to_params2(params, labels)
+!!$         params = 0.
+!!$         if (size(labels) /= size(params)) stop "Error: size of labels and params do not match"
+!!$         do i = 1, size(labels)
+!!$            call get_parameter_hashtable(htbl, labels(i), par_dp=params(i))
+!!$         end do
+!!$      !end if
+!!$
+!!$      !call mpi_bcast(params, size(params), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+!!$      call model%params_to_model2(params)
+!!$
+!!$      do i = 1, numband
+!!$         if (trim(data(i)%tod_type) == 'none') cycle
+!!$         if (.not. data(i)%tod%subtract_zodi) cycle
+!!$         !if (cpar%myid == 0) then
+!!$            call get_parameter_hashtable(htbl, trim(adjustl("EMISSIVITY_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
+!!$            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
+!!$            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model emissivity"
+!!$            do j = 1, n_comps
+!!$               read(toks(j), *) model%comps(j)%c%emissivity(i)
+!!$            end do
+!!$
+!!$            call get_parameter_hashtable(htbl, trim(adjustl("ALBEDO_"//trim(adjustl(data(i)%tod%freq)))), par_string=concatenated_string)
+!!$            call get_tokens(trim(adjustl(concatenated_string)), ',', toks, n_comps)
+!!$            if (n_comps /= model%n_comps) stop "Error: number of components in ascii file does not match model albedo"
+!!$            do j = 1, n_comps
+!!$               read(toks(j), *) model%comps(j)%c%albedo(i)
+!!$            end do
+!!$         !end if
+!!$         !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+!!$         !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+!!$      end do
+!!$   end subroutine
+!!$
+!!$
+!!$   subroutine print_zodi_model(theta, samp_group)
+!!$     implicit none
+!!$     real(dp),     allocatable, intent(in) :: theta(:)
+!!$     integer(i4b),              intent(in) :: samp_group
+!!$      
+!!$      integer(i4b) :: i, j, k, l, n, idx, n_cols, col, comp, n_params
+!!$      logical(lgt) :: newline
+!!$      
+!!$      n_cols = 5
+!!$      n_params = size(theta)
+!!$
+!!$      ! General parameters
+!!$      k = 1
+!!$      if (any(zodi_model%theta_stat(1:zodi_model%n_general_params,samp_group)==0)) then
+!!$         write(*, "(a)", advance="no") 'General: '
+!!$         col = 1
+!!$         do i = 1, zodi_model%n_general_params
+!!$            if (zodi_model%theta_stat(i,samp_group)==0) then
+!!$               if (col > n_cols .or. i == zodi_model%n_general_params) then
+!!$                  write(*, "(a,a,g0.4,a)") trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
+!!$                  col = 1
+!!$               else
+!!$                  write(*, "(a,a,g0.4,a)", advance="no") trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
+!!$                  col = col+1
+!!$               end if
+!!$               k = k+1
+!!$            end if
+!!$         end do
+!!$      end if
+!!$
+!!$      ! Component parameters
+!!$      do j = 1, zodi_model%n_comps
+!!$         idx = zodi_model%comps(j)%start_ind
+!!$         n   = zodi_model%comps(j)%npar + 2*numband
+!!$         if (all(zodi_model%theta_stat(idx:idx+n-1,samp_group)/=0)) cycle
+!!$         write(*, "(a,a)", advance="no") trim(adjustl(zodi_model%comp_labels(j))),': '
+!!$         col = 1
+!!$         do i = idx, idx+n-1
+!!$            newline = (i==idx+n-1) .or. col == n_cols-1
+!!$            if (zodi_model%theta_stat(i,samp_group)==0) then
+!!$               write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(zodi_model%par_labels(i))), "=", theta(k), ",  "
+!!$               k   = k+1
+!!$               col = col+1
+!!$            end if
+!!$            if (newline .and. col>1) then
+!!$               write(*,*)
+!!$               col = 1
+!!$            end if
+!!$         end do
+!!$      end do
+!!$
+!!$      ! Monopoles
+!!$      col = 1
+!!$      write(*, "(a)", advance="no") 'Mono : '
+!!$      do j = 1, numband
+!!$         idx = zodi_model%npar_tot - numband + j
+!!$         if (zodi_model%theta_stat(idx,samp_group)==0) then
+!!$            write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(data(j)%label)), "=", theta(k), ",  "
+!!$            k   = k+1
+!!$            col = col+1
+!!$         end if
+!!$         if ((col == n_cols-1 .and. col>1) .or. j == numband) then
+!!$            write(*,*)
+!!$            col = 1
+!!$         end if
+!!$      end do
+!!$      
+!!$   end subroutine
  
    subroutine min_max_param_vec_with_priors(params, priors)
       real(dp), intent(inout) :: params(:)

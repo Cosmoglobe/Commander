@@ -3019,7 +3019,7 @@ contains
 !!$         do i = 1, n
 !!$            write(*,*) i, bad(:,i)
 !!$         end do
-         write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
+         !write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
       end if
       
       deallocate(bad)
