@@ -842,7 +842,7 @@ contains
              call read_pah_params_hash(htbl, cpar, itext, i, len_itext, bool_flag, pol_labels)         
           case ('line')
              call get_parameter_hashtable(htbl, 'COMP_LINE_TEMPLATE'//itext, len_itext=len_itext,  &
-                  & par_string=cpar%cs_SED_template(1,i))
+                  & par_string=cpar%cs_SED_template(1,i), path=.true.)
              call get_parameter_hashtable(htbl, 'COMP_BAND_REF'//itext, len_itext=len_itext, &
                   & par_string=cpar%cs_band_ref(i))
              call get_parameter_hashtable(htbl, 'COMP_INDMASK'//itext, len_itext=len_itext, par_string=cpar%cs_indmask(i), path=.true.)

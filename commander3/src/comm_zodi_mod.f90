@@ -1601,7 +1601,7 @@ contains
       end if
 
       ! Add static zodi component by Healpix map lookup
-      if (present(pix_static)) then
+      if (present(pix_static) .and. allocated(zodi_model%map_static)) then
          nhorn = size(pix_static,2)      
          do h = 1, nhorn
             do i = 1, ntod

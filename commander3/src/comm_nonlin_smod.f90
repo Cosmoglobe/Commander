@@ -58,7 +58,7 @@ contains
 
     call wall_time(t1)
 
-
+    call update_status(status, "sample_nonlin_params")
 
     ! Sample calibration factors
     do i = 1, numband
