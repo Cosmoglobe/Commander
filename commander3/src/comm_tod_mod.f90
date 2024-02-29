@@ -2371,6 +2371,10 @@ contains
        end if
        if (present(psi)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+          if (self%myid .eq. 0 .and. minval(psi) .eq. 0) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+            stop
+          end if
           if (self%polang(det) /= 0.) then
              do j = 1, size(psi,1)
                 psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
