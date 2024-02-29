@@ -106,7 +106,7 @@ def get_data(nside, k, dfile, scale_loss, dets_nr, det_labels):
     dt = np.dtype('f8')
     with h5py.File(dfile, 'r') as readin_file:
         #Polarization angle in ecliptic coordinates
-        psi_all   = np.array(readin_file.get("psi"))
+        psi_all   = np.mod(np.array(readin_file.get("psi")), 2 * np.pi) # Project onto the circle
         #Pointings in ecliptic
         pointings_ecl_all = np.array(readin_file.get("pointings"))
         #TODS:
@@ -190,8 +190,8 @@ def main():
     output_dir = pathlib.Path(
 #         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS/"
 #         "/mn/stornext/u3/eirikgje/data/litebird_tods/"
-         "/mn/stornext/d16/cmbco/litebird/TOD_analysis_temp_eirik/TODS_eirik_cmb_fg_wn_ncorr30_dipol_v2/"
-         )
+         "/mn/stornext/d16/cmbco/litebird/TOD_analysis/TODS_eirik_cmb_fg_wn_ncorr30_dipol_v3/")
+         
     lbdata_dir = pathlib.Path(
          "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
          )
@@ -366,7 +366,8 @@ def main():
             manager = mp.Manager()
 #            dicts = {freq:manager.dict()}
             dicts = {output_freqname:manager.dict()}
-            ctod = comm_tod.commander_tod(det_dir_out, 'LB', version, dicts=dicts, overwrite=True)
+#            ctod = comm_tod.commander_tod(det_dir_out, 'LB', version, dicts=dicts, overwrite=True)
+            ctod = comm_tod.commander_tod(det_dir_out, None, version, dicts=dicts, overwrite=True)
 
             # The Operational Day in Full Analogy with Planck
             ods = [0]

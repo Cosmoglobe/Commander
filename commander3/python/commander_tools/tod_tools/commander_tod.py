@@ -51,7 +51,7 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name.lower() == 'planck':
+        if self.name and self.name.lower() == 'planck':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
@@ -61,7 +61,10 @@ class commander_tod:
             else:
                 self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
         else:
-            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+            if not self.name:
+                self.outName = os.path.join(self.outPath, sfreq + '_' + str(od).zfill(6) + '.h5')
+            else:
+                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
         
         self.exists = False
 
@@ -148,16 +151,13 @@ class commander_tod:
                     self.add_attribute(fieldName, 'offset', compArr[1]['offset'])
 
                 elif compArr[0] == 'digitize':
-                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
-                    offset = compArr[1].get('offset', 0)
+                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'] + 1)
                     data = np.digitize(data, bins)
-                    data += int(offset)
                     metaName = '/common/n' + fieldName.split('/')[-1]
                     self.add_encoding(metaName, compArr[1]['nbins'])
                     self.add_attribute(fieldName, 'min', compArr[1]['min'])
                     self.add_attribute(fieldName, 'max', compArr[1]['max'])
                     self.add_attribute(fieldName, 'nbins', compArr[1]['nbins'])
-                    self.add_attribute(fieldName, 'offset', offset)
                 
 
                 elif compArr[0] == 'huffman': #differenced huffman
@@ -388,10 +388,9 @@ class commander_tod:
                     nbins = self.outFile[field].attrs['nbins']
                     nmin = self.outFile[field].attrs['min']
                     nmax = self.outFile[field].attrs['max']
-                    offset = self.outFile[field].attrs['offset']
 
-                    bins = np.linspace(nmin, nmax, num = nbins)
-                    dataBuf = bins[dataBuf.astype('int') - int(offset)]
+                    bins = np.linspace(nmin, nmax, num = nbins + 1)
+                    dataBuf = bins[dataBuf.astype('int')]
 
                 elif comp == 'huffman':
                     pid = field.split('/')[1]

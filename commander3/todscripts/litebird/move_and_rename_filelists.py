@@ -2,8 +2,8 @@ import pathlib
 import litebird_sim as lbs
 
 should_only_move_filelist = True
-suffix = "_tod_eirik_cmb_fg_wn_ncorr30_dipol_v2"
-curr_dir = "/mn/stornext/d16/cmbco/litebird/TOD_analysis_temp_eirik/TODS_eirik_cmb_fg_wn_ncorr30_dipol_v2/"
+suffix = "_tod_eirik_cmb_fg_wn_ncorr30_dipol_v3"
+curr_dir = "/mn/stornext/d16/cmbco/litebird/TOD_analysis/TODS_eirik_cmb_fg_wn_ncorr30_dipol_v3/"
 new_dir = "/mn/stornext/d16/cmbco/litebird/TOD_analysis/data_LB/"
 
 def move_only_filelist(old_dir, new_dir, freqname, new_suffix=None,
