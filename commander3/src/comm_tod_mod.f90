@@ -2366,7 +2366,15 @@ contains
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
        end if
        if (present(psi)) then
-          call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i), imod=self%npsi-1)
+          call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i))
+          if (minval(psi) < 1) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+            stop
+          end if
+          if (maxval(psi) > self%npsi) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', greater than npsi,', self%npsi
+            stop
+          end if
           if (self%polang(det) /= 0.) then
              do j = 1, size(psi,1)
                 psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
@@ -2391,28 +2399,6 @@ contains
           end do
        end if
     end if
-
-!!$    if (det == 1) psi = modulo(psi + 30,self%npsi)
-!!$    if (det == 2) psi = modulo(psi + 20,self%npsi)
-!!$    if (det == 3) psi = modulo(psi - 10,self%npsi)
-!!$    if (det == 4) psi = modulo(psi - 15,self%npsi)
-
-!!$    do j = 2, self%scans(scan)%ntod
-!!$       pix(j)  = pix(j-1)  + pix(j)
-!!$       psi(j)  = psi(j-1)  + psi(j)
-!!$       flag(j) = flag(j-1) + flag(j)
-!!$    end do
-!!$    psi = modulo(psi,4096)
-
-!!$    call int2string(scan,stext)
-!!$    call int2string(det,dtext)
-!!$    open(58,file='psi'//stext//'_'//dtext//'.dat')
-!!$    do j = 1, self%scans(scan)%ntod
-!!$       if (pix(j) == 6285034) then
-!!$          write(58,*) scan, psi(j), j
-!!$       end if
-!!$    end do
-!!$    close(58)
 
   end subroutine decompress_pointing_and_flags
 

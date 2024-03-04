@@ -51,7 +51,7 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name.lower() == 'planck':
+        if self.name and self.name.lower() == 'planck':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
@@ -61,7 +61,10 @@ class commander_tod:
             else:
                 self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
         else:
-            self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+            if not self.name:
+                self.outName = os.path.join(self.outPath, sfreq + '_' + str(od).zfill(6) + '.h5')
+            else:
+                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
         
         self.exists = False
 
@@ -148,7 +151,7 @@ class commander_tod:
                     self.add_attribute(fieldName, 'offset', compArr[1]['offset'])
 
                 elif compArr[0] == 'digitize':
-                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
+                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'] + 1)
                     data = np.digitize(data, bins)
                     metaName = '/common/n' + fieldName.split('/')[-1]
                     self.add_encoding(metaName, compArr[1]['nbins'])
@@ -386,7 +389,7 @@ class commander_tod:
                     nmin = self.outFile[field].attrs['min']
                     nmax = self.outFile[field].attrs['max']
 
-                    bins = np.linspace(nmin, nmax, num = nbins)
+                    bins = np.linspace(nmin, nmax, num = nbins + 1)
                     dataBuf = bins[dataBuf.astype('int')]
 
                 elif comp == 'huffman':

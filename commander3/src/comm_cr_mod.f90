@@ -94,7 +94,7 @@ contains
                 deallocate(alm)
              end if
           class is (comm_ptsrc_comp)
-             if (c%myid == 0) then
+             if (c%myid == 0 .and. .not. c%precomputed_amps) then
                 call cr_extract_comp(c%id, x, pamp)
                 do j = 1, c%nmaps
                    do i = 1, c%nsrc
@@ -239,7 +239,7 @@ contains
                       deallocate(alm)
                    end if
                 class is (comm_ptsrc_comp)
-                   if (c%myid == 0) then
+                   if (c%myid == 0 .and. .not. c%precomputed_amps) then
                       call cr_extract_comp(c%id, x_out, pamp)
                       do j = 1, c%nmaps
                          do k = 1, c%nsrc
@@ -313,7 +313,7 @@ contains
              deallocate(alm)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              call cr_extract_comp(c%id, x, pamp)
              do j = 1, c%nmaps
                 do k = 1, c%nsrc
@@ -383,7 +383,7 @@ contains
              deallocate(alm)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              call cr_extract_comp(c%id, x_out, pamp)
              do j = 1, c%nmaps
                 do k = 1, c%nsrc
@@ -429,7 +429,7 @@ contains
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              do i = 1, c%nmaps
                 if (c%active_samp_group(samp_group)) x(ind:ind+c%nsrc-1) = c%x(:,i)
                 ind = ind + c%nsrc
@@ -464,12 +464,14 @@ contains
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          do i = 1, c%nmaps
-             if (c%myid == 0) then
+          if(.not. c%precomputed_amps) then
+            do i = 1, c%nmaps
+              if (c%myid == 0) then
                 if (c%active_samp_group(samp_group)) c%x(:,i) = x(ind:ind+c%nsrc-1)
                 ind = ind + c%nsrc
-             end if
-          end do
+              end if
+            end do
+          end if
        class is (comm_template_comp)
           if (c%myid == 0) then
              if (c%active_samp_group(samp_group)) c%x(1,1) = x(ind)
@@ -608,17 +610,20 @@ contains
              call Tm%dealloc(); deallocate(Tm)
              nullify(info)
           class is (comm_ptsrc_comp)
-             allocate(Tp(c%nsrc,c%nmaps))
-             Tp = c%projectBand(i,map)
-             if (c%myid == 0) then
-                do j = 1, c%nmaps
-                   do k = 1, c%nsrc
-                      Tp(k,j) = Tp(k,j) * c%src(k)%P_x(j,2)
-                   end do
-                end do
-                call cr_insert_comp(c%id, .true., Tp, rhs)
+             if(.not. c%precomputed_amps) then 
+                 
+               allocate(Tp(c%nsrc,c%nmaps))
+               Tp = c%projectBand(i,map)
+               if (c%myid == 0) then
+                  do j = 1, c%nmaps
+                     do k = 1, c%nsrc
+                        Tp(k,j) = Tp(k,j) * c%src(k)%P_x(j,2)
+                     end do
+                  end do
+                  call cr_insert_comp(c%id, .true., Tp, rhs)
+               end if
+               deallocate(Tp)
              end if
-             deallocate(Tp)
           class is (comm_template_comp)
              allocate(Tp(1,1))
              Tp = c%projectBand(i,map)
@@ -675,25 +680,27 @@ contains
              deallocate(eta)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
-             allocate(eta(1:c%nsrc,c%nmaps))
-             eta = 0.d0
-             ! Variance term
-             if (trim(operation) == 'sample') then
-                do j = 1, c%nmaps
-                   do i = 1, c%nsrc
-                      eta(i,j) = rand_gauss(handle)
-                   end do
-                end do
-             end if
-             ! Mean term
-             do j = 1, c%nmaps
-                do i = 1, c%nsrc
-                   eta(i,j) = eta(i,j) + c%src(i)%P_x(j,1)/c%src(i)%P_x(j,2)
-                end do
-             end do
-             call cr_insert_comp(c%id, .true., eta, rhs)
-             deallocate(eta)
+          if (.not. c%precomputed_amps) then 
+            if (c%myid == 0) then
+               allocate(eta(1:c%nsrc,c%nmaps))
+               eta = 0.d0
+               ! Variance term
+               if (trim(operation) == 'sample') then
+                  do j = 1, c%nmaps
+                     do i = 1, c%nsrc
+                        eta(i,j) = rand_gauss(handle)
+                     end do
+                  end do
+               end if
+               ! Mean term
+               do j = 1, c%nmaps
+                  do i = 1, c%nsrc
+                     eta(i,j) = eta(i,j) + c%src(i)%P_x(j,1)/c%src(i)%P_x(j,2)
+                  end do
+               end do
+               call cr_insert_comp(c%id, .true., eta, rhs)
+               deallocate(eta)
+            end if
           end if
        class is (comm_template_comp)
           if (c%myid == 0) then
@@ -764,7 +771,7 @@ contains
           end if
           lmax = max(max(lmax, c%lmax_amp),2)
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              do j = 1, c%nmaps
                 do i = 1, c%nsrc
@@ -827,11 +834,13 @@ contains
              deallocate(alm, m)
     !write(*,*) 'df6'
           class is (comm_ptsrc_comp)
-             call cr_extract_comp(c%id, sqrtS_x, pamp)
-             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-             m = c%getBand(i, amp_in=pamp)
-             pmap%map = pmap%map + m
-             deallocate(pamp, m)
+             if(.not. c%precomputed_amps) then
+               call cr_extract_comp(c%id, sqrtS_x, pamp)
+               allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+               m = c%getBand(i, amp_in=pamp)
+               pmap%map = pmap%map + m
+               deallocate(pamp, m)
+             end if
           class is (comm_template_comp)
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -898,10 +907,12 @@ contains
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           class is (comm_ptsrc_comp)
-             allocate(pamp(0:c%nsrc-1,c%nmaps))
-             pamp = c%projectBand(i, map)
-             if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
-             deallocate(pamp)
+             if(.not. c%precomputed_amps) then
+               allocate(pamp(0:c%nsrc-1,c%nmaps))
+               pamp = c%projectBand(i, map)
+               if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
+               deallocate(pamp)
+             end if
           class is (comm_template_comp)
              allocate(pamp(1,1))
              pamp = c%projectBand(i, map)
@@ -945,7 +956,7 @@ contains
           end if
     !write(*,*) 'df9'
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              ! Multiply with sqrt(Cl)
              call cr_extract_comp(c%id, y, pamp)
              do j = 1, c%nmaps

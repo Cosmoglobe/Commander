@@ -106,7 +106,7 @@ def get_data(nside, k, dfile, scale_loss, dets_nr, det_labels):
     dt = np.dtype('f8')
     with h5py.File(dfile, 'r') as readin_file:
         #Polarization angle in ecliptic coordinates
-        psi_all   = np.array(readin_file.get("psi"))
+        psi_all   = np.mod(np.array(readin_file.get("psi")), 2 * np.pi) # Project onto the circle
         #Pointings in ecliptic
         pointings_ecl_all = np.array(readin_file.get("pointings"))
         #TODS:
@@ -189,8 +189,9 @@ def main():
 #    nside = 512 # Defined further down - dependent on FWHM
     output_dir = pathlib.Path(
 #         "/mn/stornext/u3/ragnaur/data/tut/Commander3_LB_TOD/TODS/"
-         "/mn/stornext/u3/eirikgje/data/litebird_tods/"
-         )
+#         "/mn/stornext/u3/eirikgje/data/litebird_tods/"
+         "/mn/stornext/d16/cmbco/litebird/TOD_analysis/TODS_eirik_cmb_fg_wn_ncorr30_dipol_v3/")
+         
     lbdata_dir = pathlib.Path(
          "/mn/stornext/d22/cmbco/litebird/e2e_ns512/sim0000/"
          )
@@ -279,7 +280,7 @@ def main():
             # ----------------------------------
             folder = "detectors_" + inst + "_" + freq + "_T+B/tods"
             lbfreq_dir = lbdata_dir / folder
-            output_freqname = '-'.join(freq.split('-')[::-1])
+            output_freqname = 'LB_' + '_'.join(freq.split('-')[::-1])
             det_dir_out = output_dir / output_freqname
             
             if not pathlib.Path.is_dir(det_dir_out):
@@ -365,7 +366,8 @@ def main():
             manager = mp.Manager()
 #            dicts = {freq:manager.dict()}
             dicts = {output_freqname:manager.dict()}
-            ctod = comm_tod.commander_tod(det_dir_out, 'LB', version, dicts=dicts, overwrite=True)
+#            ctod = comm_tod.commander_tod(det_dir_out, 'LB', version, dicts=dicts, overwrite=True)
+            ctod = comm_tod.commander_tod(det_dir_out, None, version, dicts=dicts, overwrite=True)
 
             # The Operational Day in Full Analogy with Planck
             ods = [0]
@@ -373,7 +375,6 @@ def main():
             # have unique identifier
             
             print(f"The remnant tods shape is: {remnant_tod.shape} and the values are:\n{remnant_tod}")
-frei
             for i in range(1, len(file_ranges)):
                 print(f"Working with i = {i}:  {file_ranges[i-1]} -- {file_ranges[i]}")
 
@@ -478,7 +479,7 @@ def make_ods(ctod, imo_db_interface, imo_db_datapath, instrument, freq, nside, f
     Out: 
     """
     
-    output_freqname = '-'.join(freq.split('-')[::-1])
+    output_freqname = 'LB_' + '_'.join(freq.split('-')[::-1])
     # Initialising new file 
     ctod.init_file(output_freqname, ods + od + 1, mode='w')
     ndets = len(det_labels)
