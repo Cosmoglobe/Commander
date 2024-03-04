@@ -443,6 +443,19 @@ contains
              end select
           end if
        end do
+
+       ! Output zodi ipd and tod parameters to chain
+       if (cpar%include_tod_zodi ) then
+          call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_model_c'//ctext//'_k' // itext // '.dat', overwrite=.true.)
+          if (cpar%myid_chain == 0) call write_map2(trim(cpar%outdir) // '/zodi_static_c'//ctext//'_k' // itext // '.fits', zodi_model%map_static)
+          call zodi_model%model_to_chain(cpar, iter)
+       end if
+         !do i = 1, numband
+         !   if (data(i)%tod_type == 'none') cycle
+         !   if (.not. data(i)%tod%subtract_zodi) cycle
+         !call output_tod_params_to_hd5(cpar, zodi_model, iter)
+         !end do
+
     end if
 
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    

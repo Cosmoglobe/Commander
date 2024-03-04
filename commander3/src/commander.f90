@@ -371,12 +371,13 @@ program commander
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
-            call minimize_zodi_with_powell(cpar, handle, i)
+            if (iter > 1) call minimize_zodi_with_powell(cpar, handle, i)
          end do
       end select
 
       ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_model(cpar, handle)
+      call sample_static_zodi_amps(cpar, handle)
+      call sample_static_zodi_map(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -472,19 +473,6 @@ program commander
 
      !call output_FITS_sample(cpar, 1000, .true.)
 
-     ! Output zodi ipd and tod parameters to chain
-     if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) then
-        if (cpar%zs_output_ascii) then
-            call int2string(iter, samptext)
-            call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_ascii_k' // samptext // '.dat', overwrite=.true.)
-         end if
-         call zodi_model%model_to_chain(cpar, iter)
-         do i = 1, numband
-            if (data(i)%tod_type == 'none') cycle
-            if (.not. data(i)%tod%subtract_zodi) cycle
-            call output_tod_params_to_hd5(cpar, zodi_model, data(i)%tod, iter)
-         end do
-     end if
 
 
 

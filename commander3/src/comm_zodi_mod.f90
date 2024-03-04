@@ -6,7 +6,7 @@ module comm_zodi_mod
 
    private
    public initialize_zodi_mod, get_s_zodi, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emissivity_albedo
-   public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model
+   public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -565,7 +565,7 @@ contains
       logical(lgt) :: exist, init, new_header
       character(len=6) :: itext
       character(len=4) :: ctext
-      character(len=512) :: zodi_path, comp_path, comp_group_path, param_path, chainfile, hdfpath, param_label, general_group_path
+      character(len=512) :: zodi_path, comp_path, comp_group_path, param_path, chainfile, hdfpath, param_label, general_group_path, path
       character(len=32), allocatable :: labels(:)
       real(dp), allocatable :: params(:)
       type(hdf_file) :: file
@@ -603,12 +603,21 @@ contains
             call write_hdf(file, trim(adjustl(param_label)), params(param_idx + j))
          end do
          param_idx = param_idx + n_comp_params
+         call write_hdf(file, trim(adjustl(comp_path))//'/emissivity', self%comps(i)%c%emissivity)
+         call write_hdf(file, trim(adjustl(comp_path))//'/albedo', self%comps(i)%c%albedo)
       end do
       if (param_idx + self%n_general_params /= self%n_params) stop "Error: param_idx + self%n_general_params /= self%n_params"
       do i = 1, self%n_general_params
          param_label = trim(adjustl(general_group_path))//'/'//trim(adjustl(self%general_labels(i)))
          call write_hdf(file, trim(adjustl(param_label)), params(param_idx + i))
       end do
+
+      ! Static component
+      path = trim(adjustl(zodi_path))//'/static'
+      call create_hdf_group(file, trim(adjustl(path)))
+      call write_hdf(file, trim(adjustl(path))//'/map', self%map_static)
+      call write_hdf(file, trim(adjustl(path))//'/amp', self%amp_static)
+
       call close_hdf_file(file)
       deallocate(params,labels)
    end subroutine
@@ -1452,12 +1461,13 @@ contains
       call spline_simple(tod%zodi_b_nu_spl_obj(det), T_grid, B_nu_integrals, regular=.true.)
    end subroutine update_zodi_splines
 
-   subroutine output_tod_params_to_hd5(cpar, model, tod, iter)
+   subroutine output_tod_params_to_hd5(cpar, model, iter)
+     implicit none
       ! Writes the zodi model to an hdf file
       type(comm_params), intent(in) :: cpar
-      class(comm_tod), intent(inout) :: tod
-      type(ZodiModel), intent(in) :: model
-      integer(i4b), intent(in) :: iter
+      !class(comm_tod), intent(inout) :: tod
+      type(ZodiModel),   intent(in) :: model
+      integer(i4b),      intent(in) :: iter
 
       integer(i4b) :: i, j, hdferr, ierr, unit
       logical(lgt) :: exist, init, new_header
@@ -1480,21 +1490,21 @@ contains
 
       call int2string(iter, itext)
       zodi_path = trim(adjustl(itext))//'/zodi'
-      tod_path = trim(adjustl(zodi_path))//'/tod'
+      !tod_path = trim(adjustl(zodi_path))//'/tod'
 
       ! Dynamic components
-      call create_hdf_group(file, trim(adjustl(tod_path)))
-      band_path = trim(adjustl(tod_path))//'/'//trim(adjustl(tod%freq))
-      call create_hdf_group(file, trim(adjustl(band_path)))
+      !call create_hdf_group(file, trim(adjustl(tod_path)))
+      !band_path = trim(adjustl(tod_path))//'/'//trim(adjustl(tod%freq))
+      !call create_hdf_group(file, trim(adjustl(band_path)))
       do i = 1, model%n_comps
-         comp_path = trim(adjustl(band_path))//'/'//trim(adjustl(model%comp_labels(i)))//'/'
+         comp_path = trim(adjustl(zodi_path))//'/'//trim(adjustl(model%comp_labels(i)))//'/'
          call create_hdf_group(file, trim(adjustl(comp_path)))
-         call write_hdf(file, trim(adjustl(comp_path))//'/emissivity', model%comps(i)%c%emissivity(tod%id))
-         call write_hdf(file, trim(adjustl(comp_path))//'/albedo', model%comps(i)%c%emissivity(tod%id))
+         call write_hdf(file, trim(adjustl(comp_path))//'/emissivity', model%comps(i)%c%emissivity)
+         call write_hdf(file, trim(adjustl(comp_path))//'/albedo', model%comps(i)%c%albedo)
       end do
 
       ! Static component
-      path = trim(adjustl(itext))//'/zodi'//'/static'
+      path = trim(adjustl(zodi_path))//'/static'
       call create_hdf_group(file, trim(adjustl(path)))
       call write_hdf(file, trim(adjustl(path))//'/map', model%map_static)
       call write_hdf(file, trim(adjustl(path))//'/amp', model%amp_static)
@@ -1711,12 +1721,13 @@ contains
          write(io, fmt='(a, T25, a, a)') trim(adjustl("ALBEDO_"//trim(adjustl(band_labels(i))))), "= ", trim(adjustl(concatenated_string(2:)))
       end do
 
+      ! Output static zodi amplitude
       write(io, fmt='(a)') ''
       do i = 1, numband
          if (trim(band_todtype(i)) == 'none') cycle
          !if (.not. data(i)%tod%subtract_zodi) cycle
          write(val, fmt='(ES12.5)') model%amp_static(i)
-         write(io, fmt='(a, T25, a, a)') trim(adjustl("EMISSIVITY_"//trim(adjustl(band_labels(i))))), "= ", trim(adjustl(val))
+         write(io, fmt='(a, T25, a, a)') trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), "= ", trim(adjustl(val))
       end do
       
       close(io)
@@ -1795,6 +1806,8 @@ contains
             do j = 1, n_comps
                read(toks(j), *) model%comps(j)%c%albedo(i)
             end do
+            
+            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
          !end if
          !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
          !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
@@ -1859,7 +1872,7 @@ contains
       do j = 1, numband
          idx = zodi_model%npar_tot - numband + j
          if (zodi_model%theta_stat(idx,samp_group)==0) then
-            write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(band_labels(i))), "=", theta(k), ",  "
+            write(*, "(a,a,a,g0.4,a)", advance="no") "  ", trim(adjustl(band_labels(j))), "=", theta(k), ",  "
             k   = k+1
             col = col+1
          end if

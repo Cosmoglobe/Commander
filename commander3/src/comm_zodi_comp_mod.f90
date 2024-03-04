@@ -207,7 +207,7 @@ contains
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
-      prior(:,start_ind+6) = [1.d0, 1.5d0, 1.34d0, -1.d0] ! alpha
+      prior(:,start_ind+6) = [1.d0, 2.d0, 1.34d0, -1.d0] ! alpha
       scale(start_ind+6)   = 1.d0      
       prior(:,start_ind+7) = [3.d0, 5d0, 4.14d0, -1.d0] ! beta
       scale(start_ind+7)   = 1.d0      
@@ -231,20 +231,20 @@ contains
       scale(start_ind+1)   = 1.d0      
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
       scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
+      prior(:,start_ind+3) = [-0.3d0, 0.3d0, 0.d0, -1.d0] ! ! X_0
       scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
+      prior(:,start_ind+4) = [-0.3d0, 0.3d0, 0.d0, -1.d0] ! ! Y_0
       scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
+      prior(:,start_ind+5) = [-0.3d0, 0.3d0, 0.d0, -1.d0] ! ! Z_0
       scale(start_ind+5)   = 1.d0      
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
       scale(start_ind+6)   = 1.d0      
       prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
       scale(start_ind+7)   = 1.d0      
-      prior(:,start_ind+8) = [0.01d0, 1.1d0, 0.942d0, -1.d0] ! v
+      prior(:,start_ind+8) = [0.01d0, 2.5d0, 0.942d0, -1.d0] ! v
       scale(start_ind+8)   = 1.d0      
-      prior(:,start_ind+9) = [0.1d0, 5d0, 0.189d0, -1.d0] ! p
+      prior(:,start_ind+9) = [3.999d0, 4.001d0, 0.189d0, -1.d0] ! p
       scale(start_ind+9)   = 1.d0      
     end subroutine init_band_priors_and_scales
 

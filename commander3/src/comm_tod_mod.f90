@@ -2074,7 +2074,7 @@ contains
 
 
 
-   subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold, step)
+   subroutine downsample_tod(self, tod_in, ext, tod_out, mask, threshold, width)
       ! Downsamples a time-ordered signal by a moving average filter.
       !
       ! This function is used by calling it twice. In the first call, we providing it with only the 
@@ -2109,28 +2109,26 @@ contains
       real(sp), dimension(ext(1):ext(2)), intent(out), optional :: tod_out
       real(sp), dimension(:),             intent(in),  optional :: mask
       real(sp),                           intent(in),  optional :: threshold
-      real(dp),                           intent(in),  optional :: step
+      real(dp),                           intent(in),  optional :: width
 
       integer(i4b) :: i, j, k, m, n, ntod, w, npad
-      real(dp) :: astep
 
       ntod = size(tod_in)
       npad = 5
-      if (present(step)) then
-         astep = step
+      if (present(width)) then
+         w = width
       else
-         astep = self%samprate / self%samprate_lowres
+         w = nint(self%samprate / self%samprate_lowres)
       end if
-      w    = astep/2    ! Boxcar window width
-      n    = int(ntod / astep) + 1
+      n    = int(ntod / w) + 1
       if (.not. present(tod_out)) then
          ext = [-npad, n+npad]
          return
       end if
 
       do i = 1, n-1
-         j = floor(max(i*astep - w + 1, 1.d0))
-         k = floor(min(i*astep + w, real(ntod, dp)))
+         j = (i-1)*w+1
+         k = min(i*w,ntod)
 
          if (present(mask)) then
             tod_out(i) = sum(tod_in(j:k)*mask(j:k)) / sum(mask(j:k))
@@ -2144,8 +2142,6 @@ contains
                tod_out(i) = 1.
             end if
          end if
-
-         !write(*,*) i, tod_out(i), sum(mask(j:k)), sum(tod_in(j:k))
       end do
       if (present(threshold)) then
          tod_out(-npad:0)  = 0.
@@ -2943,7 +2939,7 @@ contains
      integer(i4b),                      intent(in)    :: scan, det
      real(sp),            dimension(:), intent(in)    :: res
      real(sp),            dimension(2), intent(in)    :: rms_range
-     real(sp),            dimension(:), intent(in)    :: mask
+     real(sp),            dimension(:), intent(inout) :: mask
 
      logical(lgt) :: cut
       integer(i4b) :: i, j, k, n, ntod, nmax
@@ -2985,6 +2981,7 @@ contains
          if (cut) then
             ! Start new range if not already active
             if (bad(1,n+1) == -1) bad(1,n+1) = i
+            mask(i) = 0.
          else
             ! Close active range
             if (bad(1,n+1) /= -1 .and. bad(2,n+1) == -1) then

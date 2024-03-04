@@ -83,7 +83,7 @@ module comm_param_mod
      integer(i4b)       :: output_4D_map_nth_iter, output_aux_maps
      logical(lgt)       :: include_tod_zodi, sample_zodi, incl_zodi_solar_comp
      integer(i4b)       :: zodi_solar_nside
-     character(len=512) :: zodi_solar_initmap
+     character(len=512) :: zodi_solar_initmap, zodi_static_bands
      real(dp),           allocatable, dimension(:)     :: fwhm_smooth
      real(dp),           allocatable, dimension(:)     :: fwhm_postproc_smooth
      integer(i4b),       allocatable, dimension(:)     :: lmax_smooth
@@ -510,6 +510,7 @@ contains
           if (cpar%incl_zodi_solar_comp) then
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_NSIDE',    par_int=cpar%zodi_solar_nside)
              call get_parameter_hashtable(htbl, 'ZODI_STATIC_COMP_INITMAP',  par_string=cpar%zodi_solar_initmap)
+             call get_parameter_hashtable(htbl, 'ZODI_STATIC_MAP_BANDS',     par_string=cpar%zodi_static_bands)
           end if
        end if
     end if
