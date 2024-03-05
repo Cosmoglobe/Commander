@@ -115,62 +115,62 @@ BAND_TOD_TYPE022 = LB
 
 @START 001 
 @DEFAULT bands/LiteBIRD/LB_040_L1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_040_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_040_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 001
 
 @START 002 
 @DEFAULT bands/LiteBIRD/LB_050_L2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_050_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_050_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 002
 
 @START 003 
 @DEFAULT bands/LiteBIRD/LB_060_L1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_060_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_060_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 003
 
 @START 004 
 @DEFAULT bands/LiteBIRD/LB_068_L3_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_068_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_068_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 004
 
 @START 005 
 @DEFAULT bands/LiteBIRD/LB_068_L2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_068_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_068_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 005
 
 @START 006 
 @DEFAULT bands/LiteBIRD/LB_078_L4_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_078_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_078_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 006
 
 @START 007 
 @DEFAULT bands/LiteBIRD/LB_078_L1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_078_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_078_L1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 007
 
 @START 008 
 @DEFAULT bands/LiteBIRD/LB_089_L3_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_089_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_089_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 008
 
 @START 009 
 @DEFAULT bands/LiteBIRD/LB_089_L2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_089_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_089_L2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 009
 
 @START 010 
 @DEFAULT bands/LiteBIRD/LB_100_L4_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_100_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_100_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 010
 
 @START 011 
 @DEFAULT bands/LiteBIRD/LB_119_L3_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_119_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_119_L3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 011
 
 @START 012 
 @DEFAULT bands/LiteBIRD/LB_140_L4_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_140_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_140_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 012
 
 
@@ -180,27 +180,27 @@ BAND_TOD_FILELIST&&& = filelist_LB_140_L4_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.t
 
 @START 013 
 @DEFAULT bands/LiteBIRD/LB_100_M1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_100_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_100_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 013
 
 @START 014 
 @DEFAULT bands/LiteBIRD/LB_119_M2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_119_M2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_119_M2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 014
 
 @START 015 
 @DEFAULT bands/LiteBIRD/LB_140_M1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_140_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_140_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 015
 
 @START 016 
 @DEFAULT bands/LiteBIRD/LB_166_M2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_166_M2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_166_M2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 016
 
 @START 017 
 @DEFAULT bands/LiteBIRD/LB_195_M1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_195_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_195_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 017
 
 ####################################
@@ -209,27 +209,27 @@ BAND_TOD_FILELIST&&& = filelist_LB_195_M1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.t
 
 @START 018 
 @DEFAULT bands/LiteBIRD/LB_195_H1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_195_H1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_195_H1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 018
 
 @START 019 
 @DEFAULT bands/LiteBIRD/LB_235_H2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_235_H2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_235_H2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 019
 
 @START 020 
 @DEFAULT bands/LiteBIRD/LB_280_H1_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_280_H1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_280_H1_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 020
 
 @START 021 
 @DEFAULT bands/LiteBIRD/LB_337_H2_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_337_H2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_337_H2_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 021
 
 @START 022 
 @DEFAULT bands/LiteBIRD/LB_402_H3_TOD.defaults
-BAND_TOD_FILELIST&&& = filelist_LB_402_H3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v4.txt
+BAND_TOD_FILELIST&&& = filelist_LB_402_H3_tod_eirik_cmb_fg_wn_ncorr30_dipol_v5.txt
 @END 022
 
 
