@@ -590,6 +590,7 @@ contains
     call mpi_reduce(f_fill, f_fill_lim(3), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
     if (self%myid == 0) then
        write(*,*) '|  Min/mean/max TOD-map f_sky = ', real(100*f_fill_lim(1),sp), real(100*f_fill_lim(3)/self%info%nprocs,sp), real(100*f_fill_lim(2),sp)
+       write(*,*) '|'
     end if
 
   end subroutine precompute_lookups
@@ -1416,7 +1417,7 @@ contains
 !!$               end do
 !!$            end if
             
-            write(*,*) 
+            write(*,*) '|'
             write(*,*) '|  Min/Max core weight = ', minval(pweight)/w_tot*np, maxval(pweight)/w_tot*np
             deallocate(id, pweight, weight, sid, spinaxis)
          end if
@@ -2374,13 +2375,15 @@ contains
           if (self%polang(det) /= 0.) then
              do j = 1, size(psi,1)
                 psi(j,i) = psi(j,i) + nint(self%polang(det)/(2.d0*pi)*self%npsi)
-                if (psi(j,i) < 1) then
-                   psi(j,i) = psi(j,i) + self%npsi
-                else if (psi(j,i) > self%npsi) then
-                   psi(j,i) = psi(j,i) - self%npsi
-                end if
              end do
           end if
+          do j = 1, size(psi,1)
+             if (psi(j,i) < 1) then
+                psi(j,i) = psi(j,i) + self%npsi
+             else if (psi(j,i) > self%npsi) then
+                psi(j,i) = psi(j,i) - self%npsi
+             end if
+          end do
        end if
     end do
     if (present(flag)) then
