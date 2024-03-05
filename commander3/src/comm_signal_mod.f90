@@ -238,7 +238,19 @@ contains
          end do
       end do
     end if
-    
+   
+    !TODO: (I think) add code here to sample star amplitudes
+    c => compList 
+    do while (associated(c))
+      select type (c)
+      class is (comm_ptsrc_comp)
+        if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
+          call c%samplePtsrcAmp(cpar, handle)
+        end if
+      end select
+      c => c%nextComp()
+    end do
+
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
     do while (associated(c))

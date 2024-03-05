@@ -70,6 +70,7 @@ module comm_ptsrc_comp_mod
      procedure :: sampleSpecInd => samplePtsrcSpecInd
      procedure :: update_F_int  => updatePtsrcFInt
      procedure :: read_febecop_beam
+     procedure :: samplePtsrcAmp
   end type comm_ptsrc_comp
 
   interface comm_ptsrc_comp
@@ -453,7 +454,7 @@ contains
        do j = 1, self%src(i)%T(band_active)%nmaps
           if(self%precomputed_amps) then
             ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active)
+            m = self%src(i)%amp_precomp(band_active) * amp(i,j)
           else
             m = self%src(i)%T(band_active)%F(j,d) * amp(i,j)
           end if
@@ -510,7 +511,7 @@ contains
 
           if(self%precomputed_amps) then
             ! so far just used for stars
-            m = self%src(i)%amp_precomp(band_active)
+            m = self%src(i)%amp_precomp(band_active) *self%x(i,j)
           else
             m = self%src(i)%T(band_active)%F(j,d)
           end if
@@ -981,13 +982,15 @@ contains
 
     allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
 
+    self%x= 1.d0
+
     !store each pointsource in a source object
     do i=1, self%nsrc
       allocate(self%src(i)%amp_precomp(self%nactive))
       allocate(self%src(i)%T(self%nactive)) 
       self%src(i)%glon = coords(1,i) * DEG2RAD
       self%src(i)%glat = coords(2,i) * DEG2RAD 
-      self%src(i)%amp_precomp = star_catalog(:,i)
+      self%src(i)%amp_precomp = star_catalog(:,i)*self%cg_scale
 
       do j=1, self%nactive
         self%src(i)%T(j)%nside = data(self%b2a(j))%info%nside 
@@ -1012,6 +1015,8 @@ contains
 !      end if
 
     end do
+
+    self%cg_scale=1
 
     deallocate(star_catalog, coords)   
     call close_hdf_file(stars_file)
@@ -1060,8 +1065,9 @@ contains
           end if
 
           ! Find center pixel number for current source
-          call ang2pix_ring(T%nside_febecop, &
+          call ang2pix_ring(T%nside, &
                & 0.5d0*pi-self%src(s)%glat, self%src(s)%glon, pix)
+          
 
           ! Find number of pixels in beam
           write(itext,*) pix
@@ -1330,7 +1336,7 @@ contains
     type(spline_type), allocatable, dimension(:), save :: br
 
     !call wall_time(t1)
-    
+   
     ! Get azimuthally symmetric beam, either from Bl's or from file
     !call wall_time(t3)
     if (band /= band_cache) then
@@ -1793,6 +1799,116 @@ contains
 
   end subroutine read_radial_beam
 
+  ! Sample one overal amplitude per pointsource
+  subroutine samplePtsrcAmp(self, cpar, handle)
+    implicit none
+    class(comm_ptsrc_comp),                  intent(inout)  :: self
+    type(comm_params),                       intent(in)     :: cpar
+    type(planck_rng),                        intent(inout)  :: handle
+
+    integer(i4b) :: p, i, q, l, la, ierr, pix
+    real(dp) :: amp, s, A, B, A_tot, B_tot, x_tot, src_amp, beam, noise, A_loc, B_loc
+
+    if(.not. self%precomputed_amps) then
+      if(self%myid == 0) write(*,*) "WARNING: samplePtrscAmps should only be used for stars with precomputed amplitudes"
+    end if
+
+    write(*,*) "Sampling Star Amplitudes"
+
+
+    do p=1, self%nmaps
+      do i=1, self%nsrc
+        ! Add current point source to latest residual
+        if (self%myid == 0) then
+          amp     = self%x(i,p)
+        end if
+        call mpi_bcast(amp,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
+        do l = 1, numband
+          if (self%F_null(l)) cycle
+          la = self%b2a(l)
+          if (p == 1 .and. data(l)%pol_only) cycle
+
+          s = amp * self%src(i)%amp_precomp(la)
+          do q = 1, self%src(i)%T(la)%np
+            pix = self%src(i)%T(la)%pix(q,1)
+            data(l)%res%map(pix,p) = data(l)%res%map(pix,p) + s*self%src(i)%T(la)%map(q,p)
+            !write(*,*) "residual:", p, i, l, amp, s, self%src(i)%amp_precomp(la), data(l)%res%map(pix,p)
+          end do
+        end do
+
+        ! solve A x = B
+        ! A = S^T N^-1 S
+        ! B = S^T N^-1 D
+        A = 0
+        B = 0
+        do l = 1, numband
+          A_loc = 0
+          B_loc = 0
+          if (self%F_null(l)) cycle
+          if (p == 1 .and. data(l)%pol_only) cycle
+          la = self%b2a(l)
+          do q = 1, self%src(i)%T(la)%np
+            src_amp = self%src(i)%amp_precomp(la)
+            beam = self%src(i)%T(la)%map(q,p)
+            pix = self%src(i)%T(la)%pix(q,1)
+            noise = data(l)%N%rms_pix(pix, p)
+            if(noise > 0) then
+              A = A + src_amp*src_amp*beam*beam/(noise*noise)
+              B = B + src_amp*data(l)%res%map(pix, p)/(noise*noise)
+              !A_loc = A_loc + src_amp*src_amp*beam*beam*noise*noise
+              !B_loc = B_loc + src_amp*data(l)%res%map(pix, p)*noise*noise 
+
+              !if(self%myid == 0 .and. i==81) then
+              !  write(*,*) "intermediate:", i, l, q, A, A_loc, B, B_loc, src_amp, beam, pix, noise, data(l)%res%map(pix, p)
+              !end if 
+
+            end if
+          end do
+          !call mpi_reduce(A_loc, A_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+          !call mpi_reduce(B_loc, B_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+
+          !if(self%myid == 0) then
+          !  write(*,*) "In band ", l, " source ", i, " has amplitude ", A_loc, " expected amplitude ", B_loc 
+          !end if
+        end do
+       
+        ! sum A and B over all cores
+        call mpi_reduce(A, A_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+        call mpi_reduce(B, B_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
+
+        ! root does the division and adds the fluctuation term
+        if(self%myid == 0 .and. B > 0.d0) then
+          write(*,*) A, B
+          x_tot = B/A + sqrt(1.d0/A)*rand_gauss(handle) 
+          if(x_tot < 0) x_tot = 0
+          write(*,*) "Star ", i, " old amplitude ", self%x(i,P), " new amplitude ", x_tot
+          self%x(i,p) = x_tot
+        end if
+
+        ! broadcast final result to all cores
+        call mpi_bcast(x_tot, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
+
+        ! subtract pointsource from residual
+        do l = 1, numband
+          if (self%F_null(l)) cycle
+          if (p == 1 .and. data(l)%pol_only) cycle
+
+          la = self%b2a(l)
+
+          s = x_tot * self%src(i)%amp_precomp(la)
+          do q = 1, self%src(i)%T(la)%np
+            pix = self%src(i)%T(la)%pix(q,1)
+            data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(i)%T(la)%map(q,p)
+          end do
+        end do
+        
+
+      end do
+    end do
+
+  end subroutine samplePtsrcAmp
+
+
   ! Sample spectral parameters
   subroutine samplePtsrcSpecInd(self, cpar, handle, id, iter)
     implicit none
@@ -1819,7 +1935,12 @@ contains
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
-    if(self%precomputed_amps) return
+    if(self%precomputed_amps) then
+      !we only want to sample one overall amplitude
+      call samplePtsrcAmp(self, cpar, handle)
+      return
+    end if
+
 
     if (trim(operation) == 'optimize') then
        allocate(theta(self%npar))

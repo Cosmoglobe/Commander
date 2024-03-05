@@ -58,7 +58,7 @@ contains
 
     call wall_time(t1)
 
-
+    call update_status(status, "sample_nonlin_params")
 
     ! Sample calibration factors
     do i = 1, numband
@@ -651,7 +651,7 @@ contains
                 ! Write to screen every out_every'th
                 if (mod(i,out_every) == 0) then
                    diff = chisq(i-out_every) - chisq(i) ! Output diff
-                   write(*,fmt='(a, i3, a, e12.2, a, e8.2, a, f7.2, a, e7.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
+                   write(*,fmt='(a, i3, a, e12.2, a, e9.2, a, f7.2, a, e11.4)') " | "//tag, i, " - chisq: " , chisq(i)-chisq_prior, " ", chisq_prior, " diff: ", diff, " - a00: ", alms(i,0,pl)/sqrt(4.d0*PI)
 
                    ! Format region info
                    if (cpar%almsamp_pixreg) write(*,fmt=regfmt) " | regs:", real(c%theta_pixreg(1:,pl,j), sp)
