@@ -1048,7 +1048,7 @@ contains
 
     if (myid_pre == 0) call open_hdf_file(filename, file, 'r')
 
-    outfreq = (10**floor(log10(real(self%nsrc, dp)), i4b))/2
+    outfreq = max(10000, (10**floor(log10(real(self%nsrc, dp)), i4b))/2)
     band_active = self%b2a(band)
 
     do s = 1, self%nsrc
