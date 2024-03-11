@@ -3966,7 +3966,8 @@ end subroutine
     read(toks(2),*) initsamp
 
     if (index(chainfile, '.h5') == 0) then
-        write(*,*) "poorly formatted chainfile", trim(string)
+        write(*,*) "poorly formatted naming of chain file", trim(string)
+        write(*,*) "Should be filename:sample"
         stop
     end if
     
