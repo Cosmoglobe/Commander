@@ -159,7 +159,7 @@ contains
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
           class is (comm_ptsrc_comp)
-             if (j > 0) then
+             if (j == 1) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
              end if
           end select

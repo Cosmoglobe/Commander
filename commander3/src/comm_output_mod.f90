@@ -52,7 +52,6 @@ contains
 
           ! testing hdf parameter output
           call write_params_to_hdf(cpar, file)
-
           call close_hdf_file(file)
           iter = -1
        else if (trim(cpar%chain_status) == 'append') then
@@ -73,13 +72,11 @@ contains
           call mpi_finalize(ierr)
           stop
        end if
-
+       
        !delete fg_ind_mean_cXXXX.dat if it exists
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
        inquire(file=fg_file, exist=exist)
        if (exist) call rm(trim(fg_file))
-
-
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
 
@@ -307,8 +304,6 @@ contains
        c => c%nextComp()
     end do
 
-    
-
     if (cpar%resamp_CMB) then
        if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
        return
@@ -457,7 +452,7 @@ contains
          !end do
 
     end if
-
+    
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
 

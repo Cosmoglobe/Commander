@@ -246,6 +246,7 @@ contains
       class is (comm_ptsrc_comp)
         if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
           call c%samplePtsrcAmp(cpar, handle)
+          return
         end if
       end select
       c => c%nextComp()
