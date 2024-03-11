@@ -2568,7 +2568,7 @@ contains
 
          do i = 1, numband
             do j = i+1, numband
-               if (trim(data(j)%instlabel) == trim(data(j)%instlabel)) then
+               if (trim(data(j)%instlabel) == trim(data(i)%instlabel)) then
                   A(i) = A(i) + A(j)
                   b(i) = b(i) + b(j)
                end if
@@ -2589,6 +2589,7 @@ contains
             else
                zodi_model%amp_static(i) = 0.d0
             end if
+            zodi_model%amp_static(i) = max(zodi_model%amp_static(i), 0.d0)
          end do
 
          ! Synchronize amplitudes for bands with same instrument
@@ -2608,7 +2609,7 @@ contains
       ! Output to screen
       if (cpar%myid == 0) then
          do i = 1, numband
-            if (zodi_model%amp_static(i) /= amp_old(i)) then
+            if (zodi_model%amp_static(i) /= amp_old(i) .and. zodi_model%amp_static(i) /= 0.d0) then
                write(*,fmt='(a,a,a,f8.3,a,f8.3)') '  Static amp: Band = ', trim(data(i)%label), ', old = ', amp_old(i), ', new = ', zodi_model%amp_static(i)
             end if
          end do

@@ -233,7 +233,7 @@ program commander
      write(*,*) '|  Starting Gibbs sampling'
   end if
 
-  ! Prepare chains 
+  ! Prepare chains
   call init_chain_file(cpar, first_sample)
   !first_sample = 1
   if (first_sample == -1) then
@@ -273,7 +273,6 @@ program commander
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
         write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
-
 
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -338,8 +337,8 @@ program commander
         exit
      end if
 
-     !if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-     if (.true. .and. cpar%include_tod_zodi) then
+     if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+!     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
       if (first_zodi) then
@@ -376,8 +375,8 @@ program commander
       end select
 
       ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_amps(cpar, handle)
       call sample_static_zodi_map(cpar, handle)
+      call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -410,7 +409,6 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
 
-
    if (mod(iter,modfact) == 0) then
      if (iter > 1) then
         ! Sample gains off of absolutely calibrated FIRAS maps
@@ -423,13 +421,13 @@ program commander
 
 
      ! Sample non-linear parameters
-     if (iter > 1 .and. cpar%sample_specind) then
+     if (iter > 2 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
-
+     
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
@@ -453,8 +451,6 @@ program commander
         end do
         call timer%stop(TOT_CLS)
      end if
-
-
 
      ! Sample power spectra
      call timer%start(TOT_CLS)
