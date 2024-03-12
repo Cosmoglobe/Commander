@@ -1083,31 +1083,6 @@ contains
 
    end subroutine samp_group2stat
 
-   function get_string_index(arr, str)
-     implicit none
-     character(len=*), dimension(:), intent(in) :: arr
-     character(len=*),               intent(in) :: str
-     integer(i4b)                               :: get_string_index
-
-     integer(i4b) :: i
-     character(len=128) :: str1, str2
-
-     str1 = str
-     call toupper(str1)
-     do i = 1, size(arr)
-        str2 = arr(i)
-        call toupper(str2)
-        if (trim(str1) == trim(str2)) then
-           get_string_index = i
-           exit
-        end if
-     end do
-     if (i > size(arr)) then
-        write(*,*) 'get_string_index: String not found = ', trim(str)
-        stop
-     end if
-
-   end function get_string_index
 
 
    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering, use_lowres_pointing, comp)

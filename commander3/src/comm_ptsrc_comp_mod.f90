@@ -1810,15 +1810,18 @@ contains
   end subroutine read_radial_beam
 
   ! Sample one overal amplitude per pointsource
-  subroutine samplePtsrcAmp(self, cpar, handle)
+  subroutine samplePtsrcAmp(self, cpar, handle, samp_group)
     implicit none
     class(comm_ptsrc_comp),                  intent(inout)  :: self
     type(comm_params),                       intent(in)     :: cpar
     type(planck_rng),                        intent(inout)  :: handle
+    integer(i4b),                            intent(in)     :: samp_group
 
-    integer(i4b) :: p, i, q, l, la, ierr, pix
+    integer(i4b) :: p, i, q, k, l, la, ierr, pix, ind, nband
     real(dp) :: amp, s, A, B, A_tot, B_tot, x_tot, src_amp, beam, noise, A_loc, B_loc
-
+    character(len=64),        dimension(100) :: bands
+    logical(lgt), allocatable, dimension(:) :: active
+    
     if(.not. self%precomputed_amps) then
       if(self%myid == 0) write(*,*) "WARNING: samplePtrscAmps should only be used for stars with precomputed amplitudes"
     end if
@@ -1826,7 +1829,18 @@ contains
     !write(*,*) "Sampling Star Amplitudes"
 
 !    call data(1)%res%writeFITS("res.fits")
-    
+
+    ! Find contributing bands
+    call get_tokens(cpar%cg_samp_group_bands(samp_group), ",", bands, nband)
+    allocate(active(numband))
+    active = .false.
+    do l = 1, numband
+       if (self%b2a(l) /= -1) then
+          k = get_string_index(bands(1:nband), data(l)%label, allow_missing=.true.)
+          if (k /= -1) active(l) =.true.
+       end if
+    end do
+
     do p=1, self%nmaps
       do i=1, self%nsrc
         ! Add current point source to latest residual
@@ -1835,7 +1849,7 @@ contains
         end if
         call mpi_bcast(amp,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
         do l = 1, numband
-          if (self%F_null(l)) cycle
+          if (.not. active(l)) cycle
           la = self%b2a(l)
           if (p == 1 .and. data(l)%pol_only) cycle
 
@@ -1859,7 +1873,7 @@ contains
         do l = 1, numband
           !A_loc = 0
           !B_loc = 0
-          if (self%F_null(l)) cycle
+          if (.not. active(l)) cycle
           if (p == 1 .and. data(l)%pol_only) cycle
           la = self%b2a(l)
           do q = 1, self%src(i)%T(la)%np
@@ -1905,7 +1919,7 @@ contains
           !if(x_tot < 0) x_tot = 0
           if (mod(i,10000) == 0) then
 !             write(*,*) A_tot, B_tot
-             write(*,*) "Star ", i, " old amplitude ", self%x(i,P), " new amplitude ", x_tot
+             write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
           end if
           self%x(i,p) = x_tot
         end if
@@ -1918,7 +1932,7 @@ contains
 
         ! subtract pointsource from residual
         do l = 1, numband
-          if (self%F_null(l)) cycle
+          if (.not. active(l)) cycle
           if (p == 1 .and. data(l)%pol_only) cycle
 
           la = self%b2a(l)
@@ -1934,6 +1948,8 @@ contains
       end do
     end do
 
+    deallocate(active)
+    
   end subroutine samplePtsrcAmp
 
 
@@ -1964,9 +1980,12 @@ contains
     first_call          = .false.
 
     if(self%precomputed_amps) then
+       write(*,*) 'Should not be here in samplePtsrcSpecInd'
+       call mpi_finalize(ierr)
+       stop
       !we only want to sample one overall amplitude
-      call samplePtsrcAmp(self, cpar, handle)
-      return
+!      call samplePtsrcAmp(self, cpar, handle)
+!      return
     end if
 
 
