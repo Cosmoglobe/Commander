@@ -151,7 +151,6 @@ contains
          type is (comm_MBBtab_comp)
 
            if (cpar%myid_chain .eq. 0) then
-             c%SEDtab_buff = c%SEDtab
              do i = 1, c%ntab
                 c%SEDtab(3,i) = c%SEDtab_buff(3,i)
              end do
