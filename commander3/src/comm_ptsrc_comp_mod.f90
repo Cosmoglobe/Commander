@@ -54,6 +54,7 @@ module comm_ptsrc_comp_mod
      integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet, nactive
      logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
+     real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
      logical(lgt),    allocatable, dimension(:)     :: F_null ! Frequency mask
      type(ptsrc),     allocatable, dimension(:)     :: src    ! Source template (nsrc)

@@ -24,7 +24,7 @@ module comm_mh_specind_mod
 
 contains
 
-  subroutine sample_mbbtab_mh_sample(outdir, cpar, handle, handle_noise)
+  subroutine sample_mbbtab_mh(outdir, cpar, handle, handle_noise)
     implicit none
     character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
@@ -59,7 +59,7 @@ contains
     end do
 
     if (cpar%myid_chain .eq. 0) then
-      write(*,*) '| Old chisq is ', chisq_old
+      write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
     end if
 
     c => compList
@@ -72,7 +72,7 @@ contains
            write(*,*) trim(c%label)
            c%SEDtab_buff = c%SEDtab
            do i = 1, c%ntab
-              c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * 0.1
+              c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * 0.01
            end do
            write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
            write(*,*) 'MBBtab proposal', c%SEDtab(3,:)
@@ -99,7 +99,7 @@ contains
           write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                & samp_group, ' of ', cpar%cg_num_user_samp_groups
        end if
-       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=.true.)
 
        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
@@ -126,8 +126,8 @@ contains
     end do
 
     if (cpar%myid_chain .eq. 0) then
-      write(*,*) "|    Proposal chisq is ", chisq_prop
-      write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
+      write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
+      write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
     end if
 
     ! Check MH statistic
@@ -139,7 +139,6 @@ contains
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
         write(*,*) '| MH step rejected, returning to original tabulated values.'
-        write(*,*) '| Rejected chisq is ', chisq_old
         write(*,*) '| '
       end if
 
@@ -159,8 +158,6 @@ contains
 
            call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
              & 0, data(1)%info%comm, ierr)
-           call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-             & 0, data(1)%info%comm, ierr)
 
          end select
          
@@ -171,55 +168,23 @@ contains
       ! Update mixing matrices
       call update_mixing_matrices(update_F_int=.true.)
 
-      ! Perform component separation
-      call timer%start(TOT_AMPSAMP)
+
+      ! Instead of doing compsep, revert the amplitudes here
       do samp_group = 1, cpar%cg_num_user_samp_groups
-         if (cpar%myid_chain == 0) then
-            write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                 & samp_group, ' of ', cpar%cg_num_user_samp_groups
-         end if
-         call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
-
-         if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
+        call revert_CG_amps(cpar, samp_group)
       end do
-      call timer%stop(TOT_AMPSAMP)
-
-      todo = .true.
-      c => compList
-      chisq_old = 0d0
-      do while (associated(c))
-         select type (c)
-         type is (comm_md_comp)
-           continue
-         class is (comm_diffuse_comp)
-           if (todo) then
-             if (allocated(c%indmask)) then
-               call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-             end if
-             todo = .false.
-           end if
-         end select
-         c => c%nextComp()
-      end do
-
-      if (cpar%myid_chain == 0) then
-        write(*,*) '| '
-        write(*,*) '| Current MH chisq is ', chisq_old
-        write(*,*) '| '
-      end if
 
     else
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
         write(*,*) '| MH step accepted'
-        write(*,*) '| Current MH chisq is ', chisq_prop
+        write(*,*) '| '
       end if
     end if
 
-  end subroutine sample_mbbtab_mh_sample
+  end subroutine sample_mbbtab_mh
 
-  subroutine sample_specind_mh_sample(outdir, cpar, handle, handle_noise)
+  subroutine sample_specind_mh(outdir, cpar, handle, handle_noise)
     implicit none
     character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
@@ -336,7 +301,7 @@ contains
           write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
                & samp_group, ' of ', cpar%cg_num_user_samp_groups
        end if
-       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=.true.)
 
        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
@@ -433,52 +398,19 @@ contains
          c => c%nextComp()
       end do
 
-      ! Perform component separation
-      call timer%start(TOT_AMPSAMP)
+      ! Instead of doing compsep, revert the amplitudes here
       do samp_group = 1, cpar%cg_num_user_samp_groups
-         if (cpar%myid_chain == 0) then
-            write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                 & samp_group, ' of ', cpar%cg_num_user_samp_groups
-         end if
-         call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
-
-         if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
+        call revert_CG_amps(cpar, samp_group)
       end do
-      call timer%stop(TOT_AMPSAMP)
-
-      todo = .true.
-      c => compList
-      chisq_old = 0d0
-      do while (associated(c))
-         select type (c)
-         type is (comm_md_comp)
-           continue
-         class is (comm_diffuse_comp)
-           if (todo) then
-             if (allocated(c%indmask)) then
-               call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-               todo = .false.
-             end if
-           end if
-         end select
-         c => c%nextComp()
-      end do
-
-      if (cpar%myid_chain == 0) then
-        write(*,*) '| '
-        write(*,*) '| Current MH chisq is ', nint(chisq_old, i8b)
-        write(*,*) '| '
-      end if
 
     else
       if (cpar%myid_chain == 0) then
         write(*,*) '| '
         write(*,*) '| MH step accepted'
-        write(*,*) '| Current MH chisq is ', nint(chisq_prop, i8b)
+        write(*,*) '| '
       end if
     end if
 
-  end subroutine sample_specind_mh_sample
+  end subroutine sample_specind_mh
 
 end module comm_mh_specind_mod
