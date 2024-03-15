@@ -345,7 +345,7 @@ contains
     integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
 
-    if (c%myid == 0 .and. samp_group == 1) then
+    if (cpar%myid == 0 .and. samp_group == 1) then
       write(*,*) 'Reverting to buffer values. Did you run sample_maps_with_CG with '
       write(*,*) 'store_buff = .true.?'
     end if

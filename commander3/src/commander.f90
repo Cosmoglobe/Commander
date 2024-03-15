@@ -414,8 +414,8 @@ program commander
         ! Sample gains off of absolutely calibrated FIRAS maps
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
         ! Testing the spectral index xampling
-        !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
-        !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
+        !call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
+        !call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
      end if
 
 
