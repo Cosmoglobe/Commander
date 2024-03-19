@@ -107,7 +107,8 @@ class YdayData:
     sat_pos_stop: np.ndarray
     earth_pos_start: np.ndarray
     earth_pos_stop: np.ndarray
-
+    moon_pos_per_min: np.ndarray
+    earth_pos_per_min: np.ndarray
 
 @dataclass
 class CIO:
@@ -120,7 +121,8 @@ class CIO:
     sat_pos_stop: list[np.ndarray]
     earth_pos_start: list[np.ndarray]
     earth_pos_stop: list[np.ndarray]
-
+    moon_pos_per_min: list[np.ndarray]
+    earth_pos_per_min: list[np.ndarray]
 
 def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
     return {
@@ -134,6 +136,8 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
             sat_pos_stop=[yday.sat_pos_stop for yday in yday_data],
             earth_pos_start=[yday.earth_pos_start for yday in yday_data],
             earth_pos_stop=[yday.earth_pos_stop for yday in yday_data],
+            moon_pos_per_min=[yday.moon_pos_per_min for yday in yday_data],
+            earth_pos_per_min=[yday.earth_pos_per_min for yday in yday_data],
         )
         for band in dirbe_utils.BANDS
     }
@@ -181,9 +185,22 @@ def get_yday_cio_data(
 
     # Convert time to MJD
     time = (START_TIME + TimeDelta(time, format="sec", scale="tai")).mjd
-    sat_pos_start, earth_pos_start= dirbe_utils.get_sat_and_earth_pos(yday, time[0])
-    sat_pos_stop, earth_pos_stop = dirbe_utils.get_sat_and_earth_pos(yday, time[-1])
 
+    hour = 1 / (24 * 60)
+    times_per_hour = np.arange(time[0], time[-1], hour)
+
+    sat_pos, earth_pos, earth_sat_vec, moon_sat_vec = dirbe_utils.get_positions(yday, times_per_hour)
+
+    sat_pos_start = sat_pos[0]
+    sat_pos_stop = sat_pos[-1]
+
+    earth_pos_start = earth_pos[0]
+    earth_pos_stop = earth_pos[-1]
+
+    # print("earth_sat_vec", np.linalg.norm(earth_sat_vec, axis=1))
+    # print("moon_sat_vec", np.linalg.norm(moon_sat_vec, axis=1))
+    # exit()
+    
     # Gap filling
     # Get indexes where time difference is larger than 2 sampling rates and split time array
     # into chunks at those indexes.
@@ -224,6 +241,7 @@ def get_yday_cio_data(
     attack_vecs = data["AttackV"].astype(np.float64)
     attack_vecs[attack_vecs * TSCAL >= TSCAL] += 0.5 * TSCAL
     attack_vecs[attack_vecs * TSCAL <= -TSCAL] -= 0.5 * TSCAL
+    print(file_number, attack_vecs[attack_vecs * TSCAL >= TSCAL], attack_vecs[attack_vecs * TSCAL <= -TSCAL])
     natv = attack_vecs / np.expand_dims(np.linalg.norm(attack_vecs, axis=1), axis=1)
 
     # Get unit vectors from pixel 15 centers (uses quadcube package)
@@ -337,6 +355,8 @@ def get_yday_cio_data(
         sat_pos_stop=sat_pos_stop, 
         earth_pos_start=earth_pos_start,
         earth_pos_stop=earth_pos_stop,
+        earth_pos_per_min=earth_sat_vec,
+        moon_pos_per_min=moon_sat_vec
     )
 
 
@@ -411,6 +431,9 @@ def write_band(
 
         comm_tod.add_field(pid_common_group + "/earthpos", cio.earth_pos_start[pid])
         comm_tod.add_field(pid_common_group + "/earthpos_end", cio.earth_pos_stop[pid])
+
+        comm_tod.add_field(pid_common_group + "/moonpos_per_minute", cio.moon_pos_per_min[pid])
+        comm_tod.add_field(pid_common_group + "/earthpos_per_minute", cio.earth_pos_per_min[pid])
 
         comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
         comm_tod.add_attribute(
@@ -510,7 +533,7 @@ def main() -> None:
 
     start_time = time.perf_counter()
     color_corr = False
-    version = 21
+    version = 24
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"{version=}, {nside_out=}")
@@ -524,6 +547,7 @@ def main() -> None:
     print(
         f"time spent reading in and preprocessing cios: {(cio_time/60):2.2f} minutes\n"
     )
+    exit()
 
     print("writing cios to h5 files...")
     write_to_commander_tods(
@@ -531,7 +555,7 @@ def main() -> None:
         nside_out=nside_out,
         version=version,
         out_path=DIRBE_DATA_PATH,
-        overwrite=True,
+        overwrite=False,
     )
     h5_time = time.perf_counter() - start_time
     print("done")
@@ -609,3 +633,35 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    # flag_bit_sum = get_flag_sum(
+    #     [
+    #         "north_van_allen_belt",
+    #         "south_van_allen_belt",
+    #         "south_atlantic_anomaly",
+    #         "excess_noise",
+    #         "bad_data",
+    #         "moon",
+    #         "mercury",
+    #         "venus",
+    #         "mars",
+    #         "jupiter",
+    #         "saturn",
+    #         "uranus",
+    #         "neptune",
+    #         #"non_definitive_attitude",
+    #         # "definite_attitude",
+    #         #"course_attitude",
+    #         # "fine_attitude",
+    #         # "merged_attitude",
+    #         # "external_uax_attitude",
+    #         # "space_craft_slewing",
+    #         # "space_craft_not_slewing",
+    #         #"special_pointing",
+    #         # "normal_pointing",
+    #         # "space_craft_ascending",
+    #         # "space_craft_descending",
+    #         # "leading_los",
+    #         # "trailing_los",
+    #     ]
+    # )
+    # print(f"flag bit sum: {flag_bit_sum}")

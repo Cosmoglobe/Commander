@@ -192,7 +192,7 @@ def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
     NSIDE = 128
     LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
-    DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
+    DEFAULT_BEAM = np.ones((3, N_ALMS))  # Update this with actual beams
 
     beams: dict[str, NDArray[np.floating]] = {}
     for detector in range(1, 11):
@@ -336,7 +336,7 @@ def get_beam_data() -> dict[str, DetectorBeamData]:
 BEAM_DATA = get_beam_data()
 
 
-def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarray]:
+def get_positions(yday: int, times: float) -> tuple[np.ndarray, np.ndarray]:
     """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
 
     ranges_times = [re.findall(r"\d+", file) for file in DIRBE_POS_FILES]
@@ -367,23 +367,45 @@ def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarra
         fill_value="extrapolate",
     )
 
-    pos_x = interpolator_sat_x(time)
-    pos_y = interpolator_sat_y(time)
-    pos_z = interpolator_sat_z(time)
+    pos_x = interpolator_sat_x(times)
+    pos_y = interpolator_sat_y(times)
+    pos_z = interpolator_sat_z(times)
 
     celestial_sat_pos = u.Quantity([pos_x, pos_y, pos_z], u.m).to(u.AU).value
 
     rotator = hp.Rotator(coord=["C", "E"])
     geocentric_ecl_sat_pos = u.Quantity(rotator(celestial_sat_pos), u.AU).transpose()
 
-    earth_pos = get_body("earth", Time(time, format="mjd")).transform_to(
+    earth_pos = get_body("earth", Time(times, format="mjd")).transform_to(
         HeliocentricMeanEcliptic
     )
-    earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
 
+    moon_pos = get_body("moon", Time(times, format="mjd")).transform_to(
+        HeliocentricMeanEcliptic
+    )
+
+    earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
+    moon_pos = moon_pos.cartesian.xyz.to(u.AU).transpose()
     ecl_sat_pos = earth_pos + geocentric_ecl_sat_pos
 
-    return ecl_sat_pos.value, earth_pos.value
+    sat_earth_vec =  earth_pos - ecl_sat_pos
+    sat_moon_vec =  moon_pos - ecl_sat_pos
+
+    return ecl_sat_pos.value, earth_pos.value, sat_earth_vec, sat_moon_vec
+
+
+def get_moon_pos(times: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """dmr_cio_91206-91236.fits contains data from day 206 of 1991 to day 236 of 1991)."""
+
+    moon_pos = get_body("moon", Time(times, format="mjd")).transform_to(
+        HeliocentricMeanEcliptic
+    )
+
+    moon_pos = moon_pos.cartesian.xyz.to(u.AU).transpose()
+
+    return moon_pos.value
+
+
 
 
 @cache
@@ -432,5 +454,5 @@ def get_iras_factor(band: int) -> float:
 
 
 if __name__ == "__main__":
-    print([get_iras_factor(i) for i in range(1,11)])
+    print({i:get_iras_factor(i) for i in range(1,11)})
 
