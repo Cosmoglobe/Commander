@@ -176,6 +176,9 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
+     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_mask
+     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_model
+     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_init
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -586,6 +589,7 @@ contains
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
+    allocate(cpar%ds_tod_solar_model(n), cpar%ds_tod_solar_mask(n), cpar%ds_tod_solar_init(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -633,7 +637,12 @@ contains
             & par_string=cpar%ds_component_sensitivity(i))
 
        !read in all TOD parameters
-       call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
+       if (cpar%enable_TOD_analysis) then
+          call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
+       else
+          cpar%ds_tod_type(i) = 'none'
+       end if
+
        if (cpar%enable_TOD_analysis .or. cpar%resamp_CMB) then
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
@@ -652,6 +661,12 @@ contains
                   & par_string=cpar%ds_tod_procmask1(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_SMALL_PROCMASK'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_procmask2(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_MODEL'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_solar_model(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_solar_mask(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_solar_init(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_filelist(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_JUMPLIST'//itext, len_itext=len_itext, &
@@ -3475,6 +3490,8 @@ end subroutine
        if (cpar%enable_TOD_analysis .and. trim(cpar%ds_tod_type(i)) /= 'none') then
           call validate_file(trim(cpar%ds_tod_procmask1(i)), 'BAND_TOD_MAIN_PROCMASK'//itext)  ! Procmask1
           call validate_file(trim(cpar%ds_tod_procmask2(i)), 'BAND_TOD_SMALL_PROCMASK'//itext)  ! Procmask2
+          call validate_file(trim(cpar%ds_tod_solar_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
+          call validate_file(trim(cpar%ds_tod_solar_init(i)), 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext)  ! Initial solar centric map
           call validate_file(trim(cpar%ds_tod_filelist(i)), 'BAND_TOD_FILELIST'//itext)   ! Filelist
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') then
             call validate_file(trim(cpar%ds_tod_jumplist(i)), 'BAND_TOD_JUMPLIST'//itext)   ! Jumplist
@@ -3612,6 +3629,7 @@ end subroutine
     logical(lgt),     intent(in), optional :: should_exist
     logical(lgt) :: exist, default
     default = .true.; if (present(should_exist)) default = should_exist
+    if (trim(filename) == 'none' .or. trim(filename) == 'fullsky') return
     inquire(file=trim(filename), exist=exist)
     if (exist .neqv. default) then
        if (default) then

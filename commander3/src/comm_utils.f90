@@ -1436,4 +1436,38 @@ contains
       m(3,3) =   0.497154957d0
    end subroutine ecl_to_gal_rot_mat
 
+   function get_string_index(arr, str, allow_missing)
+     implicit none
+     character(len=*), dimension(:), intent(in) :: arr
+     character(len=*),               intent(in) :: str
+     logical(lgt),                   intent(in), optional :: allow_missing
+     integer(i4b)                               :: get_string_index
+
+     integer(i4b) :: i
+     character(len=128) :: str1, str2
+     logical(lgt) :: allow
+
+     allow = .false.; if (present(allow_missing)) allow = allow_missing
+
+     str1 = str
+     call toupper(str1)
+     do i = 1, size(arr)
+        str2 = arr(i)
+        call toupper(str2)
+        if (trim(str1) == trim(str2)) then
+           get_string_index = i
+           exit
+        end if
+     end do
+     if (i > size(arr)) then
+        if (allow) then
+           get_string_index = -1
+        else
+           write(*,*) 'get_string_index: String not found = ', trim(str)
+           stop
+        end if
+     end if
+
+   end function get_string_index
+
 end module comm_utils

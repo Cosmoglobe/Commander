@@ -214,6 +214,7 @@ contains
     class(comm_comp), pointer :: c => null()
     character(len=32) :: cr_active_bands(100)
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
+    class(comm_map),     pointer :: res  => null()
     logical(lgt) :: storebuff
 
     if (present(store_buff)) then
@@ -221,7 +222,6 @@ contains
     else
       storebuff = .false.
     end if
-
 
     allocate(x(ncr), mask(ncr))
 
@@ -248,19 +248,27 @@ contains
       end do
     end if
    
-    !TODO: (I think) add code here to sample star amplitudes
+    ! Sample point source amplitudes
     c => compList 
     do while (associated(c))
-      select type (c)
-      class is (comm_ptsrc_comp)
-        if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
-          call c%samplePtsrcAmp(cpar, handle)
-          return
-        end if
-      end select
-      c => c%nextComp()
+       select type (c)
+       class is (comm_ptsrc_comp)
+          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
+             ! Initialize residual maps
+             do l = 1, numband
+                res             => compute_residual(l)
+                data(l)%res%map =  res%map
+                call res%dealloc(); deallocate(res)
+                nullify(res)
+             end do
+             ! Perform sampling
+             call c%samplePtsrcAmp(cpar, handle, samp_group)
+             return
+          end if
+       end select
+       c => c%nextComp()
     end do
-
+    
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
     do while (associated(c))

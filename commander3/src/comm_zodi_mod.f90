@@ -35,8 +35,8 @@ module comm_zodi_mod
       real(dp),     allocatable, dimension(:)   :: theta_scale
 
       ! Stationary model
-      real(dp), allocatable, dimension(:)   :: amp_static
-      real(dp), allocatable, dimension(:,:) :: map_static
+!      real(dp), allocatable, dimension(:)   :: amp_static
+!      real(dp), allocatable, dimension(:,:) :: map_static
     contains
       procedure :: init_comps, init_general_params, model_to_chain, params_to_model2, model_to_params2, comp_from_chain, get_par_ind, init_general_priors_and_scales
    end type ZodiModel
@@ -185,13 +185,13 @@ contains
 
       ! Initialize stationary zodi component
       if (cpar%incl_zodi_solar_comp) then
-         allocate(zodi_model%map_static(0:12*cpar%zodi_solar_nside**2-1,1))
-         allocate(zodi_model%amp_static(numband))
-         zodi_model%amp_static = 1.d0
-         zodi_model%map_static = 0.d0
-         if (trim(cpar%zodi_solar_initmap) /= 'none') then
-            call read_map(trim(cpar%datadir)//'/'//trim(cpar%zodi_solar_initmap), zodi_model%map_static)
-         end if
+         !allocate(zodi_model%map_static(0:12*cpar%zodi_solar_nside**2-1,1))
+         !allocate(zodi_model%amp_static(numband))
+         !zodi_model%amp_static = 1.d0
+         !zodi_model%map_static = 0.d0
+         !if (trim(cpar%zodi_solar_initmap) /= 'none') then
+         !   call read_map(trim(cpar%datadir)//'/'//trim(cpar%zodi_solar_initmap), zodi_model%map_static)
+         !end if
       end if
 
       allocate(comp_LOS(zodi_model%n_comps))
@@ -613,10 +613,10 @@ contains
       end do
 
       ! Static component
-      path = trim(adjustl(zodi_path))//'/static'
-      call create_hdf_group(file, trim(adjustl(path)))
-      call write_hdf(file, trim(adjustl(path))//'/map', self%map_static)
-      call write_hdf(file, trim(adjustl(path))//'/amp', self%amp_static)
+      !path = trim(adjustl(zodi_path))//'/static'
+      !call create_hdf_group(file, trim(adjustl(path)))
+      !call write_hdf(file, trim(adjustl(path))//'/map', self%map_static)
+      !call write_hdf(file, trim(adjustl(path))//'/amp', self%amp_static)
 
       call close_hdf_file(file)
       deallocate(params,labels)
@@ -756,34 +756,6 @@ contains
    end subroutine get_s_zodi
 
    
-   subroutine get_s_static(self, band, point, s)
-     ! Evaluates the static zodiacal signal
-     !
-     ! Parameters:
-     ! -----------
-     ! self  : ZodiModel object
-     ! band  : Band number id
-     ! point : pointing array
-     ! s     : Output TOD of static zodi signal
-     implicit none
-     class(ZodiModel),           intent(in)  :: self
-     integer(i4b),               intent(in)  :: band
-     integer(i4b), dimension(:), intent(in)  :: point
-     real(sp),     dimension(:), intent(out) :: s
-
-     integer(i4b) :: i
-
-     if (.not. allocated(self%map_static)) then
-        s = 0.d0
-        return
-     end if
-     
-     do i = 1, size(s)
-        s(i) = self%amp_static(band) * self%map_static(point(i),1)
-     end do
-
-   end subroutine get_s_static
-
    function get_par_ind(self, comp, comp_str, param, em_band, al_band, em_string, al_string, mono_band, mono_string)
      implicit none
      class(ZodiModel),     intent(in)           :: self
@@ -1083,31 +1055,6 @@ contains
 
    end subroutine samp_group2stat
 
-   function get_string_index(arr, str)
-     implicit none
-     character(len=*), dimension(:), intent(in) :: arr
-     character(len=*),               intent(in) :: str
-     integer(i4b)                               :: get_string_index
-
-     integer(i4b) :: i
-     character(len=128) :: str1, str2
-
-     str1 = str
-     call toupper(str1)
-     do i = 1, size(arr)
-        str2 = arr(i)
-        call toupper(str2)
-        if (trim(str1) == trim(str2)) then
-           get_string_index = i
-           exit
-        end if
-     end do
-     if (i > size(arr)) then
-        write(*,*) 'get_string_index: String not found = ', trim(str)
-        stop
-     end if
-
-   end function get_string_index
 
 
    subroutine get_zodi_emission(tod, pix, scan, det, s_zodi_scat, s_zodi_therm, model, always_scattering, use_lowres_pointing, comp)
@@ -1231,6 +1178,8 @@ contains
             unit_vector = tod%ind2vec_ecl_lowres(:, lookup_idx)
          else
             lookup_idx = tod%pix2ind(pix(i))
+            !write(*,*) 'q1', tod%scanid(scan), lookup_idx
+            !write(*,*) 'q2', tod%scanid(scan), lookup_idx, pix(i), det, tod%zodi_therm_cache(lookup_idx, 1, det)
             if (tod%zodi_therm_cache(lookup_idx, 1, det) > 0.d0) then
                if (scattering) s_zodi_scat(i, :) = tod%zodi_scat_cache(lookup_idx, :, det)
                s_zodi_therm(i, :) = tod%zodi_therm_cache(lookup_idx, :, det)
@@ -1258,7 +1207,16 @@ contains
                comp_LOS(k)%X(l, :) = comp_LOS(k)%X_unit(l, :) + obs_pos(l)
             end do
             comp_LOS(k)%R = norm2(comp_LOS(k)%X, dim=1)
-
+!!$            do l = 1, size(comp_LOS(k)%R)
+!!$               if (sum(comp_LOS(k)%X_unit(:,l)**2) == 0.d0) then
+!!$                  write(*,*) 'comp', k, l
+!!$                  write(*,*) 'R_MIN', R_max, R_min
+!!$                  write(*,*) 'gauss', comp_LOS(k)%gauss_nodes(l)
+!!$                  write(*,*) 'unit', unit_vector
+!!$                  write(*,*) 'X_unit', comp_LOS(k)%X_unit(:,l)
+!!$               end if
+!!$            end do
+            
             if (scattering) then
                comp_LOS(k)%F_sol = model%F_sun(tod%zodiband)/comp_LOS(k)%R**2
                call get_scattering_angle(comp_LOS(k)%X, comp_LOS(k)%X_unit, comp_LOS(k)%R, comp_LOS(k)%Theta)
@@ -1367,8 +1325,13 @@ contains
       allocate(cos_theta(size(X_vec_LOS, dim=1)))
       allocate(R_LOS(size(X_vec_LOS, dim=1)))
 
-
       R_LOS = norm2(X_vec_LOS, dim=1)
+      if (any(abs(R_LOS*R_helio_LOS) < 1e-6)) then
+         write(*,*) 'Error in get_scattering_angle'
+         write(*,*) 'X_vec_LOS = ', X_vec_LOS
+         write(*,*) 'R_LOS = ', R_LOS
+         write(*,*) 'helio = ', R_helio_LOS
+      end if
       cos_theta = sum(X_helio_vec_LOS*X_vec_LOS, dim=1)/(R_LOS*R_helio_LOS)
       ! clip cos(theta) to [-1, 1]
       where (cos_theta > 1)
@@ -1504,10 +1467,10 @@ contains
       end do
 
       ! Static component
-      path = trim(adjustl(zodi_path))//'/static'
-      call create_hdf_group(file, trim(adjustl(path)))
-      call write_hdf(file, trim(adjustl(path))//'/map', model%map_static)
-      call write_hdf(file, trim(adjustl(path))//'/amp', model%amp_static)
+      !path = trim(adjustl(zodi_path))//'/static'
+      !call create_hdf_group(file, trim(adjustl(path)))
+      !call write_hdf(file, trim(adjustl(path))//'/map', model%map_static)
+      !call write_hdf(file, trim(adjustl(path))//'/amp', model%amp_static)
 
       call close_hdf_file(file)
    end subroutine
@@ -1620,14 +1583,15 @@ contains
       end if
 
       ! Add static zodi component by Healpix map lookup
-      if (present(pix_static) .and. allocated(zodi_model%map_static)) then
+      if (present(pix_static) .and. associated(tod%map_solar)) then
          nhorn = size(pix_static,2)      
          do h = 1, nhorn
             do i = 1, ntod
                j    = pix_static(i,h)
-               if (zodi_model%map_static(j,1) > -1.d30) then
+               if (tod%map_solar(j,1) > -1.d30) then
                   w    = 1.d0; if (h > 1) w = -1.d0
-                  s(i) = s(i) + w * zodi_model%amp_static(band) * zodi_model%map_static(j,1)
+                  !s(i) = s(i) + w * zodi_model%amp_static(band) * zodi_model%map_static(j,1)
+                  s(i) = s(i) + w * tod%map_solar(j,1)
                end if
             end do
          end do
@@ -1722,13 +1686,13 @@ contains
       end do
 
       ! Output static zodi amplitude
-      write(io, fmt='(a)') ''
-      do i = 1, numband
-         if (trim(band_todtype(i)) == 'none') cycle
-         !if (.not. data(i)%tod%subtract_zodi) cycle
-         write(val, fmt='(ES12.5)') model%amp_static(i)
-         write(io, fmt='(a, T25, a, a)') trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), "= ", trim(adjustl(val))
-      end do
+!      write(io, fmt='(a)') ''
+!      do i = 1, numband
+!         if (trim(band_todtype(i)) == 'none') cycle
+!         !if (.not. data(i)%tod%subtract_zodi) cycle
+!         write(val, fmt='(ES12.5)') model%amp_static(i)
+!         write(io, fmt='(a, T25, a, a)') trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), "= ", trim(adjustl(val))
+!      end do
       
       close(io)
    end subroutine
@@ -1807,7 +1771,7 @@ contains
                read(toks(j), *) model%comps(j)%c%albedo(i)
             end do
             
-            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
+!            call get_parameter_hashtable(htbl, trim(adjustl("AMP_STATIC_"//trim(adjustl(band_labels(i))))), par_dp=zodi_model%amp_static(i))
          !end if
          !call mpi_bcast(data(i)%tod%zodi_emissivity, size(data(i)%tod%zodi_emissivity), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
          !call mpi_bcast(data(i)%tod%zodi_albedo, size(data(i)%tod%zodi_albedo), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)

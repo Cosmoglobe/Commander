@@ -121,11 +121,11 @@ contains
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
        do while (start_chunk < self%npix)
-          if (tod%pix2ind(start_chunk) /= -1) exit
+          if (tod%pix2ind(start_chunk) /= -2) exit
           start_chunk = start_chunk+1
        end do
        do while (end_chunk >= start_chunk)
-          if (tod%pix2ind(end_chunk) /= -1) exit
+          if (tod%pix2ind(end_chunk) /= -2) exit
           end_chunk = end_chunk-1
        end do
        if (start_chunk < self%npix)  start_chunk = tod%pix2ind(start_chunk)
