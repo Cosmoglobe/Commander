@@ -171,6 +171,7 @@ program commander
   call define_cg_samp_groups(cpar)
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_inter_tod_params(cpar)
 
 
   ! Precompute zodi lookups
@@ -376,7 +377,7 @@ program commander
 
       ! Sample stationary zodi components with 2D model
       call sample_static_zodi_map(cpar, handle)
-      call sample_static_zodi_amps(cpar, handle)
+      !call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&

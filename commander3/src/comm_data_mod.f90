@@ -682,4 +682,39 @@ contains
 
   end subroutine get_mapfile
 
+  subroutine initialize_inter_tod_params(cpar)
+    implicit none
+    type(comm_params), intent(in)    :: cpar
+    
+    integer(i4b) :: i, j
+    character(len=512) :: model
+    
+    ! Initialize solar centric maps
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_solar_allocated = .false.
+       model = cpar%ds_tod_solar_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_solar => data(j)%tod%map_solar
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_solar_allocated = .true.
+          allocate(data(i)%tod%map_solar(0:data(i)%info%npix-1,1))
+          if (trim(cpar%ds_tod_solar_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_solar = 0.d0
+          else
+             call read_map(cpar%ds_tod_solar_init(data(i)%tod%band), data(i)%tod%map_solar)
+          end if
+       end if
+    end do
+
+  end subroutine initialize_inter_tod_params
+
+  
 end module comm_data_mod

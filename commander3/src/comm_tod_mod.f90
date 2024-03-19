@@ -190,6 +190,11 @@ module comm_tod_mod
      class(comm_map), pointer                          :: procmask => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask2 => null() ! Mask for gain and n_corr
      class(comm_map), pointer                          :: procmask_zodi => null() ! Mask for sampling zodi
+     !class(comm_map), pointer                          :: mask_solar => null() ! Solar centric/sidelobe mask
+     real(dp),           allocatable, dimension(:,:)   :: mask_solar           ! Solar centric/sidelobe mask
+     logical(lgt)                                      :: map_solar_allocated
+     real(dp),           pointer,     dimension(:,:)   :: map_solar           ! Full-sky solar centric/sidelobe model
+!     class(comm_map), pointer                          :: map_solar => null() ! Solar centric/sidelobe model
      class(comm_mapinfo), pointer                      :: info => null()    ! Map definition
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
@@ -271,6 +276,7 @@ module comm_tod_mod
      procedure                           :: precompute_zodi_lookups
      procedure                           :: clear_zodi_cache
      procedure                           :: create_dynamic_mask
+     procedure                           :: get_s_static
   end type comm_tod
 
   abstract interface
@@ -340,7 +346,7 @@ contains
     character(len=128),             intent(in)     :: tod_type
 
     integer(i4b) :: i, ndelta, ierr, unit
-    character(len=512) :: datadir
+    character(len=512) :: datadir, solar_init
 
     self%id            = id
     self%band          = id_abs
@@ -441,7 +447,12 @@ contains
       self%procmaskfzodi = trim(cpar%ds_tod_procmask_zodi(id_abs))
       self%procmask_zodi => comm_map(self%info, self%procmaskfzodi)
     end if
-
+    if (trim(cpar%ds_tod_solar_mask(id_abs)) /= 'none') then
+       !self%mask_solar => comm_map(self%info, cpar%ds_tod_solar_mask(id_abs))
+       allocate(self%mask_solar(0:12*self%nside_param**2-1,1))
+       call read_map(cpar%ds_tod_solar_mask(id_abs), self%mask_solar)
+    end if
+    
     do i = 0, self%info%np-1
        if (any(self%procmask%map(i,:) < 0.5d0)) then
           self%procmask%map(i,:) = 0.d0
@@ -503,8 +514,6 @@ contains
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
-
-
   end subroutine tod_constructor
 
   subroutine precompute_lookups(self)
@@ -528,16 +537,16 @@ contains
 
     ! Construct observed pixel array
     allocate(self%pix2ind(0:12*self%nside**2-1))
-    self%pix2ind = -1
+    self%pix2ind = -2
     do i = 1, self%nscan
        allocate(pix(self%scans(i)%ntod))
        if (self%nhorn == 2) then
           if (self%use_solar_point) allocate(self%scans(i)%d(1)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(1)%psi_sol(self%scans(i)%ntod,self%nhorn))
           do l = 1, self%nhorn
              call huffman_decode2_int(self%scans(i)%hkey, self%scans(i)%d(1)%pix(l)%p, pix)
-             self%pix2ind(pix(1)) = 1
+             self%pix2ind(pix(1)) = -1
              do k = 2, self%scans(i)%ntod
-                self%pix2ind(pix(k)) = 1
+                self%pix2ind(pix(k)) = -1
              end do
              if (self%use_solar_point) then
                 call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
@@ -548,14 +557,14 @@ contains
              if (self%use_solar_point) allocate(self%scans(i)%d(j)%pix_sol(self%scans(i)%ntod,self%nhorn), self%scans(i)%d(j)%psi_sol(self%scans(i)%ntod,self%nhorn))
              do l = 1, self%nhorn
                 call huffman_decode(self%scans(i)%hkey, self%scans(i)%d(j)%pix(l)%p, pix)
-                self%pix2ind(pix(1)) = 1
+                self%pix2ind(pix(1)) = -1
                 do k = 2, self%scans(i)%ntod
                    pix(k)  = pix(k-1)  + pix(k)
                    if (pix(k) > 12*self%nside**2-1) then
                        write(*,*) "Error: pixel number out of range for:"
                        write(*,*) "pixel nr", pix(k), "scan nr",  k, pix(1), l, "detector:", self%label(j), "chunk nr", self%scans(i)%chunk_num
                    end if
-                   self%pix2ind(pix(k)) = 1
+                   self%pix2ind(pix(k)) = -1
                 end do
                 if (self%use_solar_point) then
                    call compute_solar_centered_pointing(self, i, j, pix, 0*pix, self%scans(i)%d(j)%pix_sol(:,l), self%scans(i)%d(j)%psi_sol(:,l))
@@ -565,7 +574,7 @@ contains
       end if
       deallocate(pix)
     end do
-    self%nobs = count(self%pix2ind == 1)
+    self%nobs = count(self%pix2ind == -1)
     allocate(self%ind2pix(self%nobs))
     allocate(self%ind2sl(self%nobs))
     allocate(self%ind2ang(2,self%nobs))
@@ -573,7 +582,7 @@ contains
 
     j = 1
     do i = 0, 12*self%nside**2-1
-       if (self%pix2ind(i) == 1) then
+       if (self%pix2ind(i) == -1) then
           self%ind2pix(j) = i
           self%pix2ind(i) = j
           call pix2ang_ring(self%nside, i, theta, phi)
@@ -2929,15 +2938,16 @@ contains
      real(sp),            dimension(:), intent(in)    :: res
      real(sp),            dimension(2), intent(in)    :: rms_range
      real(sp),            dimension(:), intent(inout) :: mask
-
+     
      logical(lgt) :: cut
-      integer(i4b) :: i, j, k, n, ntod, nmax
-      real(dp) :: box_width, rms, vec(3), elon
-      integer(i4b), allocatable, dimension(:,:) :: bad, buffer
-
-      ntod = size(res)
-      nmax = 1000
-      
+     integer(i4b) :: i, j, k, n, ntod, nmax
+     real(dp) :: box_width, rms, vec(3), elon
+     integer(i4b), allocatable, dimension(:,:) :: bad, buffer
+     !real(dp),     allocatable, dimension(:,:) :: mask_solar
+     
+     ntod = size(res)
+     nmax = 1000
+     
       ! Compute rms
       rms = 0.d0
       n   = 0
@@ -2948,9 +2958,17 @@ contains
       end do
       rms = sqrt(rms/(n-1))
 
-      allocate(bad(2,nmax))
+!      write(*,*) 'a'
+      ! Get full-sky mask
+!      if (associated(self%mask_solar)) then
+!         allocate(mask_solar(0:12*self%nside**2-1,1))
+!         call self%mask_solar%bcast_fullsky_map(mask_solar)
+!      end if
+
       
-      ! Look for strong outliers, save bad ranges
+!      write(*,*) 'b'
+      ! Look for strong outliers and masked samples, save bad ranges
+      allocate(bad(2,nmax))
       bad = -1
       n   = 0
       do i = 1, ntod
@@ -2962,10 +2980,13 @@ contains
             cut = .false.
          end if
          
-         ! Apply solar elongation selection criterium
-         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
-         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
-         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
+         ! Apply solar mask selection criterium
+!         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
+!         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
+         !         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
+         if (allocated(self%mask_solar)) then
+            cut = cut .or. (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5)
+         end if
 
          if (cut) then
             ! Start new range if not already active
@@ -3007,8 +3028,11 @@ contains
 !!$         end do
          !write(*,fmt='(a,i6,a,i6,i4)') ' Removing ', n, ' ranges in dynamic mask for scan, det', self%scanid(scan), det
       end if
+
       
+!      write(*,*) 'c'
       deallocate(bad)
+!      if (allocated(mask_solar)) deallocate(mask_solar)
    end subroutine
 
    subroutine distribute_sky_maps(tod, map_in, scale, map_out, map_full)
@@ -3054,5 +3078,35 @@ contains
 
   end subroutine distribute_sky_maps
 
+
+  subroutine get_s_static(self, band, point, s)
+     ! Evaluates the solar centric TOD
+     !
+     ! Parameters:
+     ! -----------
+     ! self  : ZodiModel object
+     ! band  : Band number id
+     ! point : pointing array
+     ! s     : Output TOD of static zodi signal
+     implicit none
+     class(comm_tod),            intent(in)  :: self
+     integer(i4b),               intent(in)  :: band
+     integer(i4b), dimension(:), intent(in)  :: point
+     real(sp),     dimension(:), intent(out) :: s
+
+     integer(i4b) :: i
+
+     if (.not. associated(self%map_solar)) then
+        s = 0.d0
+        return
+     end if
+     
+     do i = 1, size(s)
+        s(i) = self%map_solar(point(i),1)
+     end do
+
+   end subroutine get_s_static
+
+  
    
 end module comm_tod_mod
