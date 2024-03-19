@@ -63,7 +63,7 @@ contains
           type is (comm_md_comp)
             continue
           class is (comm_diffuse_comp)
-            if (c%id == k) then
+            if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
               call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
               todo = .false.
             end if
@@ -233,7 +233,7 @@ contains
           type is (comm_md_comp)
             continue
           class is (comm_diffuse_comp)
-            if (c%id == k) then
+            if (c%id == k .and. maxval(c%p_gauss(2,:)) .ne. 0d0) then
               call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
               todo = .false.
             end if

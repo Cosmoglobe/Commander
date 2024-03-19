@@ -131,6 +131,9 @@ contains
     ! Read SED table
     call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
 
+    ! Initialize SED priors
+    c%SEDtab_prior = cpar%cs_SED_prior(id_abs)
+
     ! Initialize mixing matrix
     call c%updateMixmat
 
