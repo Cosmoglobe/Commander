@@ -3975,16 +3975,20 @@ end subroutine
     character(len=512), intent(out) :: chainfile
     integer(i4b),       intent(out) :: initsamp
     
-    integer(i4b) :: i, num
+    integer(i4b) :: i, num, e
     character(len=512), dimension(2) :: toks
 
 
     call get_tokens(string, ":", toks, num)    
     chainfile = toks(1)
-    read(toks(2),*) initsamp
+    read(toks(2),*, iostat=e) initsamp
+    if (e .ne. 0) then
+      write(*,*) 'Issue with chain file formatting, got ', initsamp, trim(toks(2))
+    end if
 
     if (index(chainfile, '.h5') == 0) then
-        write(*,*) "poorly formatted chainfile", trim(string)
+        write(*,*) "poorly formatted naming of chain file", trim(string)
+        write(*,*) "Should be filename:sample, e.g., data/chain_c0001.h5:12"
         stop
     end if
     

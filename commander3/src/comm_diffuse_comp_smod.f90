@@ -1008,7 +1008,7 @@ contains
                 if (p_min > p_max) cycle !just a guaranty that we dont smooth for nothing
 
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
 
                    !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
@@ -1047,7 +1047,7 @@ contains
                    if (cpar%num_smooth_scales <= 0) then
                       write(*,*) 'need to define smoothing scales'
                       stop
-                   else if (smooth_scale <= 0) then
+                   else if (smooth_scale < 0) then
                       write(*,*) 'need to define smoothing scale for component '//&
                            & trim(self%label)//', parameter '//trim(self%indlabel(i))
                       stop

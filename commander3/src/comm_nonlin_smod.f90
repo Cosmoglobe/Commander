@@ -107,59 +107,12 @@ contains
                  end do
                 end if
              end if
-!!$             if (any(c%lmax_ind_pol(1:c%poltype(j),j) < 0)) then
-!!$                call sample_specind_local(cpar, iter, handle, c%id, j)
-!!$
-!!$                if (cpar%myid == cpar%root) write(*,*) '| Nmaps:',c%nmaps, ' poltypes:',c%poltype(j)
-!!$                do p = 1,c%poltype(j)
-!!$                   if (p > c%nmaps) cycle
-!!$                   if (c%lmax_ind_pol(p,j) < 0) then
-!!$                      if (trim(c%pol_lnLtype(p,j)) == 'chisq') then
-!!$                         if (.not. c%spec_mono_combined(p)) cycle
-!!$                      end if
-!!$                      if (c%pol_pixreg_type(p,j) == 3) then !pixel regions
-!!$                         if (all(c%fix_pixreg(:c%npixreg(p,j),p,j) .eqv. .true.)) cycle
-!!$                      end if
-!!$                      if (trim(c%pol_lnLtype(p,j)) == 'prior') then
-!!$                         if (c%theta_prior(2,p,j) == 0.d0) cycle
-!!$                         if (c%spec_mono_combined(p)) then
-!!$                            samp_cg = .true.
-!!$                            !the case of frozen pixel regions is covered above
-!!$                         end if
-!!$                      end if
-!!$                      samp_cg = .true.
-!!$                   end if
-!!$                end do
-!!$             end if !any local sampling
-!!$
-!!$             if (samp_cg) then !need to resample amplitude
-!!$                !call sample amplitude for the component specific cg_sample group
-!!$                if (cpar%myid == cpar%root) then
-!!$                   write(*,*) '| Sampling component amplitude of '//trim(c%label)//' after spectral index sampling of '// &
-!!$                        & trim(c%indlabel(j))
-!!$                end if
-!!$                call sample_amps_by_CG(cpar, c%cg_unique_sampgroup, handle, handle_noise)
-!!$
-!!$                ! need to check if the monopole prior is active, if so we need to re-estimate the mono-/dipoles
-!!$                if (trim(c%mono_prior_type) /= 'none') then
-!!$                   ! can only estimate if there is a pure (and full) mono/-dipole CG sampling group 
-!!$                   if (c%cg_samp_group_md > 0) then
-!!$                      if (cpar%myid == cpar%root) then
-!!$                         write(*,*) '| Sampling monopoles of band after prior correcting monopole of '//&
-!!$                              & trim(c%label)//' amplitude'
-!!$                         write(*,*) '| Using CG sampling group:',c%cg_samp_group_md
-!!$                      end if
-!!$                      call sample_amps_by_CG(cpar, c%cg_samp_group_md, handle, handle_noise)
-!!$                   end if
-!!$                end if
-!!$             end if
-!!$             !if/when 3x3 cov matrices are implemented, this CG-search needs to go inside local sampler routine (after every poltype index has been sampled)
              
 
           class is (comm_line_comp) !these codes should (maybe) not need to change
              call sample_specind_local(cpar, iter, handle, c%id, j)
           class is (comm_ptsrc_comp)
-             if (j == 1) then
+             if (c%npar > 0) then
                 call sample_specind_local(cpar, iter, handle, c%id, j)
              end if
           end select
