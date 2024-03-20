@@ -3872,6 +3872,11 @@ end subroutine
          deallocate(itext,jtext)
       end if
 
+      if (val == '#') then
+        write(*,*) trim(parname), ' has invalid value #, double check your parameter file'
+        stop
+      end if
+
       if (present(par_int)) then
          read(val,*) par_int
       elseif (present(par_char)) then
@@ -3905,8 +3910,6 @@ end subroutine
 
       deallocate(val)
       return
-
-      !if (cpar%myid == cpar%root) then
 
 1     write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
       write(*,*) ""
