@@ -67,6 +67,7 @@ contains
 
     c%npar         = 2
     allocate(c%poltype(c%npar))
+    !if (cpar%myid == 0) write(*,*) cpar%cs_poltype(:,id_abs)
     do i = 1, c%npar
        c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do

@@ -42,7 +42,7 @@ contains
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
-    integer(i4b) :: band, samp_group, ierr, i, j, k, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, pol, pix
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -112,18 +112,7 @@ contains
        call update_mixing_matrices(update_F_int=.true.)
 
        ! Perform component separation
-       call timer%start(TOT_AMPSAMP)
-       do samp_group = 1, cpar%cg_num_user_samp_groups
-          if (cpar%myid_chain == 0) then
-             write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                  & samp_group, ' of ', cpar%cg_num_user_samp_groups
-          end if
-          call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=.true.)
-
-          if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-       end do
-       call timer%stop(TOT_AMPSAMP)
+       call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
 
 
        c => compList
@@ -187,9 +176,7 @@ contains
 
 
          ! Instead of doing compsep, revert the amplitudes here
-         do samp_group = 1, cpar%cg_num_user_samp_groups
-           call revert_CG_amps(cpar, samp_group)
-         end do
+        call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then
@@ -209,7 +196,7 @@ contains
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
-    integer(i4b) :: band, samp_group, ierr, i, j, k, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, pol, pix
     logical(lgt)  :: include_comp, reject, todo, has_alms
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -314,18 +301,7 @@ contains
        end do
 
        ! Perform component separation
-       call timer%start(TOT_AMPSAMP)
-       do samp_group = 1, cpar%cg_num_user_samp_groups
-          if (cpar%myid_chain == 0) then
-             write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                  & samp_group, ' of ', cpar%cg_num_user_samp_groups
-          end if
-          call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=.true.)
-
-          if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-       end do
-       call timer%stop(TOT_AMPSAMP)
+       call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
 
 
        c => compList
@@ -417,9 +393,7 @@ contains
          end do
 
          ! Instead of doing compsep, revert the amplitudes here
-         do samp_group = 1, cpar%cg_num_user_samp_groups
-           call revert_CG_amps(cpar, samp_group)
-         end do
+         call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then

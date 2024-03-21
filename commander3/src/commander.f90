@@ -432,18 +432,9 @@ program commander
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
-        call timer%start(TOT_AMPSAMP)
-        do samp_group = 1, cpar%cg_num_user_samp_groups
-           if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                   & samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', trim(cpar%cg_samp_group(samp_group))
-           end if
-           call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
-           if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-        end do
-        call timer%stop(TOT_AMPSAMP)
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
 
         ! Perform joint alm-Cl Metropolis move
         call timer%start(TOT_CLS)
