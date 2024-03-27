@@ -19,14 +19,8 @@
 !
 !================================================================================
 module comm_tod_orbdipole_mod
-  use comm_utils
-  use comm_defs
   use comm_map_mod
-  use spline_1D_mod
   implicit none
-
-  private 
-  public comm_orbdipole, orbdipole_pointer
 
   type :: comm_orbdipole
     integer(i4b) :: ndet!, subsample
@@ -177,7 +171,7 @@ contains
     !   v_ref: double, array of length 3
     !        velocity of observer in km/s, Galactic coordinates
     !   relativistic: logical
-    !        if True, comoputes relativistic correction
+    !        if True, computes relativistic correction
     !   beam_4pi: logical
     !        if True, uses the full main beam map, else uses pencil beam.
     !   P: double, array
@@ -210,6 +204,7 @@ contains
 
     f      = 1.d0; if (present(factor)) f = factor
     ntod   = size(s_dip)
+    if ((ntod - 1) == 0) stop '!!!!!!!ntod = 1, orb dipole bug!!!!!!!'
     x      = h * nu/(k_B * T_CMB)
     q      = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
     vp_ref = v_ref; if (present(v_ref_next)) vp_ref = v_ref_next ! Velocity for next PID; for linear interpolation

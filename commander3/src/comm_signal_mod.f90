@@ -19,30 +19,25 @@
 !
 !================================================================================
 module comm_signal_mod
-  use comm_ame_lognormal_mod
   use comm_chisq_mod
+  use comm_cr_mod
   use comm_cmb_comp_mod
   use comm_cmb_relquad_comp_mod
-  use comm_comp_mod
-  use comm_cr_mod
-  use comm_cr_utils
-  use comm_curvature_comp_mod
-  use comm_data_mod
-  use comm_diffuse_comp_mod
-  use comm_freefree_comp_mod
-  use comm_hdf_mod
-  use comm_line_comp_mod
-  use comm_MBB_comp_mod
-  use comm_md_comp_mod
-  use comm_param_mod
+  use comm_mbb_comp_mod
+  use comm_mbbtab_comp_mod
   use comm_powlaw_comp_mod
-  use comm_exp_comp_mod
-  use comm_powlaw_break_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_physdust_comp_mod
+  use comm_curvature_comp_mod
   use comm_spindust_comp_mod
   use comm_spindust2_comp_mod
-  use comm_template_comp_mod
+  use comm_md_comp_mod
+  use comm_line_comp_mod
+  use comm_freefree_comp_mod
+  use comm_freefreeEM_comp_mod
+  use comm_exp_comp_mod
+  use comm_physdust_comp_mod
+  use comm_pah_comp_mod
+  use comm_powlaw_break_comp_mod
+  use comm_ame_lognormal_mod
   implicit none
 
 contains
@@ -89,13 +84,19 @@ contains
              c => comm_ame_lognormal_comp(cpar, ncomp, i)
           case ("MBB")
              c => comm_MBB_comp(cpar, ncomp, i)
+          case ("MBBtab")
+             c => comm_MBBtab_comp(cpar, ncomp, i)
           case ("freefree")
              c => comm_freefree_comp(cpar, ncomp, i)
+          case ("freefreeEM")
+             c => comm_freefreeEM_comp(cpar, ncomp, i)
           case ("line")
              c => comm_line_comp(cpar, ncomp, i)
           case ("md")
              c => initialize_md_comps(cpar, ncomp, i, n)
              ncomp = ncomp + n - 1
+          case ("pah")
+             c => comm_pah_comp(cpar, ncomp, i)
           case default
              call report_error("Unknown component type: "//trim(cpar%cs_type(i)))
           end select
@@ -134,7 +135,7 @@ contains
        ind_comp(i,3) = c%nmaps
        ncr           = ncr + c%ncr
        i             = i+1
-       c             => c%next()
+       c             => c%nextComp()
     end do
 
 !    call mpi_finalize(i)
@@ -162,7 +163,7 @@ contains
                       prior_exists = .true.
                    end if
                 end select
-                c_two => c_two%next()
+                c_two => c_two%nextComp()
              end do
 
              if (.not. prior_exists) then
@@ -173,7 +174,7 @@ contains
 
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine initialize_signal_mod
@@ -194,23 +195,33 @@ contains
        write(unit,*) '# Component = ', trim(c%label)
        call c%dumpSED(unit)
        write(unit,*)
-       c => c%next()
+       c => c%nextComp()
     end do
     close(unit)
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle, handle_noise
+    logical(lgt), intent(in), optional :: store_buff
 
-    integer(i4b) :: stat, i, l, m
+    integer(i4b) :: stat, i, j, l, m, nactive
     real(dp)     :: Nscale = 1.d-4
     class(comm_comp), pointer :: c => null()
+    character(len=32) :: cr_active_bands(100)
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
+    class(comm_map),     pointer :: res  => null()
+    logical(lgt) :: storebuff
+
+    if (present(store_buff)) then
+      storebuff = store_buff
+    else
+      storebuff = .false.
+    end if
 
     allocate(x(ncr), mask(ncr))
 
@@ -218,9 +229,46 @@ contains
     c => compList
     do while (associated(c))
        call c%CG_mask(samp_group, mask)
-       c => c%next()
+       c => c%nextComp()
     end do
 
+    ! Activate requested frequency bands
+    if(trim(cpar%cg_samp_group_bands(samp_group)) == 'all') then
+      data%cr_active = .true.
+    else
+      call get_tokens(cpar%cg_samp_group_bands(samp_group), ',', cr_active_bands, nactive)
+      data%cr_active = .false.
+      do i = 1, nactive
+         do j = 1, numband
+            if (trim(cr_active_bands(i)) == trim(data(j)%label)) then
+               data(j)%cr_active = .true.
+               exit
+            end if
+         end do
+      end do
+    end if
+   
+    ! Sample point source amplitudes
+    c => compList 
+    do while (associated(c))
+       select type (c)
+       class is (comm_ptsrc_comp)
+          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
+             ! Initialize residual maps
+             do l = 1, numband
+                res             => compute_residual(l)
+                data(l)%res%map =  res%map
+                call res%dealloc(); deallocate(res)
+                nullify(res)
+             end do
+             ! Perform sampling
+             call c%samplePtsrcAmp(cpar, handle, samp_group)
+             return
+          end if
+       end select
+       c => c%nextComp()
+    end do
+    
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
     do while (associated(c))
@@ -237,10 +285,10 @@ contains
              end if
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
-    
+   
     ! Solve the linear system
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
          & handle, handle_noise, mask, samp_group, rhs)
@@ -248,7 +296,7 @@ contains
     call initPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
-    call cr_x2amp(samp_group, x)
+    call cr_x2amp(samp_group, x, store_buff=storebuff)
     call update_status(status, "cr_end")
     deallocate(rhs,x)
 
@@ -259,7 +307,7 @@ contains
        class is (comm_diffuse_comp)
           if (c%active_samp_group(samp_group)) call c%applyMonoDipolePrior(handle)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! If mono-/dipole components is a zero-level prior, revert back to pre-sampling value if it has been sampled in the current CG group
@@ -289,10 +337,61 @@ contains
              end if
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_amps_by_CG
+
+  subroutine revert_CG_amps(cpar, samp_group)
+    implicit none
+
+    type(comm_params), intent(in)    :: cpar
+    integer(i4b),      intent(in)    :: samp_group
+
+    ! If an MH step is rejected, returns amplitudes to the values stored as alm_buff
+
+    integer(i4b) :: i, ind
+    class(comm_comp), pointer :: c => null()
+
+    if (cpar%myid == 0 .and. samp_group == 1) then
+      write(*,*) 'Reverting to buffer values. Did you run sample_maps_with_CG with '
+      write(*,*) 'store_buff = .true.?'
+    end if
+
+    ind = 1
+    c   => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          do i = 1, c%x%info%nmaps
+             if (c%active_samp_group(samp_group)) then
+              c%x%alm(:,i) = c%x%alm_buff(:,i) 
+             end if
+             ind = ind + c%x%info%nalm
+          end do
+       class is (comm_ptsrc_comp)
+          if(.not. c%precomputed_amps) then
+            do i = 1, c%nmaps
+              if (c%myid == 0) then
+                if (c%active_samp_group(samp_group)) then
+                  c%x(:,i) = c%x_buff(:,i)
+                end if
+                ind = ind + c%nsrc
+              end if
+            end do
+          end if
+       class is (comm_template_comp)
+          if (c%myid == 0) then
+             if (c%active_samp_group(samp_group)) then
+                c%x(1,1) = c%x_buff(1,1)
+             end if
+             ind      = ind + 1
+          end if
+       end select
+       c => c%nextComp()
+    end do
+
+  end subroutine revert_CG_amps
 
   subroutine initPrecond(comm)
     implicit none
@@ -309,7 +408,7 @@ contains
     if (.not. associated(compList)) then
        compList => c
     else
-       call compList%add(c)
+       call compList%addComp(c)
     end if
   end subroutine add_to_complist
 
@@ -356,13 +455,13 @@ contains
        c   => compList
        do while (associated(c))
           if (.not. c%output) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           call update_status(status, "init_chain_"//trim(c%label))
           if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
-          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
-          c => c%next()
+          call c%initHDFComp(cpar, file, trim(adjustl(itext))//'/')
+          c => c%nextComp()
        end do
        call close_hdf_file(file)
        return
@@ -426,22 +525,22 @@ contains
        if (.not. present(init_from_output) .and. &
             & (trim(c%init_from_HDF) == 'none' .or. &
             & (trim(c%type) == 'cmb' .and. .not. present(first_call)))) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call update_status(status, "init_chain_"//trim(c%label))
        if (cpar%myid == 0) write(*,*) '|  Initializing from chain = ', trim(c%label)
        if (trim(c%init_from_HDF) == 'default' .or. trim(c%init_from_HDF) == 'none') then
-          call c%initHDF(cpar, file, trim(adjustl(itext))//'/')
+          call c%initHDFComp(cpar, file, trim(adjustl(itext))//'/')
        else
           call get_chainfile_and_samp(c%init_from_HDF, &
                      & chainfile, initsamp2)
           call int2string(initsamp2, itext2)
           call open_hdf_file(chainfile, file2, 'r')
-          call c%initHDF(cpar, file2, trim(adjustl(itext2))//'/')
+          call c%initHDFComp(cpar, file2, trim(adjustl(itext2))//'/')
           call close_hdf_file(file2)
        end if
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Initialize TOD parameters
@@ -491,6 +590,7 @@ contains
           call rms%dealloc
           deallocate(regnoise)
        end do
+
     else if (cpar%resamp_CMB) then
        do i = 1, numband  
           if (trim(data(i)%tod_type) == 'none') cycle
@@ -543,14 +643,14 @@ contains
     c  => compList
     do while (associated(c))
        if (trim(c%type) == 'md') then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
        class is (comm_diffuse_comp)
           call c%Cl%sampleCls(c%x, handle, ok)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_powspec
@@ -579,7 +679,7 @@ contains
           if (associated(pt%mask)) skip = .false.
        end select
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
 
@@ -618,7 +718,7 @@ contains
 
        deallocate(res, invN_T)
 
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_partialsky_tempamps
@@ -774,7 +874,7 @@ contains
           end do
 
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine sample_joint_alm_Cl

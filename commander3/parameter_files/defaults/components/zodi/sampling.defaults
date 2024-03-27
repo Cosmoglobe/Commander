@@ -1,0 +1,32 @@
+ZODI_INIT_CHAIN                  = none
+ZODI_COVAR_CHAIN                 = none
+ZODI_OUTPUT_COMP_MAPS            = .false.
+
+NUM_ZODI_SAMPLING_GROUPS         = 6
+ZODI_OUTPUT_TOD_RESIDUALS        = .false.
+
+
+@START 01
+ZODI_SAMPLING_GROUP&&          = cloud:x_0,cloud:y_0,cloud:z_0,cloud:incl,cloud:Omega,cloud:alpha,cloud:beta,cloud:gamma,cloud:mu
+@END 01
+
+@START 02
+ZODI_SAMPLING_GROUP&&          = band1:x_0,band1:y_0,band1:z_0,band1:incl,band1:Omega,band1:delta_zeta,band1:delta_r,band1:v,band1:p
+@END 02
+
+@START 03
+ZODI_SAMPLING_GROUP&&          = band2:x_0,band2:y_0,band2:z_0,band2:incl,band2:Omega,band2:delta_zeta,band2:delta_r,band2:v,band2:p
+@END 03
+
+@START 04
+ZODI_SAMPLING_GROUP&&          = band3:x_0,band3:y_0,band3:z_0,band3:incl,band3:Omega,band3:delta_zeta,band3:delta_r,band3:v,band3:p
+@END 04
+
+@START 05
+ZODI_SAMPLING_GROUP&&          = ring:x_0,ring:y_0,ring:z_0,ring:incl,ring:Omega,ring:R_0,ring:sigma_r,ring:sigma_z
+@END 05
+
+@START 06
+ZODI_SAMPLING_GROUP&&          = feature:x_0,feature:y_0,feature:z_0,feature:incl,feature:Omega,feature:R_0,feature:sigma_r,feature:sigma_z,feature:theta_0,feature:sigma_theta
+@END 06
+

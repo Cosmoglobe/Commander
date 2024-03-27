@@ -20,8 +20,6 @@
 !================================================================================
 module comm_tod_pointing_mod
    use comm_tod_mod
-   use comm_map_mod
-   use comm_utils
    implicit none
 
 contains
@@ -39,7 +37,7 @@ contains
       real(sp),     dimension(:,:),      intent(out)            :: s_sky, tmask
       real(sp),     dimension(:,:),      intent(out), optional  :: s_bp
 
-      integer(i4b)                                      :: i, p, det, nmap
+      integer(i4b)                                      :: i, j, k, p, det, nmap
       real(sp)                                          :: s
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
@@ -58,6 +56,10 @@ contains
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             
             if (nmap == 3) then
+                if ((psi(i,det) > 4096)) then
+                  write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i, det)
+                  cycle
+                end if
                 s_sky(i,det) = map(1,p,det) + &
                          & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
@@ -91,7 +93,7 @@ contains
             end do
          end do
       end if
-
+      
    end subroutine project_sky
 
    ! Sky signal template

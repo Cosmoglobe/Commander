@@ -42,6 +42,12 @@
 #endif()
 
 if(COMPILE_HDF5)
+
+	# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP
+  #if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+	#	cmake_policy(SET CMP0135 NEW)
+	#endif()
+
 	if(NOT HDF5_Fortran_FOUND)
 		message(STATUS "Missing component -- Fortran -- will be compiled from source.")	
 	endif()

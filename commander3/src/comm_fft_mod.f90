@@ -19,9 +19,7 @@
 !
 !================================================================================
 module comm_fft_mod
-  use comm_utils
   use comm_param_mod
-  use locate_mod
   implicit none
 
   private

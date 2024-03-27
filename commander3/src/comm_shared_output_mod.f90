@@ -29,7 +29,6 @@
 
 module comm_shared_output_mod
   use comm_utils
-  use comm_system_mod
   implicit none
 
   type shared_ofile

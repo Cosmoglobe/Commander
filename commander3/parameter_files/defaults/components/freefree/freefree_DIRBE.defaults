@@ -1,0 +1,73 @@
+# freefree component ---------------------------------------------------------------------
+COMP_LABEL&&                  = ff
+COMP_TYPE&&                   = freefree
+COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
+COMP_POLARIZATION&&           = .false.
+COMP_CG_SCALE_T&&             = 1.d0
+COMP_CG_SCALE_P&&             = 1.d0
+COMP_CG_SAMPLE_GROUP&&        = 1
+COMP_CG_SAMP_GROUP_MAXITER&&  = 150
+COMP_NSIDE&&                  = 1024
+COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_ff_monoprior_bp10_n1024_TQU.fits  mask_ff_mono_tr5_others_tr40_radio_tr30_chisq_tr5_n1024_TQU.fits mask_lat_70deg_n1024_TQU.fits none
+COMP_DEFLATION_MASK&&         = fullsky
+COMP_L_APOD&&                 = 1500
+COMP_LMAX_IND&&               = 0 -1       # Use input map as is
+COMP_OUTPUT_FWHM&&            = 30         # arcmin
+COMP_UNIT&&                   = uK_RJ
+COMP_NU_MIN&&                 = 0.d0
+COMP_NU_MAX&&                 = 1d30
+COMP_NU_REF_T&&                 = 40.0
+COMP_NU_REF_P&&                 = 40.0
+COMP_MASK&&                   = fullsky
+COMP_INDMASK&&                = fullsky
+COMP_CL_TYPE&&                = power_law_gauss  # {none, single_l, binned,power_law, exp}
+COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+COMP_CL_BETA_PRIOR_MEAN&&     = -0.0
+COMP_CL_BETA_PRIOR_RMS&&      = 0.0
+COMP_CL_L_PIVOT&&             = 50  1          # Pivot multipole
+COMP_CL_DEFAULT_AMP_T&&       = 1e3          # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       = 50
+COMP_CL_DEFAULT_AMP_B&&       = 50
+COMP_CL_DEFAULT_BETA_T&&      = 2.0d0 -0.5d0
+COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
+COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
+COMP_CL_DEFAULT_THETA_T&&     = 30.d0 # equivalent to BETA for CL_TYPE = gauss (see synch), BP8.0 used 90.d0
+COMP_CL_DEFAULT_THETA_E&&     = 90.d0
+COMP_CL_DEFAULT_THETA_B&&     = 90.d0
+
+COMP_AMP_LMIN&&               = 0
+COMP_AMP_LMAX&&               = 1500
+COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
+COMP_AMP_PRIOR_MAP&&          = ff_prior_mean_2015_median_90arc.fits none
+COMP_AMP_PRIOR_LMAX&&         = -1
+
+COMP_EM_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_EM_INPUT_MAP&&           = default    # null_n2048.fits
+COMP_EM_SMOOTHING_SCALE&&     = 0
+COMP_EM_DEFAULT&&             = 1.
+COMP_EM_PRIOR_UNI_LOW&&       = 1.d-3
+COMP_EM_PRIOR_UNI_HIGH&&      = 1.d4
+COMP_EM_PRIOR_GAUSS_MEAN&&    = 1.
+COMP_EM_PRIOR_GAUSS_RMS&&     = 0.
+COMP_EM_NU_MIN&&              = 0.        # Lowest frequency for index estimation in GHz
+COMP_EM_NU_MAX&&              = 80.        # Highest frequency for index estimation in GHz
+
+COMP_T_E_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_T_E_INPUT_MAP&&           = default  ff_Te_c0001_k000007_n1024.fits
+COMP_T_E_SMOOTHING_SCALE&&     = 0
+COMP_T_E_DEFAULT&&             = 7000.
+COMP_T_E_PRIOR_UNI_LOW&&       = 1200.
+COMP_T_E_PRIOR_UNI_HIGH&&      = 12000.
+COMP_T_E_PRIOR_GAUSS_MEAN&&    = 7000.
+COMP_T_E_PRIOR_GAUSS_RMS&&     = 000.
+COMP_T_E_NU_MIN&&             = 0.        # Lowest frequency for index estimation in GHz
+COMP_T_E_NU_MAX&&             = 217.        # Highest frequency for index estimation in GHz
+COMP_T_E_INT_PIXREG_PRIORS&& = none
+COMP_T_E_POL_PIXREG_PRIORS&& = none
+
+COMP_T_E_ALMSAMP_INIT&& = none
+
+COMP_APPLY_JEFFREYS_PRIOR&&   = .false.
+COMP_OUTPUT_EB_MAP&&          = .false.
+COMP_INIT_FROM_HDF&&          = default
+

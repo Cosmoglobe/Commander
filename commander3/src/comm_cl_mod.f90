@@ -19,10 +19,7 @@
 !
 !================================================================================
 module comm_Cl_mod
-  use comm_param_mod
   use comm_map_mod
-  use math_tools
-  use comm_hdf_mod
   use comm_bp_utils
   use InvSamp_mod
   implicit none
@@ -88,7 +85,7 @@ module comm_Cl_mod
      procedure :: binCls
      procedure :: binCls2
      procedure :: binCl2
-     procedure :: writeFITS
+     procedure :: write_Cl_to_FITS
      procedure :: initHDF
      procedure :: updatePowlaw
      procedure :: updatePowlawGauss
@@ -117,7 +114,7 @@ contains
     integer(i4b),                       intent(in) :: id, id_abs
     class(comm_Cl),                     pointer    :: constructor
 
-    integer(i4b)       :: l, nmaps
+    integer(i4b)       :: l, nmaps, ierr
     character(len=512) :: datadir, binfile
     logical(lgt)       :: pol
 
@@ -154,9 +151,13 @@ contains
        case ('K_cmb')
           constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-6
        case ('MJy/sr') 
-          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1e14
-       case ('K km/s') 
+          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1d14
+       case ('Kkm/s') 
           constructor%RJ2unit(l) = 1.d0
+          !constructor%RJ2unit(l) = 1.d0 / (constructor%nu_ref(l)/c * 1d9)
+          !write(*,*) 'Kkm/s not yet supported in md_mod'
+          !call mpi_finalize(ierr)
+          !stop
        case ('y_SZ') 
           constructor%RJ2unit(l) = 2.d0*constructor%nu_ref(l)**2*k_b/c**2 / &
                & (comp_bnu_prime(constructor%nu_ref(l)) * comp_sz_thermo(constructor%nu_ref(l)))
@@ -1271,7 +1272,7 @@ contains
     
   end subroutine sample_Cls_powlaw_gauss
 
-  subroutine writeFITS(self, chain, iter, hdffile, hdfpath)
+  subroutine write_Cl_to_FITS(self, chain, iter, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     integer(i4b),     intent(in)    :: chain, iter
@@ -1306,8 +1307,8 @@ contains
        call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     end select
 
-  end subroutine writeFITS
-
+  end subroutine write_Cl_to_FITS
+  
   subroutine write_Dl_to_FITS(self, postfix, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(in) :: self

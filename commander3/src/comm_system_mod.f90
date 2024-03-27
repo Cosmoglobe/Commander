@@ -24,6 +24,7 @@
 module comm_system_mod
   use healpix_types
   use iso_c_binding
+  use, intrinsic :: ieee_arithmetic
   implicit none
   integer(i8b), external :: get_mem_use, get_max_mem_use, get_mem_use2
   integer(i4b), external :: get_pid, open_atomic_file, nfork, popen, svn_revision, ishift, count_set_bits
@@ -31,7 +32,7 @@ module comm_system_mod
   integer(i4b), parameter :: SIGINT = 2, SIGSEGV = 11, SIGTERM = 15, SIGBUS = 7
   real(c_double),     bind(C, name="nan")          :: nan
   real(c_double),     bind(C, name="snan")         :: snan
-  real(c_double),     bind(C, name="infinity")     :: infinity
+  real(c_double)                                   :: infinity 
   integer(c_int64_t), bind(C, name="fe_divbyzero") :: fe_divbyzero
   integer(c_int64_t), bind(C, name="fe_inexact")   :: fe_inexact
   integer(c_int64_t), bind(C, name="fe_nan")       :: fe_nan

@@ -19,14 +19,9 @@
 !
 !================================================================================
 module comm_conviqt_mod
-  use sharp
-  use healpix_types
-  use pix_tools
   use iso_c_binding, only : c_ptr, c_double, c_int
   use comm_map_mod
-  use comm_utils
   use comm_shared_arr_mod
-  use comm_param_mod
   implicit none
 
   private

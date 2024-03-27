@@ -69,6 +69,8 @@ contains
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
+    self%nu_min        = cpar%cs_nu_min(id_abs)
+    self%nu_max        = cpar%cs_nu_max(id_abs)
 
     if(self%npar == 0) then
        self%lmax_ind = 0 !default
@@ -85,7 +87,8 @@ contains
     self%sample_first_niter = cpar%cs_local_burn_in
     self%output_localsamp_maps = cpar%cs_output_localsamp_maps
 
-    only_pol           = cpar%only_pol
+    only_pol            = cpar%only_pol
+    only_I              = cpar%only_I
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
     precond_type        = cpar%cg_precond
@@ -216,7 +219,6 @@ contains
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-!       write(*,*) i, 'ndet = ', data(i)%ndet, shape(self%F), info%nside
        do j = 0, data(i)%ndet
           if (j<=1) then
             self%F(i,j)%p    => comm_map(info)
@@ -233,6 +235,7 @@ contains
                end if
             end do
           end if
+          if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
        end do
     end do
     call update_status(status, "init_postmix")
@@ -242,8 +245,12 @@ contains
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
 
     ! Initialize pointers for non-linear search
+    if (.not. allocated(res_lowres)) allocate(res_lowres(numband))
     if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
     if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
+
+    if (.not. allocated(dust_lowres)) allocate(dust_lowres(numband))
+    if (.not. allocated(hotpah_lowres)) allocate(hotpah_lowres(numband))
 
     ! Set up monopole prior
     self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
@@ -555,8 +562,10 @@ contains
        allocate(self%B_smooth_amp(self%npar))
        allocate(self%B_smooth_specpar(self%npar))
        allocate(self%theta_pixreg(0:k,3,self%npar))
+       allocate(self%theta_pixreg_buff(0:k,3,self%npar))
        allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
+       self%theta_pixreg_buff = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
        self%proplen_pixreg = 1.d0 ! default values, is set later in the code
 
@@ -566,7 +575,7 @@ contains
           allocate(self%pixreg_priors(MAXVAL(self%npixreg(:,:)),3,self%npar))
           self%fix_pixreg(:,:,:) = .false.
           do i = 1,self%npar
-             self%pixreg_priors(:,:,i) = self%p_gauss(i,1)
+             self%pixreg_priors(:,:,i) = self%p_gauss(1,i)
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
@@ -999,9 +1008,9 @@ contains
                 if (p_min > p_max) cycle !just a guaranty that we dont smooth for nothing
 
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
 
-                   !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                   !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
 
                    do k = 0,info2%np-1
@@ -1038,7 +1047,7 @@ contains
                    if (cpar%num_smooth_scales <= 0) then
                       write(*,*) 'need to define smoothing scales'
                       stop
-                   else if (smooth_scale <= 0) then
+                   else if (smooth_scale < 0) then
                       write(*,*) 'need to define smoothing scale for component '//&
                            & trim(self%label)//', parameter '//trim(self%indlabel(i))
                       stop
@@ -1241,7 +1250,7 @@ contains
     case ("pseudoinv")
        call initDiffPrecond_pseudoinv(comm)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine initDiffPrecond
@@ -1272,7 +1281,7 @@ contains
              diffComps(i)%p => c
              i              =  i+1
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
@@ -1359,7 +1368,7 @@ contains
              diffComps(i)%p => c
              i              =  i+1
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
@@ -1387,7 +1396,7 @@ contains
     case ("pseudoinv")
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine updateDiffPrecond
@@ -1420,10 +1429,12 @@ contains
     call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
+          if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle
@@ -1458,10 +1469,12 @@ contains
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
+          if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle                
@@ -1505,6 +1518,7 @@ contains
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !!$OMP PARALLEL PRIVATE(i,l,m,j,p)
        !!$OMP DO SCHEDULE(guided)
        do i = 0, info_pre%nalm-1
@@ -2015,18 +2029,18 @@ contains
           call m%YtW()
        end if
     end if
-       
+
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-    if (.not. alm_out_) call m%Y()
-
+       
     ! Return correct data product
     if (alm_out_) then
-       !if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
+       if (.not. data(band)%B(d)%p%almFromConv) call m%YtW()
        if (.not. allocated(res)) allocate(res(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%alm(:,1:nmaps)
     else
+       if (data(band)%B(d)%p%almFromConv) call m%Y()
        if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%map(:,1:nmaps)
@@ -2082,7 +2096,7 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
-       call m%Y()
+       if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
     end if
@@ -2107,7 +2121,7 @@ contains
     case ("pseudoinv")
        call applyDiffPrecond_pseudoinv(x)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine applyDiffPrecond
@@ -2623,8 +2637,15 @@ contains
 
           end if
 
+
+
+
        end do
-       !call update_status(status, "writeFITS_8")
+
+       ! Output Sampled SED's
+       if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
+         call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+       end if
        
        ! Write mixing matrices
        if (self%output_mixmat) then
@@ -2814,8 +2835,6 @@ contains
     return 
 
   end subroutine sampleDiffuseSpecInd
-
-
   
   module subroutine print_precond_mat
     implicit none
@@ -3707,7 +3726,7 @@ contains
                 end do
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
        ! MPI reduce existing and new monopole
@@ -3765,7 +3784,7 @@ contains
                    end do
                 end if
              end select
-             c => c%next()
+             c => c%nextComp()
           end do
        end if
 
@@ -3830,10 +3849,68 @@ contains
              end do
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine nullify_monopole_amp
 
+
+  module function get_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp)                     :: get_monopole_amp
+
+    integer(i4b) :: l, m, ierr
+    real(dp)     :: mono
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             mono = -1.d100
+             if (c%x%info%nalm > 0) then
+                call c%x%info%i2lm(0,l,m)
+                if (l == 0) then
+                   mono = 1.d0/sqrt(4.d0*pi) * c%x%alm(0,1) * c%RJ2unit_(1)
+                end if
+             end if
+             call mpi_allreduce(MPI_IN_PLACE, mono, 1, MPI_DOUBLE_PRECISION, MPI_MAX, c%x%info%comm, ierr)
+             get_monopole_amp = mono
+             return
+          end if
+       end select
+       c => c%nextComp()
+    end do
+
+  end function get_monopole_amp
+
+  module subroutine set_monopole_amp(band, mono)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp),         intent(in) :: mono
+
+    integer(i4b) :: l, m
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             if (c%x%info%nalm > 0) then
+                call c%x%info%i2lm(0,l,m)
+                if (l == 0) then
+                   c%x%alm(0,1) = sqrt(4.d0*pi) * mono /c%RJ2unit_(1)
+                end if
+             end if
+             return
+          end if
+       end select
+       c => c%nextComp()
+    end do
+
+  end subroutine set_monopole_amp
 
 end submodule comm_diffuse_comp_smod

@@ -1,0 +1,49 @@
+# Source parameters for the zodiacal emission from the Planck18 analysis
+ZODI_NBANDS                = 6
+ZODI_NCOMPS                = 4
+
+# Reference frequencies (in GHz) for observing bands
+ZODI_NU_REF_01             = 100
+ZODI_NU_REF_02             = 143
+ZODI_NU_REF_03             = 217
+ZODI_NU_REF_04             = 353
+ZODI_NU_REF_05             = 545
+ZODI_NU_REF_06             = 857
+
+# (cloud, band1, band2, band3, ring, feature)
+# NOTE: arrays below must be comma separated with ZODI_NCOMPS elements
+ZODI_EMISSIVITY_01         = 0.018d0,0.54d0,0.07d0,0.19d0
+ZODI_EMISSIVITY_02         = 0.020d0,1.d0,0.17d0,0.84d0
+ZODI_EMISSIVITY_03         = 0.042d0,1.11d0,0.21d0,1.12d0
+ZODI_EMISSIVITY_04         = 0.082d0,1.52d0,0.35d0,1.77d0
+ZODI_EMISSIVITY_05         = 0.179d0,1.47d0,0.49d0,1.84d0
+ZODI_EMISSIVITY_06         = 0.304d0,1.58d0,0.70d0,2.11d0
+
+# Planck only fitted thermal emission parameters so the below is 0
+# (cloud, band1, band2, band3, ring, feature)
+ZODI_ALBEDO_01             = 0.d0,0.d0,0.d0,0.d0
+ZODI_ALBEDO_02             = 0.d0,0.d0,0.d0,0.d0
+ZODI_ALBEDO_03             = 0.d0,0.d0,0.d0,0.d0
+ZODI_ALBEDO_04             = 0.d0,0.d0,0.d0,0.d0
+ZODI_ALBEDO_05             = 0.d0,0.d0,0.d0,0.d0
+ZODI_ALBEDO_06             = 0.d0,0.d0,0.d0,0.d0
+
+# Solar irradiance (F_sun)
+ZODI_SOLAR_IRRADIANCE_01   = 0.d0
+ZODI_SOLAR_IRRADIANCE_02   = 0.d0
+ZODI_SOLAR_IRRADIANCE_03   = 0.d0
+ZODI_SOLAR_IRRADIANCE_04   = 0.d0
+ZODI_SOLAR_IRRADIANCE_05   = 0.d0
+ZODI_SOLAR_IRRADIANCE_06   = 0.d0
+
+# Phase function (C0, C1, C2)
+ZODI_C_01                  = 0.d0,0.d0,0.d0
+ZODI_C_02                  = 0.d0,0.d0,0.d0
+ZODI_C_03                  = 0.d0,0.d0,0.d0
+ZODI_C_04                  = 0.d0,0.d0,0.d0
+ZODI_C_05                  = 0.d0,0.d0,0.d0
+ZODI_C_06                  = 0.d0,0.d0,0.d0
+
+# Interplanetary dust grain parameters
+ZODI_T_0                  = 286.d0
+ZODI_DELTA                = 0.46686260d0

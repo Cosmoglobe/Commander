@@ -19,14 +19,9 @@
 !
 !================================================================================
 module comm_N_mod
-  use comm_param_mod
   use comm_map_mod
-  use comm_status_mod
   implicit none
 
-  private
-  public comm_N, compute_invN_lm, uniformize_rms, comm_N_ptr
-  
   type :: comm_N
      ! Data variables
      character(len=512)       :: type

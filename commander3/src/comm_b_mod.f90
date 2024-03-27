@@ -19,12 +19,9 @@
 !
 !================================================================================
 module comm_B_mod
-  use comm_param_mod
   use comm_map_mod
-  use spline_1D_mod
   implicit none
 
-  private
   public comm_B, B_ptr
 
   type, abstract :: comm_B
@@ -32,6 +29,7 @@ module comm_B_mod
      character(len=512)           :: type
      real(dp)                     :: r_max
      real(dp)                     :: mb_eff
+     logical(lgt)                 :: almFromConv 
      class(comm_mapinfo), pointer :: info => null()
      real(dp),          allocatable, dimension(:,:) :: b_l
      type(spline_type), allocatable, dimension(:)   :: b_theta  ! {nmaps}
@@ -108,8 +106,9 @@ contains
           read(line,*) x(n), y(n)
        end do
 2      close(unit)
-       x = x * pi/180.d0/60.d0
-       write(*,*) n
+       !write(*,*) 'Warning: changing btheta unit from arcmin to deg'
+       x = x * pi/180.d0
+       !x = x * pi/180.d0/60.d0
        
     else if (present(b_l)) then
        

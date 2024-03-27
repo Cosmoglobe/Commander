@@ -20,10 +20,6 @@
 !================================================================================
 module comm_F_int_1D_mod
   use comm_F_int_mod
-  use comm_comp_mod
-  use comm_bp_mod
-  use spline_1D_mod
-  use comm_utils
   implicit none
 
   private
@@ -31,16 +27,15 @@ module comm_F_int_1D_mod
 
   type, extends (comm_F_int) :: comm_F_int_1D
      type(spline_type) :: s
-     class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
-     procedure :: eval       => evalIntF
-     procedure :: eval_deriv => evalIntdF
-     procedure :: update     => updateIntF
+     procedure :: eval       => evalIntF_1d
+     procedure :: eval_deriv => evalIntdF_1d
+     procedure :: update     => updateIntF_1d
   end type comm_F_int_1D
 
   interface comm_F_int_1D
-     procedure constructor
+     procedure constructor_1d
   end interface comm_F_int_1D
 
   integer(i4b) :: n = 1000
@@ -50,44 +45,44 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(comp, bp, pol)
+  function constructor_1d(comp, bp, pol) result(c)
     implicit none
     class(comm_comp),     intent(in), target  :: comp
     class(comm_bp),       intent(in), target  :: bp
     integer(i4b),         intent(in)          :: pol
-    class(comm_F_int_1D),             pointer :: constructor
+    class(comm_F_int_1D),             pointer :: c
 
     integer(i4b) :: i, j, m, ierr
     real(dp), allocatable, dimension(:) :: theta, F, s
     
-    allocate(constructor)
-    constructor%comp => comp
-    constructor%bp   => bp
+    allocate(c)
+    c%comp => comp
+    c%bp   => bp
 
-    call constructor%update(pol=pol)
+    call c%update(pol=pol)
 
-  end function constructor
+  end function constructor_1d
 
   
   ! Evaluate SED in brightness temperature normalized to reference frequency
-  function evalIntF(self, theta)
+  function evalIntF_1d(self, theta)
     class(comm_F_int_1D),                intent(in) :: self
     real(dp),             dimension(1:), intent(in) :: theta
-    real(dp)                                        :: evalIntF
-    evalIntF = splint_simple(self%s, theta(1))
-  end function evalIntF
+    real(dp)                                        :: evalIntF_1d
+    evalIntF_1d = splint_simple(self%s, theta(1))
+  end function evalIntF_1d
 
   ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
-  function evalIntdF(self, theta, par)
+  function evalIntdF_1d(self, theta, par)
     class(comm_F_int_1D),                intent(in) :: self
     real(dp),             dimension(1:), intent(in) :: theta
     integer(i4b),                        intent(in) :: par
-    real(dp)                                        :: evalIntdF
-    evalIntdF = splint_deriv(self%s%x, self%s%y, self%s%y2, theta(1))
-  end function evalIntdF
-
+    real(dp)                                        :: evalIntdF_1d
+    evalIntdF_1d = splint_deriv(self%s%x, self%s%y, self%s%y2, theta(1))
+  end function evalIntdF_1d
+  
   ! Compute/update integration look-up tables
-  subroutine updateIntF(self, f_precomp, pol)
+  subroutine updateIntF_1d(self, f_precomp, pol)
     class(comm_F_int_1D), intent(inout)           :: self
     real(dp),             intent(in),    optional :: f_precomp
     integer(i4b),         intent(in),    optional :: pol
@@ -117,7 +112,7 @@ contains
 
     deallocate(theta, F, s)
 
-  end subroutine updateIntF
+  end subroutine updateIntF_1d
 
 
 end module comm_F_int_1D_mod

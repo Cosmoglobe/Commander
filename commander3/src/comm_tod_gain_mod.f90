@@ -19,11 +19,7 @@
 !
 !================================================================================
 module comm_tod_gain_mod
-  use comm_tod_mod
   use comm_tod_noise_mod
-  use comm_utils
-  use comm_fft_mod
-  use math_tools
   implicit none
 
 interface

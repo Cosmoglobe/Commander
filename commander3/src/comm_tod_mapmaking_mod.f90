@@ -20,10 +20,7 @@
 !================================================================================
 module comm_tod_mapmaking_mod
    use comm_tod_mod
-   use comm_utils
    use comm_shared_arr_mod
-   use comm_map_mod
-   use comm_param_mod
    implicit none
 
    type comm_binmap
@@ -124,11 +121,11 @@ contains
        start_chunk = mod(self%sA_map%myid_shared+i,self%numprocs_shared)*self%chunk_size
        end_chunk   = min(start_chunk+self%chunk_size-1,self%npix-1)
        do while (start_chunk < self%npix)
-          if (tod%pix2ind(start_chunk) /= -1) exit
+          if (tod%pix2ind(start_chunk) /= -2) exit
           start_chunk = start_chunk+1
        end do
        do while (end_chunk >= start_chunk)
-          if (tod%pix2ind(end_chunk) /= -1) exit
+          if (tod%pix2ind(end_chunk) /= -2) exit
           end_chunk = end_chunk-1
        end do
        if (start_chunk < self%npix)  start_chunk = tod%pix2ind(start_chunk)
@@ -185,7 +182,6 @@ contains
 
     integer(i4b) :: det, i, t, pix_, off, nout, psi_
     real(dp)     :: inv_sigmasq
-
     nout = size(data,1) 
     do det = 1, size(pix,2) ! loop over all the detectors
        if (.not. tod%scans(scan)%d(det)%accept) cycle
@@ -588,7 +584,7 @@ end subroutine bin_differential_TOD
          end if
          rms%map(i, 1) = sqrt(A_inv)*scale
          do k = 1, tod%output_n_maps
-            binmap%outmaps(k)%p%map(i, 1) = b_tot(k, 1, i)/A_inv*scale
+            binmap%outmaps(k)%p%map(i, 1) = b_tot(k, 1, i)*A_inv*scale
          end do
       end do
 

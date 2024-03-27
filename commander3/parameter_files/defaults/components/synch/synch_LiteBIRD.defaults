@@ -1,0 +1,99 @@
+COMP_LABEL&&                  = synch
+COMP_TYPE&&                   = power_law
+COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
+COMP_POLARIZATION&&           = .true.
+COMP_CG_SCALE&&               = 1.d0
+COMP_CG_SCALE_T&&             = 1.d0
+COMP_CG_SCALE_P&&             = 1.d0
+COMP_CG_SAMPLE_GROUP&&        = 1
+COMP_CG_SAMP_GROUP_MAXITER&&  = 40
+COMP_NSIDE&&                  = 1024
+COMP_MONOPOLE_PRIOR&&         = none   "monopole:mask_common_dx12_n1024_TQU.fits"
+COMP_DEFLATION_MASK&&         = fullsky
+COMP_L_APOD&&                 = 3000
+COMP_OUTPUT_FWHM&&            = 70         # arcmin
+COMP_UNIT&&                   = uK_RJ
+COMP_NU_REF_T&&               = 40
+COMP_NU_REF_P&&               = 40
+COMP_NU_MIN&&                 = 0.d0
+COMP_NU_MAX&&                 = 1d30
+COMP_MASK&&                   = fullsky
+COMP_INDMASK&&                = mask_radio_chisq_1mJy_30GHz_10uK_n512_TQU.fits
+COMP_CL_TYPE&&                = power_law #gauss # none  # {none, single_l, binned, power_law}
+COMP_CL_POLTYPE&&             = 3  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}	
+COMP_CL_BETA_PRIOR_MEAN&&     = -0.5
+COMP_CL_BETA_PRIOR_RMS&&      =  0.1
+COMP_CL_L_PIVOT&&             =   100        # Pivot multipole
+COMP_CL_DEFAULT_AMP_T&&       = 1e6        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       = 5
+COMP_CL_DEFAULT_AMP_B&&       = 2
+COMP_CL_DEFAULT_BETA_T&&      =  0.
+COMP_CL_DEFAULT_BETA_E&&      =  0.
+COMP_CL_DEFAULT_BETA_B&&      =  0.	
+
+COMP_PRIOR_UNI_BETA_LOW&&     =  -4.0
+COMP_PRIOR_UNI_BETA_HIGH&&    =  -2.0
+COMP_PRIOR_GAUSS_BETA_MEAN&&  =  -3.0
+COMP_PRIOR_GAUSS_BETA_RMS&&   =   0.   0.1
+COMP_APPLY_JEFFREYS_PRIOR&&   =  .false.
+
+COMP_BETA_SMOOTHING_SCALE&&   = 1
+COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
+COMP_BETA_NU_MIN&&            =   0.        # Lowest frequency for index estimation in GHz
+COMP_BETA_NU_MAX&&            =  1000.        # Highest frequency for index estimation in GHz
+#COMP_BETA_INPUT_MAP&&         = input_synch_beta_n512_PYSM.fits
+COMP_BETA_INPUT_MAP&&         = default
+COMP_BETA_DEFAULT&&           = -3.1
+COMP_BETA_INT_PIXREG_PRIORS&& = none
+COMP_BETA_POL_PIXREG_PRIORS&& = none
+COMP_BETA_PRIOR_UNI_LOW&&      = -4.5
+COMP_BETA_PRIOR_UNI_HIGH&&     = -1.5
+COMP_BETA_PRIOR_GAUSS_MEAN&&   = -3.1
+COMP_BETA_PRIOR_GAUSS_RMS&&    = 0.1
+
+COMP_OUTPUT_EB_MAP&&          = .false.
+COMP_INIT_FROM_HDF&&          = none default
+COMP_AMP_LMIN&&               = 0
+COMP_AMP_LMAX&&               = 3000
+COMP_AMP_INPUT_MAP&&          = none #init_cmb_amp_BP8.1_v1.fits
+COMP_AMP_PRIOR_MAP&&          = none
+
+# New Local sampling parameters
+COMP_BETA_INT_LMAX&&          = 0                             # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_POL_LMAX&&          = 0                            # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_INT_LNLTYPE&&       = chisq prior #marginal                       # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
+COMP_BETA_POL_LNLTYPE&&       = chisq                          # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
+COMP_BETA_INT_PIXREG&&        = pixreg fullsky                        # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_BETA_POL_PIXREG&&        = pixreg fullsky                        # pixel region type, local sampling, {fullsky,single_pix,pixreg}. 'Pixreg' only one supported at the moment
+COMP_BETA_INT_SAMPLE_NPROP&&  = .false.                        # sample nprop, local sampling (p=1 of poltype). Sample correlation length of proposals
+COMP_BETA_POL_SAMPLE_NPROP&&  = .false.                        # sample nprop, local sampling (p=2 of poltype). Sample correlation length of proposals
+COMP_BETA_INT_PRIOR_MEAN&&    = -3       # prior sampler mean; Planck 2015
+COMP_BETA_INT_PRIOR_RMS&&     = 0.1       # prior sampler RMS;  Planck 2015
+COMP_BETA_POL_PRIOR_MEAN&&    = -3       # prior sampler mean; Planck 2015
+COMP_BETA_POL_PRIOR_RMS&&     = 0.1       # prior sampler RMS;  Planck 2015
+COMP_BETA_INT_SAMPLE_PROPLEN&& = .true.                        # sample proposal length, local sampling (p=1 of poltype). Sample proposal length (std. dev.) of proposals
+COMP_BETA_POL_SAMPLE_PROPLEN&& = .true.                        # sample proposal length, local sampling (p=2 of poltype). Sample proposal length (std. dev.) of proposals
+COMP_BETA_INT_NPROP_INIT&&    = 1000                           # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_BETA_POL_NPROP_INIT&&    = 1000                           # {> 0, < 0 to disable}. overwrites nprop init values from nprop map. local sampler
+COMP_BETA_UNI_NPROP_LOW&&     = 10                             # {>= 0} local sampling. minimum number of proposals per pixel region
+COMP_BETA_UNI_NPROP_HIGH&&    = 2000                           # {> 0} local sampling. minimum number of proposals per pixel region
+COMP_BETA_ALMSAMP_INIT&&      = init_alm_synch_beta.dat
+COMP_BETA_MASK&&              = mask_radio_chisq_1mJy_30GHz_10uK_n512_TQU.fits #mask_synch_beta_BP8_10deg_new_chisqmask.fits # index sampling mask for smoothed log-likelihood eval. local sampler.
+COMP_BETA_NPROP&&             = fullsky                        # nprop map, local sampling (fullsky = 1)
+COMP_BETA_PROPLEN&&           = fullsky                        # proposal length map, local sampling (fullsky = 1.d0)
+COMP_BETA_INT_PROPLEN_INIT&&  = 3.d-3                          # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
+COMP_BETA_POL_PROPLEN_INIT&&  = 3.d-3                          # {> 0.d0, -1.d0 to disable}. overwrites proplen init values from nprop map. local sampler
+COMP_BETA_INT_NUM_PIXREG&&    = 1                              # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
+COMP_BETA_INT_FIX_PIXREG&&    = none                           # pixel regions to fix, i.e. free on init
+COMP_BETA_INT_PIXREG_PRIORS&& = none
+COMP_BETA_POL_NUM_PIXREG&&    = 1                              # number of pixel regions to sample (from 1 to N), all regions above N set to 0 (and prior value for spec ind)
+COMP_BETA_POL_FIX_PIXREG&&    = none #'1,3'                          # pixel regions to fix, i.e. freeze on init
+COMP_BETA_POL_PIXREG_PRIORS&& = none
+COMP_BETA_PIXREG_MAP&&        = fullsky #pixelregion_nside2.fits #UF_sindex_4regions_n1024.fits  # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
+COMP_BETA_PIXREG_INITVALUE_MAP&& = none #input_synch_beta_n512_PYSM.fits #init_synch_beta_noSmooth_BP8.11.fits
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
+COMP_BETA_COMBINED_MONOPOLE_TYPE&& = monopole-dipole
+COMP_BETA_COMBINED_MONOPOLE_FREEZE&& = none #write band labels of band to not sample monopoles from during combined sampling. separate with comma ','
+COMP_BETA_COMBINED_MONOPOLE_MASK&& = mask_fullsky_n0512.fits
+COMP_BETA_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
+COMP_BETA_CORRELATION_CONVERGENCE_LIMIT&& = 0.1d0
