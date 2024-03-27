@@ -71,6 +71,7 @@ set(sources
 	${COMMANDER3_SOURCE_DIR}/comm_tod_pointing_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_wmap_mod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_dirbe_mod.f90
+	${COMMANDER3_SOURCE_DIR}/comm_tod_akari_mod.f90
 #	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_mod.f90
 #	${COMMANDER3_SOURCE_DIR}/comm_tod_quiet_smod.f90
 	${COMMANDER3_SOURCE_DIR}/comm_tod_spider_mod.f90

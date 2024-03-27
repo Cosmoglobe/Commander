@@ -164,7 +164,6 @@ module comm_tod_mod
      logical(lgt) :: sample_zodi                                  ! Sample zodi model parameters (defined in the parameter file)
      logical(lgt) :: output_zodi_comps                            ! Output zodi components
      logical(lgt) :: use_solar_point                              ! Compute solar centric pointing, for zodi or sidelobe mapping
-     real(sp)     :: sol_elong_range(2)                           ! Acceptable solar elongation range
      logical(lgt) :: correct_sl                                   ! Subtract sidelobes
      logical(lgt) :: correct_orb                                  ! Subtract CMB dipole
      logical(lgt) :: sample_mono                                  ! Subtract detector-specific monopoles
@@ -384,8 +383,7 @@ contains
     self%level        = cpar%ds_tod_level(id_abs)
     self%sample_abs_bp   = .false.
     self%zodiband        = -1
-    self%sol_elong_range = [0., 180.]
-    
+
     if (cpar%include_tod_zodi) then
       self%subtract_zodi = cpar%ds_tod_subtract_zodi(self%band)
       self%zodi_n_comps = cpar%zs_ncomps
@@ -2983,7 +2981,6 @@ contains
          ! Apply solar mask selection criterium
 !         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
 !         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
-         !         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
          if (allocated(self%mask_solar)) then
             cut = cut .or. (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5)
          end if
