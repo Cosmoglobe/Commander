@@ -26,7 +26,7 @@ DIRBE_BEAM = (
 )
 DIRBE_POS_PATH = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/position/"
 BEAM_FILE = "/mn/stornext/d16/cmbco/ola/dirbe/DIRBE_BEAM_CHARACTERISTICS_P3B.ASC"
-BANDPASS_PATH = ""
+BANDPASS_PATH = "/mn/stornext/d5/data/metins/dirbe/data/"
 
 DIRBE_POS_FILES = [
     "dmr_anc_spcl_89328_89356.txt",
@@ -45,30 +45,28 @@ DIRBE_POS_FILES = [
     "dmr_anc_90326_90356.txt",
 ]
 
-BANDS = [
-        'N60',         # Number of pixels (40) 25.28 Hz fsamp
-        'WIDE-S',      #                  (60) 25.28 Hz fsamp
-        'WIDE-L',      #                  (45)  16.86 fsamp
-        'N160'         #                  (30)  16.86 fsamp
-]
-NDET = [40, 60, 45, 30]
-DIRBE_START_DATE = Time(datetime(2006, 4, 1))   # April 1, 2006 Date uncertain
-WAVELENGTHS = (65, 90, 140, 160)
+BANDS = ['N60', 'WIDE-S', 'WIDE-L', 'N160']
+BAND_NUM = [40, 60, 45, 30]
+DIRBE_START_DATE = Time(datetime(1989, 12, 11))
+DETECTOR_LABELS = ("A", "B", "C")
+WAVELENGHTS = (1.25, 2.2, 3.5, 4.9, 12, 25, 60, 100, 140, 240)
 DETECTORS = []
-for b, ndet in zip(BANDS, NDET):
-    for i in range(ndet):
-        DETECTORS.append(f'{b}_{i+1:02}')
+for i in range(len(BANDS)):
+    for j in range(BAND_NUM[i]):
+        DETECTORS.append(f'{BANDS[i]}_{j+1:02}')
 
-
-
-
-BAND_TO_WAVELENGTH: dict[str, float] = {}
-
-for BAND, WAVE in zip(BANDS, WAVELENGTHS):
-    BAND_TO_WAVELENGTH[BAND] = WAVE
-
-print(BAND_TO_WAVELENGTH)
-
+BAND_TO_WAVELENGTH: dict[int, float] = {
+    1: 1.25,
+    2: 2.2,
+    3: 3.5,
+    4: 4.9,
+    5: 12,
+    6: 25,
+    7: 60,
+    8: 100,
+    9: 140,
+    10: 240,
+}
 
 ROWS_IN_BEAM_FILE_TO_SKIP = 19
 
@@ -84,7 +82,16 @@ PLANET_RADII = {
 }
 
 SIGMA_0 = {
-        1: 40
+    1: 0.1820848274487808,
+    2: 0.1785923183102134,
+    3: 0.12869298902093768,
+    4: 0.09362580480386565,
+    5: 0.14110078941487805,
+    6: 0.19622963644711278,
+    7: 0.358702745030365,
+    8: 0.4273920139329039,
+    9: 1.9890065503932703,
+    10: 2.012305834012275,
 }
 
 
@@ -140,40 +147,33 @@ def pix_to_lonlat(
     return np.column_stack((latitudes, longitudes))
 
 
-#BANDS = [
-#        'N60',         # Number of pixels (40) 25.28 Hz fsamp
-#        'WIDE-S',      #                  (60) 25.28 Hz fsamp
-#        'WIDE-L',      #                  (45)  16.86 fsamp
-#        'N160'         #                  (30)  16.86 fsamp
-#37
-#39
-#58
-#61
 @cache
-def get_akari_fwhm() -> dict[str, float]:
-    """Returns a dictionary mapping the Akari bands to FWHM in arcmin."""
+def get_dirbe_fwhm() -> dict[str, float]:
+    """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
+
+    ROWS_TO_SKIP = 19
+    FWHM_COL = 4
 
     fwhms: dict[str, float] = {}
-
-    for detector in DETECTORS:
-        if 'N60' in detector:
-            fwhms[detector] = 37
-        elif 'WIDE-S' in detector:
-            fwhms[detector] = 39
-        elif 'WIDE-L' in detector:
-            fwhms[detector] = 58
-        elif 'N160' in detector:
-            fwhms[detector] = 61
-        else:
-            print('Weird things happening', detector)
+    with open(DIRBE_BEAM, "r") as file:
+        for line in file.readlines()[ROWS_TO_SKIP:]:
+            cols = line.split()
+            detector, band = re.match(r"(\d+)([A-C]?)", cols[0], re.I).groups()
+            band_label = (
+                f"{int(detector):02}_{band}" if band else f"{int(detector):02}_A"
+            )
+            if len(cols) > FWHM_COL:
+                fwhm = np.sqrt(float(cols[FWHM_COL])) * u.rad
+                fwhm_arcmin = fwhm.to(u.arcmin).value
+                fwhms[band_label] = np.round(fwhm_arcmin, 2)
 
     return fwhms
 
 
 @cache
-def get_akari_beams() -> dict[str, NDArray[np.floating]]:
+def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
     """
-    Returns a dictionary mapping the Akari bands to beams.
+    Returns a dictionary mapping the DIRBE bands to beams.
     NOTE: Currently only returns a sequence of 0's.
     """
     NSIDE = 128
@@ -182,14 +182,18 @@ def get_akari_beams() -> dict[str, NDArray[np.floating]]:
     DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
 
     beams: dict[str, NDArray[np.floating]] = {}
-    for band in DETECTORS:
-        beams[f'{band}'] = DEFAULT_BEAM
+    for detector in range(1, 11):
+        if detector <= 3:
+            for band in DETECTOR_LABELS:
+                beams[f"{detector:02}_{band}"] = DEFAULT_BEAM
+        else:
+            beams[f"{detector:02}_A"] = DEFAULT_BEAM
 
     return beams
 
 
 @cache
-def get_akari_sidelobes() -> dict[str, NDArray[np.floating]]:
+def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to sidelobes.
     NOTE: We dont have dirbe sidelobes so we just returns a sequence of 0's.
@@ -200,8 +204,12 @@ def get_akari_sidelobes() -> dict[str, NDArray[np.floating]]:
     DEFAULT_SIDELOBES = np.zeros((3, N_ALMS))  # Update this with actual sidelobes
 
     sidelobes: dict[str, NDArray[np.floating]] = {}
-    for band in DETECTORS:
-        sidelobes[band] = DEFAULT_SIDELOBES
+    for detector in range(1, 11):
+        if detector <= 3:
+            for band in DETECTOR_LABELS:
+                sidelobes[f"{detector:02}_{band}"] = DEFAULT_SIDELOBES
+        else:
+            sidelobes[f"{detector:02}_A"] = DEFAULT_SIDELOBES
 
     return sidelobes
 
@@ -259,9 +267,11 @@ def test_naming() -> None:
 
     with h5py.File("test.h5", "w") as file:
         for detector in BANDS:
-            file.create_group(f"{detector}")
-        for band in DETECTORS:
-            file.create_group(f"{band}")
+            file.create_group(f"{detector:02}_{WAVELENGHTS[detector - 1]}um")
+            for band in DETECTOR_LABELS:
+                file.create_group(f"{detector:02}_{band}")
+                if detector > 3:
+                    break
 
 
 @dataclass
@@ -308,6 +318,9 @@ def get_beam_data() -> dict[str, DetectorBeamData]:
                 )
 
     return data
+
+
+BEAM_DATA = get_beam_data()
 
 
 def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarray]:
@@ -379,35 +392,20 @@ def get_const_scalars(band: int) -> NDArray[np.floating]:
     return np.array([TEMP_GAIN, SIGMA_0[band], fknee, TEMP_ALPHA]).flatten()
 
 @cache
-def get_bandpass(band: str) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
-    '''
-    Reported value is given nu I_nu units.
-    '''
-    bandpass_file = BANDPASS_PATH + f"FIS_RSRF_070122.txt"
-    bandpass = np.loadtxt(bandpass_file, skiprows=1)
+def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
+    bandpass_file = BANDPASS_PATH + f"/DIRBE_{band:02}_bandpass.dat"
+    bandpass = np.loadtxt(bandpass_file, unpack=True)
 
-    if 'N60' in band:
-        freqs = bandpass[:,0]*u.micron
-        weights = bandpass[:,2]
-    elif 'WIDE-S' in band:
-        freqs = bandpass[:,0]*u.micron
-        weights = bandpass[:,3]
-    elif 'WIDE-L' in band:
-        freqs = bandpass[:,4]*u.micron
-        weights = bandpass[:,5]
-    elif 'N160' in band:
-        freqs = bandpass[:,4]*u.micron
-        weights = bandpass[:,6]
-    else:
-        print('Unexpected bandpass label', band)
-
-    
+    non_zero = np.nonzero(bandpass[1])
+    bandpass = bandpass[:, non_zero[0]]
+    freqs, weights = bandpass
+    freqs *= u.micron
 
     return freqs, weights
 
 
 @cache
-def get_iras_factor(band: str) -> float:
+def get_iras_factor(band: int) -> float:
     freqs, weights = get_bandpass(band)
     freq_ref = BAND_TO_WAVELENGTH[band]
     freqs = freqs.to(u.Hz, u.spectral())
@@ -421,5 +419,5 @@ def get_iras_factor(band: str) -> float:
 
 
 if __name__ == "__main__":
-    print(get_iras_factor('N60'))
+    print([get_iras_factor(i) for i in range(1,11)])
 
