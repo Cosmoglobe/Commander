@@ -11,10 +11,8 @@ VERBOSITY                     = 3       # [0,...,3]
 ##############################################################
 
 # Monte Carlo options
-NUMCHAIN         = 1       # Number of independent chains
 NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
 CHAIN_STATUS     = append
-NUM_INIT_CHAINS  = 1
 INIT_CHAIN01     = /mn/stornext/d5/data/metins/dirbe/data/init_chain_static_v31.h5:9
 
 SAMPLE_SIGNAL_AMPLITUDES      = .false.
@@ -29,16 +27,11 @@ OUTPUT_SIGNALS_PER_BAND       = .true.
 OUTPUT_MIXING_MATRIX          = .false.
 OUTPUT_DEBUG_SEDS             = .false.
 
-# TOD sampling options
-BASE_SEED                      = 54327
-TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
-
 ##############################################################
 #                       Output options                       #
 ##############################################################
 
 OUTPUT_DIRECTORY              = chains_akari
-NSIDE_CHISQ                   = 512
 
 ##############################################################
 #                         Data sets                          #
@@ -76,7 +69,7 @@ BAND_TOD_INIT_FROM_HDF&&&          = none  default
 INSTRUMENT_PARAM_FILE         = init_instpar_AKARI_v1.dat
 INIT_INSTRUMENT_FROM_HDF      = none
  
-NUM_SIGNAL_COMPONENTS         = 23
+NUM_SIGNAL_COMPONENTS         = 14
 INCLUDE_COMP01                = .false.  # CMB; no monopole or dipole
 INCLUDE_COMP02                = .true.   # CMB relativistic quadrupole
 INCLUDE_COMP03                = .false.  # Power-law synchrotron model
@@ -84,14 +77,13 @@ INCLUDE_COMP04                = .true.   # Freefree, fixed T_e
 INCLUDE_COMP05                = .false.  # Low-freq AME, spdust2
 INCLUDE_COMP06                = .false.  # Power-law radio sources
 INCLUDE_COMP07                = .true.   # Monopoles
-
 INCLUDE_COMP08                = .true.   # Cold dust, HI correlated, MBBtab
 INCLUDE_COMP09                = .true.   # Hot dust, CII correlated, MBBtab
 INCLUDE_COMP10                = .true.   # Nearby dust, Edenhofer et al., MBBtab, free weights
 INCLUDE_COMP11                = .true.   # CII
 INCLUDE_COMP12                = .true.   # CO combined
-INCLUDE_COMP23                = .true.   # stars, GAIA
-INCLUDE_COMP11                = .true.   # stars, fir, ptsrc
+INCLUDE_COMP13                = .true.   # stars, WISE-determined positions, GAIA-determined SEDs
+INCLUDE_COMP14                = .true.   # compact objects from WISE, except the above
 
 # CMB
 @START 01
@@ -225,6 +217,7 @@ COMP_INIT_FROM_HDF&&          = default
 COMP_INIT_FROM_HDF&&           = default 
 COMP_LINE_TEMPLATE&&          = /mn/stornext/d5/data/metins/dirbe/data/co_tot_line_template_DIRBE_v1.dat
 @END 12
+
 
 # WISE star positions + GAIA SEDs
 @START 13
