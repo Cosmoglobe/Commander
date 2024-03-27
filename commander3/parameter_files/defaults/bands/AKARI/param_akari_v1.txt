@@ -1,0 +1,601 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT AKARI_tod.defaults
+
+OPERATION                     = sample  # {sample,optimize}
+VERBOSITY                     = 3       # [0,...,3]
+
+##############################################################
+#                   Algorithm specification                  #
+##############################################################
+
+# Monte Carlo options
+NUMCHAIN         = 1       # Number of independent chains
+NUM_GIBBS_ITER   = 1000       # Length of each Markov chain
+CHAIN_STATUS     = append
+NUM_INIT_CHAINS  = 1
+INIT_CHAIN01     = /mn/stornext/d5/data/metins/dirbe/data/init_chain_static_v31.h5:9
+
+SAMPLE_SIGNAL_AMPLITUDES      = .false.
+SAMPLE_SPECTRAL_INDICES       = .false.
+SAMPLE_ONLY_TEMPERATURE       = .true.
+
+ENABLE_TOD_ANALYSIS           = .true.
+TOD_INCLUDE_ZODI              = .false.
+SAMPLE_ZODI                   = .false.
+
+OUTPUT_SIGNALS_PER_BAND       = .true.
+OUTPUT_MIXING_MATRIX          = .false.
+OUTPUT_DEBUG_SEDS             = .false.
+
+# TOD sampling options
+BASE_SEED                      = 54327
+TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
+
+##############################################################
+#                       Output options                       #
+##############################################################
+
+OUTPUT_DIRECTORY              = chains_akari
+NSIDE_CHISQ                   = 512
+
+##############################################################
+#                         Data sets                          #
+##############################################################	
+
+DATA_DIRECTORY                 = /mn/stornext/d5/data/metins/dirbe/data
+
+NUMBAND                        =  1
+
+# TOD channels
+INCLUDE_BAND001                = .true.    # 1.25 micron T 01 first half
+
+@START 001
+@DEFAULT bands/AKARI/AKARI_N160.defaults
+BAND_LABEL&&&                      = AKARI_N160
+BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
+BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
+BAND_TOD_FILELIST&&&               = filelist_AKARI_160_v1.txt
+BAND_TOD_START_SCANID&&&           = 1
+BAND_TOD_END_SCANID&&&             = 1
+BAND_TOD_TYPE&&&                   = AKARI
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MAIN_PROCMASK&&&          = none
+BAND_TOD_ZODI_MASK&&&              = none
+BAND_TOD_INIT_FROM_HDF&&&          = none  default
+@END 001
+
+
+##############################################################
+#                     Model parameters                       #
+##############################################################	
+
+INSTRUMENT_PARAM_FILE         = init_instpar_AKARI_v1.dat
+INIT_INSTRUMENT_FROM_HDF      = none
+ 
+NUM_SIGNAL_COMPONENTS         = 23
+INCLUDE_COMP01                = .false.  # CMB; no monopole or dipole
+INCLUDE_COMP02                = .true.   # CMB relativistic quadrupole
+INCLUDE_COMP03                = .false.  # Power-law synchrotron model
+INCLUDE_COMP04                = .true.   # Freefree, fixed T_e
+INCLUDE_COMP05                = .false.  # Low-freq AME, spdust2
+INCLUDE_COMP06                = .false.  # Power-law radio sources
+INCLUDE_COMP07                = .true.   # Monopoles
+
+INCLUDE_COMP08                = .true.   # Cold dust, HI correlated, MBBtab
+INCLUDE_COMP09                = .true.   # Hot dust, CII correlated, MBBtab
+INCLUDE_COMP10                = .true.   # Nearby dust, Edenhofer et al., MBBtab, free weights
+INCLUDE_COMP11                = .true.   # CII
+INCLUDE_COMP12                = .true.   # CO combined
+INCLUDE_COMP23                = .true.   # stars, GAIA
+INCLUDE_COMP11                = .true.   # stars, fir, ptsrc
+
+# CMB
+@START 01
+@DEFAULT components/cmb/cmb_LFI.defaults
+@END 01
+
+# CMB relativistic quadrupole correction
+@START 02
+@DEFAULT components/cmb/cmb_relquad.defaults
+@END 02
+
+# Synchrotron component
+@START 03
+@DEFAULT components/synch/synch_DIRBE.defaults
+@DEFAULT components/synch/synch_LFI_localsampler.defaults
+@END 03
+
+# freefree component ---------------------------------------------------------------------
+@START 04
+@DEFAULT components/freefree/freefree_DIRBE2.defaults
+@DEFAULT components/freefree/freefree_LFI_localsampler.defaults
+COMP_L_APOD&&                 = 1100
+COMP_AMP_LMAX&&               = 1100
+COMP_INIT_FROM_HDF&&          = default
+@END 04
+
+# Low-frequency AME component ------------------------------------------------------------------
+@START 05
+@DEFAULT components/ame/ame_DIRBE.defaults
+@DEFAULT components/ame/ame_LFI_localsampler.defaults
+@END 05
+
+# Radio sources
+@START 06
+@DEFAULT components/radio/radio_LFI.defaults
+@END 06
+
+# Monopoles 
+@START 07
+@DEFAULT components/monodipole/md_LFI.defaults
+COMP_MD_DEFINITION_FILE&&     = init_md_static_v24.dat
+COMP_INIT_FROM_HDF&&          = default
+@END 07
+
+
+# Cold thermal dust component (HI correlated)
+@START 08
+@DEFAULT components/dust/dust_coldtab_DIRBE.defaults
+COMP_BETA_INPUT_MAP&&         = default 
+COMP_T_INPUT_MAP&&            = default 
+COMP_SED_TEMPLATE&&           = coldtab_def_v01e.dat
+COMP_T_NU_MIN&&               = 120  
+COMP_BETA_NU_MIN&&            = 120      
+COMP_T_NU_MAX&&               = 1000
+COMP_BETA_NU_MIN&&            = 1000     
+COMP_T_DEFAULT&&              = 16.352
+COMP_BETA_DEFAULT&&           =   1.610
+COMP_BETA_PRIOR_GAUSS_MEAN&&  = 1.6
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.1
+COMP_T_PRIOR_GAUSS_MEAN&&     = 14.0
+COMP_T_PRIOR_GAUSS_RMS&&      = 1
+COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
+@DEFAULT components/dust/dust_DIRBE_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 08
+
+# Hot thermal dust component (CII correlated)
+@START 09
+@DEFAULT components/dust/dust_hotPAH.defaults
+#COMP_TYPE&&                   = MBB
+COMP_LABEL&&                  = dust_cii
+COMP_NU_REF_T&&               = 545
+COMP_BETA_INPUT_MAP&&         = default 
+COMP_T_INPUT_MAP&&            = default 
+COMP_T_NU_MIN&&               = 120  
+COMP_BETA_NU_MIN&&            = 120      
+COMP_T_NU_MAX&&               = 1000
+COMP_BETA_NU_MIN&&            = 1000     
+COMP_T_DEFAULT&&              = 26.467
+COMP_BETA_DEFAULT&&           =   1.693
+COMP_SED_TEMPLATE&&           = CIItab_def_v01f.dat
+COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.3
+COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
+COMP_T_PRIOR_GAUSS_RMS&&      = 3
+COMP_AMP_PRIOR_MAP&&          = none 
+COMP_AMP_PRIOR_LMAX&&         = 6000
+COMP_CL_DEFAULT_AMP_T&&       =  1e8        # D_l = amp * (l/lpivot)**beta 
+COMP_INDMASK&&                = mask_DIRBE_colddust_n2048_v2.fits
+@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 09
+
+# Near-by dust, Edenhofer et al. 
+@START 10
+@DEFAULT components/dust/dust_hotPAH.defaults
+#COMP_TYPE&&                   = MBB
+COMP_LABEL&&                  = hotPAH
+COMP_NU_REF_T&&               = 545
+COMP_BETA_INPUT_MAP&&         = default 
+COMP_T_INPUT_MAP&&            = default 
+COMP_T_NU_MIN&&               = 120  
+COMP_BETA_NU_MIN&&            = 120      
+COMP_T_NU_MAX&&               = 1000
+COMP_BETA_NU_MIN&&            = 1000     
+COMP_T_DEFAULT&&              = 23.332
+COMP_BETA_DEFAULT&&           =   1.525
+COMP_SED_TEMPLATE&&           = hotPAH_def_v01b.dat
+COMP_BETA_PRIOR_GAUSS_MEAN&&  = 2.0
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.3
+COMP_T_PRIOR_GAUSS_MEAN&&     = 20.
+COMP_T_PRIOR_GAUSS_RMS&&      = 3
+COMP_AMP_PRIOR_MAP&&          = dust_nearby_edenhofer_total_scaled_x0.6.fits
+COMP_AMP_PRIOR_LMAX&&         = 6000
+COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta 
+COMP_INDMASK&&                = mask_DIRBE_hotdust_n2048_v2.fits
+@DEFAULT components/dust/dust_hotPAH_localsampler.defaults
+COMP_INIT_FROM_HDF&&          = default
+@END 10
+
+# CII line emission
+@START 11
+@DEFAULT components/co/cii_DIRBE_v3.defaults
+COMP_AMP_INPUT_MAP&&          = CII_DIRBE_140um_42arc_n512_v2_scaled.fits
+COMP_INIT_FROM_HDF&&          = default
+@END 11
+
+# CO line emission; all lines in one component
+@START 12
+@DEFAULT components/co/co_tot_DIRBE.defaults
+COMP_INIT_FROM_HDF&&           = default 
+COMP_LINE_TEMPLATE&&          = /mn/stornext/d5/data/metins/dirbe/data/co_tot_line_template_DIRBE_v1.dat
+@END 12
+
+# WISE star positions + GAIA SEDs
+@START 13
+@DEFAULT components/stars/stars_templates.defaults
+COMP_LABEL&&                   = gaia
+COMP_CLASS&&                   = ptsrc    # {diffuse, ptsrc, template}
+COMP_TYPE&&                    = stars
+#COMP_CATALOG&&                 = dirbe_star_catalog.h5
+COMP_CATALOG&&                 = commander_star_model.h5
+COMP_PTSRC_TEMPLATE&&          = commander_stars_ptsrc_v4.h5
+COMP_CG_SCALE&&                = 1
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_INIT_FROM_HDF&&           = default 
+@END 13
+
+# WISE compact objects, MBB
+@START 14
+@DEFAULT components/stars/stars_DIRBE.defaults
+COMP_CATALOG&&                 = AllWISE_catalog_W1_mag8_v1_GAIA_removed_thres3000.dat 
+COMP_PTSRC_TEMPLATE&&          = AllWISE_catalog_W1_mag8_v1_GAIArem_thres3000.h5
+COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 10
+COMP_T_PRIOR_GAUSS_RMS&&      = 100000.
+COMP_INIT_FROM_HDF&&           = default 
+@END 14
+
+
+# CG SAMPLING GROUP DEFINITIONS
+#
+# Each group defines one set of component amplitudes that are sampled
+# jointly in one single CG solver. Rule of thumb: Sample as many
+# components as possible jointly, but not so many that the CG search
+# doesn't converge. It usually takes some trial-and-error to get a
+# working solution. Also, use different sampling groups for components
+# that have different masks, such as monopoles
+#
+NUM_CG_SAMPLING_GROUPS = 10
+
+# Start by sampling all dust components jointly; these are the most
+# important ones
+@START 01
+CG_SAMPLING_GROUP&&          = dust,hotPAH,dust_cii
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 20
+CG_SAMPLING_GROUP_BANDS&&    = 05a,05b,06a,06b,07a,07b,08a,08b,09a,09b,10a,10b,857,545,353-1,217-1,143,100-1
+@END 01
+
+# Then secondary components, such as C_II and stars
+@START 02
+CG_SAMPLING_GROUP&&          = cii
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 30
+CG_SAMPLING_GROUP_BANDS&&    = 09a,09b
+@END 02
+
+@START 03
+CG_SAMPLING_GROUP&&          = gaia
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 20
+CG_SAMPLING_GROUP_BANDS&&    = 01a,01b,02a,02b,03a,03b,04a,04b
+@END 03
+
+# Finally, monopoles -- grouped according to masks. Order doesn't matter
+@START 04
+CG_SAMPLING_GROUP&&          = 857,545,143,100-1,217-1,353-1
+CG_SAMPLING_GROUP_MASK&&     = mask_common_dx12_ecl30_n0512.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = 857,545,353-1,217-1,143,100-1
+@END 04
+
+@START 05
+CG_SAMPLING_GROUP&&          = FIRAS_L0108,FIRAS_L0149,FIRAS_L0217,FIRAS_L0353,FIRAS_L0544,FIRAS_H0857,FIRAS_H1251,FIRAS_H1809,FIRAS_H1890,FIRAS_H1904,FIRAS_H1918,FIRAS_H2081,FIRAS_H2135,FIRAS_H2802
+CG_SAMPLING_GROUP_MASK&&     = mask_30deg_n16.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = FIRAS_L0108,FIRAS_L0149,FIRAS_L0217,FIRAS_L0353,FIRAS_L0544,FIRAS_H0857,FIRAS_H1251,FIRAS_H1809,FIRAS_H1890,FIRAS_H1904,FIRAS_H1918,FIRAS_H2081,FIRAS_H2135,FIRAS_H2802
+@END 05
+
+@START 06
+CG_SAMPLING_GROUP&&          = 01a,01b,02a,02b,03a,03b
+CG_SAMPLING_GROUP_MASK&&     = mask_01_compobj_res_v1.fits  mask_chisq_stars_galecl15_v3.fits mask_stars_0.02MJysr_v2.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = 01a,01b,02a,02b,03a,03b
+@END 06
+
+@START 07
+CG_SAMPLING_GROUP&&          = 04a,04b
+CG_SAMPLING_GROUP_MASK&&     = mask_dust_stars_gal_v7.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = 04a,04b
+@END 07
+
+@START 08
+CG_SAMPLING_GROUP&&          = 05a,05b,06a,06b
+CG_SAMPLING_GROUP_MASK&&     = mask_dust_gal_v5.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = 05a,05b,06a,06b
+@END 08
+
+@START 09
+CG_SAMPLING_GROUP&&          = 07a,07b,08a,08b
+CG_SAMPLING_GROUP_MASK&&     = mask_dust_gal_v6.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = 07a,07b,08a,08b
+@END 09
+
+@START 10
+CG_SAMPLING_GROUP&&          = 09a,09b,10a,10b
+CG_SAMPLING_GROUP_MASK&&     = mask_dust_gal15_v3.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 5
+CG_SAMPLING_GROUP_BANDS&&    = 09a,09b,10a,10b
+@END 10
+
+
+# MCMC SAMPLING GROUP DEFINTIONS
+# Not yet implemented
+NUM_MCMC_SAMPLING_GROUPS = 4
+
+@START 01
+MCMC_SAMPLING_GROUP_PARAMS&&            = gain:09a%0.01,gain:09b>gain:09a
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = FIRAS_H1902
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dust_gal15_v3.fits
+@END 01
+
+@START 02
+MCMC_SAMPLING_GROUP_PARAMS&&            = dust:beta%0.01,dust:T%0.5
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,4,8,9,10
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b,06a,06b,07a,07b,08a,08b,09a,09b,10a,10b,857,545,353-1,217-1,143,100-1
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dust_gal15_v3.fits
+@END 02
+
+@START 03
+MCMC_SAMPLING_GROUP_PARAMS&&            = dust:tab@1%0.01,dust:tab@05b>dust:tab@05a
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = none
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dust_05a.fits
+@END 03
+
+@START 04
+MCMC_SAMPLING_GROUP_PARAMS&&            = hotPAH:scale%0.01
+MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&  = 1,4,8,9,10
+MCMC_SAMPLING_GROUP_CHISQ_BANDS&&       = 05a,05b,06a,06b,07a,07b,08a,08b,09a,09b,10a,10b,857,545,353-1,217-1,143,100-1
+MCMC_SAMPLING_GROUP_CHISQ_MASK&&        = mask_dust_gal15_v3.fits
+@END 04
+
+
+# ------------------------------------------------------------------
+#                   ZODIACAL LIGHT PARAMETERS
+# ------------------------------------------------------------------
+@DEFAULT components/zodi/sampling.defaults
+@DEFAULT components/zodi/components.defaults
+
+#                          HYPER PARAMETERS
+# ------------------------------------------------------------------
+ZODI_DELTA_T_RESET               = 0.1
+ZODI_TOD_THINNING_FACTOR         = 0.005   # Fraction of TOD samples to include in fitting
+ZODI_OUTPUT_COMP_MAPS            = .false.
+ZODI_OUTPUT_ASCII                = .true.
+ZODI_INIT_FROM_ASCII             = /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_zodi_static_v31.dat
+ZODI_RMS_RANDOMIZE_BETWEEN_STEPS = 0.01
+ZODI_SAMP_METHOD                 = powell   # {sample,powell}
+ZODI_REFERENCE_BAND              = 05a
+ZODI_GLOBAL_EMISSIVITY_COMPONENT = none cloud
+ZODI_GLOBAL_ALBEDO_COMPONENT     = cloud
+ZODI_JOINT_MONOPOLE_SAMPLING     = .true.
+ZODI_OUTPUT_TOD_RESIDUALS        = .false.
+
+# Only emissivity wires support right now
+ZODI_PARAMETER_WIRING            = band2:em>band1:em,band3:em>band1:em
+
+#                             COMPONENTS
+# ------------------------------------------------------------------
+NUM_ZODI_COMPS = 7
+
+ZODI_COMP_INCLUDE01         = .true.   # Cloud
+ZODI_COMP_INCLUDE02         = .true.   # Band 1
+ZODI_COMP_INCLUDE03         = .true.   # Band 2
+ZODI_COMP_INCLUDE04         = .true.   # Band 3
+ZODI_COMP_INCLUDE05         = .false.  # Circumsolar ring; now handled with static component
+ZODI_COMP_INCLUDE06         = .false.  # Feature; now handled with static component
+ZODI_COMP_INCLUDE07         = .false.  # Interstellar component; RRM model
+
+
+# General parameters
+ZODI_T_0                    = 286.0
+ZODI_T_DELTA                = 0.4668626
+
+# Zodi component definitions
+@START 01
+ZODI_COMP_TYPE&&            = cloud
+ZODI_COMP_LABEL&&           = cloud
+ZODI_COMP_N_LOS_STEP&&      = 50
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 5.2
+ZODI_COMP_N_0&&             = 1.1344373881427960d-07
+ZODI_COMP_X_0&&             = 0.011887800744346281
+ZODI_COMP_Y_0&&             = 0.0054765064662263777
+ZODI_COMP_Z_0&&             = -0.0021530908020710744
+ZODI_COMP_I&&               = 2.0335188072390769
+ZODI_COMP_OMEGA&&           = 77.657955554097114
+ZODI_COMP_ALPHA&&           = 1.3370696705930281
+ZODI_COMP_BETA&&            = 4.1415004157586637
+ZODI_COMP_GAMMA&&           = 0.94206179393358036
+ZODI_COMP_MU&&              = 0.18873176489090190
+ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_chain_hke_v91.h5:8
+@END 01
+
+@START 02
+ZODI_COMP_TYPE&&            = band
+ZODI_COMP_LABEL&&           = band1
+ZODI_COMP_N_LOS_STEP&&           = 50
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 5.2
+ZODI_COMP_N_0&&             = 5.5890290403228370d-10
+ZODI_COMP_X_0&&             = 0.0
+ZODI_COMP_Y_0&&             = 0.0
+ZODI_COMP_Z_0&&             = 0.0
+ZODI_COMP_I&&               = 0.56438265154389733
+ZODI_COMP_OMEGA&&           = 80.0
+ZODI_COMP_DELTA_ZETA&&      = 8.7850534408713035
+ZODI_COMP_V&&               = 0.10000000149011612
+ZODI_COMP_P&&               = 4.0
+ZODI_COMP_DELTA_R&&         = 1.5
+ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_chain_hke_v91.h5:8
+@END 02
+
+@START 03
+ZODI_COMP_TYPE&&            = band
+ZODI_COMP_N_LOS_STEP&&           = 50
+ZODI_COMP_LABEL&&           = band2
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 5.2
+ZODI_COMP_N_0&&             = 1.9877609422590801d-09
+ZODI_COMP_X_0&&             = 0.0
+ZODI_COMP_Y_0&&             = 0.0
+ZODI_COMP_Z_0&&             = 0.0
+ZODI_COMP_I&&               = 1.2000000476837158
+ZODI_COMP_OMEGA&&           = 30.347475578624532
+ZODI_COMP_DELTA_ZETA&&      = 1.9917032425777641
+ZODI_COMP_V&&               = 0.89999997615814209
+ZODI_COMP_P&&               = 4.0
+ZODI_COMP_DELTA_R&&         = 0.94121881201651147
+ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_chain_hke_v91.h5:8
+@END 03
+
+@START 04
+ZODI_COMP_TYPE&&            = band
+ZODI_COMP_LABEL&&           = band3
+ZODI_COMP_N_LOS_STEP&&           = 50
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 5.2
+ZODI_COMP_N_0&&             = 1.4369827283512384d-10
+ZODI_COMP_X_0&&             = 0.0
+ZODI_COMP_Y_0&&             = 0.0
+ZODI_COMP_Z_0&&             = 0.0
+ZODI_COMP_I&&               = 0.80000001192092896
+ZODI_COMP_OMEGA&&           = 80.0
+ZODI_COMP_DELTA_ZETA&&      = 15
+ZODI_COMP_V&&               = 0.050000000745058060
+ZODI_COMP_P&&               = 4.0
+ZODI_COMP_DELTA_R&&         = 1.5
+ZODI_COMP_INIT_FROM_HDF&&   = none
+@END 04
+
+@START 05
+ZODI_COMP_TYPE&&            = ring
+ZODI_COMP_LABEL&&           = ring
+ZODI_COMP_N_LOS_STEP&&           = 50
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 1.5
+ZODI_COMP_N_0&&             = 1.8260527826501675d-08
+ZODI_COMP_X_0&&             = 0.0
+ZODI_COMP_Y_0&&             = 0.0
+ZODI_COMP_Z_0&&             = 0.0
+ZODI_COMP_I&&               = 0.48707166006819241
+ZODI_COMP_OMEGA&&           = 22.278979678854448
+ZODI_COMP_R&&               = 1.0281924326308751
+ZODI_COMP_SIGMA_R&&         = 0.025000000372529030
+ZODI_COMP_SIGMA_Z&&         = 0.054068037356978099
+ZODI_COMP_THETA&&           = 0.0
+ZODI_COMP_SIGMA_THETA&&     = 0.0001
+ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_chain_hke_v91.h5:8
+@END 05
+
+@START 06
+ZODI_COMP_TYPE&&            = feature
+ZODI_COMP_LABEL&&           = feature
+ZODI_COMP_N_LOS_STEP&&      = 50
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 1.5
+ZODI_COMP_N_0&&             = 2.0094267183590947d-08
+ZODI_COMP_X_0&&             = 0.0
+ZODI_COMP_Y_0&&             = 0.0
+ZODI_COMP_Z_0&&             = 0.0
+ZODI_COMP_I&&               = 0.48707166006819241
+ZODI_COMP_OMEGA&&           = 22.278979678854448
+ZODI_COMP_R&&               = 1.0579182694524214
+ZODI_COMP_SIGMA_R&&         = 0.10287314662396611
+ZODI_COMP_SIGMA_Z&&         = 0.091442963768716023
+ZODI_COMP_THETA&&           = -10.0
+ZODI_COMP_SIGMA_THETA&&     = 12.115210933938741
+ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_chain_hke_v88.h5:7
+@END 06
+
+@START 07
+ZODI_COMP_TYPE&&            = interstellar
+ZODI_COMP_LABEL&&           = interstellar
+ZODI_COMP_N_LOS_STEP&&      = 50
+ZODI_COMP_R_MIN&&           = 0.0
+ZODI_COMP_R_MAX&&           = 30
+ZODI_COMP_N_0&&             = 1.1344373881427960d-10
+ZODI_COMP_X_0&&             = 0.
+ZODI_COMP_Y_0&&             = 0.
+ZODI_COMP_Z_0&&             = 0.
+ZODI_COMP_I&&               = 0
+ZODI_COMP_OMEGA&&           = 0
+ZODI_COMP_R&&               = 0.
+ZODI_COMP_ALPHA&&           = 0.
+ZODI_COMP_INIT_FROM_HDF&&   = none /mn/stornext/u3/hke/data_d5/dirbe/zodi/data/init_chain_hke_v91.h5:8
+@END 07
+
+# ------------------------------------------------------------------
+#                    ZODIACAL LIGHT SAMPLING GROUPS
+# ------------------------------------------------------------------
+NUM_ZODI_SAMPLING_GROUPS         = 9
+
+# Sample shape parameters with bands 5 and 6
+@START 01
+ZODI_SAMPLING_GROUP&&       = cloud:all,band1:all,band2:all,band3:n_0,band3:em,T_0
+ZODI_SAMPLING_GROUP_BANDS&& = 05a,05b,06a,06b
+@END 01
+
+# Sample emissivity and albedo for each channel individually, given above shape parameters
+@START 02
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 01a,01b
+@END 02
+
+@START 03
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 02a,02b
+@END 03
+
+@START 04
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 03a,03b
+@END 04
+
+@START 05
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 04a,04b
+@END 05
+
+@START 06
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 07a,07b
+@END 06
+
+@START 07
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 08a,08b
+@END 07
+
+@START 08
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 09a,09b
+@END 08
+
+@START 09
+ZODI_SAMPLING_GROUP&&       = cloud:em,cloud:al,band1:em,band1:al,band2:em,band2:al,band3:em,band3:al
+ZODI_SAMPLING_GROUP_BANDS&& = 10a,10b
+@END 09
+
+

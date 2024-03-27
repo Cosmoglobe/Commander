@@ -119,7 +119,6 @@ contains
       c%chisq_threshold = 50000.
       c%nmaps           = info%nmaps
       c%ndet            = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
-      c%sol_elong_range = cpar%zs_sol_elong
       
       nside_beam                  = 128
       nmaps_beam                  = 1

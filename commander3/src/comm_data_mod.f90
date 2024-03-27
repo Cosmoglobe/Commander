@@ -157,6 +157,9 @@ contains
           else if (trim(data(n)%tod_type) == 'DIRBE') then
              data(n)%tod => comm_DIRBE_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'AKARI') then
+             data(n)%tod => comm_AKARI_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
              data(n)%tod => comm_SPIDER_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
