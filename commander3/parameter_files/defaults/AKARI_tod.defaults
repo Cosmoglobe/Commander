@@ -1,7 +1,9 @@
 # Monte Carlo options
 BASE_SEED                     = 163425  # Seed for random number generator
 
+NUMCHAIN                       = 1          # Number of independent chains
 NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
+NUM_INIT_CHAINS                = 1
 
 SAMPLE_ONLY_TEMPERATURE       = .false.
 SAMPLE_ONLY_POLARIZATION      = .false.
@@ -42,7 +44,7 @@ IGNORE_GAIN_AND_BANDPASS_CORR = .false.
 ###############################################################
 
 THINNING_FACTOR               = 1
-NSIDE_CHISQ                   = 16
+NSIDE_CHISQ                   = 512
 POLARIZATION_CHISQ            = .true.
 OUTPUT_MIXING_MATRIX          = .false.
 OUTPUT_RESIDUAL_MAPS          = .true.
@@ -69,10 +71,9 @@ SMOOTHING_SCALE_PIXWIN01        = pixel_window_n0256.fits
 SMOOTHING_SCALE_FWHM_POSTPROC01 = 30.    # Smoothing FWHM after pixel-by-pixel fit
 
 
- # TOD sampling options
- TOD_NUM_BP_PROPOSALS_PER_ITER  = 1    # 1 for sampling; >= 1 for optimize
-
- NUMITER_RESAMPLE_HARD_GAIN_PRIORS = 3
+# TOD sampling options
+TOD_NUM_BP_PROPOSALS_PER_ITER  = 0    # 1 for sampling; >= 1 for optimize
+NUMITER_RESAMPLE_HARD_GAIN_PRIORS = 3
 
 
 CMB_DIPOLE_PRIOR                = none
