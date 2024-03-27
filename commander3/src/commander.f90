@@ -338,7 +338,7 @@ program commander
         exit
      end if
 
-     if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
 !     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
@@ -371,7 +371,7 @@ program commander
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
-            if (iter > 1) call minimize_zodi_with_powell(cpar, handle, i)
+            if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
          end do
       end select
 
@@ -410,7 +410,7 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
 
-   if (mod(iter,modfact) == 0) then
+   if (mod(iter+1,modfact) == 0) then
      if (iter > 1) then
         ! Sample gains off of absolutely calibrated FIRAS maps
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
@@ -422,7 +422,7 @@ program commander
 
 
      ! Sample non-linear parameters
-     if (iter > 2 .and. cpar%sample_specind) then
+     if (iter > 1 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)

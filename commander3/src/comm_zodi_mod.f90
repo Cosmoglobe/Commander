@@ -17,7 +17,7 @@ module comm_zodi_mod
 
    type :: ZodiModel
       class(ZodiComponentContainer), allocatable :: comps(:)
-      character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:)
+      character(len=24), allocatable :: comp_labels(:), general_labels(:), par_labels(:), par_labels_full(:)
       integer(i4b) :: n_comps, n_params, n_common_params, n_general_params
       logical(lgt) :: joint_mono
       real(dp)     :: min_solar_elong, max_solar_elong
@@ -115,6 +115,7 @@ contains
       allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
       allocate(zodi_model%theta_scale(zodi_model%npar_tot))
       allocate(zodi_model%par_labels(zodi_model%npar_tot))
+      allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
       
       ! Set up sampling groups
       allocate(zodi_model%sampgroup_active_band(numband,cpar%zs_num_samp_groups))
@@ -148,6 +149,8 @@ contains
            & zodi_model%theta_scale)
       zodi_model%par_labels(1:zodi_model%n_general_params) = &
            & zodi_model%general_labels
+      zodi_model%par_labels_full(1:zodi_model%n_general_params) = &
+           & zodi_model%par_labels(1:zodi_model%n_general_params) 
       do i = 1, zodi_model%n_comps
          ! Shape parameters
          ind = zodi_model%comps(i)%start_ind
@@ -155,17 +158,23 @@ contains
               & zodi_model%theta_prior, zodi_model%theta_scale)
          zodi_model%par_labels(ind:ind+zodi_model%comps(i)%npar-1) = &
               & zodi_model%comps(i)%labels
-
+         do j = ind, ind+zodi_model%comps(i)%npar-1
+            zodi_model%par_labels(j) = &
+              & trim(zodi_model%comp_labels(i))//':'//trim(zodi_model%par_labels(j))
+         end do
+            
          ! Emissivity and albedo
          ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
          do j = 1, numband
             zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
             zodi_model%theta_scale(ind+j)   = 1.d0
             zodi_model%par_labels(ind+j)    = 'em@'//trim(band_labels(j))
-
+            zodi_model%par_labels_full(ind+j)  = trim(zodi_model%comp_labels(i))//':em@'//trim(band_labels(j))
+            
             zodi_model%theta_prior(:,ind+numband+j) = [0.d0, 1.d0, 0.3d0, -1.d0] ! Albedo
             zodi_model%theta_scale(ind+numband+j)   = 1.d0
             zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
+            zodi_model%par_labels_full(ind+numband+j) = trim(zodi_model%comp_labels(i))//':al@'//trim(band_labels(j))
          end do
       end do
       ! Monopoles
@@ -174,6 +183,7 @@ contains
          zodi_model%theta_prior(:,ind) = [0.d0, 1d30, 0.d0, -1.d0] ! Priors
          zodi_model%theta_scale(ind)   = 1.d0
          zodi_model%par_labels(ind)    = 'm@'//trim(band_labels(j))
+         zodi_model%par_labels_full(ind) = 'm@'//trim(band_labels(j))
       end do
       
       if (cpar%myid_chain == 0) then
