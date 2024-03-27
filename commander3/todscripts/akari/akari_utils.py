@@ -140,8 +140,8 @@ def pix_to_lonlat(
 
 
 @cache
-def get_dirbe_fwhm() -> dict[str, float]:
-    """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
+def get_akari_fwhm() -> dict[str, float]:
+    """Returns a dictionary mapping the Akari bands to FWHM in radians."""
 
     ROWS_TO_SKIP = 19
     FWHM_COL = 4
@@ -163,7 +163,7 @@ def get_dirbe_fwhm() -> dict[str, float]:
 
 
 @cache
-def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
+def get_akari_beams() -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to beams.
     NOTE: Currently only returns a sequence of 0's.
@@ -185,7 +185,7 @@ def get_dirbe_beams() -> dict[str, NDArray[np.floating]]:
 
 
 @cache
-def get_dirbe_sidelobes() -> dict[str, NDArray[np.floating]]:
+def get_akari_sidelobes() -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to sidelobes.
     NOTE: We dont have dirbe sidelobes so we just returns a sequence of 0's.
@@ -310,9 +310,6 @@ def get_beam_data() -> dict[str, DetectorBeamData]:
                 )
 
     return data
-
-
-BEAM_DATA = get_beam_data()
 
 
 def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarray]:

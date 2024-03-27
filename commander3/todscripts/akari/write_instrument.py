@@ -95,7 +95,7 @@ def _add_fields(
 
 def main() -> None:
 
-    version = 2
+    version = 0
     write_akari_instrument_file(output_path=TEMP_OUTPUT_PATH, version=version)
 
 
