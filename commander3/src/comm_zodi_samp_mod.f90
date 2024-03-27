@@ -1132,17 +1132,21 @@ contains
       end do
    end subroutine
 
-   subroutine minimize_zodi_with_powell(cpar, handle, samp_group)
+   subroutine minimize_zodi_with_powell(cpar, iter, handle, samp_group)
       implicit none 
-      type(comm_params), intent(in) :: cpar
+      type(comm_params), intent(in)      :: cpar
+      integer(i4b),      intent(in)      :: iter
       type(planck_rng),  intent(inout)   :: handle
       integer(i4b),      intent(in)      :: samp_group
 
       logical(lgt) :: accept
       real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
       real(dp), allocatable, dimension(:) :: theta_prev, chisq_prev
-      integer(i4b) :: i, j, k, ierr, flag, ntot, npar
+      integer(i4b) :: i, j, k, ierr, flag, ntot, npar, unit
       real(dp) :: chisq_old, chisq_new
+      character(len=6) :: iter_string
+      character(len=6) :: sgroup
+      character(len=512) :: filename
 
       if (cpar%myid == 0) print *, "minimizing zodi parameters with powell, samp_group =", samp_group
       
@@ -1183,6 +1187,21 @@ contains
       theta_new = theta_old
       call randomize_zodi_init(theta_new, samp_group, cpar, handle)
 
+      if (cpar%myid_chain == 0) then
+         call int2string(samp_group, sgroup)
+         call int2string(iter, iter_string)
+         filename = trim(cpar%outdir)//'/zodi_powell_sgroup'//sgroup//'_k'//iter_string//'.dat'
+         unit     = getlun()
+         open(unit, file=trim(filename), recl=10000)
+         write(unit, '(a)', advance="no") "# "
+         do i = 1, zodi_model%npar_tot
+            if (zodi_model%theta_stat(i,samp_group)==0) then
+               write(unit, "(a,a)", advance="no") trim(adjustl(zodi_model%par_labels_full(i))), " "
+            end if
+         end do
+         write(unit,*)
+      end if
+
       ! Rescale 
       theta = theta_new/scale
          
@@ -1219,7 +1238,8 @@ contains
            end do
           !call mpi_bcast(flag, 1, MPI_INTEGER, cpar%root, cpar%comm_chain, ierr)          
       end if
-
+      if (cpar%myid_chain == 0) close(unit)
+      
       ! Distribute final solution
       call mpi_bcast(theta_new, size(theta_new), MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
       
@@ -1411,12 +1431,13 @@ contains
 
       call wall_time(t4)
       !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
-
+      
       if (data(1)%tod%myid == 0) then
          lnL_zodi = chisq/ndof_tot
          call wall_time(t2)
          if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
          write(*,*)
+         write(unit,*) chisq/ndof_tot, real(theta,sp)
       end if
 
       theta_prev = theta
@@ -2310,7 +2331,7 @@ contains
       real(sp),      allocatable, dimension(:)       :: s_zodi
       real(sp),      allocatable, dimension(:,:,:,:) :: map_sky
       type(map_ptr), allocatable, dimension(:,:)     :: sky_signal
-      real(sp),      allocatable, dimension(:)       :: tod, mask, procmask_zodi
+      real(sp),      allocatable, dimension(:)       :: tod, mask, procmask
       real(dp),      allocatable, dimension(:,:)     :: m_buf
       integer(i4b),  allocatable, dimension(:,:)     :: pix, psi
       integer(i4b),  allocatable, dimension(:)       :: flag
@@ -2376,8 +2397,9 @@ contains
             call distribute_sky_maps(data(i)%tod, sky_signal, 1.e0, map_sky)
             
             ! Initialize frequency-specific mask
-            allocate(m_buf(0:npix_band-1, nmaps), procmask_zodi(0:npix_band-1))
-            call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:, 1)
+            allocate(m_buf(0:npix_band-1, nmaps), procmask(0:npix_band-1))
+            !call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask_zodi = m_buf(:, 1)
+            call data(i)%tod%procmask_zodi%bcast_fullsky_map(m_buf); procmask = m_buf(:, 1)
             deallocate(m_buf)
          
             do scan = 1, nscan
@@ -2400,7 +2422,7 @@ contains
                   ! Set up mask; remove flagged samples and foreground contaminated regions
                   call data(i)%tod%decompress_pointing_and_flags(scan, j, pix, psi, flag)
                   do k = 1, data(i)%tod%scans(scan)%ntod
-                     mask(k) = procmask_zodi(pix(k, 1))
+                     mask(k) = procmask(pix(k, 1))
                      if (iand(flag(k), data(i)%tod%flag0) .ne. 0) mask(k) = 0.
                      !vec(:, k) = data(i)%tod%ind2vec(:, data(i)%tod%pix2ind(pix(k, 1)))
                   end do
@@ -2436,7 +2458,7 @@ contains
                end do
                deallocate(s_scat, s_therm, s_zodi, s_sky)
             end do
-            deallocate(procmask_zodi,map_sky, sky_signal)
+            deallocate(procmask,map_sky, sky_signal)
          end do
          
          ! Gather information across cores
