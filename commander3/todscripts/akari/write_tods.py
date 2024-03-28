@@ -198,8 +198,6 @@ def get_yday_cio_data(
     """Function which extracts and reorders the CIO data from one day CIO file."""
 
 
-    print(band, ind)
-
     #yday = YDAYS[file_number]
 
     time = 53826
@@ -222,7 +220,7 @@ def get_yday_cio_data(
 
     tods[band_label] = tod
 
-    flags[band_label] = tod*0
+    flags[band_label] = pixels[band_label]*0
 
     return YdayData(
         tods, 
@@ -245,13 +243,21 @@ def padd_array_gaps(splits: list[np.ndarray], padding: list[np.ndarray]) -> np.n
 
 
 def write_band(
-    comm_tod: TODLoader, cio: CIO, filename: str, band: int, nside_out: int, n_pids: int
+        comm_tod: TODLoader, cio: CIO, filename: str, band: str, ndet: int, nside_out: int, n_pids: int
 ) -> None:
     COMMON_GROUP = "/common"
     HUFFMAN_COMPRESSION = ["huffman", {"dictNum": 1}]
 
-    det_str = f"{band:02}_A"
+    det_str = ""
+    for i in range(ndet):
+        det_str = det_str + f'{band}_{i+1:02}, '
     comm_tod.init_file(freq=filename, od="", mode="w")
+
+
+
+    for v in cio.keys():
+        det1 = v
+        break
 
     comm_tod.add_field(COMMON_GROUP + "/fsamp", 1 / SAMP_RATE)
     comm_tod.add_field(COMMON_GROUP + "/nside", [nside_out])
@@ -263,53 +269,56 @@ def write_band(
     comm_tod.add_field(COMMON_GROUP + "/mbang", [0])
     comm_tod.add_attribute(COMMON_GROUP + "/mbang", "index", det_str)
 
+
     for pid in range(n_pids):
         pid_label = f"{pid+1:06}"
         pid_common_group = pid_label + "/common"
-        pid_det_group = f"{pid_label}/{det_str}"
 
-        comm_tod.add_field(pid_common_group + "/time", [cio.time_start[pid], 0, 0])
+        comm_tod.add_field(pid_common_group + "/time", [cio[det1].time_start[pid], 0, 0])
         comm_tod.add_attribute(pid_common_group + "/time", "index", "MJD, OBT, SCET")
 
-        comm_tod.add_field(pid_common_group + "/time_end", [cio.time_stop[pid], 0, 0])
+        comm_tod.add_field(pid_common_group + "/time_end", [cio[det1].time_stop[pid], 0, 0])
         comm_tod.add_attribute(pid_common_group + "/time_end", "index", "MJD, OBT, SCET")
 
-        comm_tod.add_field(pid_common_group + "/ntod", [len(cio.tods[pid])])
+        comm_tod.add_field(pid_common_group + "/ntod", [len(cio[det1].tods[pid])])
 
-        comm_tod.add_field(pid_common_group + "/satpos", cio.sat_pos_start[pid])
-        comm_tod.add_field(pid_common_group + "/satpos_end", cio.sat_pos_stop[pid])
+        comm_tod.add_field(pid_common_group + "/satpos", cio[det1].sat_pos_start[pid])
+        comm_tod.add_field(pid_common_group + "/satpos_end", cio[det1].sat_pos_stop[pid])
 
-        comm_tod.add_field(pid_common_group + "/earthpos", cio.earth_pos_start[pid])
-        comm_tod.add_field(pid_common_group + "/earthpos_end", cio.earth_pos_stop[pid])
+        comm_tod.add_field(pid_common_group + "/earthpos", cio[det1].earth_pos_start[pid])
+        comm_tod.add_field(pid_common_group + "/earthpos_end", cio[det1].earth_pos_stop[pid])
 
         comm_tod.add_attribute(pid_common_group + "/satpos", "index", "X, Y, Z")
         comm_tod.add_attribute(
             pid_common_group + "/satpos", "coords", "heliocentric-ecliptic"
         )
 
-        comm_tod.add_field(pid_det_group + "/flag", cio.flags[pid], HUFFMAN_COMPRESSION)
+        for i in range(ndet):
+            det_lab = f'Akari_{band}_{i+1:02}'
+            pid_det_group = f"{pid_label}/{i+1:02}"
+            comm_tod.add_field(pid_det_group + "/flag", cio[det_lab].flags[pid], HUFFMAN_COMPRESSION)
 
-        comm_tod.add_field(pid_det_group + "/tod", cio.tods[pid])
-        comm_tod.add_field(pid_det_group + "/pix", cio.pixels[pid], HUFFMAN_COMPRESSION)
+            comm_tod.add_field(pid_det_group + "/tod", cio[det_lab].tods[pid])
+            comm_tod.add_field(pid_det_group + "/pix", cio[det_lab].pixels[pid], HUFFMAN_COMPRESSION)
 
-        # TODO: Get correct polarization angle (detector angle)
-        psi_digitize_compression = [
-            "digitize",
-            {"min": 0, "max": 2 * np.pi, "nbins": 64},
-        ]
-        comm_tod.add_field(
-            pid_det_group + "/psi",
-            np.zeros_like(cio.tods[pid]),
-            [psi_digitize_compression, HUFFMAN_COMPRESSION],
-        )
+            # TODO: Get correct polarization angle (detector angle)
+            psi_digitize_compression = [
+                "digitize",
+                {"min": 0, "max": 2 * np.pi, "nbins": 64},
+            ]
+            comm_tod.add_field(
+                pid_det_group + "/psi",
+                np.zeros_like(cio[det_lab].tods[pid]),
+                [psi_digitize_compression, HUFFMAN_COMPRESSION],
+            )
 
-        comm_tod.add_field(pid_det_group + "/outP", np.zeros((2, 1)))
+            comm_tod.add_field(pid_det_group + "/outP", np.zeros((2, 1)))
 
-        const_scalars = akari_utils.get_const_scalars(band)
-        comm_tod.add_field(pid_det_group + "/scalars", const_scalars)
-        comm_tod.add_attribute(
-            pid_det_group + "/scalars", "index", "gain, sigma0, fknee, alpha"
-        )
+            const_scalars = akari_utils.get_const_scalars(band)
+            comm_tod.add_field(pid_det_group + "/scalars", const_scalars)
+            comm_tod.add_attribute(
+                pid_det_group + "/scalars", "index", "gain, sigma0, fknee, alpha"
+            )
 
         comm_tod.finalize_chunk(pid + 1)
 
@@ -348,20 +357,20 @@ def write_to_commander_tods(
     # Currently, writing commander h5 files uses a pretty unoptimal interface which is difficult to
     # parallelize without corrupting the written files. This is the go to way to concurrently write files
     # which is pretty ugly.
-    print(cios.keys())
     x = [[]]
-    for ndet, band in zip(akari_utils.BAND_NUM[:2], akari_utils.BANDS[:2]):
-        for i in range(ndet):
-            x[0].append(
-            pool.apply_async(
-                write_band,
-                args=(
-                    comm_tod,
-                    cios[f"Akari_{band}_{i+1:02}"],
-                    filenames[band],
-                    band,
-                    nside_out,
-                    n_pids)))
+    for ndet, band in zip(akari_utils.NDETS[:2], akari_utils.BANDS[:2]):
+        print(band)
+        x[0].append(
+        pool.apply_async(
+            write_band,
+            args=(
+                comm_tod,
+                cios,
+                filenames[band],
+                band,
+                ndet,
+                nside_out,
+                n_pids)))
 
     for res1 in x:
         for res in res1:

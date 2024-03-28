@@ -46,13 +46,13 @@ DIRBE_POS_FILES = [
 ]
 
 BANDS = ['N60', 'WIDE-S', 'WIDE-L', 'N160']
-BAND_NUM = [40, 60, 45, 30]
+NDETS = [40, 60, 45, 30]
 DIRBE_START_DATE = Time(datetime(1989, 12, 11))
 DETECTOR_LABELS = ("A", "B", "C")
 WAVELENGHTS = (1.25, 2.2, 3.5, 4.9, 12, 25, 60, 100, 140, 240)
 DETECTORS = []
 for i in range(len(BANDS)):
-    for j in range(BAND_NUM[i]):
+    for j in range(NDETS[i]):
         DETECTORS.append(f'{BANDS[i]}_{j+1:02}')
 
 BAND_TO_WAVELENGTH: dict[int, float] = {
@@ -81,18 +81,9 @@ PLANET_RADII = {
     "neptune": 1,
 }
 
-SIGMA_0 = {
-    1: 0.1820848274487808,
-    2: 0.1785923183102134,
-    3: 0.12869298902093768,
-    4: 0.09362580480386565,
-    5: 0.14110078941487805,
-    6: 0.19622963644711278,
-    7: 0.358702745030365,
-    8: 0.4273920139329039,
-    9: 1.9890065503932703,
-    10: 2.012305834012275,
-}
+SIGMA_0 = {}
+for band in BANDS:
+    SIGMA_0[band] = 1
 
 
 def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
