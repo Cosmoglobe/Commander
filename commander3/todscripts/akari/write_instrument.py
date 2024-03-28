@@ -18,6 +18,8 @@ NSIDE = 128
 # temporary values that needs to be updated
 TEMP_LMAX = NSIDE * 3
 TEMP_MMAX = 100
+TEMP_LMAX = 0
+TEMP_MMAX = 0
 TEMP_ELIP = 1
 TEMP_PSI_ELL = 0
 TEMP_MBEAM_EFF = 0
@@ -31,8 +33,8 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
     instrument_file = commander_instrument(output_path, filename, version, "w")
 
     fwhms = akari_utils.get_akari_fwhm()
-    beams = akari_utils.get_akari_beams()
-    sidelobes = akari_utils.get_akari_sidelobes()
+    beams = akari_utils.get_akari_beams(NSIDE, TEMP_LMAX)
+    sidelobes = akari_utils.get_akari_sidelobes(NSIDE, TEMP_LMAX)
     for band, detector in enumerate(akari_utils.BANDS):
         center_frequency = akari_utils.WAVELENGTHS[band]
         center_frequency = (center_frequency*u.micron).to(u.GHz, equivalencies=u.spectral()).value
@@ -44,7 +46,7 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
         )
 
    
-        for i in range(1, akari_utils.NDET[band]+1):
+        for i in range(1, akari_utils.NDETS[band]+1):
             band_group_name = f"{detector}_{i:02}"
             instrument_file.add_bandpass(
                 f'Akari_{band_group_name}', frequencies, weights
@@ -95,7 +97,7 @@ def _add_fields(
 
 def main() -> None:
 
-    version = 1
+    version = 2
     write_akari_instrument_file(output_path=TEMP_OUTPUT_PATH, version=version)
 
 
