@@ -1,5 +1,6 @@
 # 353-8 single-horn map parameters
 BAND_LABEL&&&                  = 353-8
+BAND_INSTRUMENT_LABEL&&&       = 353-8
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 2048

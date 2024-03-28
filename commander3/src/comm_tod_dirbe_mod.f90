@@ -251,7 +251,8 @@ contains
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
+      !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
+      if (trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
       else
          sample_ncorr = .false.
@@ -345,6 +346,7 @@ contains
                call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
             end do
             call sd%dealloc
+            if (.not. any(self%scans(i)%d%accept)) cycle
             call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
          end if
 

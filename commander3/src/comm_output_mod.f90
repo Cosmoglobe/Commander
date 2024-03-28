@@ -52,7 +52,6 @@ contains
 
           ! testing hdf parameter output
           call write_params_to_hdf(cpar, file)
-
           call close_hdf_file(file)
           iter = -1
        else if (trim(cpar%chain_status) == 'append') then
@@ -73,13 +72,11 @@ contains
           call mpi_finalize(ierr)
           stop
        end if
-
+       
        !delete fg_ind_mean_cXXXX.dat if it exists
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
        inquire(file=fg_file, exist=exist)
        if (exist) call rm(trim(fg_file))
-
-
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
 
@@ -307,8 +304,6 @@ contains
        c => c%nextComp()
     end do
 
-    
-
     if (cpar%resamp_CMB) then
        if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
        return
@@ -447,7 +442,7 @@ contains
        ! Output zodi ipd and tod parameters to chain
        if (cpar%include_tod_zodi ) then
           call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_model_c'//ctext//'_k' // itext // '.dat', overwrite=.true.)
-          if (cpar%myid_chain == 0) call write_map2(trim(cpar%outdir) // '/zodi_static_c'//ctext//'_k' // itext // '.fits', zodi_model%map_static)
+          !if (cpar%myid_chain == 0) call write_map2(trim(cpar%outdir) // '/zodi_static_c'//ctext//'_k' // itext // '.fits', zodi_model%map_static)
           call zodi_model%model_to_chain(cpar, iter)
        end if
          !do i = 1, numband
@@ -456,8 +451,14 @@ contains
          !call output_tod_params_to_hd5(cpar, zodi_model, iter)
          !end do
 
+       if (cpar%myid_chain == 0) then
+          do i = 1, numband
+             if (trim(data(i)%tod_type) == 'none') cycle
+             if (data(i)%tod%map_solar_allocated) call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_solar_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_solar)
+          end do
+       end if
     end if
-
+    
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
 

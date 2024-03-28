@@ -114,6 +114,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      integer(i4b) :: ntab
      real(dp), allocatable, dimension(:,:) :: SEDtab
      real(dp), allocatable, dimension(:,:) :: SEDtab_buff
+     real(dp)                              :: SEDtab_prior  ! Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling

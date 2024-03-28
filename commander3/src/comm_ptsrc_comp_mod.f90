@@ -54,6 +54,7 @@ module comm_ptsrc_comp_mod
      integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet, nactive
      logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps
      real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
+     real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (sum(nsrc),nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
      logical(lgt),    allocatable, dimension(:)     :: F_null ! Frequency mask
      type(ptsrc),     allocatable, dimension(:)     :: src    ! Source template (nsrc)
@@ -127,7 +128,7 @@ contains
     c%nu_min          = cpar%cs_nu_min(id_abs)
     c%nu_max          = cpar%cs_nu_max(id_abs)
     c%nside           = cpar%cs_nside(id_abs)
-    c%nside_febecop   = 1024
+    c%nside_febecop   = c%nside  ! 1024
     c%outprefix       = trim(cpar%cs_label(id_abs))
     c%cg_scale        = cpar%cs_cg_scale(1,id_abs)
     allocate(c%poltype(1))
@@ -244,9 +245,7 @@ contains
     case("stars") ! not sure what to do here
        c%npar = 0
        c%precomputed_amps = .true.
-       write(*,*) "WARNING: Stars doesn't work yet as a pointsource type"
-
-
+!       write(*,*) "WARNING: Stars doesn't work yet as a pointsource type"
     case default
        call report_error("Unknown point source model: " // trim(c%type))
     end select
@@ -668,20 +667,22 @@ contains
        self%x = self%x/self%cg_scale
     end if
        
-    allocate(theta(self%nsrc,self%nmaps,self%npar))
-    call read_hdf(hdffile, trim(adjustl(path))//'specind', theta)
-
-    do i = 1, self%nsrc
-       do j = 1, self%nmaps
-          do k = 1, self%npar
-             self%src(i)%theta(k,j) = max(self%p_uni(1,k),min(self%p_uni(2,k),theta(i,j,k))) 
+    if (.not. self%precomputed_amps) then
+       allocate(theta(self%nsrc,self%nmaps,self%npar))
+       call read_hdf(hdffile, trim(adjustl(path))//'specind', theta)
+       
+       do i = 1, self%nsrc
+          do j = 1, self%nmaps
+             do k = 1, self%npar
+                self%src(i)%theta(k,j) = max(self%p_uni(1,k),min(self%p_uni(2,k),theta(i,j,k))) 
+             end do
           end do
        end do
-    end do
-    deallocate(theta)
-
-    !Update mixing matrix
-    call self%updateMixmat
+       deallocate(theta)
+       
+       !Update mixing matrix
+       call self%updateMixmat
+    end if
 
   end subroutine initPtsrcHDF
 
@@ -944,7 +945,7 @@ contains
 
    
     type(hdf_file)                      :: stars_file
-    integer(i4b)                        :: i, j
+    integer(i4b)                        :: i, j, ja
     character(len=512), dimension(:), allocatable    :: band_list
     logical(lgt)                        :: found
     real(dp), dimension(:,:), allocatable :: catalog, star_catalog, coords
@@ -982,21 +983,31 @@ contains
 
     allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
 
-    self%x= 1.d0
+    self%x = 0.d0
+    self%x(1,1) = 1.d0
 
     !store each pointsource in a source object
     do i=1, self%nsrc
       allocate(self%src(i)%amp_precomp(self%nactive))
       allocate(self%src(i)%T(self%nactive)) 
-      self%src(i)%glon = coords(1,i) * DEG2RAD
-      self%src(i)%glat = coords(2,i) * DEG2RAD 
-      self%src(i)%amp_precomp = star_catalog(:,i)*self%cg_scale
+      !self%src(i)%glon = coords(1,i) * DEG2RAD
+      !self%src(i)%glat = coords(2,i) * DEG2RAD
+      self%src(i)%glon = coords(1,i)
+      self%src(i)%glat = coords(2,i)
+!!$      write(*,*) i, coords(:,i)
+!!$      write(*,*) i, self%src(i)%glon, self%src(i)%glat
+!!$      write(*,*)
 
-      do j=1, self%nactive
-        self%src(i)%T(j)%nside = data(self%b2a(j))%info%nside 
-        self%src(i)%T(j)%nside_febecop = self%nside_febecop
+      ! Normalize to first frequency
+      self%src(i)%amp_precomp = star_catalog(:,i)/star_catalog(1,i)
+
+      do j=1, numband !self%nactive
+         ja = self%b2a(j)
+         if (ja == -1) cycle
+        self%src(i)%T(ja)%nside = data(j)%info%nside 
+        self%src(i)%T(ja)%nside_febecop = self%nside_febecop
         !self%src(i)%T(j)%np = 
-        self%src(i)%T(j)%nmaps = self%nmaps
+        self%src(i)%T(ja)%nmaps = self%nmaps
       end do
 
       ! Check for processing mask; disable source if within mask
@@ -1800,21 +1811,36 @@ contains
   end subroutine read_radial_beam
 
   ! Sample one overal amplitude per pointsource
-  subroutine samplePtsrcAmp(self, cpar, handle)
+  subroutine samplePtsrcAmp(self, cpar, handle, samp_group)
     implicit none
     class(comm_ptsrc_comp),                  intent(inout)  :: self
     type(comm_params),                       intent(in)     :: cpar
     type(planck_rng),                        intent(inout)  :: handle
+    integer(i4b),                            intent(in)     :: samp_group
 
-    integer(i4b) :: p, i, q, l, la, ierr, pix
+    integer(i4b) :: p, i, q, k, l, la, ierr, pix, ind, nband
     real(dp) :: amp, s, A, B, A_tot, B_tot, x_tot, src_amp, beam, noise, A_loc, B_loc
-
+    character(len=64),        dimension(100) :: bands
+    logical(lgt), allocatable, dimension(:) :: active
+    
     if(.not. self%precomputed_amps) then
       if(self%myid == 0) write(*,*) "WARNING: samplePtrscAmps should only be used for stars with precomputed amplitudes"
     end if
 
-    write(*,*) "Sampling Star Amplitudes"
+    !write(*,*) "Sampling Star Amplitudes"
 
+!    call data(1)%res%writeFITS("res.fits")
+
+    ! Find contributing bands
+    call get_tokens(cpar%cg_samp_group_bands(samp_group), ",", bands, nband)
+    allocate(active(numband))
+    active = .false.
+    do l = 1, numband
+       if (self%b2a(l) /= -1) then
+          k = get_string_index(bands(1:nband), data(l)%label, allow_missing=.true.)
+          if (k /= -1) active(l) =.true.
+       end if
+    end do
 
     do p=1, self%nmaps
       do i=1, self%nsrc
@@ -1824,7 +1850,7 @@ contains
         end if
         call mpi_bcast(amp,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
         do l = 1, numband
-          if (self%F_null(l)) cycle
+          if (.not. active(l)) cycle
           la = self%b2a(l)
           if (p == 1 .and. data(l)%pol_only) cycle
 
@@ -1836,25 +1862,30 @@ contains
           end do
         end do
 
+!        call data(1)%res%writeFITS("res2.fits")
+!        call mpi_finalize(ierr)
+!        stop
+        
         ! solve A x = B
         ! A = S^T N^-1 S
         ! B = S^T N^-1 D
-        A = 0
-        B = 0
+        A = 0.d0
+        B = 0.d0
         do l = 1, numband
-          A_loc = 0
-          B_loc = 0
-          if (self%F_null(l)) cycle
+          !A_loc = 0
+          !B_loc = 0
+          if (.not. active(l)) cycle
           if (p == 1 .and. data(l)%pol_only) cycle
           la = self%b2a(l)
           do q = 1, self%src(i)%T(la)%np
             src_amp = self%src(i)%amp_precomp(la)
-            beam = self%src(i)%T(la)%map(q,p)
-            pix = self%src(i)%T(la)%pix(q,1)
-            noise = data(l)%N%rms_pix(pix, p)
+            beam    = self%src(i)%T(la)%map(q,p)
+            pix     = self%src(i)%T(la)%pix(q,1)
+            noise   = data(l)%N%rms_pix(pix, p)
             if(noise > 0) then
-              A = A + src_amp*src_amp*beam*beam/(noise*noise)
-              B = B + src_amp*data(l)%res%map(pix, p)/(noise*noise)
+              A = A + src_amp*beam * src_amp*beam           /(noise*noise)
+              B = B + src_amp*beam * data(l)%res%map(pix, p)/(noise*noise)
+              !write(*,*) l, q, data(l)%res%map(pix, p), noise, src_amp, beam, A, B
               !A_loc = A_loc + src_amp*src_amp*beam*beam*noise*noise
               !B_loc = B_loc + src_amp*data(l)%res%map(pix, p)*noise*noise 
 
@@ -1871,26 +1902,38 @@ contains
           !  write(*,*) "In band ", l, " source ", i, " has amplitude ", A_loc, " expected amplitude ", B_loc 
           !end if
         end do
-       
+
+!        write(*,*) cpar%myid_chain, 'tot', A, B
+        
         ! sum A and B over all cores
         call mpi_reduce(A, A_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
         call mpi_reduce(B, B_tot, 1, MPI_DOUBLE_PRECISION, MPI_SUM, cpar%root, MPI_COMM_WORLD, ierr)
 
         ! root does the division and adds the fluctuation term
-        if(self%myid == 0 .and. B > 0.d0) then
-          write(*,*) A, B
-          x_tot = B/A + sqrt(1.d0/A)*rand_gauss(handle) 
-          if(x_tot < 0) x_tot = 0
-          write(*,*) "Star ", i, " old amplitude ", self%x(i,P), " new amplitude ", x_tot
+        if(self%myid == 0) then
+           if (A_tot > 0) then
+              x_tot = B_tot/A_tot !+ sqrt(1.d0/A_tot)*rand_gauss(handle)
+              if (1.d0/sqrt(A_tot) > 1 .or. x_tot < 0.d0) x_tot = 0.d0
+           else
+              x_tot = 0.d0
+           end if
+          !if(x_tot < 0) x_tot = 0
+          if (mod(i,10000) == 0) then
+!             write(*,*) A_tot, B_tot
+             write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
+          end if
           self%x(i,p) = x_tot
         end if
+
+!        call mpi_finalize(ierr)
+!        stop
 
         ! broadcast final result to all cores
         call mpi_bcast(x_tot, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
 
         ! subtract pointsource from residual
         do l = 1, numband
-          if (self%F_null(l)) cycle
+          if (.not. active(l)) cycle
           if (p == 1 .and. data(l)%pol_only) cycle
 
           la = self%b2a(l)
@@ -1906,6 +1949,8 @@ contains
       end do
     end do
 
+    deallocate(active)
+    
   end subroutine samplePtsrcAmp
 
 
@@ -1931,14 +1976,17 @@ contains
     delta_lnL_threshold = 25.d0
     n                   = 101
     n_ok                = 50
-    n_gibbs             = 3
+    n_gibbs             = 1
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
 
     if(self%precomputed_amps) then
+       write(*,*) 'Should not be here in samplePtsrcSpecInd'
+       call mpi_finalize(ierr)
+       stop
       !we only want to sample one overall amplitude
-      call samplePtsrcAmp(self, cpar, handle)
-      return
+!      call samplePtsrcAmp(self, cpar, handle)
+!      return
     end if
 
 

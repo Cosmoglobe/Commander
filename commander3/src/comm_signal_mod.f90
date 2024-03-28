@@ -203,18 +203,27 @@ contains
     
   end subroutine dump_components
 
-  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
+  subroutine sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
     integer(i4b),      intent(in)    :: samp_group
     type(planck_rng),  intent(inout) :: handle, handle_noise
+    logical(lgt), intent(in), optional :: store_buff
 
     integer(i4b) :: stat, i, j, l, m, nactive
     real(dp)     :: Nscale = 1.d-4
     class(comm_comp), pointer :: c => null()
     character(len=32) :: cr_active_bands(100)
     real(dp),           allocatable, dimension(:) :: rhs, x, mask
+    class(comm_map),     pointer :: res  => null()
+    logical(lgt) :: storebuff
+
+    if (present(store_buff)) then
+      storebuff = store_buff
+    else
+      storebuff = .false.
+    end if
 
     allocate(x(ncr), mask(ncr))
 
@@ -241,18 +250,27 @@ contains
       end do
     end if
    
-    !TODO: (I think) add code here to sample star amplitudes
+    ! Sample point source amplitudes
     c => compList 
     do while (associated(c))
-      select type (c)
-      class is (comm_ptsrc_comp)
-        if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
-          call c%samplePtsrcAmp(cpar, handle)
-        end if
-      end select
-      c => c%nextComp()
+       select type (c)
+       class is (comm_ptsrc_comp)
+          if(c%precomputed_amps .and. c%active_samp_group(samp_group)) then
+             ! Initialize residual maps
+             do l = 1, numband
+                res             => compute_residual(l)
+                data(l)%res%map =  res%map
+                call res%dealloc(); deallocate(res)
+                nullify(res)
+             end do
+             ! Perform sampling
+             call c%samplePtsrcAmp(cpar, handle, samp_group)
+             return
+          end if
+       end select
+       c => c%nextComp()
     end do
-
+    
     ! If mono-/dipole are sampled, check if they are priors for a component zero-level
     c => compList
     do while (associated(c))
@@ -280,7 +298,7 @@ contains
     call initPrecond(cpar%comm_chain)
     call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
-    call cr_x2amp(samp_group, x)
+    call cr_x2amp(samp_group, x, store_buff=storebuff)
     call update_status(status, "cr_end")
     deallocate(rhs,x)
 
@@ -325,6 +343,102 @@ contains
     end do
 
   end subroutine sample_amps_by_CG
+
+  subroutine revert_CG_amps(cpar)
+    implicit none
+
+    type(comm_params), intent(in)    :: cpar
+    integer(i4b)                     :: samp_group
+
+    ! If an MH step is rejected, returns amplitudes to the values stored as alm_buff
+
+    integer(i4b) :: i, ind
+    class(comm_comp), pointer :: c => null()
+
+    do samp_group = 1, cpar%cg_num_user_samp_groups
+
+       if (cpar%myid == 0 .and. samp_group == 1) then
+         write(*,*) 'Reverting to buffer values. Did you run sample_maps_with_CG with '
+         write(*,*) 'store_buff = .true.?'
+       end if
+
+       ind = 1
+       c   => compList
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             do i = 1, c%x%info%nmaps
+                if (c%active_samp_group(samp_group)) then
+                 c%x%alm(:,i) = c%x%alm_buff(:,i) 
+                end if
+                ind = ind + c%x%info%nalm
+             end do
+          class is (comm_ptsrc_comp)
+             if(.not. c%precomputed_amps) then
+               do i = 1, c%nmaps
+                 if (c%myid == 0) then
+                   if (c%active_samp_group(samp_group)) then
+                     c%x(:,i) = c%x_buff(:,i)
+                   end if
+                   ind = ind + c%nsrc
+                 end if
+               end do
+             end if
+          class is (comm_template_comp)
+             if (c%myid == 0) then
+                if (c%active_samp_group(samp_group)) then
+                   c%x(1,1) = c%x_buff(1,1)
+                end if
+                ind      = ind + 1
+             end if
+          end select
+          c => c%nextComp()
+       end do
+     end do
+
+  end subroutine revert_CG_amps
+
+
+  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff)
+    !
+    !
+    !  Convenience function for performing amplitude sampling over
+    !  all sampling groups
+    !
+    !
+    implicit none
+
+    type(comm_params), intent(in)    :: cpar
+    type(planck_rng),  intent(inout) :: handle, handle_noise
+    logical(lgt), intent(in), optional :: store_buff
+
+
+    integer(i4b)                     :: samp_group
+    logical(lgt)  :: storebuff
+
+    if (present(store_buff)) then
+      storebuff = store_buff
+    else
+      storebuff = .false.
+    end if
+
+
+
+     call timer%start(TOT_AMPSAMP)
+     do samp_group = 1, cpar%cg_num_user_samp_groups
+        if (cpar%myid_chain == 0) then
+           write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
+           & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
+           & trim(cpar%cg_samp_group(samp_group))
+        end if
+        call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=storebuff)
+
+        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+
+     end do
+     call timer%stop(TOT_AMPSAMP)
+
+  end subroutine sample_all_amps_by_CG
 
   subroutine initPrecond(comm)
     implicit none

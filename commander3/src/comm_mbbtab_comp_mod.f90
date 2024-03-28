@@ -67,6 +67,7 @@ contains
 
     c%npar         = 2
     allocate(c%poltype(c%npar))
+    !if (cpar%myid == 0) write(*,*) cpar%cs_poltype(:,id_abs)
     do i = 1, c%npar
        c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
@@ -130,6 +131,9 @@ contains
 
     ! Read SED table
     call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
+
+    ! Initialize SED priors
+    c%SEDtab_prior = cpar%cs_SED_prior(id_abs)
 
     ! Initialize mixing matrix
     call c%updateMixmat

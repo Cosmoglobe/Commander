@@ -176,6 +176,9 @@ module comm_param_mod
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_orb_abscal
      logical(lgt),       allocatable, dimension(:)   :: ds_tod_subtract_zodi
      integer(i4b),       allocatable, dimension(:)   :: ds_tod_freq
+     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_mask
+     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_model
+     character(len=512), allocatable, dimension(:)   :: ds_tod_solar_init
 
      ! Component parameters
      character(len=512) :: cs_inst_parfile
@@ -248,6 +251,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_prior_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
+     real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
@@ -585,6 +589,7 @@ contains
     allocate(cpar%ds_tod_procmask1(n), cpar%ds_tod_procmask2(n), cpar%ds_tod_bp_init(n))
     allocate(cpar%ds_tod_instfile(n), cpar%ds_tod_dets(n), cpar%ds_tod_scanrange(n,2))
     allocate(cpar%ds_tod_tot_numscan(n), cpar%ds_tod_flag(n), cpar%ds_tod_abscal(n), cpar%ds_tod_halfring(n), cpar%ds_tod_subtract_zodi(n), cpar%ds_tod_freq(n))
+    allocate(cpar%ds_tod_solar_model(n), cpar%ds_tod_solar_mask(n), cpar%ds_tod_solar_init(n))
     cpar%ds_nside = 0 ! Zodi mod currently uses cpar nsides to cache some stuff. Setting to 0 to filter unique nsides
 
     do i = 1, n
@@ -632,7 +637,12 @@ contains
             & par_string=cpar%ds_component_sensitivity(i))
 
        !read in all TOD parameters
-       call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
+       if (cpar%enable_TOD_analysis) then
+          call get_parameter_hashtable(htbl, 'BAND_TOD_TYPE'//itext, len_itext=len_itext, par_string=cpar%ds_tod_type(i))
+       else
+          cpar%ds_tod_type(i) = 'none'
+       end if
+
        if (cpar%enable_TOD_analysis .or. cpar%resamp_CMB) then
           if (trim(cpar%ds_tod_type(i)) /= 'none') then
              call get_parameter_hashtable(htbl, 'BAND_TOD_INIT_FROM_HDF'//itext, len_itext=len_itext, &
@@ -651,6 +661,12 @@ contains
                   & par_string=cpar%ds_tod_procmask1(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_SMALL_PROCMASK'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_procmask2(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_MODEL'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_solar_model(i))
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_solar_mask(i), path=.true.)
+             call get_parameter_hashtable(htbl, 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext, len_itext=len_itext, &
+                  & par_string=cpar%ds_tod_solar_init(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_FILELIST'//itext, len_itext=len_itext, &
                   & par_string=cpar%ds_tod_filelist(i), path=.true.)
              call get_parameter_hashtable(htbl, 'BAND_TOD_JUMPLIST'//itext, len_itext=len_itext, &
@@ -772,6 +788,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
+    allocate(cpar%cs_SED_prior(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -2593,6 +2610,8 @@ contains
     if (trim(cpar%cs_type(i)) == 'MBBtab') then
        call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
+            & par_dp=cpar%cs_SED_prior(i))
     end if
 
   end subroutine read_mbb_params_hash
@@ -3471,6 +3490,8 @@ end subroutine
        if (cpar%enable_TOD_analysis .and. trim(cpar%ds_tod_type(i)) /= 'none') then
           call validate_file(trim(cpar%ds_tod_procmask1(i)), 'BAND_TOD_MAIN_PROCMASK'//itext)  ! Procmask1
           call validate_file(trim(cpar%ds_tod_procmask2(i)), 'BAND_TOD_SMALL_PROCMASK'//itext)  ! Procmask2
+          call validate_file(trim(cpar%ds_tod_solar_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
+          call validate_file(trim(cpar%ds_tod_solar_init(i)), 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext)  ! Initial solar centric map
           call validate_file(trim(cpar%ds_tod_filelist(i)), 'BAND_TOD_FILELIST'//itext)   ! Filelist
           if (trim(cpar%ds_tod_jumplist(i)) /= 'none') then
             call validate_file(trim(cpar%ds_tod_jumplist(i)), 'BAND_TOD_JUMPLIST'//itext)   ! Jumplist
@@ -3608,6 +3629,7 @@ end subroutine
     logical(lgt),     intent(in), optional :: should_exist
     logical(lgt) :: exist, default
     default = .true.; if (present(should_exist)) default = should_exist
+    if (trim(filename) == 'none' .or. trim(filename) == 'fullsky') return
     inquire(file=trim(filename), exist=exist)
     if (exist .neqv. default) then
        if (default) then
@@ -3850,6 +3872,11 @@ end subroutine
          deallocate(itext,jtext)
       end if
 
+      if (val == '#') then
+        write(*,*) trim(parname), ' has invalid value #, double check your parameter file'
+        stop
+      end if
+
       if (present(par_int)) then
          read(val,*) par_int
       elseif (present(par_char)) then
@@ -3883,8 +3910,6 @@ end subroutine
 
       deallocate(val)
       return
-
-      !if (cpar%myid == cpar%root) then
 
 1     write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
       write(*,*) ""
@@ -3957,16 +3982,20 @@ end subroutine
     character(len=512), intent(out) :: chainfile
     integer(i4b),       intent(out) :: initsamp
     
-    integer(i4b) :: i, num
+    integer(i4b) :: i, num, e
     character(len=512), dimension(2) :: toks
 
 
     call get_tokens(string, ":", toks, num)    
     chainfile = toks(1)
-    read(toks(2),*) initsamp
+    read(toks(2),*, iostat=e) initsamp
+    if (e .ne. 0) then
+      write(*,*) 'Issue with chain file formatting, got ', initsamp, trim(toks(2))
+    end if
 
     if (index(chainfile, '.h5') == 0) then
-        write(*,*) "poorly formatted chainfile", trim(string)
+        write(*,*) "poorly formatted naming of chain file", trim(string)
+        write(*,*) "Should be filename:sample, e.g., data/chain_c0001.h5:12"
         stop
     end if
     

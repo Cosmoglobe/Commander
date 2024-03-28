@@ -336,7 +336,6 @@ contains
        c => c%nextComp()
     end do
 
-    ! Do component separation
 
     if (cpar%myid_chain == 0) then
       do i = 1, n_sample
@@ -345,18 +344,8 @@ contains
       write(*,*) '|  Generating chisq for proposal gains'
     end if
 
-    call timer%start(TOT_AMPSAMP)
-    do samp_group = 1, cpar%cg_num_user_samp_groups
-       if (cpar%myid_chain == 0) then
-          write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-               & samp_group, ' of ', cpar%cg_num_user_samp_groups
-       end if
-       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
-
-       if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-    end do
-    call timer%stop(TOT_AMPSAMP)
+    ! Do component separation
+    call sample_all_amps_by_CG(cpar, handle, handle_noise)
 
     chisq_prop = 0d0
 
