@@ -449,7 +449,7 @@ contains
        call int2string(i,itext)
        call get_parameter_hashtable(htbl, 'INIT_CHAIN'//itext,     par_string=cpar%init_chain_prefixes(i))
     end do
-    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
+    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)  !!! only_pol
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_TEMPERATURE', par_lgt=cpar%only_I)
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
     call get_parameter_hashtable(htbl, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)

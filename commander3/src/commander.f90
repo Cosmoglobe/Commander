@@ -191,7 +191,7 @@ program commander
   ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
-
+  
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
@@ -199,13 +199,13 @@ program commander
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
-
+  
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
   if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(ok)
   call update_mixing_matrices(update_F_int=.true.)       
-
+  
   if (cpar%output_input_model) then
      if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
      call output_FITS_sample(cpar, 999999, .false.)

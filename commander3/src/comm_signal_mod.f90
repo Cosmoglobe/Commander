@@ -75,7 +75,9 @@ contains
           case ("curvature") 
              c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")
+             !if (cpar%myid == 0) write(*,*) 'dd beg', i, trim(cpar%cs_type(i))
              c => comm_physdust_comp(cpar, ncomp, i)
+             !if (cpar%myid == 0) write(*,*) 'dd end', i, trim(cpar%cs_type(i))
           case ("spindust")
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("spindust2")
@@ -120,6 +122,8 @@ contains
        case default
           call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
        end select
+       !if (cpar%myid == 0 .and. cpar%verbosity > 0) &
+       !     & write(*,fmt='(a,i5,a,a)') ' |  finished  component ', i, ' : ', trim(cpar%cs_label(i))
     end do
 
     if (ncomp == 0) call report_error("Error: No signal components included in parameter file.")
@@ -138,8 +142,6 @@ contains
        c             => c%nextComp()
     end do
 
-!    call mpi_finalize(i)
-!    stop
        
     ! go through compList and check if any diffuse component is using a band monopole
     ! as the zero-level prior
@@ -362,7 +364,7 @@ contains
 
     if (trim(cpar%init_chain_prefix) == 'none' .and. &
          & .not. present(init_from_output)) return
-
+    
     ! Open default HDF file
     call int2string(cpar%mychain,   ctext)
     if (present(init_from_output)) then
@@ -397,7 +399,7 @@ contains
        call close_hdf_file(file)
        return
     end if
-
+    
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
     if (trim(cpar%cs_init_inst_hdf) /= 'none' .or. present(init_from_output)) then
@@ -449,6 +451,7 @@ contains
           end if
        end do
     end if
+
     
     ! Initialize component parameters
     c   => compList
@@ -473,6 +476,7 @@ contains
        end if
        c => c%nextComp()
     end do
+
 
     ! Initialize TOD parameters
     if (cpar%enable_TOD_analysis) then
@@ -556,6 +560,7 @@ contains
           deallocate(regnoise)
        end do
     end if
+
 
     ! Close HDF file
     call close_hdf_file(file)
