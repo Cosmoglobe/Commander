@@ -39,17 +39,38 @@ OUTPUT_DIRECTORY              = chains_akari
 
 DATA_DIRECTORY                 = /mn/stornext/d5/data/metins/dirbe/data
 
-NUMBAND                        =  1
+NUMBAND                        =  4
 
 # TOD channels
-INCLUDE_BAND001                = .true.    # 1.25 micron T 01 first half
+INCLUDE_BAND001                = .true.     # N60
+INCLUDE_BAND002                = .false.    # WIDE-S
+INCLUDE_BAND003                = .false.    # WIDE-L
+INCLUDE_BAND004                = .false.    # N160
 
 @START 001
-@DEFAULT bands/AKARI/AKARI_N160.defaults
-BAND_LABEL&&&                      = AKARI_N160
+@DEFAULT bands/AKARI/AKARI_N60_v1.defaults
+BAND_LABEL&&&                      = AKARI_N60
+BAND_LMAX&&&                       = 1000
+BAND_MAPFILE&&&                    = akari_160_1_8192.fits        # Official map
+BAND_NOISEFILE&&&                  = akari_160_temprms_8192.fits  # RMS map; set to 1 for now
+BAND_TOD_FILELIST&&&               = filelist_AKARI_N60_v00.txt
+BAND_TOD_START_SCANID&&&           = 1
+BAND_TOD_END_SCANID&&&             = 1
+BAND_TOD_TYPE&&&                   = AKARI
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MAIN_PROCMASK&&&          = mask_fullsky_n8192.fits none
+BAND_TOD_ZODI_MASK&&&              = mask_fullsky_n8192.fits none
+BAND_TOD_INIT_FROM_HDF&&&          = none  default
+@END 001
+
+@START 002
+@DEFAULT bands/AKARI/AKARI_WIDE-S_v1.defaults
+BAND_LABEL&&&                      = AKARI_WIDE-S
 BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
 BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
-BAND_TOD_FILELIST&&&               = filelist_AKARI_160_v1.txt
+BAND_TOD_FILELIST&&&               = filelist_AKARI_WIDE-S_v1.txt
 BAND_TOD_START_SCANID&&&           = 1
 BAND_TOD_END_SCANID&&&             = 1
 BAND_TOD_TYPE&&&                   = AKARI
@@ -59,7 +80,41 @@ BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
 BAND_TOD_MAIN_PROCMASK&&&          = none
 BAND_TOD_ZODI_MASK&&&              = none
 BAND_TOD_INIT_FROM_HDF&&&          = none  default
-@END 001
+@END 002
+
+@START 003
+@DEFAULT bands/AKARI/AKARI_WIDE-L_v1.defaults
+BAND_LABEL&&&                      = AKARI_WIDE-L
+BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
+BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
+BAND_TOD_FILELIST&&&               = filelist_AKARI_WIDE-L_v1.txt
+BAND_TOD_START_SCANID&&&           = 1
+BAND_TOD_END_SCANID&&&             = 1
+BAND_TOD_TYPE&&&                   = AKARI
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MAIN_PROCMASK&&&          = none
+BAND_TOD_ZODI_MASK&&&              = none
+BAND_TOD_INIT_FROM_HDF&&&          = none  default
+@END 003
+
+@START 004
+@DEFAULT bands/AKARI/AKARI_N160_v1.defaults
+BAND_LABEL&&&                      = AKARI_N160
+BAND_MAPFILE&&&                    = akari_160_1_4096.fits        # Official map
+BAND_NOISEFILE&&&                  = akari_160_temprms_4096.fits  # RMS map; set to 1 for now
+BAND_TOD_FILELIST&&&               = filelist_AKARI_N160_v1.txt
+BAND_TOD_START_SCANID&&&           = 1
+BAND_TOD_END_SCANID&&&             = 1
+BAND_TOD_TYPE&&&                   = AKARI
+BAND_TOD_SOLAR_CENTRIC_MODEL&&&    = none
+BAND_TOD_SOLAR_CENTRIC_MASK&&&     = none
+BAND_TOD_SOLAR_CENTRIC_INITMAP&&&  = none
+BAND_TOD_MAIN_PROCMASK&&&          = none
+BAND_TOD_ZODI_MASK&&&              = none
+BAND_TOD_INIT_FROM_HDF&&&          = none  default
+@END 004
 
 
 ##############################################################
@@ -80,10 +135,10 @@ INCLUDE_COMP07                = .true.   # Monopoles
 INCLUDE_COMP08                = .true.   # Cold dust, HI correlated, MBBtab
 INCLUDE_COMP09                = .true.   # Hot dust, CII correlated, MBBtab
 INCLUDE_COMP10                = .true.   # Nearby dust, Edenhofer et al., MBBtab, free weights
-INCLUDE_COMP11                = .true.   # CII
-INCLUDE_COMP12                = .true.   # CO combined
-INCLUDE_COMP13                = .true.   # stars, WISE-determined positions, GAIA-determined SEDs
-INCLUDE_COMP14                = .true.   # compact objects from WISE, except the above
+INCLUDE_COMP11                = .false.   # CII
+INCLUDE_COMP12                = .false.   # CO combined
+INCLUDE_COMP13                = .false.   # stars, WISE-determined positions, GAIA-determined SEDs
+INCLUDE_COMP14                = .false.   # compact objects from WISE, except the above
 
 # CMB
 @START 01
@@ -125,7 +180,7 @@ COMP_INIT_FROM_HDF&&          = default
 @START 07
 @DEFAULT components/monodipole/md_LFI.defaults
 COMP_MD_DEFINITION_FILE&&     = init_md_static_v24.dat
-COMP_INIT_FROM_HDF&&          = default
+COMP_INIT_FROM_HDF&&          = none default
 @END 07
 
 
