@@ -45,29 +45,15 @@ DIRBE_POS_FILES = [
     "dmr_anc_90326_90356.txt",
 ]
 
-BANDS = [
-        'N60',         # Number of pixels (40) 25.28 Hz fsamp
-        'WIDE-S',      #                  (60) 25.28 Hz fsamp
-        'WIDE-L',      #                  (45)  16.86 fsamp
-        'N160'         #                  (30)  16.86 fsamp
-]
-NDET = [40, 60, 45, 30]
-DIRBE_START_DATE = Time(datetime(2006, 4, 1))   # April 1, 2006 Date uncertain
+BANDS = ['N60', 'WIDE-S', 'WIDE-L', 'N160']
+NDETS = [40, 60, 45, 30]
+DIRBE_START_DATE = Time(datetime(1989, 12, 11))
+DETECTOR_LABELS = ("A", "B", "C")
 WAVELENGTHS = (65, 90, 140, 160)
 DETECTORS = []
-for b, ndet in zip(BANDS, NDET):
-    for i in range(ndet):
-        DETECTORS.append(f'{b}_{i+1:02}')
-
-
-
-
-BAND_TO_WAVELENGTH: dict[str, float] = {}
-
-for BAND, WAVE in zip(BANDS, WAVELENGTHS):
-    BAND_TO_WAVELENGTH[BAND] = WAVE
-
-print(BAND_TO_WAVELENGTH)
+for i in range(len(BANDS)):
+    for j in range(NDETS[i]):
+        DETECTORS.append(f'{BANDS[i]}_{j+1:02}')
 
 
 ROWS_IN_BEAM_FILE_TO_SKIP = 19
@@ -83,9 +69,20 @@ PLANET_RADII = {
     "neptune": 1,
 }
 
-SIGMA_0 = {
-        1: 40
-}
+
+for b, ndet in zip(BANDS, NDETS):
+    for i in range(ndet):
+        DETECTORS.append(f'{b}_{i+1:02}')
+
+
+BAND_TO_WAVELENGTH: dict[str, float] = {}
+
+for BAND, WAVE in zip(BANDS, WAVELENGTHS):
+    BAND_TO_WAVELENGTH[BAND] = WAVE
+
+SIGMA_0 = {}
+for band in BANDS:
+    SIGMA_0[band] = 1
 
 
 def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
@@ -140,18 +137,9 @@ def pix_to_lonlat(
     return np.column_stack((latitudes, longitudes))
 
 
-#BANDS = [
-#        'N60',         # Number of pixels (40) 25.28 Hz fsamp
-#        'WIDE-S',      #                  (60) 25.28 Hz fsamp
-#        'WIDE-L',      #                  (45)  16.86 fsamp
-#        'N160'         #                  (30)  16.86 fsamp
-#37
-#39
-#58
-#61
 @cache
 def get_akari_fwhm() -> dict[str, float]:
-    """Returns a dictionary mapping the Akari bands to FWHM in arcmin."""
+    """Returns a dictionary mapping the DIRBE bands to FWHM in radians."""
 
     fwhms: dict[str, float] = {}
 
@@ -171,13 +159,13 @@ def get_akari_fwhm() -> dict[str, float]:
 
 
 @cache
-def get_akari_beams() -> dict[str, NDArray[np.floating]]:
+def get_akari_beams(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
     """
-    Returns a dictionary mapping the Akari bands to beams.
+    Returns a dictionary mapping the DIRBE bands to beams.
     NOTE: Currently only returns a sequence of 0's.
     """
-    NSIDE = 128
-    LMAX = 3 * NSIDE
+    #NSIDE = 128
+    #LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
     DEFAULT_BEAM = np.zeros((3, N_ALMS))  # Update this with actual beams
 
@@ -189,20 +177,19 @@ def get_akari_beams() -> dict[str, NDArray[np.floating]]:
 
 
 @cache
-def get_akari_sidelobes() -> dict[str, NDArray[np.floating]]:
+def get_akari_sidelobes(NSIDE: int, LMAX: int) -> dict[str, NDArray[np.floating]]:
     """
     Returns a dictionary mapping the DIRBE bands to sidelobes.
     NOTE: We dont have dirbe sidelobes so we just returns a sequence of 0's.
     """
-    NSIDE = 128
-    LMAX = 3 * NSIDE
+    #NSIDE = 128
+    #LMAX = 3 * NSIDE
     N_ALMS = LMAX**2 + 2 * LMAX + 1
     DEFAULT_SIDELOBES = np.zeros((3, N_ALMS))  # Update this with actual sidelobes
 
     sidelobes: dict[str, NDArray[np.floating]] = {}
     for band in DETECTORS:
         sidelobes[band] = DEFAULT_SIDELOBES
-
     return sidelobes
 
 
@@ -259,9 +246,11 @@ def test_naming() -> None:
 
     with h5py.File("test.h5", "w") as file:
         for detector in BANDS:
-            file.create_group(f"{detector}")
-        for band in DETECTORS:
-            file.create_group(f"{band}")
+            file.create_group(f"{detector:02}_{WAVELENGTHS[detector - 1]}um")
+            for band in DETECTOR_LABELS:
+                file.create_group(f"{detector:02}_{band}")
+                if detector > 3:
+                    break
 
 
 @dataclass
@@ -308,6 +297,9 @@ def get_beam_data() -> dict[str, DetectorBeamData]:
                 )
 
     return data
+
+
+BEAM_DATA = get_beam_data()
 
 
 def get_sat_and_earth_pos(yday: int, time: float) -> tuple[np.ndarray, np.ndarray]:
@@ -379,7 +371,7 @@ def get_const_scalars(band: int) -> NDArray[np.floating]:
     return np.array([TEMP_GAIN, SIGMA_0[band], fknee, TEMP_ALPHA]).flatten()
 
 @cache
-def get_bandpass(band: str) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
+def get_bandpass(band: int) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
     '''
     Reported value is given nu I_nu units.
     '''
@@ -400,8 +392,6 @@ def get_bandpass(band: str) -> tuple[u.Quantity[u.micron], NDArray[np.float64]]:
         weights = bandpass[:,6]
     else:
         print('Unexpected bandpass label', band)
-
-    
 
     return freqs, weights
 
