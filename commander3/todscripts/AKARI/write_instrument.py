@@ -26,9 +26,9 @@ TEMP_MBEAM_EFF = 0
 
 
 def write_akari_instrument_file(output_path: str, version: int) -> None:
-    """Writes the Akari filelists for Commander3 using Mathew's script."""
+    """Writes the AKARI filelists for Commander3 using Mathew's script."""
 
-    filename = f"Akari_instrument_v{version:02}.h5"
+    filename = f"AKARI_instrument_v{version:02}.h5"
 
     instrument_file = commander_instrument(output_path, filename, version, "w")
 
@@ -42,18 +42,18 @@ def write_akari_instrument_file(output_path: str, version: int) -> None:
         frequencies = wavelengths.to(u.GHz, equivalencies=u.spectral())[::-1].value
         weights = weights[::-1]
         instrument_file.add_bandpass(
-            f'Akari_{detector}', frequencies, weights
+            f'AKARI_{detector}', frequencies, weights
         )
 
    
         for i in range(1, akari_utils.NDETS[band]+1):
             band_group_name = f"{detector}_{i:02}"
             instrument_file.add_bandpass(
-                f'Akari_{band_group_name}', frequencies, weights
+                f'AKARI_{band_group_name}', frequencies, weights
             )
             _add_fields(
                 instrument_file=instrument_file,
-                band_label=f'Akari_{band_group_name}',
+                band_label=f'AKARI_{band_group_name}',
                 beam=beams[band_group_name],
                 sidelobe=sidelobes[band_group_name],
                 fwhm=fwhms[band_group_name],

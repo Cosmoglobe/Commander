@@ -42,7 +42,7 @@ import zodipy
 # Path objects
 AKARI_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/akari/data")
 HDF5_PATH = Path("/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/")
-CIO_PATH = Path("/mn/stornext/u3/hke/data_d5/akari/TOD")
+CIO_PATH = Path('/mn/stornext/d16/cmbco/ola/akari/TODs')
 
 # system constants
 N_PROC = multiprocessing.cpu_count()
@@ -153,10 +153,10 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
     output_dict = {}
     for band in akari_utils.DETECTORS:
         for yday in yday_data:
-            if f'Akari_{band}' in yday.tods.keys():
-                output_dict[f'Akari_{band}'] =  CIO(tods=[yday.tods[f"Akari_{band}"]],
-                     pixels=[yday.pixels[f"Akari_{band}"]],
-                     flags=[yday.flags[f"Akari_{band}"]],
+            if f'AKARI_{band}' in yday.tods.keys():
+                output_dict[f'AKARI_{band}'] =  CIO(tods=[yday.tods[f"AKARI_{band}"]],
+                     pixels=[yday.pixels[f"AKARI_{band}"]],
+                     flags=[yday.flags[f"AKARI_{band}"]],
                      time_start=[yday.time_start],
                      time_stop=[yday.time_stop],
                      sat_pos_start=[yday.sat_pos_start],
@@ -167,18 +167,28 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
 
 
 def get_yday_data(
-        tod: NDArray, lon: NDArray, lat: NDArray, nside_out: int, planet_time_delta: timedelta, color_corr: bool
+        tod: NDArray, lon: NDArray, lat: NDArray, flags: NDArray, nside_out: int, planet_time_delta: timedelta, color_corr: bool
 ) -> list[YdayData]:
 
-    bands = ['WIDE-S']*60 + ['N60']*40
-    inds = np.concatenate((np.arange(60), np.arange(40))) + 1
-    data_ind = np.arange(100)
+
+    if len(tod) == 100:
+        # Processing SW pixels
+
+        bands = ['WIDE-S']*60 + ['N60']*40
+        inds = np.concatenate((np.arange(60), np.arange(40))) + 1
+        data_ind = np.arange(100)
+    else:
+        # Processing LW pixels
+
+        bands = ['WIDE-L']*45 + ['N160']*30
+        inds = np.concatenate((np.arange(45), np.arange(30))) + 1
+        data_ind = np.arange(75)
 
     with multiprocessing.Pool(processes=N_PROC) as pool:
         proc_chunks = [
             pool.apply_async(
                 get_yday_cio_data,
-                args=(tod[di], lon[di], lat[di], band, ind, nside_out, color_corr),
+                args=(tod[di], lon[di], lat[di], flags[di], band, ind, nside_out, color_corr),
             )
             for band, ind, di  in zip(bands, inds, data_ind)
         ]
@@ -189,6 +199,7 @@ def get_yday_cio_data(
     tod: NDArray,
     lon: NDArray,
     lat: NDArray,
+    flag: NDArray,
     band: str,
     ind: int,
     nside_out: int,
@@ -212,7 +223,7 @@ def get_yday_cio_data(
     tods: dict[str, np.ndarray] = {}
     pixels: dict[str, np.ndarray] = {}
     flags: dict[str, np.ndarray] = {}
-    band_label = f'Akari_{band}_{ind:02}'
+    band_label = f'AKARI_{band}_{ind:02}'
 
 
     # padd tods, pix and flags to remove gaps in data
@@ -220,7 +231,10 @@ def get_yday_cio_data(
 
     tods[band_label] = tod
 
-    flags[band_label] = pixels[band_label]*0
+
+
+
+    flags[band_label] = flag
 
     return YdayData(
         tods, 
@@ -250,7 +264,9 @@ def write_band(
 
     det_str = ""
     for i in range(ndet):
-        det_str = det_str + f'{band}_{i+1:02}, '
+        det_str = det_str + f'AKARI_{band}_{i+1:02}'
+        if i < ndet - 1:
+            det_str = det_str + ', '
     comm_tod.init_file(freq=filename, od="", mode="w")
 
 
@@ -263,10 +279,10 @@ def write_band(
     comm_tod.add_field(COMMON_GROUP + "/nside", [nside_out])
     comm_tod.add_field(COMMON_GROUP + "/det", np.string_(det_str + ","))
 
-    comm_tod.add_field(COMMON_GROUP + "/polang", [0])
+    comm_tod.add_field(COMMON_GROUP + "/polang", [0]*ndet)
     comm_tod.add_attribute(COMMON_GROUP + "/polang", "index", det_str)
 
-    comm_tod.add_field(COMMON_GROUP + "/mbang", [0])
+    comm_tod.add_field(COMMON_GROUP + "/mbang", [0]*ndet)
     comm_tod.add_attribute(COMMON_GROUP + "/mbang", "index", det_str)
 
 
@@ -294,8 +310,8 @@ def write_band(
         )
 
         for i in range(ndet):
-            det_lab = f'Akari_{band}_{i+1:02}'
-            pid_det_group = f"{pid_label}/{i+1:02}"
+            det_lab = f'AKARI_{band}_{i+1:02}'
+            pid_det_group = f"{pid_label}/{det_lab}"
             comm_tod.add_field(pid_det_group + "/flag", cio[det_lab].flags[pid], HUFFMAN_COMPRESSION)
 
             comm_tod.add_field(pid_det_group + "/tod", cio[det_lab].tods[pid])
@@ -330,6 +346,7 @@ def write_to_commander_tods(
     nside_out: int,
     version: int,
     out_path: Path,
+    chip: str,
     overwrite: bool = False,
 ) -> None:
     manager = multiprocessing.Manager()
@@ -339,7 +356,7 @@ def write_to_commander_tods(
     filenames = {}
     for band in akari_utils.BANDS:
         # name = f"DIRBE_{band:02}_nside{nside_out:03}_zodi_only"
-        name = f"Akari_{band}_v{version:02}"
+        name = f"AKARI_{band}_n{nside_out}_v{version:02}"
         multiprocessor_manager_dicts[name] = manager.dict()
         filenames[band] = name
 
@@ -357,9 +374,15 @@ def write_to_commander_tods(
     # Currently, writing commander h5 files uses a pretty unoptimal interface which is difficult to
     # parallelize without corrupting the written files. This is the go to way to concurrently write files
     # which is pretty ugly.
+
+    if chip == 'LW':
+        NDETS = akari_utils.NDETS[2:]
+        BANDS = akari_utils.BANDS[2:]
+    elif chip == 'SW':
+        NDETS = akari_utils.NDETS[:2]
+        BANDS = akari_utils.BANDS[:2]
     x = [[]]
-    for ndet, band in zip(akari_utils.NDETS[:2], akari_utils.BANDS[:2]):
-        print(band)
+    for ndet, band in zip(NDETS, BANDS):
         x[0].append(
         pool.apply_async(
             write_band,
@@ -382,46 +405,108 @@ def write_to_commander_tods(
     comm_tod.make_filelists()
 
 
+# SW fsamp 24 Hz, LW 16 Hz
+# Normal sampling, they reset either 0.5 sec, 1 sec, or 2 sec, to avoid detector
+# saturation.
+# Differential sampling/CDS, they only take a sample every two points in high
+# intensity regions.
+
+# We should make sure that the data are split based on the reset timing.
+
+# Once a minute, the calibration lamp is flashed for less than one second.
+
 def main() -> None:
     time_delta = timedelta(hours=1)
     files = range(1)
-    nside_out = 8196
+    nside_out = 512
 
     start_time = time.perf_counter()
     color_corr = False
-    version = 0
+    version = 2
 
-    print(f"{'Writing Akari h5 files':=^50}")
+    print(f"{'Writing AKARI h5 files':=^50}")
     print(f"{version=}, {nside_out=}")
     print(f"reading and processing cios for {len(files)} ydays...")
-    datfile = CIO_PATH/'FIS_SW_20060801000000_flux.pkl'
-    latfile = CIO_PATH/'FIS_SW_20060801000000_gb_lat.pkl'
-    lonfile = CIO_PATH/'FIS_SW_20060801000000_gb_lon.pkl'
-    with open(datfile, 'rb') as f:
-        tods = pickle.load(f)
-    with open(latfile, 'rb') as f:
-        lats = pickle.load(f)
-    with open(lonfile, 'rb') as f:
-        lons = pickle.load(f)
+    for chip in ['LW', 'SW']:
+        datfile = CIO_PATH/f'flux/{chip}/FIS_{chip}_20060801000000_flux.pkl'
+        latfile = CIO_PATH/f'lat/{chip}/FIS_{chip}_20060801000000_gb_lat.pkl'
+        lonfile = CIO_PATH/f'lon/{chip}/FIS_{chip}_20060801000000_gb_lon.pkl'
+        with open(datfile, 'rb') as f:
+            tods = pickle.load(f)
+        with open(latfile, 'rb') as f:
+            lats = pickle.load(f)
+        with open(lonfile, 'rb') as f:
+            lons = pickle.load(f)
 
-    yday_data = get_yday_data(
-        tods, lons, lats, nside_out=nside_out, planet_time_delta=time_delta, color_corr=color_corr
-    )
-    cios = get_cios(yday_data)
-    cio_time = time.perf_counter() - start_time
-    print("done")
-    print(
-        f"time spent reading in and preprocessing cios: {(cio_time/60):2.2f} minutes\n"
-    )
 
-    print("writing cios to h5 files...")
-    write_to_commander_tods(
-        cios,
-        nside_out=nside_out,
-        version=version,
-        out_path=AKARI_DATA_PATH,
-        overwrite=True,
-    )
+        flag_ind = 0
+
+        bad_frames = CIO_PATH/f'frame_flag/bad_frame/{chip}/FIS_{chip}_20060801000000_flame.pkl'
+        with open(bad_frames, 'rb') as f:
+            flag = np.array(pickle.load(f)).astype(int)
+            flag_ind += 1
+
+        flag_tot = np.zeros(flag.shape, dtype=int)
+
+        pixel_frames = []
+        flag_list = ['dead', 'no_diff', 'reset', 'rstanom', 'saturate', 'gpgl_tail']
+
+        flag_list += [f'gpgl_type{i}' for i in range(1,5)]
+        flag_list += [f'mtgl_type{i}' for i in range(1,5)]
+
+
+        for flag in flag_list:
+            pixel_frames.append(CIO_PATH/f'pixel_flag/{flag}/{chip}/FIS_{chip}_20060801000000_gb_{flag}.pkl')
+
+        for pf in pixel_frames:
+            with open(pf, 'rb') as f:
+                flag = np.array(pickle.load(f)).astype(int)
+                try:
+                    flag_tot[flag != 0] += 2**(flag_ind)
+                except IndexError:
+                    print(flag.shape, pf, 'not included because shape is wrong')
+                flag_ind += 1
+
+
+        status_list = ['calalon', 'calason', 'calbon', 'shtop', 'sinalon', 'sinason']
+        status_frames = []
+        for sl in status_list:
+            status_frames.append(CIO_PATH/f'status/{sl}/{chip}/FIS_{chip}_20060801000000_gb_{sl}.pkl')
+
+        for status, stat in zip(status_list, status_frames):
+            with open(stat, 'rb') as f:
+                flag = np.array(pickle.load(f)).astype(int)
+                if 'shtop' == status:
+                    flag = 1-flag
+                try:
+                    flag_tot[flag != 0] += 2**(flag_ind)
+                except IndexError:
+                    print(flag.shape, pf, 'not included because shape is wrong')
+                flag_ind += 1
+
+
+
+
+
+        yday_data = get_yday_data(
+            tods, lons, lats, flag_tot, nside_out=nside_out, planet_time_delta=time_delta, color_corr=color_corr
+        )
+        cios = get_cios(yday_data)
+        cio_time = time.perf_counter() - start_time
+        print("done")
+        print(
+            f"time spent reading in and preprocessing cios: {(cio_time/60):2.2f} minutes\n"
+        )
+
+        print("writing cios to h5 files...")
+        write_to_commander_tods(
+            cios,
+            nside_out=nside_out,
+            version=version,
+            out_path=AKARI_DATA_PATH,
+            chip=chip,
+            overwrite=True,
+        )
     h5_time = time.perf_counter() - start_time
     print("done")
     print(f"time spent writing to h5: {(h5_time/60):2.2f} minutes\n")
