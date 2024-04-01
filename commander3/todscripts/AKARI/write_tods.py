@@ -282,6 +282,7 @@ def write_band(
         , pid_0: int, raw: bool) -> None:
     COMMON_GROUP = "/common"
     HUFFMAN_COMPRESSION = ["huffman", {"dictNum": 1}]
+    HUFFMAN_COMPRESSION_TOD = ["huffman", {"dictNum": 2}]
 
     det_str = ""
     for i in range(ndet):
@@ -336,7 +337,7 @@ def write_band(
             comm_tod.add_field(pid_det_group + "/flag", cio[det_lab].flags[pid], HUFFMAN_COMPRESSION)
 
             if raw:
-                comm_tod.add_field(pid_det_group + "/ztod", cio[det_lab].tods[pid], HUFFMAN_COMPRESSION)
+                comm_tod.add_field(pid_det_group + "/ztod", cio[det_lab].tods[pid], HUFFMAN_COMPRESSION_TOD)
             else:
                 comm_tod.add_field(pid_det_group + "/tod", cio[det_lab].tods[pid])
             comm_tod.add_field(pid_det_group + "/pix", cio[det_lab].pixels[pid], HUFFMAN_COMPRESSION)
@@ -454,7 +455,7 @@ def main() -> None:
 
     start_time = time.perf_counter()
     color_corr = False
-    version = 0
+    version = 3
 
     raw = True
 
