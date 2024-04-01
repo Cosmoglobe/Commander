@@ -484,7 +484,7 @@ def main() -> None:
         pid_now += 1
         for chip in ['LW', 'SW']:
             if raw:
-                datfile = CIO_PATH/f'ADU/{chip}/FIS_{chip}_{t}_gb_adu.pkl'
+                datfile = CIO_PATH/f'ADU/{chip}/FIS_{chip}_{t}_adu.pkl'
             else:
                 datfile = CIO_PATH/f'flux/{chip}/FIS_{chip}_{t}_flux.pkl'
             latfile = CIO_PATH/f'lat/{chip}/FIS_{chip}_{t}_gb_lat.pkl'
