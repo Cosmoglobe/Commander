@@ -37,9 +37,10 @@ from scipy.interpolate import interp1d
 from astropy.time import Time, TimeDelta
 from cosmoglobe.tod_tools import TODLoader
 import pickle
-import zodipy
 
-# zodi_model = zodipy.Zodipy(extrapolate=True)
+#from cProfile import Profile
+#from pstats import SortKey, Stats
+
 # Path objects
 AKARI_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/akari/data")
 HDF5_PATH = Path("/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/")
@@ -56,7 +57,7 @@ START_TIME = Time("1981-01-01", format="isot", scale="utc")
 N_CIO_FILES = 285
 BAD_DATA_SENTINEL = -16375
 TSCAL = 2e-15
-SAMP_RATE = 1 / 8
+SAMP_RATE = 1 / 26
 SAMP_RATE_DAYS = SAMP_RATE / (24 * 3600)
 
 #BEAM_DATA = akari_utils.get_beam_data()
@@ -453,9 +454,9 @@ def main() -> None:
 
     start_time = time.perf_counter()
     color_corr = False
-    version = 2
+    version = 0
 
-    raw = False
+    raw = True
 
 
     from glob import glob
@@ -466,6 +467,7 @@ def main() -> None:
 
 
     #fnames = fnames[:2]
+    #fnames = fnames[13:15]
 
     times = []
     for f in fnames:
@@ -540,6 +542,17 @@ def main() -> None:
                     except IndexError:
                         print(flag.shape, pf, 'not included because shape is wrong')
                     flag_ind += 1
+
+            stat = CIO_PATH/f'no_peri_corr/{chip}/FIS_{chip}_{t}_gb_no_peri_corr.pkl'
+            with open(stat, 'rb') as f:
+                flag = np.array(pickle.load(f)).astype(int)
+                try:
+                    flag_tot[flag != 0] += 2**(flag_ind)
+                except IndexError:
+                    print(flag.shape, pf, 'not included because shape is wrong')
+                flag_ind += 1
+
+            
 
 
 
