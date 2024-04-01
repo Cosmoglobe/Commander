@@ -2209,8 +2209,8 @@ n_gibbs=1
              !do k = self%nsrc, self%nsrc
                 theta = self%src(k)%theta(:,p)
                 
-                if (self%myid == 0) write(*,*) 'c maps', p, self%nmaps
-                if (self%myid == 0) write(*,*) 'c nsrc', k, self%nsrc
+!                if (self%myid == 0) write(*,*) 'c maps', p, self%nmaps
+!                if (self%myid == 0) write(*,*) 'c nsrc', k, self%nsrc
 
                 ! Construct current source model
                 do l = 1, numband
@@ -2220,7 +2220,7 @@ n_gibbs=1
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
-if (self%myid == 0) write(*,*) 'l numband', l, numband
+!if (self%myid == 0) write(*,*) 'l numband', l, numband
                 end do
                 
                 ! Refine grid until acceptance
@@ -2358,7 +2358,7 @@ if (self%myid == 0) write(*,*) 'l numband', l, numband
        do p = 1, self%nmaps
           !do k = self%nsrc, self%nsrc
           do k = 1, self%nsrc
-             if (self%myid == 0) write(*,*) 'p,k  ', p, k
+             !if (self%myid == 0) write(*,*) 'p,k  ', p, k
 
              a_old = amp(k,p) ! Store old amplitude to recompute residual
              
