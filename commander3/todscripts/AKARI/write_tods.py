@@ -58,6 +58,9 @@ N_CIO_FILES = 285
 BAD_DATA_SENTINEL = -16375
 TSCAL = 2e-15
 SAMP_RATE = 1 / 26
+#25.28
+#16.86
+
 SAMP_RATE_DAYS = SAMP_RATE / (24 * 3600)
 
 #BEAM_DATA = akari_utils.get_beam_data()
@@ -297,7 +300,10 @@ def write_band(
         det1 = v
         break
 
-    comm_tod.add_field(COMMON_GROUP + "/fsamp", 1 / SAMP_RATE)
+    if ('N60' in band) or ('WIDE-S' in band):
+        comm_tod.add_field(COMMON_GROUP + "/fsamp", 25.28)
+    else:
+        comm_tod.add_field(COMMON_GROUP + "/fsamp", 16.86)
     comm_tod.add_field(COMMON_GROUP + "/nside", [nside_out])
     comm_tod.add_field(COMMON_GROUP + "/det", np.string_(det_str + ","))
 
