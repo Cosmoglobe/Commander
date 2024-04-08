@@ -282,6 +282,17 @@ module comm_param_mod
      character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
+
+
+     ! MH spectral index sampling parameters
+     integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
+     character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
+     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
+     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
+     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
+                                                                                                  ! Sample using specificed cg
+                                                                                                  ! groups. If none, skip amplitude
+                                                                                                  ! sampling
   end type comm_params
 
 
@@ -759,6 +770,17 @@ contains
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_MAXITER'//itext, par_int=cpar%cg_samp_group_maxiter(i))
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_BANDS'//itext, par_string=cpar%cg_samp_group_bands(i))
     end do
+
+    call get_parameter_hashtable(htbl, 'NUM_MCMC_SAMPLING_GROUPS', par_int=cpar%mcmc_num_samp_groups)
+    allocate(cpar%mcmc_samp_groups(cpar%mcmc_num_samp_groups))
+    do i = 1, cpar%mcmc_num_samp_groups
+       call int2string(i, itext)
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_MASK'//itext, par_string=cpar%mcmc_samp_group_mask(i), path=.true.)
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_BANDS'//itext, par_string=cpar%mcmc_samp_group_bands(i))
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_PARAMS'//itext, par_string=cpar%mcmc_samp_groups(i))
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS'//itext, par_string=cpar%mcmc_update_cg_groups(i))
+    end do
+
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
     call get_parameter_hashtable(htbl, 'LOCALSAMP_OUTPUT_MAPS', par_lgt=cpar%cs_output_localsamp_maps)
 

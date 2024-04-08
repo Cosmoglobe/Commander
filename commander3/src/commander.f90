@@ -169,6 +169,7 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
+  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   call initialize_inter_tod_params(cpar)
@@ -411,13 +412,6 @@ program commander
    end if
 
    if (mod(iter+1,modfact) == 0) then
-     if (iter > 1) then
-        ! Sample gains off of absolutely calibrated FIRAS maps
-        call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
-        ! Testing the spectral index xampling
-        call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
-        call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
-     end if
 
 
 
@@ -429,6 +423,23 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
      
+     if (iter > 1) then
+        do i = 1, cpar%mcmc_num_samp_groups
+            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+                ! Sample gains off of absolutely calibrated FIRAS maps
+                call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
+              else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+                call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
+              else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+                write(*,*) 'scale is not implemented yet'
+              else
+                write(*,*) 'Doing some stuff with specinds'
+                ! Testing the spectral index xampling
+                call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
+              end if
+        end do
+     end if
+
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then

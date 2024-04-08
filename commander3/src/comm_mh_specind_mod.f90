@@ -22,6 +22,20 @@ module comm_mh_specind_mod
   use comm_signal_mod
   implicit none
 
+
+
+  type :: mh_mask_container
+     integer(i4b)     :: nside, nside_chisq_lowres, nmaps, np, npix, myid, comm, nprocs
+     class(comm_map),     pointer :: invN_diag => null()
+     class(comm_map),     pointer :: rms_reg   => null()
+     class(comm_mapinfo), pointer :: info      => null()
+     class(map_ptr), allocatable, dimension(:) :: samp_group_mask
+  end type mh_mask_container
+
+  type mh_mask_ptr
+     class(mh_mask_container), pointer :: p => null()
+  end type mh_mask_ptr
+
 contains
 
 
@@ -406,5 +420,81 @@ contains
     end do
 
   end subroutine sample_specind_mh
+
+  subroutine initialize_mh_mod(cpar)
+    !
+    !   Initializes parameters for the MH proposals, including
+    !    1. The masks
+    !    2. The bands for which chi^2 is evaluated
+    !    3. The components to sample and their proposals
+    !    4. The specific CG groups to do amplitudes sampling on
+    !
+    implicit none
+    type(comm_params) :: cpar
+
+
+    type(mh_mask_container) :: mh_masks
+
+    type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud
+    class(comm_map), pointer :: indmask, mask_ud
+
+
+    integer(i4b) :: i, j, nside, lmax, nmaps, n
+    logical(lgt) :: pol
+
+
+    character(len=128) :: tokens(100)
+
+
+    ! Dummy values, need to get real ones 
+    ! nside = 512
+    ! lmax = -1
+    ! nmaps = 3
+    ! pol = .false.
+
+    ! info  => comm_mapinfo(cpar%comm_chain, nside, lmax, nmaps, pol)
+
+    ! do i = 1, cpar%mcmc_num_samp_groups
+    !    indmask => comm_map(info, trim(cpar%mcmc_samp_group_mask(i)), &
+    !         & udgrade=.true.)
+    ! end do
+
+    ! call get_tokens(tokens(i), '>', comp_param, num=n)
+    ! call get_tokens(comp_param(1), ':', wire_from, num=n)
+    ! call get_tokens(comp_param(2), ':', wire_to,   num=m)
+
+
+
+    ! Need to add an argument to sample_all_amps_by_CG that includes this list
+    if (cpar%myid == 0) then
+        do i = 1, cpar%mcmc_num_samp_groups
+           write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+           if (trim(cpar%mcmc_update_cg_groups(i)) == 'none') then
+             write(*,*) 'Nothing to sample'
+           else 
+             call get_tokens(cpar%mcmc_update_cg_groups(i), ',', tokens, n)
+             if (n == 0) then
+               write(*,*) "Something is wrong with your CG groups"
+               write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+             end if
+           end if
+        end do
+    end if
+
+    ! Need to 1: make a mask map
+    !         2: specify the bands for which chi^2 is evaluated
+    !         3: specify the items to be sampled
+    !         4: specify the CG groups. If none, don't do any CG sampling
+
+    !if (cpar%myid == 0) then
+    !    do i = 1, cpar%mcmc_num_samp_groups
+    !       write(*,*) trim(cpar%mcmc_samp_group_mask(i))
+    !       write(*,*) trim(cpar%mcmc_samp_group_bands(i))
+    !       write(*,*) trim(cpar%mcmc_samp_groups(i))
+    !       write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+    !    end do
+    !end if
+
+  end subroutine initialize_mh_mod
 
 end module comm_mh_specind_mod
