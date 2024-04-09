@@ -439,11 +439,11 @@ contains
     class(comm_map), pointer :: indmask, mask_ud
 
 
-    integer(i4b) :: i, j, nside, lmax, nmaps, n
+    integer(i4b) :: i, j, nside, lmax, nmaps, n, n_tokens
     logical(lgt) :: pol
 
 
-    character(len=128) :: tokens(100)
+    character(len=128) :: tokens(100), comp_tokens(2), wire_to(2), wire_from(2)
 
 
     ! Dummy values, need to get real ones 
@@ -486,14 +486,32 @@ contains
     !         3: specify the items to be sampled
     !         4: specify the CG groups. If none, don't do any CG sampling
 
-    !if (cpar%myid == 0) then
-    !    do i = 1, cpar%mcmc_num_samp_groups
-    !       write(*,*) trim(cpar%mcmc_samp_group_mask(i))
-    !       write(*,*) trim(cpar%mcmc_samp_group_bands(i))
-    !       write(*,*) trim(cpar%mcmc_samp_groups(i))
-    !       write(*,*) trim(cpar%mcmc_update_cg_groups(i))
-    !    end do
-    !end if
+    if (cpar%myid == 0) then
+        do i = 1, cpar%mcmc_num_samp_groups
+           write(*,*) ''
+           write(*,*) trim(cpar%mcmc_samp_group_mask(i))
+           write(*,*) trim(cpar%mcmc_samp_group_bands(i))
+           write(*,*) trim(cpar%mcmc_samp_groups(i))
+           write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+
+
+           call get_tokens(cpar%mcmc_samp_groups(i), ',', tokens, n_tokens)
+           do j = 1, n_tokens
+             if (trim(tokens(1)) == 'none') exit
+
+             call get_tokens(tokens(j), '>', comp_tokens, n)
+             if (n == 2) then
+               write(*,*) 'We are wiring ', trim(comp_tokens(1)), ' and ',trim(comp_tokens(2))
+               call get_tokens(comp_tokens(1), ':', wire_from, num=n)
+               call get_tokens(comp_tokens(2), ':', wire_to, num=n)
+
+               write(*,*) trim(wire_from(1)), trim(wire_From(2))
+             else
+               write(*,*) 'This had better be 1: ', n
+             end if
+           end do
+        end do
+    end if
 
   end subroutine initialize_mh_mod
 
