@@ -75,7 +75,9 @@ contains
           case ("curvature") 
              c => comm_curvature_comp(cpar, ncomp, i)
           case ("physdust")
+             !if (cpar%myid == 0) write(*,*) 'dd beg', i, trim(cpar%cs_type(i))
              c => comm_physdust_comp(cpar, ncomp, i)
+             !if (cpar%myid == 0) write(*,*) 'dd end', i, trim(cpar%cs_type(i))
           case ("spindust")
              c => comm_spindust_comp(cpar, ncomp, i)
           case ("spindust2")
@@ -120,6 +122,8 @@ contains
        case default
           call report_error("Unknown component class: "//trim(cpar%cs_class(i)))
        end select
+       !if (cpar%myid == 0 .and. cpar%verbosity > 0) &
+       !     & write(*,fmt='(a,i5,a,a)') ' |  finished  component ', i, ' : ', trim(cpar%cs_label(i))
     end do
 
     if (ncomp == 0) call report_error("Error: No signal components included in parameter file.")
@@ -138,8 +142,6 @@ contains
        c             => c%nextComp()
     end do
 
-!    call mpi_finalize(i)
-!    stop
        
     ! go through compList and check if any diffuse component is using a band monopole
     ! as the zero-level prior
@@ -342,56 +344,101 @@ contains
 
   end subroutine sample_amps_by_CG
 
-  subroutine revert_CG_amps(cpar, samp_group)
+  subroutine revert_CG_amps(cpar)
     implicit none
 
     type(comm_params), intent(in)    :: cpar
-    integer(i4b),      intent(in)    :: samp_group
+    integer(i4b)                     :: samp_group
 
     ! If an MH step is rejected, returns amplitudes to the values stored as alm_buff
 
     integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
 
-    if (cpar%myid == 0 .and. samp_group == 1) then
-      write(*,*) 'Reverting to buffer values. Did you run sample_maps_with_CG with '
-      write(*,*) 'store_buff = .true.?'
-    end if
+    do samp_group = 1, cpar%cg_num_user_samp_groups
 
-    ind = 1
-    c   => compList
-    do while (associated(c))
-       select type (c)
-       class is (comm_diffuse_comp)
-          do i = 1, c%x%info%nmaps
-             if (c%active_samp_group(samp_group)) then
-              c%x%alm(:,i) = c%x%alm_buff(:,i) 
-             end if
-             ind = ind + c%x%info%nalm
-          end do
-       class is (comm_ptsrc_comp)
-          if(.not. c%precomputed_amps) then
-            do i = 1, c%nmaps
-              if (c%myid == 0) then
+       if (cpar%myid == 0 .and. samp_group == 1) then
+         write(*,*) 'Reverting to buffer values. Did you run sample_maps_with_CG with '
+         write(*,*) 'store_buff = .true.?'
+       end if
+
+       ind = 1
+       c   => compList
+       do while (associated(c))
+          select type (c)
+          class is (comm_diffuse_comp)
+             do i = 1, c%x%info%nmaps
                 if (c%active_samp_group(samp_group)) then
-                  c%x(:,i) = c%x_buff(:,i)
+                 c%x%alm(:,i) = c%x%alm_buff(:,i) 
                 end if
-                ind = ind + c%nsrc
-              end if
-            end do
-          end if
-       class is (comm_template_comp)
-          if (c%myid == 0) then
-             if (c%active_samp_group(samp_group)) then
-                c%x(1,1) = c%x_buff(1,1)
+                ind = ind + c%x%info%nalm
+             end do
+          class is (comm_ptsrc_comp)
+             if(.not. c%precomputed_amps) then
+               do i = 1, c%nmaps
+                 if (c%myid == 0) then
+                   if (c%active_samp_group(samp_group)) then
+                     c%x(:,i) = c%x_buff(:,i)
+                   end if
+                   ind = ind + c%nsrc
+                 end if
+               end do
              end if
-             ind      = ind + 1
-          end if
-       end select
-       c => c%nextComp()
-    end do
+          class is (comm_template_comp)
+             if (c%myid == 0) then
+                if (c%active_samp_group(samp_group)) then
+                   c%x(1,1) = c%x_buff(1,1)
+                end if
+                ind      = ind + 1
+             end if
+          end select
+          c => c%nextComp()
+       end do
+     end do
 
   end subroutine revert_CG_amps
+
+
+  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff)
+    !
+    !
+    !  Convenience function for performing amplitude sampling over
+    !  all sampling groups
+    !
+    !
+    implicit none
+
+    type(comm_params), intent(in)    :: cpar
+    type(planck_rng),  intent(inout) :: handle, handle_noise
+    logical(lgt), intent(in), optional :: store_buff
+
+
+    integer(i4b)                     :: samp_group
+    logical(lgt)  :: storebuff
+
+    if (present(store_buff)) then
+      storebuff = store_buff
+    else
+      storebuff = .false.
+    end if
+
+
+
+     call timer%start(TOT_AMPSAMP)
+     do samp_group = 1, cpar%cg_num_user_samp_groups
+        if (cpar%myid_chain == 0) then
+           write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
+           & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
+           & trim(cpar%cg_samp_group(samp_group))
+        end if
+        call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=storebuff)
+
+        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
+
+     end do
+     call timer%stop(TOT_AMPSAMP)
+
+  end subroutine sample_all_amps_by_CG
 
   subroutine initPrecond(comm)
     implicit none
@@ -431,7 +478,7 @@ contains
 
     if (trim(cpar%init_chain_prefix) == 'none' .and. &
          & .not. present(init_from_output)) return
-
+    
     ! Open default HDF file
     call int2string(cpar%mychain,   ctext)
     if (present(init_from_output)) then
@@ -466,7 +513,7 @@ contains
        call close_hdf_file(file)
        return
     end if
-
+    
     ! Initialize instrumental parameters
     call update_status(status, "init_chain_inst")
     if (trim(cpar%cs_init_inst_hdf) /= 'none' .or. present(init_from_output)) then
@@ -518,6 +565,7 @@ contains
           end if
        end do
     end if
+
     
     ! Initialize component parameters
     c   => compList
@@ -542,6 +590,7 @@ contains
        end if
        c => c%nextComp()
     end do
+
 
     ! Initialize TOD parameters
     if (cpar%enable_TOD_analysis) then
@@ -625,6 +674,7 @@ contains
           deallocate(regnoise)
        end do
     end if
+
 
     ! Close HDF file
     call close_hdf_file(file)

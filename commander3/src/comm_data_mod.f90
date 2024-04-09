@@ -296,7 +296,7 @@ contains
        end do
        call update_status(status, "data_BP")
        if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%instlabel)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if

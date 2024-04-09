@@ -251,6 +251,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_prior_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
+     real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
      integer(i4b),       allocatable, dimension(:,:)   :: cs_smooth_scale
@@ -452,7 +453,7 @@ contains
        call int2string(i,itext)
        call get_parameter_hashtable(htbl, 'INIT_CHAIN'//itext,     par_string=cpar%init_chain_prefixes(i))
     end do
-    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)
+    call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_POLARIZATION', par_lgt=cpar%only_pol)  !!! only_pol
     call get_parameter_hashtable(htbl, 'SAMPLE_ONLY_TEMPERATURE', par_lgt=cpar%only_I)
     call get_parameter_hashtable(htbl, 'CG_CONVERGENCE_CRITERION', par_string=cpar%cg_conv_crit)
     call get_parameter_hashtable(htbl, 'CG_PRECOND_TYPE',          par_string=cpar%cg_precond)
@@ -787,6 +788,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
+    allocate(cpar%cs_SED_prior(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -2608,6 +2610,8 @@ contains
     if (trim(cpar%cs_type(i)) == 'MBBtab') then
        call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
+            & par_dp=cpar%cs_SED_prior(i))
     end if
 
   end subroutine read_mbb_params_hash
@@ -3868,6 +3872,11 @@ end subroutine
          deallocate(itext,jtext)
       end if
 
+      if (val == '#') then
+        write(*,*) trim(parname), ' has invalid value #, double check your parameter file'
+        stop
+      end if
+
       if (present(par_int)) then
          read(val,*) par_int
       elseif (present(par_char)) then
@@ -3901,8 +3910,6 @@ end subroutine
 
       deallocate(val)
       return
-
-      !if (cpar%myid == cpar%root) then
 
 1     write(*,*) "Error: Could not find parameter '" // trim(parname) // "'"
       write(*,*) ""

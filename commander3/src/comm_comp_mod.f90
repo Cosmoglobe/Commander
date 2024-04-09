@@ -28,9 +28,9 @@ module comm_comp_mod
 !  public  :: comm_comp, ncomp, compList, update_mixing_matrices, comp_ptr!, dumpCompMaps
   
   !**************************************************
-  !        Generic component class definition
+  !        Generic component class definition - top level class
   !**************************************************
-  type, abstract :: comm_comp
+  type, abstract :: comm_comp !commander components
      ! Linked list variables
      class(comm_comp), pointer :: nextLink => null()
      class(comm_comp), pointer :: prevLink => null()

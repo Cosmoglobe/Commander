@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_diffuse_comp_mod
+module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f90 file
   use comm_comp_mod
   use comm_Cl_mod
   use comm_F_mod
@@ -30,7 +30,7 @@ module comm_diffuse_comp_mod
        & get_monopole_amp, set_monopole_amp, recompute_diffuse_precond, precond_type, diff_ptr
   
   !**************************************************
-  !            Diffuse component class
+  !            Diffuse component class - subclass under component class
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
@@ -114,6 +114,7 @@ module comm_diffuse_comp_mod
      integer(i4b) :: ntab
      real(dp), allocatable, dimension(:,:) :: SEDtab
      real(dp), allocatable, dimension(:,:) :: SEDtab_buff
+     real(dp)                              :: SEDtab_prior  ! Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling
