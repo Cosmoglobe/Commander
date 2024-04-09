@@ -86,10 +86,16 @@ for i in range(len(d1) - 10):
 
 num_chunks=64
 
-num_chunks = 256
+#num_chunks = 256
 
 #for det in range(1, 62):
-for det in range(17, 62):
+#for det in range(55, 63):
+#for det in range(31, 38+1):
+#for det in range(39, 46+1):
+#for det in range(47, 54+1):
+#for det in range(23, 30+1):
+#for det in range(16, 22+1):
+for det in range(10, 15+1):
     data = np.loadtxt(f'det{det:02}_files.txt')
    
     try:
