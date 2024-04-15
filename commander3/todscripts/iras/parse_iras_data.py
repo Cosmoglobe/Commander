@@ -67,12 +67,11 @@ for i in range(5):
 det = 1
 
 
-for det in range(2, 63):
+for det in range(1, 63):
     with open(f'det{det:02}_files.txt', 'a') as the_file:
         the_file.write(f'# utcs1         \t plate \t sop\t obs\t npts\n')
         for plate in tqdm(range(1717)):
-        #for plate in tqdm(range(30)):
-            for sop in range(29, 601):
+            for sop in range(601):
                 for obs in range(100):
                     fname = f'{L1_data}/plate{plate:04}/sop{sop:03}/obs{obs:03}/det{det:02}.tbl'
                     if os.path.exists(fname):

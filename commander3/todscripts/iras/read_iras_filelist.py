@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import healpy as hp
+from numpy.lib.stride_tricks import sliding_window_view
 
 def run_iras_readout(utc1, plate, sop, obs, npts, det, overlap, chunk):
     plate = plate[chunk]
@@ -15,6 +16,8 @@ def run_iras_readout(utc1, plate, sop, obs, npts, det, overlap, chunk):
     lat_tot = []
     flux_tot = []
     for i in range(len(utc1)):
+        if chunk == 1:
+            print(i)
         fname = f'{L1_data}/plate{plate[i]:04}/sop{sop[i]:03}/obs{obs[i]:03}/det{det:02}.tbl'
         lons = []
         lats = []
@@ -36,37 +39,81 @@ def run_iras_readout(utc1, plate, sop, obs, npts, det, overlap, chunk):
                     continue
                 else:
                     data = line.split()
-                    lons.append(float(data[0]))
-                    lats.append(float(data[1]))
-                    fluxs.append(float(data[2]))
+                    if (float(data[0]) == -999.) | (float(data[1]) == -999.) | (float(data[2]) == -1e20):
+                        lons.append(np.nan)
+                        lats.append(np.nan)
+                        fluxs.append(np.nan)
+                    else:
+                        lons.append(float(data[0]))
+                        lats.append(float(data[1]))
+                        fluxs.append(float(data[2]))
 
         t = np.arange(npts[i])*dt + utc1[i]
+
+        lon_tot  = lon_tot + lons
+        lat_tot  = lat_tot + lats
+        flux_tot = flux_tot + fluxs
+        t_tot    = t_tot + t.tolist()
         ok = True
-        if (len(t_tot) == 0) or (t_tot[-1] < t[0]):
+        '''
+        ovlap = min(overlap, int(npts[i]))
+        if (len(t_tot) == 0) or (t_tot[-1] <= t[0]):
             lon_tot  = lon_tot + lons
             lat_tot  = lat_tot + lats
             flux_tot = flux_tot + fluxs
             t_tot    = t_tot + t.tolist()
-            ok = False
-            continue
-        if (t[0] < t_tot[-1]):
-            for j in range(len(flux_tot) - len(data), len(flux_tot)-overlap-1):
-                if j < 0:
-                    continue
-                if ok:
-                    if np.all(np.equal(data[:overlap,2],flux_tot[j:j+overlap])):
-                        lon_tot  = lon_tot[:j] +  data[:,0].tolist()
-                        lat_tot  = lat_tot[:j] + data[:,1].tolist()
-                        flux_tot = flux_tot[:j] + data[:,2].tolist()
-                        t_tot    = t_tot[:j] + t.tolist()
-                        ok = False
-    
-    flux_tot = np.array(flux_tot).astype(np.float32)
-    lon_tot = np.array(lon_tot).astype(np.float32)
-    lat_tot = np.array(lat_tot).astype(np.float32)
-    t_tot = np.array(t_tot).astype(np.float32)
+        else:
+            for j in range(ovlap, len(fluxs)-ovlap, ovlap):
+                if (sliding_window_view(flux_tot[-len(fluxs):], window_shape=ovlap) != fluxs[j:j+ovlap]).all(axis=1).any():
+                    lon_tot  = lon_tot + lons[j+j:ovlap]
+                    lat_tot  = lat_tot + lats[j+j:ovlap]
+                    flux_tot = flux_tot + fluxs[j+j:ovlap]
+                    t_tot    = t_tot + t.tolist()[j+j:ovlap]
 
-    np.save(f'merged_data/iras_chunk{chunk+1:04}_data_{det:02}.npy', np.array([t_tot, lon_tot, lat_tot, flux_tot]))
+        '''
+
+        '''
+        elif (t[-1] < t_tot[-1]) & (t[0] < t_tot[-1]):
+            continue
+        elif (t[0] < t_tot[0]) & (t[-1] < t_tot[-1]):
+            lon_tot  = lons  +  lon_tot  
+            lat_tot  = lats  +  lat_tot  
+            flux_tot = fluxs +  flux_tot 
+            t_tot    = t.tolist() + t_tot
+            #continue
+        elif (t[0] < t_tot[-1]):
+            for j in range(max(0,len(flux_tot) - len(fluxs)), len(flux_tot)-ovlap-1):
+                if j < 0:
+                    pass
+                if ok:
+                    try:
+                        if np.allclose(fluxs[:ovlap],flux_tot[j:j+ovlap], equal_nan=True):
+                            lon_tot  = lon_tot[:j] +  lons
+                            lat_tot  = lat_tot[:j] + lats
+                            flux_tot = flux_tot[:j] + fluxs
+                            t_tot    = t_tot[:j] + t.tolist()
+                            ok = False
+                    except ValueError:
+                        print(len(flux_tot), len(fluxs), j, ovlap)
+                        print(len(fluxs[:ovlap]), len(flux_tot[j:j+ovlap]))
+            if ok:
+                if t[-1] - t_tot[-1] > 0:
+                    continue
+                print('What is going on now?', i, chunk, t[0], t[-1] - t[0])
+                print('What is going on now2?', i, chunk, t_tot[-1] - t[0], t_tot[-1] - t[-1])
+                print(len(t))
+                print(plate[i], sop[i], obs[i])
+                print(plate[i-1], sop[i-1], obs[i-1])
+        else:
+            print('WHy am I here?')
+        '''
+    
+    flux_tot = np.array(flux_tot)#.astype(np.float32)
+    lon_tot = np.array(lon_tot)#.astype(np.float32)
+    lat_tot = np.array(lat_tot)#.astype(np.float32)
+    t_tot = np.array(t_tot)#.astype(np.float4)
+
+    np.save(f'new_merged_data/iras_chunk{chunk+1:04}_data_{det:02}.npy', np.array([t_tot, lon_tot, lat_tot, flux_tot]))
 
 
 dt = 0.2500128573368466
@@ -86,16 +133,21 @@ for i in range(len(d1) - 10):
 
 num_chunks=64
 
-#num_chunks = 256
+num_chunks = 256
 
+num_chunks = 512
+
+num_chunks = 1024
+
+for det in range(1,2):
 #for det in range(1, 62):
 #for det in range(55, 63):
-#for det in range(31, 38+1):
-#for det in range(39, 46+1):
 #for det in range(47, 54+1):
+#for det in range(39, 46+1):
+#for det in range(31, 38+1):
 #for det in range(23, 30+1):
 #for det in range(16, 22+1):
-for det in range(10, 15+1):
+#for det in range(1, 15+1):
     data = np.loadtxt(f'det{det:02}_files.txt')
    
     try:
@@ -112,7 +164,7 @@ for det in range(10, 15+1):
     
     
     
-    overlap = 100
+    overlap = 50
     
     import multiprocessing
     NUM_PROCS = multiprocessing.cpu_count()
