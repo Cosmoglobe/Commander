@@ -134,7 +134,7 @@ contains
     call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
 
     allocate(c%theta_steplen(2+c%ntab, cpar%mcmc_num_samp_groups))
-    !c%theta_steplen = 1d0
+    c%theta_steplen = 0d0
 
     ! Initialize SED priors
     c%SEDtab_prior = cpar%cs_SED_prior(id_abs)

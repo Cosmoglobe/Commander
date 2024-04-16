@@ -72,8 +72,10 @@ contains
                        
           select type (c)
           type is (comm_MBBtab_comp)
-            write(*,*) l, 'cpar, bla bla bla'
-            write(*,*) c%theta_steplen(3:,l)
+            if (maxval(c%theta_steplen(3:,l)) > 0) then
+               write(*,*) l, 'cpar, bla bla bla'
+               write(*,*) c%theta_steplen(3:,l)
+            end if
           end select
           c => c%nextComp()
        end do
@@ -559,7 +561,6 @@ contains
                    c => compList
                    do while (associated(c))
                       if (trim(c%label) == trim(comp_names(1))) then
-                        c%theta_steplen(:,:) = 1d-2
                         !       (beta+T+ntab, n_mcmc_samp_groups)
                         write(*,*) 'set sigma_SEDtab  to ',sigma
                         write(*,*) i, 2+m, c%theta_steplen(2+m,i)
