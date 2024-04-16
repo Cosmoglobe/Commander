@@ -55,7 +55,7 @@ contains
     type(planck_rng),               intent(inout) :: handle, handle_noise
     type(comm_params) :: cpar
 
-    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
+    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     integer(i4b) :: band, ierr, i, j, k, l, pol, pix
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
@@ -67,6 +67,9 @@ contains
     ! Loop over sampling groups
 
     do l = 1, cpar%mcmc_num_samp_groups
+
+       mval_0 = -1000d0
+
        c => compList
        do while (associated(c))
                        
@@ -74,13 +77,22 @@ contains
           type is (comm_MBBtab_comp)
             if (maxval(c%theta_steplen(3:,l)) > 0) then
                write(*,*) l, 'cpar, bla bla bla'
-               write(*,*) c%theta_steplen(3:,l)
+               mval = maxval(c%theta_steplen(3:,l))
+               mval_0 = max(mval, mval_0)
+               write(*,*) trim(c%label)
             end if
           end select
           c => c%nextComp()
        end do
+       call mpi_bcast(mval_0, 1, MPI_DOUBLE_PRECISION, &
+         & 0, data(1)%info%comm, ierr)
 
-       cycle
+       if (mval_0 <= 0d0) then
+         cycle
+       else
+         if (cpar%myid == 0) write(*,*) mval_0
+       end if
+
 
 
        do k = 1, ncomp
@@ -95,9 +107,10 @@ contains
              type is (comm_md_comp)
                continue
              class is (comm_diffuse_comp)
-               if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
-                 call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-                 todo = .false.
+               !if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
+               if (c%id == k) then
+                   call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+                   todo = .false.
                end if
              end select
              c => c%nextComp()
@@ -122,7 +135,7 @@ contains
                     write(*,*) trim(c%label)
                     c%SEDtab_buff = c%SEDtab
                     do i = 1, c%ntab
-                       c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * 0.01
+                       c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(2+i,l)
                     end do
                     write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
                     write(*,*) 'MBBtab proposal', c%SEDtab(3,:)

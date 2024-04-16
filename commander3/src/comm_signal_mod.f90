@@ -422,21 +422,19 @@ contains
       storebuff = .false.
     end if
 
+    call timer%start(TOT_AMPSAMP)
+    do samp_group = 1, cpar%cg_num_user_samp_groups
+       if (cpar%myid_chain == 0) then
+          write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
+          & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
+          & trim(cpar%cg_samp_group(samp_group))
+       end if
+       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=storebuff)
 
+       if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
-     call timer%start(TOT_AMPSAMP)
-     do samp_group = 1, cpar%cg_num_user_samp_groups
-        if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
-           & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
-           & trim(cpar%cg_samp_group(samp_group))
-        end if
-        call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=storebuff)
-
-        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-     end do
-     call timer%stop(TOT_AMPSAMP)
+    end do
+    call timer%stop(TOT_AMPSAMP)
 
   end subroutine sample_all_amps_by_CG
 
