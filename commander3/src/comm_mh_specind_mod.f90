@@ -56,7 +56,7 @@ contains
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop
-    integer(i4b) :: band, ierr, i, j, k, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, l, pol, pix
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -64,142 +64,161 @@ contains
 
 
 
+    ! Loop over sampling groups
 
-    do k = 1, ncomp
-       todo = .true.
-
-
-       ! Calculate initial chisq
-       c => compList
-       chisq_old = 0d0
-       do while (associated(c))
-          select type (c)
-          type is (comm_md_comp)
-            continue
-          class is (comm_diffuse_comp)
-            if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
-              call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-              todo = .false.
-            end if
-          end select
-          c => c%nextComp()
-       end do
-
-       ! If component index is not used, skip
-       if (todo) cycle
-
-       if (cpar%myid_chain .eq. 0) then
-         write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
-       end if
-
+    do l = 1, cpar%mcmc_num_samp_groups
        c => compList
        do while (associated(c))
                        
           select type (c)
           type is (comm_MBBtab_comp)
+            write(*,*) l, 'cpar, bla bla bla'
+            write(*,*) c%theta_steplen(3:,l)
+          end select
+          c => c%nextComp()
+       end do
 
-            if (c%id == k) then
+       cycle
 
-               if (cpar%myid_chain .eq. 0) then
-                 write(*,*) trim(c%label)
-                 c%SEDtab_buff = c%SEDtab
-                 do i = 1, c%ntab
-                    c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * 0.01
-                 end do
-                 write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
-                 write(*,*) 'MBBtab proposal', c%SEDtab(3,:)
+
+       do k = 1, ncomp
+          todo = .true.
+
+
+          ! Calculate initial chisq
+          c => compList
+          chisq_old = 0d0
+          do while (associated(c))
+             select type (c)
+             type is (comm_md_comp)
+               continue
+             class is (comm_diffuse_comp)
+               if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
+                 call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+                 todo = .false.
+               end if
+             end select
+             c => c%nextComp()
+          end do
+
+          ! If component index is not used, skip
+          if (todo) cycle
+
+          if (cpar%myid_chain .eq. 0) then
+            write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
+          end if
+
+          c => compList
+          do while (associated(c))
+                          
+             select type (c)
+             type is (comm_MBBtab_comp)
+
+               if (c%id == k) then
+
+                  if (cpar%myid_chain .eq. 0) then
+                    write(*,*) trim(c%label)
+                    c%SEDtab_buff = c%SEDtab
+                    do i = 1, c%ntab
+                       c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * 0.01
+                    end do
+                    write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
+                    write(*,*) 'MBBtab proposal', c%SEDtab(3,:)
+                  end if
+
+
+                  call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                    & 0, data(1)%info%comm, ierr)
+                  call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                    & 0, data(1)%info%comm, ierr)
                end if
 
+             end select
+             
+             !go to next component
+             c => c%nextComp()
+          end do
 
-               call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                 & 0, data(1)%info%comm, ierr)
-               call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                 & 0, data(1)%info%comm, ierr)
+          call update_mixing_matrices(update_F_int=.true.)
+
+          ! Perform component separation
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
+
+
+          c => compList
+          chisq_prop = 0d0
+          do while (associated(c))
+             select type (c)
+             type is (comm_md_comp)
+               continue
+             class is (comm_diffuse_comp)
+               if (c%id == k) then
+                 call compute_chisq(c%comm, chisq_fullsky=chisq_prop, mask=c%indmask)
+               end if
+             end select
+             c => c%nextComp()
+          end do
+
+          if (cpar%myid_chain .eq. 0) then
+            write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
+            write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+          end if
+
+          ! Check MH statistic
+          reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
+          call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
+
+
+          if (reject) then
+            if (cpar%myid_chain == 0) then
+              write(*,*) '| '
+              write(*,*) '| MH step rejected, returning to original tabulated values.'
+              write(*,*) '| '
             end if
 
-          end select
-          
-          !go to next component
-          c => c%nextComp()
-       end do
 
-       call update_mixing_matrices(update_F_int=.true.)
+            c => compList
+            do while (associated(c))
+                            
+               select type (c)
+               type is (comm_MBBtab_comp)
 
-       ! Perform component separation
-       call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
-
-
-       c => compList
-       chisq_prop = 0d0
-       do while (associated(c))
-          select type (c)
-          type is (comm_md_comp)
-            continue
-          class is (comm_diffuse_comp)
-            if (c%id == k) then
-              call compute_chisq(c%comm, chisq_fullsky=chisq_prop, mask=c%indmask)
-            end if
-          end select
-          c => c%nextComp()
-       end do
-
-       if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
-       end if
-
-       ! Check MH statistic
-       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
-       call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
+                 if (c%id == k) then
+                    if (cpar%myid_chain .eq. 0) then
+                      do i = 1, c%ntab
+                         c%SEDtab(3,i) = c%SEDtab_buff(3,i)
+                      end do
+                    end if
 
 
-       if (reject) then
-         if (cpar%myid_chain == 0) then
-           write(*,*) '| '
-           write(*,*) '| MH step rejected, returning to original tabulated values.'
-           write(*,*) '| '
-         end if
-
-
-         c => compList
-         do while (associated(c))
-                         
-            select type (c)
-            type is (comm_MBBtab_comp)
-
-              if (c%id == k) then
-                 if (cpar%myid_chain .eq. 0) then
-                   do i = 1, c%ntab
-                      c%SEDtab(3,i) = c%SEDtab_buff(3,i)
-                   end do
+                    call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                      & 0, data(1)%info%comm, ierr)
                  end if
 
+               end select
+               
+               !go to next component
+               c => c%nextComp()
+            end do
 
-                 call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                   & 0, data(1)%info%comm, ierr)
-              end if
-
-            end select
-            
-            !go to next component
-            c => c%nextComp()
-         end do
-
-         ! Update mixing matrices
-         call update_mixing_matrices(update_F_int=.true.)
+            ! Update mixing matrices
+            call update_mixing_matrices(update_F_int=.true.)
 
 
-         ! Instead of doing compsep, revert the amplitudes here
-        call revert_CG_amps(cpar)
+            ! Instead of doing compsep, revert the amplitudes here
+           call revert_CG_amps(cpar)
 
-       else
-         if (cpar%myid_chain == 0) then
-           write(*,*) '| '
-           write(*,*) '| MH step accepted'
-           write(*,*) '| '
-         end if
-       end if
-    end do
+          else
+            if (cpar%myid_chain == 0) then
+              write(*,*) '| '
+              write(*,*) '| MH step accepted'
+              write(*,*) '| '
+            end if
+          end if
+       end do
+
+
+     end do
 
   end subroutine sample_mbbtab_mh
 
@@ -441,7 +460,7 @@ contains
     class(comm_map), pointer :: indmask, mask_ud
 
 
-    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, n_tokens
+    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, n_tokens
     real(dp) :: sigma
     logical(lgt) :: pol
     class(comm_comp),   pointer           :: c => null()
@@ -492,11 +511,6 @@ contains
 
     if (cpar%myid == 0) then
         do i = 1, cpar%mcmc_num_samp_groups
-           write(*,*) ''
-           write(*,*) trim(cpar%mcmc_samp_group_mask(i))
-           write(*,*) trim(cpar%mcmc_samp_group_bands(i))
-           write(*,*) trim(cpar%mcmc_samp_groups(i))
-           write(*,*) trim(cpar%mcmc_update_cg_groups(i))
 
 
            call get_tokens(cpar%mcmc_samp_groups(i), ',', tokens, n_tokens)
@@ -505,22 +519,9 @@ contains
 
              call get_tokens(tokens(j), '>', comp_tokens, n)
              if (n == 2) then
-               write(*,*) ''
-               write(*,*) 'We are wiring ', trim(comp_tokens(1)), ' to ',trim(comp_tokens(2))
                call get_tokens(comp_tokens(1), ':', wire_from, num=n)
                call get_tokens(comp_tokens(2), ':', wire_to, num=n)
 
-               write(*,*) trim(wire_to(1))
-               write(*,*) trim(wire_from(1))
-
-               write(*,*) ''
-               write(*,*) trim(wire_to(2))
-               write(*,*) trim(wire_from(2))
-
-
-               ! Set wiring; if status is 0, ignore, if it's an integer,
-               ! get the index of the parameter that we're wiring to
-               ! c%theta_stat(cind, i) = 
 
              else if (n == 1) then
                  write(*,*) ''
@@ -535,13 +536,13 @@ contains
                    write(*,*) 'We are sampling gain', sigma
 
                  else if (trim(comp_names(2)) == 'scale') then
-                   write(*,*) 'We are scaling the amplitude', sigma
+                   write(*,*) 'We are scaling the amplitude'
 
                  else if (comp_names(2)(1:3) == 'tab') then
-                   ! write(*,*) 'We are dealing with tabulated guys: ', trim(comp_names(2)), sigma
+                   ! write(*,*) 'We are dealing with tabulated values: ', trim(comp_names(2)), sigma
                    ! write(*,*) trim(comp_names(2)(4:))
                    ! Currently, there is no distinguishing between 05a and 05b.
-                   ! Really, we need to make the SEDtab more extendable, like having a dictionary for each band.
+                   ! We need to make the SEDtab more extendable, like having a dictionary for each band.
                    !c%theta_steplen(cind, i) = 
                    ! Parse the comp_names, get the index
                    call get_tokens(comp_names(2), '@', comp_bands)
@@ -549,41 +550,47 @@ contains
                    ! We currently have all bands being 5a/b, 05a/b, etc. In principle we need to do this better, but for now we will
                    ! just get everything except the last index.
 
-                   n = len_trim(comp_bands(2))
-                   read(comp_bands(2)(1:n-1), *) n
+                   m = len_trim(comp_bands(2))
+                   read(comp_bands(2)(1:m-1), *) m
                   
 
                    write(*,*) 'comp names ', trim(comp_names(1))
 
                    c => compList
                    do while (associated(c))
-                      write(*,*) 'c%id, c%type, c%class, trim(c%label)'
-                      write(*,*) c%id, trim(c%type), trim(c%class), trim(c%label)
-
                       if (trim(c%label) == trim(comp_names(1))) then
+                        c%theta_steplen(:,:) = 1d-2
                         !       (beta+T+ntab, n_mcmc_samp_groups)
-                        c%theta_steplen(2+n,i) = sigma
                         write(*,*) 'set sigma_SEDtab  to ',sigma
+                        write(*,*) i, 2+m, c%theta_steplen(2+m,i)
+                        c%theta_steplen(2+m,i) = sigma
+                        write(*,*) i, 2+m, c%theta_steplen(2+m,i)
                       end if
-
                       c => c%nextComp()
                    end do
 
                  else if (comp_names(2)(1:4) == 'beta') then
-                   write(*,*) 'Sampling beta', sigma
                    c => compList
                    do while (associated(c))
                      if (trim(c%label) == trim(comp_names(1))) then
                         !       (beta+T+ntab, n_mcmc_samp_groups)
                         ! or    (beta+T,      n_mcmc_samp_groups)
                         c%theta_steplen(1,i) = sigma
-                        write(*,*) sigma, 'beta'
+                        write(*,*) 'set sigma_beta  to ',sigma
                       end if
                       c => c%nextComp()
                    end do
-
                  else if (comp_names(2)(1:1) == 'T') then
-                   write(*,*) 'Sampling T', sigma
+                   c => compList
+                   do while (associated(c))
+                     if (trim(c%label) == trim(comp_names(1))) then
+                        !       (beta+T+ntab, n_mcmc_samp_groups)
+                        ! or    (beta+T,      n_mcmc_samp_groups)
+                        c%theta_steplen(2,i) = sigma
+                        write(*,*) 'set sigma_T', sigma
+                      end if
+                      c => c%nextComp()
+                   end do
                  else
                    write(*,*) 'Potentially poorly formatted ', trim(comp_tokens(1))
                  end if
