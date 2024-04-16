@@ -447,7 +447,7 @@ contains
     class(comm_comp),   pointer           :: c => null()
 
 
-    character(len=128) :: tokens(100), comp_tokens(2), comp_names(2), wire_to(2), wire_from(2)
+    character(len=128) :: tokens(100), comp_tokens(2), comp_names(2), comp_bands(2), wire_to(2), wire_from(2)
 
 
     ! Dummy values, need to get real ones 
@@ -533,22 +533,37 @@ contains
 
                  if (trim(comp_names(1)) == 'gain') then
                    write(*,*) 'We are sampling gain', sigma
+
                  else if (trim(comp_names(2)) == 'scale') then
                    write(*,*) 'We are scaling the amplitude', sigma
+
                  else if (comp_names(2)(1:3) == 'tab') then
-                   write(*,*) 'We are dealing with tabulated guys: ', trim(comp_names(2)), sigma
+                   ! write(*,*) 'We are dealing with tabulated guys: ', trim(comp_names(2)), sigma
+                   ! write(*,*) trim(comp_names(2)(4:))
                    ! Currently, there is no distinguishing between 05a and 05b.
+                   ! Really, we need to make the SEDtab more extendable, like having a dictionary for each band.
                    !c%theta_steplen(cind, i) = 
+                   ! Parse the comp_names, get the index
+                   call get_tokens(comp_names(2), '@', comp_bands)
+
+                   ! We currently have all bands being 5a/b, 05a/b, etc. In principle we need to do this better, but for now we will
+                   ! just get everything except the last index.
+
+                   n = len_trim(comp_bands(2))
+                   read(comp_bands(2)(1:n-1), *) n
+                  
+
+                   write(*,*) 'comp names ', trim(comp_names(1))
 
                    c => compList
                    do while (associated(c))
                       write(*,*) 'c%id, c%type, c%class, trim(c%label)'
                       write(*,*) c%id, trim(c%type), trim(c%class), trim(c%label)
 
-                      if (trim(c%type) == 'MBBtab') then
-                        ! Get the tabulated index
-                        c%theta_steplen(:,i) = sigma
-                        write(*,*) sigma
+                      if (trim(c%label) == trim(comp_names(1))) then
+                        !       (beta+T+ntab, n_mcmc_samp_groups)
+                        c%theta_steplen(2+n,i) = sigma
+                        write(*,*) 'set sigma_SEDtab  to ',sigma
                       end if
 
                       c => c%nextComp()
@@ -556,6 +571,17 @@ contains
 
                  else if (comp_names(2)(1:4) == 'beta') then
                    write(*,*) 'Sampling beta', sigma
+                   c => compList
+                   do while (associated(c))
+                     if (trim(c%label) == trim(comp_names(1))) then
+                        !       (beta+T+ntab, n_mcmc_samp_groups)
+                        ! or    (beta+T,      n_mcmc_samp_groups)
+                        c%theta_steplen(1,i) = sigma
+                        write(*,*) sigma, 'beta'
+                      end if
+                      c => c%nextComp()
+                   end do
+
                  else if (comp_names(2)(1:1) == 'T') then
                    write(*,*) 'Sampling T', sigma
                  else

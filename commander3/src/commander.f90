@@ -191,8 +191,9 @@ program commander
 
   ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
-  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
+
+  !call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 

@@ -2729,6 +2729,7 @@ contains
     
     if (trim(self%type) == 'md') then
        call read_hdf(hdffile, trim(adjustl(hdfpath))//'md/'//trim(adjustl(self%label)), md)
+       write(*,*) 'here I am at self%x%info%nalm', self%x%info%nalm
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
           if (l == 0) then                 
