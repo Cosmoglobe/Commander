@@ -225,27 +225,30 @@ then
 		mkdir $abs_path_to_build 
 	fi
 	#------------------------------------------------------------------------------
-	rm -rf $abs_path_to_build/CMakeCache.txt
-	#------------------------------------------------------------------------------
-	# Executing CMake commands for the first time
-	#------------------------------------------------------------------------------
-	cmake \
-	-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
-	-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
-	-DCMAKE_BUILD_TYPE="$buildtype" \
-	-DCMAKE_Fortran_COMPILER=$fc \
-	-DCMAKE_C_COMPILER=$cc \
-	-DCMAKE_CXX_COMPILER=$cxx \
-	-DMPI_C_COMPILER=$mpicc \
-	-DMPI_CXX_COMPILER=$mpicxx \
-	-DMPI_Fortran_COMPILER=$mpifc \
-	-DCFITSIO_USE_CURL:BOOL=OFF \
-	-DUSE_SYSTEM_FFTW:BOOL=OFF \
-	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	-DUSE_SYSTEM_HDF5:BOOL=OFF \
-	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=ON \
-	-S $comm3_root_dir -B $abs_path_to_build
+  if ! [ -f $abs_path_to_build/CMakeCache.txt ]; then
+    echo "Running CMake as if for the first time"
+	  rm -rf $abs_path_to_build/CMakeCache.txt
+	  #------------------------------------------------------------------------------
+	  # Executing CMake commands for the first time
+	  #------------------------------------------------------------------------------
+	  cmake \
+	  -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
+	  -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
+	  -DCMAKE_BUILD_TYPE="$buildtype" \
+	  -DCMAKE_Fortran_COMPILER=$fc \
+	  -DCMAKE_C_COMPILER=$cc \
+	  -DCMAKE_CXX_COMPILER=$cxx \
+	  -DMPI_C_COMPILER=$mpicc \
+	  -DMPI_CXX_COMPILER=$mpicxx \
+	  -DMPI_Fortran_COMPILER=$mpifc \
+	  -DCFITSIO_USE_CURL:BOOL=OFF \
+	  -DUSE_SYSTEM_FFTW:BOOL=OFF \
+	  -DUSE_SYSTEM_CFITSIO:BOOL=OFF \
+	  -DUSE_SYSTEM_HDF5:BOOL=OFF \
+	  -DUSE_SYSTEM_HEALPIX:BOOL=OFF \
+	  -DUSE_SYSTEM_BLAS:BOOL=ON \
+	  -S $comm3_root_dir -B $abs_path_to_build
+  fi
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------
