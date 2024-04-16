@@ -429,6 +429,8 @@ contains
     !    3. The components to sample and their proposals
     !    4. The specific CG groups to do amplitudes sampling on
     !
+
+    ! Need to create a new set of variables that hold the step length
     implicit none
     type(comm_params) :: cpar
 
@@ -439,11 +441,13 @@ contains
     class(comm_map), pointer :: indmask, mask_ud
 
 
-    integer(i4b) :: i, j, nside, lmax, nmaps, n, n_tokens
+    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, n_tokens
+    real(dp) :: sigma
     logical(lgt) :: pol
+    class(comm_comp),   pointer           :: c => null()
 
 
-    character(len=128) :: tokens(100), comp_tokens(2), wire_to(2), wire_from(2)
+    character(len=128) :: tokens(100), comp_tokens(2), comp_names(2), wire_to(2), wire_from(2)
 
 
     ! Dummy values, need to get real ones 
@@ -501,14 +505,68 @@ contains
 
              call get_tokens(tokens(j), '>', comp_tokens, n)
              if (n == 2) then
-               write(*,*) 'We are wiring ', trim(comp_tokens(1)), ' and ',trim(comp_tokens(2))
+               write(*,*) ''
+               write(*,*) 'We are wiring ', trim(comp_tokens(1)), ' to ',trim(comp_tokens(2))
                call get_tokens(comp_tokens(1), ':', wire_from, num=n)
                call get_tokens(comp_tokens(2), ':', wire_to, num=n)
 
-               write(*,*) trim(wire_from(1)), trim(wire_From(2))
+               write(*,*) trim(wire_to(1))
+               write(*,*) trim(wire_from(1))
+
+               write(*,*) ''
+               write(*,*) trim(wire_to(2))
+               write(*,*) trim(wire_from(2))
+
+
+               ! Set wiring; if status is 0, ignore, if it's an integer,
+               ! get the index of the parameter that we're wiring to
+               ! c%theta_stat(cind, i) = 
+
+             else if (n == 1) then
+                 write(*,*) ''
+                 !write(*,*) 'No wiring'
+                 call get_tokens(tokens(j), '%', comp_tokens)
+                 read(comp_tokens(2), *) sigma
+
+                 call get_tokens(comp_tokens(1), ':', comp_names)
+
+
+                 if (trim(comp_names(1)) == 'gain') then
+                   write(*,*) 'We are sampling gain', sigma
+                 else if (trim(comp_names(2)) == 'scale') then
+                   write(*,*) 'We are scaling the amplitude', sigma
+                 else if (comp_names(2)(1:3) == 'tab') then
+                   write(*,*) 'We are dealing with tabulated guys: ', trim(comp_names(2)), sigma
+                   ! Currently, there is no distinguishing between 05a and 05b.
+                   !c%theta_steplen(cind, i) = 
+
+                   c => compList
+                   do while (associated(c))
+                      write(*,*) 'c%id, c%type, c%class, trim(c%label)'
+                      write(*,*) c%id, trim(c%type), trim(c%class), trim(c%label)
+
+                      if (trim(c%type) == 'MBBtab') then
+                        ! Get the tabulated index
+                        c%theta_steplen(:,i) = sigma
+                        write(*,*) sigma
+                      end if
+
+                      c => c%nextComp()
+                   end do
+
+                 else if (comp_names(2)(1:4) == 'beta') then
+                   write(*,*) 'Sampling beta', sigma
+                 else if (comp_names(2)(1:1) == 'T') then
+                   write(*,*) 'Sampling T', sigma
+                 else
+                   write(*,*) 'Potentially poorly formatted ', trim(comp_tokens(1))
+                 end if
              else
-               write(*,*) 'This had better be 1: ', n
+               write(*,*) 'Error in comp tokens', comp_tokens
+               stop
              end if
+
+
            end do
         end do
     end if

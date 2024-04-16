@@ -169,7 +169,6 @@ program commander
   end if
 
   call define_cg_samp_groups(cpar)
-  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
   call initialize_inter_tod_params(cpar)
@@ -192,6 +191,7 @@ program commander
 
   ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
+  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
   
   ! initialize zodi samp mod
