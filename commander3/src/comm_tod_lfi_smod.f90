@@ -1448,11 +1448,13 @@ contains
     integer(i4b),                      intent(in)      :: det
     real(sp), dimension(:,:),          intent(inout)   :: data
 
+    real(dp)     :: filt
     integer(i4b) :: i, j, nfft, n
     integer*8    :: plan_fwd, plan_back
 
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
+
 
     n       = size(data(:,1))
     nfft    = n/2+1

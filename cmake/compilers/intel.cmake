@@ -88,7 +88,7 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-xHost" 
 		"-debug" "all"
 		"-check" "all,noarg_temp_created"
-		"-warn" "all"
+		"-warn" "all,nounused,noexternal"
 		"-fp-stack-check"
 		"-fstack-protector-all"
 		"-traceback" 
