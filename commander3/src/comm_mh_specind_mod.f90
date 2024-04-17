@@ -69,10 +69,11 @@ contains
     do l = 1, cpar%mcmc_num_samp_groups
 
        mval_0 = -1000d0
+       k = 0
 
        c => compList
        do while (associated(c))
-                       
+          k = k + 1
           select type (c)
           type is (comm_MBBtab_comp)
             if (maxval(c%theta_steplen(3:,l)) > 0) then
@@ -95,142 +96,145 @@ contains
 
 
 
-       do k = 1, ncomp
-          todo = .true.
+       todo = .true.
 
 
-          ! Calculate initial chisq
-          c => compList
-          chisq_old = 0d0
-          do while (associated(c))
-             select type (c)
-             type is (comm_md_comp)
-               continue
-             class is (comm_diffuse_comp)
-               !if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
-               if (c%id == k) then
-                   call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-                   todo = .false.
-               end if
-             end select
-             c => c%nextComp()
-          end do
+       ! Calculate initial chisq
+       chisq_old = 0d0
+       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, maskpath=cpar%mcmc_samp_group_mask(l)) !, bands=group_chisq_bands)
 
-          ! If component index is not used, skip
-          if (todo) cycle
+       !    ! Calculate initial chisq
+       !    c => compList
+       !    chisq_old = 0d0
+       !             call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+       !    do while (associated(c))
+       !       select type (c)
+       !       type is (comm_md_comp)
+       !         continue
+       !       class is (comm_diffuse_comp)
+       !         !if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
+       !         if (c%id == k) then
+       !             call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
+       !             todo = .false.
+       !         end if
+       !       end select
+       !       c => c%nextComp()
+       !    end do
 
-          if (cpar%myid_chain .eq. 0) then
-            write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
-          end if
+       ! If component index is not used, skip
+       if (todo) cycle
 
-          c => compList
-          do while (associated(c))
-                          
-             select type (c)
-             type is (comm_MBBtab_comp)
+       if (cpar%myid_chain .eq. 0) then
+         write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
+       end if
 
-               if (c%id == k) then
+       c => compList
+       do while (associated(c))
+                       
+          select type (c)
+          type is (comm_MBBtab_comp)
 
-                  if (cpar%myid_chain .eq. 0) then
-                    write(*,*) trim(c%label)
-                    c%SEDtab_buff = c%SEDtab
-                    do i = 1, c%ntab
-                       c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(2+i,l)
-                    end do
-                    write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
-                    write(*,*) 'MBBtab proposal', c%SEDtab(3,:)
-                  end if
+            if (c%id == k) then
 
-
-                  call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                    & 0, data(1)%info%comm, ierr)
-                  call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                    & 0, data(1)%info%comm, ierr)
+               if (cpar%myid_chain .eq. 0) then
+                 write(*,*) trim(c%label)
+                 c%SEDtab_buff = c%SEDtab
+                 do i = 1, c%ntab
+                    c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(2+i,l)
+                 end do
+                 write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
+                 write(*,*) 'MBBtab proposal', c%SEDtab(3,:)
                end if
 
-             end select
-             
-             !go to next component
-             c => c%nextComp()
-          end do
 
-          call update_mixing_matrices(update_F_int=.true.)
-
-          ! Perform component separation
-          call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
-
-
-          c => compList
-          chisq_prop = 0d0
-          do while (associated(c))
-             select type (c)
-             type is (comm_md_comp)
-               continue
-             class is (comm_diffuse_comp)
-               if (c%id == k) then
-                 call compute_chisq(c%comm, chisq_fullsky=chisq_prop, mask=c%indmask)
-               end if
-             end select
-             c => c%nextComp()
-          end do
-
-          if (cpar%myid_chain .eq. 0) then
-            write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-            write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
-          end if
-
-          ! Check MH statistic
-          reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
-          call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
-
-
-          if (reject) then
-            if (cpar%myid_chain == 0) then
-              write(*,*) '| '
-              write(*,*) '| MH step rejected, returning to original tabulated values.'
-              write(*,*) '| '
+               call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                 & 0, data(1)%info%comm, ierr)
+               call mpi_bcast(c%SEDtab_buff, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                 & 0, data(1)%info%comm, ierr)
             end if
 
+          end select
+          
+          !go to next component
+          c => c%nextComp()
+       end do
 
-            c => compList
-            do while (associated(c))
-                            
-               select type (c)
-               type is (comm_MBBtab_comp)
+       call update_mixing_matrices(update_F_int=.true.)
 
-                 if (c%id == k) then
-                    if (cpar%myid_chain .eq. 0) then
-                      do i = 1, c%ntab
-                         c%SEDtab(3,i) = c%SEDtab_buff(3,i)
-                      end do
-                    end if
+       ! Perform component separation
+       call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
 
 
-                    call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
-                      & 0, data(1)%info%comm, ierr)
+       c => compList
+       chisq_prop = 0d0
+       do while (associated(c))
+          select type (c)
+          type is (comm_md_comp)
+            continue
+          class is (comm_diffuse_comp)
+            if (c%id == k) then
+              call compute_chisq(c%comm, chisq_fullsky=chisq_prop, mask=c%indmask)
+            end if
+          end select
+          c => c%nextComp()
+       end do
+
+       if (cpar%myid_chain .eq. 0) then
+         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
+         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+       end if
+
+       ! Check MH statistic
+       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
+       call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
+
+
+       if (reject) then
+         if (cpar%myid_chain == 0) then
+           write(*,*) '| '
+           write(*,*) '| MH step rejected, returning to original tabulated values.'
+           write(*,*) '| '
+         end if
+
+
+         c => compList
+         do while (associated(c))
+                         
+            select type (c)
+            type is (comm_MBBtab_comp)
+
+              if (c%id == k) then
+                 if (cpar%myid_chain .eq. 0) then
+                   do i = 1, c%ntab
+                      c%SEDtab(3,i) = c%SEDtab_buff(3,i)
+                   end do
                  end if
 
-               end select
-               
-               !go to next component
-               c => c%nextComp()
-            end do
 
-            ! Update mixing matrices
-            call update_mixing_matrices(update_F_int=.true.)
+                 call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
+                   & 0, data(1)%info%comm, ierr)
+              end if
+
+            end select
+            
+            !go to next component
+            c => c%nextComp()
+         end do
+
+         ! Update mixing matrices
+         call update_mixing_matrices(update_F_int=.true.)
 
 
-            ! Instead of doing compsep, revert the amplitudes here
-           call revert_CG_amps(cpar)
+         ! Instead of doing compsep, revert the amplitudes here
+        call revert_CG_amps(cpar)
 
-          else
-            if (cpar%myid_chain == 0) then
-              write(*,*) '| '
-              write(*,*) '| MH step accepted'
-              write(*,*) '| '
-            end if
-          end if
-       end do
+       else
+         if (cpar%myid_chain == 0) then
+           write(*,*) '| '
+           write(*,*) '| MH step accepted'
+           write(*,*) '| '
+         end if
+       end if
 
 
      end do

@@ -106,7 +106,7 @@ module comm_param_mod
 
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
+     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md, mcmc_num_user_samp_groups
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
@@ -3481,6 +3481,11 @@ end subroutine
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') then
           call validate_file(trim(cpar%cg_samp_group_mask(i)), 'CG_SAMPLING_GROUP_MASK'//itext)
+       end if
+    end do
+    do i = 1, cpar%mcmc_num_user_samp_groups
+       if (trim(cpar%mcmc_samp_group_mask(i)) /= 'fullsky') then
+          call validate_file(trim(cpar%mcmc_samp_group_mask(i)), 'MCMC_SAMPLING_GROUP_MASK'//itext)
        end if
     end do
 
