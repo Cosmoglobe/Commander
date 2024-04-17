@@ -24,18 +24,6 @@ module comm_mh_specind_mod
 
 
 
-  type :: mh_mask_container
-     integer(i4b)     :: nside, nside_chisq_lowres, nmaps, np, npix, myid, comm, nprocs
-     class(comm_map),     pointer :: invN_diag => null()
-     class(comm_map),     pointer :: rms_reg   => null()
-     class(comm_mapinfo), pointer :: info      => null()
-     class(map_ptr), allocatable, dimension(:) :: samp_group_mask
-  end type mh_mask_container
-
-  type mh_mask_ptr
-     class(mh_mask_container), pointer :: p => null()
-  end type mh_mask_ptr
-
 contains
 
 
@@ -68,7 +56,9 @@ contains
 
     do l = 1, cpar%mcmc_num_user_samp_groups
 
-       mval_0 = -1000d0
+       if (cpar%myid == 0) write(*,*) 'Doing mcmc sample group ', l
+
+       mval_0 = -1d0
        k = 0
 
        c => compList
@@ -77,10 +67,9 @@ contains
           select type (c)
           type is (comm_MBBtab_comp)
             if (maxval(c%theta_steplen(3:,l)) > 0) then
-               write(*,*) l, 'cpar, bla bla bla'
                mval = maxval(c%theta_steplen(3:,l))
                mval_0 = max(mval, mval_0)
-               write(*,*) trim(c%label)
+               exit
             end if
           end select
           c => c%nextComp()
@@ -90,42 +79,17 @@ contains
 
        if (mval_0 <= 0d0) then
          cycle
-       else
-         if (cpar%myid == 0) write(*,*) mval_0
        end if
 
 
 
-       todo = .true.
-
-
        ! Calculate initial chisq
        chisq_old = 0d0
-       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, maskpath=cpar%mcmc_samp_group_mask(l)) !, bands=group_chisq_bands)
-
-       !    ! Calculate initial chisq
-       !    c => compList
-       !    chisq_old = 0d0
-       !             call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-       !    do while (associated(c))
-       !       select type (c)
-       !       type is (comm_md_comp)
-       !         continue
-       !       class is (comm_diffuse_comp)
-       !         !if (c%id == k .and. c%SEDtab_prior .ne. 0d0) then
-       !         if (c%id == k) then
-       !             call compute_chisq(c%comm, chisq_fullsky=chisq_old, mask=c%indmask)
-       !             todo = .false.
-       !         end if
-       !       end select
-       !       c => c%nextComp()
-       !    end do
-
-       ! If component index is not used, skip
-       if (todo) cycle
+       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
+         write(*,*) '| Old chisq is ', chisq_old
        end if
 
        c => compList
@@ -161,27 +125,25 @@ contains
 
        call update_mixing_matrices(update_F_int=.true.)
 
+
        ! Perform component separation
-       call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true.)
+       if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_update_cg_groups(l))
+       if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
+          if (cpar%myid == 0) write(*,*) 'No groups to sample, accepting step'
+          cycle
+       else
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
+       end if
 
 
-       c => compList
+
        chisq_prop = 0d0
-       do while (associated(c))
-          select type (c)
-          type is (comm_md_comp)
-            continue
-          class is (comm_diffuse_comp)
-            if (c%id == k) then
-              call compute_chisq(c%comm, chisq_fullsky=chisq_prop, mask=c%indmask)
-            end if
-          end select
-          c => c%nextComp()
-       end do
+       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
        end if
 
        ! Check MH statistic
@@ -226,7 +188,7 @@ contains
 
 
          ! Instead of doing compsep, revert the amplitudes here
-        call revert_CG_amps(cpar)
+         call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then
@@ -238,6 +200,11 @@ contains
 
 
      end do
+
+
+     if (cpar%myid == 0) then
+       write(*,*) 'Finished sampling mbbtab'
+     end if
 
   end subroutine sample_mbbtab_mh
 
@@ -285,7 +252,7 @@ contains
 
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) '| Old chisq is ', nint(chisq_old, i8b)
+         write(*,*) '| Old chisq is ', chisq_old
        end if
 
        c => compList
@@ -371,8 +338,8 @@ contains
        end do
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
        end if
 
        ! Check MH statistic
@@ -384,7 +351,7 @@ contains
          if (cpar%myid_chain == 0) then
            write(*,*) '| '
            write(*,*) '| MH step rejected, returning to original spectral indices.'
-           write(*,*) '| Rejected chisq is ', nint(chisq_old, i8b)
+           write(*,*) '| Rejected chisq is ', chisq_old
            write(*,*) '| '
          end if
 
@@ -473,13 +440,12 @@ contains
     type(comm_params) :: cpar
 
 
-    type(mh_mask_container) :: mh_masks
-
     type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud
     class(comm_map), pointer :: indmask, mask_ud
 
 
-    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, n_tokens
+    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, n_tokens, n_in_group, ierr
+    integer(i4b), allocatable, dimension(:,:)  :: bands_to_sample
     real(dp) :: sigma
     logical(lgt) :: pol
     class(comm_comp),   pointer           :: c => null()
@@ -487,46 +453,53 @@ contains
 
     character(len=128) :: tokens(100), comp_tokens(2), comp_names(2), comp_bands(2), wire_to(2), wire_from(2)
 
+    allocate(cpar%mcmc_group_bands_indices(cpar%mcmc_num_user_samp_groups, numband))
 
-    ! Dummy values, need to get real ones 
-    ! nside = 512
-    ! lmax = -1
-    ! nmaps = 3
-    ! pol = .false.
-
-    ! info  => comm_mapinfo(cpar%comm_chain, nside, lmax, nmaps, pol)
-
-    ! do i = 1, cpar%mcmc_num_user_samp_groups
-    !    indmask => comm_map(info, trim(cpar%mcmc_samp_group_mask(i)), &
-    !         & udgrade=.true.)
-    ! end do
-
-    ! call get_tokens(tokens(i), '>', comp_param, num=n)
-    ! call get_tokens(comp_param(1), ':', wire_from, num=n)
-    ! call get_tokens(comp_param(2), ':', wire_to,   num=m)
-
+    cpar%mcmc_group_bands_indices = 0
 
 
     ! Need to add an argument to sample_all_amps_by_CG that includes this list
+    !if (cpar%myid == 0) then
+    !    do i = 1, cpar%mcmc_num_user_samp_groups
+    !       write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+    !       if (trim(cpar%mcmc_update_cg_groups(i)) == 'none') then
+    !         write(*,*) 'Nothing to sample'
+    !       else 
+    !         call get_tokens(cpar%mcmc_update_cg_groups(i), ',', tokens, n)
+    !         if (n == 0) then
+    !           write(*,*) "Something is wrong with your CG groups"
+    !           write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+    !         end if
+    !       end if
+    !    end do
+    !end if
+
+
     if (cpar%myid == 0) then
-        do i = 1, cpar%mcmc_num_user_samp_groups
-           write(*,*) trim(cpar%mcmc_update_cg_groups(i))
-           if (trim(cpar%mcmc_update_cg_groups(i)) == 'none') then
-             write(*,*) 'Nothing to sample'
-           else 
-             call get_tokens(cpar%mcmc_update_cg_groups(i), ',', tokens, n)
-             if (n == 0) then
-               write(*,*) "Something is wrong with your CG groups"
-               write(*,*) trim(cpar%mcmc_update_cg_groups(i))
-             end if
-           end if
-        end do
+      do i = 1, cpar%mcmc_num_user_samp_groups
+        call get_tokens(cpar%mcmc_samp_group_bands(i), ',', tokens, n)
+        if (n == 0) then
+          write(*,*) 'You have misformatted MCMC_SAMPLING_GROUP_CHISQ_BANDS'
+          stop
+        else
+          n_in_group = 0
+          do j = 1, n
+            k = findloc(cpar%ds_label, tokens(j), dim=1)
+            if (k .ne. 0) then
+              n_in_group = n_in_group + 1
+              cpar%mcmc_group_bands_indices(i, n_in_group) = k
+            end if
+          end do
+
+        end if
+      end do
     end if
 
-    ! Need to 1: make a mask map
-    !         2: specify the bands for which chi^2 is evaluated
-    !         3: specify the items to be sampled
-    !         4: specify the CG groups. If none, don't do any CG sampling
+    call mpi_bcast(cpar%mcmc_group_bands_indices, size(cpar%mcmc_group_bands_indices), &
+                   & MPI_INTEGER, 0, data(1)%info%comm, ierr)
+
+
+
 
     if (cpar%myid == 0) then
         do i = 1, cpar%mcmc_num_user_samp_groups
@@ -543,7 +516,7 @@ contains
 
 
              else if (n == 1) then
-                 write(*,*) ''
+                 !write(*,*) ''
                  !write(*,*) 'No wiring'
                  call get_tokens(tokens(j), '%', comp_tokens)
                  read(comp_tokens(2), *) sigma
@@ -573,16 +546,16 @@ contains
                    read(comp_bands(2)(1:m-1), *) m
                   
 
-                   write(*,*) 'comp names ', trim(comp_names(1))
+                   !write(*,*) 'comp names ', trim(comp_names(1))
 
                    c => compList
                    do while (associated(c))
                       if (trim(c%label) == trim(comp_names(1))) then
                         !       (beta+T+ntab, n_mcmc_samp_groups)
-                        write(*,*) 'set sigma_SEDtab  to ',sigma
-                        write(*,*) i, 2+m, c%theta_steplen(2+m,i)
+                        !write(*,*) 'set sigma_SEDtab  to ',sigma
+                        !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
                         c%theta_steplen(2+m,i) = sigma
-                        write(*,*) i, 2+m, c%theta_steplen(2+m,i)
+                        !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
                       end if
                       c => c%nextComp()
                    end do
@@ -594,7 +567,7 @@ contains
                         !       (beta+T+ntab, n_mcmc_samp_groups)
                         ! or    (beta+T,      n_mcmc_samp_groups)
                         c%theta_steplen(1,i) = sigma
-                        write(*,*) 'set sigma_beta  to ',sigma
+                        !write(*,*) 'set sigma_beta  to ',sigma
                       end if
                       c => c%nextComp()
                    end do
@@ -605,7 +578,7 @@ contains
                         !       (beta+T+ntab, n_mcmc_samp_groups)
                         ! or    (beta+T,      n_mcmc_samp_groups)
                         c%theta_steplen(2,i) = sigma
-                        write(*,*) 'set sigma_T', sigma
+                        !write(*,*) 'set sigma_T', sigma
                       end if
                       c => c%nextComp()
                    end do

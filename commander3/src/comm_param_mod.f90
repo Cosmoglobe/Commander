@@ -294,6 +294,7 @@ module comm_param_mod
                                                                                                   ! Sample using specificed cg
                                                                                                   ! groups. If none, skip amplitude
                                                                                                   ! sampling
+     integer(i4b), allocatable, dimension(:,:)   :: mcmc_group_bands_indices
   end type comm_params
 
 

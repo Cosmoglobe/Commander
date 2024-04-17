@@ -24,7 +24,7 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, evalpol)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -35,8 +35,10 @@ contains
     real(dp),                       intent(out),   optional :: chisq_fullsky
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
     character(len=512),             intent(in),    optional :: maskpath
+    integer(i4b), dimension(:),     intent(in),    optional :: band_list
 
-    integer(i4b) :: i, j, k, p, ierr, nmaps
+    integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
+    integer(i4b), dimension(:), allocatable :: bandlist
     real(dp)     :: t1, t2
     logical(lgt) :: lowres
     class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub, mask_tmp
@@ -65,10 +67,20 @@ contains
       !                 (false). Otherwise, both are evaluated.
 
 
+    if (present(band_list)) then
+      bandlist = band_list
+      nbands = size(bandlist)
+    else
+      bandlist = [(i, i=1,numband)]
+      nbands = numband
+    end if
+
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
-       do i = 1, numband
+       do p = 1, nbands
+          i = bandlist(p)
+          if (i == 0) cycle
           
           ! Skip non-essential chisq evaluation
           if (present(evalpol)) then
@@ -82,7 +94,7 @@ contains
           res => compute_residual(i)
 
           if (present(mask)) then
-            if (size(mask) .ne. numband) write(*,*) 'Need as many masks as bands'
+            if (size(mask) .ne. nbands) write(*,*) 'Need as many masks as bands'
             res%map = res%map * mask(i)%p%map
           else if (present(maskpath)) then
             mask_tmp => comm_map(data(i)%info, trim(maskpath), udgrade=.true.)
