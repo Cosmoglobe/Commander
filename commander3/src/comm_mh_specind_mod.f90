@@ -66,7 +66,7 @@ contains
 
     ! Loop over sampling groups
 
-    do l = 1, cpar%mcmc_num_samp_groups
+    do l = 1, cpar%mcmc_num_user_samp_groups
 
        mval_0 = -1000d0
        k = 0
@@ -496,7 +496,7 @@ contains
 
     ! info  => comm_mapinfo(cpar%comm_chain, nside, lmax, nmaps, pol)
 
-    ! do i = 1, cpar%mcmc_num_samp_groups
+    ! do i = 1, cpar%mcmc_num_user_samp_groups
     !    indmask => comm_map(info, trim(cpar%mcmc_samp_group_mask(i)), &
     !         & udgrade=.true.)
     ! end do
@@ -509,7 +509,7 @@ contains
 
     ! Need to add an argument to sample_all_amps_by_CG that includes this list
     if (cpar%myid == 0) then
-        do i = 1, cpar%mcmc_num_samp_groups
+        do i = 1, cpar%mcmc_num_user_samp_groups
            write(*,*) trim(cpar%mcmc_update_cg_groups(i))
            if (trim(cpar%mcmc_update_cg_groups(i)) == 'none') then
              write(*,*) 'Nothing to sample'
@@ -529,7 +529,7 @@ contains
     !         4: specify the CG groups. If none, don't do any CG sampling
 
     if (cpar%myid == 0) then
-        do i = 1, cpar%mcmc_num_samp_groups
+        do i = 1, cpar%mcmc_num_user_samp_groups
 
 
            call get_tokens(cpar%mcmc_samp_groups(i), ',', tokens, n_tokens)

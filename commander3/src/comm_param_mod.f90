@@ -106,7 +106,7 @@ module comm_param_mod
 
      ! Numerical parameters
      character(len=512) :: cg_conv_crit, cg_precond
-     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md, mcmc_num_user_samp_groups
+     integer(i4b)       :: cg_lmax_precond, cg_maxiter, cg_num_samp_groups, cg_num_user_samp_groups, cg_miniter, cg_check_conv_freq, cg_samp_group_md
      logical(lgt)       :: cg_init_zero, set_noise_to_mean
      real(dp)           :: cg_tol
      integer(i4b)       :: num_bp_prop
@@ -285,6 +285,7 @@ module comm_param_mod
 
 
      ! MH spectral index sampling parameters
+     integer(i4b)                                :: mcmc_num_user_samp_groups                     ! NUM_MCMC_SAMPLING_GROUPS
      integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
      character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
      character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
@@ -771,9 +772,10 @@ contains
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_BANDS'//itext, par_string=cpar%cg_samp_group_bands(i))
     end do
 
-    call get_parameter_hashtable(htbl, 'NUM_MCMC_SAMPLING_GROUPS', par_int=cpar%mcmc_num_samp_groups)
-    allocate(cpar%mcmc_samp_groups(cpar%mcmc_num_samp_groups))
-    do i = 1, cpar%mcmc_num_samp_groups
+    call get_parameter_hashtable(htbl, 'NUM_MCMC_SAMPLING_GROUPS', par_int=cpar%mcmc_num_user_samp_groups)
+    cpar%mcmc_num_samp_groups = cpar%mcmc_num_user_samp_groups
+    allocate(cpar%mcmc_samp_groups(cpar%mcmc_num_user_samp_groups))
+    do i = 1, cpar%mcmc_num_user_samp_groups
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_MASK'//itext, par_string=cpar%mcmc_samp_group_mask(i), path=.true.)
        call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_BANDS'//itext, par_string=cpar%mcmc_samp_group_bands(i))
@@ -4080,6 +4082,10 @@ end subroutine
        write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
        stop
     end if
+
+
+    ! Temporary
+    cpar%mcmc_num_samp_groups = cpar%mcmc_num_user_samp_groups 
     
   end subroutine define_cg_samp_groups
   
