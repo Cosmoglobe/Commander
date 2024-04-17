@@ -1929,21 +1929,18 @@ contains
         ! root does the division and adds the fluctuation term
         if(self%myid == 0) then
            if (A_tot > 0) then
-              x_tot = B_tot/A_tot !+ sqrt(1.d0/A_tot)*rand_gauss(handle)
+              x_tot = B_tot/A_tot
+              if (trim(cpar%operation) == 'sample') x_tot = x_tot + sqrt(1.d0/A_tot)*rand_gauss(handle)
+              ! This first test should be replaced with a unit independent stability criterion
               if (1.d0/sqrt(A_tot) > 1 .or. x_tot < 0.d0) x_tot = 0.d0
            else
               x_tot = 0.d0
            end if
-          !if(x_tot < 0) x_tot = 0
           if (mod(i,10000) == 0) then
-!             write(*,*) A_tot, B_tot
              write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
           end if
           self%x(i,p) = x_tot
         end if
-
-!        call mpi_finalize(ierr)
-!        stop
 
         ! broadcast final result to all cores
         call mpi_bcast(x_tot, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
@@ -1961,8 +1958,6 @@ contains
             data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(i)%T(la)%map(q,p)
           end do
         end do
-        
-
       end do
     end do
 
@@ -2397,8 +2392,13 @@ n_gibbs=1
              if (self%myid == 0) then
                 
                 ! Compute maximum likelihood solution
-                sigma   = 1.d0  / sqrt(a_tot)
-                mu      = b_tot / a_tot
+                if (a_tot <= 0.d0) then
+                   sigma = 1.d10
+                   mu    = 0.d0
+                else
+                   sigma   = 1.d0  / sqrt(a_tot)
+                   mu      = b_tot / a_tot
+                end if
                 !write(*,*) 'amp0  = ', real(mu,sp), real(sigma,sp)
                 
                 ! Add Gaussian prior
