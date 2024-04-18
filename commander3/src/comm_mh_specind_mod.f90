@@ -80,9 +80,6 @@ contains
          cycle
        end if
 
-       call output_FITS_sample(cpar, 1050, .true.)
-
-
        ! Calculate initial chisq
        chisq_old = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
@@ -135,8 +132,6 @@ contains
        else
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
-
-       call output_FITS_sample(cpar, 2050, .true.)
 
        chisq_prop = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
@@ -484,13 +479,17 @@ contains
           write(*,*) 'You have misformatted MCMC_SAMPLING_GROUP_CHISQ_BANDS'
           stop
         else
+
           n_in_group = 0
           do j = 1, n
             k = findloc(cpar%ds_label, tokens(j), dim=1)
-            if (k .ne. 0) then
-              n_in_group = n_in_group + 1
-              cpar%mcmc_group_bands_indices(i, n_in_group) = k
-            end if
+            do k = 1, numband
+              if (trim(tokens(j)) == trim(data(k)%label)) then
+                n_in_group = n_in_group + 1
+                cpar%mcmc_group_bands_indices(i, n_in_group) = k
+                exit
+              end if
+            end do
           end do
 
         end if

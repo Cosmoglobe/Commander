@@ -438,6 +438,7 @@ contains
       group_inds = [(samp_group, samp_group=1, MAXSAMPGROUP)]
     end if
 
+
     call timer%start(TOT_AMPSAMP)
     do samp_group = 1, cpar%cg_num_user_samp_groups
        if (findloc(group_inds, samp_group, dim=1) == 0) cycle
