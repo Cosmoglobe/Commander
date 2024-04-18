@@ -5,8 +5,8 @@ module comm_zodi_mod
    implicit none
 
    private
-   public initialize_zodi_mod, get_s_zodi, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emissivity_albedo, print_zodi_model
-   public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model
+   public initialize_zodi_mod, get_s_zodi, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emissivity_albedo
+   public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -757,12 +757,11 @@ contains
      first = 1; if (present(comp_id)) first = comp_id
      
      s_zodi = 0.
-     write(*,*) first, size(s_therm,2)
      do i = first, first+size(s_therm,2)-1
         al     = zodi_model%comps(i)%c%albedo(band)
         em     = zodi_model%comps(i)%c%emissivity(band)
         !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-        s_zodi = s_zodi + ((s_scat(:,i) * al) + (1. - al) * em * s_therm(:,i))
+        s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
      end do
    end subroutine get_s_zodi
 
