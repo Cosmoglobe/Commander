@@ -48,6 +48,7 @@ module comm_template_comp_mod
      real(dp)                   :: cg_scale
      integer(i4b)               :: band
      real(dp),  dimension(1,1)  :: x         ! Amplitude
+     real(dp),  dimension(1,1)  :: x_buff    ! Amplitude
      real(dp),  dimension(2)    :: P         ! Gaussian prior on amplitude (mean,sigma)
      real(dp),  dimension(2)    :: P_cg      ! Gaussian prior on amplitude for CG (mean,sigma)
      class(comm_map), pointer   :: T    => null()   ! Template

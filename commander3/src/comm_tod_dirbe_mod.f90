@@ -106,7 +106,7 @@ contains
 
       ! Initialize instrument-specific parameters
       read(c%freq(1:2),*) c%zodiband
-      c%samprate_lowres = 1.  ! Lowres samprate in Hz
+      c%samprate_lowres = 8.  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
       c%compressed_tod  = .false.
@@ -148,7 +148,10 @@ contains
 
       ! Allocate sidelobe convolution data structures
       allocate(c%slconv(c%ndet), c%orb_dp)
-      c%orb_dp => comm_orbdipole(comm=info%comm)
+
+      c%orb_dp => comm_orbdipole(comm=c%comm)
+
+
       ! Initialize all baseline corrections to zero
       !do i = 1, c%nscan
       !   c%scans(i)%d%baseline = 0.d0
@@ -248,7 +251,8 @@ contains
 !!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
 !!$        & trim(self%freq) == '03' .or. &
 !!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
+      !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
+      if (trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
       else
          sample_ncorr = .false.
@@ -341,10 +345,9 @@ contains
                if (.not. self%scans(i)%d(j)%accept) cycle
                call self%create_dynamic_mask(i, j, sd%tod(:,j)-real(self%scans(i)%d(j)%gain,sp)*sd%s_tot(:,j), [-10.,10.], sd%mask(:,j))
             end do
-            if (.not. any(self%scans(i)%d%accept)) then
-               call sd%dealloc
-               cycle
-            end if
+            call sd%dealloc
+            if (.not. any(self%scans(i)%d%accept)) cycle
+            call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, procmask_zodi, init_s_bp=.true.)
          end if
 
          ! Sample correlated noise

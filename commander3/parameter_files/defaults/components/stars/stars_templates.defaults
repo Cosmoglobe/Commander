@@ -4,14 +4,14 @@ COMP_CLASS&&                   = ptsrc    # {diffuse, ptsrc, template}
 COMP_TYPE&&                    = stars
 COMP_CATALOG&&                 = dirbe_star_catalog.h5
 COMP_INIT_CATALOG&&            = none
-COMP_PTSRC_TEMPLATE&&          = none
+COMP_PTSRC_TEMPLATE&&          = dirbe_stars_ptsrc.h5 
 COMP_OUTPUT_PTSRC_TEMPLATE&&   = .false.
 COMP_AMP_RMS_SCALE_FACTOR&&    = 3.         # Scale amp rms by this factor
 COMP_POLARIZATION&&            = .false.
 COMP_MIN_DIST_BETWEEN_SRC&&    = 0       ! arcmin
 
 COMP_NSIDE&&                   = 512
-COMP_CG_SCALE&&                = 1.d0
+COMP_CG_SCALE&&                = 0.000000001
 COMP_CG_SAMPLE_GROUP&&         = 0
 COMP_NU_MIN&&                 = 11000.d0   # Cut off below Band 6 (25um)
 COMP_NU_MAX&&                 = 1d30
@@ -36,7 +36,7 @@ COMP_T_PRIOR_UNI_HIGH&&     = 12000.0
 COMP_T_PRIOR_GAUSS_MEAN&&   = 3000.0
 COMP_T_PRIOR_GAUSS_RMS&&    = 1000.0
 
-COMP_APPLY_POSITIVITY_PRIOR&&  = .true.
+COMP_APPLY_POSITIVITY_PRIOR&&  = .false.
 COMP_APPLY_JEFFREYS_PRIOR&&    = .false.
 COMP_BURN_IN_ON_FIRST_SAMPLE&& = .false.
 COMP_INIT_FROM_HDF&&           = none

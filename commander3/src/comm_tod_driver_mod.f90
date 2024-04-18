@@ -236,7 +236,7 @@ contains
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
-       if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', int(((real(scan, sp) - 1)*tod%numprocs + 1)/(tod%nscan*tod%numprocs) * 100, i4b), '%'
+       if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') '    --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
        do j = 1, self%ndet
 !!$          call get_zodi_emission(&
 !!$            & tod=tod, &
@@ -1183,4 +1183,6 @@ contains
     write(*,*) "!  Process:", self%myid, "finished writing PID: "//trim(pidLabel)//"."
 
   end subroutine simulate_tod
+
+
 end module comm_tod_driver_mod

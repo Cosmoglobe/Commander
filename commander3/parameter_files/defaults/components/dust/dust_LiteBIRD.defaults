@@ -27,9 +27,9 @@ COMP_CL_L_PIVOT&&             = 50          # Pivot multipole
 COMP_CL_DEFAULT_AMP_T&&       =  1e6        # D_l = amp * (l/lpivot)**beta
 COMP_CL_DEFAULT_AMP_E&&       =  50
 COMP_CL_DEFAULT_AMP_B&&       =  50
-COMP_CL_DEFAULT_BETA_T&&      =  15.d0
-COMP_CL_DEFAULT_BETA_E&&      =  15.d0
-COMP_CL_DEFAULT_BETA_B&&      =  15.d0	
+COMP_CL_DEFAULT_BETA_T&&      =  18.d0
+COMP_CL_DEFAULT_BETA_E&&      =  18.d0
+COMP_CL_DEFAULT_BETA_B&&      =  18.d0	
 COMP_DEFAULT_BETA&&           =   1.5
 COMP_PRIOR_UNI_BETA_LOW&&     =   1.0
 COMP_PRIOR_UNI_BETA_HIGH&&    =   2.0

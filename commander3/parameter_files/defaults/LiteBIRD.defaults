@@ -66,40 +66,6 @@ OUTPUT_CG_PRECOND_EIGENVALS   = .false.
 OUTPUT_INPUT_MODEL            = .false.
 OUTPUT_DEBUG_SEDS             = .false.
 OUTPUT_SIGNALS_PER_BAND       = .false.
-MJYSR_CONVENTION              = IRAS
-T_CMB                         = 2.7255d0
-
-# Alm sampler settings
-ALMSAMP_NSAMP_ALM             = 100  # of mcmc samples per gibbs
-ALMSAMP_BURN_IN               = 2     # of gibbs iterations with steplength adjustment
-SOURCE_MASKFILEALMSAMP_NSIDE_CHISQ_LOWRES    = 16
-ALMSAMP_PRIOR_FWHM            = 0
-ALMSAMP_OPTIMIZE_ALM          = .false. # save chisq from prev gibbs iter
-ALMSAMP_APPLY_PRIOR           = .true. # apply prior to alms
-ALMSAMP_PIXREG                = .true.
-ALMSAMP_PRIORSAMP_FROZEN_REGIONS = .true.
-ALMSAMP_NSIDE_CHISQ_LOWRES    = 32
-
-#local sampler settings
-LOCALSAMP_BURN_IN             = 2
-LOCALSAMP_OUTPUT_MAPS         = .false.
-
-##############################################################
-##                       Output options                       #
-###############################################################
-
-THINNING_FACTOR               = 1
-NSIDE_CHISQ                   = 16
-POLARIZATION_CHISQ            = .true.
-OUTPUT_MIXING_MATRIX          = .false.
-OUTPUT_RESIDUAL_MAPS          = .true.
-OUTPUT_CHISQ_MAP              = .true.
-OUTPUT_EVERY_NTH_CG_ITERATION = 0
-OUTPUT_CG_PRECOND_EIGENVALS   = .false.
-OUTPUT_INPUT_MODEL            = .false.
-OUTPUT_DEBUG_SEDS             = .false.
-OUTPUT_SIGNALS_PER_BAND       = .false.
-
 
 SOURCE_MASKFILE                = none   #bright_sources.txt
 PROCESSING_MASKFILE            = none   #mask_cmb_v1_n0256_apod_v2_clean.fits

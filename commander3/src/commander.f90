@@ -171,6 +171,7 @@ program commander
   call define_cg_samp_groups(cpar)
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
+  call initialize_inter_tod_params(cpar)
 
 
   ! Precompute zodi lookups
@@ -191,7 +192,7 @@ program commander
   ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
-
+  
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
@@ -199,13 +200,13 @@ program commander
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
-
+  
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
   if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(ok)
   call update_mixing_matrices(update_F_int=.true.)       
-
+  
   if (cpar%output_input_model) then
      if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
      call output_FITS_sample(cpar, 999999, .false.)
@@ -233,7 +234,7 @@ program commander
      write(*,*) '|  Starting Gibbs sampling'
   end if
 
-  ! Prepare chains 
+  ! Prepare chains
   call init_chain_file(cpar, first_sample)
   !first_sample = 1
   if (first_sample == -1) then
@@ -273,7 +274,6 @@ program commander
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
         write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
-
 
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
@@ -338,8 +338,8 @@ program commander
         exit
      end if
 
-     !if (mod(iter-1,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
-     if (.true. .and. cpar%include_tod_zodi) then
+     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+!     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
       if (first_zodi) then
@@ -371,12 +371,13 @@ program commander
          call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
       case ("powell")
          do i = 1, cpar%zs_num_samp_groups
-            call minimize_zodi_with_powell(cpar, handle, i)
+            if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
          end do
       end select
 
       ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_model(cpar, handle)
+      call sample_static_zodi_map(cpar, handle)
+      !call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
 !!$         call zodi_model%params_to_model([&
@@ -409,14 +410,13 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
 
-
-   if (mod(iter,modfact) == 0) then
+   if (mod(iter+1,modfact) == 0) then
      if (iter > 1) then
         ! Sample gains off of absolutely calibrated FIRAS maps
         call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
         ! Testing the spectral index xampling
-        !call sample_specind_mh_sample(cpar%outdir, cpar, handle, handle_noise)
-        !call sample_mbbtab_mh_sample(cpar%outdir, cpar, handle, handle_noise)
+        call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
+        call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
      end if
 
 
@@ -428,22 +428,13 @@ program commander
         call timer%stop(TOT_SPECIND)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
-
+     
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
-        call timer%start(TOT_AMPSAMP)
-        do samp_group = 1, cpar%cg_num_user_samp_groups
-           if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                   & samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', trim(cpar%cg_samp_group(samp_group))
-           end if
-           call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
-           if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-        end do
-        call timer%stop(TOT_AMPSAMP)
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
 
         ! Perform joint alm-Cl Metropolis move
         call timer%start(TOT_CLS)
@@ -452,8 +443,6 @@ program commander
         end do
         call timer%stop(TOT_CLS)
      end if
-
-
 
      ! Sample power spectra
      call timer%start(TOT_CLS)
@@ -472,19 +461,6 @@ program commander
 
      !call output_FITS_sample(cpar, 1000, .true.)
 
-     ! Output zodi ipd and tod parameters to chain
-     if (cpar%include_tod_zodi .and. cpar%enable_TOD_analysis) then
-        if (cpar%zs_output_ascii) then
-            call int2string(iter, samptext)
-            call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_ascii_k' // samptext // '.dat', overwrite=.true.)
-         end if
-         call zodi_model%model_to_chain(cpar, iter)
-         do i = 1, numband
-            if (data(i)%tod_type == 'none') cycle
-            if (.not. data(i)%tod%subtract_zodi) cycle
-            call output_tod_params_to_hd5(cpar, zodi_model, data(i)%tod, iter)
-         end do
-     end if
 
 
 

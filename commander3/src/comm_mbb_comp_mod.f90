@@ -26,7 +26,7 @@ module comm_MBB_comp_mod
   public comm_MBB_comp
 
   !**************************************************
-  !      Modified Black Body (MBB) component
+  !      Modified Black Body (MBB) component - subclass under diffuse class
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_MBB_comp
    contains
@@ -83,6 +83,8 @@ contains
     end do
     c%indlabel  = ['beta', 'T   ']
 
+    !if (c%myid == 0) write(*,*) 'theta_default', c%theta_def
+
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
     do k = 1, 3
@@ -103,6 +105,8 @@ contains
     info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
          & c%nmaps, c%pol)
 
+    !if (c%myid == 0) write(*,*) 'nmaps, pol, npar', c%nmaps, c%pol, c%npar
+    
     allocate(c%theta(c%npar))
     do i = 1, c%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default' .or. trim(cpar%cs_input_ind(i,id_abs)) == 'none') then
@@ -120,7 +124,8 @@ contains
        end if
     end do
 
-    call c%initPixregSampling(cpar, id, id_abs)
+    call c%initPixregSampling(cpar, id, id_abs) ! denne messer opp default sindexer
+    
     ! Init alm 
     if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 

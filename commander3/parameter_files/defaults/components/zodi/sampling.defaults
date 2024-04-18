@@ -3,6 +3,8 @@ ZODI_COVAR_CHAIN                 = none
 ZODI_OUTPUT_COMP_MAPS            = .false.
 
 NUM_ZODI_SAMPLING_GROUPS         = 6
+ZODI_OUTPUT_TOD_RESIDUALS        = .false.
+
 
 @START 01
 ZODI_SAMPLING_GROUP&&          = cloud:x_0,cloud:y_0,cloud:z_0,cloud:incl,cloud:Omega,cloud:alpha,cloud:beta,cloud:gamma,cloud:mu
