@@ -80,6 +80,7 @@ contains
        if (present(chisq_map))     chisq_map%map = 0.d0
        do p = 1, nbands
           i = bandlist(p)
+          write(*,*) i, p, 'why did it segfault???'
           if (i == 0) cycle
           
           ! Skip non-essential chisq evaluation
