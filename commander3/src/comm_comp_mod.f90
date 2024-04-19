@@ -51,6 +51,7 @@ module comm_comp_mod
      ! stat = -3  -> fix to unity
      ! stat >  0  -> set equal to parameter stat
      real(dp),        allocatable, dimension(:,:) :: theta_steplen
+     real(dp),        allocatable, dimension(:)   :: scale_sigma
 
      real(dp),           allocatable, dimension(:,:) :: p_gauss
      real(dp),           allocatable, dimension(:,:) :: p_uni

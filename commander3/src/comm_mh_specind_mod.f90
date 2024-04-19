@@ -33,7 +33,148 @@ contains
     type(planck_rng),               intent(inout) :: handle, handle_noise
     type(comm_params) :: cpar
 
+
+    real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
+    real(dp), allocatable, dimension(:) :: sigmas, scales
+    integer(i4b) :: band, ierr, i, j, k, l, pol, pix, n_scales
+    logical(lgt)  :: include_comp, reject, todo
+    character(len=512) :: tokens(10), str_buff, operation
+    class(comm_comp),   pointer           :: c => null()
+
     ! Given a component, propose an amplitude to shift the global amplitude of any component.
+
+
+    do l = 1, cpar%mcmc_num_user_samp_groups
+
+
+
+       n_scales = 0
+       c => compList
+       do while (associated(c))
+          if (c%scale_sigma(l) > 0d0) then
+            n_scales = n_scales + 1
+          end if
+          c => c%nextComp()
+       end do
+
+       if (n_scales == 0) cycle
+
+       allocate(sigmas(n_scales), scales(n_scales))
+
+
+
+       ! Calculate initial chisq
+       chisq_old = 0d0
+       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
+                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+
+       if (cpar%myid_chain .eq. 0) then
+         write(*,*) '| Old chisq is ', chisq_old
+       end if
+
+
+
+
+
+       ! Scale parameters
+       i = 0
+       c => compList
+       do while (associated(c))
+          if (c%scale_sigma(l) > 0d0) then
+            i = i + 1
+            sigmas(i) = c%scale_sigma(l)
+            if (cpar%myid == 0) then
+              scales(i) = 1 + rand_gauss(handle)*sigmas(i)
+            end if
+            call mpi_bcast(scales(i), 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
+            select type(c)
+            class is (comm_diffuse_comp)
+              c%x%map = c%x%map*scales(i)
+              call c%x%YtW
+            class is (comm_template_comp)
+              c%T%map = c%T%map*scales(i)
+            class default
+              write(*,*) "You have not set behavior for class ", trim(c%class)
+              stop
+            end select
+          end if
+          c => c%nextComp()
+       end do
+
+
+       ! Perform component separation
+       if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_update_cg_groups(l))
+       if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
+          if (cpar%myid == 0) write(*,*) 'No groups to sample'
+       else
+          call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
+       end if
+
+       chisq_prop = 0d0
+       call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_prop, &
+                          & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
+
+       if (cpar%myid_chain .eq. 0) then
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
+       end if
+
+       ! Check MH statistic
+       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
+       call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
+
+
+       if (reject) then
+         if (cpar%myid_chain == 0) then
+           write(*,*) '| '
+           write(*,*) '| MH step rejected, returning to original tabulated values.'
+           write(*,*) '| '
+         end if
+
+         i = 0
+         c => compList
+         do while (associated(c))
+            if (c%scale_sigma(l) > 0d0) then
+              i = i + 1
+              select type(c)
+              class is (comm_diffuse_comp)
+                c%x%map = c%x%map/scales(i)
+                call c%x%YtW
+              class is (comm_template_comp)
+                c%T%map = c%T%map/scales(i)
+              class default
+                write(*,*) "You have not set behavior for class ", trim(c%class)
+                stop
+              end select
+            end if
+            c => c%nextComp()
+         end do
+
+         ! Update mixing matrices
+         call update_mixing_matrices(update_F_int=.true.)
+
+
+         ! Instead of doing compsep, revert the amplitudes here
+         call revert_CG_amps(cpar)
+
+       else
+         if (cpar%myid_chain == 0) then
+           write(*,*) '| '
+           write(*,*) '| MH step accepted'
+           write(*,*) '| '
+         end if
+       end if
+
+
+
+
+       deallocate(sigmas, scales)
+
+    end do
+
+    if (cpar%myid == 0) then
+      write(*,*) 'Amplitude parameter'
+    end if
 
   end subroutine sample_template_mh
 
@@ -458,146 +599,152 @@ contains
 
 
     ! Need to add an argument to sample_all_amps_by_CG that includes this list
-    ! if (cpar%myid == 0) then
-    !     do i = 1, cpar%mcmc_num_user_samp_groups
-    !        write(*,*) i, trim(cpar%mcmc_update_cg_groups(i)), trim(cpar%mcmc_samp_groups(i))
-    !        if (trim(cpar%mcmc_update_cg_groups(i)) .ne. 'none') then
-    !          call get_tokens(cpar%mcmc_update_cg_groups(i), ',', tokens, n)
-    !          if (n == 0) then
-    !            write(*,*) "Something is wrong with your CG groups"
-    !            write(*,*) trim(cpar%mcmc_update_cg_groups(i))
-    !          end if
-    !        end if
-    !     end do
-    ! end if
-
-
     if (cpar%myid == 0) then
-      do i = 1, cpar%mcmc_num_user_samp_groups
-        call get_tokens(cpar%mcmc_samp_group_bands(i), ',', tokens, n)
-        if (n == 0) then
-          write(*,*) 'You have misformatted MCMC_SAMPLING_GROUP_CHISQ_BANDS'
-          stop
-        else
-
-          n_in_group = 0
-          do j = 1, n
-            k = findloc(cpar%ds_label, tokens(j), dim=1)
-            do k = 1, numband
-              if (trim(tokens(j)) == trim(data(k)%label)) then
-                n_in_group = n_in_group + 1
-                cpar%mcmc_group_bands_indices(i, n_in_group) = k
-                exit
-              end if
-            end do
-          end do
-
-        end if
-      end do
+        do i = 1, cpar%mcmc_num_user_samp_groups
+           !write(*,*) i, trim(cpar%mcmc_update_cg_groups(i)), trim(cpar%mcmc_samp_groups(i))
+           if (trim(cpar%mcmc_update_cg_groups(i)) .ne. 'none') then
+             call get_tokens(cpar%mcmc_update_cg_groups(i), ',', tokens, n)
+             if (n == 0) then
+               write(*,*) "Something is wrong with your CG groups"
+               write(*,*) trim(cpar%mcmc_update_cg_groups(i))
+             end if
+           end if
+        end do
     end if
 
-    call mpi_bcast(cpar%mcmc_group_bands_indices, size(cpar%mcmc_group_bands_indices), &
-                   & MPI_INTEGER, 0, data(1)%info%comm, ierr)
 
+    do i = 1, cpar%mcmc_num_user_samp_groups
+      call get_tokens(cpar%mcmc_samp_group_bands(i), ',', tokens, n)
+      if (n == 0) then
+        write(*,*) 'You have misformatted MCMC_SAMPLING_GROUP_CHISQ_BANDS'
+        stop
+      else
 
-
-
-    !if (cpar%myid == 0) then
-        do i = 1, cpar%mcmc_num_user_samp_groups
-
-
-          if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_samp_groups(i))
-
-
-           call get_tokens(cpar%mcmc_samp_groups(i), ',', tokens, n_tokens)
-           do j = 1, n_tokens
-             if (trim(tokens(1)) == 'none') exit
-
-             call get_tokens(tokens(j), '>', comp_tokens, n)
-             if (n == 2) then
-               call get_tokens(comp_tokens(1), ':', wire_from, num=n)
-               call get_tokens(comp_tokens(2), ':', wire_to, num=n)
-
-
-             else if (n == 1) then
-                 !write(*,*) ''
-                 !write(*,*) 'No wiring'
-                 call get_tokens(tokens(j), '%', comp_tokens)
-                 read(comp_tokens(2), *) sigma
-
-                 call get_tokens(comp_tokens(1), ':', comp_names)
-
-
-                 if (trim(comp_names(1)) == 'gain') then
-                   if (cpar%myid == 0) write(*,*) 'We are sampling gain', sigma
-
-                 else if (trim(comp_names(2)) == 'scale') then
-                   if (cpar%myid == 0) write(*,*) 'We are scaling the amplitude'
-
-                 else if (comp_names(2)(1:3) == 'tab') then
-                   ! write(*,*) 'We are dealing with tabulated values: ', trim(comp_names(2)), sigma
-                   ! write(*,*) trim(comp_names(2)(4:))
-                   ! Currently, there is no distinguishing between 05a and 05b.
-                   ! We need to make the SEDtab more extendable, like having a dictionary for each band.
-                   !c%theta_steplen(cind, i) = 
-                   ! Parse the comp_names, get the index
-                   call get_tokens(comp_names(2), '@', comp_bands)
-
-                   ! We currently have all bands being 5a/b, 05a/b, etc. In principle we need to do this better, but for now we will
-                   ! just get everything except the last index.
-
-                   m = len_trim(comp_bands(2))
-                   read(comp_bands(2)(1:m-1), *) m
-                  
-
-                   !write(*,*) 'comp names ', trim(comp_names(1))
-
-                   c => compList
-                   do while (associated(c))
-                      if (trim(c%label) == trim(comp_names(1))) then
-                        !       (beta+T+ntab, n_mcmc_samp_groups)
-                        !write(*,*) 'set sigma_SEDtab  to ',sigma
-                        !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
-                        c%theta_steplen(2+m,i) = sigma
-                        !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
-                      end if
-                      c => c%nextComp()
-                   end do
-
-                 else if (comp_names(2)(1:4) == 'beta') then
-                   c => compList
-                   do while (associated(c))
-                     if (trim(c%label) == trim(comp_names(1))) then
-                        !       (beta+T+ntab, n_mcmc_samp_groups)
-                        ! or    (beta+T,      n_mcmc_samp_groups)
-                        c%theta_steplen(1,i) = sigma
-                        if (cpar%myid == 0) write(*,*) 'set sigma_beta  to ',sigma, i
-                      end if
-                      c => c%nextComp()
-                   end do
-                 else if (comp_names(2)(1:1) == 'T') then
-                   c => compList
-                   do while (associated(c))
-                     if (trim(c%label) == trim(comp_names(1))) then
-                        !       (beta+T+ntab, n_mcmc_samp_groups)
-                        ! or    (beta+T,      n_mcmc_samp_groups)
-                        c%theta_steplen(2,i) = sigma
-                        if (cpar%myid == 0) write(*,*) 'set sigma_T', sigma, i
-                      end if
-                      c => c%nextComp()
-                   end do
-                 else
-                   if (cpar%myid == 0) write(*,*) 'Potentially poorly formatted ', trim(comp_tokens(1))
-                 end if
-             else
-               write(*,*) 'Error in comp tokens', comp_tokens
-               stop
-             end if
-
-
-           end do
+      n_in_group = 0
+      do j = 1, n
+        k = findloc(cpar%ds_label, tokens(j), dim=1)
+        do k = 1, numband
+          if (trim(tokens(j)) == trim(data(k)%label)) then
+            n_in_group = n_in_group + 1
+            cpar%mcmc_group_bands_indices(i, n_in_group) = k
+            exit
+          end if
         end do
-    !end if
+      end do
+
+      end if
+    end do
+
+    do i = 1, cpar%mcmc_num_user_samp_groups
+
+
+      if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_samp_groups(i))
+
+
+      call get_tokens(cpar%mcmc_samp_groups(i), ',', tokens, n_tokens)
+      do j = 1, n_tokens
+        if (trim(tokens(1)) == 'none') exit
+
+        call get_tokens(tokens(j), '>', comp_tokens, n)
+        if (n == 2) then
+          call get_tokens(comp_tokens(1), ':', wire_from, num=n)
+          call get_tokens(comp_tokens(2), ':', wire_to, num=n)
+
+
+        else if (n == 1) then
+            !write(*,*) ''
+            !write(*,*) 'No wiring'
+            call get_tokens(tokens(j), '%', comp_tokens)
+            read(comp_tokens(2), *) sigma
+
+            call get_tokens(comp_tokens(1), ':', comp_names)
+
+
+            if (trim(comp_names(1)) == 'gain') then
+              if (cpar%myid == 0) write(*,*) 'We are sampling gain', sigma
+
+            else if (trim(comp_names(2)) == 'scale') then
+              if (cpar%myid == 0) write(*,*) 'We are scaling the amplitude'
+
+              c => compList
+              do while (associated(c))
+                 if (.not. allocated(c%scale_sigma)) then
+                   allocate(c%scale_sigma(cpar%mcmc_num_user_samp_groups))
+                   c%scale_sigma = 0d0
+                 end if
+                 if (trim(c%label) == trim(comp_names(1))) then
+                   c%scale_sigma(i) = sigma
+                 else
+                   c%scale_sigma(i) = 0d0
+                 end if
+                 c => c%nextComp()
+              end do
+
+
+
+            else if (comp_names(2)(1:3) == 'tab') then
+              ! write(*,*) 'We are dealing with tabulated values: ', trim(comp_names(2)), sigma
+              ! write(*,*) trim(comp_names(2)(4:))
+              ! Currently, there is no distinguishing between 05a and 05b.
+              ! We need to make the SEDtab more extendable, like having a dictionary for each band.
+              !c%theta_steplen(cind, i) = 
+              ! Parse the comp_names, get the index
+              call get_tokens(comp_names(2), '@', comp_bands)
+
+              ! We currently have all bands being 5a/b, 05a/b, etc. In principle we need to do this better, but for now we will
+              ! just get everything except the last index.
+
+              m = len_trim(comp_bands(2))
+              read(comp_bands(2)(1:m-1), *) m
+             
+
+              !write(*,*) 'comp names ', trim(comp_names(1))
+
+              c => compList
+              do while (associated(c))
+                 if (trim(c%label) == trim(comp_names(1))) then
+                   !       (beta+T+ntab, n_mcmc_samp_groups)
+                   !write(*,*) 'set sigma_SEDtab  to ',sigma
+                   !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
+                   c%theta_steplen(2+m,i) = sigma
+                   !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
+                 end if
+                 c => c%nextComp()
+              end do
+
+            else if (comp_names(2)(1:4) == 'beta') then
+              c => compList
+              do while (associated(c))
+                if (trim(c%label) == trim(comp_names(1))) then
+                   !       (beta+T+ntab, n_mcmc_samp_groups)
+                   ! or    (beta+T,      n_mcmc_samp_groups)
+                   c%theta_steplen(1,i) = sigma
+                   if (cpar%myid == 0) write(*,*) 'set sigma_beta  to ',sigma, i
+                 end if
+                 c => c%nextComp()
+              end do
+            else if (comp_names(2)(1:1) == 'T') then
+              c => compList
+              do while (associated(c))
+                if (trim(c%label) == trim(comp_names(1))) then
+                   !       (beta+T+ntab, n_mcmc_samp_groups)
+                   ! or    (beta+T,      n_mcmc_samp_groups)
+                   c%theta_steplen(2,i) = sigma
+                   if (cpar%myid == 0) write(*,*) 'set sigma_T', sigma, i
+                 end if
+                 c => c%nextComp()
+              end do
+            else
+              if (cpar%myid == 0) write(*,*) 'Potentially poorly formatted ', trim(comp_tokens(1))
+            end if
+        else
+          write(*,*) 'Error in comp tokens', comp_tokens
+          stop
+        end if
+
+
+      end do
+    end do
 
   end subroutine initialize_mh_mod
 

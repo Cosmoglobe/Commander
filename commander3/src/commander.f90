@@ -434,7 +434,8 @@ program commander
               if (cpar%myid == 0) write(*,*) 'sampling tabulated SEDs'
               call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
             else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) 'scale is not implemented yet'
+              if (cpar%myid == 0) write(*,*) 'MH sampling scaling amplitudes'
+              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise)
             else
               if (cpar%myid == 0) write(*,*) 'MH Sampling spectral indices'
               call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
