@@ -85,6 +85,7 @@ contains
             sigmas(i) = c%scale_sigma(l)
             if (cpar%myid == 0) then
               scales(i) = 1 + rand_gauss(handle)*sigmas(i)
+              write(*,*) 'Scaling by ', scales(i)
             end if
             call mpi_bcast(scales(i), 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
             select type(c)
