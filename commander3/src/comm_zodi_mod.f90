@@ -846,9 +846,24 @@ contains
      do i = 1, n_params
         call get_tokens(tokens(i), ':', comp_param, num=n)
         if (n == 1) then
-           ! General parameter
-           ind = zodi_model%get_par_ind(param=comp_param(1))
-           stat(ind) = 0
+           label = comp_param(1)
+           call get_tokens(label, '@', comp_param, num=n)
+           if (n == 1) then
+              ! General parameter
+              ind = zodi_model%get_par_ind(param=comp_param(1))
+              stat(ind) = 0
+           else if (n == 2) then
+              if (trim(comp_param(1)) == 'm') then
+                 ! Monopole
+                 band = get_string_index(band_labels, comp_param(2))
+                 ind  = zodi_model%get_par_ind(mono_band=band)
+                 if (active(band) .and. band_todtype(band) /= 'none') stat(ind) = 0
+                 cycle
+              else
+                 write(*,*) 'Unsupported zodi parameter in samp_group2stat: ', trim(comp_param(1))
+                 stop
+              end if
+           end if
         else if (n == 2) then
            if (trim(comp_param(1)) == 'em') then
               band = get_string_index(band_labels, comp_param(2))
@@ -921,10 +936,10 @@ contains
      end do
 
      ! Set up monopoles
-     do i = 1, numband
-        ind = zodi_model%get_par_ind(mono_band=i)
-        if (active(i) .and. cpar%zs_joint_mono .and. band_todtype(i) /= 'none') stat(ind) = 0
-     end do
+!!$     do i = 1, numband
+!!$        ind = zodi_model%get_par_ind(mono_band=i)
+!!$        if (active(i) .and. cpar%zs_joint_mono .and. band_todtype(i) /= 'none') stat(ind) = 0
+!!$     end do
 
      ! Apply explicit parameter wiring
      call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 
