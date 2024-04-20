@@ -761,7 +761,7 @@ contains
         al     = zodi_model%comps(i)%c%albedo(band)
         em     = zodi_model%comps(i)%c%emissivity(band)
         !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-        s_zodi = s_zodi + ((s_scat(:,i) * al) + (1. - al) * em * s_therm(:,i))
+        s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
      end do
    end subroutine get_s_zodi
 

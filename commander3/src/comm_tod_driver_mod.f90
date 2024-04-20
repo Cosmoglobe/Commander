@@ -965,7 +965,7 @@ contains
        if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
        if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
           do i = 1, size(sd%s_zodi_therm, dim=2)
-             write(*,*) 'b',j,i,  tod%scanid(scan), any(sd%s_zodi_scat(:,i:i,j)/=sd%s_zodi_scat(:,i:i,j)), any(sd%s_zodi_therm(:,i:i,j)/=sd%s_zodi_therm(:,i:i,j))
+             !write(*,*) 'b',j,i,  tod%scanid(scan), any(sd%s_zodi_scat(:,i:i,j)/=sd%s_zodi_scat(:,i:i,j)), any(sd%s_zodi_therm(:,i:i,j)/=sd%s_zodi_therm(:,i:i,j))
              call get_s_zodi(tod%id, sd%s_zodi_therm(:, i:i, j), sd%s_zodi_scat(:, i:i, j), d_calib(8 + i, :, j), comp_id=i)
          end do
        end if
