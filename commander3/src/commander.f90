@@ -191,7 +191,9 @@ program commander
 
   ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
+  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
+
   
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
@@ -411,13 +413,6 @@ program commander
    end if
 
    if (mod(iter+1,modfact) == 0) then
-     if (iter > 1) then
-        ! Sample gains off of absolutely calibrated FIRAS maps
-        call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
-        ! Testing the spectral index xampling
-        call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
-        call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
-     end if
 
 
 
@@ -429,6 +424,24 @@ program commander
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
      
+     if (iter > 1) then
+        do i = 1, cpar%mcmc_num_samp_groups
+            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) 'Sampling map-based gains'
+              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
+            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) 'sampling tabulated SEDs'
+              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
+            else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) 'MH sampling scaling amplitudes'
+              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise)
+            else
+              if (cpar%myid == 0) write(*,*) 'MH Sampling spectral indices'
+              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
+            end if
+        end do
+     end if
+
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then

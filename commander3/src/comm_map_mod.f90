@@ -338,7 +338,6 @@ subroutine tod2file_dp3(filename,d)
 
     allocate(constructor_map)
     constructor_map%info => info
-    ! Maybe make this an extra parameter of some sort?
     allocate(constructor_map%map(0:info%np-1,info%nmaps))
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
     allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps))

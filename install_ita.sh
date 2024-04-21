@@ -7,7 +7,7 @@
 # Compiler Toolchain to use
 # Possible values: nvidia, flang, gnu, intel, oneapi
 toolchain="oneapi" #"gnu"
-buildtype="Release" #"Release" #"RelWithDebInfo" #Debug
+buildtype="Debug" #"Release" #"RelWithDebInfo" #Debug
 #------------------------------------------------------------------------------
 # Absolute path to Commander3 root directory
 comm3_root_dir="$(pwd)"
@@ -85,49 +85,49 @@ then
 	#------------------------------------------------------------------------------
 	# Choosing correct build directory to put CMake files into
   if [[ "${HOSTNAME}" =~ $owl1724 ]]; then
-    build_dir="build_owl1724_$toolchain"
+    build_dir="build_owl1724_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl2528 ]]; then
-    build_dir="build_owl2528_$toolchain"
+    build_dir="build_owl2528_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl2930 ]]; then
-    build_dir="build_owl2930_$toolchain"
+    build_dir="build_owl2930_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3135 ]]; then
-    build_dir="build_owl3135_$toolchain"
+    build_dir="build_owl3135_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $owl3637 ]]; then
-    build_dir="build_owl3637_$toolchain"
+    build_dir="build_owl3637_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee0123 ]]; then
-    build_dir="build_bee0123_$toolchain"
+    build_dir="build_bee0123_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee2631 ]]; then
-    build_dir="build_bee2631_$toolchain"
+    build_dir="build_bee2631_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee3436 ]]; then
-    build_dir="build_bee3436_$toolchain"
+    build_dir="build_bee3436_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee3742 ]]; then
-    build_dir="build_bee3742_$toolchain"
+    build_dir="build_bee3742_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee4345 ]]; then
-    build_dir="build_bee4345_$toolchain"
+    build_dir="build_bee4345_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee46 ]]; then
-    build_dir="build_bee46_$toolchain"
+    build_dir="build_bee46_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $bee47 ]]; then
-    build_dir="build_bee47_$toolchain"
+    build_dir="build_bee47_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1 ]]; then
-    build_dir="build_hya1_$toolchain"
+    build_dir="build_hya1_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya2 ]]; then
-    build_dir="build_hya2_$toolchain"
+    build_dir="build_hya2_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya34 ]]; then
-    build_dir="build_hya34_$toolchain"
+    build_dir="build_hya34_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya5 ]]; then
-    build_dir="build_hya5_$toolchain"
+    build_dir="build_hya5_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya6 ]]; then
-    build_dir="build_hya6_$toolchain"
+    build_dir="build_hya6_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya79 ]]; then
-    build_dir="build_hya79_$toolchain"
+    build_dir="build_hya79_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1016 ]]; then
-    build_dir="build_hya1016_$toolchain"
+    build_dir="build_hya1016_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya1719 ]]; then
-    build_dir="build_hya1719_$toolchain"
+    build_dir="build_hya1719_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya20 ]]; then
-    build_dir="build_hya20_$toolchain"
+    build_dir="build_hya20_${toolchain}_${buildtype}"
   elif [[ "${HOSTNAME}" =~ $hya21 ]]; then
-    build_dir="build_hya21_$toolchain"
+    build_dir="build_hya21_${toolchain}_${buildtype}"
 	fi
   echo $build_dir
 	#------------------------------------------------------------------------------
@@ -225,27 +225,30 @@ then
 		mkdir $abs_path_to_build 
 	fi
 	#------------------------------------------------------------------------------
-	rm -rf $abs_path_to_build/CMakeCache.txt
-	#------------------------------------------------------------------------------
-	# Executing CMake commands for the first time
-	#------------------------------------------------------------------------------
-	cmake \
-	-DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
-	-DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
-	-DCMAKE_BUILD_TYPE="$buildtype" \
-	-DCMAKE_Fortran_COMPILER=$fc \
-	-DCMAKE_C_COMPILER=$cc \
-	-DCMAKE_CXX_COMPILER=$cxx \
-	-DMPI_C_COMPILER=$mpicc \
-	-DMPI_CXX_COMPILER=$mpicxx \
-	-DMPI_Fortran_COMPILER=$mpifc \
-	-DCFITSIO_USE_CURL:BOOL=OFF \
-	-DUSE_SYSTEM_FFTW:BOOL=OFF \
-	-DUSE_SYSTEM_CFITSIO:BOOL=OFF \
-	-DUSE_SYSTEM_HDF5:BOOL=OFF \
-	-DUSE_SYSTEM_HEALPIX:BOOL=OFF \
-	-DUSE_SYSTEM_BLAS:BOOL=ON \
-	-S $comm3_root_dir -B $abs_path_to_build
+  if ! [ -f $abs_path_to_build/CMakeCache.txt ]; then
+    echo "Running CMake as if for the first time"
+	  rm -rf $abs_path_to_build/CMakeCache.txt
+	  #------------------------------------------------------------------------------
+	  # Executing CMake commands for the first time
+	  #------------------------------------------------------------------------------
+	  cmake \
+	  -DCMAKE_INSTALL_PREFIX:PATH="$comm3_root_dir/$build_dir/install" \
+	  -DCMAKE_DOWNLOAD_DIRECTORY:PATH="$comm3_root_dir/downloads" \
+	  -DCMAKE_BUILD_TYPE="$buildtype" \
+	  -DCMAKE_Fortran_COMPILER=$fc \
+	  -DCMAKE_C_COMPILER=$cc \
+	  -DCMAKE_CXX_COMPILER=$cxx \
+	  -DMPI_C_COMPILER=$mpicc \
+	  -DMPI_CXX_COMPILER=$mpicxx \
+	  -DMPI_Fortran_COMPILER=$mpifc \
+	  -DCFITSIO_USE_CURL:BOOL=OFF \
+	  -DUSE_SYSTEM_FFTW:BOOL=OFF \
+	  -DUSE_SYSTEM_CFITSIO:BOOL=OFF \
+	  -DUSE_SYSTEM_HDF5:BOOL=OFF \
+	  -DUSE_SYSTEM_HEALPIX:BOOL=OFF \
+	  -DUSE_SYSTEM_BLAS:BOOL=ON \
+	  -S $comm3_root_dir -B $abs_path_to_build
+  fi
 	#------------------------------------------------------------------------------
 	# Build and install command
 	#------------------------------------------------------------------------------

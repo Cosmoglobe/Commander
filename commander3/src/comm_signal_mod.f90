@@ -40,6 +40,9 @@ module comm_signal_mod
   use comm_ame_lognormal_mod
   implicit none
 
+  integer(i4b), parameter, private :: MAXSAMPGROUP     = 100
+
+
 contains
 
   subroutine initialize_signal_mod(cpar)
@@ -399,7 +402,7 @@ contains
   end subroutine revert_CG_amps
 
 
-  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff)
+  subroutine sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff, cg_groups)
     !
     !
     !  Convenience function for performing amplitude sampling over
@@ -408,35 +411,48 @@ contains
     !
     implicit none
 
-    type(comm_params), intent(in)    :: cpar
-    type(planck_rng),  intent(inout) :: handle, handle_noise
-    logical(lgt), intent(in), optional :: store_buff
+    type(comm_params), intent(in)            :: cpar
+    type(planck_rng),  intent(inout)         :: handle, handle_noise
+    logical(lgt), intent(in), optional       :: store_buff
+    character(len=512), intent(in), optional :: cg_groups
 
 
-    integer(i4b)                     :: samp_group
+    integer(i4b)                          :: samp_group, i, n
+    integer(i4b), dimension(MAXSAMPGROUP) :: group_inds
     logical(lgt)  :: storebuff
+    character(len=3) :: toks(MAXSAMPGROUP)
+
 
     if (present(store_buff)) then
       storebuff = store_buff
     else
       storebuff = .false.
     end if
+    if (present(cg_groups)) then
+      group_inds = 0
+      call get_tokens(cg_groups, ',', toks, n)
+      do i = 1, n
+        read(toks(i), *) group_inds(i)
+      end do
+    else
+      group_inds = [(samp_group, samp_group=1, MAXSAMPGROUP)]
+    end if
 
 
+    call timer%start(TOT_AMPSAMP)
+    do samp_group = 1, cpar%cg_num_user_samp_groups
+       if (findloc(group_inds, samp_group, dim=1) == 0) cycle
+       if (cpar%myid_chain == 0) then
+          write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
+          & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
+          & trim(cpar%cg_samp_group(samp_group))
+       end if
+       call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=storebuff)
 
-     call timer%start(TOT_AMPSAMP)
-     do samp_group = 1, cpar%cg_num_user_samp_groups
-        if (cpar%myid_chain == 0) then
-           write(*,fmt='(a,i4,a,i4,a,i4,a,a)') ' |  Chain = ', cpar%mychain, &
-           & ' -- CG sample group = ', samp_group, ' of ', cpar%cg_num_user_samp_groups, ': ', &
-           & trim(cpar%cg_samp_group(samp_group))
-        end if
-        call sample_amps_by_CG(cpar, samp_group, handle, handle_noise, store_buff=storebuff)
+       if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
 
-        if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-     end do
-     call timer%stop(TOT_AMPSAMP)
+    end do
+    call timer%stop(TOT_AMPSAMP)
 
   end subroutine sample_all_amps_by_CG
 

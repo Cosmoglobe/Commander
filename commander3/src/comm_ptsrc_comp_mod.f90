@@ -180,9 +180,11 @@ contains
        allocate(c%p_uni(2,c%npar), c%p_gauss(2,c%npar))
        allocate(c%theta_def(c%npar))
        allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
+       allocate(c%theta_steplen(c%npar, cpar%mcmc_num_samp_groups))
        c%p_uni      = cpar%cs_p_uni(id_abs,:,:)
        c%p_gauss    = cpar%cs_p_gauss(id_abs,:,:)
        c%theta_def  = cpar%cs_theta_def(1:2,id_abs)
+       c%theta_steplen = 0d0
        c%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
        c%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
@@ -204,10 +206,12 @@ contains
        c%npar = 2   ! (beta, T_d)
        allocate(c%p_uni(2,c%npar), c%p_gauss(2,c%npar))
        allocate(c%theta_def(c%npar))
+       allocate(c%theta_steplen(c%npar, cpar%mcmc_num_samp_groups))
        allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
        c%p_uni     = cpar%cs_p_uni(id_abs,:,:)
        c%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
        c%theta_def = cpar%cs_theta_def(1:2,id_abs)
+       c%theta_steplen = 0d0
        c%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
        c%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3

@@ -88,17 +88,18 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-xHost" 
 		"-debug" "all"
 		"-check" "all,noarg_temp_created"
-		#"-warn" "all"
+		"-warn" "all,nounused,noexternal"
 		"-fp-stack-check"
 		"-fstack-protector-all"
 		"-traceback" 
-		#"-parallel" 
+		"-parallel" 
 		"-qopenmp"
 		"-C" 
 		"-assume" "byterecl" 
 		"-heap-arrays" "16384"
 		"-fpe0"
 		"-fPIC"
+    "-ftrapuv"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")

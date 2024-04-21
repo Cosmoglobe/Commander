@@ -44,6 +44,9 @@ module comm_comp_mod
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
+     real(dp),        allocatable, dimension(:,:) :: theta_steplen
+     real(dp),        allocatable, dimension(:)   :: scale_sigma
+
      real(dp),           allocatable, dimension(:,:) :: p_gauss
      real(dp),           allocatable, dimension(:,:) :: p_uni
      integer(i4b),       allocatable, dimension(:)   :: smooth_scale
