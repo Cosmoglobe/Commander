@@ -428,17 +428,16 @@ program commander
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
               if (cpar%myid == 0) write(*,*) 'Sampling map-based gains'
-              ! Sample gains off of absolutely calibrated FIRAS maps
-              !call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
-            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) 'sampling tabulated SEDs'
-              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
-            else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
-              if (cpar%myid == 0) write(*,*) 'MH sampling scaling amplitudes'
-              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise)
-            else
-              if (cpar%myid == 0) write(*,*) 'MH Sampling spectral indices'
-              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
+              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
+            !else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+            !  if (cpar%myid == 0) write(*,*) 'sampling tabulated SEDs'
+            !  call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
+            !else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+            !  if (cpar%myid == 0) write(*,*) 'MH sampling scaling amplitudes'
+            !  call sample_template_mh(cpar%outdir, cpar, handle, handle_noise)
+            !else
+            !  if (cpar%myid == 0) write(*,*) 'MH Sampling spectral indices'
+            !  call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
             end if
         end do
      end if

@@ -73,7 +73,7 @@ contains
 
     ! Component specific parameters
     allocate(c%theta_def(2), c%p_gauss(2,2), c%p_uni(2,2))
-    allocate(c%theta_stat(2,cpar%mcmc_num_samp_groups), c%theta_steplen(2, cpar%mcmc_num_samp_groups))
+    allocate(c%theta_steplen(2, cpar%mcmc_num_samp_groups))
     allocate(c%indlabel(2))
     allocate(c%nu_min_ind(2), c%nu_max_ind(2))
     do i = 1, 2
@@ -83,7 +83,6 @@ contains
        c%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
        c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
-    c%theta_stat = 0
     c%theta_steplen = 0d0
     c%indlabel = ['beta','C_s']
 

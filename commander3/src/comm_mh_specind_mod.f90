@@ -67,6 +67,9 @@ contains
 
        if (num_to_samp == 0) cycle
 
+       if (cpar%myid_chain == 0) write(*,*) 'chisq evaluation?', cpar%mcmc_group_bands_indices(l,:)
+
+       call update_mixing_matrices(update_F_int=.true.)
        ! Calculate initial chisq
        chisq_old = 0d0
        call compute_chisq(data(1)%info%comm, chisq_fullsky=chisq_old, &
@@ -81,15 +84,24 @@ contains
        ! Sample the gains
        do i = 1, numband
          data(i)%gain_tmp = data(i)%gain
-         if (cpar%myid == 0 .and. data(i)%gain_sigmas(l) > 0d0) then
-           data(i)%gain = data(i)%gain + rand_gauss(handle)*data(i)%gain_sigmas(l)
-           write(*,*) 'Gain sampled from ', data(i)%gain_tmp, data(i)%gain
+         if (data(i)%gain_sigmas(l) > 0d0) then
+           if (cpar%myid_chain == 0) then
+             data(i)%gain = data(i)%gain + rand_gauss(handle)*data(i)%gain_sigmas(l)
+             write(*,*) 'Gain sampled from ', data(i)%gain_tmp, data(i)%gain
+           end if
+           call mpi_bcast(data(i)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
+           ! If there is any partner band, update that as well
+           if (data(i)%gain_stat(l) > 0) then
+             data(data(i)%gain_stat(l))%gain = data(i)%gain
+             call mpi_bcast(data(data(i)%gain_stat(l))%gain, 1, MPI_DOUBLE_PRECISION, &
+               & 0, data(1)%info%comm, ierr)
+             if (cpar%myid_chain == 0) then
+               write(*,*) 'Gain wired ', trim(data(data(i)%gain_stat(l))%label), data(data(i)%gain_stat(l))%gain
+             end if
+           end if
          end if
-         call mpi_bcast(data(i)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
-         call mpi_bcast(data(i)%gain_tmp, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
        end do
 
-       ! If there is any partner band, update that as well
 
 
        ! Update mixing matrices
@@ -98,7 +110,7 @@ contains
 
        ! Perform component separation
        if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
-          if (cpar%myid == 0) write(*,*) 'No groups to sample'
+          if (cpar%myid_chain == 0) write(*,*) 'No groups to sample'
        else
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
@@ -949,6 +961,7 @@ contains
 
 
     integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, n_tokens, n_in_group, ierr, num_gains
+    integer(i4b) :: wire_to_ind, wire_from_ind
     integer(i4b), allocatable, dimension(:,:)  :: bands_to_sample
     real(dp) :: sigma
     logical(lgt) :: pol
@@ -1020,6 +1033,27 @@ contains
         if (n == 2) then
           call get_tokens(comp_tokens(1), ':', wire_from, num=n)
           call get_tokens(comp_tokens(2), ':', wire_to, num=n)
+          if (cpar%myid == 0) then
+           write(*,*) "Do some wiring..."
+           write(*,*) wire_from
+           write(*,*) wire_to
+          end if
+          wire_from_ind = 0
+          wire_to_ind   = 0
+          do k = 1, numband
+            if (trim(data(k)%label) == trim(wire_from(2))) then
+              wire_from_ind = k
+            end if
+            if (trim(data(k)%label) == trim(wire_to(2))) then
+              wire_to_ind = k
+            end if
+          end do
+          if (wire_from_ind == 0 .or. wire_to_ind == 0) then
+            write(*,*) "You wiring points to a band that is not being used. ", trim(tokens(j))
+            stop
+          end if
+
+          data(wire_to_ind)%gain_stat(i) = wire_from_ind
 
 
         else if (n == 1) then
@@ -1032,15 +1066,12 @@ contains
 
 
             if (trim(comp_names(1)) == 'gain') then
-              if (cpar%myid == 0) then
-                write(*,*) 'We are sampling gain', sigma
-                write(*,*) trim(comp_names(2)), 'band gain to be sampled'
+                if (cpar%myid == 0) write(*,*) 'We are sampling gain', sigma
                 do k = 1, numband
                   if (trim(comp_names(2)) .eq. trim(data(k)%label)) then
                     data(k)%gain_sigmas(i) = sigma
                   end if
                 end do
-              end if
 
             else if (trim(comp_names(2)) == 'scale') then
               if (cpar%myid == 0) write(*,*) 'We are scaling the amplitude'

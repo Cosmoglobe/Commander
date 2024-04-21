@@ -92,9 +92,8 @@ contains
     allocate(c%pol_pixreg_type(3,c%npar))
     c%pol_pixreg_type = 0
 
-    allocate(c%theta_def(n), c%p_gauss(2,n), c%p_uni(2,n), c%theta_stat(n,cpar%mcmc_num_samp_groups))
+    allocate(c%theta_def(n), c%p_gauss(2,n), c%p_uni(2,n))
     allocate(c%poltype(n), c%indlabel(n), c%line2RJ(n))
-    c%theta_stat = 0
     n         = 0
     do i = 1, numband
        do j = 1, nline

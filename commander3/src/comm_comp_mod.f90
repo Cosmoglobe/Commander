@@ -44,12 +44,6 @@ module comm_comp_mod
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
-     integer(i4b),       allocatable, dimension(:,:) :: theta_stat
-     ! stat =  0  -> sample freely
-     ! stat = -1  -> fix to input
-     ! stat = -2  -> fix to zero
-     ! stat = -3  -> fix to unity
-     ! stat >  0  -> set equal to parameter stat
      real(dp),        allocatable, dimension(:,:) :: theta_steplen
      real(dp),        allocatable, dimension(:)   :: scale_sigma
 

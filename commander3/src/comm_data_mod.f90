@@ -29,6 +29,12 @@ module comm_data_mod
      character(len=512)                  :: label, instlabel, unit, comp_sens, noise_format
      integer(i4b)                        :: period, id_abs
      logical(lgt)                        :: sample_gain
+     integer(i4b),       allocatable, dimension(:) :: gain_stat
+     ! stat =  0  -> sample freely
+     ! stat = -1  -> fix to input
+     ! stat = -2  -> fix to zero
+     ! stat = -3  -> fix to unity
+     ! stat >  0  -> set equal to parameter stat
      real(dp)                            :: gain, gain_tmp, gain_prior(2)
      real(dp), allocatable, dimension(:) :: gain_sigmas
      character(len=128)                  :: gain_comp
@@ -114,6 +120,10 @@ contains
        data(n)%tod_type       = cpar%ds_tod_type(i)
        data(n)%subtract_zodi  = cpar%ds_tod_subtract_zodi(i)
        data(n)%noise_format   = cpar%ds_noise_format(i)
+
+       allocate(data(n)%gain_stat(cpar%mcmc_num_user_samp_groups))
+
+       data(n)%gain_stat      = 0 
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
