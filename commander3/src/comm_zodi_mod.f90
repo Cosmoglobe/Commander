@@ -7,6 +7,7 @@ module comm_zodi_mod
    private
    public initialize_zodi_mod, get_s_zodi, zodi_model, get_zodi_emission, update_zodi_splines, output_tod_params_to_hd5, read_tod_zodi_params, get_zodi_emissivity_albedo
    public get_s_tot_zodi, ZodiModel, zodi_model_to_ascii, ascii_to_zodi_model, print_zodi_model
+   public band_monopole, band_update_monopole
 
    type :: ZodiCompLOS
       real(dp) :: R_min, R_max
@@ -23,9 +24,9 @@ module comm_zodi_mod
       real(dp)     :: min_solar_elong, max_solar_elong
       real(dp)     :: T_0, delta
       real(dp), dimension(10) :: F_sun = [2.3405606d8, 1.2309874d8, 64292872d0, 35733824d0, 5763843d0, 1327989.4d0, 230553.73d0, 82999.336d0, 42346.605d0, 14409.608d0] * 1d-20 ! convert to specific intensity units
-      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, 0., 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0., 0., 0., 0., 0., 0., 0.]
-      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, 0., 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C0 = [-0.94209999, -0.52670002, -0.4312, -0.4312, 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C1 = [0.1214, 0.18719999, 0.1715, 0.1715, 0., 0., 0., 0., 0., 0.]
+      real(dp), dimension(10) :: C2 = [-0.1648, -0.59829998, -0.63330001, -0.63330001, 0., 0., 0., 0., 0., 0.]
 
       integer(i4b) :: npar_tot
       integer(i4b), allocatable, dimension(:,:) :: theta_stat
@@ -48,7 +49,9 @@ module comm_zodi_mod
    character(len=128), allocatable, dimension(:) :: band_instlabels
    character(len=128), allocatable, dimension(:) :: band_todtype
    real(dp),           allocatable, dimension(:) :: band_nu_c
-
+   real(dp),           allocatable, dimension(:) :: band_monopole
+   logical(lgt),       allocatable, dimension(:,:) :: band_update_monopole  ! (numband,0:n_sampgroup)
+   
    real(dp) :: R_MIN = 3.d-14, R_CUTOFF = 5.2, EPS = TINY(1.0_dp), delta_t_reset
    real(dp), allocatable :: T_grid(:), B_nu_integrals(:)
    type(ZodiCompLOS), allocatable, dimension(:) :: comp_LOS
@@ -69,7 +72,7 @@ contains
     
       ! Find number of bands and labels
       numband         = count(cpar%ds_active)
-      allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband))
+      allocate(band_labels(numband),band_instlabels(numband),band_todtype(numband),band_nu_c(numband),band_monopole(numband),band_update_monopole(numband,0:cpar%zs_num_samp_groups))
       band_labels     = pack(cpar%ds_label, cpar%ds_active)
       band_instlabels = pack(cpar%ds_instlabel, cpar%ds_active)
       band_todtype    = pack(cpar%ds_tod_type, cpar%ds_active)
@@ -130,6 +133,9 @@ contains
       end do
       do i = 1, zodi_model%npar_tot
          zodi_model%theta_stat(i,0) = maxval(zodi_model%theta_stat(i,1:cpar%zs_num_samp_groups))
+      end do
+      do i = 1, numband
+         band_update_monopole(i,0) = any(band_update_monopole(i,1:cpar%zs_num_samp_groups))
       end do
 
       ! Initialize parameter-band mapping
@@ -761,7 +767,7 @@ contains
         al     = zodi_model%comps(i)%c%albedo(band)
         em     = zodi_model%comps(i)%c%emissivity(band)
         !write(*,*) i, em, al, any(s_scat(:,i)/=s_scat(:,i)), any(s_therm(:,i)/=s_therm(:,i))
-        s_zodi = s_zodi + ((s_scat(:,i) * al) + (1. - al) * em * s_therm(:,i))
+        s_zodi = s_zodi + ((s_scat(:,i-first+1) * al) + (1. - al) * em * s_therm(:,i-first+1))
      end do
    end subroutine get_s_zodi
 
@@ -843,12 +849,30 @@ contains
      em_global = 0; al_global = 0
      if (cpar%zs_em_global /= 'none') em_global = get_string_index(zodi_model%comp_labels, cpar%zs_em_global)
      if (cpar%zs_al_global /= 'none') al_global = get_string_index(zodi_model%comp_labels, cpar%zs_al_global)
+     band_update_monopole(:,samp_group) = .false.
      do i = 1, n_params
         call get_tokens(tokens(i), ':', comp_param, num=n)
         if (n == 1) then
-           ! General parameter
-           ind = zodi_model%get_par_ind(param=comp_param(1))
-           stat(ind) = 0
+           label = comp_param(1)
+           call get_tokens(label, '@', comp_param, num=n)
+           if (n == 1) then
+              ! General parameter
+              ind = zodi_model%get_par_ind(param=comp_param(1))
+              stat(ind) = 0
+           else if (n == 2) then
+              if (trim(comp_param(1)) == 'm') then
+                 ! Monopole
+                 band = get_string_index(band_labels, comp_param(2))
+                 if (active(band) .and. band_todtype(band) /= 'none') then
+                    !ind       = zodi_model%get_par_ind(mono_band=band)
+                    band_update_monopole(band,samp_group) = .true.
+                 end if
+                 cycle
+              else
+                 write(*,*) 'Unsupported zodi parameter in samp_group2stat: ', trim(comp_param(1))
+                 stop
+              end if
+           end if
         else if (n == 2) then
            if (trim(comp_param(1)) == 'em') then
               band = get_string_index(band_labels, comp_param(2))
@@ -922,8 +946,10 @@ contains
 
      ! Set up monopoles
      do i = 1, numband
-        ind = zodi_model%get_par_ind(mono_band=i)
-        if (active(i) .and. cpar%zs_joint_mono .and. band_todtype(i) /= 'none') stat(ind) = 0
+        if (active(i) .and. band_todtype(i) /= 'none') then
+           ind = zodi_model%get_par_ind(mono_band=i)
+           stat(ind) = 0
+        end if
      end do
 
      ! Apply explicit parameter wiring
