@@ -850,16 +850,9 @@ contains
 
 
             else if (comp_names(2)(1:3) == 'tab') then
-              ! Currently, there is no distinguishing between 05a and 05b.
-              ! We need to make the SEDtab more extendable, like having a dictionary for each band.
-              ! Parse the comp_names, get the index
+              ! Get bin index
               call get_tokens(comp_names(2), '@', comp_bands)
-
-              ! We currently have all bands being 5a/b, 05a/b, etc. In principle we need to do this better, but for now we will
-              ! just get everything except the last index.
-
-              m = len_trim(comp_bands(2))
-              read(comp_bands(2)(1:m-1), *) m
+              read(comp_bands(2), *) m
              
 
               c => compList
