@@ -35,19 +35,6 @@ contains
     type(comm_params) :: cpar
 
 
-    !integer(i4b)  :: i, l, n_firas, n_sample, band, ntok, root, ierr, samp_group
-    !real(dp)      :: chisq, my_chisq, sigma, chisq_old, chisq_new, chisq_prop
-    !real(dp)      :: MAX_DELTA_G = 0.3d0
-    !logical(lgt)  :: include_comp, reject
-    !character(len=4) :: chain_text
-    !character(len=6) :: iter_text
-    !character(len=512) :: tokens(10), str_buff, operation
-    !integer(i4b), allocatable,  dimension(:) :: bands_sample, bands_firas
-    !real(dp), allocatable, dimension(:) :: gains_prop, gains_old, chisqs_old, chisqs_prop
-    !class(comm_comp),   pointer           :: c => null()
-    !class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
-
-
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     real(dp), allocatable, dimension(:) :: sigmas, scales
     integer(i4b) :: band, ierr, i, j, k, l, pol, pix, n_scales, num_to_samp
@@ -79,25 +66,28 @@ contains
          write(*,*) '| Old chisq is ', chisq_old
        end if
 
-
-
        ! Sample the gains
        do i = 1, numband
          data(i)%gain_tmp = data(i)%gain
          if (data(i)%gain_sigmas(l) > 0d0) then
            if (cpar%myid_chain == 0) then
              data(i)%gain = data(i)%gain + rand_gauss(handle)*data(i)%gain_sigmas(l)
-             write(*,*) 'Gain sampled from ', data(i)%gain_tmp, data(i)%gain
+             write(*,*) 'Gain sampled from ', data(i)%gain_tmp, ' to ', data(i)%gain
            end if
            call mpi_bcast(data(i)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
-           ! If there is any partner band, update that as well
-           if (data(i)%gain_stat(l) > 0) then
-             data(data(i)%gain_stat(l))%gain = data(i)%gain
-             call mpi_bcast(data(data(i)%gain_stat(l))%gain, 1, MPI_DOUBLE_PRECISION, &
-               & 0, data(1)%info%comm, ierr)
-             if (cpar%myid_chain == 0) then
-               write(*,*) 'Gain wired ', trim(data(data(i)%gain_stat(l))%label), data(data(i)%gain_stat(l))%gain
-             end if
+         end if
+
+       end do
+
+       ! If there is any partner band, update that as well
+       do i = 1, numband
+         if (data(i)%gain_stat(l) > 0) then
+           data(data(i)%gain_stat(l))%gain = data(i)%gain
+           call mpi_bcast(data(data(i)%gain_stat(l))%gain, 1, MPI_DOUBLE_PRECISION, &
+             & 0, data(1)%info%comm, ierr)
+           if (cpar%myid_chain == 0) then
+             write(*,*) 'Gain wired ', trim(data(data(i)%gain_stat(l))%label), data(data(i)%gain_stat(l))%gain
+             write(*,*) 'Wired gain tmp ', data(data(i)%gain_stat(l))%gain_tmp
            end if
          end if
        end do
@@ -120,8 +110,8 @@ contains
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
        end if
 
        ! Check MH statistic
@@ -139,6 +129,9 @@ contains
          ! Reset gains
          do i = 1, numband
            data(i)%gain = data(i)%gain_tmp
+           if (cpar%myid == 0) then
+             write(*,*) trim(data(i)%label), data(i)%gain
+           end if
          end do
 
          ! Update mixing matrices
@@ -156,247 +149,10 @@ contains
          end if
        end if
 
-    !root = 0
   end do
 
 
 
-    ! Gain sampling for 545, 857, and 100-240 um, using FIRAS as the calibrator. 
-    ! That is, we make a MH proposal to change the gain of all of these channels, 
-    ! compute one step of the compsep amplitude sampling, and make an accept/reject decision based on the FIRAS chisq.
-
-    !operation = cpar%operation
-    !cpar%operation = 'optimize'
-
-
-    ! n_sample = 0
-    ! n_firas = 0
-    ! do i = 1, numband
-    !   ! Finds bands that we want to calibrate against FIRAS
-    !   str_buff = data(i)%gain_comp
-    !   call toupper(str_buff)
-    !   if (index(str_buff, 'FIRAS') .ne. 0 .and. data(i)%sample_gain) then
-    !     n_sample = n_sample + 1
-    !   end if
-
-
-    !   ! Identifies FIRAS bands
-    !   str_buff = data(i)%label
-    !   call toupper(str_buff)
-    !   if (index(str_buff, 'FIRAS') .ne. 0) then
-    !     n_firas = n_firas + 1
-    !   end if
-
-    ! end do
-
-    ! if (n_sample .eq. 0) then
-    !   return
-    ! else if (n_firas .eq. 0 .and. n_sample > 0) then
-    !   write(*,*) 'No FIRAS bands loaded, cannot calibrate as asked'
-    !   stop
-    ! else
-    !   if (cpar%myid == root) then
-    !      write(*,*) '|'
-    !      write(*,*) '| MH sampling gain based on FIRAS'
-    !      write(*,*) '|'
-    !   end if
-    ! end if
-    !    
-    ! allocate(bands_firas(n_firas), bands_sample(n_sample), gains_prop(n_sample), gains_old(n_sample))
-    ! allocate(chisqs_old(n_firas), chisqs_prop(n_firas))
-
-    ! n_sample = 0
-    ! n_firas = 0
-    ! do i = 1, numband
-    !   str_buff = data(i)%gain_comp
-    !   call toupper(str_buff)
-    !   if (index(str_buff, 'FIRAS') .ne. 0 .and. (data(i)%sample_gain)) then
-    !     n_sample = n_sample + 1
-    !     bands_sample(n_sample) = i
-    !   end if
-
-    !   str_buff = data(i)%label
-    !   call toupper(str_buff)
-    !   if (index(str_buff, 'FIRAS') .ne. 0) then
-    !     n_firas = n_firas + 1
-    !     bands_firas(n_firas) = i
-    !   end if
-
-    ! end do
-
-    ! chisq_old = 0d0
-
-    ! do band = 1, n_firas
-    !     ! Build reference signal
-    !     sig => comm_map(data(bands_firas(band))%info)
-    !     res => comm_map(data(bands_firas(band))%info)
-    !     c => compList
-    !     do while (associated(c))
-    !        call get_tokens(trim(adjustl(data(bands_firas(band))%gain_comp)), ',', tokens, num=ntok)
-    !        include_comp = .false.
-    !        do i = 1, ntok
-    !           if (trim(c%label) == trim(tokens(i)) .or. trim(tokens(i)) == 'all') then
-    !              include_comp = .true.
-    !              exit
-    !           end if
-    !        end do
-    !        c => c%nextComp()
-    !     end do
-
-    !     ! Compute residual
-    !     res                => compute_residual(bands_firas(band))
-    !     data(bands_firas(band))%res%map =  res%map
-
-    !     invN_res     => comm_map(res)
-    !     call data(bands_firas(band))%N%invN(invN_res)! Multiply with (invN)
-
-    !     if (associated(data(bands_firas(band))%gainmask)) then
-    !        res%map      = res%map      * data(bands_firas(band))%gainmask%map
-    !     end if
-
-    !     my_chisq    = sum(res%map * invN_res%map)
-    !     call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(bands_firas(band))%info%comm, ierr)
-    !     chisq_old = chisq_old + chisq
-    !     chisqs_old(band) = chisq
-    ! end do
-
-
-    ! ! MH Step
-    ! sigma = 0.005
-    ! !sigma = 1e-6
-
-    ! do i = 1, n_sample
-    !   if (data(bands_sample(i))%info%myid == root) then
-    !     gains_old(i) = data(bands_sample(i))%gain
-    !     gains_prop(i) = gains_old(i) + rand_gauss(handle)*sigma
-    !   end if
-
-    !   call mpi_bcast(data(bands_sample(i))%gain, 1, MPI_DOUBLE_PRECISION, root, data(bands_sample(i))%info%comm, ierr)
-
-    ! end do
-
-    ! call mpi_bcast(gains_old, size(gains_old), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
-    ! call mpi_bcast(gains_prop, size(gains_prop), MPI_DOUBLE_PRECISION, root, data(bands_sample(1))%info%comm, ierr)
-
-    ! do i = 1, n_sample
-    !    data(bands_sample(i))%gain = gains_prop(i)
-    ! end do
-
-
-    ! ! Update mixing matrices
-    ! c => compList
-    ! do while (associated(c))
-    !    call c%updateMixmat
-    !    c => c%nextComp()
-    ! end do
-
-
-    ! if (cpar%myid_chain == 0) then
-    !   do i = 1, n_sample
-    !      write(*,*) '| ', trim(data(bands_sample(i))%label), gains_old(i), gains_prop(i)
-    !   end do
-    !   write(*,*) '|  Generating chisq for proposal gains'
-    ! end if
-
-    ! ! Do component separation
-    ! call sample_all_amps_by_CG(cpar, handle, handle_noise)
-
-    ! chisq_prop = 0d0
-
-    ! if (data(bands_firas(1))%info%myid == root) then
-    !    write(*,*) '|'
-    !    do band = 1, n_firas
-    !       write(*,*) '|  chisq old ', trim(data(bands_firas(band))%label), chisqs_old(band)
-    !    end do
-    !    write(*,*) '|'
-    ! end if
-
-    ! do band = 1, n_firas
-    !     ! Build reference signal
-    !     sig => comm_map(data(bands_firas(band))%info)
-    !     res => comm_map(data(bands_firas(band))%info)
-    !     c => compList
-    !     do while (associated(c))
-    !        call get_tokens(trim(adjustl(data(bands_firas(band))%gain_comp)), ',', tokens, num=ntok)
-    !        include_comp = .false.
-    !        do i = 1, ntok
-    !           if (trim(c%label) == trim(tokens(i)) .or. trim(tokens(i)) == 'all') then
-    !              include_comp = .true.
-    !              exit
-    !           end if
-    !        end do
-    !        c => c%nextComp()
-    !     end do
-
-    !     ! Compute residual
-    !     res                => compute_residual(bands_firas(band))
-    !     data(bands_firas(band))%res%map =  res%map
-
-    !     invN_res     => comm_map(res)
-    !     call data(bands_firas(band))%N%invN(invN_res)! Multiply with (invN)
-
-    !     if (associated(data(bands_firas(band))%gainmask)) then
-    !        res%map      = res%map      * data(bands_firas(band))%gainmask%map
-    !     end if
-
-    !     my_chisq    = sum(res%map * invN_res%map)
-    !     call mpi_reduce(my_chisq,    chisq,    1, MPI_DOUBLE_PRECISION, MPI_SUM, root, data(band)%info%comm, ierr)
-    !     chisq_prop = chisq_prop + chisq
-    !     chisqs_prop(band) = chisq
-    !     if (cpar%myid_chain == root) then
-    !       write(*,*) '|  chisq prop ', trim(data(bands_firas(band))%label), chisqs_prop(band)
-    !     end if
-    ! end do
-    ! if (cpar%myid_chain == root) then
-    !    write(*,*) '|'
-    !    do i = 1, n_sample
-    !      write(*,*) '| ', trim(data(bands_sample(i))%label), ' old:', gains_old(i), ' prop:', gains_prop(i)
-    !    end do
-    !    write(*,*) '|'
-    !    write(*,*) '| chisq diffs per band:'
-    !    do i = 1, n_firas
-    !      write(*,*) '|  ', trim(data(bands_firas(i))%label), chisqs_prop(i) - chisqs_old(i)
-    !    end do
-    !    write(*,*) '| chisq diff: ', chisq_prop-chisq_old
-    ! end if
-
-
-    ! reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
-    ! call mpi_bcast(reject, 1, MPI_LOGICAL, root, data(bands_sample(1))%info%comm, ierr)
-
-
-    ! if (reject) then
-    !   if (cpar%myid_chain == 0) then
-    !     write(*,*) '| '
-    !     write(*,*) '| MH step rejected, returning to original gains.'
-    !     write(*,*) '| '
-    !   end if
-    !   do i = 1, n_sample
-    !     data(bands_sample(i))%gain = gains_old(i)
-    !   end do
-
-    !   ! Update mixing matrices
-    !   c => compList
-    !   do while (associated(c))
-    !      call c%updateMixmat
-    !      c => c%nextComp()
-    !   end do
-
-    ! else
-    !   if (data(bands_firas(1))%info%myid == root) then
-    !     write(*,*) '| '
-    !     write(*,*) '| MH step accepted'
-    !     write(*,*) '| New gains are'
-    !     do i = 1, n_sample
-    !       write(*,*) '| ', trim(data(bands_sample(i))%label), ':', gains_prop(i)
-    !     end do
-    !     write(*,*) '| '
-    !   end if
-    ! end if
-
-    ! deallocate(bands_firas, bands_sample, gains_prop, gains_old)
-    ! call invN_res%dealloc(); deallocate(invN_res)
-    !cpar%operation = operation
 
   end subroutine sample_gain_firas
 
@@ -491,8 +247,8 @@ contains
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
        end if
 
        ! Check MH statistic
@@ -655,8 +411,8 @@ contains
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
        end if
 
        ! Check MH statistic
@@ -852,8 +608,8 @@ contains
                           & maskpath=cpar%mcmc_samp_group_mask(l), band_list=cpar%mcmc_group_bands_indices(l,:))
 
        if (cpar%myid_chain .eq. 0) then
-         write(*,*) "|    Proposal chisq is ", nint(chisq_prop, i8b)
-         write(*,*) "|    Delta chi^2 is    ", nint(chisq_prop - chisq_old, i8b)
+         write(*,*) "|    Proposal chisq is ", chisq_prop
+         write(*,*) "|    Delta chi^2 is    ", chisq_prop - chisq_old
        end if
 
        ! Check MH statistic
@@ -1009,6 +765,13 @@ contains
         end do
       end do
 
+      if (maxval(cpar%mcmc_group_bands_indices(i,:)) == 0) then
+        if (cpar%myid == 0) then
+          write(*,*) 'MCMC_SAMPLING_GROUP_CHISQ_BANDS does not reference any band that is loaded'
+        end if
+        stop
+      end if
+
       end if
     end do
 
@@ -1022,9 +785,6 @@ contains
     do i = 1, cpar%mcmc_num_user_samp_groups
 
 
-      if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_samp_groups(i))
-
-
       call get_tokens(cpar%mcmc_samp_groups(i), ',', tokens, n_tokens)
       do j = 1, n_tokens
         if (trim(tokens(1)) == 'none') exit
@@ -1033,11 +793,6 @@ contains
         if (n == 2) then
           call get_tokens(comp_tokens(1), ':', wire_from, num=n)
           call get_tokens(comp_tokens(2), ':', wire_to, num=n)
-          if (cpar%myid == 0) then
-           write(*,*) "Do some wiring..."
-           write(*,*) wire_from
-           write(*,*) wire_to
-          end if
           wire_from_ind = 0
           wire_to_ind   = 0
           do k = 1, numband
@@ -1057,8 +812,6 @@ contains
 
 
         else if (n == 1) then
-            !write(*,*) ''
-            !write(*,*) 'No wiring'
             call get_tokens(tokens(j), '%', comp_tokens)
             read(comp_tokens(2), *) sigma
 
@@ -1066,7 +819,6 @@ contains
 
 
             if (trim(comp_names(1)) == 'gain') then
-                if (cpar%myid == 0) write(*,*) 'We are sampling gain', sigma
                 do k = 1, numband
                   if (trim(comp_names(2)) .eq. trim(data(k)%label)) then
                     data(k)%gain_sigmas(i) = sigma
@@ -1074,7 +826,6 @@ contains
                 end do
 
             else if (trim(comp_names(2)) == 'scale') then
-              if (cpar%myid == 0) write(*,*) 'We are scaling the amplitude'
 
               c => compList
               do while (associated(c))
@@ -1093,11 +844,8 @@ contains
 
 
             else if (comp_names(2)(1:3) == 'tab') then
-              ! write(*,*) 'We are dealing with tabulated values: ', trim(comp_names(2)), sigma
-              ! write(*,*) trim(comp_names(2)(4:))
               ! Currently, there is no distinguishing between 05a and 05b.
               ! We need to make the SEDtab more extendable, like having a dictionary for each band.
-              !c%theta_steplen(cind, i) = 
               ! Parse the comp_names, get the index
               call get_tokens(comp_names(2), '@', comp_bands)
 
@@ -1108,16 +856,11 @@ contains
               read(comp_bands(2)(1:m-1), *) m
              
 
-              !write(*,*) 'comp names ', trim(comp_names(1))
-
               c => compList
               do while (associated(c))
                  if (trim(c%label) == trim(comp_names(1))) then
                    !       (beta+T+ntab, n_mcmc_samp_groups)
-                   !write(*,*) 'set sigma_SEDtab  to ',sigma
-                   !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
                    c%theta_steplen(2+m,i) = sigma
-                   !write(*,*) i, 2+m, c%theta_steplen(2+m,i)
                  end if
                  c => c%nextComp()
               end do
@@ -1129,7 +872,6 @@ contains
                    !       (beta+T+ntab, n_mcmc_samp_groups)
                    ! or    (beta+T,      n_mcmc_samp_groups)
                    c%theta_steplen(1,i) = sigma
-                   if (cpar%myid == 0) write(*,*) 'set sigma_beta  to ',sigma, i
                  end if
                  c => c%nextComp()
               end do
@@ -1140,7 +882,6 @@ contains
                    !       (beta+T+ntab, n_mcmc_samp_groups)
                    ! or    (beta+T,      n_mcmc_samp_groups)
                    c%theta_steplen(2,i) = sigma
-                   if (cpar%myid == 0) write(*,*) 'set sigma_T', sigma, i
                  end if
                  c => c%nextComp()
               end do

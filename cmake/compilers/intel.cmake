@@ -99,7 +99,8 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 		"-heap-arrays" "16384"
 		"-fpe0"
 		"-fPIC"
-    "-ftrapuv"
+    #"-ftrapuv"
+    #"-init=snan,arrays"
 		)
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_RELWITHDEBINFO MATCHES "")
