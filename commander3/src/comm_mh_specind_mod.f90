@@ -730,6 +730,7 @@ contains
 
 
     character(len=128) :: tokens(100), comp_tokens(2), comp_names(2), comp_bands(2), wire_to(2), wire_from(2)
+    character(len=2) :: itext
 
     allocate(cpar%mcmc_group_bands_indices(cpar%mcmc_num_user_samp_groups, numband))
 
@@ -852,6 +853,13 @@ contains
             else if (comp_names(2)(1:3) == 'tab') then
               ! Get bin index
               call get_tokens(comp_names(2), '@', comp_bands)
+              if (cpar%myid == 0 .and. .not. is_numeric(comp_names(2))) then
+                call int2string(i,itext)
+                write(*,*) 'MCMC_SAMPLING_GROUP_PARAMS'//itext, '   ', trim(comp_names(2)), ' should refer to an integer bin'
+                stop
+              else
+                call mpi_barrier(cpar%comm_chain, ierr)
+              end if
               read(comp_bands(2), *) m
              
 
