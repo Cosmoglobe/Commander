@@ -342,8 +342,7 @@ contains
           !call update_status(status, "output_res2_"//trim(data(i)%label))
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
-             map%map = map%map**2
-
+             if (size(map%map) > 0) map%map = map%map**2
              
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
              chisq_sub => comm_map(info)
@@ -353,8 +352,10 @@ contains
              ! of bands with different units comparable
              uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
-                chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                if (size(chisq_map%map) > 0) then 
+                   chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                end if
                 N => data(i)%N
                 ! select type (N)
                 ! Defining chisq_eff = -2*log(L) such that
