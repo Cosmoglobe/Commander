@@ -28,22 +28,23 @@ contains
 
 
 
-  subroutine sample_gain_firas(outdir, cpar, handle, handle_noise)
+  subroutine sample_gain_firas(outdir, cpar, handle, handle_noise, l)
     implicit none
     character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
+    integer(i4b),                   intent(in)    :: l
     type(comm_params) :: cpar
 
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     real(dp), allocatable, dimension(:) :: sigmas, scales
-    integer(i4b) :: band, ierr, i, j, k, l, pol, pix, n_scales, num_to_samp
+    integer(i4b) :: band, ierr, i, j, k, pol, pix, n_scales, num_to_samp
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
 
 
-    do l = 1, cpar%mcmc_num_user_samp_groups
+    !do l = 1, cpar%mcmc_num_user_samp_groups
        ! Check if there are any gains to sample
        num_to_samp = 0
        do i = 1, numband
@@ -52,7 +53,10 @@ contains
          end if
        end do
 
-       if (num_to_samp == 0) cycle
+       if (num_to_samp == 0) return
+       if (cpar%myid == 0) then
+         write(*,*) '| MH sampling group ', l
+       end if
 
        call update_mixing_matrices(update_F_int=.true.)
        ! Calculate initial chisq
@@ -147,7 +151,7 @@ contains
          end if
        end if
 
-  end do
+  !end do
 
 
     if (cpar%myid == 0) then
@@ -157,16 +161,17 @@ contains
 
   end subroutine sample_gain_firas
 
-  subroutine sample_template_mh(outdir, cpar, handle, handle_noise)
+  subroutine sample_template_mh(outdir, cpar, handle, handle_noise, l)
     implicit none
     character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
+    integer(i4b),                   intent(in)    :: l
     type(comm_params) :: cpar
 
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     real(dp), allocatable, dimension(:) :: sigmas, scales
-    integer(i4b) :: band, ierr, i, j, k, l, pol, pix, n_scales
+    integer(i4b) :: band, ierr, i, j, k, pol, pix, n_scales
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -174,7 +179,7 @@ contains
     ! Given a component, propose an amplitude to shift the global amplitude of any component.
 
 
-    do l = 1, cpar%mcmc_num_user_samp_groups
+    !do l = 1, cpar%mcmc_num_user_samp_groups
 
        n_scales = 0
        c => compList
@@ -185,7 +190,10 @@ contains
           c => c%nextComp()
        end do
 
-       if (n_scales == 0) cycle
+       if (n_scales == 0) return
+       if (cpar%myid == 0) then
+         write(*,*) '| MH sampling group ', l
+       end if
 
        allocate(sigmas(n_scales), scales(n_scales))
 
@@ -301,7 +309,7 @@ contains
 
        deallocate(sigmas, scales)
 
-    end do
+    !end do
 
     if (cpar%myid == 0) then
       write(*,*) '|   Finished sampling amplitude parameter'
@@ -309,14 +317,15 @@ contains
 
   end subroutine sample_template_mh
 
-  subroutine sample_mbbtab_mh(outdir, cpar, handle, handle_noise)
+  subroutine sample_mbbtab_mh(outdir, cpar, handle, handle_noise, l)
     implicit none
     character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
+    integer(i4b),                   intent(in)    :: l
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
-    integer(i4b) :: band, ierr, i, j, k, l, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, pol, pix
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -326,7 +335,7 @@ contains
 
     ! Loop over sampling groups
 
-    do l = 1, cpar%mcmc_num_user_samp_groups
+    !do l = 1, cpar%mcmc_num_user_samp_groups
 
        mval_0 = -1d0
        k = 0
@@ -348,7 +357,10 @@ contains
          & 0, data(1)%info%comm, ierr)
 
        if (mval_0 <= 0d0) then
-         cycle
+         return
+       end if
+       if (cpar%myid == 0) then
+         write(*,*) '| MH sampling group ', l
        end if
 
        ! Calculate initial chisq
@@ -371,13 +383,13 @@ contains
                if (cpar%myid_chain .eq. 0) then
                  write(*,*) '| ', trim(c%label)
                  c%SEDtab_buff = c%SEDtab
-                 write(*,*) 'MBBtab original'
+                 write(*,*) '| MBBtab original'
                  do i = 1, c%ntab
                    if (c%theta_steplen(c%npar+i,l) > 0) then
                      write(*,*) '|         ', c%SEDtab(3,i)
                    end if
                  end do
-                 write(*,*) 'MBBtab proposal'
+                 write(*,*) '| MBBtab proposal'
                  do i = 1, c%ntab
                    if (c%theta_steplen(c%npar+i,l) > 0) then
                      c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
@@ -473,7 +485,7 @@ contains
        end if
 
 
-     end do
+     !end do
 
 
      if (cpar%myid == 0) then
@@ -482,14 +494,15 @@ contains
 
   end subroutine sample_mbbtab_mh
 
-  subroutine sample_specind_mh(outdir, cpar, handle, handle_noise)
+  subroutine sample_specind_mh(outdir, cpar, handle, handle_noise, l)
     implicit none
     character(len=*),               intent(in)    :: outdir
     type(planck_rng),               intent(inout) :: handle, handle_noise
+    integer(i4b),                   intent(in)    :: l
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
-    integer(i4b) :: band, ierr, i, j, k, pol, pix, l
+    integer(i4b) :: band, ierr, i, j, k, pol, pix
     logical(lgt)  :: include_comp, reject, todo, has_alms
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -499,7 +512,7 @@ contains
 
     ! Loop over sampling groups
 
-    do l = 1, cpar%mcmc_num_user_samp_groups
+    !do l = 1, cpar%mcmc_num_user_samp_groups
 
        mval_0 = -1d0
        k = 0
@@ -525,7 +538,10 @@ contains
          & 0, data(1)%info%comm, ierr)
 
        if (mval_0 <= 0d0) then
-         cycle
+         return
+       end if
+       if (cpar%myid == 0) then
+         write(*,*) '| MH sampling group ', l
        end if
 
 
@@ -695,7 +711,7 @@ contains
        end if
 
 
-     end do
+     !end do
 
 
      if (cpar%myid == 0) then
