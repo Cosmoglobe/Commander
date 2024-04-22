@@ -378,7 +378,8 @@ contains
           select type (c)
           type is (comm_MBBtab_comp)
 
-            if (c%id == k) then
+            !if (c%id == k) then
+            if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
 
                if (cpar%myid_chain .eq. 0) then
                  write(*,*) '| ', trim(c%label)
@@ -452,7 +453,8 @@ contains
             select type (c)
             type is (comm_MBBtab_comp)
 
-              if (c%id == k) then
+              !if (c%id == k) then
+              if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
                  if (cpar%myid_chain .eq. 0) then
                    do i = 1, c%ntab
                       c%SEDtab(3,i) = c%SEDtab_buff(3,i)
@@ -569,7 +571,7 @@ contains
              select type (c)
              class is (comm_diffuse_comp)
 
-               if (c%id == k .and. cpar%myid_chain == 0) then
+               if (maxval(c%theta_steplen(c%npar+1:,l)) > 0 .and. cpar%myid_chain == 0) then
 
                    write(*,*) '| ', trim(c%label), j
                    do pol = 1, c%theta(j)%p%info%nmaps
@@ -662,7 +664,7 @@ contains
                select type (c)
                class is (comm_diffuse_comp)
 
-                 if (c%id == k) then
+                 if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
 
                     if (cpar%myid_chain .eq. 0) then
                       do pol = 1, c%theta(j)%p%info%nmaps
@@ -789,8 +791,8 @@ contains
 
       if (maxval(cpar%mcmc_group_bands_indices(i,:)) == 0) then
         if (cpar%myid == 0) then
-          write(*,*) 'MCMC_SAMPLING_GROUP_CHISQ_BANDS does not reference any band that is loaded'
-          write(*,*) 'Group ', i
+          call int2string(i,itext)
+          write(*,*) 'MCMC_SAMPLING_GROUP_CHISQ_BANDS'//itext, ' does not reference any band that is loaded'
         end if
         stop
       end if
