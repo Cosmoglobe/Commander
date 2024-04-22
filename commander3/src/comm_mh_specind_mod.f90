@@ -100,8 +100,9 @@ contains
 
        ! Perform component separation
        if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
-          if (cpar%myid_chain == 0) write(*,*) 'No groups to sample'
+          if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
+          if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
 
@@ -175,8 +176,6 @@ contains
 
     do l = 1, cpar%mcmc_num_user_samp_groups
 
-
-
        n_scales = 0
        c => compList
        do while (associated(c))
@@ -235,10 +234,10 @@ contains
        call update_mixing_matrices(update_F_int=.true.)
 
        ! Perform component separation
-       if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_update_cg_groups(l))
        if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
-          if (cpar%myid == 0) write(*,*) 'No groups to sample'
+          if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
+          if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
 
@@ -328,7 +327,6 @@ contains
     ! Loop over sampling groups
 
     do l = 1, cpar%mcmc_num_user_samp_groups
-
 
        mval_0 = -1d0
        k = 0
@@ -602,10 +600,10 @@ contains
 
 
        ! Perform component separation
-       if (cpar%myid == 0) write(*,*) '| Should only sample groups ', trim(cpar%mcmc_update_cg_groups(l))
        if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
           if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
+          if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
 
@@ -852,16 +850,9 @@ contains
 
 
             else if (comp_names(2)(1:3) == 'tab') then
-              ! Currently, there is no distinguishing between 05a and 05b.
-              ! We need to make the SEDtab more extendable, like having a dictionary for each band.
-              ! Parse the comp_names, get the index
+              ! Get bin index
               call get_tokens(comp_names(2), '@', comp_bands)
-
-              ! We currently have all bands being 5a/b, 05a/b, etc. In principle we need to do this better, but for now we will
-              ! just get everything except the last index.
-
-              m = len_trim(comp_bands(2))
-              read(comp_bands(2)(1:m-1), *) m
+              read(comp_bands(2), *) m
              
 
               c => compList
