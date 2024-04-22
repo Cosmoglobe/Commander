@@ -54,8 +54,6 @@ contains
 
        if (num_to_samp == 0) cycle
 
-       if (cpar%myid_chain == 0) write(*,*) 'chisq evaluation?', cpar%mcmc_group_bands_indices(l,:)
-
        call update_mixing_matrices(update_F_int=.true.)
        ! Calculate initial chisq
        chisq_old = 0d0
@@ -72,7 +70,8 @@ contains
          if (data(i)%gain_sigmas(l) > 0d0) then
            if (cpar%myid_chain == 0) then
              data(i)%gain = data(i)%gain + rand_gauss(handle)*data(i)%gain_sigmas(l)
-             write(*,*) 'Gain sampled from ', data(i)%gain_tmp, ' to ', data(i)%gain
+             write(*,*) '| Gain ', trim(data(i)%label), ' sampled from ', &
+                       & data(i)%gain_tmp, ' to ', data(i)%gain
            end if
            call mpi_bcast(data(i)%gain, 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
          end if
@@ -86,8 +85,9 @@ contains
            call mpi_bcast(data(data(i)%gain_stat(l))%gain, 1, MPI_DOUBLE_PRECISION, &
              & 0, data(1)%info%comm, ierr)
            if (cpar%myid_chain == 0) then
-             write(*,*) 'Gain wired ', trim(data(data(i)%gain_stat(l))%label), data(data(i)%gain_stat(l))%gain
-             write(*,*) 'Wired gain tmp ', data(data(i)%gain_stat(l))%gain_tmp
+             write(*,*) '| Wired gain ', trim(data(data(i)%gain_stat(l))%label), & 
+               & ' from ', data(data(i)%gain_stat(l))%gain_tmp, &
+               & ' to ', data(data(i)%gain_stat(l))%gain
            end if
          end if
        end do
@@ -129,9 +129,6 @@ contains
          ! Reset gains
          do i = 1, numband
            data(i)%gain = data(i)%gain_tmp
-           if (cpar%myid == 0) then
-             write(*,*) trim(data(i)%label), data(i)%gain
-           end if
          end do
 
          ! Update mixing matrices
@@ -139,7 +136,7 @@ contains
 
 
          ! Instead of doing compsep, revert the amplitudes here
-         call revert_CG_amps(cpar)
+         if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then
@@ -152,6 +149,9 @@ contains
   end do
 
 
+    if (cpar%myid == 0) then
+      write(*,*) '|   Finished sampling map gains'
+    end if
 
 
   end subroutine sample_gain_firas
@@ -214,7 +214,7 @@ contains
             sigmas(i) = c%scale_sigma(l)
             if (cpar%myid == 0) then
               scales(i) = 1 + rand_gauss(handle)*sigmas(i)
-              write(*,*) 'Scaling by ', scales(i)
+              write(*,*) '|   Scaling by ', scales(i)
             end if
             call mpi_bcast(scales(i), 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
             select type(c)
@@ -287,7 +287,7 @@ contains
 
 
          ! Instead of doing compsep, revert the amplitudes here
-         call revert_CG_amps(cpar)
+         if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then
@@ -305,7 +305,7 @@ contains
     end do
 
     if (cpar%myid == 0) then
-      write(*,*) 'Amplitude parameter'
+      write(*,*) '|   Finished sampling amplitude parameter'
     end if
 
   end subroutine sample_template_mh
@@ -371,13 +371,21 @@ contains
             if (c%id == k) then
 
                if (cpar%myid_chain .eq. 0) then
-                 write(*,*) trim(c%label)
+                 write(*,*) '| ', trim(c%label)
                  c%SEDtab_buff = c%SEDtab
+                 write(*,*) 'MBBtab original'
                  do i = 1, c%ntab
-                    c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
+                   if (c%theta_steplen(c%npar+i,l) > 0) then
+                     write(*,*) '|         ', c%SEDtab(3,i)
+                   end if
                  end do
-                 write(*,*) 'MBBtab original', c%SEDtab_buff(3,:)
-                 write(*,*) 'MBBtab proposal', c%SEDtab(3,:)
+                 write(*,*) 'MBBtab proposal'
+                 do i = 1, c%ntab
+                   if (c%theta_steplen(c%npar+i,l) > 0) then
+                     c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
+                     write(*,*) '|         ',  c%SEDtab(3,i)
+                   end if
+                 end do
                end if
 
 
@@ -399,10 +407,10 @@ contains
 
 
        ! Perform component separation
-       if (cpar%myid == 0) write(*,*) trim(cpar%mcmc_update_cg_groups(l))
        if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
-          if (cpar%myid == 0) write(*,*) 'No groups to sample'
+          if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
+          if (cpar%myid == 0) write(*,*) '| Sampling CG groups ',trim(cpar%mcmc_update_cg_groups(l))
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
 
@@ -456,7 +464,7 @@ contains
 
 
          ! Instead of doing compsep, revert the amplitudes here
-         call revert_CG_amps(cpar)
+         if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then
@@ -471,7 +479,7 @@ contains
 
 
      if (cpar%myid == 0) then
-       write(*,*) 'Finished sampling mbbtab'
+       write(*,*) '|   Finished sampling mbbtab'
      end if
 
   end subroutine sample_mbbtab_mh
@@ -549,13 +557,13 @@ contains
 
                if (c%id == k .and. cpar%myid_chain == 0) then
 
-                   write(*,*) trim(c%label), j
+                   write(*,*) '| ', trim(c%label), j
                    do pol = 1, c%theta(j)%p%info%nmaps
                       c%theta_pixreg_buff(1,pol,j) = c%theta_pixreg(1,pol,j)
                       c%theta_pixreg(1,pol,j) = c%theta_pixreg(1,pol,j) + rand_gauss(handle) * c%theta_steplen(j,l)
                    end do
-                   write(*,*) 'theta_pixreg original', c%theta_pixreg_buff(1,:,j)
-                   write(*,*) 'theta_pixreg proposal', c%theta_pixreg(1,:,j)
+                   write(*,*) '| theta_pixreg original', c%theta_pixreg_buff(1,:,j)
+                   write(*,*) '| theta_pixreg proposal', c%theta_pixreg(1,:,j)
 
                    do pol = 1,c%theta(j)%p%info%nmaps
                       do pix = 0, c%theta(j)%p%info%np-1
@@ -594,9 +602,9 @@ contains
 
 
        ! Perform component separation
-       if (cpar%myid == 0) write(*,*) 'Should only sample groups ', trim(cpar%mcmc_update_cg_groups(l))
+       if (cpar%myid == 0) write(*,*) '| Should only sample groups ', trim(cpar%mcmc_update_cg_groups(l))
        if (trim(cpar%mcmc_update_cg_groups(l)) == 'none') then
-          if (cpar%myid == 0) write(*,*) 'No groups to sample'
+          if (cpar%myid == 0) write(*,*) '| No groups to sample'
        else
           call sample_all_amps_by_CG(cpar, handle, handle_noise, store_buff=.true., cg_groups=cpar%mcmc_update_cg_groups(l))
        end if
@@ -678,7 +686,7 @@ contains
          ! Update mixing matrices
          call update_mixing_matrices(update_F_int=.true.)
 
-         call revert_CG_amps(cpar)
+         if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
        else
          if (cpar%myid_chain == 0) then
@@ -693,7 +701,7 @@ contains
 
 
      if (cpar%myid == 0) then
-       write(*,*) 'Finished sampling specind'
+       write(*,*) '|   Finished sampling specind'
      end if
 
   end subroutine sample_specind_mh
@@ -707,7 +715,6 @@ contains
     !    4. The specific CG groups to do amplitudes sampling on
     !
 
-    ! Need to create a new set of variables that hold the step length
     implicit none
     type(comm_params) :: cpar
 
@@ -768,6 +775,7 @@ contains
       if (maxval(cpar%mcmc_group_bands_indices(i,:)) == 0) then
         if (cpar%myid == 0) then
           write(*,*) 'MCMC_SAMPLING_GROUP_CHISQ_BANDS does not reference any band that is loaded'
+          write(*,*) 'Group ', i
         end if
         stop
       end if

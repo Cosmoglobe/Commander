@@ -361,8 +361,8 @@ contains
     do samp_group = 1, cpar%cg_num_user_samp_groups
 
        if (cpar%myid == 0 .and. samp_group == 1) then
-         write(*,*) 'Reverting to buffer values. Did you run sample_maps_with_CG with '
-         write(*,*) 'store_buff = .true.?'
+         write(*,*) '|   Reverting to buffer values. Did you run sample_maps_with_CG with '
+         write(*,*) '|                                                store_buff = .true.?'
        end if
 
        ind = 1
