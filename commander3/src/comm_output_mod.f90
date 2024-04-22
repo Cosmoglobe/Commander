@@ -89,7 +89,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, j, hdferr, ierr, unit, p_min, p_max
+    integer(i4b)                 :: i, j, p, hdferr, ierr, unit, p_min, p_max
     real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, uscale
     logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
@@ -342,8 +342,7 @@ contains
           !call update_status(status, "output_res2_"//trim(data(i)%label))
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
-             if (size(map%map) > 0) map%map = map%map**2
-             
+             map%map = map%map**2
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
              chisq_sub => comm_map(info)
              call map%udgrade(chisq_sub)
@@ -352,11 +351,9 @@ contains
              ! of bands with different units comparable
              uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
-                if (size(chisq_map%map) > 0) then 
-                   chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                   chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                end if
-                N => data(i)%N
+                chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                !N => data(i)%N
                 ! select type (N)
                 ! Defining chisq_eff = -2*log(L) such that
                 ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
