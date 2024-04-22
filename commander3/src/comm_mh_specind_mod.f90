@@ -853,9 +853,10 @@ contains
             else if (comp_names(2)(1:3) == 'tab') then
               ! Get bin index
               call get_tokens(comp_names(2), '@', comp_bands)
-              if (cpar%myid == 0 .and. .not. is_numeric(comp_names(2))) then
+              if (cpar%myid == 0 .and. .not. is_numeric(comp_bands(2))) then
                 call int2string(i,itext)
-                write(*,*) 'MCMC_SAMPLING_GROUP_PARAMS'//itext, '   ', trim(comp_names(2)), ' should refer to an integer bin'
+                write(*,*) 'MCMC_SAMPLING_GROUP_PARAMS'//itext, '   ', trim(comp_bands(2)), ' should refer to an integer bin'
+                write(*,*) trim(cpar%mcmc_samp_groups(i))
                 stop
               else
                 call mpi_barrier(cpar%comm_chain, ierr)
