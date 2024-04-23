@@ -38,7 +38,7 @@ contains
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     real(dp), allocatable, dimension(:) :: sigmas, scales
-    integer(i4b) :: band, ierr, i, j, k, pol, pix, n_scales, num_to_samp
+    integer(i4b) :: band, ierr, i, j, k, m, pol, pix, n_scales, num_to_samp
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -46,6 +46,8 @@ contains
 
     !do l = 1, cpar%mcmc_num_user_samp_groups
        ! Check if there are any gains to sample
+    do m = 1, cpar%mcmc_samp_group_numstep(l)
+       if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
        num_to_samp = 0
        do i = 1, numband
          if (data(i)%gain_sigmas(l) > 0d0) then
@@ -151,7 +153,7 @@ contains
          end if
        end if
 
-  !end do
+  end do
 
 
     if (cpar%myid == 0) then
@@ -171,7 +173,7 @@ contains
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     real(dp), allocatable, dimension(:) :: sigmas, scales
-    integer(i4b) :: band, ierr, i, j, k, pol, pix, n_scales
+    integer(i4b) :: band, ierr, i, j, k, m, pol, pix, n_scales
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -180,6 +182,8 @@ contains
 
 
     !do l = 1, cpar%mcmc_num_user_samp_groups
+    do m = 1, cpar%mcmc_samp_group_numstep(l)
+       if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
 
        n_scales = 0
        c => compList
@@ -309,7 +313,7 @@ contains
 
        deallocate(sigmas, scales)
 
-    !end do
+    end do
 
     if (cpar%myid == 0) then
       write(*,*) '|   Finished sampling amplitude parameter'
@@ -325,7 +329,7 @@ contains
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
-    integer(i4b) :: band, ierr, i, j, k, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, m, pol, pix
     logical(lgt)  :: include_comp, reject, todo
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -336,6 +340,8 @@ contains
     ! Loop over sampling groups
 
     !do l = 1, cpar%mcmc_num_user_samp_groups
+    do m = 1, cpar%mcmc_samp_group_numstep(l)
+       if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
 
        mval_0 = -1d0
        k = 0
@@ -487,7 +493,7 @@ contains
        end if
 
 
-     !end do
+     end do
 
 
      if (cpar%myid == 0) then
@@ -504,7 +510,7 @@ contains
     type(comm_params) :: cpar
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
-    integer(i4b) :: band, ierr, i, j, k, pol, pix
+    integer(i4b) :: band, ierr, i, j, k, m, pol, pix
     logical(lgt)  :: include_comp, reject, todo, has_alms
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
@@ -515,6 +521,8 @@ contains
     ! Loop over sampling groups
 
     !do l = 1, cpar%mcmc_num_user_samp_groups
+    do m = 1, cpar%mcmc_samp_group_numstep(l)
+       if (cpar%myid == 0) write(*,*) '|   Running MH sample ', m, ' out of ', cpar%mcmc_samp_group_numstep(l)
 
        mval_0 = -1d0
        k = 0
@@ -713,7 +721,7 @@ contains
        end if
 
 
-     !end do
+     end do
 
 
      if (cpar%myid == 0) then
