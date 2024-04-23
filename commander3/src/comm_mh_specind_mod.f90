@@ -230,8 +230,8 @@ contains
             call mpi_bcast(scales(i), 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
             select type(c)
             class is (comm_diffuse_comp)
-              c%x%map = c%x%map*scales(i)
-              call c%x%YtW
+              c%x%alm = c%x%alm*scales(i)
+              !call c%x%Y
             class is (comm_template_comp)
               c%T%map = c%T%map*scales(i)
             class default
