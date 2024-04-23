@@ -295,6 +295,7 @@ module comm_param_mod
                                                                                                   ! groups. If none, skip amplitude
                                                                                                   ! sampling
      integer(i4b), allocatable, dimension(:,:)   :: mcmc_group_bands_indices
+     integer(i4b), allocatable, dimension(:)     :: mcmc_samp_group_numstep
   end type comm_params
 
 
@@ -775,13 +776,14 @@ contains
 
     call get_parameter_hashtable(htbl, 'NUM_MCMC_SAMPLING_GROUPS', par_int=cpar%mcmc_num_user_samp_groups)
     cpar%mcmc_num_samp_groups = cpar%mcmc_num_user_samp_groups
-    allocate(cpar%mcmc_samp_groups(cpar%mcmc_num_user_samp_groups))
+    allocate(cpar%mcmc_samp_groups(cpar%mcmc_num_user_samp_groups), cpar%mcmc_samp_group_numstep(cpar%mcmc_num_user_samp_groups))
     do i = 1, cpar%mcmc_num_user_samp_groups
        call int2string(i, itext)
        call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_MASK'//itext, par_string=cpar%mcmc_samp_group_mask(i), path=.true.)
        call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_BANDS'//itext, par_string=cpar%mcmc_samp_group_bands(i))
        call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_PARAMS'//itext, par_string=cpar%mcmc_samp_groups(i))
        call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS'//itext, par_string=cpar%mcmc_update_cg_groups(i))
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_NUMSTEP'//itext, par_int=cpar%mcmc_samp_group_numstep(i))
     end do
 
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
