@@ -281,8 +281,8 @@ contains
               i = i + 1
               select type(c)
               class is (comm_diffuse_comp)
-                c%x%map = c%x%map/scales(i)
-                call c%x%YtW
+                c%x%alm = c%x%alm/scales(i)
+                !call c%x%YtW
               class is (comm_template_comp)
                 c%T%map = c%T%map/scales(i)
               class default
