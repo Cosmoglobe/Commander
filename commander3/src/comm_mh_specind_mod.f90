@@ -195,6 +195,7 @@ contains
        end do
 
        if (n_scales == 0) return
+
        if (cpar%myid == 0) then
          write(*,*) '| MH sampling group ', l
        end if
@@ -224,6 +225,7 @@ contains
             i = i + 1
             sigmas(i) = c%scale_sigma(l)
             if (cpar%myid == 0) then
+              if (cpar%myid == 0) write(*,*) '|    ', trim(c%label)
               scales(i) = 1 + rand_gauss(handle)*sigmas(i)
               write(*,*) '|   Scaling by ', scales(i)
             end if
@@ -282,7 +284,6 @@ contains
               select type(c)
               class is (comm_diffuse_comp)
                 c%x%alm = c%x%alm/scales(i)
-                !call c%x%YtW
               class is (comm_template_comp)
                 c%T%map = c%T%map/scales(i)
               class default
@@ -809,6 +810,7 @@ contains
     end do
 
 
+
     ! Initializing, allocating all gain proposal lengths
     do i = 1, numband
       allocate(data(i)%gain_sigmas(cpar%mcmc_num_user_samp_groups))
@@ -868,8 +870,6 @@ contains
                  end if
                  if (trim(c%label) == trim(comp_names(1))) then
                    c%scale_sigma(i) = sigma
-                 else
-                   c%scale_sigma(i) = 0d0
                  end if
                  c => c%nextComp()
               end do
