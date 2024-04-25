@@ -472,25 +472,25 @@ contains
        class is (comm_ptsrc_comp)
           if(.not. c%precomputed_amps) then
             do i = 1, c%nmaps
-              if (c%myid == 0) then
-                if (c%active_samp_group(samp_group)) then
-                  if (store_buff) then
-                    c%x_buff(:,i) = c%x(:,i)
-                  end if
-                  c%x(:,i) = x(ind:ind+c%nsrc-1)
+              if (c%active_samp_group(samp_group)) then
+                if (store_buff) then
+                  c%x_buff(:,i) = c%x(:,i)
                 end if
+                c%x(:,i) = x(ind:ind+c%nsrc-1)
+              end if
+              if (c%myid == 0) then
                 ind = ind + c%nsrc
               end if
             end do
           end if
        class is (comm_template_comp)
+          if (c%active_samp_group(samp_group)) then
+            if (store_buff) then
+              c%x_buff(1,1) = c%x(1,1)
+            end if
+            c%x(1,1) = x(ind)
+          end if
           if (c%myid == 0) then
-             if (c%active_samp_group(samp_group)) then
-               if (store_buff) then
-                 c%x_buff(1,1) = c%x(1,1)
-               end if
-               c%x(1,1) = x(ind)
-             end if
              ind      = ind + 1
           end if
        end select

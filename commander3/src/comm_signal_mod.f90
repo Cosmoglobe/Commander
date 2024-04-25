@@ -379,19 +379,19 @@ contains
           class is (comm_ptsrc_comp)
              if(.not. c%precomputed_amps) then
                do i = 1, c%nmaps
+                 if (c%active_samp_group(samp_group)) then
+                   c%x(:,i) = c%x_buff(:,i)
+                 end if
                  if (c%myid == 0) then
-                   if (c%active_samp_group(samp_group)) then
-                     c%x(:,i) = c%x_buff(:,i)
-                   end if
                    ind = ind + c%nsrc
                  end if
                end do
              end if
           class is (comm_template_comp)
+             if (c%active_samp_group(samp_group)) then
+                c%x(1,1) = c%x_buff(1,1)
+             end if
              if (c%myid == 0) then
-                if (c%active_samp_group(samp_group)) then
-                   c%x(1,1) = c%x_buff(1,1)
-                end if
                 ind      = ind + 1
              end if
           end select
