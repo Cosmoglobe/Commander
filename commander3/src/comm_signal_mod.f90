@@ -377,11 +377,11 @@ contains
                 ind = ind + c%x%info%nalm
              end do
           class is (comm_ptsrc_comp)
+             if (c%active_samp_group(samp_group)) then
+               c%x = c%x_buff
+             end if
              if(.not. c%precomputed_amps) then
                do i = 1, c%nmaps
-                 if (c%active_samp_group(samp_group)) then
-                   c%x(:,i) = c%x_buff(:,i)
-                 end if
                  if (c%myid == 0) then
                    ind = ind + c%nsrc
                  end if

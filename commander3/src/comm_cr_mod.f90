@@ -470,19 +470,21 @@ contains
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          if(.not. c%precomputed_amps) then
-            do i = 1, c%nmaps
-              if (c%active_samp_group(samp_group)) then
-                if (store_buff) then
-                  c%x_buff(:,i) = c%x(:,i)
-                end if
-                c%x(:,i) = x(ind:ind+c%nsrc-1)
-              end if
-              if (c%myid == 0) then
-                ind = ind + c%nsrc
-              end if
-            end do
+          if (store_buff) then
+            c%x_buff = c%x
           end if
+          do i = 1, c%nmaps
+            if (c%active_samp_group(samp_group)) then
+              if (store_buff) then
+                c%x_buff(:,i) = c%x(:,i)
+              end if
+              c%x(:,i) = x(ind:ind+c%nsrc-1)
+            end if
+            if (c%myid == 0) then
+
+              ind = ind + c%nsrc
+            end if
+          end do
        class is (comm_template_comp)
           if (c%active_samp_group(samp_group)) then
             if (store_buff) then
