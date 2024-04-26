@@ -750,8 +750,7 @@ contains
          & trim(cpar%cs_catalog(id_abs)))
     
     ! Initialize point sources based on catalog information
-    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc, self%nmaps), self%src(self%nsrc))
-!    allocate(mask(self%nsrc,self%nmaps), mask2(self%nsrc,self%nmaps))
+    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
     open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     i    = 0
     call update_status(status, "read_ptsrc4")
