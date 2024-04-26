@@ -474,15 +474,14 @@ contains
             c%x_buff = c%x
             if (c%myid == 0) write(*,*) 'I am actually allocating x_buff', shape(c%x_buff), shape(c%x), sum(c%x_buff), sum(c%x)
           end if
-          do i = 1, c%nmaps
-            if (c%active_samp_group(samp_group)) then
-              c%x(:,i) = x(ind:ind+c%nsrc-1)
-            end if
-            if (c%myid == 0) then
-
-              ind = ind + c%nsrc
-            end if
-          end do
+            do i = 1, c%nmaps
+              if (c%active_samp_group(samp_group)) then
+                c%x(:,i) = x(ind:ind+c%nsrc-1)
+              end if
+              if (c%myid == 0) then
+                ind = ind + c%nsrc
+              end if
+            end do
        class is (comm_template_comp)
           if (c%active_samp_group(samp_group)) then
             if (store_buff) then

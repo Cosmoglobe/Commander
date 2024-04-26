@@ -1062,7 +1062,7 @@ contains
            end do
         end if
 
-        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 70000d9) then
+        if (band_todtype(j) /= 'none' .and. band_nu_c(j) < 50000d9) then
            do i = 1, zodi_model%n_comps
               ind = zodi_model%get_par_ind(comp=zodi_model%comps(i), al_band=j)
               stat(ind)         = -2 ! Fix albedo to zero

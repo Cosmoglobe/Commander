@@ -380,13 +380,11 @@ contains
              if (c%active_samp_group(samp_group)) then
                c%x = c%x_buff
              end if
-             if(.not. c%precomputed_amps) then
-               do i = 1, c%nmaps
-                 if (c%myid == 0) then
-                   ind = ind + c%nsrc
-                 end if
-               end do
-             end if
+             do i = 1, c%nmaps
+               if (c%myid == 0) then
+                 ind = ind + c%nsrc
+               end if
+             end do
           class is (comm_template_comp)
              if (c%active_samp_group(samp_group)) then
                 c%x(1,1) = c%x_buff(1,1)
