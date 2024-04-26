@@ -470,7 +470,7 @@ contains
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          if(.not. c%precomputed_amps) then
+!          if(.not. c%precomputed_amps) then
             do i = 1, c%nmaps
               if (c%active_samp_group(samp_group)) then
                 if (store_buff) then
@@ -482,7 +482,7 @@ contains
                 ind = ind + c%nsrc
               end if
             end do
-          end if
+!          end if
        class is (comm_template_comp)
           if (c%active_samp_group(samp_group)) then
             if (store_buff) then

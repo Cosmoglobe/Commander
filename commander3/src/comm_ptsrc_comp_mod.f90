@@ -991,7 +991,7 @@ contains
 
     call read_alloc_hdf(stars_file, 'coordinates', coords)
 
-    allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
+    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
 
     self%x = 0.d0
     self%x(1,1) = 1.d0
