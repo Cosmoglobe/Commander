@@ -946,10 +946,8 @@ contains
 
   subroutine store_buffer()
     implicit none
-    integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
 
-    ind = 1
     c   => compList
     do while (associated(c))
        select type (c)
@@ -970,12 +968,10 @@ contains
 
     type(comm_params), intent(in)    :: cpar
 
-    integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
 
     if (cpar%myid == 0) then
-      write(*,*) '|   Reverting to buffer values. Did you run sample_maps_with_CG with '
-      write(*,*) '|   store_buff = .true.?'
+      write(*,*) '|   Reverting to buffer values. Did you run store_buffer()?'
     end if
 
     c   => compList
