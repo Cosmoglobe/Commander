@@ -150,7 +150,11 @@ contains
 
          if (cpar%myid_chain == 0) then
            write(*,*) '| '
-           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+           if (chisq_prop .ne. chisq_old) then
+              write(*,*) '| Chisq not reverted correctly,  ', chisq_prop, ' should be ', chisq_old
+           else
+              write(*,*) '| Chisq reverted back to ', chisq_prop
+           end if
            write(*,*) '| '
          end if
 
@@ -292,7 +296,11 @@ contains
 
          if (cpar%myid_chain == 0) then
            write(*,*) '| '
-           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+           if (chisq_prop .ne. chisq_old) then
+              write(*,*) '| Chisq not reverted correctly,  ', chisq_prop, ' should be ', chisq_old
+           else
+              write(*,*) '| Chisq reverted back to ', chisq_prop
+           end if
            write(*,*) '| '
          end if
 
@@ -485,7 +493,11 @@ contains
 
          if (cpar%myid_chain == 0) then
            write(*,*) '| '
-           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+           if (chisq_prop .ne. chisq_old) then
+              write(*,*) '| Chisq not reverted correctly,  ', chisq_prop, ' should be ', chisq_old
+           else
+              write(*,*) '| Chisq reverted back to ', chisq_prop
+           end if
            write(*,*) '| '
          end if
 
@@ -703,7 +715,11 @@ contains
 
          if (cpar%myid_chain == 0) then
            write(*,*) '| '
-           write(*,*) '| Chisq reverted back to ', chisq_prop, ' should be ', chisq_old
+           if (chisq_prop .ne. chisq_old) then
+              write(*,*) '| Chisq not reverted correctly,  ', chisq_prop, ' should be ', chisq_old
+           else
+              write(*,*) '| Chisq reverted back to ', chisq_prop
+           end if
            write(*,*) '| '
          end if
 
