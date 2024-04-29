@@ -585,39 +585,41 @@ contains
              select type (c)
              class is (comm_diffuse_comp)
 
-               if (maxval(c%theta_steplen(c%npar+1:,l)) > 0 .and. cpar%myid_chain == 0) then
+                do pol = 1,c%theta(j)%p%info%nmaps
+                   if (c%lmax_ind_pol(pol,j) >= 0) cycle
+                   do pix = 0, c%theta(j)%p%info%np-1
+                      c%theta_pixreg(c%ind_pixreg_arr(pix,pol,j),pol,j) = c%theta(j)%p%map(pix,pol) 
+                   end do
+                end do
 
-                   write(*,*) '| ', trim(c%label), j
+                if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%Y_scalar()
+                do pol = 1,c%theta(j)%p%info%nmaps
+                   if (c%lmax_ind_pol(pol,j) == -1) cycle
+                  do pix = 0, c%theta(j)%p%info%np-1
+                     c%theta_pixreg(c%ind_pixreg_arr(pix,pol,j),pol,j) = c%theta(j)%p%map(pix,pol) 
+                  end do
+               end do
+               c%theta_pixreg_buff(:,:,j) = c%theta_pixreg(:,:,j)
+
+               if (cpar%myid_chain == 0) then
                    do pol = 1, c%theta(j)%p%info%nmaps
-                      c%theta_pixreg_buff(1,pol,j) = c%theta_pixreg(1,pol,j)
                       c%theta_pixreg(1,pol,j) = c%theta_pixreg(1,pol,j) + rand_gauss(handle) * c%theta_steplen(j,l)
                    end do
-                   write(*,*) '| theta_pixreg original', c%theta_pixreg_buff(1,:,j)
-                   write(*,*) '| theta_pixreg proposal', c%theta_pixreg(1,:,j)
 
-                   do pol = 1,c%theta(j)%p%info%nmaps
-                      do pix = 0, c%theta(j)%p%info%np-1
-                         c%theta(j)%p%map(pix,pol) = c%theta_pixreg(pol,c%ind_pixreg_arr(pix,pol,j),j)
-                      end do
-                   end do
-
-               end if
-
-
-
-               call mpi_bcast(c%theta_pixreg_buff, size(c%theta_pixreg_buff), MPI_DOUBLE_PRECISION, &
-                 & 0, data(1)%info%comm, ierr)
-               call mpi_bcast(c%theta_pixreg,      size(c%theta_pixreg),      MPI_DOUBLE_PRECISION, &
+                   write(*,*) '| ', trim(c%label), j
+                   write(*,*) '| theta_pixreg original', c%theta_pixreg_buff(:,:,j)
+                   write(*,*) '| theta_pixreg proposal', c%theta_pixreg(:,:,j)
+               end if               
+               call mpi_bcast(c%theta_pixreg(:,:,j),      size(c%theta_pixreg(:,:,j)),      MPI_DOUBLE_PRECISION, &
                  & 0, data(1)%info%comm, ierr)
 
-               if (cpar%myid_chain .eq. 0 .and. c%theta(j)%p%info%nalm .ne. 0) then
-                 has_alms = .true.
-               else
-                 has_alms = .false.
-               end if
-               call mpi_bcast(has_alms, 1,  MPI_LOGICAL, 0, data(1)%info%comm, ierr)
-               if (has_alms) call c%theta(j)%p%YtW_scalar()
-
+               do pol = 1,c%theta(j)%p%info%nmaps
+                  do pix = 0, c%theta(j)%p%info%np-1
+                     c%theta(j)%p%map(pix,pol) = c%theta_pixreg(c%ind_pixreg_arr(pix,pol,j),pol,j)
+                  end do
+               end do
+               if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
+ 
              end select
 
           end do
@@ -667,7 +669,7 @@ contains
          ! Instead of doing compsep, revert the amplitudes here
          c => compList
          do while (associated(c))
-            if (c%npar == 0) then
+            if (.not. allocated(c%theta_steplen)) then
                c => c%nextComp()
                cycle
             end if
@@ -676,35 +678,13 @@ contains
                if (c%theta_steplen(j,l) == 0.d0) cycle
                select type (c)
                class is (comm_diffuse_comp)
-
-                 if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
-
-                    if (cpar%myid_chain .eq. 0) then
-                      do pol = 1, c%theta(j)%p%info%nmaps
-                         c%theta_pixreg(1,pol,j) = c%theta_pixreg_buff(1,pol,j)
-                      end do
-                    end if
-
-                    call mpi_bcast(c%theta_pixreg,      size(c%theta_pixreg),      MPI_DOUBLE_PRECISION, &
-                      & 0, data(1)%info%comm, ierr)
-
-                    do pol = 1,c%theta(j)%p%info%nmaps
-                       do pix = 0, c%theta(j)%p%info%np-1
-                          c%theta(j)%p%map(pix,pol) = c%theta_pixreg(pol,c%ind_pixreg_arr(pix,pol,j),j)
-                       end do
-                    end do
-
-
-                    if (cpar%myid_chain .eq. 0 .and. c%theta(j)%p%info%nalm .ne. 0) then
-                      has_alms = .true.
-                    else
-                      has_alms = .false.
-                    end if
-                    call mpi_bcast(has_alms, 1,  MPI_LOGICAL, 0, data(1)%info%comm, ierr)
-                    if (has_alms) call c%theta(j)%p%YtW_scalar()
-                  end if
+                  do pol = 1,c%theta(j)%p%info%nmaps
+                     do pix = 0, c%theta(j)%p%info%np-1
+                        c%theta(j)%p%map(pix,pol) = c%theta_pixreg_buff(c%ind_pixreg_arr(pix,pol,j),pol,j)
+                     end do
+                  end do
+                  if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
                end select
-
             end do
             
             !go to next component
