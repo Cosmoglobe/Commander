@@ -1,6 +1,6 @@
 # New Local sampling parameters, 'dust'
 COMP_BETA_INT_LMAX&&          = 0         # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
-COMP_BETA_POL_LMAX&&          = -1          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
+COMP_BETA_POL_LMAX&&          = 0          # alm sampling (>=0), local sampling (-1). NOTE!! Also sets alm/pix-by-pix updateMixmat
 COMP_BETA_INT_LNLTYPE&&       = chisq   # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_POL_LNLTYPE&&       = chisq      # log-likelihood type {chisq,ridge,marginal}. All evaluated at smoothing scale, local sampling
 COMP_BETA_INT_PIXREG&&        = fullsky    # pixel region type, local sampling, {fullsky,single_pix,pixreg,prior}.
