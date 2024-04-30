@@ -20,9 +20,6 @@
 !================================================================================
 module comm_F_int_0D_mod
   use comm_F_int_mod
-  use comm_comp_mod
-  use comm_bp_mod
-  use comm_utils
   implicit none
 
   private
@@ -30,16 +27,15 @@ module comm_F_int_0D_mod
 
   type, extends (comm_F_int) :: comm_F_int_0D
      real(dp)                  :: f_precomp
-     class(comm_comp), pointer :: comp => null()
    contains
      ! Data procedures
-     procedure :: eval         => evalIntF
-     procedure :: eval_deriv   => evalIntdF
-     procedure :: update       => updateIntF
+     procedure :: eval         => evalIntF_0d
+     procedure :: eval_deriv   => evalIntdF_0d
+     procedure :: update       => updateIntF_0d
   end type comm_F_int_0D
 
   interface comm_F_int_0D
-     procedure constructor
+     procedure constructor_0d
   end interface comm_F_int_0D
 
 contains
@@ -47,49 +43,49 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(comp, bp, pol, f_precomp)
+  function constructor_0d(comp, bp, pol, f_precomp) result(c)
     implicit none
     class(comm_comp),     intent(in), target   :: comp
     class(comm_bp),       intent(in), target   :: bp
     integer(i4b),         intent(in)           :: pol
     real(dp),             intent(in), optional :: f_precomp
-    class(comm_F_int_0D), pointer              :: constructor
+    class(comm_F_int_0D), pointer              :: c
 
     integer(i4b) :: j, m
     real(dp), allocatable, dimension(:) :: s
     
-    allocate(constructor)
-    constructor%comp => comp
-    constructor%bp   => bp
+    allocate(c)
+    c%comp => comp
+    c%bp   => bp
 
     if (present(f_precomp)) then
-       call constructor%update(f_precomp)
+       call c%update(f_precomp)
     else
-       call constructor%update
+       call c%update
     end if
 
-  end function constructor
+  end function constructor_0d
 
   
   ! Evaluate SED in brightness temperature normalized to reference frequency
-  function evalIntF(self, theta)
+  function evalIntF_0d(self, theta)
     class(comm_F_int_0D),                intent(in) :: self
     real(dp),             dimension(1:), intent(in) :: theta
-    real(dp)                                        :: evalIntF
-    evalIntF = self%f_precomp
-  end function evalIntF
+    real(dp)                                        :: evalIntF_0d
+    evalIntF_0d = self%f_precomp
+  end function evalIntF_0d
 
   ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
-  function evalIntdF(self, theta, par)
+  function evalIntdF_0d(self, theta, par)
     class(comm_F_int_0D),                intent(in) :: self
     real(dp),             dimension(1:), intent(in) :: theta
     integer(i4b),                        intent(in) :: par
-    real(dp)                                        :: evalIntdF
-    evalIntdF = 0.d0
-  end function evalIntdF
-
+    real(dp)                                        :: evalIntdF_0d
+    evalIntdF_0d = 0.d0
+  end function evalIntdF_0d
+  
   ! Compute/update integration look-up tables
-  subroutine updateIntF(self, f_precomp, pol)
+  subroutine updateIntF_0d(self, f_precomp, pol)
     class(comm_F_int_0D), intent(inout)           :: self
     real(dp),             intent(in),    optional :: f_precomp
     integer(i4b),         intent(in),    optional :: pol
@@ -109,6 +105,6 @@ contains
        self%f_precomp = self%bp%SED2F(s)
        deallocate(s)
     end if
-  end subroutine updateIntF
+  end subroutine updateIntF_0d
 
 end module comm_F_int_0D_mod

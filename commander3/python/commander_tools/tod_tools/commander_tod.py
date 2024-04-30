@@ -20,8 +20,10 @@
 #================================================================================
 
 import h5py
-import commander_tools.tod_tools.huffman as huffman
-import commander_tools.tod_tools.rice as rice
+#import commander_tools.tod_tools.huffman as huffman
+#import commander_tools.tod_tools.rice as rice
+import tod_tools.huffman as huffman
+import tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -38,6 +40,7 @@ class commander_tod:
         #TODO: something with the version number
         self.overwrite = overwrite
 
+
     #initilizes a file for a single od
     def init_file(self, freq, od, mode='r'):
         self.huffDict = {}
@@ -48,13 +51,23 @@ class commander_tod:
 
         self.od = od
         self.freq = freq
-        if self.name.lower() == 'planck':
+        if self.name and self.name.lower() == 'planck':
             sfreq = str(freq).zfill(3)
         else:
             sfreq = str(freq)
-        self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
-
+        if not self.od:
+            if not self.name:
+                self.outName = os.path.join(self.outPath, sfreq + '.h5')
+            else:
+                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '.h5')
+        else:
+            if not self.name:
+                self.outName = os.path.join(self.outPath, sfreq + '_' + str(od).zfill(6) + '.h5')
+            else:
+                self.outName = os.path.join(self.outPath, self.name+ '_' + sfreq + '_' + str(od).zfill(6) + '.h5')
+        
         self.exists = False
+
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
@@ -138,7 +151,7 @@ class commander_tod:
                     self.add_attribute(fieldName, 'offset', compArr[1]['offset'])
 
                 elif compArr[0] == 'digitize':
-                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
+                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'] + 1)
                     data = np.digitize(data, bins)
                     metaName = '/common/n' + fieldName.split('/')[-1]
                     self.add_encoding(metaName, compArr[1]['nbins'])
@@ -212,7 +225,8 @@ class commander_tod:
                 self.add_field(encoding, [self.encodings[encoding]])
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
-            self.add_field('/common/version', self.version)
+            print(self.version)
+            self.add_field('/common/version', np.string_(self.version))
             # [Maksym]: was getting the error:
             # ...
             # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
@@ -227,7 +241,9 @@ class commander_tod:
             # So needed to add `np.string_()`
             self.add_field('/common/pids', np.string_(list(self.pids.keys())))
 
+        print(self.filelists)
         if self.filelists is not None:
+            print(self.pids.keys())
             for pid in self.pids.keys():
                 self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
  
@@ -304,6 +320,7 @@ class commander_tod:
         return
 
     def make_filelists(self):
+        print(self.filelists)
         for freq in self.filelists.keys():
             outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
             outfile.write(str(len(self.filelists[freq])) + '\n')
@@ -372,7 +389,7 @@ class commander_tod:
                     nmin = self.outFile[field].attrs['min']
                     nmax = self.outFile[field].attrs['max']
 
-                    bins = np.linspace(nmin, nmax, num = nbins)
+                    bins = np.linspace(nmin, nmax, num = nbins + 1)
                     dataBuf = bins[dataBuf.astype('int')]
 
                 elif comp == 'huffman':

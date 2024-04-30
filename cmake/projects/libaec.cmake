@@ -98,7 +98,7 @@ if(COMPILE_LIBAEC)
       #INSTALL_COMMAND "make" "install"
 			# commands how to build the project
 			CMAKE_ARGS
-				-DCMAKE_BUILD_TYPE=Release
+				-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 				# Specifying installations paths for binaries and libraries
 				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 				-DCMAKE_INSTALL_LIBDIR:PATH=lib #${CMAKE_LIBRARY_OUTPUT_DIRECTORY}

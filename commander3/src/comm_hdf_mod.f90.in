@@ -213,6 +213,10 @@ contains
     allocate(ext_hdf(rank), mext_hdf(rank))
     call h5sget_simple_extent_dims_f(space, ext_hdf, mext_hdf, file%status)
     call h5sclose_f(space, file%status)
+    if (file%status == -1) then
+       write(*,*) 'Error reading file ', trim(file%filename), trim(setname)
+       stop
+    end if 
     n = min(size(ext),rank)
     ext(:n) = int(ext_hdf(:n),i4b)
     deallocate(ext_hdf, mext_hdf)

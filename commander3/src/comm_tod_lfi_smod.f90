@@ -24,7 +24,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor_lfi(handle, cpar, id, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -42,6 +42,8 @@ contains
     ! tod_type: string
     !           Instrument specific tod type
     !
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     ! Returns
     ! ----------
     ! res: pointer
@@ -50,7 +52,7 @@ contains
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
-    integer(i4b),              intent(in)    :: id_abs
+    integer(i4b),              intent(in)    :: id, id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
     class(comm_lfi_tod),       pointer       :: res
@@ -142,6 +144,7 @@ contains
       res%ndiode          = 1
     end if    
     res%correct_sl              = .true.
+    res%correct_orb             = .true.
     res%apply_inst_corr         = .true.
     res%orb_4pi_beam            = .true.
     res%use_dpc_adc             = .false.
@@ -160,7 +163,7 @@ contains
     boundary            = (0.d0, 1d30)
 
     ! Initialize common parameters
-    call res%tod_constructor(cpar, id_abs, info, tod_type)
+    call res%tod_constructor(cpar, id, id_abs, info, tod_type)
     if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Choose absolute bandpass sampling
@@ -236,6 +239,8 @@ contains
     call res%read_tod(res%label)
     call res%remove_fixed_scans
 
+    call update_status(status, "read in all the tods")
+
     ! Setting polarization angles to DPC post-analysis values
     allocate(res%polang_prior(res%ndet,2))
     if (trim(res%freq) == '030') then
@@ -250,7 +255,7 @@ contains
     end if
 
     ! Initialize bandpass mean and proposal matrix
-    call res%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call res%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
     call res%precompute_lookups()
@@ -271,6 +276,8 @@ contains
 
     ! Declare adc_mode 
     res%nbin_adc = 500
+
+    call update_status(status, "load_instrument_file")
 
     ! Load the instrument file
     call res%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
@@ -521,38 +528,52 @@ contains
        deallocate(freq_bins)
        else
 
+         call update_status(status, "init_noise_filter_from_chain")
+
          ! init the noise filter from chain if we are not computing it
          if(trim(res%init_from_HDF) == 'default') then
            call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+         else if(trim(res%init_from_HDF) == 'none') then
+           chainfile = ""
          else
            call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
          end if
-         call open_hdf_file(chainfile, init_file, 'r')
+         if(chainfile /= "") then
+           call open_hdf_file(chainfile, init_file, 'r')
 
-         call int2string(initsamp, itext)
-         path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
+           call int2string(initsamp, itext)
+           path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
 
-         call res%initHDF_inst(init_file, path)
-         call close_hdf_file(init_file)
+           call res%initHDF_inst(init_file, path)
+           call close_hdf_file(init_file)
+         end if
        end if
 
     else
 
+      call update_status(status, "noise_filter")
+
       ! init the noise filter from chain if we are not computing it
       if(trim(res%init_from_HDF) == 'default') then
         call get_chainfile_and_samp(cpar%init_chain_prefix, chainfile, initsamp)
+      else if(trim(res%init_from_HDF) == 'none') then
+        chainfile = ""
       else
         call get_chainfile_and_samp(res%init_from_HDF, chainfile, initsamp)
       end if      
-      call open_hdf_file(chainfile, init_file, 'r')
+      if(chainfile /= "") then
+        call open_hdf_file(chainfile, init_file, 'r')
       
-      call int2string(initsamp, itext)
-      path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
+        call int2string(initsamp, itext)
+        path = trim(adjustl(itext))//'/tod/'//trim(adjustl(res%freq))//'/'
 
-      call res%initHDF_inst(init_file, path)
-      call close_hdf_file(init_file)
-    
+        call res%initHDF_inst(init_file, path)
+        call close_hdf_file(init_file)
+      end if    
+
     end if
+
+    call update_status(status, "init_noise_psds")
 
     ! construct the noise filter function for the noise psd estimates
     do i=1, res%ndet
@@ -575,8 +596,8 @@ contains
 
     call timer%stop(TOD_INIT, id_abs)
 
-  end function constructor
-
+  end function constructor_lfi
+  
   !**************************************************
   !             Driver routine
   !**************************************************
@@ -609,6 +630,9 @@ contains
     !           Array of bandpass corrections with dimensions (0:ndet,npar,ndelta)
     !           where ndet is number of detectors, npar is number of parameters
     !           and ndelta is the number of bandpass deltas being considered
+    ! map_gain: same type as map_in
+    !           map of custom known component that will be used for absolute
+    !           calibration
     !
     ! Returns:
     ! ----------
@@ -653,9 +677,9 @@ contains
     sample_polang         = .false.
     select_data           = self%first_call        ! only perform data selection the first time
     output_scanlist       = mod(iter-1,1) == 0    ! only output scanlist every 10th iteration
-
-    sample_rel_bandpass   = .false.
-    sample_abs_bandpass   = .false.
+    
+    sample_rel_bandpass   = sample_rel_bandpass .and. .not. self%enable_tod_simulations
+    sample_abs_bandpass   = sample_abs_bandpass .and. .not. self%enable_tod_simulations
 
     ! Initialize local variables
     ndelta          = size(delta,3)
@@ -736,14 +760,14 @@ contains
 
     ! Sample 1Hz spikes
 !    if(trim(self%level) == 'L1') then
-      call sample_1Hz_spikes(self, handle, map_sky, procmask, procmask2); call update_status(status, "tod_1Hz")
+      call sample_1Hz_spikes(self, handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_1Hz")
 !    end if
 
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
     if (.not. self%enable_tod_simulations) then
-       call sample_calibration(self, 'abscal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
-       call sample_calibration(self, 'relcal', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
-       call sample_calibration(self, 'deltaG', handle, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain1")
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain2")
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2); call update_status(status, "tod_gain3")
        !call sample_gain_psd(self, handle)
     end if
 
@@ -771,11 +795,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
 
        ! Make simulations, or draw correlated noise
@@ -793,7 +817,7 @@ contains
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
 
        ! Select data
@@ -863,10 +887,9 @@ contains
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
        Sfilename = trim(prefix) // 'Smap'// trim(postfix)
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d6, chisq_S=chisq_S, &
-            & Sfilename=Sfilename, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d6)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 
@@ -1425,11 +1448,13 @@ contains
     integer(i4b),                      intent(in)      :: det
     real(sp), dimension(:,:),          intent(inout)   :: data
 
+    real(dp)     :: filt
     integer(i4b) :: i, j, nfft, n
     integer*8    :: plan_fwd, plan_back
 
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
+
 
     n       = size(data(:,1))
     nfft    = n/2+1
@@ -1567,7 +1592,7 @@ contains
 
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -1582,6 +1607,7 @@ contains
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
 
     integer(i4b) :: i, j, k, bin, ierr, nbin
@@ -1610,7 +1636,7 @@ contains
 
        ! Prepare data
        tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
-       call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+       call sd%init_singlehorn(tod, i, map_sky, m_gain, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)
@@ -1804,11 +1830,12 @@ contains
     if (self%L2_exist) then
        if (self%myid == 0) write(*,*) "|  Reading L2 from ", trim(self%L2file)
        call open_hdf_file(self%L2file, h5_file, 'r')
+       call update_status(status, "Opened HDF file")
     end if
     
     ! Reduce all scans
     do i = 1, self%nscan
-       !call update_status(status, "L1_to_L2")
+       if (i == 1) call update_status(status, "L1_to_L2 loop")
 
        ! Generate detector TOD
        n = self%scans(i)%ntod
@@ -1816,6 +1843,7 @@ contains
        if (self%L2_exist) then
           call int2string(self%scanid(i), scantext)
           call read_hdf(h5_file, scantext, tod)
+          if (i == 1) call update_status(status, "read_hdf in loop")
        else
           if (self%myid == 0 .and. i == 1) write(*,*) "Converting L1 to L2"
           call self%diode2tod_inst(i, map_sky, procmask, tod)
@@ -1828,6 +1856,7 @@ contains
           allocate(self%scans(i)%d(j)%tod(n))
           self%scans(i)%d(j)%tod = tod(:,j)
        end do
+       if (i == 1) call update_status(status, "read in scans")
 
 !!$       ! Find effective TOD length
 !!$       if (self%halfring_split == 0) then

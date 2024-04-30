@@ -251,29 +251,29 @@ contains
          if (all(g(:, j, 1) == 0)) continue
       
           ! Tune uncertainties to allow for proper compromise between smoothing and stiffness; set gain sigma_0 to minimum of the empirical variance
-         if (tod%gain_tune_sigma0) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
-         !tod%gain_alpha(j) = -1.d0             ! Physically motivated value
-         !tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
+          if (count(g(:,j,2)>0) > 500) call compute_minimum_sigma0(g(:,j,2), 100, tod%gain_sigma_0(j))
+          tod%gain_alpha(j) = -1.d0             ! Physically motivated value
+          tod%gain_fknee(j) = tod%gain_samprate ! makes sigma_0 = true standard devation per sample
 
-!!$          if (j==1) then
-!!$             open(58,file='gain_in_hke.dat')
-!!$             do k = 1, size(g,1)
-!!$                if (g(k,j,2) > 0) then
-!!$                   write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
-!!$                end if
-!!$             end do
-!!$             close(58)
-!!$             !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
-!!$
-!!$             open(68,file='g.unf', form='unformatted')
-!!$             write(68) size(g,1)
-!!$             write(68) g(:,j,1)
-!!$             write(68) g(:,j,2)
-!!$             write(68) tod%gain_sigma_0(j)
-!!$             write(68) tod%gain_alpha(j)
-!!$             write(68) tod%gain_fknee(j)
-!!$             close(68)
-!!$          end if
+          !if (j == 1) then
+          !   open(58,file='gain_in.dat')
+          !   do k = 1, size(g,1)
+          !      if (g(k,j,2) > 0) then
+          !         write(58,*) k, g(k,j,1)/g(k,j,2), 1/sqrt(g(k,j,2))
+          !      end if
+          !   end do
+          !   close(58)
+             !write(*,*) '|  psd = ', tod%gain_sigma_0(j), tod%gain_alpha(j), tod%gain_fknee(j)
+
+          !   open(68,file='g.unf', form='unformatted')
+          !   write(68) size(g,1)
+          !   write(68) g(:,j,1)
+          !   write(68) g(:,j,2)
+          !   write(68) tod%gain_sigma_0(j)
+          !   write(68) tod%gain_alpha(j)
+          !   write(68) tod%gain_fknee(j)
+          !   close(68)
+          !end if
 
           sample_per_jump = .false. .and. (size(tod%jumplist(j, :)) > 2)
           if (sample_per_jump) then
@@ -307,15 +307,15 @@ contains
             g(:,j,1) = g(:,j,1) - mu
          end where
 
-!!$          if (j==1) then
-!!$             open(58,file='gain_out_hke.dat')
-!!$             do k = 1, size(g,1)
-!!$                if (g(k,j,2) > 0) then
-!!$                   write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
-!!$                end if
-!!$             end do
-!!$             close(58)
-!!$          end if
+          !if (j == 1) then
+          !   open(58,file='gain_out.dat')
+          !   do k = 1, size(g,1)
+          !      if (g(k,j,2) > 0) then
+          !         write(58,*) k, g(k,j,1), 1/sqrt(g(k,j,2))
+          !      end if
+          !   end do
+          !   close(58)
+          !end if
        end do
 !!$       call mpi_finalize(ierr)
 !!$       stop
@@ -428,6 +428,7 @@ contains
        else 
           A_abs(j) = A_abs(j) + dA
           b_abs(j) = b_abs(j) + db
+          !write(*,*) scan, j, db/dA
        end if
 
        !if (tod%scanid(scan) == 30 .and. out) then
@@ -486,7 +487,6 @@ contains
   end subroutine sample_abscal_from_orbital
 
   ! Sample absolute gain from orbital dipole alone 
-  ! Eirik: Change this routine to sample the constant offset per radiometer; put the result in tod%gain0(i)
   module subroutine sample_relcal(tod, handle, A_abs, b_abs)
     implicit none
     class(comm_tod),                   intent(inout)  :: tod

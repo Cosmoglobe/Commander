@@ -31,6 +31,10 @@ module comm_utils
   use sort_utils
   use spline_1D_mod
   use comm_mpi_mod
+  use locate_mod
+  use math_tools
+  use powell_mod
+  use hmc_mod
   implicit none
 
   !include "mpif.h"
@@ -521,7 +525,7 @@ contains
   subroutine read_map(filename, map)
     implicit none
 
-    character(len=128),                 intent(in)  :: filename
+    character(len=*),                 intent(in)  :: filename
     real(dp),         dimension(0:,1:), intent(out) :: map
 
     integer(i4b)   :: nside, nmaps, ordering, i, npix, nmaps_in, nside_in
@@ -578,6 +582,10 @@ contains
     integer(i4b) :: i
 
     tsum = 0.d0
+    if (size(x) == 1) then ! Added to handle delta bandpasses.
+       tsum = y(1)
+       return
+    end if
     do i = 1, size(x)-1
        tsum = tsum + 0.5d0 * (y(i)+y(i+1)) * (x(i+1)-x(i))
     end do
@@ -936,13 +944,14 @@ contains
   !
   ! Written by Michael R. Greason, SSAI, 13 March 2006.
   ! ============================================================================
-  Subroutine WMAP_Read_NInv (File, Status, NInv, NElements, NPixels)
+  Subroutine WMAP_Read_NInv (File, Status, NInv, ordering, NElements, NPixels)
     !
     Implicit None
     !
     Character (*),                 Intent(In)            :: File
     Integer (Kind=4),              Intent(Out)           :: Status
     Real (Kind=4), Dimension(:,:), Pointer               :: NInv
+    Character (80),                Intent(Out), Optional :: ordering
     Integer (Kind=4),              Intent(Out), Optional :: NElements
     Integer (Kind=4),              Intent(Out), Optional :: NPixels
     !
@@ -967,6 +976,10 @@ contains
     !
     Call FTGISZ (unit, 2, naxes, Status)
     If ((naxes(1) .LE. 0) .OR. (naxes(1) .NE. naxes(2)) .OR. (Status .NE. 0)) Go To 99
+    !
+    ! Determine whether the maps are in nest ordering
+    !
+    Call FTGKEY (unit, 'ORDERING', ordering, comm, Status)
     !
     !  How many pixels are in the base map?  Start by looking
     !  at the NPIX keyword; if that isn't found, use LASTPIX.
@@ -1340,5 +1353,133 @@ contains
 
   end function calc_corr_len
 
-  
+
+   subroutine leggaus(deg, x, w, x1, x2)
+      ! Computes the sample points and weights for Gauss-Legendre quadrature.
+      !
+      ! Given lower and upper integration limits `x1`, and `x2, and `n`, the order of 
+      ! quadrature, this routine returns the integration grid/abscissas `x` and 
+      ! corresponding weights `w` of the Gauss-Legendre n-point quadrature formula. 
+      ! Given the returned grid and weights, the integral of some function f is computed 
+      ! as follows: integral = sum(f(x) * w).
+      ! 
+      ! NOTE: Both x1 and x2 must be present to make use of either.
+      !
+      ! This code is from NUMERICAL RECIPES in FORTRAN 77 the second edition page 145.
+      !
+      ! Parameters:
+      ! -----------
+      ! deg: 
+      !     Gaussian quadrature order.    
+      ! x: 
+      !     1-D ndarray containing the sample points
+      ! w: 
+      !     1-D ndarray containing the weights.
+      ! x1: optional
+      !     Lower integration limit.         
+      ! x2: optional 
+      !     Upper integration limit.      
+
+      implicit none
+   
+      integer(i4b), intent(in) :: deg
+      real(dp), intent(out) :: x(deg), w(deg)
+      real(dp), intent(in), optional :: x1, x2
+
+      integer(i4b) :: i, j, m 
+      real(dp) :: p1, p2, p3, pp, xl, xm, z, z1, EPS
+
+      EPS = 3.d-14
+      m = (deg + 1) / 2
+      if (present(x1) .and. present(x2)) then
+         xm = 0.5d0 * (x2 + x1)
+         xl = 0.5d0 * (x2 - x1)
+      else
+         xm = 0.d0
+         xl = 1.d0
+      end if
+
+      do i = 1, m
+         z = cos(pi * (i - .25d0)/(deg + .5d0))
+      1  continue
+            p1 = 1.d0
+            p2 = 0.d0
+            do j = 1, deg
+               p3 = p2
+               p2 = p1
+               p1 = ((2.d0 * j - 1.d0) * z * p2 - (j-1.d0) * p3) / j
+            end do
+
+            pp = deg * (z * p1 - p2) / (z * z - 1.d0)
+            z1 = z
+            z = z1 - p1/pp
+         if (abs(z - z1) .gt. EPS) goto 1
+         x(i) = xm - xl * z
+         x(deg + 1 - i) = xm + xl * z
+         w(i) = 2.d0 * xl / ((1.d0 - z * z) * pp * pp)
+         w(deg + 1 - i) = w(i)
+      enddo 
+   end subroutine leggaus
+
+   subroutine ecl_to_gal_rot_mat(m)
+      implicit none
+      real(dp), dimension(3,3) :: m
+
+      m(1,1) =  -0.054882486d0
+      m(1,2) =  -0.993821033d0
+      m(1,3) =  -0.096476249d0
+      m(2,1) =   0.494116468d0
+      m(2,2) =  -0.110993846d0
+      m(2,3) =   0.862281440d0
+      m(3,1) =  -0.867661702d0
+      m(3,2) =  -0.000346354d0
+      m(3,3) =   0.497154957d0
+   end subroutine ecl_to_gal_rot_mat
+
+   function get_string_index(arr, str, allow_missing)
+     implicit none
+     character(len=*), dimension(:), intent(in) :: arr
+     character(len=*),               intent(in) :: str
+     logical(lgt),                   intent(in), optional :: allow_missing
+     integer(i4b)                               :: get_string_index
+
+     integer(i4b) :: i
+     character(len=128) :: str1, str2
+     logical(lgt) :: allow
+
+     allow = .false.; if (present(allow_missing)) allow = allow_missing
+
+     str1 = str
+     call toupper(str1)
+     do i = 1, size(arr)
+        str2 = arr(i)
+        call toupper(str2)
+        if (trim(str1) == trim(str2)) then
+           get_string_index = i
+           exit
+        end if
+     end do
+     if (i > size(arr)) then
+        if (allow) then
+           get_string_index = -1
+        else
+           write(*,*) 'get_string_index: String not found = ', trim(str)
+           stop
+        end if
+     end if
+
+   end function get_string_index
+
+
+   ! from https://rosettacode.org/wiki/Determine_if_a_string_is_numeric#Fortran
+   FUNCTION is_numeric(string)
+     IMPLICIT NONE
+     CHARACTER(len=*), INTENT(IN) :: string
+     LOGICAL :: is_numeric
+     REAL :: x
+     INTEGER :: e
+     READ(string,*,IOSTAT=e) x
+     is_numeric = e == 0
+   END FUNCTION is_numeric
+
 end module comm_utils

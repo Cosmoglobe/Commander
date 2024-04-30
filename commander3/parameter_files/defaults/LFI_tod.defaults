@@ -3,6 +3,7 @@ BASE_SEED                     = 163425  # Seed for random number generator
 
 NUM_GIBBS_STEPS_PER_TOD_SAMPLE = 1
 
+SAMPLE_ONLY_TEMPERATURE       = .false.
 SAMPLE_ONLY_POLARIZATION      = .false.
 SAMPLE_SIGNAL_AMPLITUDES      = .true.
 SAMPLE_SPECTRAL_INDICES       = .true.
@@ -55,7 +56,6 @@ OUTPUT_SIGNALS_PER_BAND       = .false.
 
 SOURCE_MASKFILE                = none   #bright_sources.txt
 PROCESSING_MASKFILE            = none   #mask_cmb_v1_n0256_apod_v2_clean.fits
-PROCESSING_MASKFILE2           = none   #mask_cmb_v1_n0256_apod_v2_clean.fits
 PROC_SMOOTH_SCALE              = 30.    #arcmin; smoothing inside processing mask
 
 # Spectral index sampling options

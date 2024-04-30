@@ -53,7 +53,8 @@ export MPCC := mpiicc
 #export F90FLAGS := -fpe0 -march=native -g -O2 -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -xHost 
 #export F90FLAGS := -g -O2 -traceback  
 #export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -parallel -prof-gen=srcpos -prof-dir=/mn/stornext/u3/hke/xsan/commander3/BP9/prof
-export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -parallel 
+#export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -parallel 
+export F90FLAGS := -fpe0 -mavx2 -fpp -g -O0 -traceback -assume byterecl -qopenmp -parallel -C
 
 #debug
 #
@@ -71,7 +72,7 @@ export FFLAGS := -O2
 export CFLAGS := -O3 
 
 # Extra flags used for linking
-export LDFLAGS := -qopt-matmul -lm -qopenmp -cxxlib -parallel -mkl #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
+export LDFLAGS := -qopt-matmul -lm -qopenmp -cxxlib -parallel -qmkl #-prof-file prof.dat -prof-dir . -profile-functions -profile-loops=all
  
 
 # ============== Language Mixing =================

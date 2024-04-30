@@ -36,7 +36,6 @@ module comm_map_mod
 
 !  include "mpif.h"
       
-  private
   public comm_map, comm_mapinfo, map_ptr, write_map
 
 
@@ -73,6 +72,7 @@ module comm_map_mod
      class(comm_mapinfo), pointer :: info => null()
      real(c_double), allocatable, dimension(:,:) :: map
      real(c_double), allocatable, dimension(:,:) :: alm
+     real(c_double), allocatable, dimension(:,:) :: alm_buff
    contains
      ! Data routines
      procedure     :: Y    => exec_sharp_Y
@@ -84,7 +84,7 @@ module comm_map_mod
      procedure     :: Yt_scalar   => exec_sharp_Yt_scalar
      procedure     :: YtW_scalar  => exec_sharp_YtW_scalar
      procedure     :: writeFITS
-     procedure     :: writeMaptoHDF
+     procedure     :: writeMapToHDF
      procedure     :: readMapFromHDF
      procedure     :: readFITS
      procedure     :: readHDF
@@ -340,6 +340,9 @@ subroutine tod2file_dp3(filename,d)
     constructor_map%info => info
     allocate(constructor_map%map(0:info%np-1,info%nmaps))
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
+    allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps))
+
+    constructor_map%alm_buff = 0d0
 
     if (present(filename)) then
        if (present(mask_misspix)) then
@@ -391,8 +394,10 @@ subroutine tod2file_dp3(filename,d)
 !!$      info%lmax = lmax
 !!$      info%mmax = mmax
       call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/T', mmax, 1, lmax_file=lmax_file)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
-      call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
+      if (info%nmaps == 3) then
+         call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/E', mmax, 2, lmax_file=lmax_file)
+         call constructor_alms%readHDF_mmax(h5_file, label // '/' // trim(field) // '/B', mmax, 3, lmax_file=lmax_file)
+      end if
     else 
       constructor_alms%alm = 0.d0
 
@@ -620,7 +625,7 @@ subroutine tod2file_dp3(filename,d)
   !                   IO routines
   !**************************************************
 
-  subroutine writeMaptoHDF(self, hdffile, hdfpath, label)
+  subroutine writeMapToHDF(self, hdffile, hdfpath, label)
     implicit none
 
     class(comm_map),  intent(in) :: self
@@ -656,7 +661,7 @@ subroutine tod2file_dp3(filename,d)
             & self%info%comm, ierr)
     end if
     
-  end subroutine writeMaptoHDF
+  end subroutine writeMapToHDF
 
   subroutine readMapFromHDF(self, hdffile, hdfpath)
     implicit none
@@ -669,19 +674,33 @@ subroutine tod2file_dp3(filename,d)
     real(dp),     allocatable, dimension(:,:) :: map, buffer
     integer(i4b), allocatable, dimension(:)   :: p
     integer(i4b), dimension(MPI_STATUS_SIZE)  :: mpistat
+    logical(lgt)                              :: rms_exception
     
     ! Only the root actually writes to disk; data are distributed via MPI
     if (self%info%myid == 0) then
+       rms_exception = .false.
        call get_size_hdf(hdffile, trim(adjustl(hdfpath)), ext)
-       if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
+       if (self%info%nmaps == 4 .and. ext(2) == 3) then
+          !write(*,*) '| WARNING - nmaps = 4 but expecting 3'
+          !write(*,*) '| If this is not a new rms file, you have a problem'
+          rms_exception = .true.
+       else if (self%info%npix /= ext(1) .or. self%info%nmaps > ext(2)) then
           write(*,*) 'Error: Inconsistent field size in HDF file ', trim(adjustl(hdfpath))
           stop
        end if
        npix  = self%info%npix
-       allocate(p(npix), map(0:npix-1,ext(2)))
-       call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
-       nmaps = min(self%info%nmaps,ext(2))
-       self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+       map = 0d0
+       if (rms_exception) then
+          allocate(p(npix), map(0:npix-1,self%info%nmaps))
+          call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map(:,1:ext(2)))
+          nmaps = self%info%nmaps
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)**2
+       else
+          allocate(p(npix), map(0:npix-1,ext(2)))
+          call read_hdf_dp_2d_buffer(hdffile, trim(adjustl(hdfpath)), map)
+          nmaps = min(self%info%nmaps,ext(2))
+          self%map(:,1:nmaps) = map(self%info%pix,1:nmaps)
+       end if
        do i = 1, self%info%nprocs-1
           call mpi_recv(np,       1, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
           call mpi_recv(p(1:np), np, MPI_INTEGER, i, 98, self%info%comm, mpistat, ierr)
@@ -831,7 +850,7 @@ subroutine tod2file_dp3(filename,d)
        stop
     end if
     if (nside /= self%info%nside .and. .not. (present(udgrade))) then
-       if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename)
+       if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename), 'Expected ', self%info%nside
        call mpi_finalize(ierr)
        stop
     end if
@@ -1005,7 +1024,7 @@ subroutine tod2file_dp3(filename,d)
     logical(lgt),                       intent(in), optional :: nest
 
     integer(i4b)   :: npix, nlheader, nmaps, i, nside
-    logical(lgt)   :: polarization
+    logical(lgt)   :: polarization, rms_cov
 
     character(len=80), dimension(1:120)    :: header
     character(len=16) :: unit_, ttype_
@@ -1014,6 +1033,7 @@ subroutine tod2file_dp3(filename,d)
     nside        = nint(sqrt(real(npix,sp)/12.))
     nmaps        = size(map(0,:))
     polarization = (nmaps == 3)
+    rms_cov      = (nmaps == 4)
     unit_        = '';       if (present(unit)) unit_  = unit
     ttype_       = 'Stokes'; if (present(unit)) ttype_ = ttype
 
@@ -1056,20 +1076,40 @@ subroutine tod2file_dp3(filename,d)
     call add_card(header) ! blank line
     call add_card(header,"POLAR",polarization," Polarisation included (True/False)")
 
-    call add_card(header) ! blank line
-    call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
-    call add_card(header,"TUNIT1", unit_,"Map unit")
-    call add_card(header)
+    if (rms_cov) then
+        call add_card(header) ! blank line
+        call add_card(header,"TTYPE1", "II_"//ttype_,"Stokes I")
+        call add_card(header,"TUNIT1", unit_//'^2',"Map unit")
+        call add_card(header)
 
-    if (polarization) then
-       call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
-       call add_card(header,"TUNIT2", unit_,"Map unit")
-       call add_card(header)
-       
-       call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
-       call add_card(header,"TUNIT3", unit_,"Map unit")
-       call add_card(header)
-    endif
+        call add_card(header,"TTYPE2", "QQ_"//ttype_,"Stokes Q")
+        call add_card(header,"TUNIT2", unit_//'^2',"Map unit")
+        call add_card(header)
+        
+        call add_card(header,"TTYPE3", "UU_"//ttype_,"Stokes U")
+        call add_card(header,"TUNIT3", unit_//'^2',"Map unit")
+        call add_card(header)
+
+        call add_card(header,"TTYPE4", "QU_"//ttype_,"Stokes QU")
+        call add_card(header,"TUNIT4", unit_//'^2',"Map unit")
+        call add_card(header)
+
+    else
+        call add_card(header) ! blank line
+        call add_card(header,"TTYPE1", "I_"//ttype_,"Stokes I")
+        call add_card(header,"TUNIT1", unit_,"Map unit")
+        call add_card(header)
+
+        if (polarization) then
+           call add_card(header,"TTYPE2", "Q_"//ttype_,"Stokes Q")
+           call add_card(header,"TUNIT2", unit_,"Map unit")
+           call add_card(header)
+           
+           call add_card(header,"TTYPE3", "U_"//ttype_,"Stokes U")
+           call add_card(header,"TUNIT3", unit_,"Map unit")
+           call add_card(header)
+        endif
+    end if
     call add_card(header,"COMMENT","-----------------------------------------------")
     call add_card(header,"COMMENT","     Commander Keywords                        ")
     call add_card(header,"COMMENT","-----------------------------------------------")
@@ -1093,7 +1133,7 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(in)    :: self
     class(comm_map), intent(inout) :: map_out
 
-    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last
+    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last, nmaps
     real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer, tmp
 
     if (self%info%nside == map_out%info%nside) then
@@ -1127,10 +1167,11 @@ subroutine tod2file_dp3(filename,d)
 !!$       stop
 !!$    end if
 
+    nmaps = size(self%map, dim=2)
     bsize = 1000
-    allocate(m_in(0:self%info%npix-1,self%info%nmaps))
-    allocate(m_out(0:map_out%info%npix-1,map_out%info%nmaps))
-    allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
+    allocate(m_in(0:self%info%npix-1,nmaps))
+    allocate(m_out(0:map_out%info%npix-1,nmaps))
+    allocate(buffer(0:map_out%info%npix-1,nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
 !    write(*,*) 'a', self%info%myid, sum(abs(m_in))

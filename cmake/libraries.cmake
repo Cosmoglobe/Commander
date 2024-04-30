@@ -98,12 +98,6 @@ set(CMAKE_REQUIRED_LIBRARIES ${OpenMP_Fortran_LIBRARIES})
 #------------------------------------------------------------------------------
 add_custom_target(tempita ALL "")
 set(comm_hdf_mod "${COMMANDER3_SOURCE_DIR}/comm_hdf_mod.f90")
-# running python command at configure time
-execute_process(
-	COMMAND ${TEMPITA_DIR}/tempita_proc.py < $< > $@
-	INPUT_FILE ${comm_hdf_mod}.in
-	OUTPUT_FILE ${comm_hdf_mod}
-	)
 #------------------------------------------------------------------------------
 # Creating a Unified target
 #------------------------------------------------------------------------------

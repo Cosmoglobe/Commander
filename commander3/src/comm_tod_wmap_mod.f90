@@ -29,25 +29,7 @@ module comm_tod_WMAP_mod
   !       all data needed for TOD processing
   !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
-   use comm_tod_mod
-   use comm_param_mod
-   use comm_map_mod
-   use comm_conviqt_mod
-   use pix_tools
-   use healpix_types
-   use comm_huffman_mod
-   use comm_hdf_mod
-   use comm_fft_mod
-   use spline_1D_mod
-   use comm_4D_map_mod
-   use comm_zodi_mod
-   use comm_tod_mapmaking_mod
-   use comm_tod_pointing_mod
-   use comm_tod_gain_mod
-   use comm_tod_bandpass_mod
-   use comm_tod_orbdipole_mod
    use comm_tod_driver_mod
-   use comm_utils
    implicit none
 
    private
@@ -58,6 +40,7 @@ module comm_tod_WMAP_mod
       logical(lgt) :: comp_S
       character(len=20), allocatable, dimension(:) :: labels ! names of fields
       real(dp), allocatable, dimension(:,:)        :: M_lowres, M_diag
+      character(len=512) :: noise_format
    contains
       procedure     :: process_tod             => process_WMAP_tod
       procedure     :: precompute_M_lowres
@@ -66,7 +49,7 @@ module comm_tod_WMAP_mod
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
-      procedure constructor
+      procedure constructor_wmap
    end interface comm_WMAP_tod
 
 contains
@@ -76,7 +59,7 @@ contains
    !**************************************************
    !             Constructor
    !**************************************************
-   function constructor(cpar, id_abs, info, tod_type)
+   function constructor_wmap(cpar, id, id_abs, info, tod_type) result(c)
       !
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -100,10 +83,10 @@ contains
 
       implicit none
       type(comm_params),      intent(in) :: cpar
-      integer(i4b),           intent(in) :: id_abs
+      integer(i4b),           intent(in) :: id, id_abs
       class(comm_mapinfo),    target     :: info
       character(len=128),     intent(in) :: tod_type
-      class(comm_WMAP_tod),   pointer    :: constructor
+      class(comm_WMAP_tod),   pointer    :: c
 
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
       logical(lgt) :: pol_beam
@@ -115,195 +98,206 @@ contains
       call timer%start(TOD_INIT, id_abs)
 
       ! Initialize common parameters
-      allocate (constructor)
+      allocate (c)
 
       ! Set up noise PSD type and priors
-      constructor%freq            = cpar%ds_label(id_abs)
-      !constructor%n_xi            = 3
-      !constructor%noise_psd_model = 'oof'
+      c%freq            = cpar%ds_label(id_abs)
+      !c%n_xi            = 3
+      !c%noise_psd_model = 'oof'
 
-      constructor%n_xi            = 5
-      constructor%noise_psd_model = 'oof_f'
-      constructor%comp_S          = .false.
+      c%n_xi            = 5
+      c%noise_psd_model = 'oof_quad'
+      c%comp_S          = .false.
 
-      allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-      allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
-      allocate(constructor%xi_n_P_rms(constructor%n_xi))
+      allocate(c%xi_n_P_uni(c%n_xi,2))
+      allocate(c%xi_n_nu_fit(c%n_xi,2))
+      allocate(c%xi_n_P_rms(c%n_xi))
  
       ! Using Bennett 2013 x_im as initial guess for precomputing preconditioner 
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
-      !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
-      constructor%xi_n_P_uni(4,:) = [0.0, 0.1]            ! slope
-      constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
-      constructor%xi_n_P_uni(5,:) = [-1,1]             ! intercept
-      constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
-      if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit(2,:) = [0.0, 0.005]    
-         constructor%xi_n_nu_fit(3,:) = [0.0, 0.005]    
-         constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [1.00e-05, 1.00e-05, 4.58e-03, 4.58e-03]
-      else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00416, 0.00416, 0.00191, 0.00191]
-      else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00139, 0.00139, 0.00581, 0.00581]
-      else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
-         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00894, 0.00894, 0.01137, 0.01137]
-      else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00153, 0.00153, 0.00415, 0.00415]
-      else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00233, 0.00233, 0.00243, 0.00243]
-      else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.01211, 0.01211, 0.00414, 0.00414]
-      else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.040]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.040]
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.01255, 0.01255, 0.01736, 0.01736]
-      else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [-0.00183, -0.00183,  0.00416,  0.00416]
-      else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.02285, 0.02285, 0.02025, 0.02025]
+      !c%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
+      c%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      c%xi_n_P_uni(4,:) = [-0.5, 0.5]            ! slope
+      c%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
+      c%xi_n_P_uni(5,:) = [-0.5, 0.5]             ! intercept
+      c%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
+      if (trim(c%freq) == '023-WMAP_K') then
+         c%xi_n_nu_fit(2,:) = [0.0, 0.005]    
+         c%xi_n_nu_fit(3,:) = [0.0, 0.005]    
+         c%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [1.00e-05, 1.00e-05, 4.58e-03, 4.58e-03]
+      else if (trim(c%freq) == '030-WMAP_Ka') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
+         c%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00416, 0.00416, 0.00191, 0.00191]
+      else if (trim(c%freq) == '040-WMAP_Q1') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
+         c%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00139, 0.00139, 0.00581, 0.00581]
+      else if (trim(c%freq) == '040-WMAP_Q2') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
+         c%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00894, 0.00894, 0.01137, 0.01137]
+      else if (trim(c%freq) == '060-WMAP_V1') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
+         c%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00153, 0.00153, 0.00415, 0.00415]
+      else if (trim(c%freq) == '060-WMAP_V2') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
+         c%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00233, 0.00233, 0.00243, 0.00243]
+      else if (trim(c%freq) == '090-WMAP_W1') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020]
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020]
+         c%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.01211, 0.01211, 0.00414, 0.00414]
+      else if (trim(c%freq) == '090-WMAP_W2') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.040]
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.040]
+         c%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.01255, 0.01255, 0.01736, 0.01736]
+      else if (trim(c%freq) == '090-WMAP_W3') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
+         c%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [-0.00183, -0.00183,  0.00416,  0.00416]
+      else if (trim(c%freq) == '090-WMAP_W4') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
+         c%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.02285, 0.02285, 0.02025, 0.02025]
       else
-         write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
+         write(*,*) 'Invalid WMAP frequency label = ', trim(c%freq)
          stop
       end if
 
-      call constructor%tod_constructor(cpar, id_abs, info, tod_type)
-      if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
+      call c%tod_constructor(cpar, id, id_abs, info, tod_type)
+      if (c%enable_tod_simulations) c%chisq_threshold = 1d6
 
       ! Set up WMAP specific parameters
-      constructor%accept_threshold = 0.1d0 ! more stringent than default,
+      c%accept_threshold = 0.1d0 ! more stringent than default,
                                            ! cutting scans with more than 10% flagged
-      constructor%samprate_lowres = 1.d0   ! Lowres samprate in Hz
-      constructor%nhorn           = 2
-      constructor%ndiode          = 1
-      constructor%baseline_order  = 1
-      constructor%apply_inst_corr = .true.
-      if (trim(constructor%level) == 'L1') then
-          constructor%compressed_tod  = .true.
+      c%samprate_lowres = 1.d0   ! Lowres samprate in Hz
+      c%nhorn           = 2
+      c%ndiode          = 1
+      c%baseline_order  = 1
+      ! Jarosik et al. uses a third-order baseline. How much of a difference
+      ! would this make?
+      ! c%baseline_order  = 3
+      ! It turns out that the noise parameters get weird very quickly, with some
+      ! bands immediately going to the boundaries.
+      c%apply_inst_corr = .true.
+      if (trim(c%level) == 'L1') then
+          c%compressed_tod  = .true.
       else
-          constructor%compressed_tod  = .false.
+          c%compressed_tod  = .false.
       end if
-      constructor%correct_sl      = .true.
-      constructor%orb_4pi_beam    = .true.
-      constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 50
-      constructor%nmaps           = info%nmaps
-      constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-      constructor%verbosity       = cpar%verbosity
+      c%correct_sl      = .true.
+      c%correct_orb     = .true.
+      c%orb_4pi_beam    = .true.
+      c%symm_flags      = .false.
+      c%chisq_threshold = 1000
+      c%nmaps           = info%nmaps
+      c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+      c%verbosity       = cpar%verbosity
 
       ! Gain PSD Wiener filter parameters; determined by trial-and-error
-      constructor%gain_tune_sigma0 = .false.
-      constructor%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
-      constructor%gain_sigma_0     = 3d-3 !3d-4                           ! Default from LFI
-      constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
-      constructor%gain_alpha       = -1.d0                          ! Default from LFI
+      c%gain_tune_sigma0 = .false.
+      c%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
+      c%gain_sigma_0     = 3d-3 !3d-4                           ! Default from LFI
+      c%gain_fknee       = c%gain_samprate      ! Default from LFI
+      c%gain_alpha       = -1.d0                          ! Default from LFI
 
-      if (constructor%myid == 0) then
-         allocate(constructor%M_diag(0:info%npix-1,info%nmaps+1))
+      if (c%myid == 0) then
+         allocate(c%M_diag(0:info%npix-1,info%nmaps+1))
       end if
 
       ! Iniitialize TOD labels
-      allocate (constructor%labels(8))
-      constructor%labels(1) = 'map'
-      constructor%labels(2) = 'res'
-      constructor%labels(3) = 'ncorr'
-      constructor%labels(4) = 'bpcorr'
-      constructor%labels(5) = 'orb'
-      constructor%labels(6) = 'sl'
-      constructor%labels(7) = 'zodi'
-      constructor%labels(8) = 'baseline'
+      allocate (c%labels(8))
+      c%labels(1) = 'map'
+      c%labels(2) = 'res'
+      c%labels(3) = 'ncorr'
+      c%labels(4) = 'bpcorr'
+      c%labels(5) = 'orb'
+      c%labels(6) = 'sl'
+      c%labels(7) = 'zodi'
+      c%labels(8) = 'baseline'
 
       ! Initialize beams
       nside_beam                  = 512
       nmaps_beam                  = 3
       pol_beam                    = .true.
-      constructor%nside_beam      = nside_beam
+      c%nside_beam      = nside_beam
 
 
       ! Get detector labels
-      call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+      call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
+
+      ! Get noise format
+      c%noise_format   = cpar%ds_noise_format(id_abs)
 
       ! Define detector partners
       ! I don't think this is necessary for WMAP...
-      do i = 1, constructor%ndet
+      do i = 1, c%ndet
          if (mod(i,2) == 1) then
-            constructor%partner(i) = i+1
+            c%partner(i) = i+1
          else
-            constructor%partner(i) = i-1
+            c%partner(i) = i-1
          end if
-         constructor%horn_id(i) = (i+1)/2
+         c%horn_id(i) = (i+1)/2
       end do
 
       ! Read the actual TOD
-      call constructor%read_tod(constructor%label)
+      call c%read_tod(c%label)
 
       ! Initialize bandpass mean and proposal matrix
-      call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+      call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      call constructor%precompute_lookups()
+      call c%precompute_lookups()
 
       !load the instrument file
-      call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+      call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       ! Collect Sun velocities from all scals
-      call constructor%collect_v_sun
+      call c%collect_v_sun
 
-      ! Precomputing low-resolution preconditioner
-      call constructor%precompute_M_lowres
+
+      ! MJDs corresponding to August 10, 2001--2010
+      c%split = (/52131,52496,52861,53227,53592,&
+                          & 53957,54322,54688,55053,55418/)
 
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
       ! Allocate sidelobe convolution data structures
-      allocate(constructor%slconvA(constructor%ndet), constructor%slconvB(constructor%ndet))
-      allocate(constructor%orb_dp)
-      if (constructor%orb_4pi_beam) then
-         constructor%orb_dp => comm_orbdipole(beam=constructor%mbeam)
+      allocate(c%slconvA(c%ndet), c%slconvB(c%ndet))
+      allocate(c%orb_dp)
+      if (c%orb_4pi_beam) then
+         c%orb_dp => comm_orbdipole(beam=c%mbeam)
       else
-         constructor%orb_dp => comm_orbdipole(comm=constructor%info%comm)
+         c%orb_dp => comm_orbdipole(comm=c%info%comm)
       end if
 
       call timer%stop(TOD_INIT, id_abs)
 
-   end function constructor
+    end function constructor_wmap
 
    !**************************************************
    !             Driver routine
@@ -358,32 +352,38 @@ contains
       real(dp)     :: t1, t2, monopole, sigma_mono
       integer(i4b) :: i, j, k, l, n
       integer(i4b) :: nside, npix, nmaps 
-      integer(i4b) :: ierr, ndelta
+      integer(i4b) :: ierr, ndelta, t_mid=53765
       real(sp), allocatable, dimension(:, :)          :: s_buf
       real(sp), allocatable, dimension(:, :, :)       :: d_calib
       real(dp), allocatable, dimension(:, :)          :: chisq_S, m_buf
       real(dp), allocatable, dimension(:, :)          :: M_diag, buffer1
+      real(dp), allocatable, dimension(:, :, :)       :: M_diag_1
+      real(dp), allocatable, dimension(:)             :: II_inv, QQ_inv, UU_inv, QU_inv, det
       real(dp), allocatable, dimension(:, :, :)       :: b_map, b_mono, sys_mono, buffer2
+      real(dp), allocatable, dimension(:,:,:,:)       :: b_map_1, b_map_2
       character(len=512) :: prefix, postfix
       character(len=2048) :: Sfilename
 
-      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, bp_corr, output_scanlist
+      logical(lgt)        :: select_data, sample_abs_bandpass, sample_rel_bandpass, bp_corr, output_scanlist, split
       type(comm_scandata) :: sd
 
       character(len=4)   :: ctext, myid_text
       character(len=6)   :: samptext, scantext
       character(len=512), allocatable, dimension(:) :: slist
       real(sp),       allocatable, dimension(:)     :: procmask, procmask2, sigma0
-      real(sp),  allocatable, dimension(:, :, :, :) :: map_sky
+      real(sp),  allocatable, dimension(:, :, :, :) :: map_sky, m_gain
       class(map_ptr),     allocatable, dimension(:) :: outmaps
 
       ! biconjugate gradient-stab parameters
       integer(i4b) :: num_cg_iters
       real(dp) ::  epsil
       real(dp) ::  nullval
-      real(dp), allocatable, dimension(:, :)    :: bicg_sol
+      real(dp), allocatable, dimension(:, :)    :: bicg_sol, bicg_sol_1, bicg_sol_2
       real(dp), allocatable, dimension(:, :)    :: map_full
       class(comm_map), pointer :: wmap_guess
+
+      ! Counting data kept, lost
+      integer(i8b) :: n_tot, n_flag, n_discard
 
       character(len=80), dimension(180) :: header
 
@@ -393,14 +393,10 @@ contains
 
 
 
-      ! Parameters used for testing
-      real(dp) :: polang = 0d0
-
-
-
       call int2string(iter, ctext)
       call update_status(status, "tod_start"//ctext)
       call timer%start(TOD_TOT, self%band)
+
 
       call timer%start(TOD_ALLOC, self%band)
 
@@ -410,7 +406,7 @@ contains
       bp_corr               = .true.                 ! by default, take into account differences in bandpasses. (WMAP does not do this in default analysis)
       bp_corr               = (bp_corr .or. sample_rel_bandpass) ! Bandpass is necessary to include if bandpass sampling is happening.
       select_data           = .false.         ! no data selection
-      select_data           = self%first_call ! only perform data selection the first time
+      !select_data           = self%first_call ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0    ! only output scanlist every 10th iteration
 
 
@@ -424,12 +420,18 @@ contains
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
       self%output_n_maps = 1
+      split = .false.
       if (self%output_aux_maps > 0) then
-         if (mod(iter-1,self%output_aux_maps) == 0) self%output_n_maps = 6
-         if (iter .eq. 1)                           self%output_n_maps = 1
+         if (self%first_call) then
+           self%output_n_maps = 3
+           split = .false.
+         else
+           if (mod(iter-1,10) == 0)  self%output_n_maps = 3
+           if (mod(iter-1,20) == 0)  self%output_n_maps = 8
+           if (mod(iter-1,100) == 0) split = .true.
+         end if
       end if
 
-      !if (mod(iter-1, 10) == 0) call self%precompute_M_lowres
 
 
       call int2string(chain, ctext)
@@ -442,8 +444,11 @@ contains
       ! Allocate total map (for monopole sampling)
       allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
       allocate(map_full(nmaps, 0:npix-1))
+      allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
       !call distribute_sky_maps(self, map_in, 1.e-3, map_sky) ! uK to mK
       call distribute_sky_maps(self, map_in, 1., map_sky, map_full) ! K to K?
+      call distribute_sky_maps(self, map_gain, 1., m_gain) ! uK to K
+
 
 
       ! Distribute processing masks
@@ -470,6 +475,12 @@ contains
       end if
       M_diag = 0d0
       b_map = 0d0
+      if (split) then
+          allocate (M_diag_1(0:npix-1, nmaps+1, 9))
+          allocate ( b_map_1(0:npix-1, nmaps,   9, 1))
+          M_diag_1 = 0d0
+          b_map_1 = 0d0
+      end if
 
       allocate(outmaps(1))
       outmaps(1)%p => comm_map(self%info)
@@ -479,8 +490,12 @@ contains
       else
         allocate (bicg_sol(0:npix-1, nmaps  ))
       end if
-
+      if (split) then
+          allocate (bicg_sol_1(0:npix-1, 9))
+      end if
       call timer%stop(TOD_ALLOC, self%band)
+
+      if (mod(iter-1, 10) == 0 .or. self%first_call) call self%precompute_M_lowres
 
       ! Precompute far sidelobe Conviqt structures
       if (self%correct_sl) then
@@ -513,6 +528,7 @@ contains
          end do
       end if
 
+
       ! Sample calibration
       if (.not. self%enable_tod_simulations) then
           if (trim(self%level) == 'L1') then
@@ -524,7 +540,7 @@ contains
               call update_status(status, "baseline")
               do i = 1, self%nscan
                  if (.not. any(self%scans(i)%d%accept)) cycle
-                 call sd%init_differential(self, i, map_sky, procmask, procmask2, polang=polang)
+                 call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2)
                  call timer%start(TOD_BASELINE, self%band)
                  call sample_baseline(self, i, sd%tod, sd%s_tot, sd%mask, handle)
                  call timer%stop(TOD_BASELINE, self%band)
@@ -537,11 +553,25 @@ contains
               call timer%stop(TOD_WAIT, self%band)
 
               call update_status(status, "abscal")
-              call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2, polang)
+              if (trim(self%freq) == '023-WMAP_K') then
+                if (self%myid == 0) then
+                  self%gain0(0) = 1.1815 + 0.001 * rand_gauss(handle)
+                  write(*,*) '|    Prior sampling abscal ', self%gain0(0)
+                end if
+                call mpi_bcast(self%gain0(0), 1,  MPI_DOUBLE_PRECISION, 0, &
+                     & self%info%comm, ierr)
+                do j = 1, self%nscan
+                   do i = 1, self%ndet
+                      self%scans(j)%d(i)%gain = self%gain0(0) + self%gain0(i) + self%scans(j)%d(i)%dgain 
+                   end do
+                end do
+              else
+                call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
+              end if
               call update_status(status, "relcal")
-              call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2, polang)
+              call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
               call update_status(status, "deltaG")
-              call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2, polang, smooth=.true.)
+              call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2, smooth=.true.)
            else
               self%correct_sl      = .false.
               do j = 1, self%nscan
@@ -553,7 +583,7 @@ contains
               self%gain0(1:) = 0
               self%x_im = 0
            end if
-           call sample_calibration(self, 'imbal',  handle, map_sky, procmask, procmask2, polang)
+           call sample_calibration(self, 'imbal',  handle, map_sky, m_gain, procmask, procmask2)
       end if
 
 
@@ -566,6 +596,9 @@ contains
             write(*,*) '|    --> Sampling ncorr, xi_n, maps'
           end if
       endif
+      n_tot = 0
+      n_discard = 0
+      n_flag = 0
       do i = 1, self%nscan
          ! Skip scan if no accepted data
 
@@ -575,20 +608,27 @@ contains
                     & '"', 0.0, &
                     & real(self%spinaxis(i,:),sp)
             end if
+            if (select_data) then 
+               call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+                 & init_s_bp=bp_corr)
+               n_tot = n_tot + sd%ntod/1000
+               n_flag = n_flag + sd%ntod/1000
+               call sd%dealloc
+            end if
             cycle
          end if
          call wall_time(t1)
 
          ! Prepare data
          if (sample_rel_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true., init_s_bp_prop=.true., polang=polang)
+            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=.true., init_s_bp_prop=.true.)
          else if (sample_abs_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=.true., init_s_sky_prop=.true., polang=polang)
+            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=.true., init_s_sky_prop=.true.)
          else
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
-              & init_s_bp=bp_corr, polang=polang)
+            call sd%init_differential(self, i, map_sky, m_gain, procmask, procmask2, &
+              & init_s_bp=bp_corr)
          end if
 
          call timer%start(TOD_ALLOC, self%band)
@@ -610,30 +650,32 @@ contains
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
+            call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
               & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
          end do
 
          ! Select data
          if (select_data) then 
+            ! Count how many good data points are thrown out from this
+            ! procedure.
+            n_tot = n_tot + sd%ntod/1000
+            n_flag = n_flag + count(iand(sd%flag(:,1),self%flag0) .ne. 0)/1000
             call remove_bad_data(self, i, sd%flag)
-            !pow2 = log(real(sd%ntod, sp))/log(2.0)
-            !if (2**(nint(pow2)) .ne. sd%ntod) then
-            !    write(*,*) self%scanid(i), sd%ntod, pow2
-            !    do j = 1, sd%ndet
-            !       self%scans(i)%d(j)%accept = .false.
-            !    end do
-            !end if
+            if (.not. self%scans(i)%d(1)%accept) then
+                n_discard = n_discard + (sd%ntod -count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
+            end if
             n = len(trim(self%freq)) - 1
             if ((self%freq(n:n) == 'W') .or. (self%freq(n:n) == 'V')) then
                 if (sd%ntod < 2**22) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             else
                 if (sd%ntod < 2**21) then
                     write(*,*) '| Reject scan =', self%scanid(i), ' length ', sd%ntod
                     self%scans(i)%d%accept = .false.
+                    n_discard = n_discard + (sd%ntod - count(iand(sd%flag(:,1),self%flag0) .ne. 0))/1000
                 end if
             end if
          end if
@@ -649,7 +691,6 @@ contains
          call compute_calibrated_data(self, i, sd, d_calib)
 
 
-         !if (mod(self%scanid(i), 100) == 0 .and. mod(iter-1,self%output_aux_maps*10) == 0 .and. .not. self%enable_tod_simulations) then
          if (.false.) then
             call int2string(self%scanid(i), scantext)
             if (self%myid == 0 .and. i == 1) write(*,*) '| Writing tod to hdf'
@@ -681,9 +722,21 @@ contains
          end if
          
          ! Bin TOD
+         ! Using procmask2 to only mask out the very brightest pixels.
          call bin_differential_TOD(self, d_calib, sd%pix(:,1,:),  &
-           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask, b_map, M_diag, i, &
+           & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map, M_diag, i, &
            & self%comp_S)
+
+         ! Temporal splits
+         if (split) then
+
+            do j = 1, 9
+               if (self%scans(i)%t0(1) < self%split(j) .or. self%scans(i)%t0(1) > self%split(j+1)) cycle
+               call bin_differential_TOD(self, d_calib(1:1,:,:), sd%pix(:,1,:),  &
+                 & sd%psi(:,1,:), sd%flag(:,1), self%x_im, procmask2, b_map_1(:,:,j,:), M_diag_1(:,:,j), i, &
+                 & self%comp_S)
+            end do
+         end if
 
          ! Update scan list
          call wall_time(t2)
@@ -714,29 +767,35 @@ contains
 
 
         call timer%start(TOD_MPI, self%band)
-        call update_status(status, "Running allreduce on M_diag")
         call mpi_allreduce(mpi_in_place, M_diag, size(M_diag), &
-             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-        call update_status(status, "Ran allreduce on M_diag")
-
-        call update_status(status, "Running allreduce on b_map")
+             & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
         call mpi_allreduce(mpi_in_place, b_map, size(b_map), &
-             & MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-        call update_status(status, "Ran allreduce on b_map")
+             & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
+
+
+        if (select_data) then
+          call mpi_allreduce(mpi_in_place, n_tot, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_flag, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+          call mpi_allreduce(mpi_in_place, n_discard, 1, &
+               & MPI_INTEGER,  MPI_SUM, self%info%comm, ierr)
+        end if
         call timer%stop(TOD_MPI, self%band)
+        if (split) then
+           call timer%start(TOD_MPI, self%band)
+           call mpi_allreduce(mpi_in_place, b_map_1, size(b_map_1), &
+                & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
+           call mpi_allreduce(mpi_in_place, M_diag_1, size(M_diag_1), &
+                & MPI_DOUBLE_PRECISION, MPI_SUM,  self%info%comm, ierr)
+           call timer%stop(TOD_MPI, self%band)
+        end if
 
 
         where (M_diag == 0d0)
            M_diag = 1d0
         end where
-        if (.not. self%comp_S) then
-           ! If we want to not do the "better preconditioning"
-           M_diag(:,4) = 0d0
-        end if
         if (self%myid == 0) self%M_diag = M_diag
-
-
-
 
         ! Conjugate Gradient solution to (P^T Ninv P) m = P^T Ninv d, or Ax = b
         do l = self%output_n_maps, 1, -1
@@ -756,9 +815,9 @@ contains
             write(*,*) '|      Solving for ', trim(adjustl(self%labels(l)))
           end if
           call run_bicgstab(self, handle, bicg_sol, npix, nmaps, num_cg_iters, &
-                         & epsil, procmask, map_full, M_diag, b_map, l, &
-                         & prefix, postfix, self%comp_S)
-          
+                         & epsil, procmask2, map_full, M_diag, b_map, l, &
+                         & prefix, postfix, self%comp_S, 0)
+
           if (l == 1 .and. self%myid == 0) then
              ! Maximum likelihood monopole
              monopole = sum((bicg_sol(:,1)-map_full(1,:))*M_diag(:,1)*procmask) &
@@ -775,9 +834,34 @@ contains
              end if
              bicg_sol(:,1) = bicg_sol(:,1) - monopole
           end if
-
           call mpi_bcast(bicg_sol, size(bicg_sol),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+
+          if (split .and. l == 1) then
+             do k = 1, 9
+               if (self%verbosity > 0 .and. self%myid == 0) then
+                 write(*,*) '|      Solving for map year ', k
+               end if
+               bicg_sol_1 = bicg_sol
+               call run_bicgstab(self, handle, bicg_sol_1, npix, nmaps, num_cg_iters, &
+                              & epsil, procmask2, map_full, M_diag_1(:,:,k), b_map_1(:,:,k,:), l, &
+                              & prefix, postfix, self%comp_S, k)
+               monopole = sum((bicg_sol_1(:,1)-map_full(1,:))*M_diag_1(:,1,k)*procmask) &
+                      & / sum(M_diag_1(:,1,k)*procmask)
+
+               call timer%start(TOD_WRITE) 
+               call mpi_bcast(bicg_sol_1, size(bicg_sol_1),  MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
+               do j = 1, nmaps
+                  outmaps(1)%p%map(:, j) = bicg_sol_1(self%info%pix, j)
+               end do
+               map_out%map = outmaps(1)%p%map
+               call int2string(k, ctext)
+               call map_out%writeFITS(trim(prefix)//'map_yr'//ctext//trim(postfix))
+               call timer%stop(TOD_WRITE) 
+             end do
+          end if
+          
           call mpi_bcast(num_cg_iters, 1,  MPI_INTEGER, 0, self%info%comm, ierr)
+
 
           if (self%comp_S) then
              outmaps(1)%p%map(:,1) = bicg_sol(self%info%pix, nmaps+1)
@@ -793,9 +877,41 @@ contains
           call timer%start(TOD_WRITE) 
           if (l == 1) then
              map_out%map = outmaps(1)%p%map
-             rms_out%map = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
              call map_out%writeFITS(trim(prefix)//'map'//trim(postfix))
-             call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+
+             ! Recall:
+             ! A = [[a, b],
+             !      [c, d]]
+             ! has the inverse
+             ! A-1 = [[d, -b],
+             !        [-c, a]]/(ad - bc)
+             ! Note that if bc = 0, then A-1 is just the inverse of the
+             ! diagonals.
+
+             if (trim(self%noise_format) == 'rms_qucov') then
+               allocate(det(0:npix-1))
+               if (split) then
+                 do k = 1, 9
+                   det = M_diag_1(:,2,k)*M_diag_1(:,3,k) - M_diag_1(:,4,k)**2
+                   rms_out%map(:,1:nmaps) = 1/sqrt(M_diag_1(self%info%pix, 1:nmaps,k))
+                   rms_out%map(:,nmaps+1) = M_diag_1(self%info%pix, nmaps+1,k)
+                   call int2string(k, ctext)
+                   call rms_out%writeFITS(trim(prefix)//'rms_yr'//ctext//trim(postfix))
+                 end do
+               end if
+               det = M_diag(:,2)*M_diag(:,3) - M_diag(:,4)**2
+               rms_out%map(:,1) = 1/M_diag(self%info%pix, 1)
+               rms_out%map(:,2) = M_diag(self%info%pix,3)/det(self%info%pix)
+               rms_out%map(:,3) = M_diag(self%info%pix,2)/det(self%info%pix)
+               rms_out%map(:,4) = -M_diag(self%info%pix,4)/det(self%info%pix)
+               deallocate(det)
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             else if (trim(self%noise_format) == 'rms') then
+               rms_out%map(:,1:nmaps) = 1/sqrt(M_diag(self%info%pix, 1:nmaps))
+               call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
+             else
+               if (self%myid == 0) write(*,*) 'unexpected noise format'
+             end if
           else
              call outmaps(1)%p%writeFITS(trim(prefix)//trim(adjustl(self%labels(l)))//trim(postfix))
           end if
@@ -811,6 +927,13 @@ contains
         !end if
       end if
 
+      if (self%myid == 0  .and. select_data) then
+        write(*,*) '| Data rejection statistics'
+        write(*,*) '| n_tot     ', n_tot
+        write(*,*) '| flagged   ', n_flag
+        write(*,*) '| discarded ', n_discard
+      end if
+
       ! Clean up temporary arrays
 
       call timer%start(TOD_ALLOC, self%band)
@@ -822,6 +945,7 @@ contains
       if (allocated(b_mono)) deallocate (b_mono)
       if (allocated(sys_mono)) deallocate (sys_mono)
       if (allocated(slist)) deallocate (slist)
+      if (allocated(b_map_1)) deallocate(b_map_1,M_diag_1,bicg_sol_1)
 
       if (allocated(outmaps)) then
          call outmaps(1)%p%dealloc
@@ -861,9 +985,9 @@ contains
       implicit none
       class(comm_WMAP_tod),             intent(inout) :: self
 
-      integer(i4b) :: i, j, k, t, p1, p2, k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn
+      integer(i4b) :: i, j, k, t, p1, p2, p1_l,p1_r,p2_l,p2_r,k1, k2, ntot, npix, npix_hi, ierr, ntod, lpix, rpix, q, nhorn, lpsi, rpsi
       real(dp)     :: var, inv_sigma, lcos2psi, lsin2psi, rcos2psi, rsin2psi
-      real(dp)     :: dx, xbar, x_pos, x_neg, fA, fB, mA, mB
+      real(dp)     :: dx, xbar, f_l, f_r, mA, mB
       real(dp), allocatable, dimension(:)   :: dl, dr, pl, pr
       real(dp), allocatable, dimension(:,:) :: M
       integer(i4b), allocatable, dimension(:)         :: flag, dgrade
@@ -891,8 +1015,8 @@ contains
       ! Computing the factors involving imbalance parameters
       dx   = (self%x_im(1) - self%x_im(3))*0.5
       xbar = (self%x_im(1) + self%x_im(3))*0.5
-      x_pos = 1 + xbar
-      x_neg = 1 - xbar
+      !dx = 0
+      !xbar = 0
 
       ! Precompute udgrade lookup table
       allocate(dgrade(0:12*self%info%nside**2-1))
@@ -909,8 +1033,8 @@ contains
       M = 0.d0
 
       inv_sigma = 1
-      fA = 1
-      fB = 1
+      f_l = 1
+      f_r = 1
       ! Loop over scans
       do i = 1, self%nscan
          ! Skip scan if no accepted data
@@ -923,54 +1047,69 @@ contains
          call self%decompress_pointing_and_flags(i, 1, pix, psi, flag)
 
          var = 0.d0
+         ! 16 because each variable is divided by 4, variance goes as Var(aX) = a^2 Var(X)
          do k = 1, 4
-            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/4
+            var = var + (self%scans(i)%d(k)%N_psd%sigma0/self%scans(i)%d(k)%gain)**2/16
          end do
          ! TODO
-         !inv_sigma = sqrt(1.d0/var)
+         inv_sigma = sqrt(1.d0/var)
 
          do t = 1, ntod
             if (iand(flag(t),self%flag0) .ne. 0) cycle
             lpix = dgrade(pix(t, 1))
             rpix = dgrade(pix(t, 2))
+            lpsi = psi(t,1)
+            rpsi = psi(t,2)
 
-            fA = procmask(pix(t, 2))
-            fB = procmask(pix(t, 1))
+            f_l = procmask(pix(t,2))
+            f_r = procmask(pix(t,1))
 
             dl(1) = 1+xbar
-            dl(2) = dx * self%cos2psi(psi(t,1))
-            dl(3) = dx * self%sin2psi(psi(t,1))
-            dl    = dl * inv_sigma * fA
+            dl(2) = dx * self%cos2psi(lpsi)
+            dl(3) = dx * self%sin2psi(lpsi)
+            dl    = dl * inv_sigma * f_l
 
             dr(1) = -(1-xbar)
-            dr(2) = dx * self%cos2psi(psi(t,2))
-            dr(3) = dx * self%sin2psi(psi(t,2))
-            dr    = dr * inv_sigma * fB
+            dr(2) = dx * self%cos2psi(rpsi)
+            dr(3) = dx * self%sin2psi(rpsi)
+            dr    = dr * inv_sigma * f_r
 
 
             pl(1) = dx
-            pl(2) = (1+xbar) * self%cos2psi(psi(t,1))
-            pl(3) = (1+xbar) * self%sin2psi(psi(t,1))
-            pl    = pl * inv_sigma * fA
+            pl(2) = (1+xbar) * self%cos2psi(lpsi)
+            pl(3) = (1+xbar) * self%sin2psi(lpsi)
+            pl    = pl * inv_sigma * f_l
 
             pr(1) = dx
-            pr(2) = (1-xbar) * self%cos2psi(psi(t,2))
-            pr(3) = (1-xbar) * self%sin2psi(psi(t,2))
-            pr    = pr * inv_sigma * fB
+            pr(2) = -(1-xbar) * self%cos2psi(rpsi)
+            pr(3) = -(1-xbar) * self%sin2psi(rpsi)
+            pr    = pr * inv_sigma * f_r
 
             do k1 = 1, self%nmaps_M_lowres
-               p1 = (k1-1)*npix + lpix
+               p1_l = (k1-1)*npix + lpix
+               p1_r = (k1-1)*npix + rpix
                do k2 = 1, self%nmaps_M_lowres
-                  p2 = (k2-1)*npix + rpix
-                  M(p1,p1) = M(p1,p1) + dl(k1) * dl(k1) 
-                  M(p1,p2) = M(p1,p2) + dl(k1) * dr(k2)
-                  M(p2,p1) = M(p2,p1) + dr(k2) * dl(k1)
-                  M(p2,p2) = M(p2,p2) + dr(k2) * dr(k2)
+                  p2_l = (k2-1)*npix + lpix
+                  p2_r = (k2-1)*npix + rpix
+                  !write(*,*) p1_l, p1_r, k1, p2_l, p2_r, k2
 
-                  M(p1,p1) = M(p1,p1) + pl(k1) * pl(k1) 
-                  M(p1,p2) = M(p1,p2) + pl(k1) * pr(k2)
-                  M(p2,p1) = M(p2,p1) + pr(k2) * pl(k1)
-                  M(p2,p2) = M(p2,p2) + pr(k2) * pr(k2)
+                  if ((k1 .eq. 1 .and. k2 .eq. 1) .or. (k1 > 1 .and. k2 > 1)) then
+                      ! Intensity
+                      ! P_A N^-1 P_A
+                      M(p1_l,p2_l) = M(p1_l,p2_l) + dl(k1) * dl(k2) 
+                      ! P_B N^-1 P_B
+                      M(p1_r,p2_r) = M(p1_r,p2_r) + dr(k1) * dr(k2) 
+                      ! P_A N^-1 P_B
+                      M(p1_l,p2_r) = M(p1_l,p2_r) + dl(k1) * dr(k2) 
+                      ! P_B N^-1 P_A
+                      M(p1_r,p2_l) = M(p1_r,p2_l) + dr(k1) * dl(k2) 
+
+                      ! Polarization
+                      M(p1_l,p2_l) = M(p1_l,p2_l) + pl(k1) * pl(k2) 
+                      M(p1_r,p2_r) = M(p1_r,p2_r) + pr(k1) * pr(k2) 
+                      M(p1_l,p2_r) = M(p1_l,p2_r) + pl(k1) * pr(k2) 
+                      M(p1_r,p2_l) = M(p1_r,p2_l) + pr(k1) * pl(k2) 
+                 end if
                end do
             end do
 
@@ -979,15 +1118,21 @@ contains
          deallocate(pix, psi, flag)
       end do
 
-      if (self%myid == 0) write(*,*) '|    Inverting preconditioner'
+      call timer%start(TOD_WAIT, self%band)
+      call mpi_barrier(self%comm, ierr)
+      call timer%stop(TOD_WAIT, self%band)
+
       ! Collect contributions from all cores 
       if (self%myid == 0) then
+         write(*,*) '|    Inverting preconditioner'
          if (.not. allocated(self%M_lowres)) allocate(self%M_lowres(ntot,ntot))
          call mpi_reduce(M, self%M_lowres, size(M),  MPI_DOUBLE_PRECISION,  MPI_SUM,  0, self%comm, ierr)
 
-!!$         call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
-!!$         call write_hdf(precond_file, '/M', self%M_lowres)
-!!$         call close_hdf_file(precond_file)
+         if (.false.) then
+             call open_hdf_file('precond_'//trim(self%freq)//'.h5', precond_file, 'w')
+             call write_hdf(precond_file, '/M', self%M_lowres)
+             call close_hdf_file(precond_file)
+         end if
 
          call invert_matrix(self%M_lowres)
       else
@@ -995,7 +1140,6 @@ contains
       end if
 
       deallocate(M, dgrade, dl, dr, pl, pr)
-      !deallocate(pmask, m_buf)
 
 
       call update_status(status, "M_lowres_done")
@@ -1158,12 +1302,12 @@ contains
 
 
     dt = 1.d0 / self%scans(scan)%ntod
-    t = 0.d0
+    s = 0.
     do j = 1, self%ndet
+       t = 0.d0
        if (.not. self%scans(scan)%d(j)%accept) cycle
        do k = 1, self%scans(scan)%ntod
           t      = t + dt
-          s(k,j) = 0.
           do i = 0, self%baseline_order
              s(k,j) = s(k,j) + self%scans(scan)%d(j)%baseline(i) * t**i
           end do

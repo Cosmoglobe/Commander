@@ -18,28 +18,19 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_diffuse_comp_mod
-  use comm_param_mod
+module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f90 file
   use comm_comp_mod
-  use comm_map_mod
-  use comm_data_mod
-  use comm_F_int_mod
   use comm_Cl_mod
-  use math_tools
-  use comm_cr_utils
-  use comm_cr_precond_mod
-  use comm_hdf_mod
-  use InvSamp_mod
-  use powell_mod
-  use comm_beam_mod
+  use comm_F_mod
   implicit none
 
   private
   public comm_diffuse_comp, add_to_npre, updateDiffPrecond, initDiffPrecond, applyDiffPrecond, &
-       & res_smooth, rms_smooth, print_precond_mat, nullify_monopole_amp, recompute_diffuse_precond
+       & res_smooth, res_lowres, dust_lowres, hotpah_lowres, rms_smooth, print_precond_mat, nullify_monopole_amp, &
+       & get_monopole_amp, set_monopole_amp, recompute_diffuse_precond, precond_type, diff_ptr
   
   !**************************************************
-  !            Diffuse component class
+  !            Diffuse component class - subclass under component class
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
@@ -70,6 +61,7 @@ module comm_diffuse_comp_mod
      integer(i4b),       allocatable, dimension(:,:)   :: npixreg          ! number of pixel regions
      integer(i4b),       allocatable, dimension(:,:,:) :: ind_pixreg_arr  ! number of pixel regions
      real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg    ! thetas for pixregs, per poltype, per ind.
+     real(dp),           allocatable, dimension(:,:,:) :: theta_pixreg_buff    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: prior_pixreg    ! thetas for pixregs, per poltype, per ind.
      real(dp),           allocatable, dimension(:,:,:) :: proplen_pixreg  ! proposal length for pixregs
      real(dp),           allocatable, dimension(:,:,:) :: pixreg_priors   ! individual priors for pixel regions
@@ -119,6 +111,10 @@ module comm_diffuse_comp_mod
      real(dp),        dimension(:,:), allocatable :: invM_def   ! (0:nalm-1,0:nalm-1)
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
+     integer(i4b) :: ntab
+     real(dp), allocatable, dimension(:,:) :: SEDtab
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff
+     real(dp)                              :: SEDtab_prior  ! Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling
@@ -130,7 +126,7 @@ module comm_diffuse_comp_mod
      procedure :: getBand       => evalDiffuseBand
      procedure :: projectBand   => projectDiffuseBand
      procedure :: dumpFITS      => dumpDiffuseToFITS
-     procedure :: initHDF       => initDiffuseHDF
+     procedure :: initHDFComp   => initDiffuseHDF
      procedure :: sampleSpecInd => sampleDiffuseSpecInd
      procedure :: updateLowlPrecond
      procedure :: applyLowlPrecond
@@ -149,7 +145,7 @@ module comm_diffuse_comp_mod
   integer(i4b) :: nmaps_pre = -1
   logical(lgt) :: recompute_diffuse_precond = .true.
   logical(lgt) :: output_cg_eigenvals
-  logical(lgt), private :: only_pol
+  logical(lgt), private :: only_pol, only_I
   character(len=512) :: outdir, precond_type
   integer(i4b),        allocatable, dimension(:) :: ind_pre
   class(comm_mapinfo), pointer                   :: info_pre => null()
@@ -164,8 +160,11 @@ module comm_diffuse_comp_mod
   real(dp), allocatable, dimension(:),     private :: theta_lnL        
   real(dp), allocatable, dimension(:,:),   private :: buffer_lnL        
   logical(lgt),                            private :: apply_mixmat = .true.
-  type(map_ptr),        allocatable, dimension(:) :: res_smooth
-  type(comm_N_rms_ptr), allocatable, dimension(:) :: rms_smooth
+  type(map_ptr),               allocatable, dimension(:) :: res_smooth
+  type(map_ptr),               allocatable, dimension(:) :: res_lowres
+  type(map_ptr),               allocatable, dimension(:) :: dust_lowres
+  type(map_ptr),               allocatable, dimension(:) :: hotpah_lowres
+  class(comm_N_ptr),           allocatable, dimension(:) :: rms_smooth
   
 interface
 
@@ -490,6 +489,18 @@ interface
     implicit none
     character(len=*), intent(in) :: band
   end subroutine nullify_monopole_amp
+
+  module function get_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp)                     :: get_monopole_amp
+  end function get_monopole_amp
+
+  module subroutine set_monopole_amp(band, mono)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp),         intent(in) :: mono
+  end subroutine set_monopole_amp
 
 end interface
 

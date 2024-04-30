@@ -20,8 +20,6 @@
 !================================================================================
 module comm_N_QUcov_mod
   use comm_N_mod
-  use comm_param_mod
-  use comm_map_mod
   implicit none
 
   private
@@ -38,8 +36,8 @@ module comm_N_QUcov_mod
      procedure :: invN_lowres => matmulInvN_1map
      procedure :: N           => matmulN_1map
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
-     procedure :: rms         => returnRMS
-     procedure :: rms_pix     => returnRMSpix
+     procedure :: rms         => returnRMS_QUcov
+     procedure :: rms_pix     => returnRMS_QUcov_pix
      procedure :: update_N    => update_N_QUcov
   end type comm_N_QUcov
 
@@ -68,11 +66,9 @@ contains
     real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
     class(comm_map),                    pointer, intent(in), optional :: procmask
 
-    character(len=512) :: dir
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
     constructor%type              = trim(cpar%ds_noise_format(id_abs))
@@ -90,7 +86,7 @@ contains
     constructor%nprocs            = info%nprocs
     constructor%info              => info
     constructor%pol_only          = .true.
-    call constructor%update_N(info, handle, mask=mask, noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+    call constructor%update_N(info, handle, mask=mask, noisefile=trim(cpar%ds_noisefile(id_abs)))
 
   end function constructor
 
@@ -108,6 +104,7 @@ contains
     integer(i4b) :: i, j, k, ierr, status, unit, nval
     logical(lgt) :: exist
     character(len=512) :: filename
+    character (80)     :: ordering
     real(dp)     :: sum_tau, sum_tau2, val
     real(sp),        dimension(:,:), pointer     :: Ninv_sp => null()
     real(dp),        dimension(:,:), allocatable :: Ninv, Ncov, sNinv, buffer, mask_fullsky, rms
@@ -142,19 +139,21 @@ contains
           read(unit) Ncov
           close(unit)
        else
-          write(*,*) '|  Eigen-decomposing ', trim(noisefile)
+          write(*,*) '|   Eigen-decomposing ', trim(noisefile)
           allocate(Ninv_sp(2*self%npix,2*self%npix))
-          call WMAP_Read_NInv(noisefile, status, Ninv_sp)
+          call WMAP_Read_NInv(noisefile, status, Ninv_sp, ordering)
 
-          ! Convert from nest to ring format
-          do i = 1, 2*self%npix ! Rows
-             call convert_nest2ring(self%nside, Ninv_sp(          1:  self%npix,i))
-             call convert_nest2ring(self%nside, Ninv_sp(self%npix+1:2*self%npix,i))
-          end do
-          do i = 1, 2*self%npix ! Columns
-             call convert_nest2ring(self%nside, Ninv_sp(i,          1:  self%npix))
-             call convert_nest2ring(self%nside, Ninv_sp(i,self%npix+1:2*self%npix))
-          end do
+          if (index(ordering, 'NESTED') .ne. 0) then
+              ! Convert from nest to ring format
+              do i = 1, 2*self%npix ! Rows
+                 call convert_nest2ring(self%nside, Ninv_sp(          1:  self%npix,i))
+                 call convert_nest2ring(self%nside, Ninv_sp(self%npix+1:2*self%npix,i))
+              end do
+              do i = 1, 2*self%npix ! Columns
+                 call convert_nest2ring(self%nside, Ninv_sp(i,          1:  self%npix))
+                 call convert_nest2ring(self%nside, Ninv_sp(i,self%npix+1:2*self%npix))
+              end do
+          end if
           Ncov = Ninv_sp
           deallocate(Ninv_sp)
 
@@ -193,7 +192,6 @@ contains
        end do
        write(unit) .false. ! Not inverse
        close(unit)
-       write(*,*) '| done'
        deallocate(ind)
 
 !!$       allocate(rms(self%npix,self%nmaps))
@@ -417,7 +415,7 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res, samp_group)
+  subroutine returnRMS_QUcov(self, res, samp_group)
     implicit none
     class(comm_N_QUcov), intent(in)              :: self
     class(comm_map),     intent(inout)           :: res
@@ -427,21 +425,25 @@ contains
     elsewhere
        res%map = infinity
     end where
-  end subroutine returnRMS
+  end subroutine returnRMS_QUcov
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group)
+  function returnRMS_QUcov_pix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_QUcov),   intent(in)            :: self
     integer(i4b),          intent(in)            :: pix, pol
-    real(dp)                                     :: returnRMSpix
+    real(dp)                                     :: returnRMS_QUcov_pix
     integer(i4b),        intent(in),   optional  :: samp_group
+    logical(lgt),        intent(in),   optional  :: ret_invN
 
     if (self%siN_diag%map(pix,pol) > 0.d0) then
-       returnRMSpix = 1.d0/self%siN_diag%map(pix,pol)
+       returnRMS_QUcov_pix = 1.d0/self%siN_diag%map(pix,pol)
     else
-       returnRMSpix = infinity
+       returnRMS_QUcov_pix = infinity
     end if
-  end function returnRMSpix
+    if (present(ret_invN)) then
+       if (ret_invN) returnRMS_QUcov_pix = self%siN_diag%map(pix,pol)**2
+    end if
+  end function returnRMS_QUcov_pix
 
 end module comm_N_QUcov_mod

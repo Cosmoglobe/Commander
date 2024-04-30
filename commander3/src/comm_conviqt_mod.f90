@@ -19,14 +19,9 @@
 !
 !================================================================================
 module comm_conviqt_mod
-  use sharp
-  use healpix_types
-  use pix_tools
   use iso_c_binding, only : c_ptr, c_double, c_int
   use comm_map_mod
-  use comm_utils
   use comm_shared_arr_mod
-  use comm_param_mod
   implicit none
 
   private
@@ -95,15 +90,18 @@ contains
     constructor%psisteps = 2*constructor%bmax
     constructor%psires   = 2*pi/constructor%psisteps
 
+
     allocate(constructor%lnorm(0:lmax))
     do l = 0, lmax
        constructor%lnorm(l) = 0.5d0*sqrt(4.d0*pi/(2.d0*l+1.d0))
     end do
 
+
     constructor%info => comm_mapinfo(map%info%comm, nside, lmax, nmaps, nmaps==3)
  
     !Set up shared beam
     nalm = count(constructor%info%lm(2,:) >= 0)  
+
 
     allocate(ind(nalm), alm(nmaps,nalm))
     alm = 0
@@ -131,6 +129,7 @@ contains
     ! Precompute convolution cube
     call init_shared_2d_sp(myid_shared, comm_shared, myid_inter, comm_inter, &
          & [constructor%npix,constructor%psisteps], constructor%c)
+
 
     call constructor%precompute_sky(map)
 

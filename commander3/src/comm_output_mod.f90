@@ -19,10 +19,7 @@
 !
 !================================================================================
 module comm_output_mod
-  use comm_param_mod
-  use comm_comp_mod
   use comm_chisq_mod
-  use comm_hdf_mod
   implicit none
 
 contains
@@ -55,7 +52,6 @@ contains
 
           ! testing hdf parameter output
           call write_params_to_hdf(cpar, file)
-
           call close_hdf_file(file)
           iter = -1
        else if (trim(cpar%chain_status) == 'append') then
@@ -76,13 +72,11 @@ contains
           call mpi_finalize(ierr)
           stop
        end if
-
+       
        !delete fg_ind_mean_cXXXX.dat if it exists
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
        inquire(file=fg_file, exist=exist)
        if (exist) call rm(trim(fg_file))
-
-
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
 
@@ -95,7 +89,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, j, hdferr, ierr, unit, p_min, p_max
+    integer(i4b)                 :: i, j, p, hdferr, ierr, unit, p_min, p_max
     real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, uscale
     logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
@@ -105,9 +99,9 @@ contains
     character(len=2048)          :: outline, fg_header
     class(comm_mapinfo), pointer :: info => null()
     class(comm_map),     pointer :: map => null(), chisq_map => null(), chisq_sub => null()
-    class(comm_map),     pointer :: rms_map => null()
+    class(comm_map),     pointer :: rms_map => null(), chisq_map_eff => null()
     class(comm_comp),    pointer :: c => null()
-    class(comm_N),       pointer :: N => null()
+    class(comm_N),      pointer :: N => null()
     type(hdf_file) :: file
     TYPE(h5o_info_t) :: object_info
 
@@ -179,7 +173,7 @@ contains
     do while (associated(c))
 !       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
        if (.not. c%output) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
@@ -187,9 +181,9 @@ contains
        class is (comm_diffuse_comp)
           if (output_hdf) then
              hdfpath = trim(adjustl(itext))//'/'//trim(adjustl(c%label))
-             call c%Cl%writeFITS(cpar%mychain, iter, hdffile=file, hdfpath=hdfpath)
+             call c%Cl%write_Cl_to_FITS(cpar%mychain, iter, hdffile=file, hdfpath=hdfpath)
           else
-             call c%Cl%writeFITS(cpar%mychain, iter)
+             call c%Cl%write_Cl_to_FITS(cpar%mychain, iter)
           end if
 
           !get mean values (and component labels) for fg mean print
@@ -307,10 +301,8 @@ contains
 
        end select
        call update_status(status, "output_"//trim(c%label))
-       c => c%next()
+       c => c%nextComp()
     end do
-
-    
 
     if (cpar%resamp_CMB) then
        if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
@@ -327,6 +319,7 @@ contains
        if (cpar%output_chisq) then
           info      => comm_mapinfo(cpar%comm_chain, cpar%nside_chisq, 0, cpar%nmaps_chisq, cpar%pol_chisq)
           chisq_map => comm_map(info)
+          chisq_map_eff => comm_map(info)
        end if
        do i = 1, numband
           !call wall_time(t3)
@@ -350,8 +343,6 @@ contains
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
-
-             
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
              chisq_sub => comm_map(info)
              call map%udgrade(chisq_sub)
@@ -361,6 +352,17 @@ contains
              uscale =  data(i)%bp(0)%p%unit_scale
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
+                !N => data(i)%N
+                ! select type (N)
+                ! Defining chisq_eff = -2*log(L) such that
+                ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
+                ! log(det(Sigma)) -> 2*log(2*pi*sigma)
+                ! class is (comm_N_rms)
+                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                ! class is (comm_N_lcut)
+                !    chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + log(2*pi) + 2*log(N%rms0%map(:,j)/uscale)
+                ! end select
              end do
              call chisq_sub%dealloc(); deallocate(chisq_sub)
           end if
@@ -370,10 +372,13 @@ contains
        
        if (cpar%output_chisq) then
           call mpi_reduce(sum(chisq_map%map), chisq, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
+          call mpi_reduce(sum(chisq_map_eff%map), chisq_eff, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, cpar%comm_chain, ierr)
           call chisq_map%writeFITS(trim(cpar%outdir)//'/chisq_'// trim(postfix) //'.fits')
+          call chisq_map_eff%writeFITS(trim(cpar%outdir)//'/chisq_eff_'// trim(postfix) //'.fits')
           if (cpar%myid_chain == 0) write(*,fmt='(a,i4,a,e16.8)') &
                & ' |  Chain = ', cpar%mychain, ' -- chisq = ', chisq
           call chisq_map%dealloc();     deallocate(chisq_map)
+          call chisq_map_eff%dealloc(); deallocate(chisq_map_eff)
        end if
        call update_status(status, "output_chisq")
     end if
@@ -381,7 +386,7 @@ contains
     ! get chisq for fg_mean file 
     if (cpar%myid_chain == 0) then
        if (new_header) fg_header=trim(fg_header)//'          full_chisq           avg_chisq       chisq_highlat      avg_reduced_chisq'
-       write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(too be implemented)', '(too be implemented)'
+       write(temptxt,fmt='(e20.8,e20.8,a25,a25)') chisq, chisq/(12*cpar%nside_chisq**2), '(to be implemented)', '(to be implemented)'
        outline = trim(outline)//trim(temptxt)
        !need to find a nice way of only gathering high latitude chisq
 
@@ -423,11 +428,35 @@ contains
              class is (comm_N_lcut)
                 call data(i)%tod%dumpToHDF(file, iter, &
                      & data(i)%map0, N%rms0)
+             class is (comm_N_rms_qucov)
+                call data(i)%tod%dumpToHDF(file, iter, &
+                     & data(i)%map0, N%N_map)
+             class default
+               if (cpar%myid == 0) write(*,*) '| For some reason, your data was not written to hdf'
              end select
           end if
        end do
-    end if
 
+       ! Output zodi ipd and tod parameters to chain
+       if (cpar%include_tod_zodi ) then
+          call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_model_c'//ctext//'_k' // itext // '.dat', overwrite=.true.)
+          !if (cpar%myid_chain == 0) call write_map2(trim(cpar%outdir) // '/zodi_static_c'//ctext//'_k' // itext // '.fits', zodi_model%map_static)
+          call zodi_model%model_to_chain(cpar, iter)
+       end if
+         !do i = 1, numband
+         !   if (data(i)%tod_type == 'none') cycle
+         !   if (.not. data(i)%tod%subtract_zodi) cycle
+         !call output_tod_params_to_hd5(cpar, zodi_model, iter)
+         !end do
+
+       if (cpar%myid_chain == 0) then
+          do i = 1, numband
+             if (trim(data(i)%tod_type) == 'none') cycle
+             if (data(i)%tod%map_solar_allocated) call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_solar_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_solar)
+          end do
+       end if
+    end if
+    
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
 

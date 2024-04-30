@@ -40,6 +40,12 @@ if(COMPILE_CFITSIO)
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
+
+	# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP
+  #if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+	#	cmake_policy(SET CMP0135 NEW)
+	#endif()
+
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${CFITSIO_SOURCE_DIR}/CMakeLists.txt")
     #message(STATUS "No CFITSIO sources were found; thus, will download it from source:\n${cfitsio_url}")
@@ -69,7 +75,7 @@ if(COMPILE_CFITSIO)
 	# List of arguments to apply to CFitsIO build
 	list(APPEND _CFITSIO_ARGS_ 
 			# Build type
-			-DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 			# Specifying installations paths for binaries and libraries
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 			# Specifying compilers

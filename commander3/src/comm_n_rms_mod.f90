@@ -20,8 +20,6 @@
 !================================================================================
 module comm_N_rms_mod
   use comm_N_mod
-  use comm_param_mod
-  use comm_map_mod
   implicit none
 
   private
@@ -38,8 +36,8 @@ module comm_N_rms_mod
      procedure :: invN_lowres => matmulInvN_1map_lowres
      procedure :: N           => matmulN_1map
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
-     procedure :: rms         => returnRMS
-     procedure :: rms_pix     => returnRMSpix
+     procedure :: rms         => returnRMS_rms
+     procedure :: rms_pix     => returnRMS_rms_pix
      procedure :: update_N    => update_N_rms
   end type comm_N_rms
 
@@ -57,7 +55,7 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask)
+  function constructor(cpar, info, id, id_abs, id_smooth, mask, handle, regnoise, procmask, map)
     implicit none
     class(comm_N_rms),                  pointer       :: constructor
     type(comm_params),                  intent(in)    :: cpar
@@ -67,16 +65,16 @@ contains
     type(planck_rng),                   intent(inout) :: handle
     real(dp), dimension(0:,1:),         intent(out),         optional :: regnoise
     class(comm_map),                    pointer, intent(in), optional :: procmask
+    class(comm_map),                    pointer, intent(in), optional :: map
 
     integer(i4b)       :: i, ierr, tmp, nside_smooth
     real(dp)           :: sum_noise, npix
-    character(len=512) :: dir
     type(comm_mapinfo), pointer :: info_smooth => null()
 
+    call update_status(status, "comm_N_rms constructor")
     
     ! General parameters
     allocate(constructor)
-    dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
     constructor%type              = cpar%ds_noise_format(id_abs)
@@ -92,50 +90,47 @@ contains
        constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
        constructor%np           = info%np
        if (cpar%ds_regnoise(id_abs) /= 'none') then
-          constructor%rms_reg => comm_map(constructor%info, trim(dir)//'/'//trim(cpar%ds_regnoise(id_abs)))
+          constructor%rms_reg => comm_map(constructor%info, trim(cpar%ds_regnoise(id_abs)))
        end if
        if (present(procmask)) then
           call constructor%update_N(info, handle, mask, regnoise, procmask=procmask, &
-               & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+               & noisefile=trim(cpar%ds_noisefile(id_abs)))
        else
           call constructor%update_N(info, handle, mask, regnoise, &
-               & noisefile=trim(dir)//trim(cpar%ds_noisefile(id_abs)))
+               & noisefile=trim(cpar%ds_noisefile(id_abs)))
        end if
     else
-       tmp         =  int(getsize_fits(trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
-       info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
-            & constructor%nmaps, constructor%pol)
-       constructor%nside   = info_smooth%nside
-       constructor%np      = info_smooth%np
-       constructor%siN     => comm_map(info_smooth, trim(dir)//trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
-
-       where (constructor%siN%map > 0.d0) 
-          constructor%siN%map = 1.d0 / constructor%siN%map
-       elsewhere
-          constructor%siN%map = 0.d0
-       end where
-
-       ! Set siN to its mean; useful for debugging purposes
-       if (cpar%set_noise_to_mean) then
-          do i = 1, constructor%nmaps
-             sum_noise = sum(constructor%siN%map(:,i))
-             npix      = size(constructor%siN%map(:,i))
-             call mpi_allreduce(MPI_IN_PLACE, sum_noise,  1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             call mpi_allreduce(MPI_IN_PLACE, npix,       1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
-             constructor%siN%map(:,i) = sum_noise/npix
-          end do
+       if (present(map)) then
+          constructor%nside        = info%nside
+          constructor%nside_chisq_lowres = min(info%nside, cpar%almsamp_nside_chisq_lowres) ! Used to be n128
+          constructor%np           = info%np
+          call constructor%update_N(info, handle, mask, regnoise, map=map)
+       else
+          tmp         =  int(getsize_fits(trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)), nside=nside_smooth), i4b)
+          info_smooth => comm_mapinfo(info%comm, nside_smooth, cpar%lmax_smooth(id_smooth), &
+               & constructor%nmaps, constructor%pol)
+          constructor%nside   = info_smooth%nside
+          constructor%np      = info_smooth%np
+          constructor%siN     => comm_map(info_smooth, trim(cpar%ds_noise_rms_smooth(id_abs,id_smooth)))
+          
+          where (constructor%siN%map > 0.d0) 
+             constructor%siN%map = 1.d0 / constructor%siN%map
+          elsewhere
+             constructor%siN%map = 0.d0
+          end where
        end if
-
     end if
 
     constructor%pol_only = all(constructor%siN%map(:,1) == 0.d0)
     call mpi_allreduce(mpi_in_place, constructor%pol_only, 1, MPI_LOGICAL, MPI_LAND, info%comm, ierr)
 
+    call update_status(status, "cg sample group masks")
+
     ! Initialize CG sample group masks
     allocate(constructor%samp_group_mask(cpar%cg_num_user_samp_groups+cpar%cs_ncomp)) !had to add number og active components so that the array is long enough for the unique sample groups
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) == 'fullsky') cycle
-       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(dir)//trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
+       constructor%samp_group_mask(i)%p => comm_map(constructor%info, trim(cpar%cg_samp_group_mask(i)), udgrade=.true.)
        where (constructor%samp_group_mask(i)%p%map > 0.d0)
           constructor%samp_group_mask(i)%p%map = 1.d0
        elsewhere
@@ -144,7 +139,6 @@ contains
     end do
 
   end function constructor
-
 
   subroutine update_N_rms(self, info, handle, mask, regnoise, procmask, noisefile, map)
     implicit none
@@ -162,10 +156,15 @@ contains
     class(comm_map),     pointer :: invW_tau => null(), iN => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
 
+    call update_status(status, "update_N_rms")
+
     if (present(noisefile)) then
        self%rms0     => comm_map(info, noisefile)
-    else
+    else if (present(map)) then
+       self%rms0     => comm_map(info)
        self%rms0%map = map%map
+    else
+       call report_error('Error in update_N_rms - no noisefile or map declared')
     end if
     if (associated(self%siN)) then
        self%siN%map = self%rms0%map
@@ -210,6 +209,8 @@ contains
        end do
     end if
 
+    call update_status(status, "N_rms cg_precond")
+
     if (trim(self%cg_precond) == 'diagonal') then
        ! Set up diagonal covariance matrix
        if (.not. associated(self%invN_diag)) self%invN_diag => comm_map(info)
@@ -232,7 +233,6 @@ contains
        else
           self%alpha_nu(1) = 0.d0
        end if
-
        if (self%nmaps == 3) then
           sum_tau  = sum(invW_tau%map(:,2:3))
           sum_tau2 = sum(invW_tau%map(:,2:3)**2)
@@ -246,6 +246,8 @@ contains
           call invW_tau%dealloc(); deallocate(invW_tau)
        end if
     end if
+
+    call update_status(status, "N_rms lowres")
 
     ! Set up lowres map
     if (.not.associated(self%siN_lowres)) then
@@ -266,9 +268,23 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN%map)**2 * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    if (nmaps_inp .ge. nmaps_band) then
+        map%map(:,:nmaps_band) = (self%siN%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    else if (nmaps_band > nmaps_inp) then
+        ! Should be happening if we have an intensity-only map?
+        map%map(:,:nmaps_inp) = (self%siN%map(:,:nmaps_inp))**2 * map%map(:,:nmaps_inp)
+    end if
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulInvN_1map
 
@@ -278,9 +294,18 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = (self%siN_lowres%map)**2 * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    map%map(:,:nmaps_band) = (self%siN_lowres%map(:,:nmaps_band))**2 * map%map(:,:nmaps_band)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+          map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulInvN_1map_lowres
 
@@ -290,13 +315,19 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
+    integer(i4b)  :: nmaps_band, nmaps_inp
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
     where (self%siN%map > 0.d0)
        map%map = map%map / (self%siN%map)**2 
     elsewhere
        map%map = 0.d0
     end where
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+         map%map(:,:nmaps_band) = map%map(:,:nmaps_band) * self%samp_group_mask(samp_group)%p%map(:,:nmaps_band)
+         map%map(:,nmaps_band+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulN_1map
   
@@ -306,9 +337,19 @@ contains
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: map
     integer(i4b),      intent(in),   optional  :: samp_group
-    map%map = self%siN%map * map%map
+    integer(i4b)  :: nmaps_band, nmaps_inp, nmaps
+    nmaps_band = size(self%siN%map, dim=2)
+    nmaps_inp  = size(map%map, dim=2)
+    nmaps      = min(nmaps_inp,nmaps_band)
+    map%map(:,:nmaps) = self%siN%map * map%map(:,:nmaps)
+    if (nmaps_inp > nmaps_band) then
+      map%map(:,nmaps_band+1:nmaps_inp) = 0
+    end if
     if (present(samp_group)) then
-       if (associated(self%samp_group_mask(samp_group)%p)) map%map = map%map * self%samp_group_mask(samp_group)%p%map
+       if (associated(self%samp_group_mask(samp_group)%p)) then
+          map%map(:,:nmaps) = map%map(:,:nmaps) * self%samp_group_mask(samp_group)%p%map(:,:nmaps)
+          map%map(:,nmaps+1:nmaps_inp) = 0.d0
+       end if
     end if
   end subroutine matmulSqrtInvN_1map
 
@@ -331,7 +372,7 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res, samp_group)
+  subroutine returnRMS_rms(self, res, samp_group)
     implicit none
     class(comm_N_rms), intent(in)              :: self
     class(comm_map),   intent(inout)           :: res
@@ -348,27 +389,31 @@ contains
           end where
        end if
     end if
-  end subroutine returnRMS
+  end subroutine returnRMS_rms
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group)
+  function returnRMS_rms_pix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_rms),   intent(in)              :: self
     integer(i4b),        intent(in)              :: pix, pol
-    real(dp)                                     :: returnRMSpix
+    real(dp)                                     :: returnRMS_rms_pix
     integer(i4b),        intent(in),   optional  :: samp_group
+    logical(lgt),        intent(in),   optional  :: ret_invN
     if (self%siN%map(pix,pol) > 0.d0) then
-       returnRMSpix = 1.d0/self%siN%map(pix,pol)
+       returnRMS_rms_pix = 1.d0/self%siN%map(pix,pol)
     else
-       returnRMSpix = infinity
+       returnRMS_rms_pix = infinity
     end if
     if (present(samp_group)) then
        if (associated(self%samp_group_mask(samp_group)%p)) then
           if (self%samp_group_mask(samp_group)%p%map(pix,pol) == 0.d0) then
-             returnRMSpix = infinity
+             returnRMS_rms_pix = infinity
           end if
        end if
     end if
-  end function returnRMSpix
+    if (present(ret_invN)) then
+       if (ret_invN) returnRMS_rms_pix = self%siN%map(pix,pol)**2
+    end if
+  end function returnRMS_rms_pix
 
 end module comm_N_rms_mod
