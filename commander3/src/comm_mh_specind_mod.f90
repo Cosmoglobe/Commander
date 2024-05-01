@@ -236,7 +236,7 @@ contains
             i = i + 1
             if (cpar%myid == 0) then
               if (cpar%myid == 0) write(*,*) '|    ', trim(c%label)
-              scales(i) = 1 + rand_gauss(handle)*c%scale_sigma(i)
+              scales(i) = 1 + rand_gauss(handle)*c%scale_sigma(l)
               write(*,*) '|   Scaling by ', scales(i)
             end if
             call mpi_bcast(scales(i), 1, MPI_DOUBLE_PRECISION, 0, data(1)%info%comm, ierr)
