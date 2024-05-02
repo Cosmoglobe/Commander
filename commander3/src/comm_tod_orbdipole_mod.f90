@@ -19,18 +19,13 @@
 !
 !================================================================================
 module comm_tod_orbdipole_mod
-  use comm_utils
-  use comm_defs
   use comm_map_mod
-  use spline_1D_mod
   implicit none
 
-  private 
-  public comm_orbdipole, orbdipole_pointer
-
   type :: comm_orbdipole
-    integer(i4b) :: ndet, subsample
-    integer(i4b) :: comm, myid
+    integer(i4b) :: ndet!, subsample
+    integer(i4b) :: comm
+    logical(lgt) :: beam_4pi
     real(dp),       dimension(:,:), allocatable :: orb_dp_s !precomputed s integrals for orbital dipole sidelobe term
     class(map_ptr), dimension(:),   allocatable :: beam
     type(spline_type) :: s
@@ -50,24 +45,31 @@ module comm_tod_orbdipole_mod
 
 contains
 
-  function constructor(beam)
+  function constructor(beam, comm)
     implicit none
-    class(map_ptr), dimension(:), target :: beam
+    class(map_ptr),      dimension(:), target, optional :: beam
+    integer(i4b),                              optional :: comm
     class(comm_orbdipole), pointer :: constructor
     integer(i4b) :: i
 
     allocate(constructor)
-    constructor%ndet      = size(beam)
-    constructor%subsample = 20
-    constructor%comm      = beam(1)%p%info%comm
-    constructor%myid      = beam(1)%p%info%myid
+    !constructor%subsample = 20
+    if (present(beam)) then
+       constructor%ndet      = size(beam)
+       constructor%beam_4pi  = .false.
+       constructor%comm      = beam(1)%p%info%comm
 
-    allocate(constructor%beam(constructor%ndet))
-    do i=1, constructor%ndet
-      constructor%beam(i)%p => beam(i)%p
-    end do
-
-    call constructor%precompute_orb_dp_s()
+       allocate(constructor%beam(constructor%ndet))
+       do i=1, constructor%ndet
+          constructor%beam(i)%p => beam(i)%p
+       end do
+       
+       call constructor%precompute_orb_dp_s()
+    else
+       constructor%ndet      = 1
+       constructor%beam_4pi  = .false.
+       constructor%comm      = comm
+    end if
 
   end function constructor
 
@@ -156,7 +158,33 @@ contains
   end subroutine precompute_orb_dp_s
 
   subroutine compute_CMB_dipole(self, det, v_ref, nu, &
-       & relativistic, beam_4pi, P, s_dip, factor)
+       & relativistic, beam_4pi, P, s_dip, factor, v_ref_next)
+    ! Evaluates the CMB dipole as a function of time
+    !
+    !
+    !   Arguments:
+    !   ---------
+    !   self: comm_orbdipole object
+    !
+    !   det: int
+    !        detector index
+    !   v_ref: double, array of length 3
+    !        velocity of observer in km/s, Galactic coordinates
+    !   relativistic: logical
+    !        if True, computes relativistic correction
+    !   beam_4pi: logical
+    !        if True, uses the full main beam map, else uses pencil beam.
+    !   P: double, array
+    !        Pointing array
+    !        if beam_4pi, array of phi/theta/psi values for TOD
+    !        else, array of unit vectors for TOD pointing
+    !   factor: double (optional)
+    !        multiplicative factor if ad-hoc unit correction is needed.
+    !
+    !   Returns:
+    !   --------
+    !   s_dip: real (sp)
+    !        Array of dipole template timestreams for given detector
     implicit none
     class(comm_orbdipole),                 intent(inout)  :: self
     integer(i4b),                          intent(in)  :: det
@@ -166,46 +194,55 @@ contains
     real(dp),            dimension(1:,1:), intent(in)  :: P
     real(sp),            dimension(:),     intent(out) :: s_dip
     real(dp),                              intent(in), optional :: factor
+    real(dp),                              intent(in), optional :: v_ref_next(3)
 
-    real(dp)     :: b, x, q, b_dot, f
-    integer(i4b) :: i, j, k, s_len, ntod
+    real(dp)     :: b, x, q, b_dot, f, vp_ref(3), xx, v(3)
+    integer(i4b) :: i, j, k, s_len, ntod, subsample
     real(dp), dimension(:), allocatable :: x_vec, y_vec
 
-    f = 1.d0; if (present(factor)) f = factor
-    b = sqrt(sum(v_ref**2))/c   ! beta for the given scan
-    x = h * nu/(k_B * T_CMB)
-    q = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
-    ntod = size(s_dip)
+    subsample = 20
+
+    f      = 1.d0; if (present(factor)) f = factor
+    ntod   = size(s_dip)
+    if ((ntod - 1) == 0) stop '!!!!!!!ntod = 1, orb dipole bug!!!!!!!'
+    x      = h * nu/(k_B * T_CMB)
+    q      = (x/2.d0)*(exp(x)+1)/(exp(x) -1)
+    vp_ref = v_ref; if (present(v_ref_next)) vp_ref = v_ref_next ! Velocity for next PID; for linear interpolation
 
     if (.not. beam_4pi) then
-       do i = 1, size(s_dip,1) !length of the tod
-          b_dot = dot_product(v_ref, P(:,i))/c
+       do i = 1, ntod !length of the tod
+          xx       = real(i-1,dp)/real(ntod-1,dp)
+          v        = (1.d0-xx) * v_ref + xx*vp_ref
+          b_dot    = dot_product(v, P(:,i))/c
+          s_dip(i) = b_dot
           if (relativistic) then
-             s_dip(i) = f * T_CMB * (b_dot + q*(b_dot**2 - b**2/3.))
-          else
-             s_dip(i) = f * T_CMB *  b_dot
+             b         = sqrt(sum(v**2))/c
+             s_dip(i)  = s_dip(i) + q*(b_dot**2  - b**2/3. )
           end if
+          s_dip(i)  = f * T_CMB * s_dip(i)
        end do
     else 
-       s_len = ntod/self%subsample
+       s_len = ntod/subsample
        allocate(x_vec(s_len), y_vec(s_len))
        do k = 1, s_len !number of subsampled samples
-          j        = self%subsample * (k-1) + 1
+          xx       = real(k-1,dp)/real(s_len-1,dp)
+          v        = (1.d0-xx)*v_ref + xx*vp_ref
+          j        = subsample * (k-1) + 1
           X_vec(k) = j
-          y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v_ref) * f
+          y_vec(k) = self%compute_4pi_product(det, q, P(:,j), v) * f
        end do
        
        !spline the subsampled dipole to the full resolution
        call spline_simple(self%s, x_vec, y_vec, regular=.true.)
 
-       do i = 1, s_len*self%subsample
+       do i = 1, s_len*subsample
          s_dip(i) = splint_simple(self%s, real(i,dp))
        end do
 
        !handle the last irregular length bit of each chunk as a special case 
-       !so that we can use regular=true in the spline code for speed
-       do j=s_len*self%subsample+1, ntod
-         s_dip(j) = self%compute_4pi_product(det, q, P(:,j), v_ref) 
+       !so that we can use regular=true in the spline code for speed; use end velocity for this bin
+       do j=s_len*subsample+1, ntod
+         s_dip(j) = self%compute_4pi_product(det, q, P(:,j), vp_ref) 
        end do
 
        deallocate(x_vec, y_vec)
@@ -230,14 +267,14 @@ contains
 
     ! Equation C.5 in NPIPE paper
     prod = vnorm(1)*self%orb_dp_s(det,1)+ &
-          &vnorm(2)*self%orb_dp_s(det,2)+ &
-          &vnorm(3)*self%orb_dp_s(det,3)+ &
-          & q*(vnorm(1)*vnorm(1)*self%orb_dp_s(det,4) + &
-          &    vnorm(1)*vnorm(2)*self%orb_dp_s(det,5) + &
-          &    vnorm(1)*vnorm(3)*self%orb_dp_s(det,6) + &
-          &    vnorm(2)*vnorm(2)*self%orb_dp_s(det,7) + &
-          &    vnorm(2)*vnorm(3)*self%orb_dp_s(det,8) + &
-          &    vnorm(3)*vnorm(3)*self%orb_dp_s(det,9))
+         & vnorm(2)*self%orb_dp_s(det,2)+ &
+         & vnorm(3)*self%orb_dp_s(det,3)+ &
+         &  q*(vnorm(1)*vnorm(1)*self%orb_dp_s(det,4) + &
+         &     vnorm(1)*vnorm(2)*self%orb_dp_s(det,5) + &
+         &     vnorm(1)*vnorm(3)*self%orb_dp_s(det,6) + &
+         &     vnorm(2)*vnorm(2)*self%orb_dp_s(det,7) + &
+         &     vnorm(2)*vnorm(3)*self%orb_dp_s(det,8) + &
+         &     vnorm(3)*vnorm(3)*self%orb_dp_s(det,9))
 
     prod = T_CMB*prod/self%orb_dp_s(det,10)
 

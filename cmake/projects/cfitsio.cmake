@@ -40,6 +40,12 @@ if(COMPILE_CFITSIO)
 	#------------------------------------------------------------------------------
 	# Getting CFITSIO from source
 	#------------------------------------------------------------------------------
+
+	# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP
+  #if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+	#	cmake_policy(SET CMP0135 NEW)
+	#endif()
+
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${CFITSIO_SOURCE_DIR}/CMakeLists.txt")
 		message(STATUS "No CFITSIO sources were found; thus, will download it from source:\n${cfitsio_url}")

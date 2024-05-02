@@ -50,6 +50,7 @@ BAND_TOD_START_SCANID&&&       = 28 #
 BAND_TOD_END_SCANID&&&         = 3557  # <= BAND_TOD_TOT_NUMSCAN
 BAND_TOD_TOT_NUMSCAN&&&        = 189 # total number of files in patch_gc 
 BAND_TOD_FLAG&&&               = 2047
-BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
+BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = 01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19 
 BAND_TOD_INIT_FROM_HDF&&&      = default
+N_GIBBS_PER_TOD&&&             = 1

@@ -1,5 +1,6 @@
 # WMAP 61 GHz P
 BAND_LABEL&&&                  = 061-WMAP_V_P
+BAND_INSTRUMENT_LABEL&&&       = 061-WMAP_V_P
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 16

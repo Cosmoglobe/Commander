@@ -1,5 +1,6 @@
 # WMAP 033 Ka
 BAND_LABEL&&&                  = 030-WMAP_Ka
+BAND_INSTRUMENT_LABEL&&&       = 030-WMAP_Ka
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 512

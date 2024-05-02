@@ -19,10 +19,7 @@
 !
 !================================================================================
 module comm_Cl_mod
-  use comm_param_mod
   use comm_map_mod
-  use math_tools
-  use comm_hdf_mod
   use comm_bp_utils
   use InvSamp_mod
   implicit none
@@ -88,7 +85,7 @@ module comm_Cl_mod
      procedure :: binCls
      procedure :: binCls2
      procedure :: binCl2
-     procedure :: writeFITS
+     procedure :: write_Cl_to_FITS
      procedure :: initHDF
      procedure :: updatePowlaw
      procedure :: updatePowlawGauss
@@ -117,7 +114,7 @@ contains
     integer(i4b),                       intent(in) :: id, id_abs
     class(comm_Cl),                     pointer    :: constructor
 
-    integer(i4b)       :: l, nmaps
+    integer(i4b)       :: l, nmaps, ierr
     character(len=512) :: datadir, binfile
     logical(lgt)       :: pol
 
@@ -154,9 +151,13 @@ contains
        case ('K_cmb')
           constructor%RJ2unit(l) = comp_a2t(constructor%nu_ref(l)) * 1d-6
        case ('MJy/sr') 
-          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1e14
-       case ('K km/s') 
+          constructor%RJ2unit(l) = comp_bnu_prime_RJ(constructor%nu_ref(l)) * 1d14
+       case ('Kkm/s') 
           constructor%RJ2unit(l) = 1.d0
+          !constructor%RJ2unit(l) = 1.d0 / (constructor%nu_ref(l)/c * 1d9)
+          !write(*,*) 'Kkm/s not yet supported in md_mod'
+          !call mpi_finalize(ierr)
+          !stop
        case ('y_SZ') 
           constructor%RJ2unit(l) = 2.d0*constructor%nu_ref(l)**2*k_b/c**2 / &
                & (comp_bnu_prime(constructor%nu_ref(l)) * comp_sz_thermo(constructor%nu_ref(l)))
@@ -175,7 +176,7 @@ contains
     if (trim(constructor%type) == 'binned') then
        !call constructor%read_binfile(trim(datadir) // '/' // trim(cpar%cs_binfile(id_abs)))
        call constructor%read_binfile2(datadir, cpar%cs_binfile(id_abs))
-       call read_Cl_file(trim(datadir) // '/' // trim(cpar%cs_clfile(id_abs)), &
+       call read_Cl_file(trim(cpar%cs_clfile(id_abs)), &
             & constructor%Dl, 0, constructor%lmax, 'TT_TE_EE_BB')
        call constructor%binCls2
        if (cpar%only_pol) then
@@ -492,7 +493,7 @@ contains
 
     unit    = getlun()
     nspline = 100
-    open(unit,file=trim(datadir)//'/'//trim(binfile))
+    open(unit,file=trim(binfile))
 
     ! Check for parameter lookup table
     read(unit,'(a)') line
@@ -1111,7 +1112,6 @@ contains
          ok = .false.
          return
       end if
-
 !      write(*,*) 'lnL = ', lnL 
 
       ! Compute probabilities for each model spectrum
@@ -1121,7 +1121,6 @@ contains
          lnL = 0.d0
       end where
       lnL = lnL / sum(lnL)
-
       !write(*,*) 'P = ', lnL 
 
       ! Draw random model given respective probability
@@ -1153,9 +1152,11 @@ contains
     
       integer(i4b) :: i, j, k, l, status
       real(dp)     :: Dl_prop, Dl_in(3)
-      real(dp)     :: prior(2)
+      real(dp)     :: prior(2), eps
       
       !write(*,*) bin%lmin, bin%lmax, bin%spec
+
+      eps = 1.d-9
 
       if (.not. ok) return
       if (bin%stat == 'S') then
@@ -1167,20 +1168,28 @@ contains
             do l = bin%lmin, bin%lmax
                select case (bin%spec)
                case (1)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+                  if (self%Dl(l,4) > 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,4))
+                  else
+                     prior(1) = max(prior(1), eps)
+                  end if
                case (2)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,4))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,4))-eps)
                case (3)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,1)*self%Dl(l,6))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,1)*self%Dl(l,6))-eps)
                case (4)
-                  prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  if (self%Dl(l,1) > 0) then
+                     prior(1) = max(prior(1), self%Dl(l,2)**2/self%Dl(l,1))
+                  else
+                     prior(1) = max(prior(1), eps)
+                  end if
                case (5)
-                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6)))
-                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6)))
+                  prior(1) = max(prior(1), -sqrt(self%Dl(l,4)*self%Dl(l,6))+eps)
+                  prior(2) = min(prior(2),  sqrt(self%Dl(l,4)*self%Dl(l,6))-eps)
                case (6)
-                  prior(1) = max(prior(1), 0.d0)
+                  prior(1) = max(prior(1), eps)
                end select
             end do
          end if
@@ -1191,7 +1200,6 @@ contains
          ! Draw sample
          lmin=bin%lmin; lmax=bin%lmax; spec=bin%spec; p1=bin%p1; p2=bin%p2
          Dl_prop = sample_InvSamp(handle, Dl_in, lnL_invWishart, prior, status)
-
          ! Update
          !stop
          if (status == 0) then
@@ -1264,7 +1272,7 @@ contains
     
   end subroutine sample_Cls_powlaw_gauss
 
-  subroutine writeFITS(self, chain, iter, hdffile, hdfpath)
+  subroutine write_Cl_to_FITS(self, chain, iter, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(inout) :: self
     integer(i4b),     intent(in)    :: chain, iter
@@ -1299,8 +1307,8 @@ contains
        call write_powlaw_to_FITS(self, 'c'//ctext, hdffile=hdffile, hdfpath=hdfpath)
     end select
 
-  end subroutine writeFITS
-
+  end subroutine write_Cl_to_FITS
+  
   subroutine write_Dl_to_FITS(self, postfix, hdffile, hdfpath)
     implicit none
     class(comm_Cl),   intent(in) :: self

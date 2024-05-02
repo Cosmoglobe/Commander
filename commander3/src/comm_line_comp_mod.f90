@@ -19,12 +19,7 @@
 !
 !================================================================================
 module comm_line_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_F_line_mod
-  use comm_data_mod
-  use comm_bp_utils
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -39,12 +34,12 @@ module comm_line_comp_mod
      integer(i4b), allocatable, dimension(:) :: ind2band
      real(dp),     allocatable, dimension(:) :: line2RJ
    contains
-     procedure :: S    => evalSED
+     procedure :: S    => evalSED_line
      procedure :: sampleSpecInd => sampleLineRatios
   end type comm_line_comp
 
   interface comm_line_comp
-     procedure constructor
+     procedure constructor_line
   end interface comm_line_comp
 
 contains
@@ -52,11 +47,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor_line(cpar, id, id_abs) result(c)
     implicit none
     type(comm_params),   intent(in) :: cpar
     integer(i4b),        intent(in) :: id, id_abs
-    class(comm_line_comp), pointer   :: constructor
+    class(comm_line_comp), pointer   :: c
 
     integer(i4b) :: i, j, k, l, m, nline, b, n, ierr
     real(dp)     :: f
@@ -67,12 +62,12 @@ contains
     type(comm_mapinfo), pointer :: info
     
     ! General parameters
-    allocate(constructor)
-    constructor%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
-    call constructor%initDiffuse(cpar, id, id_abs)
+    allocate(c)
+    c%npar = 0 !temporary value so that lmax_ind is correcty set (to 0) in initDiffuse
+    call c%initDiffuse(cpar, id, id_abs)
 
     ! Read line template file
-    call read_line_template(trim(cpar%datadir)//'/'//trim(cpar%cs_SED_template(1,id_abs)), &
+    call read_line_template(trim(cpar%cs_SED_template(1,id_abs)), &
          & nline, label, mu, sigma, line2RJ, poltype)
 
     ! Check how many lines are included in current run
@@ -84,76 +79,85 @@ contains
        end do
        if (trim(data(i)%label) == trim(cpar%cs_band_ref(id_abs))) ref_exist = .true.
     end do
-    if (.not. ref_exist) call report_error("Line component reference band does not exist")
+    if (.not. ref_exist) call report_error("Line component reference band does not exist, need "//trim(cpar%cs_band_ref(id_abs)))
 
-    allocate(constructor%ind2band(n))
-    constructor%npar = n
+    allocate(c%ind2band(n))
+    c%npar = n
 
-    allocate(constructor%lmax_ind_pol(3,constructor%npar))
-    constructor%lmax_ind_pol = 0 !always fullsky (lmax=0) for line component
-    if (allocated(constructor%lmax_ind_mix)) deallocate(constructor%lmax_ind_mix)
-    allocate(constructor%lmax_ind_mix(3,constructor%npar))
-    constructor%lmax_ind_mix = 0 !always fullsky (lmax=0) for line component
-    allocate(constructor%pol_pixreg_type(3,constructor%npar))
-    constructor%pol_pixreg_type = 0
+    allocate(c%lmax_ind_pol(3,c%npar))
+    c%lmax_ind_pol = 0 !always fullsky (lmax=0) for line component
+    if (allocated(c%lmax_ind_mix)) deallocate(c%lmax_ind_mix)
+    allocate(c%lmax_ind_mix(3,c%npar))
+    c%lmax_ind_mix = 0 !always fullsky (lmax=0) for line component
+    allocate(c%pol_pixreg_type(3,c%npar))
+    c%pol_pixreg_type = 0
 
-    allocate(constructor%theta_def(n), constructor%p_gauss(2,n), constructor%p_uni(2,n))
-    allocate(constructor%poltype(n), constructor%indlabel(n), constructor%line2RJ(n))
+    allocate(c%theta_def(n), c%p_gauss(2,n), c%p_uni(2,n))
+    allocate(c%poltype(n), c%indlabel(n), c%line2RJ(n))
     n         = 0
     do i = 1, numband
        do j = 1, nline
           if (trim(label(j)) == trim(data(i)%label)) then
              n = n+1
-             constructor%ind2band(n)  = i
-             constructor%theta_def(n) = mu(j)
-             constructor%p_gauss(1,n) = mu(j)
-             constructor%p_gauss(2,n) = sigma(j)
-             constructor%p_uni(1,n)   = -100.d0   !mu(j)-5*sigma(j)
-             constructor%p_uni(2,n)   =  100.d0   !mu(j)+5*sigma(j)
-             constructor%poltype(n)   = poltype(j)
-             constructor%indlabel(n)  = label(j)
-             constructor%line2RJ(n)   = line2RJ(j)
+             c%ind2band(n)  = i
+             c%theta_def(n) = mu(j)
+             c%p_gauss(1,n) = mu(j)
+             c%p_gauss(2,n) = sigma(j)
+             c%p_uni(1,n)   = -100.d30   !mu(j)-5*sigma(j)
+             c%p_uni(2,n)   =  100.d30   !mu(j)+5*sigma(j)
+             c%poltype(n)   = poltype(j)
+             c%indlabel(n)  = label(j)
+             c%line2RJ(n)   = line2RJ(j)
              exit
           end if
        end do
        if (trim(data(i)%label) == trim(cpar%cs_band_ref(id_abs))) then
-          constructor%ref_band    = i
-          constructor%line2RJ_ref = constructor%line2RJ(n)
+          c%ref_band    = i
+          c%line2RJ_ref = c%line2RJ(n)
        end if
     end do
 
-    ! Initialize spectral index maps
-    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & constructor%nmaps, constructor%pol)
+    ! Update reference band unit conversion
+    do i = 1, c%x%info%nmaps
+       c%RJ2unit_(i) = 1.d0 / c%line2RJ_ref
+       c%x%map(:,i)  = c%x%map(:,i) / c%RJ2unit_(i)
+       c%x%alm(:,i)  = c%x%alm(:,i) / c%RJ2unit_(i)
+    end do
 
-    allocate(constructor%theta(n))
+    ! Initialize spectral index maps
+    info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
+         & c%nmaps, c%pol)
+
+    allocate(c%theta(n))
     do i = 1, n
-       constructor%theta(i)%p     => comm_map(info)
-       constructor%theta(i)%p%map = constructor%theta_def(i)
-       if (constructor%lmax_ind >= 0) call constructor%theta(i)%p%YtW_scalar
+       c%theta(i)%p     => comm_map(info)
+       c%theta(i)%p%map = c%theta_def(i)
+       if (c%lmax_ind >= 0) call c%theta(i)%p%YtW_scalar
     end do
 
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    allocate(c%F_int(3,numband,0:c%ndet))
     j = 1
     do l = 1, 3
        do i = 1, numband
           if (l > 1) then
-             do m = 0,constructor%ndet
-                constructor%F_int(l,i,m)%p => constructor%F_int(l-1,i,m)%p
+             do m = 0,c%ndet
+                c%F_int(l,i,m)%p => c%F_int(l-1,i,m)%p
              end do
              cycle
           end if
-          if (any(constructor%ind2band == i)) then
+          if (any(c%ind2band == i)) then
              do k = 0, data(i)%ndet
-                constructor%F_int(l,i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .true., &
-                     & constructor%line2RJ(j) / constructor%line2RJ_ref * data(i)%RJ2data(k), j)
+!                write(*,*) 'line disabled'
+                c%F_int(l,i,k)%p => comm_F_line(c, data(i)%bp(k)%p, .true., &
+                     & c%line2RJ(j) / c%line2RJ_ref * data(i)%RJ2data(k), j)
              end do
              j = j+1
           else
              do k = 0, data(i)%ndet
-                constructor%F_int(l,i,k)%p => comm_F_line(constructor, data(i)%bp(k)%p, .false., 0.d0, j)
+!                write(*,*) 'line disabled'
+                c%F_int(l,i,k)%p => comm_F_line(c, data(i)%bp(k)%p, .false., 0.d0, j)
              end do
           end if
        end do
@@ -161,39 +165,39 @@ contains
     
     ! Initialize mixing matrix
     if (trim(cpar%init_chain_prefix) == 'none' &
-         & .or. trim(constructor%init_from_HDF) == 'none') &
-         & call constructor%updateMixmat
+         & .or. trim(c%init_from_HDF) == 'none') &
+         & call c%updateMixmat
 
     deallocate(label, mu, sigma, line2RJ, poltype)
 
-  end function constructor
+  end function constructor_line
 
   ! Definition:
   !    SED  = delta_{band,
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_line(self, nu, band, pol, theta)
     class(comm_line_comp),    intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
-    real(dp)                                      :: evalSED
+    real(dp)                                      :: evalSED_line
 
     integer(i4b) :: i, ind
 
     if (band == self%ref_band) then
-       evalSED = 1.d0
+       evalSED_line = 1.d0
     else 
        do i = 1, self%npar
           if (band == self%ind2band(i)) exit
        end do
        if (i > self%npar) then
-          evalSED = 0.d0
+          evalSED_line = 0.d0
        else
-          evalSED = theta(i) * self%line2RJ(i) / self%line2RJ_ref
+          evalSED_line = theta(i) * self%line2RJ(i) / self%line2RJ_ref
        end if
     end if
 
-  end function evalSED
+  end function evalSED_line
 
   subroutine read_line_template(filename, nline, label, mu, sigma, line2RJ, poltype)
     implicit none
@@ -244,20 +248,12 @@ contains
 
     integer(i4b)    :: i, j, l, n, m, band, ierr
     real(dp)        :: A, b, mu, sigma, par, sigma_p, scale, w
-    class(comm_map), pointer :: invN_amp, amp, mask
+    class(comm_map), pointer :: invN_amp, amp
     character(len=2) :: id_text
     
     band = self%ind2band(id)
     !if (band == self%ref_band) return
 
-    ! Construct mask
-!!$    if (associated(self%indmask)) then
-!!$       if (data(band)%info%nside /= self%indmask%info%nside) then
-!!$          call report_error("Mask udgrade in line_comp not yet supported.")
-!!$       else
-!!$          mask => self%indmask
-!!$       end if
-!!$    end if
     
     ! Compute likelihood term
     w            = self%theta(id)%p%map(1,1)
@@ -274,9 +270,9 @@ contains
 !!$    call data(band)%N%invN_diag%writeFITS('co_invN'//id_text//'.fits')
 
     ! Reduce across processors
-    if (associated(mask)) then
-       A = sum(invN_amp%map * mask%map * amp%map)
-       b = sum(invN_amp%map * mask%map * data(band)%res%map)
+    if (associated(self%indmask(band)%p)) then
+       A = sum(invN_amp%map * self%indmask(band)%p%map * amp%map)
+       b = sum(invN_amp%map * self%indmask(band)%p%map * data(band)%res%map)
     else
        A = sum(invN_amp%map * amp%map)
        b = sum(invN_amp%map * data(band)%res%map)
@@ -290,8 +286,6 @@ contains
     ! Compute new line ratio; just root processor
     if (self%x%info%myid == 0) then
 
-!       write(*,*) 'A,b = ', A, b
-
        if (A > 0.d0) then
           mu    = b / A
           sigma = sqrt(1.d0 / A)
@@ -303,8 +297,6 @@ contains
           sigma = 0.d0
        end if
 
-!       write(*,*) '  mu, sigma = ', mu, sigma
-       
        ! Add prior
        if (self%p_gauss(2,id) > 0.d0) then
           sigma_p = self%p_gauss(2,id) !/ sqrt(real(npix_reg,dp))
@@ -312,8 +304,6 @@ contains
           sigma   = sqrt(sigma**2 * sigma_p**2 / (sigma**2 + sigma_p**2))
        end if
 
-!       write(*,*) '  mu_prior, sigma_prior = ', mu, sigma
-       
        ! Draw sample
        par = -1.d30
        if (trim(self%operation) == 'optimize') then

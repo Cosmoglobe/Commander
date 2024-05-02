@@ -19,22 +19,18 @@
 !
 !================================================================================
 module comm_comp_mod
-  use comm_param_mod
-  use comm_bp_utils
-  use comm_bp_mod
-  use comm_map_mod
   use comm_cr_utils
+  use comm_cr_precond_mod
   use comm_data_mod
-  use comm_hdf_mod
   implicit none
 
-  private
-  public  :: comm_comp, ncomp, compList, update_mixing_matrices!, dumpCompMaps
+!  private
+!  public  :: comm_comp, ncomp, compList, update_mixing_matrices, comp_ptr!, dumpCompMaps
   
   !**************************************************
-  !        Generic component class definition
+  !        Generic component class definition - top level class
   !**************************************************
-  type, abstract :: comm_comp
+  type, abstract :: comm_comp !commander components
      ! Linked list variables
      class(comm_comp), pointer :: nextLink => null()
      class(comm_comp), pointer :: prevLink => null()
@@ -44,7 +40,7 @@ module comm_comp_mod
      integer(i4b)       :: npar, ncr, id, nmaps, myid, comm, numprocs, cg_unique_sampgroup
      character(len=512) :: label, class, type, unit, operation, init_from_HDF
      logical(lgt)       :: output
-     real(dp)           :: nu_ref(3), RJ2unit_(3)
+     real(dp)           :: nu_ref(3), RJ2unit_(3), nu_min, nu_max
      character(len=512), allocatable, dimension(:)   :: indlabel
      integer(i4b),       allocatable, dimension(:)   :: poltype
      real(dp),           allocatable, dimension(:)   :: theta_def
@@ -57,10 +53,10 @@ module comm_comp_mod
 
    contains
      ! Linked list procedures
-     procedure :: next    ! get the link after this link
-     procedure :: prev    ! get the link before this link
-     procedure :: setNext ! set the link after this link
-     procedure :: add     ! add new link at the end
+     procedure :: nextComp    ! get the link after this link
+     procedure :: prevComp    ! get the link before this link
+     procedure :: setNextComp ! set the link after this link
+     procedure :: addComp     ! add new link at the end
 
      ! Data procedures
      procedure                          :: initComp
@@ -69,7 +65,7 @@ module comm_comp_mod
      procedure(projectBand),   deferred :: projectBand
      procedure                          :: dumpSED
      procedure(dumpFITS),      deferred :: dumpFITS
-     procedure(initHDF),       deferred :: initHDF
+     procedure(initHDFcomp),   deferred :: initHDFcomp
      procedure                          :: RJ2unit
      procedure(sampleSpecInd), deferred :: sampleSpecInd
      procedure                          :: CG_mask
@@ -161,13 +157,13 @@ module comm_comp_mod
      end subroutine dumpFITS
 
      ! Initialize from HDF chain file
-     subroutine initHDF(self, cpar, hdffile, hdfpath)
+     subroutine initHDFcomp(self, cpar, hdffile, hdfpath)
        import comm_comp, comm_params, hdf_file
        class(comm_comp),                        intent(inout)        :: self
        type(comm_params),                       intent(in)           :: cpar
        type(hdf_file),                          intent(in)           :: hdffile
        character(len=*),                        intent(in)           :: hdfpath
-     end subroutine initHDF
+     end subroutine initHDFcomp
 
      ! Sample spectral parameters
      subroutine sampleSpecInd(self, cpar, handle, id, iter)
@@ -199,12 +195,17 @@ module comm_comp_mod
        
   end interface
 
+
+  type comp_ptr
+     class(comm_comp), pointer :: p => null()
+  end type comp_ptr
+
   !**************************************************
   !             Auxiliary variables
   !**************************************************
 
-  integer(i4b)              :: n_dump = 1000
-  real(dp),    dimension(2) :: nu_dump = [0.1d9, 3000.d9] 
+  integer(i4b)              :: n_dump = 10000
+  real(dp),    dimension(2) :: nu_dump = [0.1d9, 300000.d9] 
 
   !**************************************************
   !             Internal module variables
@@ -255,9 +256,10 @@ contains
        case ('K_cmb')
           self%RJ2unit_(i) = comp_a2t(self%nu_ref(i)) * 1d-6
        case ('MJy/sr') 
-          self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1e14
-       case ('K km/s') 
-          self%RJ2unit_(i) = 1.d0 !-1.d30
+          self%RJ2unit_(i) = comp_bnu_prime_RJ(self%nu_ref(i)) * 1d14
+       case ('Kkm/s') 
+          ! Deferred to dedicated module
+          self%RJ2unit_(i) = 1.d0
        case ('y_SZ') 
           self%RJ2unit_(i) = 2.d0*self%nu_ref(i)**2*k_b/c**2 / &
                & (comp_bnu_prime(self%nu_ref(i)) * comp_sz_thermo(self%nu_ref(i)))
@@ -359,25 +361,25 @@ contains
 
   end subroutine CG_mask
   
-  function next(self)
+  function nextComp(self)
     class(comm_comp) :: self
-    class(comm_comp), pointer :: next
-    next => self%nextLink
-  end function next
+    class(comm_comp), pointer :: nextComp
+    nextComp => self%nextLink
+  end function nextComp
 
-  function prev(self)
+  function prevComp(self)
     class(comm_comp) :: self
-    class(comm_comp), pointer :: prev
-    prev => self%prevLink
-  end function prev
+    class(comm_comp), pointer :: prevComp
+    prevComp => self%prevLink
+  end function prevComp
   
-  subroutine setNext(self,next)
+  subroutine setNextComp(self,nextComp)
     class(comm_comp) :: self
-    class(comm_comp), pointer :: next
-    self%nextLink => next
-  end subroutine setNext
+    class(comm_comp), pointer :: nextComp
+    self%nextLink => nextComp
+  end subroutine setNextComp
 
-  subroutine add(self,link)
+  subroutine addComp(self,link)
     class(comm_comp), target  :: self
     class(comm_comp), pointer :: link
 
@@ -389,17 +391,16 @@ contains
     end do
     link%prevLink => c
     c%nextLink    => link
-  end subroutine add
+  end subroutine addComp
 
   subroutine update_mixing_matrices(band, update_F_int)
     implicit none
     integer(i4b), intent(in), optional :: band
     logical(lgt), intent(in), optional :: update_F_int
-
     integer(i4b) :: i, j, k
     logical(lgt) :: update_F
+
     class(comm_comp), pointer :: c => null()
-    
     update_F =.false.; if (present(update_F_int)) update_F = update_F_int 
 
     c => compList
@@ -413,7 +414,6 @@ contains
        end if
        c => c%nextLink
     end do
-
   end subroutine update_mixing_matrices
-  
+
 end module comm_comp_mod

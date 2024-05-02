@@ -31,21 +31,7 @@ module comm_tod_lfi_mod
   !   process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-  use comm_tod_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_conviqt_mod
-  use pix_tools
-  use healpix_types
-  use comm_huffman_mod
-  use comm_hdf_mod
-  use comm_fft_mod
-  use comm_shared_arr_mod
-  use spline_1D_mod
-  use comm_4D_map_mod
   use comm_tod_driver_mod
-  use comm_utils
-  use comm_tod_adc_mod
   implicit none
 
   private
@@ -82,7 +68,7 @@ module comm_tod_lfi_mod
   end type comm_lfi_tod
 
   interface comm_lfi_tod
-     procedure constructor
+     procedure constructor_lfi
   end interface comm_lfi_tod
 
   type double_pointer
@@ -94,7 +80,7 @@ interface
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor_lfi(handle, cpar, id, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -112,6 +98,8 @@ interface
     ! tod_type: string
     !           Instrument specific tod type
     !
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     ! Returns
     ! ----------
     ! constructor: pointer
@@ -120,11 +108,11 @@ interface
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
-    integer(i4b),              intent(in)    :: id_abs
+    integer(i4b),              intent(in)    :: id, id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
     class(comm_lfi_tod),       pointer       :: res
-  end function constructor
+  end function constructor_lfi
 
   !**************************************************
   !             Driver routine
@@ -320,7 +308,7 @@ interface
     character(len=*),                    intent(in)     :: path
   end subroutine dumpToHDF_lfi
 
-  module subroutine sample_1Hz_spikes(tod, handle, map_sky, procmask, procmask2)
+  module subroutine sample_1Hz_spikes(tod, handle, map_sky, m_gain, procmask, procmask2)
     !   Sample LFI specific 1Hz spikes shapes and amplitudes
     !
     !   Arguments:
@@ -335,6 +323,7 @@ interface
     class(comm_lfi_tod),                          intent(inout) :: tod
     type(planck_rng),                             intent(inout) :: handle
     real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: map_sky
+    real(sp),            dimension(0:,1:,1:,1:),  intent(in)    :: m_gain
     real(sp),            dimension(0:),           intent(in)    :: procmask, procmask2
   end subroutine sample_1Hz_spikes
 

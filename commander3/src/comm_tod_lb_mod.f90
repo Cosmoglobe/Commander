@@ -30,25 +30,12 @@ module comm_tod_LB_mod
   !   process_LB_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-
-  use comm_tod_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_conviqt_mod
-  use pix_tools
-  use healpix_types
-  use comm_huffman_mod
-  use comm_hdf_mod
-  use comm_fft_mod
-  use comm_shared_arr_mod
-  use spline_1D_mod
-  use comm_4D_map_mod
+   use comm_tod_mod
   use comm_tod_driver_mod
-  use comm_utils
   implicit none
 
-  private
-  public comm_LB_tod
+  !private
+  !public comm_LB_tod
 
   type, extends(comm_tod) :: comm_LB_tod
    contains
@@ -56,7 +43,7 @@ module comm_tod_LB_mod
   end type comm_LB_tod
 
   interface comm_LB_tod
-     procedure constructor
+     procedure constructor_lb
   end interface comm_LB_tod
 
 contains
@@ -64,7 +51,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(cpar, id_abs, info, tod_type)
+  function constructor_lb(cpar, id, id_abs, info, tod_type) result(c)
     ! 
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -88,93 +75,97 @@ contains
 
     implicit none
     type(comm_params),       intent(in) :: cpar          !comm_param structure, list of all the input parameters
-    integer(i4b),            intent(in) :: id_abs        !index of the current band within the parameters 
+    integer(i4b),            intent(in) :: id, id_abs        !index of the current band within the parameters 
     class(comm_mapinfo),     target     :: info
     character(len=128),      intent(in) :: tod_type      !
-    class(comm_LB_tod),      pointer    :: constructor
+    class(comm_LB_tod),      pointer    :: c
 
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
     logical(lgt) :: pol_beam
 
     ! Allocate object
-    allocate(constructor)
+    allocate(c)
 
     ! Set up noise PSD type and priors
-    constructor%freq            = cpar%ds_label(id_abs)
-    constructor%n_xi            = 3
-    constructor%noise_psd_model = 'oof'
-    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    c%freq            = cpar%ds_label(id_abs)
+    c%n_xi            = 3
+    c%noise_psd_model = 'oof'
+    allocate(c%xi_n_P_uni(c%n_xi,2))
+    allocate(c%xi_n_nu_fit(c%n_xi,2))
+    allocate(c%xi_n_P_rms(c%n_xi))
     
-    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
+    c%xi_n_P_rms      = [-1.0, 0.1, 0.2] ! [sigma0, fknee, alpha]; sigma0 is not used
     if (.true.) then
-       constructor%xi_n_nu_fit     = [0.,    0.200] ! More than max(2*fknee_default)
-       constructor%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
-       constructor%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
+       c%xi_n_nu_fit(2,:) = [0.,    0.200] ! More than max(2*fknee_default)
+       c%xi_n_nu_fit(3,:) = [0.,    0.200] ! More than max(2*fknee_default)
+       c%xi_n_P_uni(2,:) = [0.001, 0.45]  ! fknee
+       c%xi_n_P_uni(3,:) = [-2.5, -0.4]   ! alpha
     else
-       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(constructor%freq)
+       write(*,*) 'Invalid LiteBIRD frequency label = ', trim(c%freq)
        stop
     end if
 
     ! Initialize common parameters
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
     ! Initialize instrument-specific parameters
-    constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    constructor%nhorn           = 1
-    constructor%ndiode          = 1
-    constructor%compressed_tod  = .false.
-    constructor%correct_sl      = .false.
-    constructor%orb_4pi_beam    = .false.
-    constructor%symm_flags      = .true.
-    constructor%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
-    constructor%nmaps           = info%nmaps
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-
+    c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    c%nhorn           = 1
+    c%ndiode          = 1
+    c%compressed_tod  = .false.
+    c%correct_sl      = .false.
+    c%correct_orb     = .true.
+    c%orb_4pi_beam    = .false.
+    c%symm_flags      = .true.
+    c%chisq_threshold = 100000000000.d0 !20.d0 ! 9.d0
+    c%nmaps           = info%nmaps
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+       c%ndet         = count_detectors(cpar%ds_tod_dets(id_abs)) !, cpar%datadir)
+    else
+       c%ndet         = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+    end if
     nside_beam                  = 512
     nmaps_beam                  = 3
     pol_beam                    = .true.
-    constructor%nside_beam      = nside_beam
+    c%nside_beam      = nside_beam
 
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
 
+    if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
+        call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
+    else
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
+    end if
+        
     ! Define detector partners
-    do i = 1, constructor%ndet
+    do i = 1, c%ndet
        if (mod(i,2) == 1) then
-          constructor%partner(i) = i+1
+          c%partner(i) = i+1
        else
-          constructor%partner(i) = i-1
+          c%partner(i) = i-1
        end if
-       constructor%horn_id(i) = (i+1)/2
+       c%horn_id(i) = (i+1)/2
     end do
 
     ! Read the actual TOD
-    call constructor%read_tod(constructor%label)
+    call c%read_tod(c%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%datadir)//'/'//cpar%ds_tod_bp_init(id_abs))
+    call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
     ! Construct lookup tables
-    call constructor%precompute_lookups()
+    call c%precompute_lookups()
 
     ! Load the instrument file
-    call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
-    do i=1, constructor%ndet
-      call init_noise_model(constructor, i)
-    end do
 
     ! Allocate sidelobe convolution data structures
-    allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    allocate(c%slconv(c%ndet), c%orb_dp)
+    !c%orb_dp => comm_orbdipole(c%mbeam)
+    c%orb_dp => comm_orbdipole(comm=info%comm)
 
-    ! Initialize all baseline corrections to zero
-    do i = 1, constructor%nscan
-       constructor%scans(i)%d%baseline = 0.d0
-    end do
-
-  end function constructor
+  end function constructor_lb
 
   !**************************************************
   !             Driver routine
@@ -238,11 +229,12 @@ contains
     real(sp), allocatable, dimension(:)       :: procmask, procmask2
     real(sp), allocatable, dimension(:,:)     :: s_buf
     real(sp), allocatable, dimension(:,:,:)   :: d_calib
-    real(sp), allocatable, dimension(:,:,:,:) :: map_sky
+    real(sp), allocatable, dimension(:,:,:,:) :: map_sky, m_gain
     real(dp), allocatable, dimension(:,:)     :: chisq_S, m_buf
 
     call int2string(iter, ctext)
     call update_status(status, "tod_start"//ctext)
+    call timer%start(TOD_TOT, self%band) 
 
     ! Toggle optional operations
     sample_rel_bandpass   = .false. !size(delta,3) > 1      ! Sample relative bandpasses if more than one proposal sky
@@ -270,7 +262,9 @@ contains
 
     ! Distribute maps
     allocate(map_sky(nmaps,self%nobs,0:self%ndet,ndelta))
-    call distribute_sky_maps(self, map_in, 1.e0, map_sky) ! uK to K
+    allocate(m_gain(nmaps,self%nobs,0:self%ndet,1))
+    call distribute_sky_maps(self, map_in, 1.e-6, map_sky) ! uK to K
+    call distribute_sky_maps(self, map_gain, 1.e-6, m_gain) ! uK to K
 
     ! Distribute processing masks
     allocate(m_buf(0:npix-1,nmaps), procmask(0:npix-1), procmask2(0:npix-1))
@@ -290,7 +284,7 @@ contains
        end do
     end if
 
-!    write(*,*) 'qqq', self%myid
+!    (*,*) 'qqq', self%myid
 !    if (.true. .or. self%myid == 78) write(*,*) 'a', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
 !!$    call mpi_finalize(ierr)
 !!$    stop
@@ -304,11 +298,11 @@ contains
     ! Sample gain components in separate TOD loops; marginal with respect to n_corr
      if (sample_gain) then
        ! 'abscal': the global constant gain factor
-       call sample_calibration(self, 'abscal', handle, map_sky, procmask, procmask2)
+       call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
        ! 'relcal': the gain factor that is constant in time but varying between detectors
-       call sample_calibration(self, 'relcal', handle, map_sky, procmask, procmask2)
+       call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
        ! 'deltaG': the time-variable and detector-variable gain
-       call sample_calibration(self, 'deltaG', handle, map_sky, procmask, procmask2)
+       call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
     end if
 
     ! Prepare intermediate data structures
@@ -325,7 +319,7 @@ contains
     ! Perform loop over scans
     if (self%myid == 0) write(*,*) '   --> Sampling ncorr, xi_n, maps'
     do i = 1, self%nscan
-
+       !write(*,*) "Scan number", i
        ! Skip scan if no accepted data
        if (.not. any(self%scans(i)%d%accept)) cycle
        call wall_time(t1)
@@ -333,55 +327,45 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call sd%init_singlehorn(self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
+
 
        ! Sample correlated noise, or call Simulation Routine
        if (self%enable_tod_simulations) then
           call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
        else
-          call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          !call sample_n_corr(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr, sd%pix(:,:,1), dospike=.true.)
+          sd%n_corr = 0.
        end if
-
+      
        ! Compute noise spectrum parameters
-       call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
+       !call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)
 
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
 
        ! Select data
-       if (select_data) call remove_bad_data(self, i, sd%flag)
+       !if (select_data) call remove_bad_data(self, i, sd%flag)
 
        ! Compute chisquare for bandpass fit
        if (sample_abs_bandpass) call compute_chisq_abs_bp(self, i, sd, chisq_S)
-
+       
        ! Compute binned map
        allocate(d_calib(self%output_n_maps,sd%ntod, sd%ndet))
        call compute_calibrated_data(self, i, sd, d_calib)    
 
-       ! Output 4D map; note that psi is zero-base in 4D maps, and one-base in Commander
-!!$       if (self%output_4D_map > 0) then
-!!$          if (mod(iter-1,self%output_4D_map) == 0) then
-!!$             call output_4D_maps_hdf(trim(chaindir) // '/tod_4D_chain'//ctext//'_proc' // myid_text // '.h5', &
-!!$                  & samptext, self%scanid(i), self%nside, self%npsi, &
-!!$                  & self%label, self%horn_id, real(self%polang*180/pi,sp), &
-!!$                  & real(self%scans(i)%d%sigma0/self%scans(i)%d%gain,sp), &
-!!$                  & sd%pix(:,:,1), sd%psi(:,:,1)-1, d_calib(1,:,:), iand(sd%flag,self%flag0), &
-!!$                  & self%scans(i)%d(:)%accept)
-!!$          end if
-!!$       end if
-
        ! Bin TOD
        call bin_TOD(self, i, sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, d_calib, binmap)
-
+       
        ! Update scan list
        call wall_time(t2)
        self%scans(i)%proctime   = self%scans(i)%proctime   + t2-t1
@@ -400,15 +384,17 @@ contains
 
     if (self%myid == 0) write(*,*) '   --> Finalizing maps, bp'
 
+    call update_status(status, "finalizing maps, BP")
+
     ! Output latest scan list with new timing information
     if (output_scanlist) call self%output_scan_list(slist)
 
     ! Solve for maps
     call synchronize_binmap(binmap, self)
     if (sample_rel_bandpass) then
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0, chisq_S=chisq_S, mask=procmask2)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6, chisq_S=chisq_S, mask=procmask2)
     else
-       call finalize_binned_map(self, binmap, handle, rms_out, 1.d0)
+       call finalize_binned_map(self, binmap, rms_out, 1.d6)
     end if
     map_out%map = binmap%outmaps(1)%p%map
 
@@ -443,7 +429,7 @@ contains
     self%first_call = .false.
 
     call update_status(status, "tod_end"//ctext)
-
+    call timer%stop(TOD_TOT, self%band) 
   end subroutine process_LB_tod   
 
 

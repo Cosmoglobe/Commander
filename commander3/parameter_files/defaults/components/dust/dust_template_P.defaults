@@ -1,0 +1,14 @@
+# Dust template correction, polarization
+COMP_LABEL&&                    = tempdust_P
+COMP_TYPE&&                     = template
+COMP_CLASS&&                    = template
+COMP_POLARIZATION&&             = .true.
+COMP_CG_SCALE&&                 = 1.d0
+COMP_CG_SAMPLE_GROUP&&          = 0
+COMP_NU_MIN&&                 = 0.d0
+COMP_NU_MAX&&                 = 1d30
+COMP_PRIOR_GAUSS_MEAN&&         = 1.d0
+COMP_PRIOR_GAUSS_RMS&&          = 1.d0
+COMP_DEFAULT_AMPLITUDE&&        = 1.d0
+COMP_TEMPLATE_DEFINITION_FILE&& = CG_tempdust_P_v1.dat
+COMP_INIT_FROM_HDF&&            = none

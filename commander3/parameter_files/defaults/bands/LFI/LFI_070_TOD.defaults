@@ -1,5 +1,6 @@
 # 70 GHz parameters
 BAND_LABEL&&&                  = 070
+BAND_INSTRUMENT_LABEL&&&       = 070
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 1024
@@ -49,7 +50,8 @@ BAND_TOD_END_SCANID&&&         = 44072
 BAND_TOD_TOT_NUMSCAN&&&        = 45860
 BAND_TOD_HALFRING&&&           = 0
 BAND_TOD_FLAG&&&               = 6111232
-BAND_TOD_ORBITAL_ONLY_ABSCAL&&& = .false.
+BAND_TOD_ABSCAL_COMP&&&        = full
 BAND_TOD_DETECTOR_LIST&&&      = 18M,18S,19M,19S,20M,20S,21M,21S,22M,22S,23M,23S
 BAND_TOD_INIT_FROM_HDF&&&      = default
+N_GIBBS_PER_TOD&&&             = 1
 

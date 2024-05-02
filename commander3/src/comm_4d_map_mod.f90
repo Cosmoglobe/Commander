@@ -19,7 +19,6 @@
 !
 !================================================================================
 module comm_4D_map_mod
-  use comm_utils
   use hashtbl_4Dmap
   use comm_hdf_mod
   implicit none
@@ -39,7 +38,7 @@ module comm_4D_map_mod
   end type comm_4D_map
 
   interface comm_4D_map
-     procedure constructor
+     procedure constructor_4d_map
   end interface comm_4D_map
 
 contains
@@ -47,7 +46,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  function constructor(nside, npsi, detlabel, psi0, pixel, psi, tod, mask)
+  function constructor_4d_map(nside, npsi, detlabel, psi0, pixel, psi, tod, mask) result(c)
     implicit none
     integer(i4b),                          intent(in) :: nside, npsi
     character(len=*),      dimension(:),   intent(in) :: detlabel
@@ -55,20 +54,20 @@ contains
     integer(i4b),          dimension(:),   intent(in) :: pixel, psi
     real(sp),              dimension(:,:), intent(in) :: tod
     integer(i4b),          dimension(:,:), intent(in) :: mask
-    class(comm_4D_map),    pointer                    :: constructor
+    class(comm_4D_map),    pointer                    :: c
 
     integer(i4b) :: i, n, ndet
     type(hash_tbl_4Dmap_sll) :: hashtbl
 
     ! Initialize object
-    allocate(constructor)
+    allocate(c)
     ndet                        = size(detlabel)
-    constructor%ndet     = ndet
-    allocate(constructor%detlabel(ndet), constructor%psi0(ndet))
-    constructor%nside    = nside
-    constructor%npsi     = npsi
-    constructor%detlabel = detlabel
-    constructor%psi0     = psi0
+    c%ndet     = ndet
+    allocate(c%detlabel(ndet), c%psi0(ndet))
+    c%nside    = nside
+    c%npsi     = npsi
+    c%detlabel = detlabel
+    c%psi0     = psi0
 
     ! Construct hashed 4D map
     call init_hash_tbl_4Dmap_sll(hashtbl)
@@ -77,18 +76,18 @@ contains
        call hashtbl%put([pixel(i),psi(i)], tod(i,:))
     end do
     n = hashtbl%get_n_elements()
-    constructor%n = n
+    c%n = n
 
     ! Populate 4D map with hashed values
-    allocate(constructor%pixel(n), constructor%ipsi(n))
-    allocate(constructor%weight(n), constructor%map(n,ndet))
-    call hashtbl%linearize(constructor%pixel, constructor%ipsi, &
-         & constructor%weight, constructor%map)
+    allocate(c%pixel(n), c%ipsi(n))
+    allocate(c%weight(n), c%map(n,ndet))
+    call hashtbl%linearize(c%pixel, c%ipsi, &
+         & c%weight, c%map)
 
     ! Clean up
     call free_hash_tbl_4Dmap_sll(hashtbl)
 
-  end function constructor
+  end function constructor_4d_map
 
 
   !**************************************************

@@ -1,5 +1,6 @@
 # WMAP 33 GHz P
 BAND_LABEL&&&                  = 033-WMAP_Ka_P
+BAND_INSTRUMENT_LABEL&&&       = 033-WMAP_Ka_P
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 16

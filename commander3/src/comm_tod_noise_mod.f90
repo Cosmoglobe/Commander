@@ -20,8 +20,6 @@
 !================================================================================
 module comm_tod_noise_mod
   use comm_tod_mod
-  use comm_utils
-  use comm_fft_mod
   use InvSamp_mod
   use comm_tod_noise_psd_mod
   use comm_status_mod
@@ -31,7 +29,7 @@ module comm_tod_noise_mod
 
 contains
 
-  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike)
+  subroutine sample_n_corr(self, tod, handle, scan, mask, s_sub, n_corr, pix, freqmask, dospike, nomono)
     ! 
     ! Routine for sample TOD-domain correlated noise given a pre-computed noise PSD, as defined by
     !    ((N_c^-1 + N_wn^-1) n_corr = d_prime + w1 * sqrt(N_wn) + w2 * sqrt(N_c) 
@@ -72,11 +70,12 @@ contains
     real(sp),         dimension(1:,1:), intent(out)    :: n_corr
     real(sp),         dimension(0:,1:), intent(in), optional :: freqmask
     logical(lgt),                       intent(in), optional :: dospike
+    logical(lgt),                       intent(in), optional :: nomono
 
     integer(i4b) :: i, j, l, k, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer(i4b) :: nfft, nbuff, j_end, j_start
     integer*8    :: plan_fwd, plan_back
-    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged
+    logical(lgt) :: init_masked_region, end_masked_region, pcg_converged, nomono_
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, gain, mean, N_wn, N_c, nu
     real(dp)     :: power, fft_norm
     character(len=1024) :: filename
@@ -86,6 +85,8 @@ contains
 
     call timer%start(TOD_NCORR, self%band)
 
+    nomono_ = .false.; if (present(nomono)) nomono_ = nomono
+    
     ntod     = self%scans(scan)%ntod
     ndet     = self%ndet
     nomp     = 1 !omp_get_max_threads()
@@ -95,12 +96,17 @@ contains
     fft_norm = sqrt(1.d0 * nfft)  ! used when adding fluctuation terms to Fourier coeffs (depends on Fourier convention)
     n        = nfft / 2 + 1
 
+
+    call timer%start(TOT_FFT)
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
+    call timer%stop(TOT_FFT)
 
+    call timer%start(TOT_FFT)
     allocate(dt(nfft), dv(0:n-1), d_prime(ntod), ncorr2(ntod))
     call sfftw_plan_dft_r2c_1d(plan_fwd,  nfft, dt, dv, fftw_estimate + fftw_unaligned)
     call sfftw_plan_dft_c2r_1d(plan_back, nfft, dv, dt, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT)
 
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
@@ -109,7 +115,7 @@ contains
        N_wn     = sigma_0**2  ! white noise power spectrum
 
        ! Prepare TOD residual
-       d_prime = tod(:,i) - gain * S_sub(:,i)
+       d_prime = tod(:,i) - gain * s_sub(:,i)
 
        ! Fill gaps in data 
        init_masked_region = .true.
@@ -153,18 +159,24 @@ contains
        !alpha    = self%scans(scan)%d(i)%N_psd%alpha
        !nu_knee  = self%scans(scan)%d(i)%N_psd%fknee
 
+       ! Remove monopole if requested by user
+       if (nomono_) d_prime = d_prime -  sum(d_prime*mask(:,i))/sum(mask(:,i))
        
        pcg_converged = .false.
-       call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq))
+       call get_ncorr_sm_cg(handle, d_prime, ncorr2, mask(:,i), self%scans(scan)%d(i)%N_psd, samprate, nfft, plan_fwd, plan_back, pcg_converged, self%scanid(scan), i, trim(self%freq), nomono_)
        n_corr(:,i) = ncorr2(:)
 
        if (.not. pcg_converged) then
           ! Preparing for fft
           dt(1:ntod)           = d_prime(:)
           dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+          call timer%start(TOT_FFT)
           call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+          call timer%stop(TOT_FFT)
 
-          if (trim(self%operation) == "sample") then
+          if (nomono_) then
+             dv(0)    = 0.d0
+          else if (trim(self%operation) == "sample") then
              dv(0)    = dv(0) + fft_norm * sqrt(N_wn) * cmplx(rand_gauss(handle),rand_gauss(handle)) / sqrt(2.0)
           end if
 
@@ -188,7 +200,9 @@ contains
                 dv(l) = dv(l) * 1.0/(1.0 + N_wn/N_c)
              end if
           end do
+          call timer%start(TOT_FFT)
           call sfftw_execute_dft_c2r(plan_back, dv, dt)
+          call timer%stop(TOT_FFT)
           dt          = dt / nfft
           n_corr(:,i) = dt(1:ntod) 
        end if
@@ -220,7 +234,7 @@ contains
   end subroutine sample_n_corr
 
 
-  subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band)
+  subroutine get_ncorr_sm_cg(handle, d_prime, ncorr, mask, N_psd, samprate, nfft, plan_fwd, plan_back, converged, scan, det, band, nomono)
     implicit none
     type(planck_rng),                intent(inout)  :: handle
     integer*8,                       intent(in)     :: plan_fwd, plan_back
@@ -231,6 +245,7 @@ contains
     character(len=*),                intent(in)     :: band
     real(sp),          dimension(:), intent(out)    :: ncorr
     real(sp),          dimension(:), intent(in)     :: d_prime, mask
+    logical(lgt),                    intent(in)     :: nomono
 
     real(dp)            :: r2, r2new, alp, bet, eps, d2, sigma_bp
     real(sp)            :: freq
@@ -256,7 +271,11 @@ contains
     allocate(x(ntod), b(ntod), r(ntod), d(ntod), Mr(ntod), Ad(ntod))
     allocate(u(nmask), bp(nmask), xp(nmask), rp(nmask), p(nmask))
 
-    invNcorr(0) = 0.d0
+    if (nomono) then
+       invNcorr(0) = 1d12
+    else
+       invNcorr(0) = 0.d0
+    end if
     invM(0)     = 1.d0
     do l = 1, n-1
        freq        = l*(samprate/2)/(n-1)
@@ -345,9 +364,13 @@ contains
       allocate(dt(nfft), dv(0:n-1))
       dt(1:ntod)           = vec(:)
       dt(2*ntod:ntod+1:-1) = dt(1:ntod)
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+      call timer%stop(TOT_FFT)
       dv = dv * mat
+      call timer%start(TOT_FFT)
       call sfftw_execute_dft_c2r(plan_back, dv, dt)
+      call timer%stop(TOT_FFT)
       dt = dt / nfft
       res(:) = dt(1:ntod)
       deallocate(dt, dv)
@@ -418,7 +441,7 @@ contains
 
 
   ! Sample noise psd
-  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask)
+  subroutine sample_noise_psd(self, tod, handle, scan, mask, s_tot, n_corr, freqmask, only_sigma0)
     implicit none
     class(comm_tod),                    intent(inout)  :: self
     real(sp),         dimension(1:,1:), intent(in)     :: tod
@@ -426,17 +449,20 @@ contains
     integer(i4b),                       intent(in)     :: scan
     real(sp),         dimension(:,:),   intent(in)     :: mask, s_tot, n_corr
     real(sp),         dimension(0:),    intent(in), optional :: freqmask
+    logical(lgt),                       intent(in), optional :: only_sigma0
 
     integer*8    :: plan_fwd
     integer(i4b) :: i, j, k, n, nval, n_bins, l, nomp, omp_get_max_threads, err, ntod, n_low, n_high, currdet, currpar, n_gibbs
-    integer(i4b) :: ndet
+    integer(i4b) :: ndet, outscan
     real(sp)     :: f
     real(dp)     :: s, res, log_nu, samprate, gain, dlog_nu, nu, xi_n
-    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2)
+    real(dp)     :: alpha, sigma0, fknee, x_in(3), prior_fknee(2), prior_alpha(2), alpha_dpc, fknee_dpc, P_uni(2), threshold, s0
     character(len=1024) :: filename
     real(sp),     allocatable, dimension(:) :: dt, ps
     complex(spc), allocatable, dimension(:) :: dv
     real(sp),     allocatable, dimension(:) :: d_prime
+
+    ! Subroutine to fit noise parameters, alpha, 1/f sigma_0
 
     call timer%start(TOD_XI_N, self%band)
     
@@ -446,28 +472,50 @@ contains
     n        = ntod/2 + 1
     samprate = self%samprate
     n_gibbs  = 1
+    threshold = 5.d0 ! Remove outliers
+    outscan   = -1 !92
 
     ! Sample sigma_0 from pairwise differenced TOD
     do i = 1, ndet
        if (.not. self%scans(scan)%d(i)%accept) cycle
-       s    = 0.d0
-       nval = 0
 
-       do j = 1, self%scans(scan)%ntod-1
-          if (any(mask(j:j+1,i) < 0.5)) cycle
-          res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
-               & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
-          s    = s    + res**2
-          nval = nval + 1
+       ! Remove outliers
+       s0 = 1d30
+       do k = 1, 3
+          if (self%scanid(scan) == outscan) open(58,file='res2.dat', recl=1024)
+          s    = 0.d0
+          nval = 0
+          do j = 1, self%scans(scan)%ntod-1
+             if (any(mask(j:j+1,i) < 0.5)) cycle
+             res = ((tod(j,i)   - self%scans(scan)%d(i)%gain * s_tot(j,i)   - n_corr(j,i))   - &
+                  & (tod(j+1,i) - self%scans(scan)%d(i)%gain * s_tot(j+1,i) - n_corr(j+1,i)))/sqrt(2.)
+             if (abs(res) > s0) cycle
+             if (self%scanid(scan) == outscan) write(58,*) j, res, tod(j,i), s_tot(j,i), n_corr(j,i)
+             s    = s    + res**2
+             nval = nval + 1
+          end do
+          if (nval > 100) then
+             self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
+             s0 = threshold * sqrt(s/(nval-1))
+          else
+             exit
+          end if
+          if (self%scanid(scan) == outscan) close(58)
        end do
-       if (nval > 100) self%scans(scan)%d(i)%N_psd%xi_n(1) = sqrt(s/(nval-1))
     end do
 
+    ! Exit if user only wants to estimate sigma0
+    if (present(only_sigma0)) then
+       if (only_sigma0) return
+    end if
+    
     ! Initialize FFTW
     allocate(dt(ntod), dv(0:n-1), ps(0:n-1))
+    call timer%start(TOT_FFT)
     call sfftw_init_threads(err)
     call sfftw_plan_with_nthreads(nomp)
     call sfftw_plan_dft_r2c_1d(plan_fwd,  ntod, dt, dv, fftw_estimate + fftw_unaligned)
+    call timer%stop(TOT_FFT)
 
 
     ! Sample non-linear spectral parameters
@@ -476,18 +524,21 @@ contains
        currdet = i
 
        ! Commpute power spectrum
-       n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(1) * (n-1) / (samprate/2)), 2) ! Never include offset
-       n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(2) * (n-1) / (samprate/2)) 
-       dt     = n_corr(:,i)
-       call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
-       do l = n_low, n_high
-          ps(l) = abs(dv(l)) ** 2 / ntod          
-       end do
 
 
        ! Perform sampling over all non-linear parameters
        do k = 1, n_gibbs
           do j = 2, self%scans(scan)%d(i)%N_psd%npar
+             n_low  = max(ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,1) * (n-1) / (samprate/2)), 2) ! Never include offset
+             n_high =     ceiling(self%scans(scan)%d(i)%N_psd%nu_fit(j,2) * (n-1) / (samprate/2))
+             dt     = n_corr(:,i)
+
+             call timer%start(TOT_FFT)
+             call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+             call timer%stop(TOT_FFT)
+             do l = n_low, n_high
+                ps(l) = abs(dv(l)) ** 2 / ntod
+             end do
              P_uni   = self%scans(scan)%d(i)%N_psd%P_uni(j,:)
              if (self%scans(scan)%d(i)%N_psd%P_active(j,2) <= 0.d0 .or. P_uni(2) == P_uni(1)) cycle
 
@@ -497,8 +548,7 @@ contains
              x_in(3) = min(xi_n + 0.5 * abs(xi_n), P_uni(2))
              x_in(3) = max(x_in(3), x_in(1)+1.d-3*(P_uni(2)-P_uni(1)))
              x_in(2) = 0.5 * (x_in(1) + x_in(3))
-
-             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni)
+             xi_n = sample_InvSamp(handle, x_in, lnL_xi_n, P_uni, optimize=(trim(self%operation)=='optimize'))
              xi_n = min(max(xi_n,self%scans(scan)%d(i)%N_psd%P_uni(j,1)), self%scans(scan)%d(i)%N_psd%P_uni(j,2))
              self%scans(scan)%d(i)%N_psd%xi_n(j) = xi_n
           end do
@@ -506,7 +556,6 @@ contains
     end do
     deallocate(dt, dv)
     deallocate(ps)
-    
     call sfftw_destroy_plan(plan_fwd)
 
     call timer%stop(TOD_XI_N, self%band)
@@ -539,7 +588,12 @@ contains
          end if
          f         = l*(samprate/2)/(n-1)
          N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_corr(f)
-         lnL_xi_n  = lnL_xi_n - (ps(l) / N_corr + log(N_corr))
+         !N_corr    = self%scans(scan)%d(currdet)%N_psd%eval_full(f)
+         if (N_corr .le. 0) then
+           write(*,*) 'bad things', currpar, tmp, N_corr, f, self%scans(scan)%d(i)%N_psd%xi_n
+         else
+           lnL_xi_n  = lnL_xi_n - (ps(l) / N_corr + log(N_corr))
+         end if
       end do
 
       ! Add prior
@@ -565,16 +619,18 @@ contains
   ! matrix. inp and res have dimensions (ntime,ndet,ninput), where ninput is 
   ! the number of input timestreams (e.g. 2 if you input s_tot and s_orb). 
   ! Here inp and res are assumed to be already allocated. 
-  subroutine multiply_inv_N(tod, scan, buffer, sampfreq, pow)
+  subroutine multiply_inv_N(tod, scan, buffer, sampfreq, pow, off)
     implicit none
     class(comm_tod),                     intent(in)     :: tod
     integer(i4b),                        intent(in)     :: scan
     real(sp),          dimension(:,:),   intent(inout)  :: buffer !input/output
     real(dp),                            intent(in), optional :: sampfreq, pow
+    logical(lgt),                        intent(in), optional :: off
     integer(i4b) :: i, j, l, n, m, nomp, ntod, ndet, err, omp_get_max_threads
     integer*8    :: plan_fwd, plan_back
     real(sp)     :: sigma_0, alpha, nu_knee,  samprate, noise, signal
     real(sp)     :: nu, pow_
+    logical(lgt) :: off_
     real(sp),     allocatable, dimension(:,:) :: dt
     complex(spc), allocatable, dimension(:,:) :: dv
     
@@ -584,13 +640,16 @@ contains
     m        = count(tod%scans(scan)%d%accept)
     n        = ntod + 1
     pow_     = 1.d0; if (present(pow)) pow_ = pow
+    off_     = .false.; if (present(off)) off_ = off
     samprate = real(tod%samprate,sp); if (present(sampfreq)) samprate = real(sampfreq,sp)
     
     allocate(dt(2*ntod,m), dv(0:n-1,m))
+    call timer%start(TOT_FFT)
     call sfftw_plan_many_dft_r2c(plan_fwd, 1, 2*ntod, m, dt, &
          & 2*ntod, 1, 2*ntod, dv, n, 1, n, fftw_patient)
     call sfftw_plan_many_dft_c2r(plan_back, 1, 2*ntod, m, dv, &
          & n, 1, n, dt, 2*ntod, 1, 2*ntod, fftw_patient)
+    call timer%stop(TOT_FFT)
     
     j = 0
     do i = 1, ndet
@@ -600,7 +659,9 @@ contains
        dt(2*ntod:ntod+1:-1,j) = dt(1:ntod,j)
     end do
 
+    call timer%start(TOT_FFT)
     call sfftw_execute_dft_r2c(plan_fwd, dt, dv)
+    call timer%stop(TOT_FFT)
 
     j = 0
     do i = 1, ndet
@@ -608,15 +669,17 @@ contains
        j = j+1
        noise    = tod%scans(scan)%d(i)%N_psd%sigma0**2 * samprate / tod%samprate
        
-       if (pow_ >= 0.d0) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
+       if (pow_ >= 0.d0 .and. .not. off_) dv(0,j) = 0.d0   ! If pow < 0, leave offset as is
        do l = 1, n-1                                                      
           nu      = l*(samprate/2)/(n-1)
           signal  = tod%scans(scan)%d(i)%N_psd%eval_corr(nu) * samprate / tod%samprate
           dv(l,j) = dv(l,j) * 1.0/(noise + signal)**pow_
        end do
     end do
-       
+      
+    call timer%start(TOT_FFT) 
     call sfftw_execute_dft_c2r(plan_back, dv, dt)
+    call timer%stop(TOT_FFT) 
     dt = dt / (2*ntod)
 
     j = 0
@@ -634,27 +697,5 @@ contains
 
   end subroutine multiply_inv_N
 
-  subroutine init_noise_model(tod, det, filter)
-    implicit none
-    class(comm_tod),                            intent(inout)   :: tod
-    integer(i4b),                               intent(in)      :: det
-    real(dp),     optional,     dimension(:,:), intent(in)      :: filter
-
-    integer(i4b) :: i, j
-
-    do i=1, tod%nscan
-        if(trim(tod%noise_psd_model) == 'oof') then
-          tod%scans(i)%d(det)%N_psd => comm_noise_psd(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)
-        else if(trim(tod%noise_psd_model) == '2oof') then
-          tod%scans(i)%d(det)%N_psd => comm_noise_psd_2oof(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)       
-        else if(trim(tod%noise_psd_model) == 'oof_gauss') then
-          tod%scans(i)%d(det)%N_psd => comm_noise_psd_oof_gauss(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)
-        else if(trim(tod%noise_psd_model) == 'oof_f') then
-          tod%scans(i)%d(det)%N_psd => comm_noise_psd_oof_f(tod%scans(i)%d(det)%xi_n, tod%xi_n_P_rms, tod%xi_n_P_uni, tod%xi_n_nu_fit, filter)
-        end if
-
-    end do
-
-  end subroutine init_noise_model
 
 end module comm_tod_noise_mod

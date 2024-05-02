@@ -19,12 +19,7 @@
 !
 !================================================================================
 module comm_cmb_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_F_int_0D_mod
-  use comm_data_mod
-  use comm_bp_utils
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -36,12 +31,12 @@ module comm_cmb_comp_mod
   type, extends (comm_diffuse_comp) :: comm_cmb_comp
      real(dp) :: cmb_dipole_prior(3)
    contains
-     procedure :: S            => evalSED
-     procedure :: update_F_int => updateIntF
+     procedure :: S            => evalSED_cmb
+     procedure :: update_F_int => updateIntF_cmb
   end type comm_cmb_comp
 
   interface comm_cmb_comp
-     procedure constructor
+     procedure constructor_cmb
   end interface comm_cmb_comp
 
 contains
@@ -49,55 +44,55 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor_cmb(cpar, id, id_abs) result(c)
     implicit none
     type(comm_params),   intent(in) :: cpar
     integer(i4b),        intent(in) :: id, id_abs
-    class(comm_cmb_comp), pointer   :: constructor
+    class(comm_cmb_comp), pointer   :: c
 
     integer(i4b) :: i, j, k
     real(dp)     :: f
     
 
     ! General parameters
-    allocate(constructor)
-    constructor%npar         = 0
-    call constructor%initDiffuse(cpar, id, id_abs)
+    allocate(c)
+    c%npar         = 0
+    call c%initDiffuse(cpar, id, id_abs)
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(3,numband,0:constructor%ndet))
-    call constructor%update_F_int
+    allocate(c%F_int(3,numband,0:c%ndet))
+    call c%update_F_int
     
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    call c%updateMixmat
 
     ! Prepare CMB dipole prior
     if (trim(cpar%cmb_dipole_prior_mask) /= 'none') then
-       constructor%priormask        => comm_map(constructor%x%info, trim(cpar%datadir)//'/'//trim(cpar%cmb_dipole_prior_mask))
-       constructor%cmb_dipole_prior =  constructor%cmb_dipole_prior / constructor%RJ2unit_(1)
+       c%priormask        => comm_map(c%x%info, trim(cpar%cmb_dipole_prior_mask))
+       c%cmb_dipole_prior =  c%cmb_dipole_prior / c%RJ2unit_(1)
     end if
 
-  end function constructor
+  end function constructor_cmb
 
   ! Definition:
   !    SED  = conversion between thermodynamic and brightness temperature = 1/a2t
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_cmb(self, nu, band, pol, theta)
     implicit none
     class(comm_cmb_comp),    intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
-    real(dp)                                      :: evalSED
+    real(dp)                                      :: evalSED_cmb
 
     real(dp) :: x
-    x       = h*nu / (k_B*T_CMB)
-    evalSED = (x**2 * exp(x)) / (exp(x)-1.d0)**2
+    x           = h*nu / (k_B*T_CMB)
+    evalSED_cmb = (x**2 * exp(x)) / (exp(x)-1.d0)**2
 
-  end function evalSED
+  end function evalSED_cmb
 
   ! Update band integration lookup tables
-  subroutine updateIntF(self, band)
+  subroutine updateIntF_cmb(self, band)
     implicit none
     class(comm_cmb_comp),                    intent(inout)        :: self
     integer(i4b),                            intent(in), optional :: band
@@ -124,7 +119,7 @@ contains
        end do
     end do
 
-  end subroutine updateIntF
+  end subroutine updateIntF_cmb
 
   subroutine apply_cmb_dipole_prior(cpar, handle)
     implicit none
@@ -157,7 +152,7 @@ contains
           end do
 
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine apply_cmb_dipole_prior

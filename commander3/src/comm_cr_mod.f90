@@ -19,21 +19,11 @@
 !
 !================================================================================
 module comm_cr_mod
-  use comm_comp_mod
-  use comm_data_mod
-  use comm_param_mod
-  use comm_diffuse_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_template_comp_mod
-  use rngmod
-  use comm_cr_utils
-  use comm_cr_precond_mod
-  use math_tools
   use comm_output_mod
   implicit none
 
-  private
-  public solve_cr_eqn_by_CG, cr_amp2x, cr_x2amp, cr_computeRHS, cr_matmulA, cr_invM
+!  private
+!  public solve_cr_eqn_by_CG, cr_amp2x, cr_x2amp, cr_computeRHS, cr_matmulA, cr_invM
 
   interface cr_amp2x
      module procedure cr_amp2x_full
@@ -81,53 +71,6 @@ contains
        write(*,fmt='(a,f8.2)') ' |  CG initialize preconditioner, time = ', real(t2-t1,sp)
     end if
 
-!!$    call print_precond_mat
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
-!!$    k = 6
-!!$    l = n/3+k
-!!$    if (cpar%myid == root) write(*,*) P_cr%invM_diff(k,2)%n
-!!$    if (cpar%myid == root) write(*,*) 1.d0/P_cr%invM_diff(k,2)%M(1,1)
-!!$    if (cpar%myid == root) write(*,*)
-
-!!$    l = 10
-!!$!    if (cpar%myid == root) x    = 0.d0
-!!$    do i = 0, size(x)-1
-!!$       x(i)    = mod(i,123654)
-!!$    end do
-!!$    !x    = 0.d0
-!!$    !if (cpar%myid == root) x(l) = 1.d0
-!!$    q     = cr_matmulA(x, samp_group)
-!!$    !if (cpar%myid == root) write(*,*) q(l-1:l+1)
-!!$
-!!$!    x    = 0.d0
-!!$!    if (cpar%myid == root) x(l) = 1.d0
-!!$    s  = cr_invM(cpar%comm_chain, x, samp_group) 
-!!$    r = (s-q)/abs(s+q)
-!!$    do i = 1, size(q)
-!!$       if (abs(r(i) > 1d-4)) write(*,*) cpar%myid, i, real(s(i),sp), real(q(i),sp), real(r(i),sp)
-!!$    end do
-!!$    call mpi_finalize(ierr)
-!!$    stop
-
-
-!!$    !if (cpar%myid == root) write(*,*) P_cr%invM_src(k,2)%M(1,1)
-!!$    
-!!$    do i = 2*n/3+5, 3*n/3
-!!$       if (cpar%myid == root) x    = 0.d0
-!!$       if (cpar%myid == root) x(i) = 1.d0
-!!$       q     = cr_matmulA(x)
-!!$       j     = i-2*n/3
-!!$       if (cpar%myid == root) write(*,*) i, q(i)/P_cr%invM_diff(j-1,3)%M(1,1)
-!!$    end do
-!    if (cpar%myid == root) x    = 0.d0
-!    if (cpar%myid == root) x(2) = 1.d0
-!    q     = cr_matmulA(x)
-!    if (cpar%myid == root) write(*,*) q
-
-!!$    call mpi_finalize(ierr)
-!!$    stop
 
     ! Initialize the CG search
     if (cpar%cg_init_zero) then
@@ -138,7 +81,7 @@ contains
        c       => compList
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -151,7 +94,7 @@ contains
                 deallocate(alm)
              end if
           class is (comm_ptsrc_comp)
-             if (c%myid == 0) then
+             if (c%myid == 0 .and. .not. c%precomputed_amps) then
                 call cr_extract_comp(c%id, x, pamp)
                 do j = 1, c%nmaps
                    do i = 1, c%nsrc
@@ -169,10 +112,9 @@ contains
                 deallocate(pamp)
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
     end if
-
 !!$    eps = 0
 !!$    do i = 1, 100000
 !!$       call update_status(status, "cr4")
@@ -180,7 +122,7 @@ contains
 !!$       c   => compList
 !!$       do while (associated(c))
 !!$          if (.not. c%active_samp_group(samp_group)) then
-!!$             c => c%next()
+!!$             c => c%nextComp()
 !!$             cycle
 !!$          end if
 !!$          select type (c)
@@ -190,24 +132,23 @@ contains
 !!$             eps = eps + sum(abs(mp))
 !!$             deallocate(mp)
 !!$          end select
-!!$          c => c%next()
+!!$          c => c%nextComp()
 !!$       end do
 !!$    end do
 !!$    write(*,*) eps
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    !call update_status(status, "cr4")
+    call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
-    !call update_status(status, "cr5")
+    call update_status(status, "cr5")
     d  = cr_invM(cpar%comm_chain, r, samp_group)
-    !call update_status(status, "cr6")
+    call update_status(status, "cr6")
 
     delta_new = mpi_dot_product(cpar%comm_chain,r,d)
-    !call update_status(status, "cr7")
+    call update_status(status, "cr7")
     delta0    = mpi_dot_product(cpar%comm_chain,b,cr_invM(cpar%comm_chain, b, samp_group))
-    !call update_status(status, "cr8")
-
+    call update_status(status, "cr8")
     if (delta0 > 1d30) then
        if(cpar%myid == root) then
           write(*,*) 'CR warning: Large initial residual = ', delta0
@@ -230,7 +171,7 @@ contains
     do i = 1, maxiter
        call wall_time(t1)
 
-       !call update_status(status, "cg1")
+       call update_status(status, "cg1")
        
        ! Check convergence
        if (mod(i,cpar%cg_check_conv_freq) == 0) then
@@ -242,11 +183,13 @@ contains
              val_convergence = abs((chisq_prev-chisq)/chisq)
           end if
           if (val_convergence < lim_convergence .and. &
-               & (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0) .and. &
+               & (i >= cpar%cg_miniter .or. delta_new <= 1d-40 * delta0) .and. &
                & trim(cpar%cg_conv_crit) /= 'fixed_iter') exit
+          if (delta_new <= 1d-40 * delta0 .and. &
+               & trim(cpar%cg_conv_crit) == 'fixed_iter') exit
        end if
        
-       !call update_status(status, "cg2")
+       call update_status(status, "cg2")
    
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
@@ -261,7 +204,7 @@ contains
           r = r - alpha*q
        end if
 
-       !call update_status(status, "cg3")
+      call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(cpar%comm_chain, r, samp_group)
        call wall_time(t4)
@@ -270,7 +213,10 @@ contains
        delta_new = mpi_dot_product(cpar%comm_chain, r, s)
        beta      = delta_new / delta_old
        d         = s + beta * d
-       !call update_status(status, "cg4")
+       call update_status(status, "cg4")
+
+!call mpi_finalize(ierr)
+!stop
 
        if (cpar%output_cg_freq > 0) then
           if (mod(i,cpar%output_cg_freq) == 0) then
@@ -280,7 +226,7 @@ contains
              c       => compList
              do while (associated(c))
                 if (.not. c%active_samp_group(samp_group)) then
-                   c => c%next()
+                   c => c%nextComp()
                    cycle
                 end if
                 select type (c)
@@ -293,7 +239,7 @@ contains
                       deallocate(alm)
                    end if
                 class is (comm_ptsrc_comp)
-                   if (c%myid == 0) then
+                   if (c%myid == 0 .and. .not. c%precomputed_amps) then
                       call cr_extract_comp(c%id, x_out, pamp)
                       do j = 1, c%nmaps
                          do k = 1, c%nsrc
@@ -311,7 +257,7 @@ contains
                       deallocate(pamp)
                    end if
                 end select
-                c => c%next()
+                c => c%nextComp()
              end do
              call cr_x2amp(samp_group, x_out)
              call output_FITS_sample(cpar, i, .false.)
@@ -319,7 +265,7 @@ contains
              call cr_x2amp(samp_group, x)
           end if
        end if
-       !call update_status(status, "cg5")
+       call update_status(status, "cg5")
 
        !if (cpar%myid == root) write(*,*) x(size(x)-1:size(x))
 
@@ -343,7 +289,7 @@ contains
           end if
        end if
 
-       !call update_status(status, "cg6")
+       call update_status(status, "cg6")
 
     end do
 
@@ -351,7 +297,7 @@ contains
     c       => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -367,7 +313,7 @@ contains
              deallocate(alm)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              call cr_extract_comp(c%id, x, pamp)
              do j = 1, c%nmaps
                 do k = 1, c%nsrc
@@ -385,7 +331,7 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     !call update_status(status, "cr8")
 
@@ -424,7 +370,7 @@ contains
     c       => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -437,7 +383,7 @@ contains
              deallocate(alm)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              call cr_extract_comp(c%id, x_out, pamp)
              do j = 1, c%nmaps
                 do k = 1, c%nsrc
@@ -455,7 +401,7 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     call cr_x2amp(samp_group, x_out)
     call compute_chisq(comm, chisq_fullsky=chisq)
@@ -483,7 +429,7 @@ contains
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              do i = 1, c%nmaps
                 if (c%active_samp_group(samp_group)) x(ind:ind+c%nsrc-1) = c%x(:,i)
                 ind = ind + c%nsrc
@@ -495,15 +441,16 @@ contains
              ind    = ind + 1
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine cr_amp2x_full
 
-  subroutine cr_x2amp_full(samp_group, x)
+  subroutine cr_x2amp_full(samp_group, x, store_buff)
     implicit none
     integer(i4b),           intent(in) :: samp_group
     real(dp), dimension(:), intent(in) :: x
+    logical(lgt), intent(in), optional :: store_buff
 
     integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
@@ -514,23 +461,40 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           do i = 1, c%x%info%nmaps
-             if (c%active_samp_group(samp_group)) c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             if (c%active_samp_group(samp_group)) then
+               if (store_buff) then
+                 c%x%alm_buff(:,i) = c%x%alm(:,i) 
+               end if
+               c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             end if
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          do i = 1, c%nmaps
-             if (c%myid == 0) then
-                if (c%active_samp_group(samp_group)) c%x(:,i) = x(ind:ind+c%nsrc-1)
+          if(.not. c%precomputed_amps) then
+            do i = 1, c%nmaps
+              if (c%myid == 0) then
+                if (c%active_samp_group(samp_group)) then
+                  if (store_buff) then
+                    c%x_buff(:,i) = c%x(:,i)
+                  end if
+                  c%x(:,i) = x(ind:ind+c%nsrc-1)
+                end if
                 ind = ind + c%nsrc
-             end if
-          end do
+              end if
+            end do
+          end if
        class is (comm_template_comp)
           if (c%myid == 0) then
-             if (c%active_samp_group(samp_group)) c%x(1,1) = x(ind)
+             if (c%active_samp_group(samp_group)) then
+               if (store_buff) then
+                 c%x_buff(1,1) = c%x(1,1)
+               end if
+               c%x(1,1) = x(ind)
+             end if
              ind      = ind + 1
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     
   end subroutine cr_x2amp_full
@@ -564,24 +528,26 @@ contains
     ! Add channel dependent terms
     do i = 1, numband
 
+       if (.not. data(i)%cr_active) cycle
+       
        ! Set up Wiener filter term
        map => compute_residual(i, cg_samp_group=samp_group) 
 
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'pre sqrtinvN'
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN'
 !!$       call data(i)%N%sqrtInvN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post sqrtinvN2'
 !!$       call map%dealloc()
 !!$
 !!$       map => compute_residual(i, cg_samp_group=samp_group) 
 !!$
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'pre sqrtinvN'
 !!$       call data(i)%N%invN(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post invN'
 !!$
 !!$       call data(i)%N%N(map, samp_group=samp_group)
-!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map))
+!!$       if (map%info%myid == 0) write(*,*) sum(abs(map%map)), 'post N (should b back to above)'
 !!$
 !!$
 !!$
@@ -620,7 +586,7 @@ contains
        c => compList
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -660,17 +626,20 @@ contains
              call Tm%dealloc(); deallocate(Tm)
              nullify(info)
           class is (comm_ptsrc_comp)
-             allocate(Tp(c%nsrc,c%nmaps))
-             Tp = c%projectBand(i,map)
-             if (c%myid == 0) then
-                do j = 1, c%nmaps
-                   do k = 1, c%nsrc
-                      Tp(k,j) = Tp(k,j) * c%src(k)%P_x(j,2)
-                   end do
-                end do
-                call cr_insert_comp(c%id, .true., Tp, rhs)
+             if(.not. c%precomputed_amps) then 
+                 
+               allocate(Tp(c%nsrc,c%nmaps))
+               Tp = c%projectBand(i,map)
+               if (c%myid == 0) then
+                  do j = 1, c%nmaps
+                     do k = 1, c%nsrc
+                        Tp(k,j) = Tp(k,j) * c%src(k)%P_x(j,2)
+                     end do
+                  end do
+                  call cr_insert_comp(c%id, .true., Tp, rhs)
+               end if
+               deallocate(Tp)
              end if
-             deallocate(Tp)
           class is (comm_template_comp)
              allocate(Tp(1,1))
              Tp = c%projectBand(i,map)
@@ -680,7 +649,7 @@ contains
              end if
              deallocate(Tp)
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
        call map%dealloc(); deallocate(map)
@@ -690,7 +659,7 @@ contains
     c => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -727,25 +696,27 @@ contains
              deallocate(eta)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
-             allocate(eta(1:c%nsrc,c%nmaps))
-             eta = 0.d0
-             ! Variance term
-             if (trim(operation) == 'sample') then
-                do j = 1, c%nmaps
-                   do i = 1, c%nsrc
-                      eta(i,j) = rand_gauss(handle)
-                   end do
-                end do
-             end if
-             ! Mean term
-             do j = 1, c%nmaps
-                do i = 1, c%nsrc
-                   eta(i,j) = eta(i,j) + c%src(i)%P_x(j,1)/c%src(i)%P_x(j,2)
-                end do
-             end do
-             call cr_insert_comp(c%id, .true., eta, rhs)
-             deallocate(eta)
+          if (.not. c%precomputed_amps) then 
+            if (c%myid == 0) then
+               allocate(eta(1:c%nsrc,c%nmaps))
+               eta = 0.d0
+               ! Variance term
+               if (trim(operation) == 'sample') then
+                  do j = 1, c%nmaps
+                     do i = 1, c%nsrc
+                        eta(i,j) = rand_gauss(handle)
+                     end do
+                  end do
+               end if
+               ! Mean term
+               do j = 1, c%nmaps
+                  do i = 1, c%nsrc
+                     eta(i,j) = eta(i,j) + c%src(i)%P_x(j,1)/c%src(i)%P_x(j,2)
+                  end do
+               end do
+               call cr_insert_comp(c%id, .true., eta, rhs)
+               deallocate(eta)
+            end if
           end if
        class is (comm_template_comp)
           if (c%myid == 0) then
@@ -761,7 +732,7 @@ contains
              deallocate(eta)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
 
     end do
     nullify(c)
@@ -783,6 +754,7 @@ contains
     real(dp),        allocatable, dimension(:,:) :: alm, m, pamp
     class(comm_mapinfo), pointer :: info => null()
 
+!    write(*,*) 'df1'
     ! Initialize output array
     !call update_status(status, "A1")
     allocate(y(ncr), sqrtS_x(ncr))
@@ -796,9 +768,10 @@ contains
     !call update_status(status, "A3")
     c       => compList
     lmax    = -1
+!    !write(*,*) 'df2'
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -814,7 +787,7 @@ contains
           end if
           lmax = max(max(lmax, c%lmax_amp),2)
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              do j = 1, c%nmaps
                 do i = 1, c%nsrc
@@ -832,48 +805,58 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     call wall_time(t2)
     !if (myid == 0) write(*,fmt='(a,f8.2)') 'sqrtS time = ', real(t2-t1,sp)
- 
+    !write(*,*) 'df3' 
 
     
     ! Add frequency dependent terms
     do i = 1, numband
 
+       if (.not. data(i)%cr_active) cycle
+       
        ! Compute component-summed map, ie., column-wise matrix elements
        call wall_time(t1)
        map  => comm_map(data(i)%info)   ! For diffuse components
        pmap => comm_map(data(i)%info)   ! For point-source components and alm-buffer for diffuse components
        c   => compList
+    !write(*,*) 'df41'
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
           class is (comm_diffuse_comp)
+    !write(*,*) 'df42'
              call cr_extract_comp(c%id, sqrtS_x, alm)
              do l = 0, c%x%info%nalm-1
                 if (c%x%info%lm(1,l) > data(i)%info%lmax) alm(l,:) = 0.d0
              end do
+    !write(*,*) 'df43'
              call pmap%set_alm(alm,c%x%info)
+    !write(*,*) 'df44'
              allocate(m(0:data(i)%info%nalm-1,data(i)%info%nmaps))
              !allocate(m(0:c%x%info%nalm-1,c%x%info%nmaps))
              !call update_status(status, "A6")
              m = c%getBand(i, amp_in=pmap%alm, alm_out=.true.)
+    !write(*,*) 'df45'
              !call update_status(status, "A7")
              map%alm = map%alm + m
              !call map%add_alm(m, c%x%info)
              !call update_status(status, "A8")
              deallocate(alm, m)
+    !write(*,*) 'df6'
           class is (comm_ptsrc_comp)
-             call cr_extract_comp(c%id, sqrtS_x, pamp)
-             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-             m = c%getBand(i, amp_in=pamp)
-             pmap%map = pmap%map + m
-             deallocate(pamp, m)
+             if(.not. c%precomputed_amps) then
+               call cr_extract_comp(c%id, sqrtS_x, pamp)
+               allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+               m = c%getBand(i, amp_in=pamp)
+               pmap%map = pmap%map + m
+               deallocate(pamp, m)
+             end if
           class is (comm_template_comp)
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -881,25 +864,31 @@ contains
              pmap%map = pmap%map + m
              deallocate(pamp, m)
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        !call update_status(status, "A9")
+    !write(*,*) 'df49'
        if (lmax > -1) then
           info     => comm_mapinfo(map%info%comm, map%info%nside, lmax, map%info%nmaps, map%info%nmaps==3)
           map_buff => comm_map(info)
+    !write(*,*) 'df410'
           call map%alm_equal(map_buff)
           call map_buff%Y()                    ! Diffuse components
           map%map = map_buff%map
+    !write(*,*) 'df411'
        else
+    !write(*,*) 'df412'
           map%map = 0.d0
        end if
+    !write(*,*) 'df413'
        !call update_status(status, "A10")
        map%map = map%map + pmap%map    ! Add compact objects
        !call update_status(status, "A11")
        !write(*,*) 'c', sum(abs(pmap%map))
        call wall_time(t2)
-       !if (myid == 0) write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
+       !if (myid == 0) !write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
 
+    !write(*,*) 'df5'
        ! Multiply with invN
        call wall_time(t1)
        call data(i)%N%InvN(map, samp_group=samp_group)
@@ -919,7 +908,7 @@ contains
        !call update_status(status, "A13")
        do while (associated(c))
           if (.not. c%active_samp_group(samp_group)) then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
           select type (c)
@@ -934,17 +923,19 @@ contains
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           class is (comm_ptsrc_comp)
-             allocate(pamp(0:c%nsrc-1,c%nmaps))
-             pamp = c%projectBand(i, map)
-             if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
-             deallocate(pamp)
+             if(.not. c%precomputed_amps) then
+               allocate(pamp(0:c%nsrc-1,c%nmaps))
+               pamp = c%projectBand(i, map)
+               if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
+               deallocate(pamp)
+             end if
           class is (comm_template_comp)
              allocate(pamp(1,1))
              pamp = c%projectBand(i, map)
              if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
              deallocate(pamp)
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        call wall_time(t2)
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'projBand time = ', real(t2-t1,sp)
@@ -953,17 +944,19 @@ contains
        call pmap%dealloc(); deallocate(pmap)
     end do
     !call update_status(status, "A16")
+    !write(*,*) 'df6'
 
     ! Add prior term and multiply with sqrt(S) for relevant components
     call wall_time(t1)
     c   => compList
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
        class is (comm_diffuse_comp)
+    !write(*,*) 'df8'
           if (trim(c%cltype) /= 'none') then
              allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))
              ! Multiply with sqrt(Cl)
@@ -977,8 +970,9 @@ contains
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           end if
+    !write(*,*) 'df9'
        class is (comm_ptsrc_comp)
-          if (c%myid == 0) then
+          if (c%myid == 0 .and. .not. c%precomputed_amps) then
              ! Multiply with sqrt(Cl)
              call cr_extract_comp(c%id, y, pamp)
              do j = 1, c%nmaps
@@ -993,6 +987,7 @@ contains
              deallocate(pamp)
           end if
        class is (comm_template_comp)
+    !write(*,*) 'df7'
           if (c%myid == 0) then
              ! Multiply with sqrt(Cl)
              call cr_extract_comp(c%id, y, pamp)
@@ -1004,10 +999,11 @@ contains
              deallocate(pamp)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     nullify(c)
     call wall_time(t2)
+    !write(*,*) 'df10'
     !if (myid == 0) write(*,fmt='(a,f8.2)') 'prior time = ', real(t2-t1,sp)
     !call mpi_finalize(i)
     !stop
@@ -1020,7 +1016,7 @@ contains
     deallocate(y, sqrtS_x)
     call wall_time(t2)
     !    write(*,*) 'f', t2-t1
-    
+        !write(*,*) 'df11'
   end function cr_matmulA
 
   function cr_invM(comm, x, samp_group)
@@ -1069,7 +1065,7 @@ contains
              deallocate(alm, alm0)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     deallocate(Qx)
@@ -1102,7 +1098,7 @@ contains
              deallocate(alm, Qalm)
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine applyDeflatePrecond
@@ -1123,7 +1119,7 @@ contains
           class is (comm_diffuse_comp)
              call c%updateDeflatePrecond()
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
     end if
 
@@ -1142,7 +1138,7 @@ contains
              call c%updateLowlPrecond()
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     first_call = .false.
