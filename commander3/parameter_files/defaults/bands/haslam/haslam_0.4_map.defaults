@@ -1,5 +1,6 @@
 # Haslam 0.4 GHz
 BAND_LABEL&&&                  = 0.4-Haslam
+BAND_INSTRUMENT_LABEL&&&                  = 0.4-Haslam
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 512

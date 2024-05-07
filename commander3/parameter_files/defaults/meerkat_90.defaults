@@ -3,6 +3,7 @@
 
 ##########
 BAND_LABEL&&&                  = meerkat-freq
+BAND_INSTRUMENT_LABEL&&&                  = meerkat-freq
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .false.
 BAND_NSIDE&&&                  = 128

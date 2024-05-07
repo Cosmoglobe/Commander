@@ -2,6 +2,7 @@
 # Come up with a name, an nside, a beam, a noise rms, the mask, the beams, but
 # most things can be left at their defaults.
 BAND_LABEL&&&                  = 857         # A descriptive label
+BAND_INSTRUMENT_LABEL&&&                  = 857         # A descriptive label
 BAND_OBS_PERIOD&&&             = 1           # A placeholder
 BAND_POLARIZATION&&&           = .false.     # Is it polarized or not?
 BAND_NSIDE&&&                  = 1024        # Which healpix Nisde?

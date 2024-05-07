@@ -1,6 +1,7 @@
 #LFI 30 GHz TOD default parameters
 
 BAND_LABEL&&&                  = 030
+BAND_INSTRUMENT_LABEL&&&                  = 030
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512

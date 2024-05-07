@@ -1,6 +1,7 @@
 #WMAP V1 TOD default parameters
 
 BAND_LABEL&&&                  = 060-WMAP_V1
+BAND_INSTRUMENT_LABEL&&&                  = 060-WMAP_V1
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512

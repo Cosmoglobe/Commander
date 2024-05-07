@@ -1,4 +1,5 @@
 BAND_LABEL&&&                  = 044
+BAND_INSTRUMENT_LABEL&&&                  = 044
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512

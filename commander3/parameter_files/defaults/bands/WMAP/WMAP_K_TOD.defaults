@@ -1,5 +1,6 @@
 #WMAP K TOD default parameters
 BAND_LABEL&&&                  = 023-WMAP_K
+BAND_INSTRUMENT_LABEL&&&                  = 023-WMAP_K
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 512

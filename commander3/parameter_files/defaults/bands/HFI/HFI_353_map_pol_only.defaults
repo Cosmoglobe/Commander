@@ -1,5 +1,6 @@
 # 353 GHz (full frequency) parameters; only polarization, not temperature        
 BAND_LABEL&&&                  = 353
+BAND_INSTRUMENT_LABEL&&&                  = 353
 BAND_OBS_PERIOD&&&             = 1
 BAND_POLARIZATION&&&           = .true.
 BAND_NSIDE&&&                  = 1024
