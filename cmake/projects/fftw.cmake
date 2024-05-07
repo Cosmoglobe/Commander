@@ -55,6 +55,12 @@ if(COMPILE_FFTW)
 	#------------------------------------------------------------------------------
 	# Getting FFTW from source
 	#------------------------------------------------------------------------------
+
+	# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP
+  #if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+	#	cmake_policy(SET CMP0135 NEW)
+	#endif()
+
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${FFTW_SOURCE_DIR}/CMakeLists.txt")
 		message(STATUS "No FFTW sources were found; thus, will download it from source:\n${fftw_url}")
@@ -103,7 +109,7 @@ if(COMPILE_FFTW)
 				# Disabling download
 				DOWNLOAD_COMMAND  ""
 				CMAKE_ARGS
-					-DCMAKE_BUILD_TYPE=Release
+				  -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 					# Specifying installations paths for binaries and libraries
 					-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 					# Specifying compilers
@@ -115,7 +121,8 @@ if(COMPILE_FFTW)
 					# Which libraries to produce
 					-DENABLE_OPENMP:BOOL=ON
 					-DENABLE_THREADS:BOOL=ON
-					-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
+					#-DENABLE_AVX2:BOOL=${FFTW_ENABLE_AVX2}
+					-DENABLE_AVX2:BOOL=OFF
 					${_fftw_arg_}
 					# ensuring it will be installed inside `lib` and not `lib64`
 					-DCMAKE_INSTALL_LIBDIR:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}

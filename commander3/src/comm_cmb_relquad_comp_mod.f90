@@ -19,13 +19,7 @@
 !
 !================================================================================
 module comm_cmb_relquad_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_template_comp_mod
-  use comm_F_int_mod
-  use comm_F_int_0D_mod
-  use comm_data_mod
-  use comm_bp_utils
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -43,22 +37,22 @@ module comm_cmb_relquad_comp_mod
      real(dp),            allocatable, dimension(:,:) :: q            ! Bandpass integrated SED
      type(F_int_ptr),     allocatable, dimension(:,:) :: F_int        ! SED integrator
    contains
-     procedure :: S             => evalSED
+     procedure :: S             => evalSED_relquad
      procedure :: getBand       => evalRelquadBand
      procedure :: projectBand   => projectRelquadBand
      procedure :: update_template
      procedure :: read_definition_file
-     procedure :: update_F_int  => updateIntF
-     procedure :: initHDF       => initTemplateRelQuadHDF
+     procedure :: update_F_int  => updateIntF_relquad
+     procedure :: initHDFComp   => initTemplateRelQuadHDF
   end type comm_cmb_relquad_comp
 
   interface comm_cmb_relquad_comp
-     procedure constructor
+     procedure constructor_relquad
   end interface comm_cmb_relquad_comp
 
 contains
 
-  function constructor(cpar, id, id_abs)
+  function constructor_relquad(cpar, id, id_abs) result(c)
     !****************************************************************************************
     !> Purpose: Initializes and returns a comm_cmb_relquad_comp object
     ! 
@@ -73,75 +67,75 @@ contains
     implicit none
     class(comm_params),           intent(in) :: cpar
     integer(i4b),                 intent(in) :: id, id_abs
-    class(comm_cmb_relquad_comp), pointer    :: constructor
+    class(comm_cmb_relquad_comp), pointer    :: c
 
     integer(i4b) :: i, j, k, n
     character(len=16), dimension(1000) :: comp_label
 
     ! Initialize general parameters
-    allocate(constructor)
+    allocate(c)
 
-    constructor%class         = cpar%cs_class(id_abs)
-    constructor%type          = cpar%cs_type(id_abs)
-    constructor%label         = cpar%cs_label(id_abs)
-    constructor%id            = id
-    constructor%nmaps         = 1    ! Only used for CR book-keeping; must be 1 for templates
-    constructor%outprefix     = trim(cpar%cs_label(id_abs))
-    constructor%cg_scale      = 1.d0
-    constructor%band          = 0
-    constructor%myid          = cpar%myid_chain
-    constructor%comm          = cpar%comm_chain
-    constructor%numprocs      = cpar%numprocs_chain
-    constructor%P             = [cpar%cs_P_gauss(id_abs,1,1), cpar%cs_P_gauss(id_abs,2,1)]
-    constructor%init_from_HDF = cpar%cs_initHDF(id_abs)
+    c%class         = cpar%cs_class(id_abs)
+    c%type          = cpar%cs_type(id_abs)
+    c%label         = cpar%cs_label(id_abs)
+    c%id            = id
+    c%nmaps         = 1    ! Only used for CR book-keeping; must be 1 for templates
+    c%outprefix     = trim(cpar%cs_label(id_abs))
+    c%cg_scale      = 1.d0
+    c%band          = 0
+    c%myid          = cpar%myid_chain
+    c%comm          = cpar%comm_chain
+    c%numprocs      = cpar%numprocs_chain
+    c%P             = [cpar%cs_P_gauss(id_abs,1,1), cpar%cs_P_gauss(id_abs,2,1)]
+    c%init_from_HDF = cpar%cs_initHDF(id_abs)
 
-    if (constructor%myid == 0) then
-       constructor%ncr = 1
-       constructor%x   = cpar%cs_theta_def(1,id_abs)
+    if (c%myid == 0) then
+       c%ncr = 1
+       c%x   = cpar%cs_theta_def(1,id_abs)
     else
-       constructor%ncr = 0
+       c%ncr = 0
     end if
 
     ! Component specific parameters
-    constructor%T_cmb   = cpar%T_cmb
-    constructor%v_sun   = 370.082d3   ! m/s;  Planck 2015
-    constructor%lon_sun = 264.000d0   ! deg;  Planck 2015
-    constructor%lat_sun = 48.24d0     ! deg;  Planck 2015
-    constructor%nside   = 128
-    constructor%lmax    = 2
-    constructor%nmaps   = 1
-    constructor%ndet    = maxval(data%ndet)
-    constructor%info    => comm_mapinfo(constructor%comm, &
-         & constructor%nside, constructor%lmax, constructor%nmaps, .false.)
-    constructor%T       => comm_map(constructor%info)
+    c%T_cmb   = cpar%T_cmb
+    c%v_sun   = 370.082d3   ! m/s;  Planck 2015
+    c%lon_sun = 264.000d0   ! deg;  Planck 2015
+    c%lat_sun = 48.24d0     ! deg;  Planck 2015
+    c%nside   = 128
+    c%lmax    = 2
+    c%nmaps   = 1
+    c%ndet    = maxval(data%ndet)
+    c%info    => comm_mapinfo(c%comm, &
+         & c%nside, c%lmax, c%nmaps, .false.)
+    c%T       => comm_map(c%info)
 
     ! Construct spatial template
-    call constructor%update_template
+    call c%update_template
 
     ! Read band definition file
-    allocate(constructor%band_active(numband))
-    call constructor%read_definition_file(trim(cpar%cs_SED_template(1,id_abs)))
+    allocate(c%band_active(numband))
+    call c%read_definition_file(trim(cpar%cs_SED_template(1,id_abs)))
 
     ! Precompute mixmat for each band; temperature only
-    allocate(constructor%F_int(numband,0:constructor%ndet))
-    allocate(constructor%q(numband,0:constructor%ndet))
+    allocate(c%F_int(numband,0:c%ndet))
+    allocate(c%q(numband,0:c%ndet))
 
     ! Set up CG sampling groups
-    allocate(constructor%active_samp_group(cpar%cg_num_samp_groups))
-    constructor%active_samp_group = .false.
+    allocate(c%active_samp_group(cpar%cg_num_samp_groups))
+    c%active_samp_group = .false.
     do i = 1, cpar%cg_num_samp_groups
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
-          if (trim(constructor%label) == trim(comp_label(j))) then
-             constructor%active_samp_group(i) = .true.
-             if (n == 1) constructor%cg_unique_sampgroup = i ! Dedicated sampling group for this component
+          if (trim(c%label) == trim(comp_label(j))) then
+             c%active_samp_group(i) = .true.
+             if (n == 1) c%cg_unique_sampgroup = i ! Dedicated sampling group for this component
              exit
           end if
        end do
     end do
 
-  end function constructor
-
+  end function constructor_relquad
+  
   !****************************************************************************************
   !> Purpose: Return SED of relativistic quadrupole correction; see Notari and Quartin (2015)
   ! 
@@ -155,22 +149,22 @@ contains
   ! Outputs:
   !> @return       evalSED  -- SED in uK_RJ, measured in absolute units
   !****************************************************************************************
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_relquad(self, nu, band, pol, theta)
     class(comm_cmb_relquad_comp), intent(in)           :: self
     real(dp),                     intent(in), optional :: nu
     integer(i4b),                 intent(in), optional :: band
     integer(i4b),                 intent(in), optional :: pol
     real(dp), dimension(1:),      intent(in), optional :: theta
-    real(dp)                                           :: evalSED
+    real(dp)                                           :: evalSED_relquad
 
     real(dp) :: x, cmb2RJ, beta
 
     beta    = self%v_sun/c
     x       = h*nu / (k_B*self%T_cmb)
     cmb2RJ  = (x**2 * exp(x)) / (exp(x)-1.d0)**2
-    evalSED = cmb2RJ * beta**2 * 1.d6*self%T_cmb * (x/2.d0)*(exp(x)+1.d0)/(exp(x)-1.d0)
+    evalSED_relquad = cmb2RJ * beta**2 * 1.d6*self%T_cmb * (x/2.d0)*(exp(x)+1.d0)/(exp(x)-1.d0)
 
-  end function evalSED
+  end function evalSED_relquad
 
 
   !****************************************************************************************
@@ -373,7 +367,7 @@ contains
   ! Outputs:
   !                 Internal object variables, self%{F_int,q}
   !****************************************************************************************
-  subroutine updateIntF(self, band)
+  subroutine updateIntF_relquad(self, band)
     implicit none
     class(comm_cmb_relquad_comp),            intent(inout)        :: self
     integer(i4b),                            intent(in), optional :: band
@@ -400,7 +394,7 @@ contains
        end do
     end do
     
-  end subroutine updateIntF
+  end subroutine updateIntF_relquad
 
 
   !****************************************************************************************

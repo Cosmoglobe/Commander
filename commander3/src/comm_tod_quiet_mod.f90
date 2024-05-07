@@ -11,25 +11,7 @@ module comm_tod_QUIET_mod
   !   process_QUIET_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
-  use comm_tod_mod
-  use comm_param_mod
-  use comm_map_mod
-  use comm_conviqt_mod
-  use pix_tools
-  use healpix_types
-  use comm_huffman_mod
-  use comm_hdf_mod
-  use comm_fft_mod
-  use spline_1D_mod
-  use comm_4D_map_mod
-  use comm_zodi_mod
-  use comm_tod_mapmaking_mod
-  use comm_tod_pointing_mod
-  use comm_tod_gain_mod
-  use comm_tod_bandpass_mod
-  use comm_tod_orbdipole_mod
   use comm_tod_driver_mod
-  use comm_utils
   implicit none
 
   private
@@ -52,7 +34,7 @@ module comm_tod_QUIET_mod
   ! make recompillation faster and code easier to maintain
   ! as we split one big module into separate instances.
   interface comm_QUIET_tod
-    module function constructor(cpar, id_abs, info, tod_type)
+    module function constructor_quiet(cpar, id_abs, info, tod_type) result(c)
       !
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -78,9 +60,9 @@ module comm_tod_QUIET_mod
       integer(i4b),           intent(in) :: id_abs
       class(comm_mapinfo),    target     :: info
       character(len=128),     intent(in) :: tod_type
-      class(comm_QUIET_tod),  pointer    :: constructor
+      class(comm_QUIET_tod),  pointer    :: c
 
-    end function constructor
+    end function constructor_quiet
   end interface comm_QUIET_tod
 
   interface

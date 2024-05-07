@@ -3,7 +3,7 @@ module comm_timing_mod
   implicit none
 
   ! Global parameters
-  integer(i4b), parameter, public :: NUM_GLOBAL    =  10
+  integer(i4b), parameter, public :: NUM_GLOBAL    =  11
   integer(i4b), parameter, public :: TOT_RUNTIME   =  1
   integer(i4b), parameter, public :: TOT_INIT      =  2
   integer(i4b), parameter, public :: TOT_FFT       =  3
@@ -13,7 +13,8 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOT_TODPROC   =  7
   integer(i4b), parameter, public :: TOT_SPECIND   =  8
   integer(i4b), parameter, public :: TOT_CLS       =  9
-  integer(i4b), parameter, public :: TOT_OUTPUT    =  10
+  integer(i4b), parameter, public :: TOT_ZODI_SAMP =  10
+  integer(i4b), parameter, public :: TOT_OUTPUT    =  11
 
   ! Channel specific parameters
   integer(i4b), parameter, public :: NUM_TOD       = 26
@@ -44,8 +45,8 @@ module comm_timing_mod
   integer(i4b), parameter, public :: TOD_INSTCORR  = 25
   integer(i4b), parameter, public :: TOD_WRITE     = 26
 
-  private
-  public comm_timing
+!  private
+!  public comm_timing
 
   type comm_timing
      integer(i4b) :: numband, comm, myid, n_tot
@@ -60,12 +61,12 @@ module comm_timing_mod
   end type comm_timing
 
   interface comm_timing
-     procedure constructor
+     procedure constructor_timing
   end interface comm_timing
 
 contains
 
-  function constructor(numband, comm) result(res)
+  function constructor_timing(numband, comm) result(res)
     ! 
     ! Constructor routine for timer object
     ! 
@@ -94,7 +95,7 @@ contains
     res%t       = 0.d0
     res%t1      = 0.d0
 
-  end function constructor
+  end function constructor_timing
 
 
   subroutine comm_timer_start(self, timer_id, band)
@@ -175,6 +176,7 @@ contains
     implicit none
     class(comm_timing),               intent(inout) :: self
     character(len=*),   dimension(:), intent(in)    :: labels
+
     character(len=*),                 intent(in)    :: filename
 
     integer(i4b) :: unit, ierr, band, b
@@ -187,9 +189,14 @@ contains
 
     call mpi_reduce(self%t, t, self%n_tot, MPI_DOUBLE_PRECISION, &
          & MPI_SUM, 0, self%comm, ierr)
-    t = t/3600 ! CPU-hours
+!!$    if (any(t /= t)) then 
+!!$       write(*,*) "a", self%myid, self%t
+!!$       write(*,*) "b", self%myid, t
+!!$    end if
 
     if (self%myid == 0) then
+       t = t/3600.d0 ! CPU-hours
+
        unit = getlun()
        open(unit,file=trim(filename), recl=1024)
        write(unit,*) 'Timing summary'
@@ -208,15 +215,18 @@ contains
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Amplitude sampling            = ', t(TOT_AMPSAMP) / self%numsamp(0), 100*t(TOT_AMPSAMP)/t(TOT_GIBBSSAMP)
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Spectral index sampling       = ', t(TOT_SPECIND) / self%numsamp(0), 100*t(TOT_SPECIND)/t(TOT_GIBBSSAMP)
        write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Cls sampling                  = ', t(TOT_CLS)     / self%numsamp(0), 100*t(TOT_CLS)/t(TOT_GIBBSSAMP)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp(0), 100*t(TOT_TODPROC)/T(TOT_GIBBSSAMP)
-       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Other                         = ', (t(TOT_GIBBSSAMP)-sum(t(6:10))) / self%numsamp(0), 100*(t(TOT_GIBBSSAMP)-sum(t(6:10)))/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       TOD processing                = ', t(TOT_TODPROC) / self%numsamp(0), 100*t(TOT_TODPROC)/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Zodi sampling                 = ', t(TOT_ZODI_SAMP) / self%numsamp(0), 100*t(TOT_ZODI_SAMP)/t(TOT_GIBBSSAMP)
+       write(unit,fmt='(a,f12.3,"h",f10.2,"%")') '       Other                         = ', (t(TOT_GIBBSSAMP)-sum(t(6:11))) / self%numsamp(0), 100*(t(TOT_GIBBSSAMP)-sum(t(6:11)))/t(TOT_GIBBSSAMP)
           write(unit,fmt='(a,f12.3,"h")')        '       Total cost per Gibbs sample   = ', t(TOT_GIBBSSAMP)     / self%numsamp(0)
        write(unit,*) ''
        write(unit,*) '   Channel-specific global timers:'
 
+       !write(*, *) "numsamp:", self%numsamp
+
        do band = 1, self%numband
           b = NUM_GLOBAL + (band-1)*NUM_TOD
-          if (self%numsamp(band) == 0) cycle
+          if (all(t(b+1:b+NUM_TOD) == 0.d0) .or. T(b+TOD_TOT) == 0.d0) cycle
           write(unit,*) 
           write(unit,*) '     Channel                      = ', trim(labels(band))
           write(unit,fmt='(a,f12.3,"h")') '      TOD initialization           = ', t(b+TOD_INIT)

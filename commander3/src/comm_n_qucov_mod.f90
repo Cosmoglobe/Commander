@@ -20,8 +20,6 @@
 !================================================================================
 module comm_N_QUcov_mod
   use comm_N_mod
-  use comm_param_mod
-  use comm_map_mod
   implicit none
 
   private
@@ -38,8 +36,8 @@ module comm_N_QUcov_mod
      procedure :: invN_lowres => matmulInvN_1map
      procedure :: N           => matmulN_1map
      procedure :: sqrtInvN    => matmulSqrtInvN_1map
-     procedure :: rms         => returnRMS
-     procedure :: rms_pix     => returnRMSpix
+     procedure :: rms         => returnRMS_QUcov
+     procedure :: rms_pix     => returnRMS_QUcov_pix
      procedure :: update_N    => update_N_QUcov
   end type comm_N_QUcov
 
@@ -417,7 +415,7 @@ contains
 !!$  end subroutine matmulSqrtInvN_2map
 
   ! Return RMS map
-  subroutine returnRMS(self, res, samp_group)
+  subroutine returnRMS_QUcov(self, res, samp_group)
     implicit none
     class(comm_N_QUcov), intent(in)              :: self
     class(comm_map),     intent(inout)           :: res
@@ -427,25 +425,25 @@ contains
     elsewhere
        res%map = infinity
     end where
-  end subroutine returnRMS
+  end subroutine returnRMS_QUcov
   
   ! Return rms for single pixel
-  function returnRMSpix(self, pix, pol, samp_group, ret_invN)
+  function returnRMS_QUcov_pix(self, pix, pol, samp_group, ret_invN)
     implicit none
     class(comm_N_QUcov),   intent(in)            :: self
     integer(i4b),          intent(in)            :: pix, pol
-    real(dp)                                     :: returnRMSpix
+    real(dp)                                     :: returnRMS_QUcov_pix
     integer(i4b),        intent(in),   optional  :: samp_group
     logical(lgt),        intent(in),   optional  :: ret_invN
 
     if (self%siN_diag%map(pix,pol) > 0.d0) then
-       returnRMSpix = 1.d0/self%siN_diag%map(pix,pol)
+       returnRMS_QUcov_pix = 1.d0/self%siN_diag%map(pix,pol)
     else
-       returnRMSpix = infinity
+       returnRMS_QUcov_pix = infinity
     end if
     if (present(ret_invN)) then
-       if (ret_invN) returnRMSpix = self%siN_diag%map(pix,pol)**2
+       if (ret_invN) returnRMS_QUcov_pix = self%siN_diag%map(pix,pol)**2
     end if
-  end function returnRMSpix
+  end function returnRMS_QUcov_pix
 
 end module comm_N_QUcov_mod

@@ -19,17 +19,12 @@
 !
 !================================================================================
 module comm_chisq_mod
-  use comm_data_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_ptsrc_comp_mod
-  use comm_template_comp_mod
+  use comm_comp_interface_mod
   implicit none
-
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval, evalpol)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -39,17 +34,53 @@ contains
     class(comm_map),                intent(inout), optional :: chisq_map
     real(dp),                       intent(out),   optional :: chisq_fullsky
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
+    character(len=512),             intent(in),    optional :: maskpath
+    integer(i4b), dimension(:),     intent(in),    optional :: band_list
 
-    integer(i4b) :: i, j, k, p, ierr, nmaps
+    integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
+    integer(i4b), dimension(:), allocatable :: bandlist
     real(dp)     :: t1, t2
-    logical(lgt) :: apply_mask, lowres
-    class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub
+    logical(lgt) :: lowres
+    class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub, mask_tmp
     class(comm_mapinfo), pointer :: info, info_lowres
+
+      !
+      ! Function that computes goodness-of-fit in map space for entire model.
+      !
+      ! Arguments:
+      ! ----------
+      ! comm :          integer
+      !                 MPI communicator label
+      ! chisq_map :     comm_map, optional
+      !                 Map object that 
+      ! chisq_fullsky : dp, optional
+      !                 Full resolution chisq map. Same as chisq_map%map, 
+      !                 but for highest possible resolution.
+      ! mask :          map_ptr, array, optional
+      !                 Used as argument for chisq calculation. Array length must be same length
+      !                 as numband. Written with the indmask object in mind.
+      ! lowres_eval :   logical, optional
+      !                 Evalutes chi^2 for low resolution maps. 
+      !                 Usually used for maps with dense covariance matrices.
+      ! evalpol :       lgt, optional
+      !                 If set, allows for polarization chi^2 only (true), or temperature only
+      !                 (false). Otherwise, both are evaluated.
+
+
+    if (present(band_list)) then
+      bandlist = band_list
+      nbands = size(bandlist)
+    else
+      bandlist = [(i, i=1,numband)]
+      nbands = numband
+    end if
 
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
-       do i = 1, numband
+       do p = 1, nbands
+          i = bandlist(p)
+          if (i == 0) cycle
           
           ! Skip non-essential chisq evaluation
           if (present(evalpol)) then
@@ -62,14 +93,13 @@ contains
 
           res => compute_residual(i)
 
-          apply_mask = present(mask)
-          if (apply_mask) apply_mask = associated(mask(i)%p)
-          if (apply_mask) then
-             res%map = res%map * mask(i)%p%map
-             !call res%writeFITS("chisq.fits")
-             !call mask(i)%p%writeFITS("mask.fits")
-             !call mpi_finalize(j)
-             !stop
+          if (present(mask)) then
+            if (size(mask) .ne. nbands) write(*,*) 'Need as many masks as bands'
+            res%map = res%map * mask(i)%p%map
+          else if (present(maskpath)) then
+            mask_tmp => comm_map(data(i)%info, trim(maskpath), udgrade=.true.)
+            res%map = res%map * mask_tmp%map
+            call mask_tmp%dealloc(); deallocate(mask_tmp)
           end if
           
           if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
@@ -91,7 +121,7 @@ contains
           else
              lowres=.false.
              call data(i)%N%sqrtInvN(res) 
-             write(*,*) 'N*sqrtInv(N) = ', res%map(1,1)
+             !write(*,*) 'N*sqrtInv(N) = ', res%map(1,1)
              res%map = res%map**2 !(sqrtInvN*res)**2 = res*invN*res
           end if
 
@@ -231,18 +261,24 @@ contains
           if (c%active_samp_group(cg_samp_group)) skip = .true.
        end if
        if (skip) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
 
        select type (c)
        class is (comm_diffuse_comp)
-          allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps))          
-          alm     = c%getBand(band, alm_out=.true.)
-          res%alm = res%alm + alm
-          !call res%add_alm(alm, c%x%info)
-          deallocate(alm)
-          nonzero = .true.
+          if (data(band)%B(0)%p%almFromConv) then
+             allocate(alm(0:data(band)%info%nalm-1,data(band)%info%nmaps)) 
+             alm     = c%getBand(band, alm_out=.true.)
+             res%alm = res%alm + alm
+             deallocate(alm)
+             nonzero = .true.
+          else
+             allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
+             map       = c%getBand(band)
+             ptsrc%map = ptsrc%map + map
+             deallocate(map)
+          end if
        class is (comm_ptsrc_comp)
           allocate(map(0:data(band)%info%np-1,data(band)%info%nmaps))
           map       = c%getBand(band)
@@ -254,7 +290,7 @@ contains
           ptsrc%map = ptsrc%map + map
           deallocate(map)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     if (nonzero) call res%Y()
 
@@ -282,7 +318,7 @@ contains
     c => compList
     do while (associated(c))
        if (trim(c%type) /= 'cmb') then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        
@@ -308,7 +344,7 @@ contains
           deallocate(alm)
           call dipole%dealloc(); deallocate(dipole)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
     ! Clean up
@@ -357,7 +393,7 @@ contains
        c => compList
        do while (associated(c))
           if (trim(c%type) == 'md') then
-             c => c%next()
+             c => c%nextComp()
              cycle
           end if
 
@@ -368,9 +404,13 @@ contains
           class is (comm_diffuse_comp)
              !allocate(alm(0:data(i)%info%nalm-1,data(i)%info%nmaps))
              !allocate(alm(0:c%x%info%nalm-1,c%x%info%nmaps))          
-             out%alm = c%getBand(i, alm_out=.true.)
+             if (data(i)%B(0)%p%almFromConv) then
+                out%alm = c%getBand(i, alm_out=.true.)
              !call out%add_alm(alm, c%x%info)
-             call out%Y()
+                call out%Y()
+             else
+                out%map     = c%getBand(i)
+             end if
              !deallocate(alm)
           class is (comm_ptsrc_comp)
              !allocate(map(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -389,7 +429,7 @@ contains
           filename = trim(outdir)//'/'//trim(c%label)//'_'//trim(data(i)%label)//'_'//trim(postfix)//'.fits'
           !call data(i)%apply_proc_mask(out)
           if (.not. skip) call out%writeFITS(filename)
-          c => c%next()
+          c => c%nextComp()
        end do
        call out%dealloc; deallocate(out)
     end do
@@ -453,7 +493,7 @@ contains
     map_diff%alm = 0.d0
     do while (associated(c))
        if (.not. mono_ .and. trim(c%type)=="md") then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        select type (c)
@@ -498,7 +538,7 @@ contains
           end if
           deallocate(map)
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
     
     call map_diff%Y()
