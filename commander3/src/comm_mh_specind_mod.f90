@@ -828,9 +828,7 @@ contains
     ! Initializing, allocating all gain proposal lengths
     do i = 1, numband
       allocate(data(i)%gain_sigmas(cpar%mcmc_num_user_samp_groups))
-      !allocate(data(i)%rescale_comp(cpar%mcmc_num_user_samp_groups))
       data(i)%gain_sigmas = 0d0
-      !data(i)%rescale_comp = ''
     end do
 
     do i = 1, cpar%mcmc_num_user_samp_groups
@@ -863,16 +861,13 @@ contains
 
 
         else if (n == 1) then
+            call get_tokens(tokens(j), '%', comp_tokens)
+            read(comp_tokens(2), *) sigma
 
             call get_tokens(comp_tokens(1), ':', comp_names)
-            
-            if (comp_names(1)(1:7) == 'rescale') then
-                write(*,*) comp_tokens(1)
-                stop
 
-            else if (trim(comp_names(1)) == 'gain') then
-                call get_tokens(tokens(j), '%', comp_tokens)
-                read(comp_tokens(2), *) sigma
+
+            if (trim(comp_names(1)) == 'gain') then
                 do k = 1, numband
                   if (trim(comp_names(2)) .eq. trim(data(k)%label)) then
                     data(k)%gain_sigmas(i) = sigma
@@ -880,8 +875,6 @@ contains
                 end do
 
             else if (trim(comp_names(2)) == 'scale') then
-              call get_tokens(tokens(j), '%', comp_tokens)
-              read(comp_tokens(2), *) sigma
 
               c => compList
               do while (associated(c))
