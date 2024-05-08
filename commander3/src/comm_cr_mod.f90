@@ -741,7 +741,6 @@ contains
     !call update_status(status, "A1")
     allocate(y(ncr), sqrtS_x(ncr))
     y = 0.d0
-    myid = data(1)%map%info%myid
 
     ! Multiply with sqrt(S)
     call wall_time(t1)
@@ -790,8 +789,6 @@ contains
        c => c%nextComp()
     end do
     call wall_time(t2)
-    !if (myid == 0) write(*,fmt='(a,f8.2)') 'sqrtS time = ', real(t2-t1,sp)
-    !write(*,*) 'df3' 
 
     
     ! Add frequency dependent terms
@@ -868,7 +865,6 @@ contains
        !call update_status(status, "A11")
        !write(*,*) 'c', sum(abs(pmap%map))
        call wall_time(t2)
-       !if (myid == 0) !write(*,fmt='(a,f8.2)') 'getBand time = ', real(t2-t1,sp)
 
     !write(*,*) 'df5'
        ! Multiply with invN
@@ -876,7 +872,6 @@ contains
        call data(i)%N%InvN(map, samp_group=samp_group)
        call wall_time(t2)
        !call update_status(status, "A12")
-       !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
 
        ! Project summed map into components, ie., row-wise matrix elements
        call wall_time(t1)
