@@ -283,6 +283,26 @@ contains
            write(*,*) '| '
          end if
 
+         i = 0
+         c => compList
+         do while (associated(c))
+            if (c%scale_sigma(l) > 0d0) then
+               i = i + 1
+               select type(c)
+               class is (comm_diffuse_comp)
+                  c%x%alm = c%x%alm/scales(i)
+                  !call c%x%Y
+               class is (comm_template_comp)
+                  c%T%map = c%T%map/scales(i)
+               class default
+                  write(*,*) "You have not set behavior for class ", trim(c%class)
+                  stop
+               end select
+            end if
+            c => c%nextComp()
+         end do
+
+         
          ! Instead of doing compsep, revert the amplitudes here
          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 

@@ -1167,7 +1167,7 @@ contains
          filename = trim(cpar%outdir)//'/zodi_powell_sg'//sgroup//'_k'//iter_string//'.dat'
          unit     = getlun()
          open(unit, file=trim(filename), recl=10000)
-         write(unit, '(a)', advance="no") "# "
+         write(unit, '(a)', advance="no") "# chisq_red "
          do i = 1, zodi_model%npar_tot
             if (zodi_model%theta_stat(i,samp_group)==0) then
                write(unit, "(a,a)", advance="no") trim(adjustl(zodi_model%par_labels_full(i))), " "

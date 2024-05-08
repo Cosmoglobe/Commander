@@ -98,6 +98,11 @@ contains
             res%map = res%map * mask(i)%p%map
           else if (present(maskpath)) then
             mask_tmp => comm_map(data(i)%info, trim(maskpath), udgrade=.true.)
+            where(mask_tmp%map < 0.5d0)
+               mask_tmp%map = 0.d0
+            elsewhere
+               mask_tmp%map = 1.d0
+            end where
             res%map = res%map * mask_tmp%map
             call mask_tmp%dealloc(); deallocate(mask_tmp)
           end if
@@ -140,6 +145,7 @@ contains
                 chisq_fullsky = chisq_fullsky + sum(res_lowres%map)
              else
                 chisq_fullsky = chisq_fullsky + sum(res%map)
+                !write(*,*) trim(data(i)%label), sum(res%map), chisq_fullsky
              end if
           end if
 

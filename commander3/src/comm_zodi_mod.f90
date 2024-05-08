@@ -165,7 +165,7 @@ contains
          zodi_model%par_labels(ind:ind+zodi_model%comps(i)%npar-1) = &
               & zodi_model%comps(i)%labels
          do j = ind, ind+zodi_model%comps(i)%npar-1
-            zodi_model%par_labels(j) = &
+            zodi_model%par_labels_full(j) = &
               & trim(zodi_model%comp_labels(i))//':'//trim(zodi_model%par_labels(j))
          end do
             
