@@ -417,7 +417,7 @@ program commander
 
 
      ! Sample non-linear parameters
-     if (.false. .and. iter > 1 .and. cpar%sample_specind) then
+     if (iter > 1 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
