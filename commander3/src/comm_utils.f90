@@ -25,7 +25,7 @@ module comm_utils
   use head_fits
   use pix_tools
   use udgrade_nr
-  use iso_c_binding
+  !use iso_c_binding
   use comm_system_mod
   use comm_defs
   use sort_utils
