@@ -534,6 +534,7 @@ contains
     else
       cpar%include_TOD_zodi = .false.
       cpar%sample_zodi      = .false.
+      cpar%tod_freq         = huge(i4b)
     end if
 
     if (cpar%resamp_CMB) then
