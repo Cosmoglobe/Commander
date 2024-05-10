@@ -29,9 +29,6 @@ module comm_MBBtab_comp_mod
   !      Modified Black Body (MBBtab) component
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
-     !integer(i4b) :: ntab
-     !real(dp), allocatable, dimension(:,:) :: SEDtab
-     !real(dp), allocatable, dimension(:,:) :: SEDtab_buff
    contains
      procedure :: S    => evalSED_mbbtab
      procedure :: read_SED_table
@@ -88,6 +85,9 @@ contains
     end do
     c%indlabel  = ['beta', 'T   ']
 
+    ! Read SED table
+    call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
+
     ! Precompute mixmat integrator for each band
     allocate(c%F_int(3,numband,0:c%ndet))
     do k = 1, 3
@@ -129,8 +129,6 @@ contains
     ! Init alm 
     if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
-    ! Read SED table
-    call c%read_SED_table(cpar%cs_SED_template(1,id_abs))
 
     allocate(c%theta_steplen(2+c%ntab, cpar%mcmc_num_samp_groups))
     c%theta_steplen = 0d0
@@ -159,6 +157,8 @@ contains
 
     integer(i4b) :: i
     real(dp) :: x, x_ref, beta, T
+
+
 
 
     ! First check if requested frequency is in tabulated range
