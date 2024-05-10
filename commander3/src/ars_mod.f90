@@ -112,6 +112,7 @@ contains
 
     ! Loop until a sample has been drawn successfully
     k = 0
+    h = 0d0
     do while (k < MAX_ARS_TRIES)
        k = k+1
 

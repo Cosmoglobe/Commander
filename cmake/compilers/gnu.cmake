@@ -43,8 +43,8 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 endif()
 if(COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_DEBUG 
-		"-O0"
-		"-g" 
+		"-Og"
+    "-g" 
 		"-Wuninitialized" # catching uninitialized variables
 		"-fopenmp" 
 		"-fbacktrace" 
