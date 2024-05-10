@@ -19,13 +19,7 @@
 !
 !================================================================================
 module comm_physdust_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_map_mod
-  use comm_F_int_1D_mod
-  use comm_data_mod
-  use spline_2D_mod
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -41,11 +35,11 @@ module comm_physdust_comp_mod
      real(dp), allocatable, dimension(:)         :: log_dust_wav, dust_u, extcrv, extpol, scat, amps
      real(dp), allocatable, dimension(:,:,:,:,:) :: coeff_arr
    contains
-     procedure :: S    => evalSED
+     procedure :: S    => evalSED_physdust
   end type comm_physdust_comp
 
   interface comm_physdust_comp
-     procedure constructor
+     procedure constructor_physdust
   end interface comm_physdust_comp
 
 contains
@@ -53,11 +47,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor_physdust(cpar, id, id_abs) result(c)
     implicit none
     type(comm_params),   intent(in) :: cpar
     integer(i4b),        intent(in) :: id, id_abs
-    class(comm_physdust_comp), pointer   :: constructor
+    class(comm_physdust_comp), pointer   :: c
 
     real(dp)     :: dummy
     real(dp), allocatable, dimension(:,:,:) :: comp_mat
@@ -75,132 +69,134 @@ contains
 
 
     ! General parameters
-    allocate(constructor)
+    allocate(c)
 
 
-    constructor%npar         = 2
-    allocate(constructor%poltype(constructor%npar))
-    do i = 1, constructor%npar
-       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
+    c%npar         = 2
+    allocate(c%poltype(c%npar))
+    do i = 1, c%npar
+       c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
-    call constructor%initLmaxSpecind(cpar, id, id_abs)
+    call c%initLmaxSpecind(cpar, id, id_abs)
 
-    call constructor%initDiffuse(cpar, id, id_abs)
+    call c%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
-    allocate(constructor%theta_def(1), constructor%p_gauss(2,1), constructor%p_uni(2,1))
-    allocate(constructor%indlabel(1))
-    constructor%theta_def(1) = cpar%cs_theta_def(1,id_abs)
-    constructor%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
-    constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
-    constructor%indlabel(1)  = 'Umin'
+    allocate(c%theta_def(1), c%p_gauss(2,1), c%p_uni(2,1))
+    allocate(c%theta_steplen(1,cpar%mcmc_num_samp_groups))
+    allocate(c%indlabel(1))
+    c%theta_def(1) = cpar%cs_theta_def(1,id_abs)
+    c%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
+    c%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
+    c%indlabel(1)  = 'Umin'
+    c%theta_steplen = 0d0
 
     ! Initialize spectral index map
-    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & constructor%nmaps, constructor%pol)
+    info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
+         & c%nmaps, c%pol)
 
-    allocate(constructor%theta(constructor%npar))
-    do i = 1, constructor%npar
+    allocate(c%theta(c%npar))
+    do i = 1, c%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default' .or. trim(cpar%cs_input_ind(i,id_abs)) == 'none') then
-          constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(1)
+          c%theta(i)%p => comm_map(info)
+          c%theta(i)%p%map = c%theta_def(1)
        else
           ! Read map from FITS file, and convert to alms
-          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
+          c%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0
-       if (constructor%lmax_ind >= 0) then
+       if (c%lmax_ind >= 0) then
           ! if lmax >= 0 we can get alm values for the theta map
-          call constructor%theta(i)%p%YtW_scalar
+          call c%theta(i)%p%YtW_scalar
        end if
     end do
 
     ! Initialize SED templates
     unit                  = getlun()
     num_nu                = 1000    ! Number of frequencies in dust files
-    constructor%num_nu    = num_nu
-    constructor%num_u     = 11      ! Number of radiation field strengths
-    constructor%u_arr_min = -0.5d0
-    constructor%u_arr_max =  0.5d0
-    constructor%du_arr    = (constructor%u_arr_max - constructor%u_arr_min)/(constructor%num_u - 1.d0)
-    constructor%num_comp  = 4 ! Number of dust components
+    c%num_nu    = num_nu
+    c%num_u     = 11      ! Number of radiation field strengths
+    c%u_arr_min = -0.5d0
+    c%u_arr_max =  0.5d0
+    c%du_arr    = (c%u_arr_max - c%u_arr_min)/(c%num_u - 1.d0)
+    c%num_comp  = 4 ! Number of dust components
 
-    allocate(constructor%coeff_arr(4,4,num_nu,constructor%num_u,constructor%num_comp))
-    allocate(constructor%log_dust_wav(num_nu), constructor%dust_u(constructor%num_u))
-    allocate(constructor%extcrv(num_nu), constructor%extpol(num_nu), constructor%scat(num_nu))
-    allocate(constructor%amps(constructor%num_comp))
+    allocate(c%coeff_arr(4,4,num_nu,c%num_u,c%num_comp))
+    allocate(c%log_dust_wav(num_nu), c%dust_u(c%num_u))
+    allocate(c%extcrv(num_nu), c%extpol(num_nu), c%scat(num_nu))
+    allocate(c%amps(c%num_comp))
 
-    constructor%log_umax  = cpar%cs_auxpar(1,id_abs)
-    constructor%gamma     = cpar%cs_auxpar(2,id_abs)
-    constructor%alpha     = cpar%cs_auxpar(3,id_abs)
-    constructor%amps      = cpar%cs_auxpar(4:3+constructor%num_comp,id_abs)
+    c%log_umax  = cpar%cs_auxpar(1,id_abs)
+    c%gamma     = cpar%cs_auxpar(2,id_abs)
+    c%alpha     = cpar%cs_auxpar(3,id_abs)
+    c%amps      = cpar%cs_auxpar(4:3+c%num_comp,id_abs)
 
     ! Make array of log U
-    do i = 1, constructor%num_u
-       constructor%dust_u(i) = -0.5d0 + constructor%du_arr*(i-1)
+    do i = 1, c%num_u
+       c%dust_u(i) = -0.5d0 + c%du_arr*(i-1)
     enddo
 
-    allocate(comp_mat(num_nu,constructor%num_u,constructor%num_comp))    
-    do k = 1, constructor%num_comp
+    allocate(comp_mat(num_nu,c%num_u,c%num_comp))    
+    do k = 1, c%num_comp
        open(unit,file=trim(cpar%cs_SED_template(k,id_abs)),recl=4096)
        do i = 1, num_nu
-          read(unit,fmt='(1P26E11.3)') constructor%log_dust_wav(i), constructor%extcrv(i),&
-               & constructor%extpol(i), constructor%scat(i), (comp_mat(i,j,k),j=1,constructor%num_u), &
-                (dummy,j=1,constructor%num_u)
-          constructor%log_dust_wav(i) = log(constructor%log_dust_wav(i))
+          read(unit,fmt='(1P26E11.3)') c%log_dust_wav(i), c%extcrv(i),&
+               & c%extpol(i), c%scat(i), (comp_mat(i,j,k),j=1,c%num_u), &
+                (dummy,j=1,c%num_u)
+          c%log_dust_wav(i) = log(c%log_dust_wav(i))
        enddo
-       call splie2_full_precomp(constructor%log_dust_wav,constructor%dust_u,&
-            & log(comp_mat(:,:,k)), constructor%coeff_arr(:,:,:,:,k))
+       call splie2_full_precomp(c%log_dust_wav,c%dust_u,&
+            & log(comp_mat(:,:,k)), c%coeff_arr(:,:,:,:,k))
         close(59)
      enddo
      deallocate(comp_mat)
 
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    allocate(c%F_int(3,numband,0:c%ndet))
     do k = 1, 3
        do i = 1, numband
           do j = 0, data(i)%ndet
              if (k > 1) then
-                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                   c%F_int(k,i,j)%p => c%F_int(k-1,i,j)%p
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+             c%F_int(k,i,j)%p => comm_F_int_1D(c, data(i)%bp(j)%p, k)
           end do
        end do
     end do
 
-    call constructor%initPixregSampling(cpar, id, id_abs)
+    call c%initPixregSampling(cpar, id, id_abs)
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
+    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    call c%updateMixmat
 
-  end function constructor
+  end function constructor_physdust
 
   ! Definition:
   !    SED  = (nu/nu_ref)**beta
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_physdust(self, nu, band, pol, theta)
     implicit none
     class(comm_physdust_comp), intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
-    real(dp)                                      :: evalSED
+    real(dp)                                      :: evalSED_physdust
 
     integer(i4b) :: i, j, num_u_int
     real(dp) :: SED_physdust, SED_norm, wav_in, wav_ref, c
     real(dp) :: log_umin, umin, log_umax, umax, uval, du, fdu
 
     if (nu < 2d9) then
-       evalSED = 0.d0
+       evalSED_physdust = 0.d0
        return
     end if
      
@@ -246,8 +242,8 @@ contains
            enddo
         endif
      enddo
-     evalSED = (SED_physdust / SED_norm) * (self%nu_ref(pol)/nu)**3 ! Normalize to reference in T units
+     evalSED_physdust = (SED_physdust / SED_norm) * (self%nu_ref(pol)/nu)**3 ! Normalize to reference in T units
 
-  end function evalSED
+  end function evalSED_physdust
   
 end module comm_physdust_comp_mod

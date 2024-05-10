@@ -19,106 +19,136 @@ contains
   !             Constructor
   !**************************************************
   !function constructor(cpar, id_abs, info, tod_type)
-  module procedure constructor
+  module function constructor_quiet(cpar, id_abs, info, tod_type) result(c)
     implicit none
+    !
+    ! Constructor function that gathers all the instrument parameters in a pointer
+    ! and constructs the objects
+    !
+    ! Arguments:
+    ! ----------
+    ! handle:   type(planck_rng)
+    !           Healpix random number type
+    ! cpar:     derived type
+    !           Object containing parameters from the parameterfile.
+    ! id_abs:   integer
+    !           The index of the current band within the parameters, related to cpar
+    ! info:     map_info structure
+    !           Information about the maps for this band, like how the maps are distributed in memory
+    ! tod_type: string
+    !           Instrument specific tod type
+    !
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
+    ! Returns
+    ! ----------
+    ! res: pointer
+    !              Pointer that contains all instrument data
+    type(comm_params),         intent(in)    :: cpar
+    integer(i4b),              intent(in)    :: id_abs
+    class(comm_mapinfo),       target        :: info
+    character(len=128),        intent(in)    :: tod_type
+    class(comm_quiet_tod),     pointer       :: c
+    
     integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
     logical(lgt) :: pol_beam
 
     ! Initialize common parameters
-    allocate (constructor)
+    allocate (c)
 
     ! Set up noise PSD type and priors
-    constructor%freq            = cpar%ds_label(id_abs)
-    constructor%n_xi            = 3
+    c%freq            = cpar%ds_label(id_abs)
+    c%n_xi            = 3
     ! oof -- one over f noise
-    constructor%noise_psd_model = 'oof'
-    allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-    allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
-    allocate(constructor%xi_n_P_rms(constructor%n_xi))
+    c%noise_psd_model = 'oof'
+    allocate(c%xi_n_P_uni(c%n_xi,2))
+    allocate(c%xi_n_nu_fit(c%n_xi,2))
+    allocate(c%xi_n_P_rms(c%n_xi))
 
     !
-    constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-    if (trim(constructor%freq) == 'Q') then
-       constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
-       constructor%xi_n_P_uni(2,:)  = [0.00001, 0.005]  ! fknee
-       constructor%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
-    else if (trim(constructor%freq) == 'W') then
-       constructor%xi_n_nu_fit(2,:) = [0.0, 0.200]    
-       constructor%xi_n_P_uni(2,:)  = [0.0001, 0.01]    ! fknee
-       constructor%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
+    c%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
+    if (trim(c%freq) == 'Q') then
+       c%xi_n_nu_fit(2,:) = [0.0, 0.200]    
+       c%xi_n_P_uni(2,:)  = [0.00001, 0.005]  ! fknee
+       c%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
+    else if (trim(c%freq) == 'W') then
+       c%xi_n_nu_fit(2,:) = [0.0, 0.200]    
+       c%xi_n_P_uni(2,:)  = [0.0001, 0.01]    ! fknee
+       c%xi_n_P_uni(3,:)  = [-3.0, -0.01]     ! alpha
     else
-       write(*,*) 'Invalid QUIET frequency label = ', trim(constructor%freq)
+       write(*,*) 'Invalid QUIET frequency label = ', trim(c%freq)
        stop
     end if
 
     !
-    call constructor%tod_constructor(cpar, id_abs, info, tod_type)
+    call c%tod_constructor(cpar, id_abs, info, tod_type)
 
     ! Set up WMAP specific parameters
-    constructor%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-    constructor%nhorn           = 1 ! number of horns 
-    !constructor%ndiode          = 4 ! number of diodes in an amplifier (from adc branch)
-    constructor%n_xi            = 3 ! number of power spectrum density parameters (sigma0, fknee, alpha ?)
-    constructor%compressed_tod  = .false.
-    constructor%correct_sl      = .false.    ! sidelobes to be removed
-    constructor%orb_4pi_beam    = .false.    ! full beam convolution
-    constructor%symm_flags      = .false.
-    constructor%chisq_threshold = 400.d0     ! throwing away the tod above thhat value
-    constructor%nmaps           = info%nmaps ! map labels (?) 
-    constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",") ! number of detectors (retrieved from HDF5 file)
-    constructor%verbosity       = cpar%verbosity ! how extensive your output should be
-    !constructor%x_im            = 0d0 ! WMAP only parameter
+    c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+    c%nhorn           = 1 ! number of horns 
+    !c%ndiode          = 4 ! number of diodes in an amplifier (from adc branch)
+    c%n_xi            = 3 ! number of power spectrum density parameters (sigma0, fknee, alpha ?)
+    c%compressed_tod  = .false.
+    c%correct_sl      = .false.    ! sidelobes to be removed
+    c%correct_orb     = .true.     ! removes the cmb orbital dipole
+    c%orb_4pi_beam    = .false.    ! full beam convolution
+    c%symm_flags      = .false.
+    c%chisq_threshold = 400.d0     ! throwing away the tod above thhat value
+    c%nmaps           = info%nmaps ! map labels (?) 
+    c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",") ! number of detectors (retrieved from HDF5 file)
+    c%verbosity       = cpar%verbosity ! how extensive your output should be
+    !c%x_im            = 0d0 ! WMAP only parameter
 
     ! Iniitialize TOD labels
-    allocate (constructor%labels(7))
-    constructor%labels(1) = 'map'    ! actual solution to the map 
-    constructor%labels(2) = 'res'    ! residual to the map
-    constructor%labels(3) = 'ncorr'  ! correlated noise
-    constructor%labels(4) = 'bpcorr' ! bandpass correction
-    constructor%labels(5) = 'orb'    ! orbital dipole
-    constructor%labels(6) = 'sl'     ! sidelobe
-    constructor%labels(7) = 'zodi'   ! zodiacal light
+    allocate (c%labels(7))
+    c%labels(1) = 'map'    ! actual solution to the map 
+    c%labels(2) = 'res'    ! residual to the map
+    c%labels(3) = 'ncorr'  ! correlated noise
+    c%labels(4) = 'bpcorr' ! bandpass correction
+    c%labels(5) = 'orb'    ! orbital dipole
+    c%labels(6) = 'sl'     ! sidelobe
+    c%labels(7) = 'zodi'   ! zodiacal light
 
     ! Initialize beams
     nside_beam                  = 512
     nmaps_beam                  = 3
     pol_beam                    = .true.
-    constructor%nside_beam      = nside_beam
+    c%nside_beam      = nside_beam
 
 
     ! Get detector labels
-    call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+    call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
 
     ! Define detector partners
-    do i = 1, constructor%ndet
+    do i = 1, c%ndet
        if (mod(i,2) == 1) then
-          constructor%partner(i) = i+1
+          c%partner(i) = i+1
        else
-          constructor%partner(i) = i-1
+          c%partner(i) = i-1
        end if
-       constructor%horn_id(i) = (i+1)/2
+       c%horn_id(i) = (i+1)/2
     end do
 
     ! Read the actual TOD
-    call constructor%read_tod(constructor%label)
+    call c%read_tod(c%label)
 
     ! Initialize bandpass mean and proposal matrix
-    call constructor%initialize_bp_covar(trim(cpar%ds_tod_bp_init(id_abs)))
+    call c%initialize_bp_covar(trim(cpar%ds_tod_bp_init(id_abs)))
 
     ! Construct lookup tables -- reads everything up from pointing information
-    call constructor%precompute_lookups()
+    call c%precompute_lookups()
 
     ! Load the instrument file
-    call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+    call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
     ! Need precompute the main beam precomputation for both the A-horn and
     ! B-horn.
     ! Allocate sidelobe convolution data structures
-    allocate(constructor%slconv(constructor%ndet), constructor%orb_dp)
-    constructor%orb_dp => comm_orbdipole(constructor%mbeam)
+    allocate(c%slconv(c%ndet), c%orb_dp)
+    c%orb_dp => comm_orbdipole(c%mbeam)
 
 
-  end procedure constructor
+  end function constructor_quiet
 
   !**************************************************
   !             Driver routine
@@ -274,7 +304,7 @@ contains
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
+          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
             & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
        ! Should we be computing the chisq of the sums and differences?

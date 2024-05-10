@@ -1321,7 +1321,7 @@ contains
                    P_uni(2) = 1.5*par_est(3)
                 end if
                 
-                pars(i) = find_maxlike_gauss_par(i)
+                pars(i) = maxlike_gauss_par(i)
              end do
           end do
 
@@ -1343,7 +1343,7 @@ contains
   contains
 
     ! Grid out and solve for maximum likelihood parameter value
-    function find_maxlike_gauss_par(par_i) result(gpar)
+    function maxlike_gauss_par(par_i) result(gpar)
       use healpix_types
       implicit none
       ! real(sp),   intent(inout) :: gpar
@@ -1373,7 +1373,7 @@ contains
 
       gpar = grid(ind)
 
-    end function find_maxlike_gauss_par
+    end function maxlike_gauss_par
     
   end function return_gauss_lin_model_dp
   

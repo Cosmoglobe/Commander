@@ -24,7 +24,7 @@ contains
    !**************************************************
    !             Constructor
    !**************************************************
-   module function constructor(cpar, id_abs, info, tod_type) result(res)
+   module function constructor_spider(cpar, id, id_abs, info, tod_type) result(c)
      !
      ! Constructor function that gathers all the instrument parameters in a pointer
      ! and constructs the objects
@@ -47,10 +47,10 @@ contains
  
      implicit none
      type(comm_params),       intent(in) :: cpar
-     integer(i4b),            intent(in) :: id_abs
+     integer(i4b),            intent(in) :: id, id_abs
      class(comm_mapinfo),     target     :: info
      character(len=128),      intent(in) :: tod_type
-     class(comm_SPIDER_tod),  pointer    :: res
+     class(comm_SPIDER_tod),  pointer    :: c
  
      integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam, ierr
      logical(lgt) :: pol_beam
@@ -64,81 +64,82 @@ contains
 
  
      ! Allocate object
-     allocate(res)
+     allocate(c)
  
      ! Set up noise PSD type and priors
-     res%freq            = cpar%ds_label(id_abs)
-     res%n_xi            = 3
-     res%noise_psd_model = 'oof'
-     allocate(res%xi_n_P_uni(res%n_xi,2))
-     allocate(res%xi_n_nu_fit(res%n_xi,2))
-     allocate(res%xi_n_P_rms(res%n_xi))
+     c%freq            = cpar%ds_label(id_abs)
+     c%n_xi            = 3
+     c%noise_psd_model = 'oof'
+     allocate(c%xi_n_P_uni(c%n_xi,2))
+     allocate(c%xi_n_nu_fit(c%n_xi,2))
+     allocate(c%xi_n_P_rms(c%n_xi))
      
-     res%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
-     if (trim(res%freq) == 'SPIDER_150') then
-        res%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
-        res%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
-        res%xi_n_P_uni(2,:)  = [0.0010d0, 0.45d0] ! fknee
-        res%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
-     else if (trim(res%freq) == 'SPIDER_90') then
-        res%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
-        res%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
-        res%xi_n_P_uni(2,:)  = [0.002d0, 0.40d0]  ! fknee
-        res%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
+     c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
+     if (trim(c%freq) == 'SPIDER_150') then
+        c%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        c%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 350d0
+        c%xi_n_P_uni(2,:)  = [0.0010d0, 0.45d0] ! fknee
+        c%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
+     else if (trim(c%freq) == 'SPIDER_90') then
+        c%xi_n_nu_fit(2,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        c%xi_n_nu_fit(3,:) = [0.d0, 0.400d0]    ! More than max(2*fknee_DPC) | 0.200d0
+        c%xi_n_P_uni(2,:)  = [0.002d0, 0.40d0]  ! fknee
+        c%xi_n_P_uni(3,:)  = [-2.8d0, -0.4d0]   ! alpha
      else
-        write(*,*) 'Invalid SPIDER frequency label = ', trim(res%freq)
+        write(*,*) 'Invalid SPIDER frequency label = ', trim(c%freq)
         stop
      end if
  
      ! Initialize common parameters
-     call res%tod_constructor(cpar, id_abs, info, tod_type)
+     call c%tod_constructor(cpar, id, id_abs, info, tod_type)
 
      ! Initialize instrument-specific parameters
-     res%samprate_lowres = 1.d0  ! Lowres samprate in Hz
-     res%nhorn           = 1
-     res%ndiode          = 1
-     res%compressed_tod  = .false.
-     res%correct_sl      = .false.
-     res%orb_4pi_beam    = .false.
-     res%symm_flags      = .false.
+     c%samprate_lowres = 1.d0  ! Lowres samprate in Hz
+     c%nhorn           = 1
+     c%ndiode          = 1
+     c%compressed_tod  = .false.
+     c%correct_sl      = .false.
+     c%correct_orb     = .true.
+     c%orb_4pi_beam    = .false.
+     c%symm_flags      = .false.
 
-     if (trim(res%freq) == 'SPIDER_150') then
-        res%chisq_threshold = 100.d0 !20.d0 ! 9.d0
-     else if (trim(res%freq) == 'SPIDER_90') then
-        res%chisq_threshold = 20.d0 !20.d0 ! 9.d0
+     if (trim(c%freq) == 'SPIDER_150') then
+        c%chisq_threshold = 100.d0 !20.d0 ! 9.d0
+     else if (trim(c%freq) == 'SPIDER_90') then
+        c%chisq_threshold = 20.d0 !20.d0 ! 9.d0
      end if 
 
-     res%nmaps           = info%nmaps
-   !   res%ndet            = num_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
+     c%nmaps           = info%nmaps
+   !   c%ndet            = num_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",")
      
      nside_beam                  = 512
      nmaps_beam                  = 3
      pol_beam                    = .true.
-     res%nside_beam      = nside_beam
+     c%nside_beam      = nside_beam
  
      ! Get detector labels
      if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-        call get_detectors(cpar%ds_tod_dets(id_abs), res%label)
+        call get_detectors(cpar%ds_tod_dets(id_abs), c%label)
      else
-        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", res%label)
+        call get_tokens(trim(adjustl(cpar%ds_tod_dets(id_abs))), ",", c%label)
      end if
 
      ! Define detector partners
-   !   do i = 1, res%ndet
+   !   do i = 1, c%ndet
    !      if (mod(i,2) == 1) then
-   !         res%partner(i) = i+1
+   !         c%partner(i) = i+1
    !      else
-   !         res%partner(i) = i-1
+   !         c%partner(i) = i-1
    !      end if
-   !      res%horn_id(i) = (i+1)/2
+   !      c%horn_id(i) = (i+1)/2
    !   end do
 
 
      ! Define detector partners for SPIDER mux layout
-     if (trim(res%freq) == 'SPIDER_150') then
+     if (trim(c%freq) == 'SPIDER_150') then
         ! A/B - pairs are located in alternating rows. E.g., x1r01c09 and x1r02c09 are a pair.
-        do i=1, res%ndet
-           det = res%label(i)
+        do i=1, c%ndet
+           det = c%label(i)
            row_str = det(4:5)
            read(row_str, *) row_int
            if (mod(row_int,2)==0) then
@@ -150,17 +151,17 @@ contains
            det_partner = det
            det_partner(4:5) = row_partner_str
 
-           det_index = findloc(res%label, det_partner)
+           det_index = findloc(c%label, det_partner)
            ! If there is no partner, assign it the index of the partnerless detector itself
            if (det_index(1)==0) then
               det_index(1) = i
            end if
-           res%partner(i) = det_index(1)
+           c%partner(i) = det_index(1)
         end do
 
-     else if (trim(res%freq) == 'SPIDER_90') then
-      do i=1, res%ndet
-         det = res%label(i)
+     else if (trim(c%freq) == 'SPIDER_90') then
+      do i=1, c%ndet
+         det = c%label(i)
          row_str = det(4:5)
          read(row_str, *) row_int
          if (mod(row_int,2)==0) then
@@ -172,38 +173,38 @@ contains
          det_partner = det
          det_partner(4:5) = row_partner_str
 
-         det_index = findloc(res%label, det_partner)
+         det_index = findloc(c%label, det_partner)
          ! If there is no partner, assign it the index of the partnerless detector itself
          if (det_index(1)==0) then
             det_index(1) = i
          end if
-         res%partner(i) = det_index(1)
+         c%partner(i) = det_index(1)
       end do
      end if
 
 
        
      ! Read the actual TOD
-     call res%read_tod(res%label, cpar%datadir)
+     call c%read_tod(c%label, cpar%datadir)
  
      ! Initialize bandpass mean and proposal matrix
-     call res%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
+     call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
  
      ! Construct lookup tables
-     call res%precompute_lookups()
+     call c%precompute_lookups()
  
      ! Load the instrument file
-     call res%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+     call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
  
      ! Allocate sidelobe convolution data structures
-     allocate(res%slconv(res%ndet), res%orb_dp)
-     if (res%orb_4pi_beam) res%orb_dp => comm_orbdipole(res%mbeam)
+     allocate(c%slconv(c%ndet), c%orb_dp)
+     if (c%orb_4pi_beam) c%orb_dp => comm_orbdipole(c%mbeam)
  
 
      call timer%stop(TOD_INIT, id_abs)
 
  
-   end function constructor
+   end function constructor_spider
  
    !**************************************************
    !             Driver routine
@@ -602,8 +603,8 @@ contains
         call timer%start(TOD_CHISQ, self%band)
         do j = 1, sd%ndet
            if (.not. self%scans(i)%d(j)%accept) cycle
-         !   call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
-           call self%compute_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
+         !   call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j))
+           call self%compute_tod_chisq(i, j, 1.0-sd%flag(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j), s_jump=s_jump(:,j))
         end do
         call timer%stop(TOD_CHISQ, self%band)
 

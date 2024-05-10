@@ -19,24 +19,22 @@
 !
 !================================================================================
 program commander
-  use comm_param_mod
-  use comm_data_mod
-  use comm_signal_mod
-  use comm_cr_mod
-  use comm_chisq_mod
-  use comm_output_mod
-  use comm_comp_mod
   use comm_nonlin_mod
-  use comm_tod_simulations_mod
-  use comm_tod_gain_mod
+  use comm_mh_specind_mod
+  use comm_zodi_samp_mod
   implicit none
 
-  integer(i4b)        :: i, j, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq
+  integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
   real(dp)            :: t0, t1, t2, t3, dbp
-  logical(lgt)        :: ok, first
+  logical(lgt)        :: ok, first, first_zodi
   type(comm_params)   :: cpar
   type(planck_rng)    :: handle, handle_noise
+  character(len=6)  :: samptext
 
+  ! param_vec for zodi (REMOVE THIS AFTER ATLAS)
+   ! type(zodi_model) :: current_model, previous_model
+   ! real(dp), allocatable :: param_vec(:)
+   
   type(comm_mapinfo), pointer :: info => null()
   type(comm_map),     pointer :: m    => null()
   class(comm_comp),   pointer :: c1   => null()
@@ -46,6 +44,13 @@ program commander
   character(len=*), parameter :: version = '1.0.0'
   character(len=32)           :: arg
   integer                     :: arg_indx
+
+  real(dp), allocatable :: param_test(:)
+  real(dp) :: time_step
+  integer(i4b), dimension(2) :: bands_to_sample, bands_to_calibrate_against
+
+  bands_to_sample = (/1,2/)
+  bands_to_calibrate_against= (/1,2/)
 
   ! Giving the simple command line arguments for user to chose from.
   comm3_args: do arg_indx = 1, command_argument_count()
@@ -90,6 +95,16 @@ program commander
   status%active = cpar%myid_chain == 0 !.false.
   call timer%start(TOT_RUNTIME); call timer%start(TOT_INIT)
 
+!!!  if (cpar%myid == cpar%root) then
+!!!      allocate(param_test(200))
+!!!      param_test = 0.5d0
+!!!      time_step = FindReasonableEpsilon(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, handle)
+!!!      write(*,*) "first", param_test(1)
+!!!      call hmc(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!!!      call nuts(param_test, lnlike_hmc_test, grad_lnlike_hmc_test, 10000, time_step, handle)
+!!!      write(*,*) "last", param_test(1)
+!!!  end if
+
 !!$  n = 100000
 !!$  q = 100000
 !!$  allocate(arr(n))
@@ -111,6 +126,8 @@ program commander
 !!$  end do
 !!$  deallocate(arr)
 !!$  stop
+
+
   
   if (iargc() == 0) then
      if (cpar%myid == cpar%root) write(*,*) 'Usage: commander [parfile] {sample restart}'
@@ -137,7 +154,6 @@ program commander
      write(*,fmt='(a)') ' ---------------------------------------------------------------------'
   end if
 
-
   ! ************************************************
   ! *               Initialize modules             *
   ! ************************************************
@@ -145,30 +161,54 @@ program commander
   if (cpar%myid == cpar%root) call wall_time(t1)
 
   call update_status(status, "init")
-  if (cpar%enable_tod_analysis) call initialize_tod_mod(cpar)
+
+  ! Initialize tod modules
+  if (cpar%enable_tod_analysis) then 
+    call initialize_tod_mod(cpar)
+    if (cpar%include_tod_zodi) call initialize_zodi_mod(cpar)
+  end if
+
   call define_cg_samp_groups(cpar)
-  ! Initialising Bandpass
-  ! TODO: Add QUIET stuff into bandpass module
   call initialize_bp_mod(cpar);             call update_status(status, "init_bp")
-  ! Initialising Data -- load it into memory?
   call initialize_data_mod(cpar, handle);   call update_status(status, "init_data")
-  ! Debug statement to actually see whether
-  ! QUIET is loaded into memory
-  !stop
-  !write(*,*) 'nu = ', data(1)%bp(0)%p%nu
+  call initialize_inter_tod_params(cpar)
+
+
+  ! Precompute zodi lookups
+  if (cpar%enable_tod_analysis .and. cpar%include_tod_zodi) then
+     do i = 1, numband
+          if (data(i)%tod_type == 'none') cycle
+          if (.not. data(i)%tod%subtract_zodi) cycle        
+          call data(i)%tod%precompute_zodi_lookups(cpar)
+          call read_tod_zodi_params(cpar, zodi_model, data(i)%tod)
+     end do
+  end if
+
+  ! initialize zodi samp mod
+  if (cpar%sample_zodi .and. cpar%include_tod_zodi) then 
+      call initialize_zodi_samp_mod(cpar)
+  end if
+
+  ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
+  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
+  
+  ! initialize zodi samp mod
+  if (cpar%include_tod_zodi) then 
+      if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
+  end if
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
-
+  
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
   if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(ok)
   call update_mixing_matrices(update_F_int=.true.)       
-
+  
   if (cpar%output_input_model) then
      if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
      call output_FITS_sample(cpar, 999999, .false.)
@@ -196,8 +236,7 @@ program commander
      write(*,*) '|  Starting Gibbs sampling'
   end if
 
-
-  ! Prepare chains 
+  ! Prepare chains
   call init_chain_file(cpar, first_sample)
   !first_sample = 1
   if (first_sample == -1) then
@@ -207,7 +246,7 @@ program commander
      ! Re-initialise seeds and reinitialize
      call initialize_mpi_struct(cpar, handle, handle_noise, reinit_rng=first_sample)
      !first_sample = 10
-     first_sample=first_sample-1 ! Reject last sample, which may be corrupt
+     !first_sample=first_sample-1 ! Reject last sample, which may be corrupt
      call initialize_from_chain(cpar, handle, init_samp=first_sample, init_from_output=.true., first_call=.true.)
      first_sample = first_sample+1
   end if
@@ -219,12 +258,15 @@ program commander
   ! Run Gibbs loop
   iter  = first_sample
   first = .true.
+  first_zodi = .true.
+  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind)) modfact = 2
   !----------------------------------------------------------------------------------
   ! Part of Simulation routine
   !----------------------------------------------------------------------------------
   ! Will make only one full gibbs loop to produce simulations
   !if (cpar%enable_tod_simulations) cpar%num_gibbs_iter = 2
   !----------------------------------------------------------------------------------
+
   do while (iter <= cpar%num_gibbs_iter)
      ok = .true.
 
@@ -234,12 +276,18 @@ program commander
         write(*,fmt='(a)') ' ---------------------------------------------------------------------'
         write(*,fmt='(a,i4,a,i8)') ' |  Chain = ', cpar%mychain, ' -- Iteration = ', iter
      end if
+
      ! Initialize on existing sample if RESAMP_CMB = .true.
      if (cpar%resamp_CMB) then
         if (mod(iter-1,cpar%numsamp_per_resamp) == 0 .or. iter == first_sample) then
            curr_samp = mod((iter-1)/cpar%numsamp_per_resamp,cpar%last_samp_resamp-cpar%first_samp_resamp+1) + cpar%first_samp_resamp
            if (cpar%myid_chain == 0) write(*,*) '|  Re-initializing on sample ', curr_samp
            call initialize_from_chain(cpar, handle, init_samp=curr_samp)
+           ! initialize zodi samp mod; hack -- should be taken from HDF file, but needs a little rewrite
+           if (cpar%include_tod_zodi) then
+              call int2string(curr_samp, samptext)
+              call ascii_to_zodi_model(cpar, zodi_model, trim(cpar%outdir) // '/zodi_ascii_k' // samptext // '.dat')
+           end if
            call update_mixing_matrices(update_F_int=.true.)       
         end if
      end if
@@ -254,12 +302,36 @@ program commander
      end if
      !----------------------------------------------------------------------------------
      ! Process TOD structures
+     if (iter > 0 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
 
-     if (iter > 1 .and. cpar%enable_TOD_analysis .and. (iter <= 2 .or. mod(iter,cpar%tod_freq) == 0)) then
+      ! Create zodi atlas
+      ! if (.false.) then
+      !    allocate(param_vec(base_zodi_model%N_PARAMETERS))
+      !    do i = 1, base_zodi_model%N_PARAMETERS
+      !       if (cpar%myid == cpar%root) print *, "Creating zodi atlas for parameter: ", i
+      !       do j = 1, 3
+      !          base_zodi_model = sampled_zodi_model
+      !          base_zodi_model%param_i = i
+      !          base_zodi_model%up_down_j = j
+               
+      !          param_vec = base_zodi_model%model_to_param_vec()
+      !          if (j == 1) then
+      !             param_vec(i) = param_vec(i) - 0.1*param_vec(i)
+      !          else if (j == 3) then
+      !             param_vec(i) = param_vec(i) + 0.1*param_vec(i)
+      !          end if
+      !          call base_zodi_model%param_vec_to_model(param_vec)
+      !          call process_all_TODs(cpar, cpar%mychain, iter, handle)
+      !       end do
+      !    end do
+      ! end if 
+      
+   !   if (iter == 1) then ! For faster component separation since we dont sample the cios
+
         ! First iteration should just be component separation, in case sky model
         ! is off
         call timer%start(TOT_TODPROC)
-        call process_TOD(cpar, cpar%mychain, iter, handle)
+        call process_all_TODs(cpar, cpar%mychain, iter, handle)
         call timer%stop(TOT_TODPROC)
      end if
 
@@ -268,28 +340,114 @@ program commander
         exit
      end if
 
+     if (mod(iter,modfact) == 0 .and. iter > 1 .and. cpar%enable_TOD_analysis .and. cpar%sample_zodi) then
+!     if (.true. .and. cpar%include_tod_zodi) then
+      call timer%start(TOT_ZODI_SAMP)
+      call project_and_downsamp_sky(cpar)
+      if (first_zodi) then
+         ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
+         call downsamp_invariant_structs(cpar)
+         call precompute_lowres_zodi_lookups(cpar)
+      end if
+
+!!$      do i = 1, zodi_model%n_comps
+!!$         write(*,*) 'n0', zodi_model%comps(i)%c%n_0
+!!$      end do
+!!$      do i = 1, numband
+!!$         write(*,*) 'emissivity', data(i)%tod%zodi_emissivity, data(i)%tod%zodi_albedo
+!!$      end do
+      
+      call compute_downsamp_zodi(cpar, zodi_model)      
+      if (first_zodi) then
+         call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
+         call compute_downsamp_zodi(cpar, zodi_model)
+         call create_zodi_glitch_mask(cpar, handle)
+         first_zodi = .false.
+      end if 
+      call apply_zodi_glitch_mask(cpar)
+      !write(*,*) 'disabling glitch mask'
+
+      ! Sample non-stationary zodi components with geometric 3D model
+      select case (trim(adjustl(cpar%zs_sample_method)))
+      case ("mh")
+         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+      case ("powell")
+         do i = 1, cpar%zs_num_samp_groups
+            if (iter > 1) call minimize_zodi_with_powell(cpar, iter, handle, i)
+         end do
+      end select
+
+      ! Sample stationary zodi components with 2D model
+      call sample_static_zodi_map(cpar, handle)
+      !call sample_static_zodi_amps(cpar, handle)
+      
+!!$      if (mod(iter-2,10) == 0) then
+!!$         call zodi_model%params_to_model([&
+!!$              & 1.198d-7 + 0d-9*rand_gauss(handle), &
+!!$              & 2.10d0  + 0.0d0*rand_gauss(handle), &
+!!$              & 78.01d0 + 0.d0* rand_gauss(handle), &
+!!$              & 3.72d-2 + 0.000d0 * rand_gauss(handle), &
+!!$              & 8.71d-3 + 0.000d0 * rand_gauss(handle), &
+!!$              & -2.14d-3 + 0.000d0 * rand_gauss(handle), &
+!!$              & 0.951d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 3.50d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 0.822d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 0.183d0 + 0.00d0*rand_gauss(handle), &
+!!$              & 1d-9 + 3d-10*rand_gauss(handle), &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 0.d0, &
+!!$              & 1.d0 + 0.3d0*rand_gauss(handle), &
+!!$              & 3.d0 + 0.3*rand_gauss(handle), &
+!!$              & 286d0, 0.466863d0])
+!!$      end if
+!!$      if (mod(iter-1,2) == 0) then
+!!$         call sample_zodi_group(cpar, handle, iter, zodi_model, verbose=.true.)
+!!$      else
+!!$         call minimize_zodi_with_powell(cpar)
+!!$      end if
+
+      call timer%stop(TOT_ZODI_SAMP)
+   end if
+
+   if (mod(iter+1,modfact) == 0) then
+
+
+
      ! Sample non-linear parameters
      if (iter > 1 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
      end if
+     !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
+     
+     if (iter > 1) then
+        do i = 1, cpar%mcmc_num_samp_groups
+            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
+              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
+            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
+              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            else
+              if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
+              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            end if
+        end do
+     end if
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
      if (cpar%sample_signal_amplitudes) then
-        call timer%start(TOT_AMPSAMP)
-        do samp_group = 1, cpar%cg_num_user_samp_groups
-           if (cpar%myid_chain == 0) then
-              write(*,fmt='(a,i4,a,i4,a,i4)') ' |  Chain = ', cpar%mychain, ' -- CG sample group = ', &
-                   & samp_group, ' of ', cpar%cg_num_user_samp_groups
-           end if
-           call sample_amps_by_CG(cpar, samp_group, handle, handle_noise)
 
-           if (trim(cpar%cmb_dipole_prior_mask) /= 'none') call apply_cmb_dipole_prior(cpar, handle)
-
-        end do
-        call timer%stop(TOT_AMPSAMP)
+        ! Do CG group sampling
+        call sample_all_amps_by_CG(cpar, handle, handle_noise)
 
         ! Perform joint alm-Cl Metropolis move
         call timer%start(TOT_CLS)
@@ -304,6 +462,8 @@ program commander
      if (cpar%sample_powspec) call sample_powspec(handle, ok)
      call timer%stop(TOT_CLS)
 
+  end if
+     
      ! Output sample to disk
      call timer%start(TOT_OUTPUT)
      if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, iter, .true.)
@@ -313,7 +473,10 @@ program commander
      !call sample_partialsky_tempamps(cpar, handle)
 
      !call output_FITS_sample(cpar, 1000, .true.)
-    
+
+
+
+
      call wall_time(t2)
      if (ok) then
         if (cpar%myid_chain == 0) then
@@ -327,7 +490,7 @@ program commander
            write(*,*) '|  SAMPLE REJECTED'
         end if        
      end if
-     
+
      first = .false.
 
      call timer%stop(TOT_GIBBSSAMP)
@@ -354,7 +517,7 @@ program commander
 
 contains
 
-  subroutine process_TOD(cpar, chain, iter, handle)
+  subroutine process_all_TODs(cpar, chain, iter, handle)
     !
     ! Routine for TOD processing
     !
@@ -379,9 +542,7 @@ contains
 
     ndelta      = cpar%num_bp_prop + 1
 
-
-
-    do i = 1, numband  
+    do i = 1,numband  
        if (trim(data(i)%tod_type) == 'none') cycle
        if (iter .ne. 2 .and. mod(iter-1, data(i)%tod_freq) .ne. 0) then
            if (cpar%myid == 0) then
@@ -406,7 +567,7 @@ contains
                 gainmap        => comm_map(c%x)
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
 
@@ -457,19 +618,28 @@ contains
              end do
           end if
 
-          do j = 0, ndet
-             data(i)%bp(j)%p%delta = delta(j,:,k)
-             !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
-             call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
-          end do
-          call update_mixing_matrices(i, update_F_int=.true.)       
+             do j = 0, ndet
+                data(i)%bp(j)%p%delta = delta(j,:,k)
+
+                !write(*,*) "delta, j, k: ", delta(j,:,k), j, k
+                call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+                if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) then
+                   !write(*,*) 'alloc', i, j, allocated(data(i)%bp(j)%p%nu)
+                   call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
+                end if
+             end do
+             call update_mixing_matrices(i, update_F_int=.true.)
 
           ! Evaluate sky for each detector given current bandpass
           do j = 1, data(i)%tod%ndet
              !s_sky(j,k)%p => comm_map(data(i)%info)
-             call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+             if (trim(data(i)%tod%tod_type) == 'DIRBE') then
+                call get_sky_signal(i, j, s_sky(j,k)%p, mono=.true.)
+             else
+                call get_sky_signal(i, j, s_sky(j,k)%p, mono=.false.)
+             end if
              !s_sky(j,k)%p%map = s_sky(j,k)%p%map + 5.d0
-             !0call s_sky(j,k)%p%smooth(0.d0, 180.d0)
+             !call s_sky(j,k)%p%smooth(0.d0, 180.d0)
           end do
 
           ! Evaluate sky for each detector for absolute gain calibration
@@ -486,13 +656,16 @@ contains
 
        end do
 
-       !       call s_sky(1,1)%p%writeFITS('sky.fits')
+              !call s_sky(1,1)%p%writeFITS('sky.fits')
 
        rms => comm_map(data(i)%rmsinfo)
-
        call data(i)%tod%process_tod(cpar%outdir, chain, iter, handle, s_sky, delta, data(i)%map, rms, s_gain)
-       call timer%incr_numsamp(data(i)%id_abs)
 
+       ! Clear zodi cache for next band
+       if (data(i)%subtract_zodi) call data(i)%tod%clear_zodi_cache()
+       
+       call timer%incr_numsamp(data(i)%id_abs)
+       
        if (cpar%myid_chain == 0) then
          write(*,*) '|'
          write(*,*) '|  Finished processing ', trim(data(i)%label)
@@ -532,8 +705,9 @@ contains
        do j = 0, data(i)%tod%ndet
           data(i)%bp(j)%p%delta = delta(j,:,1)
           call data(i)%bp(j)%p%update_tau(data(i)%bp(j)%p%delta)
+          if (j > 0 .and. cpar%enable_TOD_analysis .and. data(i)%tod%subtract_zodi) call update_zodi_splines(data(i)%tod, data(i)%bp(j), j, zodi_model)
        end do
-       call update_mixing_matrices(i, update_F_int=.true.)       
+       call update_mixing_matrices(i, update_F_int=.true.)
 
        ! Clean up temporary data structures
        do j = 1, data(i)%tod%ndet
@@ -545,12 +719,14 @@ contains
        deallocate(s_sky, s_gain, delta, eta)
 
        ! Set monopole component to zero, if active. Now part of n_corr
-       call nullify_monopole_amp(data(i)%label)
+       if (trim(data(i)%tod%tod_type) /= 'DIRBE') then
+          call nullify_monopole_amp(data(i)%label)
+       end if
        
     end do
     if (associated(gainmap)) call gainmap%dealloc()
 
-  end subroutine process_TOD
+  end subroutine process_all_TODs
 
   subroutine print_help()
     print '(a, /)', 'command-line options:'

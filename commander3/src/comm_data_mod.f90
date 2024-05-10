@@ -19,33 +19,31 @@
 !
 !================================================================================
 module comm_data_mod
-  use comm_param_mod
   use comm_bp_mod
   use comm_noise_mod
   use comm_beam_mod
-  use comm_map_mod
-  use comm_tod_mod
-  use comm_tod_LFI_mod
-  use comm_tod_SPIDER_mod
-  use comm_tod_WMAP_mod
-  use comm_tod_LB_mod
-  use comm_tod_QUIET_mod
-  !use comm_tod_HFI_mod
-  use locate_mod
-  use comm_bp_utils
+  use comm_tod_inst_mod
   implicit none
 
   type comm_data_set
-     character(len=512)           :: label, unit, comp_sens, noise_format
-     integer(i4b)                 :: period, id_abs
-     logical(lgt)                 :: sample_gain
-     real(dp)                     :: gain, gain_prior(2)
-     character(len=128)           :: gain_comp
-     integer(i4b)                 :: gain_lmin, gain_lmax
-     integer(i4b)                 :: ndet
-     character(len=128)           :: tod_type
-     integer(i4b)                 :: tod_freq
-     logical(lgt)                 :: pol_only
+     character(len=512)                  :: label, instlabel, unit, comp_sens, noise_format
+     integer(i4b)                        :: period, id_abs
+     logical(lgt)                        :: sample_gain
+     integer(i4b),       allocatable, dimension(:) :: gain_stat
+     ! stat =  0  -> sample freely
+     ! stat = -1  -> fix to input
+     ! stat = -2  -> fix to zero
+     ! stat = -3  -> fix to unity
+     ! stat >  0  -> set equal to parameter stat
+     real(dp)                            :: gain, gain_tmp, gain_prior(2)
+     real(dp), allocatable, dimension(:) :: gain_sigmas
+     character(len=128)                  :: gain_comp
+     integer(i4b)                        :: gain_lmin, gain_lmax
+     integer(i4b)                        :: ndet
+     character(len=128)                  :: tod_type
+     integer(i4b)                        :: tod_freq
+     logical(lgt)                        :: pol_only, subtract_zodi
+     logical(lgt)                        :: cr_active
 
      class(comm_mapinfo), pointer :: info      => null()
      class(comm_mapinfo), pointer :: rmsinfo   => null()
@@ -97,7 +95,6 @@ contains
     real(dp), allocatable, dimension(:) :: nu_dummy, tau_dummy
     integer(i4b)                        :: n_dummy
 
-
     character(len=1) :: j_str
 
     ! Read all data sets
@@ -111,6 +108,7 @@ contains
        n                      = n+1
        data(n)%id_abs         = i
        data(n)%label          = cpar%ds_label(i)
+       data(n)%instlabel      = cpar%ds_instlabel(i)
        data(n)%period         = cpar%ds_period(i)
        data(n)%unit           = cpar%ds_unit(i)
        data(n)%sample_gain    = cpar%ds_sample_gain(i)
@@ -120,7 +118,12 @@ contains
        data(n)%gain_lmax      = cpar%ds_gain_lmax(i)
        data(n)%comp_sens      = cpar%ds_component_sensitivity(i)
        data(n)%tod_type       = cpar%ds_tod_type(i)
+       data(n)%subtract_zodi  = cpar%ds_tod_subtract_zodi(i)
        data(n)%noise_format   = cpar%ds_noise_format(i)
+
+       allocate(data(n)%gain_stat(cpar%mcmc_num_user_samp_groups))
+
+       data(n)%gain_stat      = 0 
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &
             & write(*,fmt='(a,i5,a,a)') ' |  Reading data set ', i, ' : ', trim(data(n)%label)
@@ -147,38 +150,37 @@ contains
        data(n)%res  => comm_map(data(n)%map)
        call update_status(status, "data_map")
 
-       if (data(n)%sample_gain) then
-          ! Read calibration mask
-          if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
-             data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
-                  & udgrade=.true.)
-          end if
+       ! Read calibration mask
+       if (trim(cpar%ds_maskfile_calib(i)) /= 'fullsky') then
+          data(n)%gainmask => comm_map(data(n)%info, trim(cpar%ds_maskfile_calib(i)), &
+               & udgrade=.true.)
        end if
 
        ! Initialize TOD structures
        data(n)%ndet = 0
        if (cpar%enable_TOD_analysis) then
           if (trim(data(n)%tod_type) == 'LFI') then
-             data(n)%tod => comm_LFI_tod(handle, cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LFI_tod(handle, cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'WMAP') then
-             data(n)%tod => comm_WMAP_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_WMAP_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
+          else if (trim(data(n)%tod_type) == 'DIRBE') then
+             data(n)%tod => comm_DIRBE_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'SPIDER') then
-             data(n)%tod => comm_SPIDER_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_SPIDER_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           else if (trim(data(n)%tod_type) == 'LB') then
-             data(n)%tod => comm_LB_tod(cpar, i, data(n)%info, data(n)%tod_type)
+             data(n)%tod => comm_LB_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
              data(n)%ndet = data(n)%tod%ndet
           ! Adding QUIET data into a loop
-          else if (trim(data(n)%tod_type) == 'QUIET') then
+          !else if (trim(data(n)%tod_type) == 'QUIET') then
             ! Class initialisation 
-            data(n)%tod => comm_QUIET_tod(cpar, i, data(n)%info, data(n)%tod_type)
-
-          !else if (trim(data(n)%tod_type) == 'HFI') then
-          !   data(n)%tod => comm_HFI_tod(cpar, i, data(n)%info, data(n)%tod_type)
-          !   data(n)%ndet = data(n)%tod%ndet
-
+             !data(n)%tod => comm_QUIET_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
+          else if (trim(data(n)%tod_type) == 'HFI') then
+             data(n)%tod => comm_HFI_tod(cpar, n, i, data(n)%info, data(n)%tod_type)
+             data(n)%ndet = data(n)%tod%ndet
           else if (trim(cpar%ds_tod_type(i)) == 'none') then
             if (cpar%myid == 0) write(*,*) '|  Warning: TOD analysis enabled for TOD type "none"'
           else
@@ -202,6 +204,11 @@ contains
              data(n)%B(j)%p => comm_B_bl(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
              ! MNG: I stripped mb_eff out of here to make it compile, if we need
              ! this ever we need to introduce it back in somehow
+          end do
+       case ('FIRAS')
+          data(n)%B(0)%p => comm_B_FIRAS(cpar, data(n)%info, n, i)
+          do j = 1, data(n)%ndet
+             data(n)%B(j)%p => comm_B_FIRAS(cpar, data(n)%info, n, i, fwhm=data(n)%tod%fwhm(j))
           end do
        case default
           call report_error("Unknown beam format: " // trim(cpar%ds_noise_format(i)))
@@ -273,15 +280,16 @@ contains
        data(n)%pol_only = data(n)%N%pol_only
        call update_status(status, "data_N")
 
-       ! Initialize bandpass structures; 0 is full freq, i is detector       
+       ! Initialize bandpass structures; 0 is full freq, j is detector       
        allocate(data(n)%bp(0:data(n)%ndet))
+      
        do j = 1, data(n)%ndet
           if (j==1) then
-            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+            data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
           else
             ! Check if bandpass already exists in detector list
             call read_bandpass(trim(cpar%ds_bpfile(i)), &
-                              & data(n)%tod%label(j), &
+                              & trim(data(n)%tod%label(j)),&
                               & 0.d0, &
                               & n_dummy, &
                               & nu_dummy, &
@@ -291,21 +299,18 @@ contains
                   data(n)%bp(j)%p => data(n)%bp(k)%p ! If bp exists, point to existing object
                   exit
                else if (k==j-1) then
-                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=data(n)%tod%label(j))
+                  data(n)%bp(j)%p => comm_bp(cpar, n, i, detlabel=trim(data(n)%tod%label(j)))
                end if
             end do
             deallocate(nu_dummy, tau_dummy)
           end if
        end do
-
        call update_status(status, "data_BP")
-
        if (trim(cpar%ds_tod_type(i)) == 'none') then
-          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%label)
+          data(n)%bp(0)%p => comm_bp(cpar, n, i, detlabel=data(n)%instlabel)
        else
           data(n)%bp(0)%p => comm_bp(cpar, n, i, subdets=cpar%ds_tod_dets(i))
        end if
-
        ! Initialize smoothed data structures
        allocate(data(n)%B_smooth(cpar%num_smooth_scales))
        allocate(data(n)%B_postproc(cpar%num_smooth_scales))
@@ -403,7 +408,7 @@ contains
     case ('K_cmb') 
        RJ2data = self%bp(d)%p%a2t * 1d-6
     case ('MJy/sr') 
-       RJ2data = self%bp(d)%p%a2t / self%bp(d)%p%f2t
+       RJ2data = self%bp(d)%p%a2f
     case ('y_SZ') 
        RJ2data = self%bp(d)%p%a2sz
     case ('uK_RJ') 
@@ -424,11 +429,11 @@ contains
     unit = getlun()
     open(unit, file=trim(dir)//'/unit_conversions.dat', recl=1024)
     write(unit,*) '# Band   BP type   Nu_c (GHz) Nu_eff (GHz) a2t [K_cmb/K_RJ]' // &
-         & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]'
+         & '  t2f [MJy/K_cmb] a2sz [y_sz/K_RJ]  a2f [K_RJ/MJy]'
     do i = 1, numband
        q = ind_ds(i)
-       write(unit,fmt='(a7,a10,f10.3,f10.3,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
-             & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6
+       write(unit,fmt='(a7,a10,f10.3,f10.3,3e16.5,3e16.5)') trim(data(q)%label), trim(data(q)%bp(0)%p%type), &
+             & data(q)%bp(0)%p%nu_c/1.d9, data(q)%bp(0)%p%nu_eff/1.d9, data(q)%bp(0)%p%a2t, 1.d0/data(q)%bp(0)%p%f2t*1e6, data(q)%bp(0)%p%a2sz * 1.d6, data(q)%bp(0)%p%a2f * 1d6
     end do
     close(unit)
   end subroutine dump_unit_conversion
@@ -492,22 +497,30 @@ contains
 
   end subroutine apply_source_mask
 
-  subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out)
+  subroutine smooth_map(info, alms_in, bl_in, map_in, bl_out, map_out, spinzero)
     implicit none
     class(comm_mapinfo),                      intent(in),   target :: info
     logical(lgt),                             intent(in)           :: alms_in
     real(dp),            dimension(0:,1:),    intent(in)           :: bl_in, bl_out
     class(comm_map),                          intent(inout)        :: map_in
     class(comm_map),                          intent(out), pointer :: map_out
+    logical(lgt),                             intent(in), optional :: spinzero
 
-    integer(i4b) :: i, j, l, lmax
+    integer(i4b) :: i, j, l, b, lmax
+    logical(lgt) :: spinzero_
+
+    spinzero_ = .false.; if (present(spinzero)) spinzero_ = spinzero
 
     map_out => comm_map(info)
 
     if (.not. alms_in) then
        !map_out%map = map_in%map
        call map_in%udgrade(map_out)
-       call map_out%YtW
+       if (spinzero_) then
+          call map_out%YtW_scalar
+       else
+          call map_out%YtW
+       end if
     else
        call map_in%alm_equal(map_out)
     end if
@@ -522,8 +535,9 @@ contains
           cycle
        end if
        do j = 1, map_out%info%nmaps
+          b = j; if (spinzero_) b = 1
           if (bl_in(l,j) > 1.d-12) then
-             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,j) / bl_in(l,j)
+             map_out%alm(i,j) = map_out%alm(i,j) * bl_out(l,b) / bl_in(l,b)
           else
              map_out%alm(i,j) = 0.d0
           end if
@@ -531,7 +545,11 @@ contains
     end do    
 
     ! Recompose map
-    call map_out%Y
+    if (spinzero_) then
+       call map_out%Y_scalar
+    else
+       call map_out%Y
+    end if
 
   end subroutine smooth_map
 
@@ -675,4 +693,39 @@ contains
 
   end subroutine get_mapfile
 
+  subroutine initialize_inter_tod_params(cpar)
+    implicit none
+    type(comm_params), intent(in)    :: cpar
+    
+    integer(i4b) :: i, j
+    character(len=512) :: model
+    
+    ! Initialize solar centric maps
+    do i = 1, numband
+       if (trim(data(i)%tod_type) == 'none') cycle
+       data(i)%tod%map_solar_allocated = .false.
+       model = cpar%ds_tod_solar_model(data(i)%tod%band)
+       if (trim(model) == 'none') cycle
+       if (model(1:1) == '>') then
+          do j = 1, numband
+             if (trim(data(j)%label) == trim(model(2:))) then
+                data(i)%tod%map_solar => data(j)%tod%map_solar
+                exit
+             end if
+          end do
+          cycle
+       else
+          data(i)%tod%map_solar_allocated = .true.
+          allocate(data(i)%tod%map_solar(0:data(i)%info%npix-1,1))
+          if (trim(cpar%ds_tod_solar_init(data(i)%tod%band)) == 'none') then
+             data(i)%tod%map_solar = 0.d0
+          else
+             call read_map(cpar%ds_tod_solar_init(data(i)%tod%band), data(i)%tod%map_solar)
+          end if
+       end if
+    end do
+
+  end subroutine initialize_inter_tod_params
+
+  
 end module comm_data_mod

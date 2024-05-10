@@ -55,7 +55,7 @@ contains
     integer(i4b) :: i, j, k, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior, param_dp
     logical(lgt) :: exist
-    type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud
+    type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud, info_tempfit
     class(comm_map), pointer :: indmask, mask_ud
     
     call self%initComp(cpar, id, id_abs)
@@ -69,6 +69,8 @@ contains
     self%lmax_amp      = cpar%cs_lmax_amp(id_abs)
     self%lmax_prior    = cpar%cs_lmax_amp_prior(id_abs)
     self%l_apod        = cpar%cs_l_apod(id_abs)
+    self%nu_min        = cpar%cs_nu_min(id_abs)
+    self%nu_max        = cpar%cs_nu_max(id_abs)
 
     if(self%npar == 0) then
        self%lmax_ind = 0 !default
@@ -85,7 +87,8 @@ contains
     self%sample_first_niter = cpar%cs_local_burn_in
     self%output_localsamp_maps = cpar%cs_output_localsamp_maps
 
-    only_pol           = cpar%only_pol
+    only_pol            = cpar%only_pol
+    only_I              = cpar%only_I
     output_cg_eigenvals = cpar%output_cg_eigenvals
     outdir              = cpar%outdir
     precond_type        = cpar%cg_precond
@@ -216,7 +219,6 @@ contains
     do i = 1, numband
        info      => comm_mapinfo(cpar%comm_chain, data(i)%info%nside, &
             & self%lmax_ind, data(i)%info%nmaps, data(i)%info%pol)
-!       write(*,*) i, 'ndet = ', data(i)%ndet, shape(self%F), info%nside
        do j = 0, data(i)%ndet
           if (j<=1) then
             self%F(i,j)%p    => comm_map(info)
@@ -233,6 +235,7 @@ contains
                end if
             end do
           end if
+          if (data(i)%bp(j)%p%nu_c < self%nu_min .or. data(i)%bp(j)%p%nu_c > self%nu_max) self%F_null(i,j) =  .true.
        end do
     end do
     call update_status(status, "init_postmix")
@@ -242,8 +245,12 @@ contains
     self%Cl => comm_Cl(cpar, self%x%info, id, id_abs)
 
     ! Initialize pointers for non-linear search
+    if (.not. allocated(res_lowres)) allocate(res_lowres(numband))
     if (.not. allocated(res_smooth)) allocate(res_smooth(numband))
     if (.not. allocated(rms_smooth)) allocate(rms_smooth(numband))
+
+    if (.not. allocated(dust_lowres)) allocate(dust_lowres(numband))
+    if (.not. allocated(hotpah_lowres)) allocate(hotpah_lowres(numband))
 
     ! Set up monopole prior
     self%mono_prior_type = get_token(cpar%cs_mono_prior(id_abs), ":", 1)
@@ -304,6 +311,10 @@ contains
        else if (trim(self%mono_prior_type) == 'bandmono') then
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_band=trim(filename)
+       else if (trim(self%mono_prior_type) == 'monopole+tempfit') then
+          filename = get_token(temp_filename, ",", 1)
+          info_tempfit => comm_mapinfo(cpar%comm_chain, self%nside, 0, 2, .false.)
+          self%mono_prior_map => comm_map(info_tempfit, trim(filename))
        else          
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(filename))
@@ -446,13 +457,13 @@ contains
     !       Any other changes are done internally
     !
     !
+
+
  
     call update_status(status, "initPixreg_specind_start")
     ! Initialize spectral index map
     info => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind, &
          & self%nmaps, self%pol)
-
-
 
     ! Set up smoothing scale information
     allocate(self%smooth_scale(self%npar))
@@ -470,18 +481,19 @@ contains
     self%spec_corr_convergence(:)=.false. !do not push back (add extra samples) during local sampling by default
     self%spec_corr_limit(:)=0.1d0 !assign a default correlation limit if non is defined 
 
-    allocate(self%pol_pixreg_type(3,self%npar))    ! {1=fullsky, 2=single_pix, 3=pixel_regions}
+    allocate(self%pol_pixreg_type(3,self%npar))    ! {0=ignore, 1=fullsky, 2=single_pix, 3=pixel_regions}
     allocate(self%nprop_uni(2,self%npar))          ! {integer}: upper and lower limits on nprop
     allocate(self%npixreg(3,self%npar))            ! {integer}: number of pixel regions per poltye per spec ind
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
 
     call update_status(status, "initPixreg_specind_pixreg_type")
-
+    
     self%npixreg = 0
     self%pol_pixreg_type = 0
     self%priorsamp_local=.false.
     do i = 1,self%npar       
+       smooth_scale = self%smooth_scale(i)
        do j = 1,self%poltype(i)
           if (j > self%nmaps) cycle
           if (cpar%only_pol .and. j == 1 .and. self%poltype(i) > 1) cycle
@@ -514,6 +526,12 @@ contains
        end do
     end do
 
+!    do i = 1,self%npar       
+!       do j = 1,self%poltype(i)
+!          if (self%myid == 0) write(*,*) 'i j pol_pixreg_type', i, j, self%pol_pixreg_type(j,i)          
+!       end do
+!    end do
+    
     call update_status(status, "initPixreg_specind_allocate")
 
     if (any(self%pol_pixreg_type(:,:) > 0)) then
@@ -548,25 +566,29 @@ contains
           if (self%spec_corr_convergence(i)) self%spec_corr_limit(i)=abs(cpar%cs_spec_corr_limit(i,id_abs))
        end do
 
+       if (self%myid == 0 .and. cpar%verbosity > 1) write(*,*) '|    Number of pixel regions', k
+
        allocate(self%nprop_pixreg(k,3,self%npar))
        allocate(self%npix_pixreg(k,3,self%npar))
        allocate(self%proplen_pixreg(k,3,self%npar))
        allocate(self%B_pp_fr(self%npar))
        allocate(self%B_smooth_amp(self%npar))
        allocate(self%B_smooth_specpar(self%npar))
-       allocate(self%theta_pixreg(0:k,3,self%npar))
+       allocate(self%theta_pixreg(0:k,3,self%npar)) ! extra 0 for fullsky maybe; always nmaps=3...
+       allocate(self%theta_pixreg_buff(0:k,3,self%npar))
        allocate(self%prior_pixreg(k,3,self%npar))
        self%theta_pixreg = 1.d0 !just some default values, is set later in the code
+       self%theta_pixreg_buff = 1.d0 !just some default values, is set later in the code
        self%nprop_pixreg = 0    ! default values, is set later in the code
        self%proplen_pixreg = 1.d0 ! default values, is set later in the code
-
+!obs read theta from correct init
 
        if (any(self%pol_pixreg_type(:,:) == 3)) then
           allocate(self%fix_pixreg(m,3,self%npar))
           allocate(self%pixreg_priors(MAXVAL(self%npixreg(:,:)),3,self%npar))
           self%fix_pixreg(:,:,:) = .false.
           do i = 1,self%npar
-             self%pixreg_priors(:,:,i) = self%p_gauss(i,1)
+             self%pixreg_priors(:,:,i) = self%p_gauss(1,i)
              do j = 1,self%poltype(i)
                 if (j > self%nmaps) cycle
                 if (self%pol_pixreg_type(j,i) == 3) then
@@ -649,7 +671,7 @@ contains
     end if
 
     if (self%priorsamp_local) allocate(self%theta_prior(2,3,self%npar))
-
+    
     do i = 1,self%npar
        call update_status(status, "initPixreg_spec_monopole_mask")
        self%spec_mono_combined(i)=cpar%cs_spec_mono_combined(id_abs,i)
@@ -688,14 +710,14 @@ contains
              end if
 
           end if
-
+          
           where (self%spec_mono_mask(i)%p%map > 0.5d0)
              self%spec_mono_mask(i)%p%map = 1.d0
           elsewhere
              self%spec_mono_mask(i)%p%map = 0.d0
           end where
        end if
-
+       
        if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
             & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
           call update_status(status, "initPixreg_specind_mask")
@@ -869,7 +891,7 @@ contains
 
                 if (cpar%nside_smooth(smooth_scale) < self%theta(i)%p%info%nside) then
                    tp => comm_map(info_ud)
-                   tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1
+                   tp%map(:,1) = tp%info%pix*1.d0 + 1.d0 !set pixel value equal to pixel number+1 !obs
                    allocate(m_in(0:info_ud%npix-1,1))
                    allocate(m_out(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
                    allocate(buffer(0:self%ind_pixreg_map(i)%p%info%npix-1, 1))
@@ -894,7 +916,7 @@ contains
           ! check if there is a non-smoothed init map for theta of pixelregions
           if (cpar%cs_pixreg_init_theta(i,id_abs) == 'none') then
              tp => comm_map(self%theta(i)%p%info)
-             tp%map = self%theta(i)%p%map !take avrage from existing theta map
+             tp%map = self%theta(i)%p%map !take average from existing theta map   !!!what if no map
           else
              !read map from init map (non-smoothed theta map)
              tp => comm_map(self%theta(i)%p%info, trim(cpar%cs_pixreg_init_theta(i,id_abs)))
@@ -902,13 +924,17 @@ contains
 
           !compute the average theta in each pixel region for the poltype indices that sample theta using pixel regions
           do j = 1,self%poltype(i)
+!             if (self%myid == 0) write(*,*) 'A0 j self%poltype(i)          ', j, self%poltype(i) 
              if (j > self%nmaps) cycle
-
-             self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !prior
+             
+!             self%theta_pixreg(:,j,i)=self%p_gauss(1,i) !why is this always set to prior mean and not default!!
+             !             self%theta_pixreg(:,j,i)= mean(tp%map(:,j)) ! putting to init/default value instead of prior
+!             if (self%myid == 0) write(*,*) 'A1 j self%pol_pixreg_type(j,i)', j, self%pol_pixreg_type(j,i)
              if (self%pol_pixreg_type(j,i) < 1) cycle
+!             if (self%myid == 0) write(*,*) 'A2 j                          ', j
 
              n=self%npixreg(j,i)
-             allocate(sum_pix(n),sum_theta(n),sum_nprop(n),sum_proplen(n))
+             allocate(sum_pix(1:n),sum_theta(0:n),sum_nprop(n),sum_proplen(n))
              sum_theta=0.d0
              sum_pix=0
              self%nprop_pixreg(:,j,i) = 0
@@ -931,17 +957,20 @@ contains
                       exit
                    end if
                 end do
+                !region=0 fullsky case
+                sum_theta(0) = sum_theta(0)+tp%map(k,j)
              end do
              !allreduce
-             call mpi_allreduce(MPI_IN_PLACE, sum_theta, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
+             call mpi_allreduce(MPI_IN_PLACE, sum_theta, n+1, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              call mpi_allreduce(MPI_IN_PLACE, sum_pix, n, MPI_INTEGER, MPI_SUM, info%comm, ierr)
              if (self%lmax_ind_pol(j,i) < 0) then
                 call mpi_allreduce(MPI_IN_PLACE, sum_proplen, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
                 call mpi_allreduce(MPI_IN_PLACE, sum_nprop, n, MPI_DOUBLE_PRECISION, MPI_SUM, info%comm, ierr)
              end if
 
+             self%theta_pixreg(0,j,i)=sum_theta(0)/tp%info%npix ! init at fullsky mean value
              do k = 1,n
-                !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- numbe of pixels',sum_pix(k)
+                !if (cpar%myid == cpar%root) write(*,*) 'pixreg',k,'  -- number of pixels',sum_pix(k)
                 if (sum_pix(k) > 0) then
                    self%theta_pixreg(k,j,i) = sum_theta(k)/(1.d0*sum_pix(k))
                    if (self%lmax_ind_pol(j,i) < 0) then
@@ -949,7 +978,8 @@ contains
                       self%proplen_pixreg(k,j,i) = sum_proplen(k)/(1.d0*sum_pix(k))
                    end if
                 else
-                   self%theta_pixreg(k,j,i) = self%p_gauss(1,i) ! the prior as theta
+                    self%theta_pixreg(k,j,i) = self%theta_pixreg(0,j,i) ! put to fullsky value
+!                   self%theta_pixreg(k,j,i) = self%p_gauss(1,i) ! the prior as theta
                    if (self%lmax_ind_pol(j,i) < 0) then
                       self%nprop_pixreg(k,j,i) = 0
                       self%proplen_pixreg(k,j,i) = 1.d0
@@ -957,8 +987,20 @@ contains
                 end if
                 self%npix_pixreg(k,j,i)=sum_pix(k)
              end do
-             self%theta_pixreg(0,j,i)=self%p_gauss(1,i) !all pixels in region 0 has the prior as theta
+!             self%theta_pixreg(0,j,i)=self%p_gauss(1,i) !all pixels in region 0 has the prior as theta
 
+
+
+             
+
+!             if (self%myid == 0) write(*,*) 'B0 npix', sum_pix(0), tp%info%npix
+!             if (self%myid == 0) write(*,*) 'C0', i, j, self%theta_pixreg(0,j,i)
+!             if (self%myid == 0) write(*,*) 'C1', i, j, self%theta_pixreg(1,j,i)
+!             !if (self%myid == 0) write(*,*) 'C2', i, j, self%theta_pixreg(2,j,i)
+!             if (self%myid == 0) write(*,*) 'CC self%theta_pixreg(0,1,1)', self%theta_pixreg(0,1,1)
+
+
+             
              deallocate(sum_pix,sum_theta,sum_proplen,sum_nprop)
 
              if (trim(self%pol_lnLtype(j,i)) == 'prior') then
@@ -970,11 +1012,13 @@ contains
              end if
 
           end do !poltype
+          
           call tp%dealloc(); deallocate(tp)
 
           call update_status(status, "initPixreg_specind_precalc_sampled_theta")
 
           do j = 1,self%poltype(i)
+! if (self%myid == 0) write(*,*) 'i, j poltype nmaps', i, j, self%poltype(i), self%nmaps
              if (j > self%nmaps) cycle
              !Should also assign (and smooth) theta map if RMS /= 0 and we're not initializing from HDF
              if (self%p_gauss(2,i) /= 0.d0 .and. (trim(cpar%init_chain_prefix) == 'none' .or. &
@@ -998,14 +1042,16 @@ contains
                 end if
                 if (p_min > p_max) cycle !just a guaranty that we dont smooth for nothing
 
+!                if (self%myid == 0) write(*,*) 'd1', self%theta(i)%p%map(0,1:self%nmaps)
+                
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
 
-                   !spec. ind. map with 1 map (will be smoothed like zero spin map using the existing code)
+                   !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
 
                    do k = 0,info2%np-1
-                      tp%map(k,1) = self%theta_pixreg(self%ind_pixreg_arr(k,j,i),j,i)
+                      tp%map(k,1) = self%theta_pixreg(self%ind_pixreg_arr(k,j,i),j,i) !theta_pixreg!!!
                    end do
                    if (cpar%fwhm_postproc_smooth(smooth_scale) > 0.d0) then
                       !smooth single map as intensity (i.e. zero spin)
@@ -1017,11 +1063,20 @@ contains
                       call tp_smooth%dealloc(); deallocate(tp_smooth)
                    end if
 
+!                   if (self%myid == 0) write(*,*) 'd2', self%theta(i)%p%map(0,1:self%nmaps)
+!                   if (self%myid == 0) write(*,*) 'd2- tp%map(0,1)', tp%map(0,1), self%ind_pixreg_arr(0,j,i)
+
                    do k = p_min,p_max
                       self%theta(i)%p%map(:,k) = tp%map(:,1)
                    end do
+!                   if (self%myid == 0) write(*,*) 'd3', self%theta(i)%p%map(0,1:self%nmaps)
+
+!                   if (self%myid == 0) write(*,*) 'd4 pmin pmak', p_min, p_max
+!                   if (self%myid == 0) write(*,*) 'd5 self%theta_pixreg(0,1,1)', self%theta_pixreg(0,1,1)
+!                   if (self%myid == 0) write(*,*) 'd6'
 
 
+                   
                    if (self%lmax_ind_pol(j,i) >= 0) then
                       info3 => comm_mapinfo(cpar%comm_chain, self%nside, self%lmax_ind_pol(j,i), &
                            & 1, .false.)
@@ -1038,7 +1093,7 @@ contains
                    if (cpar%num_smooth_scales <= 0) then
                       write(*,*) 'need to define smoothing scales'
                       stop
-                   else if (smooth_scale <= 0) then
+                   else if (smooth_scale < 0) then
                       write(*,*) 'need to define smoothing scale for component '//&
                            & trim(self%label)//', parameter '//trim(self%indlabel(i))
                       stop
@@ -1088,7 +1143,7 @@ contains
        end do
 
     end do !npar
-
+    
     if (self%theta(1)%p%info%myid == 0 .and. .false.) then !debug
 
        write(*,*) ''
@@ -1210,7 +1265,6 @@ contains
        else
           self%L_read(j) = .true.
           if ( self%myid == 0 ) write(*,*) "|    Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs))
-          !write(*,*) " Initializing alm tuning from ", trim(cpar%cs_almsamp_init(j,id_abs)), j
           open(unit=11, file=trim(cpar%cs_almsamp_init(j,id_abs)), recl=10000)
           read(11,*) corrlen_arr
           self%corrlen(j,:) = corrlen_arr
@@ -1226,6 +1280,8 @@ contains
        end if
     end do
 
+    !if ( self%myid == 0 ) write(*,*) "finished Initializing alm tuning"
+    
     deallocate(corrlen_arr, L_arr)
     
   end subroutine initSpecindProp
@@ -1241,7 +1297,7 @@ contains
     case ("pseudoinv")
        call initDiffPrecond_pseudoinv(comm)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine initDiffPrecond
@@ -1272,7 +1328,7 @@ contains
              diffComps(i)%p => c
              i              =  i+1
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
@@ -1359,7 +1415,7 @@ contains
              diffComps(i)%p => c
              i              =  i+1
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
        info_pre => comm_mapinfo(comm, nside_pre, lmax_pre, nmaps_pre, nmaps_pre==3)
     end if
@@ -1387,7 +1443,7 @@ contains
     case ("pseudoinv")
        call updateDiffPrecond_pseudoinv(samp_group, force_update)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine updateDiffPrecond
@@ -1420,10 +1476,12 @@ contains
     call wall_time(t1)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
+          if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle
@@ -1458,10 +1516,12 @@ contains
     ! Left-multiply with sqrt(Cl)
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !$OMP PARALLEL PRIVATE(alm, k2, j, i, p, q)
        allocate(alm(0:info_pre%nalm-1,info_pre%nmaps))
        !$OMP DO SCHEDULE(guided)
        do k2 = 1, npre
+          if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
                 if (P_cr%invM_diff(i,j)%n == 0) cycle                
@@ -1505,6 +1565,7 @@ contains
     ! Add unity 
     do k1 = 1, npre
        if (trim(diffComps(k1)%p%cltype) == 'none') cycle
+       if (.not. diffComps(k1)%p%active_samp_group(samp_group)) cycle
        !!$OMP PARALLEL PRIVATE(i,l,m,j,p)
        !!$OMP DO SCHEDULE(guided)
        do i = 0, info_pre%nalm-1
@@ -1726,7 +1787,8 @@ contains
        if (self%npar > 0) then
           nmaps = min(data(i)%info%nmaps, self%theta(1)%p%info%nmaps)
           allocate(theta_p(0:data(i)%info%np-1,nmaps,self%npar))
-
+          !if (self%myid==0) write(*,*) 'ee1 npix nmaps npar', data(i)%info%np-1,nmaps,self%npar
+          
           do j = 1,self%npar
              info => comm_mapinfo(data(i)%info%comm, data(i)%info%nside, &
                   & self%theta(j)%p%info%lmax, nmaps, data(i)%info%pol)
@@ -1820,7 +1882,7 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = td%map
-             !write(*,*) 'q1', minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
+             !if (info%myid == 0) write(*,*) 'q1, j=',j,  minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
              call td%dealloc(); deallocate(td)
           end do
        end if
@@ -1865,21 +1927,24 @@ contains
              end if
              
              ! Temperature
-             if (self%npar > 0) then
-                if (mixmatnull) then
-                   self%F(i,l)%p%map(j,1) = 0.0
-                else
-                   if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
-                      write(*,*) i, l, j, real(theta_p(j,1,:),sp)
-                      stop
+             if (.not. only_pol) then
+                if (self%npar > 0) then
+                   if (mixmatnull) then
+                      self%F(i,l)%p%map(j,1) = 0.0
+                   else
+                      if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
+                         write(*,*) 'dust beta and T can not be null, crashing'
+                         write(*,*) i, l, j, real(theta_p(j,1,:),sp)
+                         stop !debug, replace by proper stop and error message
+                      end if
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
                    end if
-                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
-                end if
-             else
-                if (mixmatnull) then 
-                   self%F(i,l)%p%map(j,1) = 0.0
                 else
-                   self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                   if (mixmatnull) then 
+                      self%F(i,l)%p%map(j,1) = 0.0
+                   else
+                      self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval([0.d0]) * data(i)%gain * self%cg_scale(1)
+                   end if
                 end if
              end if
              
@@ -1891,7 +1956,7 @@ contains
                 else if (all(self%poltype < 2)) then
                    self%F(i,l)%p%map(j,2) = self%F(i,l)%p%map(j,1) 
                 else
-                   if (trim(self%label) == 'dust' .and. any(theta_p(j,1,:)==0.d0)) then
+                   if (trim(self%label) == 'dust' .and. any(theta_p(j,2,:)==0.d0)) then
                       write(*,*) i, l, j, real(theta_p(j,1,:),sp)
                    end if
                    if (self%npar > 0) then
@@ -2015,18 +2080,18 @@ contains
           call m%YtW()
        end if
     end if
-       
+
     ! Convolve with band-specific beam
     call data(band)%B(d)%p%conv(trans=.false., map=m)
-    if (.not. alm_out_) call m%Y()
-
+       
     ! Return correct data product
     if (alm_out_) then
-       !if (.not. allocated(res)) allocate(res(0:self%x%info%nalm-1,self%x%info%nmaps))
+       if (.not. data(band)%B(d)%p%almFromConv) call m%YtW()
        if (.not. allocated(res)) allocate(res(0:data(band)%info%nalm-1,data(band)%info%nmaps))
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%alm(:,1:nmaps)
     else
+       if (data(band)%B(d)%p%almFromConv) call m%Y()
        if (.not. allocated(res)) allocate(res(0:data(band)%info%np-1,data(band)%info%nmaps))
        if (nmaps /= data(band)%info%nmaps) res = 0.d0
        res(:,1:nmaps) = m%map(:,1:nmaps)
@@ -2082,7 +2147,7 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
-       call m%Y()
+       if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
     end if
@@ -2107,7 +2172,7 @@ contains
     case ("pseudoinv")
        call applyDiffPrecond_pseudoinv(x)
     case default
-       call report_error("Preconditioner type not supported")
+       call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine applyDiffPrecond
@@ -2606,6 +2671,9 @@ contains
                    allocate(dp_pixreg(npr,npol),int_pixreg(npr,npol))
                    !pixel region values for theta
                    dp_pixreg=self%theta_pixreg(1:npr,1:npol,i)
+                   !if (self%theta(i)%p%info%myid == 0) write(*,*) 'zzz1', npr, npol, i
+                   !if (self%theta(i)%p%info%myid == 0) write(*,*) 'zzz2', minval(dp_pixreg(:,1)), maxval(dp_pixreg(:,1))
+                   !if (self%theta(i)%p%info%myid == 0) write(*,*) 'zzz3', minval(dp_pixreg(:,2)), maxval(dp_pixreg(:,2))
                    if (self%theta(i)%p%info%myid == 0) call write_hdf(chainfile, trim(path)//'/'//&
                         & trim(adjustl(self%indlabel(i)))//'_pixreg_val', real(dp_pixreg,sp))
                    !pixel region values for proposal length
@@ -2623,8 +2691,15 @@ contains
 
           end if
 
+
+
+
        end do
-       !call update_status(status, "writeFITS_8")
+
+       ! Output Sampled SED's
+       if (output_hdf .and. allocated(self%SEDtab) .and. self%x%info%myid == 0) then
+         call write_hdf(chainfile, trim(path)//'/SED', self%SEDtab)
+       end if
        
        ! Write mixing matrices
        if (self%output_mixmat) then
@@ -2814,8 +2889,6 @@ contains
     return 
 
   end subroutine sampleDiffuseSpecInd
-
-
   
   module subroutine print_precond_mat
     implicit none
@@ -3487,6 +3560,22 @@ contains
           end if
        end if
 
+    else if (trim(self%mono_prior_type) == 'monopole+tempfit') then 
+
+       ! Compute mean outside mask; no noise weighting for now at least
+       Amat = 0.d0; bmat = 0.d0
+       do i = 0, self%x%info%np-1
+          if (self%mono_prior_map%map(i,2) < 0.5d0) cycle
+          Amat(1,1) = Amat(1,1) + 1.d0
+          Amat(2,1) = Amat(2,1) + self%mono_prior_map%map(i,1)
+          Amat(1,2) = Amat(1,2) + self%mono_prior_map%map(i,1)
+          Amat(2,2) = Amat(2,2) + self%mono_prior_map%map(i,1)**2 
+          bmat(1)   = bmat(1)   + map%map(i,1)
+          bmat(2)   = bmat(2)   + map%map(i,1)*self%mono_prior_map%map(i,1)
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, Amat(1:2,1:2), 4, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, bmat(1:2),     2, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call solve_system_real(Amat(1:2,1:2), mu(1:2), bmat(1:2))
 
     else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
        !ud-grade amplitude map if necessary
@@ -3707,7 +3796,7 @@ contains
                 end do
              end if
           end select
-          c => c%next()
+          c => c%nextComp()
        end do
 
        ! MPI reduce existing and new monopole
@@ -3765,7 +3854,7 @@ contains
                    end do
                 end if
              end select
-             c => c%next()
+             c => c%nextComp()
           end do
        end if
 
@@ -3790,21 +3879,28 @@ contains
 
     end if
     
-    ! Subtract mean in harmonic space
-    do i = 0, self%x%info%nalm-1
-       if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu(0) * sqrt(4.d0*pi)
-       end if
-       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == -1) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu(2) * sqrt(4.d0*pi/3.d0)
-       end if
-       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 0) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu(3) * sqrt(4.d0*pi/3.d0)
-       end if
-       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-          self%x%alm(i,1) = self%x%alm(i,1) + mu(1) * sqrt(4.d0*pi/3.d0)
-       end if
-    end do
+    ! Prepare template corrected map in harmonic space
+    if (trim(self%mono_prior_type) == 'monopole+tempfit') then
+       map%map      = 0.d0
+       map%map(:,1) = mu(1) + mu(2)*self%mono_prior_map%map(:,1)
+       call map%YtW()
+       self%x%alm(:,1) = self%x%alm(:,1) - map%alm(:,1)
+    else
+       do i = 0, self%x%info%nalm-1
+          if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+             self%x%alm(i,1) = self%x%alm(i,1) - mu(0) * sqrt(4.d0*pi)
+          end if
+          if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == -1) then
+             self%x%alm(i,1) = self%x%alm(i,1) - mu(2) * sqrt(4.d0*pi/3.d0)
+          end if
+          if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 0) then
+             self%x%alm(i,1) = self%x%alm(i,1) - mu(3) * sqrt(4.d0*pi/3.d0)
+          end if
+          if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+             self%x%alm(i,1) = self%x%alm(i,1) + mu(1) * sqrt(4.d0*pi/3.d0)
+          end if
+       end do
+    end if
 
     call map%dealloc(); deallocate(map)
     
@@ -3830,10 +3926,68 @@ contains
              end do
           end if
        end select
-       c => c%next()
+       c => c%nextComp()
     end do
 
   end subroutine nullify_monopole_amp
 
+
+  module function get_monopole_amp(band)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp)                     :: get_monopole_amp
+
+    integer(i4b) :: l, m, ierr
+    real(dp)     :: mono
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             mono = -1.d100
+             if (c%x%info%nalm > 0) then
+                call c%x%info%i2lm(0,l,m)
+                if (l == 0) then
+                   mono = 1.d0/sqrt(4.d0*pi) * c%x%alm(0,1) * c%RJ2unit_(1)
+                end if
+             end if
+             call mpi_allreduce(MPI_IN_PLACE, mono, 1, MPI_DOUBLE_PRECISION, MPI_MAX, c%x%info%comm, ierr)
+             get_monopole_amp = mono
+             return
+          end if
+       end select
+       c => c%nextComp()
+    end do
+
+  end function get_monopole_amp
+
+  module subroutine set_monopole_amp(band, mono)
+    implicit none
+    character(len=*), intent(in) :: band
+    real(dp),         intent(in) :: mono
+
+    integer(i4b) :: l, m
+    class(comm_comp), pointer :: c => null()
+
+    c => compList
+    do while (associated(c))
+       select type (c)
+       class is (comm_diffuse_comp)
+          if (trim(c%label) == trim(band)) then
+             if (c%x%info%nalm > 0) then
+                call c%x%info%i2lm(0,l,m)
+                if (l == 0) then
+                   c%x%alm(0,1) = sqrt(4.d0*pi) * mono /c%RJ2unit_(1)
+                end if
+             end if
+             return
+          end if
+       end select
+       c => c%nextComp()
+    end do
+
+  end subroutine set_monopole_amp
 
 end submodule comm_diffuse_comp_smod

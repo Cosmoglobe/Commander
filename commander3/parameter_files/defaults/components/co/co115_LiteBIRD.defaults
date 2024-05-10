@@ -1,0 +1,39 @@
+# CO component
+COMP_LABEL&&                  = co115
+COMP_TYPE&&                   = line
+COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
+COMP_POLARIZATION&&           = .false.
+COMP_CG_SCALE_T&&             = 1.d0
+COMP_CG_SCALE_P&&             = 1.d0
+COMP_CG_SAMPLE_GROUP&&        = 1
+COMP_CG_SAMP_GROUP_MAXITER&&  = 35
+COMP_NSIDE&&                  = 2048
+COMP_L_APOD&&                 = 6000
+COMP_AMP_LMIN&&               = 0
+COMP_AMP_LMAX&&               = 6000
+COMP_OUTPUT_FWHM&&            = 5.0         # arcmin
+COMP_UNIT&&                   = Kkm/s
+COMP_NU_REF_T&&               = 115
+COMP_NU_REF_P&&               = 115
+COMP_NU_MIN&&                 = 0.d0
+COMP_NU_MAX&&                 = 1d30
+COMP_BAND_REF&&               = LB_119_L3
+COMP_MASK&&                   = fullsky
+COMP_INDMASK&&                = mask_co_lineratio_v3_n2048.fits
+COMP_MONOPOLE_PRIOR&&         = none
+COMP_CL_TYPE&&                = gauss  # {none, single_l, binned, power_law}
+COMP_CL_POLTYPE&&             = 1  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
+COMP_CL_BETA_PRIOR_MEAN&&     = -0.5
+COMP_CL_BETA_PRIOR_RMS&&      =  0.1
+COMP_CL_L_PIVOT&&             = 100          # Pivot multipole
+COMP_CL_DEFAULT_AMP_T&&       =  10000        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       =  1.d0
+COMP_CL_DEFAULT_AMP_B&&       =  1.d0
+COMP_CL_DEFAULT_BETA_T&&      =  9.5d0
+COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
+COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
+COMP_LINE_TEMPLATE&&          = /mn/stornext/d5/data/metins/dirbe/data/co115_line_template_LiteBIRD_v1.dat
+COMP_APPLY_JEFFREYS_PRIOR&&   =  .false.
+COMP_AMP_INPUT_MAP&&          = lambda_wco_dht2001_n2048.fits
+COMP_AMP_PRIOR_MAP&&          = none
+COMP_INIT_FROM_HDF&&          = default

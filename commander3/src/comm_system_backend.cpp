@@ -251,10 +251,10 @@ extern "C"
 	}
 	int ishift_(int * val, int * steps) { return *val << *steps; }
 
-  //int svn_revision_() { return REVISION; }
-  //        double nan = numeric_limits<double>::quiet_NaN(),
-  //		snan = numeric_limits<double>::signaling_NaN(),
-  //		infinity = numeric_limits<double>::infinity();
+        //int svn_revision_() { return REVISION; }
+        //double nan = numeric_limits<double>::quiet_NaN(),
+  	//snan = numeric_limits<double>::signaling_NaN(),
+  	//double infinity = numeric_limits<double>::infinity();
 	int64_t fe_divbyzero = FE_DIVBYZERO, fe_inexact = FE_INEXACT, fe_nan = FE_INVALID, fe_overflow = FE_OVERFLOW, fe_underflow = FE_UNDERFLOW;
 	void fe_enable_(int64_t * a) { feenableexcept(*a); }
 	void fe_disable_(int64_t * a) { fedisableexcept(*a); }

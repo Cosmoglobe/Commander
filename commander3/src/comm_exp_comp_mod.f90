@@ -19,12 +19,7 @@
 !
 !================================================================================
 module comm_exp_comp_mod
-  use comm_param_mod
-  use comm_comp_mod
-  use comm_diffuse_comp_mod
-  use comm_map_mod
-  use comm_F_int_1D_mod
-  use comm_data_mod
+  use comm_comp_interface_mod
   implicit none
 
   private
@@ -35,11 +30,11 @@ module comm_exp_comp_mod
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_exp_comp
    contains
-     procedure :: S    => evalSED
+     procedure :: S    => evalSED_exp
   end type comm_exp_comp
 
   interface comm_exp_comp
-     procedure constructor
+     procedure constructor_exp
   end interface comm_exp_comp
 
 contains
@@ -47,11 +42,11 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(cpar, id, id_abs)
+  function constructor_exp(cpar, id, id_abs) result(c)
     implicit none
     type(comm_params),   intent(in) :: cpar
     integer(i4b),        intent(in) :: id, id_abs
-    class(comm_exp_comp), pointer   :: constructor
+    class(comm_exp_comp), pointer   :: c
 
     integer(i4b) :: i, j, k, l, m, n, p, ierr
     type(comm_mapinfo), pointer :: info => null()
@@ -65,94 +60,96 @@ contains
     class(comm_map),     pointer :: tp_smooth => null() 
 
     ! General parameters
-    allocate(constructor)
+    allocate(c)
 
-    constructor%npar         = 1
-    allocate(constructor%poltype(constructor%npar))
-    do i = 1, constructor%npar
-       constructor%poltype(i)   = cpar%cs_poltype(i,id_abs)
+    c%npar         = 1
+    allocate(c%poltype(c%npar))
+    do i = 1, c%npar
+       c%poltype(i)   = cpar%cs_poltype(i,id_abs)
     end do
-    call constructor%initLmaxSpecind(cpar, id, id_abs)
+    call c%initLmaxSpecind(cpar, id, id_abs)
 
-    call constructor%initDiffuse(cpar, id, id_abs)
+    call c%initDiffuse(cpar, id, id_abs)
 
     ! Component specific parameters
-    allocate(constructor%theta_def(1), constructor%p_gauss(2,1), constructor%p_uni(2,1))
-    allocate(constructor%indlabel(1))
-    allocate(constructor%nu_min_ind(1), constructor%nu_max_ind(1))
-    constructor%theta_def(1) = cpar%cs_theta_def(1,id_abs)
-    constructor%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
-    constructor%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
-    constructor%nu_min_ind(1) = cpar%cs_nu_min(id_abs,1)
-    constructor%nu_max_ind(1) = cpar%cs_nu_max(id_abs,1)
-    constructor%apply_jeffreys = cpar%cs_apply_jeffreys(id_abs)
-    constructor%indlabel(1)  = 'beta'
+    allocate(c%theta_def(1), c%p_gauss(2,1), c%p_uni(2,1))
+    allocate(c%theta_steplen(1, cpar%mcmc_num_samp_groups))
+    allocate(c%indlabel(1))
+    allocate(c%nu_min_ind(1), c%nu_max_ind(1))
+    c%theta_def(1) = cpar%cs_theta_def(1,id_abs)
+    c%p_uni(:,1)   = cpar%cs_p_uni(id_abs,:,1)
+    c%p_gauss(:,1) = cpar%cs_p_gauss(id_abs,:,1)
+    c%nu_min_ind(1) = cpar%cs_nu_min_beta(id_abs,1)
+    c%nu_max_ind(1) = cpar%cs_nu_max_beta(id_abs,1)
+    c%apply_jeffreys = cpar%cs_apply_jeffreys(id_abs)
+    c%indlabel(1)  = 'beta'
+    c%theta_steplen = 0d0
 
     ! Initialize spectral index map
-    info => comm_mapinfo(cpar%comm_chain, constructor%nside, constructor%lmax_ind, &
-         & constructor%nmaps, constructor%pol)
+    info => comm_mapinfo(cpar%comm_chain, c%nside, c%lmax_ind, &
+         & c%nmaps, c%pol)
 
-    allocate(constructor%theta(constructor%npar))
-    do i = 1, constructor%npar
+    allocate(c%theta(c%npar))
+    do i = 1, c%npar
        if (trim(cpar%cs_input_ind(i,id_abs)) == 'default' .or. trim(cpar%cs_input_ind(i,id_abs)) == 'none') then
-          constructor%theta(i)%p => comm_map(info)
-          constructor%theta(i)%p%map = constructor%theta_def(1)
+          c%theta(i)%p => comm_map(info)
+          c%theta(i)%p%map = c%theta_def(1)
        else
           ! Read map from FITS file
-          constructor%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
+          c%theta(i)%p => comm_map(info, trim(cpar%cs_input_ind(i,id_abs)))
        end if
 
        !convert spec. ind. pixel map to alms if lmax_ind >= 0
-       if (constructor%lmax_ind >= 0) then
+       if (c%lmax_ind >= 0) then
           ! if lmax >= 0 we can get alm values for the theta map
-          call constructor%theta(i)%p%YtW_scalar
+          call c%theta(i)%p%YtW_scalar
        end if
     end do
 
     ! Precompute mixmat integrator for each band
-    allocate(constructor%F_int(3,numband,0:constructor%ndet))
+    allocate(c%F_int(3,numband,0:c%ndet))
     do k = 1, 3
        do i = 1, numband
           do j = 0, data(i)%ndet
              if (k > 1) then
-                if (constructor%nu_ref(k) == constructor%nu_ref(k-1)) then
-                   constructor%F_int(k,i,j)%p => constructor%F_int(k-1,i,j)%p
+                if (c%nu_ref(k) == c%nu_ref(k-1)) then
+                   c%F_int(k,i,j)%p => c%F_int(k-1,i,j)%p
                    cycle
                 end if
              end if
-             constructor%F_int(k,i,j)%p => comm_F_int_1D(constructor, data(i)%bp(j)%p, k)
+             c%F_int(k,i,j)%p => comm_F_int_1D(c, data(i)%bp(j)%p, k)
           end do
        end do
     end do
 
-    call constructor%initPixregSampling(cpar, id, id_abs)
+    call c%initPixregSampling(cpar, id, id_abs)
     ! Init alm 
-    if (constructor%lmax_ind >= 0) call constructor%initSpecindProp(cpar, id, id_abs)
+    if (c%lmax_ind >= 0) call c%initSpecindProp(cpar, id, id_abs)
 
     ! Initialize mixing matrix
-    call constructor%updateMixmat
+    call c%updateMixmat
 
-  end function constructor
+  end function constructor_exp
 
   ! Definition:
   !    SED  = exp(theta * (nu-nu_ref) / nu_ref)
   ! where 
   !    beta = theta(1)
-  function evalSED(self, nu, band, pol, theta)
+  function evalSED_exp(self, nu, band, pol, theta)
     implicit none
     class(comm_exp_comp), intent(in)           :: self
     real(dp),                intent(in), optional :: nu
     integer(i4b),            intent(in), optional :: band
     integer(i4b),            intent(in), optional :: pol
     real(dp), dimension(1:), intent(in), optional :: theta
-    real(dp)                                      :: evalSED
+    real(dp)                                      :: evalSED_exp
 
     if (nu < 10d9) then
-       evalSED = 0.d0
+       evalSED_exp = 0.d0
     else
-       evalSED = exp(theta(1) * (nu-self%nu_ref(pol))/self%nu_ref(pol))
+       evalSED_exp = exp(theta(1) * (nu-self%nu_ref(pol))/self%nu_ref(pol))
     end if
 
-  end function evalSED
+  end function evalSED_exp
   
 end module comm_exp_comp_mod

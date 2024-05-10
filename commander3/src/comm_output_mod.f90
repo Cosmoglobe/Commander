@@ -19,10 +19,7 @@
 !
 !================================================================================
 module comm_output_mod
-  use comm_param_mod
-  use comm_comp_mod
   use comm_chisq_mod
-  use comm_hdf_mod
   implicit none
 
 contains
@@ -55,7 +52,6 @@ contains
 
           ! testing hdf parameter output
           call write_params_to_hdf(cpar, file)
-
           call close_hdf_file(file)
           iter = -1
        else if (trim(cpar%chain_status) == 'append') then
@@ -76,13 +72,11 @@ contains
           call mpi_finalize(ierr)
           stop
        end if
-
+       
        !delete fg_ind_mean_cXXXX.dat if it exists
        fg_file=trim(cpar%outdir)//'/fg_ind_mean_c' // trim(adjustl(ctext))//'.dat'
        inquire(file=fg_file, exist=exist)
        if (exist) call rm(trim(fg_file))
-
-
     end if
     call mpi_bcast(iter, 1, MPI_INTEGER, 0, cpar%comm_chain, ierr)
 
@@ -95,7 +89,7 @@ contains
     integer(i4b),      intent(in) :: iter
     logical(lgt),      intent(in) :: output_hdf
 
-    integer(i4b)                 :: i, j, hdferr, ierr, unit, p_min, p_max
+    integer(i4b)                 :: i, j, p, hdferr, ierr, unit, p_min, p_max
     real(dp)                     :: chisq, chisq_eff, t1, t2, t3, t4, theta_sum, uscale
     logical(lgt)                 :: exist, init, new_header
     character(len=4)             :: ctext
@@ -179,7 +173,7 @@ contains
     do while (associated(c))
 !       if (.not. c%output .or. (cpar%resamp_CMB .and. trim(c%type) /= 'cmb')) then
        if (.not. c%output) then
-          c => c%next()
+          c => c%nextComp()
           cycle
        end if
        call c%dumpFITS(iter, file, output_hdf, postfix, cpar%outdir)
@@ -187,9 +181,9 @@ contains
        class is (comm_diffuse_comp)
           if (output_hdf) then
              hdfpath = trim(adjustl(itext))//'/'//trim(adjustl(c%label))
-             call c%Cl%writeFITS(cpar%mychain, iter, hdffile=file, hdfpath=hdfpath)
+             call c%Cl%write_Cl_to_FITS(cpar%mychain, iter, hdffile=file, hdfpath=hdfpath)
           else
-             call c%Cl%writeFITS(cpar%mychain, iter)
+             call c%Cl%write_Cl_to_FITS(cpar%mychain, iter)
           end if
 
           !get mean values (and component labels) for fg mean print
@@ -307,10 +301,8 @@ contains
 
        end select
        call update_status(status, "output_"//trim(c%label))
-       c => c%next()
+       c => c%nextComp()
     end do
-
-    
 
     if (cpar%resamp_CMB) then
        if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
@@ -351,8 +343,6 @@ contains
           if (cpar%output_chisq) then
              call data(i)%N%sqrtInvN(map)
              map%map = map%map**2
-
-             
              info  => comm_mapinfo(data(i)%info%comm, chisq_map%info%nside, 0, data(i)%info%nmaps, data(i)%info%nmaps==3)
              chisq_sub => comm_map(info)
              call map%udgrade(chisq_sub)
@@ -363,7 +353,7 @@ contains
              do j = 1, data(i)%info%nmaps
                 chisq_map%map(:,j) = chisq_map%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
                 chisq_map_eff%map(:,j) = chisq_map_eff%map(:,j) + chisq_sub%map(:,j) * (map%info%npix/chisq_sub%info%npix)
-                N => data(i)%N
+                !N => data(i)%N
                 ! select type (N)
                 ! Defining chisq_eff = -2*log(L) such that
                 ! -2*log(L) = chi^2 + log(det(2*pi*Sigma))
@@ -446,8 +436,27 @@ contains
              end select
           end if
        end do
-    end if
 
+       ! Output zodi ipd and tod parameters to chain
+       if (cpar%include_tod_zodi ) then
+          call zodi_model_to_ascii(cpar, zodi_model, trim(cpar%outdir) // '/zodi_model_c'//ctext//'_k' // itext // '.dat', overwrite=.true.)
+          !if (cpar%myid_chain == 0) call write_map2(trim(cpar%outdir) // '/zodi_static_c'//ctext//'_k' // itext // '.fits', zodi_model%map_static)
+          call zodi_model%model_to_chain(cpar, iter)
+       end if
+         !do i = 1, numband
+         !   if (data(i)%tod_type == 'none') cycle
+         !   if (.not. data(i)%tod%subtract_zodi) cycle
+         !call output_tod_params_to_hd5(cpar, zodi_model, iter)
+         !end do
+
+       if (cpar%myid_chain == 0) then
+          do i = 1, numband
+             if (trim(data(i)%tod_type) == 'none') cycle
+             if (data(i)%tod%map_solar_allocated) call write_map2(trim(cpar%outdir) // '/tod_'//trim(data(i)%label)//'_solar_c'//ctext//'_k' // itext // '.fits', data(i)%tod%map_solar)
+          end do
+       end if
+    end if
+    
     if (cpar%myid_chain == 0 .and. output_hdf) call close_hdf_file(file)    
   end subroutine output_FITS_sample
 

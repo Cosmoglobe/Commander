@@ -24,7 +24,7 @@ contains
   !**************************************************
   !             Constructor
   !**************************************************
-  module function constructor(handle, cpar, id_abs, info, tod_type) result(res)
+  module function constructor_lfi(handle, cpar, id, id_abs, info, tod_type) result(res)
     !
     ! Constructor function that gathers all the instrument parameters in a pointer
     ! and constructs the objects
@@ -42,6 +42,8 @@ contains
     ! tod_type: string
     !           Instrument specific tod type
     !
+    ! bandpass: list of comm_bp objects
+    !           bandpasses
     ! Returns
     ! ----------
     ! res: pointer
@@ -50,7 +52,7 @@ contains
     implicit none
     type(planck_rng),          intent(inout) :: handle
     type(comm_params),         intent(in)    :: cpar
-    integer(i4b),              intent(in)    :: id_abs
+    integer(i4b),              intent(in)    :: id, id_abs
     class(comm_mapinfo),       target        :: info
     character(len=128),        intent(in)    :: tod_type
     class(comm_lfi_tod),       pointer       :: res
@@ -142,6 +144,7 @@ contains
       res%ndiode          = 1
     end if    
     res%correct_sl              = .true.
+    res%correct_orb             = .true.
     res%apply_inst_corr         = .true.
     res%orb_4pi_beam            = .true.
     res%use_dpc_adc             = .false.
@@ -160,7 +163,7 @@ contains
     boundary            = (0.d0, 1d30)
 
     ! Initialize common parameters
-    call res%tod_constructor(cpar, id_abs, info, tod_type)
+    call res%tod_constructor(cpar, id, id_abs, info, tod_type)
     if (res%enable_tod_simulations) res%chisq_threshold = 1d6
 
     ! Choose absolute bandpass sampling
@@ -593,8 +596,8 @@ contains
 
     call timer%stop(TOD_INIT, id_abs)
 
-  end function constructor
-
+  end function constructor_lfi
+  
   !**************************************************
   !             Driver routine
   !**************************************************
@@ -814,7 +817,7 @@ contains
        ! Compute chisquare
        do j = 1, sd%ndet
           if (.not. self%scans(i)%d(j)%accept) cycle
-          call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
+          call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
        end do
 
        ! Select data
@@ -1445,11 +1448,13 @@ contains
     integer(i4b),                      intent(in)      :: det
     real(sp), dimension(:,:),          intent(inout)   :: data
 
+    real(dp)     :: filt
     integer(i4b) :: i, j, nfft, n
     integer*8    :: plan_fwd, plan_back
 
     real(sp),     allocatable, dimension(:) :: dt
     complex(spc), allocatable, dimension(:) :: dv
+
 
     n       = size(data(:,1))
     nfft    = n/2+1

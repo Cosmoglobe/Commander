@@ -22,7 +22,6 @@
 ! by using the handy tempita template language. All the machinery for
 ! doing this is included in the repository, so this should just work.
 module comm_hdf_mod
-  use healpix_types
   use comm_utils
   use hdf5
   implicit none
@@ -348,15 +347,17 @@ contains
     deallocate(ext_hdf, mext_hdf)
   end subroutine get_size_hdf
 
-!!$  function hdf_group_exist(file, group)
-!!$    implicit none
-!!$    type(hdf_file)                  :: file
-!!$    character(len=*),   intent(in)  :: group
-!!$    type(hf
-!!$    
-!!$
-!!$
-!!$  end function hdf_group_exist
+  function hdf_group_exists(file, group) result(exists)
+    type(hdf_file) :: file
+    character(len=*), intent(in)  :: group
+    logical(lgt) :: exists
+    integer(i4b) :: hdferr
+    TYPE(h5o_info_t) :: object_info
+
+    call h5eset_auto_f(0, hdferr)
+    call h5oget_info_by_name_f(file%filehandle, trim(adjustl(group)), object_info, hdferr)
+    exists = hdferr == 0
+  end function hdf_group_exists
   
   ! *****************************************************
   ! Set read operations
@@ -1861,31 +1862,60 @@ contains
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
   end subroutine
 
+  ! reads a 1-d array of string into an unallocated buffer
+  ! this now actually works so if you need to read a n-d array of strings 
+  ! you could use this as a starting point
+
   subroutine read_alloc_hdf_1d_char(file, setname, val)
     implicit none
     type(hdf_file) :: file
     character(len=*), intent(in)  :: setname
-    character(len=*) ,dimension(:), allocatable, intent(out) :: val
-    integer(i4b) :: n(1)
-    integer(hsize_t) :: s(1)
+    character(len=*) ,dimension(:), allocatable, target, intent(out) :: val
+    integer(i4b) :: n(1), i, j, length
+    integer(hsize_t), dimension(1:1) :: dims, maxdims
     integer(i4b)     :: ext(1)
+    type(c_ptr) :: f_ptr
+    integer(hid_t) :: space, memtype, filetype
+    integer(size_t), parameter :: sdim = 8
+    integer(size_t) :: datasize
+    TYPE(C_PTR), DIMENSION(:), ALLOCATABLE, TARGET :: rdata ! Read buffer
+
+    character(len=8, kind=c_char), pointer :: readable_data
+
     if(allocated(val)) deallocate(val)
-    call get_size_hdf(file, setname, n)
-    allocate(val(n(1)))
+    
     call open_hdf_set(file, setname)
-    s = int(shape(val))
-    ! Validate that sizes are consistent
-    call get_size_hdf(file, setname, ext)
-    if (any(ext /= s)) then
-       write(*,*) 'HDF error -- inconsistent array sizes'
-       write(*,*) '             Filename       = ', trim(file%filename)
-       write(*,*) '             Setname        = ', trim(setname)
-       write(*,*) '             HDF size       = ', ext
-       write(*,*) '             Requested size = ', int(s,i4b)
-       !write(*,*) opt_, 'Optional parameter'
-    end if
-    call h5dread_f(file%sethandle, H5T_NATIVE_CHARACTER, val, s, file%status)
+
+    call h5dget_type_f(file%sethandle, filetype, file%status)
+
+    call h5dget_space_f(file%sethandle, space, file%status)
+    call h5sget_simple_extent_dims_f(space, dims, maxdims, file%status)   
+
+    allocate(rdata(dims(1)))
+
+    call H5Tget_size_f(filetype, datasize, file%status) 
+ 
+    f_ptr = C_LOC(rdata(1))
+
+    call h5dread_f(file%sethandle, filetype, f_ptr, file%status)!, space)
     call assert(file%status>=0, "comm_hdf_mod: Cannot read data from hdf set " // setname)
+
+    allocate(val(dims(1)))
+
+    ! convert each c string to a fortran string
+    do i=1, dims(1)
+      call c_f_pointer(rdata(i), readable_data)
+      length = 0
+      do 
+        ! determine lengths by looking for c end of string character
+        if(readable_data(length+1:length+1) == C_NULL_CHAR .or. length >= sdim) exit
+        length = length +1
+      end do
+      val(i) = readable_data(1:length)
+    end do
+    
+    deallocate(rdata)
+
   end subroutine
 
   subroutine read_alloc_hdf_2d_dp(file, setname, val)
@@ -5266,7 +5296,7 @@ contains
     !write(*,*) trim(file%setname), type_id, space, file%sethandle, file%status, ext
     call h5dcreate_f(file%filehandle, file%setname, type_id, space, file%sethandle, file%status)
     !write(*,*) ' HDF status = ', file%status
-    !call h5eprint_f(file%status)
+    call h5eprint_f(file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot create data set "//trim(file%filename)//', '//trim(setname))
     call h5sclose_f(space, file%status)
     call assert(file%status>=0, "comm_hdf_mod: Cannot close data space")

@@ -62,6 +62,8 @@ lib64/
 Thumbs.db
 # vim
 *.swp
+# emacs
+*~
 
 #---------------------------------------------------------------
 # Other
@@ -70,3 +72,9 @@ Thumbs.db
 commander3/todscripts/quiet/quiet_qband_beam_effective_v1.fits
 commander3/todscripts/quiet/quiet_qband_bandpass_v1.txt
 commander3/todscripts/quiet/quiet_qband_beam_instrumental_v1.fits
+
+#---------------------------------------------------------------
+# DIRBE files
+#---------------------------------------------------------------
+commander3/parameter_files/defaults/bands/DIRBE/old
+commander3/parameter_files/defaults/bands/DIRBE/old2

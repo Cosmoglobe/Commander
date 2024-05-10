@@ -29,25 +29,7 @@ module comm_tod_WMAP_mod
   !       all data needed for TOD processing
   !   process_WMAP_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
-   use comm_tod_mod
-   use comm_param_mod
-   use comm_map_mod
-   use comm_conviqt_mod
-   use pix_tools
-   use healpix_types
-   use comm_huffman_mod
-   use comm_hdf_mod
-   use comm_fft_mod
-   use spline_1D_mod
-   use comm_4D_map_mod
-   use comm_zodi_mod
-   use comm_tod_mapmaking_mod
-   use comm_tod_pointing_mod
-   use comm_tod_gain_mod
-   use comm_tod_bandpass_mod
-   use comm_tod_orbdipole_mod
    use comm_tod_driver_mod
-   use comm_utils
    implicit none
 
    private
@@ -67,7 +49,7 @@ module comm_tod_WMAP_mod
    end type comm_WMAP_tod
 
    interface comm_WMAP_tod
-      procedure constructor
+      procedure constructor_wmap
    end interface comm_WMAP_tod
 
 contains
@@ -77,7 +59,7 @@ contains
    !**************************************************
    !             Constructor
    !**************************************************
-   function constructor(cpar, id_abs, info, tod_type)
+   function constructor_wmap(cpar, id, id_abs, info, tod_type) result(c)
       !
       ! Constructor function that gathers all the instrument parameters in a pointer
       ! and constructs the objects
@@ -101,10 +83,10 @@ contains
 
       implicit none
       type(comm_params),      intent(in) :: cpar
-      integer(i4b),           intent(in) :: id_abs
+      integer(i4b),           intent(in) :: id, id_abs
       class(comm_mapinfo),    target     :: info
       character(len=128),     intent(in) :: tod_type
-      class(comm_WMAP_tod),   pointer    :: constructor
+      class(comm_WMAP_tod),   pointer    :: c
 
       integer(i4b) :: i, nside_beam, lmax_beam, nmaps_beam
       logical(lgt) :: pol_beam
@@ -116,205 +98,206 @@ contains
       call timer%start(TOD_INIT, id_abs)
 
       ! Initialize common parameters
-      allocate (constructor)
+      allocate (c)
 
       ! Set up noise PSD type and priors
-      constructor%freq            = cpar%ds_label(id_abs)
-      !constructor%n_xi            = 3
-      !constructor%noise_psd_model = 'oof'
+      c%freq            = cpar%ds_label(id_abs)
+      !c%n_xi            = 3
+      !c%noise_psd_model = 'oof'
 
-      constructor%n_xi            = 5
-      constructor%noise_psd_model = 'oof_quad'
-      constructor%comp_S          = .false.
+      c%n_xi            = 5
+      c%noise_psd_model = 'oof_quad'
+      c%comp_S          = .false.
 
-      allocate(constructor%xi_n_P_uni(constructor%n_xi,2))
-      allocate(constructor%xi_n_nu_fit(constructor%n_xi,2))
-      allocate(constructor%xi_n_P_rms(constructor%n_xi))
+      allocate(c%xi_n_P_uni(c%n_xi,2))
+      allocate(c%xi_n_nu_fit(c%n_xi,2))
+      allocate(c%xi_n_P_rms(c%n_xi))
  
       ! Using Bennett 2013 x_im as initial guess for precomputing preconditioner 
       ! Jarosik 2003 Table 2 gives knee frequencies between 0.09 mHz and 
       ! 46.5 mHz. 
-      !constructor%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
-      constructor%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
-      constructor%xi_n_P_uni(4,:) = [-0.5, 0.5]            ! slope
-      constructor%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
-      constructor%xi_n_P_uni(5,:) = [-0.5, 0.5]             ! intercept
-      constructor%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
-      if (trim(constructor%freq) == '023-WMAP_K') then
-         constructor%xi_n_nu_fit(2,:) = [0.0, 0.005]    
-         constructor%xi_n_nu_fit(3,:) = [0.0, 0.005]    
-         constructor%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [1.00e-05, 1.00e-05, 4.58e-03, 4.58e-03]
-      else if (trim(constructor%freq) == '030-WMAP_Ka') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00416, 0.00416, 0.00191, 0.00191]
-      else if (trim(constructor%freq) == '040-WMAP_Q1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
-         constructor%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00139, 0.00139, 0.00581, 0.00581]
-      else if (trim(constructor%freq) == '040-WMAP_Q2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
-         constructor%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00894, 0.00894, 0.01137, 0.01137]
-      else if (trim(constructor%freq) == '060-WMAP_V1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00153, 0.00153, 0.00415, 0.00415]
-      else if (trim(constructor%freq) == '060-WMAP_V2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
-         constructor%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.00233, 0.00233, 0.00243, 0.00243]
-      else if (trim(constructor%freq) == '090-WMAP_W1') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020]
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.01211, 0.01211, 0.00414, 0.00414]
-      else if (trim(constructor%freq) == '090-WMAP_W2') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.040]
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.040]
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.01255, 0.01255, 0.01736, 0.01736]
-      else if (trim(constructor%freq) == '090-WMAP_W3') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [-0.00183, -0.00183,  0.00416,  0.00416]
-      else if (trim(constructor%freq) == '090-WMAP_W4') then
-         constructor%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
-         constructor%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
-         constructor%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
-         constructor%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
-         constructor%x_im = [0.02285, 0.02285, 0.02025, 0.02025]
+      !c%xi_n_P_rms      = [-1.0, 0.1, 0.2]   ! [sigma0, fknee, alpha]; sigma0 is not used
+      c%xi_n_P_rms      = [-1.0, 0.5, 0.5, -1.0, -1.0]   ! [sigma0, fknee, alpha, slope, intercept]; sigma0 is not used
+      c%xi_n_P_uni(4,:) = [-0.5, 0.5]            ! slope
+      c%xi_n_nu_fit(4,:) = [0.1, 1.0]       ! slope nu_fit
+      c%xi_n_P_uni(5,:) = [-0.5, 0.5]             ! intercept
+      c%xi_n_nu_fit(5,:) = [0.1, 1.0]       ! intercept nu_fit
+      if (trim(c%freq) == '023-WMAP_K') then
+         c%xi_n_nu_fit(2,:) = [0.0, 0.005]    
+         c%xi_n_nu_fit(3,:) = [0.0, 0.005]    
+         c%xi_n_P_uni(2,:) = [0.00001, 0.005]  ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [1.00e-05, 1.00e-05, 4.58e-03, 4.58e-03]
+      else if (trim(c%freq) == '030-WMAP_Ka') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.005]    
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.005]    
+         c%xi_n_P_uni(2,:) = [0.0001, 0.01]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00416, 0.00416, 0.00191, 0.00191]
+      else if (trim(c%freq) == '040-WMAP_Q1') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.010]    
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.010]    
+         c%xi_n_P_uni(2,:) = [0.0001, 0.02]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00139, 0.00139, 0.00581, 0.00581]
+      else if (trim(c%freq) == '040-WMAP_Q2') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.010]   
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.010]   
+         c%xi_n_P_uni(2,:) = [0.0003, 0.02]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00894, 0.00894, 0.01137, 0.01137]
+      else if (trim(c%freq) == '060-WMAP_V1') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020]  
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020]  
+         c%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00153, 0.00153, 0.00415, 0.00415]
+      else if (trim(c%freq) == '060-WMAP_V2') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
+         c%xi_n_P_uni(2,:) = [0.0005, 0.01]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.00233, 0.00233, 0.00243, 0.00243]
+      else if (trim(c%freq) == '090-WMAP_W1') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020]
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020]
+         c%xi_n_P_uni(2,:) = [0.0005, 1.00]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.01211, 0.01211, 0.00414, 0.00414]
+      else if (trim(c%freq) == '090-WMAP_W2') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.040]
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.040]
+         c%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.01255, 0.01255, 0.01736, 0.01736]
+      else if (trim(c%freq) == '090-WMAP_W3') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.020] 
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.020] 
+         c%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [-0.00183, -0.00183,  0.00416,  0.00416]
+      else if (trim(c%freq) == '090-WMAP_W4') then
+         c%xi_n_nu_fit(2,:)     = [0.0, 0.080]  
+         c%xi_n_nu_fit(3,:)     = [0.0, 0.080]  
+         c%xi_n_P_uni(2,:) = [0.0005, 1.0]    ! fknee
+         c%xi_n_P_uni(3,:) = [-3.0, -0.01]     ! alpha
+         c%x_im = [0.02285, 0.02285, 0.02025, 0.02025]
       else
-         write(*,*) 'Invalid WMAP frequency label = ', trim(constructor%freq)
+         write(*,*) 'Invalid WMAP frequency label = ', trim(c%freq)
          stop
       end if
 
-      call constructor%tod_constructor(cpar, id_abs, info, tod_type)
-      if (constructor%enable_tod_simulations) constructor%chisq_threshold = 1d6
+      call c%tod_constructor(cpar, id, id_abs, info, tod_type)
+      if (c%enable_tod_simulations) c%chisq_threshold = 1d6
 
       ! Set up WMAP specific parameters
-      constructor%accept_threshold = 0.1d0 ! more stringent than default,
+      c%accept_threshold = 0.1d0 ! more stringent than default,
                                            ! cutting scans with more than 10% flagged
-      constructor%samprate_lowres = 1.d0   ! Lowres samprate in Hz
-      constructor%nhorn           = 2
-      constructor%ndiode          = 1
-      constructor%baseline_order  = 1
+      c%samprate_lowres = 1.d0   ! Lowres samprate in Hz
+      c%nhorn           = 2
+      c%ndiode          = 1
+      c%baseline_order  = 1
       ! Jarosik et al. uses a third-order baseline. How much of a difference
       ! would this make?
-      ! constructor%baseline_order  = 3
+      ! c%baseline_order  = 3
       ! It turns out that the noise parameters get weird very quickly, with some
       ! bands immediately going to the boundaries.
-      constructor%apply_inst_corr = .true.
-      if (trim(constructor%level) == 'L1') then
-          constructor%compressed_tod  = .true.
+      c%apply_inst_corr = .true.
+      if (trim(c%level) == 'L1') then
+          c%compressed_tod  = .true.
       else
-          constructor%compressed_tod  = .false.
+          c%compressed_tod  = .false.
       end if
-      constructor%correct_sl      = .true.
-      constructor%orb_4pi_beam    = .true.
-      constructor%symm_flags      = .false.
-      constructor%chisq_threshold = 1000
-      constructor%nmaps           = info%nmaps
-      constructor%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
-      constructor%verbosity       = cpar%verbosity
+      c%correct_sl      = .true.
+      c%correct_orb     = .true.
+      c%orb_4pi_beam    = .true.
+      c%symm_flags      = .false.
+      c%chisq_threshold = 1000
+      c%nmaps           = info%nmaps
+      c%ndet            = num_tokens(cpar%ds_tod_dets(id_abs), ",")
+      c%verbosity       = cpar%verbosity
 
       ! Gain PSD Wiener filter parameters; determined by trial-and-error
-      constructor%gain_tune_sigma0 = .false.
-      constructor%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
-      constructor%gain_sigma_0     = 3d-3 !3d-4                           ! Default from LFI
-      constructor%gain_fknee       = constructor%gain_samprate      ! Default from LFI
-      constructor%gain_alpha       = -1.d0                          ! Default from LFI
+      c%gain_tune_sigma0 = .false.
+      c%gain_samprate    = 1.d0 / (24.d0*60.d0 * 60.d0)
+      c%gain_sigma_0     = 3d-3 !3d-4                           ! Default from LFI
+      c%gain_fknee       = c%gain_samprate      ! Default from LFI
+      c%gain_alpha       = -1.d0                          ! Default from LFI
 
-      if (constructor%myid == 0) then
-         allocate(constructor%M_diag(0:info%npix-1,info%nmaps+1))
+      if (c%myid == 0) then
+         allocate(c%M_diag(0:info%npix-1,info%nmaps+1))
       end if
 
       ! Iniitialize TOD labels
-      allocate (constructor%labels(8))
-      constructor%labels(1) = 'map'
-      constructor%labels(2) = 'res'
-      constructor%labels(3) = 'ncorr'
-      constructor%labels(4) = 'bpcorr'
-      constructor%labels(5) = 'orb'
-      constructor%labels(6) = 'sl'
-      constructor%labels(7) = 'zodi'
-      constructor%labels(8) = 'baseline'
+      allocate (c%labels(8))
+      c%labels(1) = 'map'
+      c%labels(2) = 'res'
+      c%labels(3) = 'ncorr'
+      c%labels(4) = 'bpcorr'
+      c%labels(5) = 'orb'
+      c%labels(6) = 'sl'
+      c%labels(7) = 'zodi'
+      c%labels(8) = 'baseline'
 
       ! Initialize beams
       nside_beam                  = 512
       nmaps_beam                  = 3
       pol_beam                    = .true.
-      constructor%nside_beam      = nside_beam
+      c%nside_beam      = nside_beam
 
 
       ! Get detector labels
-      call get_tokens(cpar%ds_tod_dets(id_abs), ",", constructor%label)
+      call get_tokens(cpar%ds_tod_dets(id_abs), ",", c%label)
 
       ! Get noise format
-      constructor%noise_format   = cpar%ds_noise_format(id_abs)
+      c%noise_format   = cpar%ds_noise_format(id_abs)
 
       ! Define detector partners
       ! I don't think this is necessary for WMAP...
-      do i = 1, constructor%ndet
+      do i = 1, c%ndet
          if (mod(i,2) == 1) then
-            constructor%partner(i) = i+1
+            c%partner(i) = i+1
          else
-            constructor%partner(i) = i-1
+            c%partner(i) = i-1
          end if
-         constructor%horn_id(i) = (i+1)/2
+         c%horn_id(i) = (i+1)/2
       end do
 
       ! Read the actual TOD
-      call constructor%read_tod(constructor%label)
+      call c%read_tod(c%label)
 
       ! Initialize bandpass mean and proposal matrix
-      call constructor%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
+      call c%initialize_bp_covar(cpar%ds_tod_bp_init(id_abs))
 
       ! Construct lookup tables
-      call constructor%precompute_lookups()
+      call c%precompute_lookups()
 
       !load the instrument file
-      call constructor%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
+      call c%load_instrument_file(nside_beam, nmaps_beam, pol_beam, cpar%comm_chain)
 
       ! Collect Sun velocities from all scals
-      call constructor%collect_v_sun
+      call c%collect_v_sun
 
 
       ! MJDs corresponding to August 10, 2001--2010
-      constructor%split = (/52131,52496,52861,53227,53592,&
+      c%split = (/52131,52496,52861,53227,53592,&
                           & 53957,54322,54688,55053,55418/)
 
 
       ! Need precompute the main beam precomputation for both the A-horn and
       ! B-horn.
       ! Allocate sidelobe convolution data structures
-      allocate(constructor%slconvA(constructor%ndet), constructor%slconvB(constructor%ndet))
-      allocate(constructor%orb_dp)
-      if (constructor%orb_4pi_beam) then
-         constructor%orb_dp => comm_orbdipole(beam=constructor%mbeam)
+      allocate(c%slconvA(c%ndet), c%slconvB(c%ndet))
+      allocate(c%orb_dp)
+      if (c%orb_4pi_beam) then
+         c%orb_dp => comm_orbdipole(beam=c%mbeam)
       else
-         constructor%orb_dp => comm_orbdipole(comm=constructor%info%comm)
+         c%orb_dp => comm_orbdipole(comm=c%info%comm)
       end if
 
       call timer%stop(TOD_INIT, id_abs)
 
-   end function constructor
+    end function constructor_wmap
 
    !**************************************************
    !             Driver routine
@@ -667,7 +650,7 @@ contains
          ! Compute chisquare
          do j = 1, sd%ndet
             if (.not. self%scans(i)%d(j)%accept) cycle
-            call self%compute_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
+            call self%compute_tod_chisq(i, j, sd%mask(:,j), sd%s_sky(:,j), &
               & sd%s_sl(:,j) + sd%s_orb(:,j), sd%n_corr(:,j), sd%tod(:,j))
          end do
 

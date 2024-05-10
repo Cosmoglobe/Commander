@@ -20,8 +20,6 @@
 !================================================================================
 module comm_tod_bandpass_mod
   use comm_tod_mod
-  use comm_utils  
-  use comm_status_mod
   implicit none
 
 contains

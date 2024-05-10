@@ -36,7 +36,6 @@ module comm_map_mod
 
 !  include "mpif.h"
       
-  private
   public comm_map, comm_mapinfo, map_ptr, write_map
 
 
@@ -73,6 +72,7 @@ module comm_map_mod
      class(comm_mapinfo), pointer :: info => null()
      real(c_double), allocatable, dimension(:,:) :: map
      real(c_double), allocatable, dimension(:,:) :: alm
+     real(c_double), allocatable, dimension(:,:) :: alm_buff
    contains
      ! Data routines
      procedure     :: Y    => exec_sharp_Y
@@ -338,9 +338,11 @@ subroutine tod2file_dp3(filename,d)
 
     allocate(constructor_map)
     constructor_map%info => info
-    ! Maybe make this an extra parameter of some sort?
     allocate(constructor_map%map(0:info%np-1,info%nmaps))
     allocate(constructor_map%alm(0:info%nalm-1,info%nmaps))
+    allocate(constructor_map%alm_buff(0:info%nalm-1,info%nmaps))
+
+    constructor_map%alm_buff = 0d0
 
     if (present(filename)) then
        if (present(mask_misspix)) then
@@ -848,7 +850,7 @@ subroutine tod2file_dp3(filename,d)
        stop
     end if
     if (nside /= self%info%nside .and. .not. (present(udgrade))) then
-       if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename)
+       if (self%info%myid == 0) write(*,*) 'Incorrect nside in ' // trim(filename), 'Expected ', self%info%nside
        call mpi_finalize(ierr)
        stop
     end if
