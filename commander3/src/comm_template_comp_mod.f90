@@ -112,6 +112,7 @@ contains
     c%comm      = cpar%comm_chain
     c%numprocs  = cpar%numprocs_chain
     c%P         = [mu,rms]
+    c%npar      = 0
     npre                  = npre + 1
     comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid_chain

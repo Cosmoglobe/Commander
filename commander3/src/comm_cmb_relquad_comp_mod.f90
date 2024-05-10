@@ -88,6 +88,7 @@ contains
     c%numprocs      = cpar%numprocs_chain
     c%P             = [cpar%cs_P_gauss(id_abs,1,1), cpar%cs_P_gauss(id_abs,2,1)]
     c%init_from_HDF = cpar%cs_initHDF(id_abs)
+    c%npar          = 0
 
     if (c%myid == 0) then
        c%ncr = 1
