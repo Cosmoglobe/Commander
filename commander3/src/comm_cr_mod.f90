@@ -459,8 +459,15 @@ contains
     do while (associated(c))
        select type (c)
        class is (comm_diffuse_comp)
+          write(*,*) c%ncr, size(c%x%alm), ind, 'let us see where the magic happens'
           do i = 1, c%x%info%nmaps
-             if (c%active_samp_group(samp_group)) c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             ! Segfault happening here...
+             !if ((lbound(x, dim=1) > ind) .or. (ubound(x, dim=1) < ind + c%x%info%nalm)) then
+             !  write(*,*) ind, 'ind', ind+c%x%info%nalm-1, 'ind+nalm', lbound(x), ubound(x), 'x bounds'
+             !end if
+             if (c%active_samp_group(samp_group)) then
+               c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
+             end if
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)

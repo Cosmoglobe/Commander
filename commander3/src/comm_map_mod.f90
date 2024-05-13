@@ -1133,63 +1133,24 @@ subroutine tod2file_dp3(filename,d)
     class(comm_map), intent(in)    :: self
     class(comm_map), intent(inout) :: map_out
 
-    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, bsize, first, last, nmaps
+    integer(i4b) :: i, j, q, p_ring, p_nest, ierr, first, last, nmaps
     real(dp), allocatable, dimension(:,:) :: m_in, m_out, buffer, tmp
 
     if (self%info%nside == map_out%info%nside) then
        map_out%map = self%map
        return
     end if
-!!$    else if (self%info%nside > map_out%info%nside) then
-!!$       q = (self%info%nside/map_out%info%nside)**2
-!!$       allocate(tmp(0:map_out%info%npix-1,map_out%info%nmaps))
-!!$       allocate(buffer(0:map_out%info%npix-1,map_out%info%nmaps))
-!!$       tmp = 0.d0
-!!$       do i = 0, self%info%np-1
-!!$          call ring2nest(self%info%nside, self%info%pix(i+1), p_nest)
-!!$          p_nest = p_nest/q
-!!$          call nest2ring(map_out%info%nside, p_nest, p_ring)
-!!$          tmp(p_ring,:) = tmp(p_ring,:) + self%map(i,:)
-!!$       end do
-!!$
-!!$ !call mpi_reduce(tmp, buffer, size(tmp), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!!$do i = 0, map_out%info%npix-1
-!!$   call mpi_reduce(tmp(i,:), buffer(i,:), map_out%info%nmaps, MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!!$end do
-!!$
-!!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
-!!$!call mpi_allreduce(tmp, buffer, size(tmp), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-!!$
-!!$       map_out%map = buffer(map_out%info%pix,:)/q
-!!$       deallocate(tmp,buffer)
-!!$    else if (self%info%nside < map_out%info%nside) then
-!!$       write(*,*) ' Should not be here'
-!!$       stop
-!!$    end if
 
     nmaps = size(self%map, dim=2)
-    bsize = 1000
     allocate(m_in(0:self%info%npix-1,nmaps))
     allocate(m_out(0:map_out%info%npix-1,nmaps))
     allocate(buffer(0:map_out%info%npix-1,nmaps))
     m_in                  = 0.d0
     m_in(self%info%pix,:) = self%map
-!    write(*,*) 'a', self%info%myid, sum(abs(m_in))
     call udgrade_ring(m_in, self%info%nside, m_out, map_out%info%nside)
-!    write(*,*) 'b', self%info%myid, sum(abs(m_out))
     call mpi_allreduce(m_out, buffer, size(m_out), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
-!    write(*,*) 'c', self%info%myid, sum(abs(buffer))
-!!$i = 0
-!!$do while (i <= map_out%info%npix-1)
-!!$   j = min(i+bsize-1,map_out%info%npix-1)
-!!$   call mpi_reduce(m_out(i:j,:), buffer(i:j,:), size(m_out(i:j,:)), MPI_DOUBLE_PRECISION, MPI_SUM, 0, self%info%comm, ierr)
-!!$   i = i+bsize
-!!$end do
-!!$
-!!$    call mpi_bcast(buffer, size(buffer), MPI_DOUBLE_PRECISION, 0, self%info%comm, ierr)
 
     map_out%map = buffer(map_out%info%pix,:)
-!    write(*,*) 'd', self%info%myid, sum(abs(map_out%map))
     deallocate(m_in, m_out, buffer)
 
   end subroutine udgrade

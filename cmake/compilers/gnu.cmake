@@ -30,13 +30,13 @@ if(COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE MATCHES "")
 	list(APPEND COMMANDER3_Fortran_COMPILER_FLAGS_RELEASE 
 		"-O3"  
 		"-DNDEBUG"
-		"-fno-strict-aliasing"
+    #"-fno-strict-aliasing"
 		"-march=native" 
 		"-flto" 
 		"-fopenmp"
 		"-fbacktrace" 
 		"-fexternal-blas"
-		"-ffpe-trap=zero"
+    #"-ffpe-trap=zero"
 		"-fPIC"
 		#"-C"
 		)
