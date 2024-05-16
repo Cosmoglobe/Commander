@@ -86,6 +86,7 @@ contains
     self%apply_jeffreys = .false.
     self%sample_first_niter = cpar%cs_local_burn_in
     self%output_localsamp_maps = cpar%cs_output_localsamp_maps
+    self%x_scale       = 1.d0
 
     only_pol            = cpar%only_pol
     only_I              = cpar%only_I
@@ -2507,6 +2508,10 @@ contains
           !write(*,*) 'path2', trim(path)//'/amp_'
           call map%writeFITS(trim(dir)//'/'//trim(filename), &
                & hdffile=chainfile, hdfpath=trim(path)//'/amp_', output_hdf_map=.false.)
+          !if we have set the overall scale parameter
+          if (self%x_scale /= 1.d0 .and. self%myid == 0) then
+            call write_hdf(chainfile, trim(path)//'/x_scale', self%x_scale)
+          end if
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if

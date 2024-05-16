@@ -304,7 +304,7 @@ contains
     type(hdf_file) :: file
     if (file%sethandle == -1) return
     call h5dclose_f(file%sethandle, file%status)
-    call assert(file%status>=0, 'comm_hdf_mod: Could not close set')
+    call assert(file%status>=0, 'comm_hdf_mod: Could not close set' // file%setname // ' in ' // file%filename)
     file%sethandle = -1
     file%setname   = ''
   end subroutine close_hdf_set

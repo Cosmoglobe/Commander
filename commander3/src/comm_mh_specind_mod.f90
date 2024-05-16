@@ -243,9 +243,11 @@ contains
             select type(c)
             class is (comm_diffuse_comp)
               c%x%alm = c%x%alm*scales(i)
+              c%x_scale = c%x_scale * scales(i)
               !call c%x%Y
             class is (comm_template_comp)
               c%T%map = c%T%map*scales(i)
+              c%T_scale = c%T_scale * scales(i)
             class default
               write(*,*) "You have not set behavior for class ", trim(c%class)
               stop
