@@ -42,10 +42,7 @@ set(zlib_md5 "1c9f62f0778697a09d36121ead88e08e")
 # Official Git Repo is: https://gitlab.dkrz.de/k202009/libaec
 # Version to use now: https://gitlab.dkrz.de/k202009/libaec/-/tree/v1.0.4
 set(libaec_git_url "https://gitlab.dkrz.de/k202009/libaec.git")
-#set(libaec_git_tag "0c0453a0e463da9c2183f46d0255f05645e0e5ef")
-# new version is 1.0.6
-# https://gitlab.dkrz.de/k202009/libaec/-/tree/v1.0.6
-set(libaec_git_tag "9ea83102b294ee6a93978c6f62db5cd88ed79410")
+set(libaec_git_tag "0c0453a0e463da9c2183f46d0255f05645e0e5ef")
 #------------------------------------------------------------------------------
 # MbedTLS -- needed by LibSSH2 and cURL.
 #------------------------------------------------------------------------------
@@ -76,11 +73,9 @@ set(curl_git_tag "bfbde883af33397943df68a3ae01847a634d33bf")
 # OpenBLAS -  Open Source Implementation of BLAS and LAPACK
 #------------------------------------------------------------------------------
 #set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.12/OpenBLAS-0.3.12.tar.gz")
-#set(openblas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
-set(openblas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.20/OpenBLAS-0.3.20.tar.gz")
+set(blas_url "https://github.com/xianyi/OpenBLAS/releases/download/v0.3.18/OpenBLAS-0.3.18.tar.gz")
 #set(blas_md5 "baf8c58c0ef6ebe0f9eb74a5c4acd662")
-#set(openblas_md5 "5cd5df5a1541ad414f5874aaae17730f")
-set(openblas_md5 "abfaa43d995046ca4c56ccf14165c93c")
+set(blas_md5 "5cd5df5a1541ad414f5874aaae17730f")
 #------------------------------------------------------------------------------
 # FFTW
 #------------------------------------------------------------------------------
@@ -89,23 +84,11 @@ set(fftw_url "http://fftw.org/fftw-3.3.9.tar.gz")
 #set(fftw_md5 "8aac833c943d8e90d51b697b27d4384d")
 set(fftw_md5 "50145bb68a8510b5d77605f11cadf8dc")
 #------------------------------------------------------------------------------
-# AOCL -  Open Source Implementation of BLAS, LAPACK & FFTW from AMD
-#------------------------------------------------------------------------------
-# v3.1
-set(amdblis_git_url  "https://github.com/amd/blis.git")
-set(amdblis_git_tag  "3aa004442781d703c46b39cb0b9c166451f55902")
-set(amdflame_git_url "https://github.com/amd/libflame.git")
-set(amdflame_git_tag "51d901f5fa1729c018c19110d100d117b91a0e65")
-set(amdfftw_git_url  "https://github.com/amd/amd-fftw.git")
-set(amdfftw_git_tag  "2b0bbb5924c9e31cb58f34e10832d236bbc51af6")
-#------------------------------------------------------------------------------
 # HDF5
 #------------------------------------------------------------------------------
 # TODO: Think about inclusion of SZip and whether you need to download CMake version?
-#set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
-set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz")
-#set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
-set(hdf5_md5 "30172c75e436d7f2180e274071a4ca97")
+set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz")
+set(hdf5_md5 "9e22217d22eb568e09f0cc15fb641d7c")
 # This version is CMake prepared by HDf Group
 #set(hdf5_url "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/CMake-hdf5-1.12.0.tar.gz")
 #set(hdf5_md5 "33ab3d5b9019ca468364d226e0ccdea6")

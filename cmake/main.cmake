@@ -22,7 +22,7 @@
 #================================================================================
 # Description: This script contains general instructions on how to fetch and build 
 # Commander3 and all its dependencies. It is split into three parts, each containing 
-# its set of instructions/variables. It is done for easier maintenance. 
+# its set of instaructions/variables. It is done for easier maintenance. 
 #================================================================================
 
 # TODO:
@@ -43,12 +43,10 @@ include(sources)
 include(toolchains)
 # including project defined variables
 include(variables)
-# custom functions
-include(functions)
 # including required and dependent libraries
 include(libraries)
 # including configuration summary of installation
-#include(summary)
+include(summary)
 #------------------------------------------------------------------------------
 
 #message(STATUS "Finished looking for packages.")

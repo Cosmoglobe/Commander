@@ -61,15 +61,14 @@ if(COMPILE_HDF5)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${HDF5_SOURCE_DIR}/CMakeLists.txt")
-    #message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
+		message(STATUS "No HDF5 sources were found; thus, will download it from source:\n${hdf5_url}")
 		ExternalProject_Add(
 			hdf5_src
 			DEPENDS						required_libraries 
 												zlib 
 												libaec
 			URL								"${hdf5_url}"
-      URL_MD5						"${hdf5_md5}"
-      #URL_HASH SHA256="${hdf5_sha256}"
+			URL_MD5						"${hdf5_md5}"
 			PREFIX						"${LIBS_BUILD_DIR}"
 			DOWNLOAD_DIR			"${CMAKE_DOWNLOAD_DIRECTORY}"
 			SOURCE_DIR				"${HDF5_SOURCE_DIR}"
@@ -81,7 +80,7 @@ if(COMPILE_HDF5)
 			INSTALL_COMMAND		""
 			)
 	else()
-    #message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
+		message(STATUS "Found an existing HDF5 sources inside:\n${HDF5_SOURCE_DIR}")
 		add_custom_target(hdf5_src
 			ALL ""
 			)

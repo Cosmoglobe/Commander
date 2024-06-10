@@ -48,7 +48,7 @@ if(COMPILE_CFITSIO)
 
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${CFITSIO_SOURCE_DIR}/CMakeLists.txt")
-    #message(STATUS "No CFITSIO sources were found; thus, will download it from source:\n${cfitsio_url}")
+		message(STATUS "No CFITSIO sources were found; thus, will download it from source:\n${cfitsio_url}")
 		ExternalProject_Add(
 			cfitsio_src
 			URL								"${cfitsio_url}"
@@ -64,7 +64,7 @@ if(COMPILE_CFITSIO)
 			INSTALL_COMMAND		""
 			)
 	else()
-    #message(STATUS "Found an existing CFITSIO sources inside:\n${CFITSIO_SOURCE_DIR}")
+		message(STATUS "Found an existing CFITSIO sources inside:\n${CFITSIO_SOURCE_DIR}")
 		add_custom_target(cfitsio_src
 			ALL ""
 			)

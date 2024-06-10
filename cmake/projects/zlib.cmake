@@ -42,7 +42,7 @@ if(COMPILE_ZLIB)
 	#------------------------------------------------------------------------------
 	# Checking whether we have source directory and this directory is not empty.
 	if(NOT EXISTS "${ZLIB_SOURCE_DIR}/CMakeLists.txt")
-    #message(STATUS "No ZLIB sources were found; thus, will download it from source:\n${zlib_url}")
+		message(STATUS "No ZLIB sources were found; thus, will download it from source:\n${zlib_url}")
 		ExternalProject_Add(
 			zlib_src
 			DEPENDS						required_libraries
@@ -59,7 +59,7 @@ if(COMPILE_ZLIB)
 			INSTALL_COMMAND		""
 			)
 	else()
-    #message(STATUS "Found an existing ZLIB sources inside:\n${ZLIB_SOURCE_DIR}")
+		message(STATUS "Found an existing ZLIB sources inside:\n${ZLIB_SOURCE_DIR}")
 		add_custom_target(zlib_src
 			ALL ""
 			)
