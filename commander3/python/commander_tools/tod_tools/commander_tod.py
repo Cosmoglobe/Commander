@@ -225,7 +225,6 @@ class commander_tod:
                 self.add_field(encoding, [self.encodings[encoding]])
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
-            print(self.version)
             self.add_field('/common/version', np.string_(self.version))
             # [Maksym]: was getting the error:
             # ...
@@ -241,9 +240,7 @@ class commander_tod:
             # So needed to add `np.string_()`
             self.add_field('/common/pids', np.string_(list(self.pids.keys())))
 
-        print(self.filelists)
         if self.filelists is not None:
-            print(self.pids.keys())
             for pid in self.pids.keys():
                 self.filelists[self.freq]['id' + str(pid)] = str(pid) + ' "' + os.path.abspath(self.outName) + '" ' + '1 ' + self.pids[pid] + '\n'       
  
@@ -320,7 +317,6 @@ class commander_tod:
         return
 
     def make_filelists(self):
-        print(self.filelists)
         for freq in self.filelists.keys():
             outfile = open(os.path.join(self.outPath, 'filelist_' + str(freq) + '.txt'), 'w')
             outfile.write(str(len(self.filelists[freq])) + '\n')
