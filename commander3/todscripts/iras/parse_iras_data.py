@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from tqdm  import tqdm
+import multiprocessing
 
 # See https://irsa.ipac.caltech.edu/IRASdocs/level_1_format.html
 
@@ -66,11 +67,13 @@ for i in range(5):
 # Also need to do it for each detector independently
 det = 1
 
-
-for det in range(1, 63):
-    with open(f'det{det:02}_files.txt', 'a') as the_file:
+def write_file(det):
+    if (det == 1):
+        import time
+        t0 = time.time()
+    with open(f'/mn/stornext/d5/data/duncanwa/IRAS/det{det:02}_files.txt', 'w+') as the_file:
         the_file.write(f'# utcs1         \t plate \t sop\t obs\t npts\n')
-        for plate in tqdm(range(1717)):
+        for plate in range(2000):
             for sop in range(601):
                 for obs in range(100):
                     fname = f'{L1_data}/plate{plate:04}/sop{sop:03}/obs{obs:03}/det{det:02}.tbl'
@@ -86,6 +89,29 @@ for det in range(1, 63):
                                 elif 'utcs2' in line:
                                     break
                         the_file.write(f'{utcs1:8.6f}\t\t{plate:04}\t{sop:03}\t{obs:03}\t{npts}\n')
+            if (det == 1):
+                dt = (time.time() - t0)/(plate+1)
+                time_to_go = dt*(2000 - plate - 1)//60
+                print(f'plate {plate} out of 2000, {time_to_go} minutes to go {(time.time() - t0)//60} spent')
+    return
+
+
+
+#for det in range(1, 63):
+#    write_file(det)
+
+N_PROC = multiprocessing.cpu_count()
+N_PROC = 62
+with multiprocessing.Pool(processes=N_PROC) as pool:
+    proc_chunks = [
+        pool.apply_async(
+            write_file, 
+            (det,),
+        )
+        for det in np.arange(1, 63)
+    ]
+    for p in proc_chunks:
+        p.get()
         
 
 
