@@ -1625,7 +1625,15 @@ contains
        call read_hdf(chainfile, trim(adjustl(path))//'gain_sigma_0',    self%gain_sigma_0)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_fknee',    self%gain_fknee)
        call read_hdf(chainfile, trim(adjustl(path))//'gain_alpha',    self%gain_alpha)
+       if (self%map_solar_allocated == .true.) then
+         if (hdf_group_exists(chainfile, trim(adjustl(path))//'map_solar')) then
+           call read_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
+         else
+           write(*,*) 'Solar map field not in existing chain, keeping default'
+         end if
+       end if
     end if
+
 
     call mpi_bcast(output, size(output), MPI_DOUBLE_PRECISION, 0, &
          & self%comm, ierr)
@@ -2984,7 +2992,7 @@ contains
 !         call pix2vec_ring(self%nside, self%scans(scan)%d(det)%pix_sol(i,1), vec)
 !         elon = acos(min(max(vec(1),-1.d0),1.d0)) * 180.d0/pi                       ! The Sun is at (1,0,0)
          !         cut = cut .or. elon < self%sol_elong_range(1) .or. elon > self%sol_elong_range(2)
-         if (allocated(self%mask_solar)) then
+         if (allocated(self%mask_solar) .and. self%use_solar_point) then
             cut = cut .or. (self%mask_solar(self%scans(scan)%d(det)%pix_sol(i,1),1) < 0.5)
          end if
 
