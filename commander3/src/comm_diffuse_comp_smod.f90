@@ -2763,6 +2763,10 @@ contains
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
 
+       if (trim(self%type) == 'MBBtab') then
+         call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+       end if
+
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_map', .true.)
@@ -2807,14 +2811,7 @@ contains
                 end do
                 call tp%dealloc(); deallocate(tp)
              end if
-          end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,1) = 1.65d0 
-          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
-          !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
-          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
-          !if (trim(self%label) == 'synch' .and. i > 1) self%theta(i)%p%alm(:,:) = -3.11d0 * sqrt(4*pi)
-          !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
+          end if
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
           npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
@@ -2850,7 +2847,6 @@ contains
        end do !i = 1,npar
     end if
 
-    !if (trim(self%label) == 'dust') write(*,*) 'range beta = ', minval(self%theta(1)%p%map), maxval(self%theta(1)%p%map)
     call self%updateMixmat
 
   end subroutine initDiffuseHDF
