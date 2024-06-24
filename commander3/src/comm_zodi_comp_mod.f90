@@ -44,7 +44,7 @@ module comm_zodi_comp_mod
         class(ZodiComponent),       intent(in)    :: self
         integer(i4b),               intent(in)    :: start_ind
         real(dp), dimension(1:,1:), intent(inout) :: prior
-        real(dp), dimension(1:),    intent(inout) :: scale
+        real(dp), dimension(1:,1:), intent(inout) :: scale
       end subroutine prior_interface
 
       subroutine p2m_interface(self, x)
@@ -191,30 +191,30 @@ contains
       class(ZodiCloud),           intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
       
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
+      scale(start_ind+0,:) = [1.d-9, 4.d-9]
       prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+1,:) = [1.d0, 0.03d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 0.3d0]
       prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
+      scale(start_ind+3,:) = [1.d0, 1d-3]
       prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
+      scale(start_ind+4,:) = [1.d0, 0.8d-3]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+5,:) = [1.d0, 0.3d-3]
       ! Component-specific parameters
       prior(:,start_ind+6) = [1.d0, 2.d0, 1.34d0, -1.d0] ! alpha
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.02d0]
       prior(:,start_ind+7) = [3.d0, 5d0, 4.14d0, -1.d0] ! beta
-      scale(start_ind+7)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.05d0]
       prior(:,start_ind+8) = [0.3d0, 1.1d0, 0.942d0, -1.d0] ! gamma
-      scale(start_ind+8)   = 1.d0      
+      scale(start_ind+8,:) = [1.d0, 0.03d0]
       prior(:,start_ind+9) = [0.1d0, 0.4d0, 0.189d0, -1.d0] ! mu
-      scale(start_ind+9)   = 1.d0      
+      scale(start_ind+9,:) = [1.d0, 0.013d0]
     end subroutine init_cloud_priors_and_scales
 
     subroutine init_band_priors_and_scales(self, start_ind, prior, scale)
@@ -222,30 +222,30 @@ contains
       class(ZodiBand),            intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
+      scale(start_ind+0,:) = [1.d-9, 0.2d-9]
       prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+1,:) = [1.d0, 0.05d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
-      prior(:,start_ind+3) = [-0.3d0, 0.3d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
-      prior(:,start_ind+4) = [-0.3d0, 0.3d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
-      prior(:,start_ind+5) = [-0.3d0, 0.3d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 2.d0]
+      prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
+      scale(start_ind+3,:) = [1.d0, 0.5d-3]
+      prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
+      scale(start_ind+4,:) = [1.d0, 0.2d-3]
+      prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
+      scale(start_ind+5,:) = [1.d0, 0.3d-3]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 30d0, 0d0, -1.d0] ! delta_zeta
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.14d0]
       prior(:,start_ind+7) = [0.8d0, 5.4d0, 4.14d0, -1.d0] ! delta_r
-      scale(start_ind+7)   = 1.d0      
-      prior(:,start_ind+8) = [0.01d0, 2.5d0, 0.942d0, -1.d0] ! v
-      scale(start_ind+8)   = 1.d0      
-      prior(:,start_ind+9) = [3.999d0, 4.001d0, 0.189d0, -1.d0] ! p
-      scale(start_ind+9)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.005d0]
+      prior(:,start_ind+8) = [0.01d0, 1.5d0, 0.942d0, -1.d0] ! v
+      scale(start_ind+8,:) = [1.d0, 0.1d0]      
+      prior(:,start_ind+9) = [3.99999d0, 4.000001d0, 0.189d0, -1.d0] ! p
+      scale(start_ind+9,:) = [1.d0, 1d-6]      
     end subroutine init_band_priors_and_scales
 
     subroutine init_ring_priors_and_scales(self, start_ind, prior, scale)
@@ -253,32 +253,32 @@ contains
       class(ZodiRing),            intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
+      scale(start_ind+0,:) = [1.d-9, 1.d-11]
       prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+1,:) = [1.d0, 0.1d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 1.d0]
       prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
+      scale(start_ind+3,:) = [1.d0, 1d-3]
       prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
+      scale(start_ind+4,:) = [1.d0, 1d-3]
       prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+5,:) = [1.d0, 1d-3]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.01d0]
       prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-      scale(start_ind+7)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.01d0]
       prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-      scale(start_ind+8)   = 1.d0      
+      scale(start_ind+8,:) = [1.d0, 0.01d0]
       prior(:,start_ind+9) = [-60.d-3, 60.d-3, 0.d0, -1.d0] ! theta
-      scale(start_ind+9)   = 1.d0      
+      scale(start_ind+9,:) = [1.d0, 0.01d0]
       prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
-      scale(start_ind+10)   = 1.d0      
+      scale(start_ind+10,:) = [1.d0, 0.01d0]
     end subroutine init_ring_priors_and_scales
 
     subroutine init_feature_priors_and_scales(self, start_ind, prior, scale)
@@ -286,32 +286,32 @@ contains
       class(ZodiFeature),         intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
+      scale(start_ind+0,:) = [1.d-9, 1.d-11]
       prior(:,start_ind+1) = [-30.d0, 30.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+1,:) = [1.d0, 0.1d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 1.d0]
       prior(:,start_ind+3) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
+      scale(start_ind+3,:) = [1.d0, 1d-3]
       prior(:,start_ind+4) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
+      scale(start_ind+4,:) = [1.d0, 1d-3]      
       prior(:,start_ind+5) = [-0.001d0, 0.001d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+5,:) = [1.d0, 1d-3]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.9d0, 1.1d0, 0d0, -1.d0] ! r
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.01d0]
       prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! delta_r
-      scale(start_ind+7)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.01d0]
       prior(:,start_ind+8) = [0.0d0, 0.2d0, 0.1d0, -1.d0] ! delta_z
-      scale(start_ind+8)   = 1.d0      
+      scale(start_ind+8,:) = [1.d0, 0.01d0]
       prior(:,start_ind+9) = [-20.d0, 20.d0, 0.d0, -1.d0] ! theta
-      scale(start_ind+9)   = 1.d0      
+      scale(start_ind+9,:) = [1.d0, 0.01d0]
       prior(:,start_ind+10) = [0.d0, 30.d0, 0.d0, -1.d0] ! sigma_theta
-      scale(start_ind+10)   = 1.d0      
+      scale(start_ind+10,:) = [1.d0, 0.01d0]
     end subroutine init_feature_priors_and_scales
 
     subroutine init_interstellar_priors_and_scales(self, start_ind, prior, scale)
@@ -319,26 +319,26 @@ contains
       class(ZodiInterstellar),    intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:),    intent(inout) :: scale
 
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
+      scale(start_ind+0,:) = [1.d-9, 1.d-11]
       prior(:,start_ind+1) = [0.d0, 00.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+1,:) = [1.d0, 0.d0]
       prior(:,start_ind+2) = [0.d0, 0.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 0.d0]
       prior(:,start_ind+3) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
+      scale(start_ind+3,:) = [1.d0, 0.d0]
       prior(:,start_ind+4) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
+      scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+5,:) = [1.d0, 0.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [0.d0, 0.0d0, 0d0, -1.d0] ! R, inactive
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.d0]
       prior(:,start_ind+7) = [0.d0, 0.0d0, 0.2d0, -1.d0] ! alpha, inactive
-      scale(start_ind+7)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.d0]
     end subroutine init_interstellar_priors_and_scales
 
     subroutine init_fan_priors_and_scales(self, start_ind, prior, scale)
@@ -346,32 +346,32 @@ contains
       class(ZodiFan),             intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
+      scale(start_ind+0,:) = [1.d-9, 1.d-11]
       prior(:,start_ind+1) = [0.d0, 10.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+1,:) = [1.d0, 0.d0]
       prior(:,start_ind+2) = [-720.d0, 720.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 0.d0]
       prior(:,start_ind+3) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
+      scale(start_ind+3,:) = [1.d0, 0.d0]
       prior(:,start_ind+4) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
+      scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [-0.02d0, 0.02d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+5,:) = [1.d0, 0.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [5d0, 15d0, 0d0, -1.d0] ! Q
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.d0]
       prior(:,start_ind+7) = [1.d0, 3d0, 0.2d0, -1.d0] ! P
-      scale(start_ind+7)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.d0]
       prior(:,start_ind+8) = [0.5d0, 2d0, 0.1d0, -1.d0] ! Gamma
-      scale(start_ind+8)   = 1.d0      
+      scale(start_ind+8,:) = [1.d0, 0.d0]
       prior(:,start_ind+9) = [0.d0, 0.3d0, 0.d0, -1.d0] ! Z
-      scale(start_ind+9)   = 1.d0      
+      scale(start_ind+9,:) = [1.d0, 0.d0]
       prior(:,start_ind+10) = [1.d0, 5.d0, 0.d0, -1.d0] ! R_max
-      scale(start_ind+10)   = 1.d0      
+      scale(start_ind+10,:) = [1.d0, 0.d0]
     end subroutine init_fan_priors_and_scales
 
     subroutine init_comet_priors_and_scales(self, start_ind, prior, scale)
@@ -379,30 +379,30 @@ contains
       class(ZodiComet),           intent(in)    :: self
       integer(i4b),               intent(in)    :: start_ind
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       ! Common parameters
       prior(:,start_ind+0) = [1.d-11, 1.d-5, 1.d-8, -1.d0] ! n_0
-      scale(start_ind+0)   = 1.d-9
-      prior(:,start_ind+1) = [0.d0, 00.d0, 0.d0, -1.d0] ! Incl
-      scale(start_ind+1)   = 1.d0      
+      scale(start_ind+0,:) = [1.d-9, 0.d0]
+      prior(:,start_ind+1) = [0.d0, 0.d0, 0.d0, -1.d0] ! Incl
+      scale(start_ind+1,:) = [1.d0, 0.d0]
       prior(:,start_ind+2) = [0.d0, 0.d0, 0.d0, -1.d0] ! Omega
-      scale(start_ind+2)   = 1.d0      
+      scale(start_ind+2,:) = [1.d0, 0.d0]
       prior(:,start_ind+3) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! X_0
-      scale(start_ind+3)   = 1.d0      
+      scale(start_ind+3,:) = [1.d0, 0.d0]
       prior(:,start_ind+4) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Y_0
-      scale(start_ind+4)   = 1.d0      
+      scale(start_ind+4,:) = [1.d0, 0.d0]
       prior(:,start_ind+5) = [0.d0, 0.d0, 0.d0, -1.d0] ! ! Z_0
-      scale(start_ind+5)   = 1.d0      
+      scale(start_ind+5,:) = [1.d0, 0.d0]
       ! Component-specific parameters
       prior(:,start_ind+6) = [1d0, 5d0, 0d0, -1.d0] ! P
-      scale(start_ind+6)   = 1.d0      
+      scale(start_ind+6,:) = [1.d0, 0.d0]
       prior(:,start_ind+7) = [0.d0, 0.3d0, 0.2d0, -1.d0] ! z_mid
-      scale(start_ind+7)   = 1.d0      
+      scale(start_ind+7,:) = [1.d0, 0.d0]
       prior(:,start_ind+8) = [0.5d0, 1.5d0, 0.1d0, -1.d0] ! R_inner
-      scale(start_ind+8)   = 1.d0      
+      scale(start_ind+8,:) = [1.d0, 0.d0]
       prior(:,start_ind+9) = [1.5d0, 5.d0, 0.d0, -1.d0] ! R_outer
-      scale(start_ind+9)   = 1.d0      
+      scale(start_ind+9,:) = [1.d0, 0.d0]
     end subroutine init_comet_priors_and_scales
 
     subroutine param2model_cloud(self, x)
