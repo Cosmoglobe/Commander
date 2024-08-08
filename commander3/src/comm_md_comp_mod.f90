@@ -248,7 +248,7 @@ contains
     do i = 1, cpar%cg_num_samp_groups
        call get_tokens(cpar%cg_samp_group(i), ",", comp_label, n)
        do j = 1, n
-          if (trim(c%label) == trim(comp_label(j))) then
+          if (trim(c%label) == trim(comp_label(j)) .or. trim(comp_label(j)) == 'mono_all') then
              c%active_samp_group(i) = .true.
              if (n == 1) c%cg_unique_sampgroup = i ! Dedicated sampling group for this component  
              exit
