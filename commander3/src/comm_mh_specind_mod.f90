@@ -705,6 +705,7 @@ contains
                         c%theta(j)%p%map(pix,pol) = c%theta_pixreg_buff(c%ind_pixreg_arr(pix,pol,j),pol,j)
                      end do
                   end do
+                  c%theta_pixreg(:,:,j) = c%theta_pixreg_buff(:,:,j)
                   if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
                end select
             end do
