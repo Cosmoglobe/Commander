@@ -116,13 +116,13 @@ for i in range(len(groups)):
         elif (i == 3) & (subgroups[i][j] == 'group1'):
             ind0 = 0
             for k in range(len(lens_group1)):
-                f.create_dataset(f'{groups[i]}/{names_en_analog_group1[k]}',
+                f.create_dataset(f'{groups[i]}/group1/{names_en_analog_group1[k]}',
                         data=d['en_analog']['group1'][:,ind0:ind0+lens_group1[k]])
                 ind0 += lens_group1[k]
         elif (i == 3) & (subgroups[i][j] == 'grt'):
             ind0 = 0
             for k in range(len(lens_grt)):
-                f.create_dataset(f'{groups[i]}/{names_en_analog_grt[k]}',
+                f.create_dataset(f'{groups[i]}/grt/{names_en_analog_grt[k]}',
                         data=d['en_analog']['grt'][:,ind0:ind0+lens_grt[k]])
                 ind0 += lens_grt[k]
 
