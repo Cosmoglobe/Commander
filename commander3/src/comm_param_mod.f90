@@ -2815,6 +2815,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     cpar%cs_almsamp_init(1,i) = 'none'
+    cpar%cs_spec_pixreg(:,1,i) = 'fullsky'
+    cpar%cs_spec_pixreg_map(:,i) = 'fullsky'
 
     call get_parameter_hashtable(htbl, 'COMP_T_E_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
     k = cpar%cs_poltype(2,i)

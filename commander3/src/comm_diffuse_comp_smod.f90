@@ -641,7 +641,7 @@ contains
                 write(*,fmt='(a,a)') 'Component "'//trim(self%label)//'", spec. ind "'&
                      & //trim(self%indlabel(i))//'", all poltypes have pixel region sampling '//&
                      & 'and all regions have been fixed. This only the prior RMS should do. Exiting'
-                stop
+                !stop
              end if
           end do !npar
        end if
@@ -1882,7 +1882,6 @@ contains
                 !if (info%myid == 0) write(*,*) 'udgrade = ', t2-t1
              end if
              theta_p(:,:,j) = td%map
-             !if (info%myid == 0) write(*,*) 'q1, j=',j,  minval(theta_p(:,:,j)), maxval(theta_p(:,:,j))
              call td%dealloc(); deallocate(td)
           end do
        end if
@@ -1938,6 +1937,7 @@ contains
                          stop !debug, replace by proper stop and error message
                       end if
                       self%F(i,l)%p%map(j,1) = self%F_int(1,i,l)%p%eval(theta_p(j,1,:)) * data(i)%gain * self%cg_scale(1)
+                      !write(*,*) i, j, theta_p(j,1,:), self%F_int(1,i,l)%p%eval(theta_p(j,1,:)), self%F(i,l)%p%map(j,1)
                    end if
                 else
                    if (mixmatnull) then 
@@ -2608,55 +2608,55 @@ contains
           end if
           
           !write proposal length and number of proposals maps if local sampling was used
-          if (self%output_localsamp_maps .and. any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
-               & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_proplen_'  // trim(postfix) // '.fits'
-             call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+          if (self%output_localsamp_maps) then
+             if (any(self%lmax_ind_pol(:min(self%nmaps,self%poltype(i)),i) < 0 .and. &
+                  & self%pol_pixreg_type(:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_proplen_'  // trim(postfix) // '.fits'
+                call self%pol_proplen(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+                
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_nprop_'  // trim(postfix) // '.fits'
+                call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
+             end if
 
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_nprop_'  // trim(postfix) // '.fits'
-             call self%pol_nprop(i)%p%writeFITS(trim(dir)//'/'//trim(filename))
-
-          end if
-
-          !if pixelregions, create map without smoothed thetas (for input in new runs)
-          if (self%output_localsamp_maps .and. any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
-             
-             info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
-                  & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
-             tp => comm_map(info)
-             tp%map = self%theta(i)%p%map
-             do p = 1,self%poltype(i)
-                if (self%pol_pixreg_type(p,i) /=3) cycle
-                if (self%poltype(i) == 1) then
-                   p_min=1
-                   p_max=info%nmaps
-                   if (only_pol) p_min = 2
-                else if (self%poltype(i)==2) then
-                   if (p == 1) then
-                      p_min = 1
-                      p_max = 1
+             if (any(self%pol_pixreg_type(1:min(self%nmaps,self%poltype(i)),i) > 0)) then
+                
+                info => comm_mapinfo(self%theta(i)%p%info%comm, self%theta(i)%p%info%nside, &
+                     & self%theta(i)%p%info%lmax, self%theta(i)%p%info%nmaps, self%theta(i)%p%info%pol)
+                tp => comm_map(info)
+                tp%map = self%theta(i)%p%map
+                do p = 1,self%poltype(i)
+                   if (self%pol_pixreg_type(p,i) /=3) cycle
+                   if (self%poltype(i) == 1) then
+                      p_min=1
+                      p_max=info%nmaps
+                      if (only_pol) p_min = 2
+                   else if (self%poltype(i)==2) then
+                      if (p == 1) then
+                         p_min = 1
+                         p_max = 1
+                      else
+                         p_min = 2
+                         p_max = info%nmaps
+                      end if
+                   else if (self%poltype(i)==3) then
+                      p_min = p
+                      p_max = p
                    else
-                      p_min = 2
-                      p_max = info%nmaps
+                      write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
+                      stop
                    end if
-                else if (self%poltype(i)==3) then
-                   p_min = p
-                   p_max = p
-                else
-                   write(*,*) '  Unknown poltype in component ',self%label,', parameter ',self%indlabel(i) 
-                   stop
-                end if
-
-                do j = 0,info%np-1
-                   tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   
+                   do j = 0,info%np-1
+                      tp%map(j,p_min:p_max) = self%theta_pixreg(self%ind_pixreg_arr(j,p,i),p,i)
+                   end do
                 end do
-             end do
-             filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
-                  & '_noSmooth_'  // trim(postfix) // '.fits'
-             call tp%writeFITS(trim(dir)//'/'//trim(filename))
-             call tp%dealloc(); deallocate(tp)
+                filename = trim(self%label) // '_' // trim(self%indlabel(i)) // &
+                     & '_noSmooth_'  // trim(postfix) // '.fits'
+                call tp%writeFITS(trim(dir)//'/'//trim(filename))
+                call tp%dealloc(); deallocate(tp)
+             end if
 
           end if
 
