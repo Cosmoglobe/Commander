@@ -979,6 +979,18 @@ contains
        end if
 
     end do
+
+    if (cpar%myid == 0) then
+      do i = 1, n
+        do j = i+1, n
+          if (trim(cpar%cs_label(i)) == (cpar%cs_label(j))) then
+              write(*,*) 'COMP_LABEL ', i, ' and ', j, ' are both ', trim(cpar%cs_label(i))
+              write(*,*) 'Only unique components labels allowed'
+              stop
+          end if
+        end do
+      end do
+    end if
     cpar%cs_ncomp           = count(cpar%cs_include)
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 

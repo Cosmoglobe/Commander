@@ -656,6 +656,7 @@ COMP_AMP_INPUT_MAP&&          = lambda_wco_dht2001_n2048.fits
 # SZ placeholder -- not implemented yet
 @START 12
 @DEFAULT components/cmb/cmb_planck2015_1deg.defaults
+COMP_LABEL&&                  = sz
 COMP_AMP_INPUT_MAP&&          = init_cmb_rc2_n256_v03.fits
 COMP_MONOPOLE_PRIOR&&         = none
 @END 12
