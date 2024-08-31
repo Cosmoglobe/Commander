@@ -488,6 +488,7 @@ contains
     allocate(self%first_ind_sample(3,self%npar)) !used for pixelregion sampling
     self%first_ind_sample=.true.
 
+
     call update_status(status, "initPixreg_specind_pixreg_type")
     
     self%npixreg = 0
@@ -2663,7 +2664,9 @@ contains
           !output theta, proposal length and number of proposals per pixel region to HDF
           if (output_hdf) then
              npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
-             if (any(self%pol_pixreg_type(:npol,i) > 0)) then
+             if (.not. allocated(self%pol_pixreg_type)) then
+                continue
+             else if (any(self%pol_pixreg_type(:npol,i) > 0)) then
                 npr=0
                 do j = 1,npol
                    if (self%npixreg(j,i)>npr) npr = self%npixreg(j,i)
@@ -2691,6 +2694,8 @@ contains
 
                    deallocate(dp_pixreg,int_pixreg)
                 end if
+             else
+               continue
              end if
 
           end if
