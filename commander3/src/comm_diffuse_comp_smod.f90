@@ -1046,7 +1046,7 @@ contains
 !                if (self%myid == 0) write(*,*) 'd1', self%theta(i)%p%map(0,1:self%nmaps)
                 
                 smooth_scale = self%smooth_scale(i)
-                if (cpar%num_smooth_scales > 0 .and. smooth_scale >= 0) then
+                if (cpar%num_smooth_scales > 0 .and. smooth_scale > 0) then
 
                    !ind. map with 1 map (will be smoothed like zero spin map using the existing code)
                    tp => comm_map(info2)
