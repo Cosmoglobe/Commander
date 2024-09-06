@@ -145,7 +145,11 @@ contains
     if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
-          self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
+          where (self%B_out%b_l(l,:) > 1d-6) 
+             self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
+          elsewhere
+             self%x%alm(i,:) = 0.d0
+          end where
        end do
     end if
     
