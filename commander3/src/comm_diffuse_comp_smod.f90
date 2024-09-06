@@ -119,10 +119,6 @@ contains
        self%lmax_pre_lowl = -1
     end if
 
-    ! Initialize output beam
-    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
-         & init_realspace=.false.)
-    
     ! Initialize amplitude map
     if (trim(cpar%cs_input_amp(id_abs)) == 'zero' .or. trim(cpar%cs_input_amp(id_abs)) == 'none') then
        self%x => comm_map(info)
@@ -136,15 +132,23 @@ contains
 
        do i = 0, self%x%info%nalm-1
           call self%x%info%i2lm(i,l,m)
-          if (l < self%lmin_amp) then
-             self%x%alm(i,:) = 0.d0
-          else
-             self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
-          end if
+          if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
     end if
     self%ncr = size(self%x%alm)
 
+    ! Initialize output beam
+    self%B_out => comm_B_bl(cpar, self%x%info, 0, 0, fwhm=cpar%cs_fwhm(id_abs), nside=self%nside,&
+         & init_realspace=.false.)
+
+    ! Deconvolve the existing beam if initialized from an input map
+    if (trim(cpar%cs_input_amp(id_abs)) /= 'zero' .and. trim(cpar%cs_input_amp(id_abs)) /= 'none') then
+       do i = 0, self%x%info%nalm-1
+          call self%x%info%i2lm(i,l,m)
+          self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
+       end do
+    end if
+    
     ! Read component mask
     if (trim(cpar%cs_mask(id_abs)) /= 'fullsky' .and. self%latmask < 0.d0) then
        self%mask => comm_map(self%x%info, trim(cpar%cs_mask(id_abs)), &
