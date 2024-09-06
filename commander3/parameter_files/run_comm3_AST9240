@@ -15,7 +15,8 @@ ns=(24 72 64 64 128 86 64 24 64)
 tLen=${#lists[@]}
 builds=("owl1724" "owl2528" "owl2930" "owl3135" "owl3637" "hya13" "hya4" "hya5" "hya6" "hya79" "hya1016")
 module purge
-module load intel/oneapi mpi icc compiler-rt tbb mkl compiler
+module load intel/oneapi mpi/2021.11 compiler-rt/2023.2.1 mkl/2023.2.0 icc/2023.2.1
+
 build=0
 for (( i=0; i<${tLen}; i++ ));
 do
@@ -34,13 +35,13 @@ seed=$RANDOM
 
 
 #killall -9 commander
-COMM_ROOT="/mn/stornext/u3/hke/git/Commander_AST9240_2024/build_owl3135_oneapi_Release"
-#COMM_ROOT="/mn/stornext/u3/hke/git/Commander_AST9240_2024/build"
-export COMMANDER_PARAMS_DEFAULT="/mn/stornext/u3/hke/git/Commander_AST9240_2024/commander3/parameter_files/defaults"
-export HEALPIX=${COMM_ROOT}"/install/healpix"
+COMM_ROOT="/mn/stornext/u3/hke/git/Commander_AST9240_2024"
+export COMMANDER_PARAMS_DEFAULT=$COMM_ROOT"/commander3/parameter_files/defaults"
+export COMM_EXEC=$COMM_ROOT"/build_${build}_oneapi_Release/install/bin/commander3"
+export HEALPIX=${COMM_ROOT}"/build_${build}_oneapi_Release/install/healpix"
 export LD_LIBRARY_PATH=${COMM_ROOT}/install/lib:${COMM_ROOT}/install/healpix/lib:$LD_LIBRARY_PATH
-pfile=param_ml_32band_comm3.txt
+pfile=param_AST9240_planck2015_1deg.txt
 dir="chains"
 cp $pfile $dir/${pfile}_orig_v1
 n=64
-export OMP_NUM_THREADS=1; mpirun -env I_MPI_FABRICS shm -n $n ${COMM_ROOT}/../commander3/src/commander $pfile 2>&1| tee -a $dir/slurm.txt
+export OMP_NUM_THREADS=1; mpirun -env I_MPI_FABRICS shm -n $n $COMM_EXEC $pfile 2>&1| tee -a $dir/slurm.txt
