@@ -147,12 +147,12 @@ contains
           call self%x%info%i2lm(i,l,m)
           where (self%B_out%b_l(l,:) > 1d-6) 
              self%x%alm(i,:) = self%x%alm(i,:) / self%B_out%b_l(l,:)
-             if (l > 500) then
-                self%x%alm(i,:) = self%x%alm(i,:) * real((500.d0/l,dp)**20
-             end if
           elsewhere
              self%x%alm(i,:) = 0.d0
           end where
+          if (l > 500) then
+             self%x%alm(i,:) = self%x%alm(i,:) * real((500.d0/l,dp)**20
+          end if
        end do
     end if
     
