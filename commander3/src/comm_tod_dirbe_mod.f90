@@ -39,6 +39,7 @@ module comm_tod_DIRBE_mod
    type, extends(comm_tod) :: comm_dirbe_tod
    contains
       procedure     :: process_tod          => process_DIRBE_tod
+      procedure     :: dumpToHDF_inst       => dumpToHDF_DIRBE
    end type comm_dirbe_tod
 
    interface comm_dirbe_tod
@@ -158,6 +159,38 @@ contains
       
       call timer%stop(TOD_INIT, id_abs)
     end function constructor_dirbe
+
+
+    subroutine dumpToHDF_DIRBE(self, chainfile, path)
+      ! 
+      ! Writes instrument-specific TOD parameters to existing chain file
+      ! 
+      ! Arguments:
+      ! ----------
+      ! self:     derived class (comm_tod)
+      !           TOD object
+      ! chainfile: derived type (hdf_file)
+      !           Already open HDF file handle to existing chainfile
+      ! path:   string
+      !           HDF path to current dataset, e.g., "000001/tod/030"
+      !
+      ! Returns
+      ! ----------
+      ! None
+      !
+      implicit none
+      class(comm_dirbe_tod),               intent(in)     :: self
+      type(hdf_file),                      intent(in)     :: chainfile
+      character(len=*),                    intent(in)     :: path
+
+
+      if (self%myid == 0) then
+         if (self%map_solar_allocated == .true.) then
+           call write_hdf(chainfile, trim(adjustl(path))//'map_solar',  self%map_solar)
+         end if
+      end if
+
+    end subroutine dumpToHDF_DIRBE
 
    !**************************************************
    !             Driver routine

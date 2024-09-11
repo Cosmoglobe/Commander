@@ -24,7 +24,7 @@ module comm_chisq_mod
 
 contains
 
-  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, lowres_eval, evalpol)
+  subroutine compute_chisq(comm, chisq_map, chisq_fullsky, mask, maskpath, lowres_eval, band_list, evalpol)
     implicit none
     integer(i4b),                   intent(in)              :: comm
     logical(lgt),                   intent(in),    optional :: lowres_eval
@@ -34,11 +34,14 @@ contains
     class(comm_map),                intent(inout), optional :: chisq_map
     real(dp),                       intent(out),   optional :: chisq_fullsky
     type(map_ptr),   dimension(1:), intent(in),    optional :: mask
+    character(len=512),             intent(in),    optional :: maskpath
+    integer(i4b), dimension(:),     intent(in),    optional :: band_list
 
-    integer(i4b) :: i, j, k, p, ierr, nmaps
+    integer(i4b) :: i, j, k, p, ierr, nmaps, nbands
+    integer(i4b), dimension(:), allocatable :: bandlist
     real(dp)     :: t1, t2
-    logical(lgt) :: apply_mask, lowres
-    class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub
+    logical(lgt) :: lowres
+    class(comm_map), pointer :: res, res_lowres => null(), res_lowres_temp, chisq_sub, mask_tmp
     class(comm_mapinfo), pointer :: info, info_lowres
 
       !
@@ -64,10 +67,20 @@ contains
       !                 (false). Otherwise, both are evaluated.
 
 
+    if (present(band_list)) then
+      bandlist = band_list
+      nbands = size(bandlist)
+    else
+      bandlist = [(i, i=1,numband)]
+      nbands = numband
+    end if
+
     if (present(chisq_fullsky) .or. present(chisq_map)) then
        if (present(chisq_fullsky)) chisq_fullsky = 0.d0
        if (present(chisq_map))     chisq_map%map = 0.d0
-       do i = 1, numband
+       do p = 1, nbands
+          i = bandlist(p)
+          if (i == 0) cycle
           
           ! Skip non-essential chisq evaluation
           if (present(evalpol)) then
@@ -80,17 +93,18 @@ contains
 
           res => compute_residual(i)
 
-          apply_mask = present(mask)
-          if (apply_mask) then
-            if (size(mask) .ne. numband) write(*,*) 'Need as many masks as bands'
-            apply_mask = associated(mask(i)%p)
-          end if
-          if (apply_mask) then
-             res%map = res%map * mask(i)%p%map
-             !call res%writeFITS("chisq.fits")
-             !call mask(i)%p%writeFITS("mask.fits")
-             !call mpi_finalize(j)
-             !stop
+          if (present(mask)) then
+            if (size(mask) .ne. nbands) write(*,*) 'Need as many masks as bands'
+            res%map = res%map * mask(i)%p%map
+          else if (present(maskpath)) then
+            mask_tmp => comm_map(data(i)%info, trim(maskpath), udgrade=.true.)
+            where(mask_tmp%map < 0.5d0)
+               mask_tmp%map = 0.d0
+            elsewhere
+               mask_tmp%map = 1.d0
+            end where
+            res%map = res%map * mask_tmp%map
+            call mask_tmp%dealloc(); deallocate(mask_tmp)
           end if
           
           if ((trim(data(i)%N%type) == "rms" .or. trim(data(i)%N%type) == "rms_qucov") .and. data(i)%N%nside_chisq_lowres < res%info%nside .and. present(chisq_fullsky) .and. present(lowres_eval)) then
@@ -131,6 +145,7 @@ contains
                 chisq_fullsky = chisq_fullsky + sum(res_lowres%map)
              else
                 chisq_fullsky = chisq_fullsky + sum(res%map)
+                !write(*,*) trim(data(i)%label), sum(res%map), chisq_fullsky
              end if
           end if
 

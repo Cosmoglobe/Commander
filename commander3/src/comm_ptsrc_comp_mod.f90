@@ -38,7 +38,7 @@ module comm_ptsrc_comp_mod
 
   type ptsrc
      character(len=24) :: id
-     real(dp)           :: glon, glat, f_beam, vec(3), red_chisq
+     real(dp)           :: glon, glat, vec(3), red_chisq
      type(Tnu), allocatable, dimension(:)     :: T         ! Spatial template (nband)
      real(dp),  allocatable, dimension(:)     :: amp_rms   ! Amplitude RMS (nmaps)
      real(dp),  allocatable, dimension(:,:)   :: theta     ! Spectral parameters (npar,nmaps)
@@ -53,8 +53,8 @@ module comm_ptsrc_comp_mod
      real(dp)           :: cg_scale, amp_rms_scale
      integer(i4b)       :: nside, nside_febecop, nsrc, ncr_tot, ndet, nactive
      logical(lgt)       :: apply_pos_prior, burn_in, precomputed_amps
-     real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (sum(nsrc),nmaps)
-     real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (sum(nsrc),nmaps)
+     real(dp),        allocatable, dimension(:,:) :: x        ! Amplitudes (nsrc,nmaps)
+     real(dp),        allocatable, dimension(:,:) :: x_buff   ! Amplitudes (nsrc,nmaps)
      type(F_int_ptr), allocatable, dimension(:,:,:) :: F_int  ! SED integrator (numband)
      logical(lgt),    allocatable, dimension(:)     :: F_null ! Frequency mask
      type(ptsrc),     allocatable, dimension(:)     :: src    ! Source template (nsrc)
@@ -180,9 +180,11 @@ contains
        allocate(c%p_uni(2,c%npar), c%p_gauss(2,c%npar))
        allocate(c%theta_def(c%npar))
        allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
+       allocate(c%theta_steplen(c%npar, cpar%mcmc_num_samp_groups))
        c%p_uni      = cpar%cs_p_uni(id_abs,:,:)
        c%p_gauss    = cpar%cs_p_gauss(id_abs,:,:)
        c%theta_def  = cpar%cs_theta_def(1:2,id_abs)
+       c%theta_steplen = 0d0
        c%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
        c%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
@@ -204,10 +206,12 @@ contains
        c%npar = 2   ! (beta, T_d)
        allocate(c%p_uni(2,c%npar), c%p_gauss(2,c%npar))
        allocate(c%theta_def(c%npar))
+       allocate(c%theta_steplen(c%npar, cpar%mcmc_num_samp_groups))
        allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
        c%p_uni     = cpar%cs_p_uni(id_abs,:,:)
        c%p_gauss   = cpar%cs_p_gauss(id_abs,:,:)
        c%theta_def = cpar%cs_theta_def(1:2,id_abs)
+       c%theta_steplen = 0d0
        c%nu_min_ind = cpar%cs_nu_min_beta(id_abs,1:2)
        c%nu_max_ind = cpar%cs_nu_max_beta(id_abs,1:2)
        do k = 1, 3
@@ -746,8 +750,7 @@ contains
          & trim(cpar%cs_catalog(id_abs)))
     
     ! Initialize point sources based on catalog information
-    allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
-!    allocate(mask(self%nsrc,self%nmaps), mask2(self%nsrc,self%nmaps))
+    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
     open(unit,file=trim(cpar%cs_catalog(id_abs)),recl=1024)
     i    = 0
     call update_status(status, "read_ptsrc4")
@@ -787,6 +790,7 @@ contains
           self%src(i)%glat           = glat * DEG2RAD
           self%src(i)%theta          = beta
           self%x(i,:)                = amp / self%cg_scale
+          !if (self%myid == 0) write(*,*) 'amp', self%x(i,:)
           self%src(i)%vec            = vec
           self%src(i)%P_x(:,1)       = amp     / self%cg_scale
           self%src(i)%P_x(:,2)       = amp_rms / self%cg_scale
@@ -864,9 +868,10 @@ contains
     call update_status(status, "read_ptsrc6")
   
     deallocate(amp, amp_rms, beta, beta_rms)
- 
+
     call init_beam_templates(self, cpar, id, id_abs)
 
+    
   end subroutine read_sources
 
 
@@ -878,7 +883,8 @@ contains
 
     character(len=1024) :: tempfile, filename
     integer(i4b) :: i, n, ia, j
- 
+
+    ! if (self%myid == 0) write(*,*) 'init beam templates'
     ! Initialize beam templates
     tempfile = trim(cpar%cs_ptsrc_template(id_abs))
     do i = 1, numband
@@ -890,11 +896,14 @@ contains
        if (trim(tempfile) /= 'none' .and. &
             & .not.  cpar%cs_output_ptsrc_beam(id_abs)) then
           ! Read from precomputed file
+          !if (self%myid == 0) write(*,*) 'a1'
           call self%read_febecop_beam(cpar, tempfile, data(i)%instlabel, i)
        else if (filename(n-2:n) == '.h5') then
           ! Read precomputed Febecop beam from HDF file
+          !if (self%myid == 0) write(*,*) 'a2'
           call self%read_febecop_beam(cpar, filename, 'none', i)
        else
+          !if (self%myid == 0) write(*,*) 'a3'
           ! Construct beam on-the-fly
           do j = 1, self%nsrc
              if (mod(j,1000) == 0 .and. self%myid == 0) &
@@ -981,7 +990,7 @@ contains
 
     call read_alloc_hdf(stars_file, 'coordinates', coords)
 
-    allocate(self%x(self%nsrc,self%nmaps), self%src(self%nsrc))
+    allocate(self%x(self%nsrc,self%nmaps), self%x_buff(self%nsrc,self%nmaps), self%src(self%nsrc))
 
     self%x = 0.d0
     self%x(1,1) = 1.d0
@@ -1047,7 +1056,7 @@ contains
     integer(i4b),       intent(in)    :: band
 
 
-    integer(i4b)       :: i, j, k, n, m, p, q, s, pix, ext(1), ierr, outfreq, band_active
+    integer(i4b)       :: i, j, k, l, n, m, p, q, s, pix, ext(1), ierr, outfreq, band_active
     character(len=128) :: itext
     type(hdf_file)     :: file
     type(Tnu), pointer :: T
@@ -1085,7 +1094,7 @@ contains
           if (trim(label) /= 'none') itext = trim(label)//'/'//trim(adjustl(itext))
           call get_size_hdf(file, trim(adjustl(itext))//'/indices', ext)
           m = ext(1)
-
+          
           ! Read full beam from file
           allocate(ind_in(m), b_in(m))
           call read_hdf(file, trim(adjustl(itext))//'/indices', ind_in)
@@ -1148,6 +1157,11 @@ contains
              deallocate(nsamp)
           end if
           deallocate(ind_in, b_in)
+
+          ! copy polarization beams from temperature beam
+          do j = 2, T%nmaps
+             b(:,j) = b(:,1)
+          end do
              
           ! Distribute information
           call mpi_bcast(n,   1, MPI_INTEGER, 0, comm_pre, ierr)
@@ -1912,21 +1926,18 @@ contains
         ! root does the division and adds the fluctuation term
         if(self%myid == 0) then
            if (A_tot > 0) then
-              x_tot = B_tot/A_tot !+ sqrt(1.d0/A_tot)*rand_gauss(handle)
+              x_tot = B_tot/A_tot
+              if (trim(cpar%operation) == 'sample') x_tot = x_tot + sqrt(1.d0/A_tot)*rand_gauss(handle)
+              ! This first test should be replaced with a unit independent stability criterion
               if (1.d0/sqrt(A_tot) > 1 .or. x_tot < 0.d0) x_tot = 0.d0
            else
               x_tot = 0.d0
            end if
-          !if(x_tot < 0) x_tot = 0
           if (mod(i,10000) == 0) then
-!             write(*,*) A_tot, B_tot
              write(*,fmt='(a,i8,a,f8.3,a,f8.3)') "Star ", i, " a_old = ", self%x(i,P), " a_new = ", x_tot
           end if
           self%x(i,p) = x_tot
         end if
-
-!        call mpi_finalize(ierr)
-!        stop
 
         ! broadcast final result to all cores
         call mpi_bcast(x_tot, 1, MPI_DOUBLE_PRECISION, cpar%root, cpar%comm_chain, ierr)
@@ -1944,8 +1955,6 @@ contains
             data(l)%res%map(pix,p) = data(l)%res%map(pix,p) - s*self%src(i)%T(la)%map(q,p)
           end do
         end do
-        
-
       end do
     end do
 
@@ -1979,7 +1988,7 @@ contains
     n_gibbs             = 1
     !if (first_call .and. self%burn_in) n_gibbs = 100
     first_call          = .false.
-
+    
     if(self%precomputed_amps) then
        write(*,*) 'Should not be here in samplePtsrcSpecInd'
        call mpi_finalize(ierr)
@@ -1988,9 +1997,9 @@ contains
 !      call samplePtsrcAmp(self, cpar, handle)
 !      return
     end if
-
-
+    
     if (trim(operation) == 'optimize') then
+       !if (self%myid == 0) write(*,*) 'opimize ptsrc spectral parameters'
        allocate(theta(self%npar))
        do iter2 = 1, n_gibbs
           do p = 1, self%nmaps
@@ -2008,8 +2017,10 @@ contains
                 
                 ! Add current point source to latest residual
                 if (self%myid == 0) then
-                   a     = self%x(k,p)
-                   theta = self%src(k)%theta(:,p)
+                   a     = self%x(k,p)               ! amplitude ptsrc k nmap p 
+                   theta = self%src(k)%theta(:,p)    ! spectral parameters [alpha, beta]
+                   !write(*,*) 'ptsrc pol amp  ', k, p, a
+                   !write(*,*) 'ptsrc pol alpha', k, p, theta(1)
                 end if
                 call mpi_bcast(a,               1, MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
                 call mpi_bcast(theta, size(theta), MPI_DOUBLE_PRECISION, 0, self%comm, ierr)
@@ -2033,7 +2044,7 @@ contains
                    x(1)                   = self%x(k,p)
                    if (self%apply_pos_prior .and. p == 1 .and. x(1) < 0.d0) x(1) = 0.d0
                    x(2:1+self%npar)       = self%src(k)%theta(:,p)
-                   call powell(x, lnL_ptsrc_multi, ierr)
+                   call powell(x, lnL_ptsrc_multi, ierr) !!!!!
                    a                      = x(1)
                    theta                  = x(2:1+self%npar)
                    do l = 1, c_lnL%npar
@@ -2043,6 +2054,7 @@ contains
                    self%x(k,p)            = x(1)
                    self%src(k)%theta(:,p) = theta
                    deallocate(x)
+                   !write(*,*) 'ptsrc pol ampl  ', k, p, self%x(k,p)
                    
                    ! Release slaves
                    flag = 0
@@ -2176,14 +2188,17 @@ contains
     if (self%myid == 0) open(68,file=trim(cpar%outdir)//'/ptsrc.dat', recl=1024)
     allocate(x(n), P_tot(n), F(n), lnL(n), theta(self%npar))
     if (self%myid == 0) write(*,*) '| Gibbs sampling ', trim(self%type), ' parameters'
-    if (self%myid == 0) write(*,*) '| Iteration, N_gibbs'
+    if (self%myid == 0) write(*,*) '|        Iteration,   N_gibbs'
+n_gibbs=1
     do iter2 = 1, n_gibbs
 
        if (self%myid == 0) write(*,*) '| ', iter2, n_gibbs
 
        ! Sample spectral parameters
        do j = 1, self%npar
+!          if (self%myid == 0) write(*,*) 'a j npar:', j, self%npar
           if (self%p_uni(2,j) == self%p_uni(1,j) .or. self%p_gauss(2,j) == 0.d0) cycle
+!          if (self%myid == 0) write(*,*) 'b', self%npar, self%p_uni(2,j), self%p_uni(1,j), self%p_gauss(2,j)
           
           ! Loop over sources
           call wall_time(t1)
@@ -2192,7 +2207,8 @@ contains
              !do k = self%nsrc, self%nsrc
                 theta = self%src(k)%theta(:,p)
                 
-                !if (self%myid == 0) write(*,*) iter2
+!                if (self%myid == 0) write(*,*) 'c maps', p, self%nmaps
+!                if (self%myid == 0) write(*,*) 'c nsrc', k, self%nsrc
 
                 ! Construct current source model
                 do l = 1, numband
@@ -2202,6 +2218,7 @@ contains
                    if (data(l)%bp(0)%p%nu_c < self%nu_min_ind(1) .or. data(l)%bp(0)%p%nu_c > self%nu_max_ind(1)) cycle
                    s         = self%F_int(p,la,0)%p%eval(theta) * data(l)%gain * self%cg_scale
                    a_curr(l) = self%getScale(l,k,p) * s * amp(k,p)
+!if (self%myid == 0) write(*,*) 'l numband', l, numband
                 end do
                 
                 ! Refine grid until acceptance
@@ -2241,7 +2258,6 @@ contains
                                  & self%src(k)%T(la)%map(q,p)*(a-a_curr(l)))**2 / &
                                  & data(l)%N%rms_pix(pix,p)**2
                          end do
-                         
                       end do
                    end do
                    
@@ -2272,7 +2288,7 @@ contains
                       
                       ! Return ok if there are sufficient number of points in relevant range
                       ok = (i_max-i_min) > n_ok
-                      !write(*,*) k, ok, i_max-i_min, real(x_min,sp), real(x_max,sp)
+                      !write(*,*) 'k', k, ok, i_max-i_min, real(x_min,sp), real(x_max,sp)
                    end if
                    
                    ! Broadcast status
@@ -2340,6 +2356,8 @@ contains
        do p = 1, self%nmaps
           !do k = self%nsrc, self%nsrc
           do k = 1, self%nsrc
+             !if (self%myid == 0) write(*,*) 'p,k  ', p, k
+
              a_old = amp(k,p) ! Store old amplitude to recompute residual
              
              a     = 0.d0
@@ -2371,8 +2389,13 @@ contains
              if (self%myid == 0) then
                 
                 ! Compute maximum likelihood solution
-                sigma   = 1.d0  / sqrt(a_tot)
-                mu      = b_tot / a_tot
+                if (a_tot <= 0.d0) then
+                   sigma = 1.d10
+                   mu    = 0.d0
+                else
+                   sigma   = 1.d0  / sqrt(a_tot)
+                   mu      = b_tot / a_tot
+                end if
                 !write(*,*) 'amp0  = ', real(mu,sp), real(sigma,sp)
                 
                 ! Add Gaussian prior
@@ -2557,6 +2580,7 @@ contains
 
     allocate(theta(c_lnL%npar))
     if (c_lnL%myid == 0) then
+!       write(*,*) 'lnl_ptsrc_multi'
        flag = 1
        call mpi_bcast(flag, 1, MPI_INTEGER, 0, c_lnL%comm, ierr)
        amp   = p(1)
@@ -2600,6 +2624,7 @@ contains
        a = c_lnL%getScale(l,k_lnL,p_lnL) * s * amp
           
        ! Compute likelihood by summing over pixels
+!    if (c_lnL%myid == 0) write(*,*) 'numpix', c_lnL%src(k_lnL)%T(la)%np
        do q = 1, c_lnL%src(k_lnL)%T(la)%np
           pix = c_lnL%src(k_lnL)%T(la)%pix(q,1)
           if (data(l)%N%rms_pix(pix,p_lnL) == 0.d0) cycle

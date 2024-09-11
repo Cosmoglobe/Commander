@@ -104,7 +104,8 @@ if(COMPILE_HDF5)
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
 		CMAKE_ARGS
-			-DCMAKE_BUILD_TYPE=Release
+      #-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_BUILD_TYPE=Release
 			# Specifying installations paths for binaries and libraries
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 			#-DCMAKE_Fortran_MODULE_DIRECTORY:PATH=${CMAKE_Fortran_MODULE_DIRECTORY}

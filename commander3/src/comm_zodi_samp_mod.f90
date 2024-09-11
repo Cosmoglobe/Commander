@@ -1142,7 +1142,7 @@ contains
       logical(lgt) :: accept
       real(dp), allocatable :: theta(:), theta_new(:), theta_old(:), scale(:)
       real(dp), allocatable, dimension(:) :: theta_prev, chisq_prev
-      integer(i4b) :: i, j, k, ierr, flag, ntot, npar, unit
+      integer(i4b) :: i, j, k, ind, ierr, flag, ntot, npar, unit
       real(dp) :: chisq_old, chisq_new
       character(len=6) :: iter_string
       character(len=6) :: sgroup
@@ -1155,8 +1155,29 @@ contains
       allocate(theta_old(npar), theta_new(npar), theta(npar))
       allocate(theta_prev(npar), chisq_prev(numband), scale(npar))
 
+      ! Initialize active monopoles
+      do i = 1, numband
+         ind = zodi_model%get_par_ind(mono_band=i)
+         if (zodi_model%theta_stat(ind,samp_group) == 0) band_monopole(i) = get_monopole_amp(data(i)%label)
+      end do
+
+      if (cpar%myid_chain == 0) then
+         call int2string(samp_group, sgroup)
+         call int2string(iter, iter_string)
+         filename = trim(cpar%outdir)//'/zodi_powell_sg'//sgroup//'_k'//iter_string//'.dat'
+         unit     = getlun()
+         open(unit, file=trim(filename), recl=10000)
+         write(unit, '(a)', advance="no") "# chisq_red "
+         do i = 1, zodi_model%npar_tot
+            if (zodi_model%theta_stat(i,samp_group)==0) then
+               write(unit, "(a,a)", advance="no") trim(adjustl(zodi_model%par_labels_full(i))), " "
+            end if
+         end do
+         write(unit,*)
+      end if
+
       ! Get chisq of old point
-      scale = pack(zodi_model%theta_scale, zodi_model%theta_stat(:,samp_group)==0)
+      scale = pack(zodi_model%theta_scale(:,1), zodi_model%theta_stat(:,samp_group)==0)
       call model_to_params(zodi_model, theta_old, samp_group)
 !!$      if (cpar%myid == cpar%root) then
 !!$         do i = 1, npar
@@ -1187,21 +1208,6 @@ contains
       theta_new = theta_old
       call randomize_zodi_init(theta_new, samp_group, cpar, handle)
 
-      if (cpar%myid_chain == 0) then
-         call int2string(samp_group, sgroup)
-         call int2string(iter, iter_string)
-         filename = trim(cpar%outdir)//'/zodi_powell_sgroup'//sgroup//'_k'//iter_string//'.dat'
-         unit     = getlun()
-         open(unit, file=trim(filename), recl=10000)
-         write(unit, '(a)', advance="no") "# "
-         do i = 1, zodi_model%npar_tot
-            if (zodi_model%theta_stat(i,samp_group)==0) then
-               write(unit, "(a,a)", advance="no") trim(adjustl(zodi_model%par_labels_full(i))), " "
-            end if
-         end do
-         write(unit,*)
-      end if
-
       ! Rescale 
       theta = theta_new/scale
          
@@ -1216,7 +1222,7 @@ contains
          if (chisq_new < chisq_old) then
             accept = .true. 
          else
-            accept = rand_uni(handle) < exp(-0.5d0*(chisq_new-chisq_old)/0.1d0)
+            accept = rand_uni(handle) < exp(-0.5d0*(chisq_new-chisq_old)/0.02d0)
          end if
          if (accept) then
             ! Accept new point; update
@@ -1246,6 +1252,11 @@ contains
       ! update model with final parameters
       call params_to_model(zodi_model, theta_new, samp_group)
 
+      ! Update monopole for requested bands
+      do i = 1, numband
+         if (band_update_monopole(i,samp_group)) call set_monopole_amp(data(i)%label, band_monopole(i))
+      end do
+
       deallocate(theta_old, theta_new, theta, theta_prev, chisq_prev, scale)
       
     contains
@@ -1267,7 +1278,7 @@ contains
       call wall_time(t1)
       
       allocate(theta(npar))
-      if (data(1)%tod%myid == 0) then
+      if (cpar%myid_chain == 0) then
          flag = 1
          call mpi_bcast(flag, 1, MPI_INTEGER, 0, data(1)%tod%comm, ierr)
          theta = p*scale
@@ -1294,7 +1305,7 @@ contains
       !if (data(1)%tod%myid == 0) write(*,*) data(1)%tod%myid, ' -- update =', update_band, all(theta == theta_prev)
       
       ! Check priors
-      if (data(1)%tod%myid == 0) then
+      if (cpar%myid_chain == 0) then
          chisq_tot = get_chisq_priors(theta, samp_group)
          accept    = chisq_tot < 1.d30
       else
@@ -1309,7 +1320,7 @@ contains
       end if
 
       call params_to_model(zodi_model, theta, samp_group)
-      if (data(1)%tod%myid == 0) call print_zodi_model(theta, samp_group)
+      if (cpar%myid_chain == 0) call print_zodi_model(theta, samp_group)
       
       ndof = 0
       do i = 1, numband
@@ -1324,7 +1335,7 @@ contains
 
          if (.not. update_band(i)) then
             !write(*,*) 'skipping', i, chisq_prev(i)
-            if (data(1)%tod%myid == 0) write(*,*) 'skipping band ', i, chisq_prev(i)
+            if (cpar%myid_chain == 0) write(*,*) 'skipping band ', i, chisq_prev(i)
             chisq_tot = chisq_tot + chisq_prev(i)
             do scan = 1, nscan
                do j = 1, ndet
@@ -1336,7 +1347,7 @@ contains
          end if
 
          ! Get monopole
-         mono = get_monopole_amp(data(i)%label)
+         mono = band_monopole(i) !get_monopole_amp(data(i)%label)
 !!$         if (data(1)%tod%myid == 0) then
 !!$            write(*,*) 'theta =', theta
 !!$            write(*,*) 'mono =', mono
@@ -1432,7 +1443,7 @@ contains
       call wall_time(t4)
       !if (data(1)%tod%myid == 0) write(*,*) ' CPU5 = ', t4-t3
       
-      if (data(1)%tod%myid == 0) then
+      if (cpar%myid_chain == 0) then
          lnL_zodi = chisq/ndof_tot
          call wall_time(t2)
          if (ndof_tot > 0) write(*,fmt='(a,e16.8,a,f10.4,a,f8.3)') "chisq_zodi = ", chisq, ", chisq_red = ", chisq/ndof_tot, ", time = ", t2-t1
@@ -2177,7 +2188,8 @@ contains
         do i = 1, zodi_model%npar_tot
            if (zodi_model%theta_stat(i,samp_group) == 0) then
               j = j+1
-              x(j) = x(j) * (1.d0 + eps*rand_gauss(handle))
+              x(j) = x(j) + eps*zodi_model%theta_scale(i,2)*rand_gauss(handle)
+              !x(j) = x(j) * (1.d0 + eps*rand_gauss(handle))
               x(j) = max(x(j), zodi_model%theta_prior(1,i))
               x(j) = min(x(j), zodi_model%theta_prior(2,i))
            end if
@@ -2227,7 +2239,7 @@ contains
      do i = 1, numband
         idx = idx+1
         if (data(i)%tod_type /= "none") then
-           z(idx) = get_monopole_amp(data(i)%label)
+           z(idx) = band_monopole(i) !get_monopole_amp(data(i)%label)
            !write(*,*) 'get', i, trim(data(i)%label), z(idx)
         else
            z(idx) = 0.d0
@@ -2306,9 +2318,10 @@ contains
      ! Monopoles
      do i = 1, numband
         idx = idx+1
-        if (zodi%joint_mono .and. data(i)%tod_type /= "none") then
+        if (data(i)%tod_type /= "none") then
            !write(*,*) 'set', i, trim(data(i)%label), z(idx)
-           call set_monopole_amp(data(i)%label, z(idx))
+           !call set_monopole_amp(data(i)%label, z(idx))
+           band_monopole(i) = z(idx) 
         end if
      end do
      

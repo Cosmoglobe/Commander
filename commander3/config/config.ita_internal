@@ -49,14 +49,9 @@ export MPCC := mpiicc
 
 # =========== Compiler Optimizations =============
 #main
-#
-#export F90FLAGS := -fpe0 -march=native -g -O2 -traceback -assume byterecl -heap-arrays 16384 -qopenmp -parallel -lmkl -xHost 
-#export F90FLAGS := -g -O2 -traceback  
-#export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -parallel -prof-gen=srcpos -prof-dir=/mn/stornext/u3/hke/xsan/commander3/BP9/prof
 export F90FLAGS := -fpe0 -mavx2 -fpp -g -O2 -traceback -assume byterecl -qopenmp -diag-disable=10448
 
 #debug
-#
 #export F90FLAGS := -O0 -g -C -traceback -assume byterecl -heap-arrays 16384 -qopenmp -fpe0 -check noarg_temp_created -ftrapuv -diag-disable=10448 -check uninit -debug extended -diag-disable=5268 -I.
 
 

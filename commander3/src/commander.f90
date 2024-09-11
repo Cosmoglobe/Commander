@@ -191,8 +191,10 @@ program commander
 
   ! if init from ascii -> override all other zodi initialization  
   call initialize_signal_mod(cpar);         call update_status(status, "init_signal")
+  call initialize_mh_mod(cpar);             call update_status(status, "init_mh")
   call initialize_from_chain(cpar, handle, first_call=.true.); call update_status(status, "init_from_chain")
 
+  
   ! initialize zodi samp mod
   if (cpar%include_tod_zodi) then 
       if (trim(adjustl(cpar%zs_init_ascii)) /= 'none') call ascii_to_zodi_model(cpar, zodi_model, cpar%zs_init_ascii)
@@ -200,13 +202,13 @@ program commander
 
 !write(*,*) 'Setting gain to 1'
 !data(6)%gain = 1.d0
-
+  
   ! Make sure TOD and BP modules agree on initial bandpass parameters
   ok = trim(cpar%cs_init_inst_hdf) /= 'none'
   if (ok) ok = trim(cpar%init_chain_prefix) /= 'none'
   if (cpar%enable_tod_analysis) call synchronize_bp_delta(ok)
   call update_mixing_matrices(update_F_int=.true.)       
-
+  
   if (cpar%output_input_model) then
      if (cpar%myid == 0) write(*,*) 'Outputting input model to sample number 999999'
      call output_FITS_sample(cpar, 999999, .false.)
@@ -376,7 +378,7 @@ program commander
       end select
 
       ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_map(cpar, handle)
+      !call sample_static_zodi_map(cpar, handle)
       !call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
@@ -411,27 +413,38 @@ program commander
    end if
 
    if (mod(iter+1,modfact) == 0) then
-     if (iter > 1) then
-        ! Sample gains off of absolutely calibrated FIRAS maps
-        call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise)
-        ! Testing the spectral index xampling
-        call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise)
-        call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise)
-     end if
 
 
 
      ! Sample non-linear parameters
-     if (iter > 1 .and. cpar%sample_specind) then
+     if (iter > 3 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
      
+     if (iter > 3) then
+        do i = 1, cpar%mcmc_num_samp_groups
+            if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
+              call sample_gain_firas(cpar%outdir, cpar, handle, handle_noise, i)
+            else if (index(cpar%mcmc_samp_groups(i), ':tab@') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling tabulated SEDs'
+              call sample_mbbtab_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            else if (index(cpar%mcmc_samp_groups(i), ':scale%') .ne. 0) then
+              if (cpar%myid == 0) write(*,*) '| MH sampling scaling amplitudes'
+              call sample_template_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            else
+              if (cpar%myid == 0) write(*,*) '| MH sampling spectral indices'
+              call sample_specind_mh(cpar%outdir, cpar, handle, handle_noise, i)
+            end if
+        end do
+     end if
+
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes) then
+     if (cpar%sample_signal_amplitudes .and. iter > 1) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)

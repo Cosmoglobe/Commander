@@ -73,6 +73,7 @@ contains
 
     ! Component specific parameters
     allocate(c%theta_def(1), c%p_gauss(2,1), c%p_uni(2,1))
+    allocate(c%theta_steplen(1,cpar%mcmc_num_samp_groups))
     allocate(c%indlabel(1))
     allocate(c%nu_min_ind(1), c%nu_max_ind(1))
     c%theta_def(1) = cpar%cs_theta_def(1,id_abs)
@@ -81,6 +82,7 @@ contains
     c%nu_min_ind(1) = cpar%cs_nu_min_beta(id_abs,1)
     c%nu_max_ind(1) = cpar%cs_nu_max_beta(id_abs,1)
     c%apply_jeffreys = cpar%cs_apply_jeffreys(id_abs)
+    c%theta_steplen = 0d0
     c%indlabel(1)  = 'beta'
 
     ! Initialize spectral index map

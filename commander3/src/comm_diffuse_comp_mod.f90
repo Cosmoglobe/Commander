@@ -18,7 +18,7 @@
 ! along with Commander3. If not, see <https://www.gnu.org/licenses/>.
 !
 !================================================================================
-module comm_diffuse_comp_mod
+module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f90 file
   use comm_comp_mod
   use comm_Cl_mod
   use comm_F_mod
@@ -30,7 +30,7 @@ module comm_diffuse_comp_mod
        & get_monopole_amp, set_monopole_amp, recompute_diffuse_precond, precond_type, diff_ptr
   
   !**************************************************
-  !            Diffuse component class
+  !            Diffuse component class - subclass under component class
   !**************************************************
   type, abstract, extends (comm_comp) :: comm_diffuse_comp
      character(len=512) :: cltype
@@ -97,6 +97,7 @@ module comm_diffuse_comp_mod
      class(comm_map),               pointer     :: defmask => null()
      class(comm_map),               pointer     :: priormask => null()
      class(comm_map),               pointer     :: x => null()           ! Spatial parameters
+     real(dp)                                   :: x_scale !overall scaling parameter for component
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
      class(comm_B),                 pointer     :: B_out => null()       ! Output beam

@@ -83,6 +83,7 @@ contains
     allocate(c%p_gauss(2,c%npar))
     allocate(c%p_uni(2,c%npar))
     allocate(c%indlabel(c%npar))
+    allocate(c%theta_steplen(c%npar,cpar%mcmc_num_samp_groups))
     allocate(c%nu_min_ind(c%npar), c%nu_max_ind(c%npar))
     do i = 1, c%npar ! We don't want to initialize priors and stuff for nu_break
        c%theta_def(i) = cpar%cs_theta_def(i,id_abs)
@@ -97,6 +98,7 @@ contains
           c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
        end if
     end do
+    c%theta_steplen = 0d0
     c%indlabel = ['beta','dbeta']
 
     ! Initialize spectral index map
