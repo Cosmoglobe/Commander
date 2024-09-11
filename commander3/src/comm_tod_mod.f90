@@ -467,7 +467,7 @@ contains
     self%nmaps    = info%nmaps
     !TODO: this should be changed to not require a really long string
     if (index(cpar%ds_tod_dets(id_abs), '.txt') /= 0) then
-      self%ndet = count_detectors(cpar%ds_tod_dets(id_abs))
+      self%ndet = count_detectors(trim(cpar%ds_tod_dets(id_abs)))
     else
       self%ndet = num_tokens(trim(cpar%ds_tod_dets(id_abs)), ",")
     end if

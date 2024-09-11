@@ -164,8 +164,8 @@ contains
                & c%n, c%nu0, c%tau0)
        else 
           if (index(subdets, '.txt') /=0) then
-               ndet = count_detectors(subdets)
-               call get_detectors(subdets, dets, ndet)
+               ndet = count_detectors(trim(subdets))
+               call get_detectors(trim(subdets), dets, ndet)
           else
                ndet = num_tokens(subdets, ",")
                call get_tokens(subdets, ",", dets, ndet)
