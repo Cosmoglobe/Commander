@@ -603,8 +603,8 @@ contains
     call mpi_comm_rank(MPI_COMM_WORLD, myid, ierr)
     
     if (myid == 0) write(*,*) trim(message)
-    call mpi_finalize(ierr)
-    stop
+
+    call mpi_abort(MPI_COMM_WORLD, 1, ierr)
     
   end subroutine report_error
 
