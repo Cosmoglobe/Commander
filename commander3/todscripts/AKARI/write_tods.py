@@ -58,6 +58,9 @@ N_CIO_FILES = 285
 BAD_DATA_SENTINEL = -16375
 TSCAL = 2e-15
 SAMP_RATE = 1 / 26
+#25.28
+#16.86
+
 SAMP_RATE_DAYS = SAMP_RATE / (24 * 3600)
 
 #BEAM_DATA = akari_utils.get_beam_data()
@@ -282,6 +285,7 @@ def write_band(
         , pid_0: int, raw: bool) -> None:
     COMMON_GROUP = "/common"
     HUFFMAN_COMPRESSION = ["huffman", {"dictNum": 1}]
+    HUFFMAN_COMPRESSION_TOD = ["huffman", {"dictNum": 2}]
 
     det_str = ""
     for i in range(ndet):
@@ -296,7 +300,10 @@ def write_band(
         det1 = v
         break
 
-    comm_tod.add_field(COMMON_GROUP + "/fsamp", 1 / SAMP_RATE)
+    if ('N60' in band) or ('WIDE-S' in band):
+        comm_tod.add_field(COMMON_GROUP + "/fsamp", 25.28)
+    else:
+        comm_tod.add_field(COMMON_GROUP + "/fsamp", 16.86)
     comm_tod.add_field(COMMON_GROUP + "/nside", [nside_out])
     comm_tod.add_field(COMMON_GROUP + "/det", np.string_(det_str + ","))
 
@@ -336,7 +343,7 @@ def write_band(
             comm_tod.add_field(pid_det_group + "/flag", cio[det_lab].flags[pid], HUFFMAN_COMPRESSION)
 
             if raw:
-                comm_tod.add_field(pid_det_group + "/ztod", cio[det_lab].tods[pid], HUFFMAN_COMPRESSION)
+                comm_tod.add_field(pid_det_group + "/ztod", cio[det_lab].tods[pid], HUFFMAN_COMPRESSION_TOD)
             else:
                 comm_tod.add_field(pid_det_group + "/tod", cio[det_lab].tods[pid])
             comm_tod.add_field(pid_det_group + "/pix", cio[det_lab].pixels[pid], HUFFMAN_COMPRESSION)
@@ -454,7 +461,7 @@ def main() -> None:
 
     start_time = time.perf_counter()
     color_corr = False
-    version = 0
+    version = 3
 
     raw = True
 
@@ -483,7 +490,7 @@ def main() -> None:
         pid_now += 1
         for chip in ['LW', 'SW']:
             if raw:
-                datfile = CIO_PATH/f'ADU/{chip}/FIS_{chip}_{t}_gb_adu.pkl'
+                datfile = CIO_PATH/f'ADU/{chip}/FIS_{chip}_{t}_adu.pkl'
             else:
                 datfile = CIO_PATH/f'flux/{chip}/FIS_{chip}_{t}_flux.pkl'
             latfile = CIO_PATH/f'lat/{chip}/FIS_{chip}_{t}_gb_lat.pkl'
