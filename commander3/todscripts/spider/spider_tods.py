@@ -31,7 +31,8 @@ import healpy as hp
 import sys
 import random
 import h5py
-import scipy.signal.decimate
+import scipy.signal as sig
+import scipy.stats as stats
 
 import spider_analysis as sa
 
@@ -41,7 +42,7 @@ def main():
 
     parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
 
-parser.add_argument('--num-procs', type=int, action='store', default=1, help='number of processes to use')
+    parser.add_argument('--num-procs', type=int, action='store', default=1, help='number of processes to use')
 
     parser.add_argument('--freqs', type=int, nargs='+', default=spider.freqs, help='which spider frequencies to operate on')
 
@@ -65,7 +66,7 @@ parser.add_argument('--num-procs', type=int, action='store', default=1, help='nu
 
     random.seed()
 
-    os.environ['OMP_NUM_THREADS'] = 1
+    os.environ['OMP_NUM_THREADS'] = '1'
 
     pool = mp.Pool(processes=args.num_procs)
     manager = mp.Manager()
@@ -77,6 +78,8 @@ parser.add_argument('--num-procs', type=int, action='store', default=1, help='nu
 
     args.dets = {90:U.good_channels(['X2', 'X4', 'X6']), 150:U.good_channels(['X1', 'X3', 'X5'])}
 
+    args.comp_array = ['huffman']
+
     #write detlist
     for freq in args.freqs:
         f = open(os.path.join(args.out_dir, spider.detlist_name(freq)), 'w')
@@ -86,6 +89,10 @@ parser.add_argument('--num-procs', type=int, action='store', default=1, help='nu
 
     comm_tod = tod.commander_tod(args.out_dir, 'spider', args.version, dicts, not args.restart)
 
+
+    make_chunk(comm_tod, 150, 10, args)
+
+
     x = [[pool.apply_async(make_chunk, args=[comm_tod, freq, chunk, args]) for freq in args.freqs] for chunk in chunks]
 
 
@@ -94,6 +101,7 @@ parser.add_argument('--num-procs', type=int, action='store', default=1, help='nu
             res.get()
 
     pool.close()
+    pool.join()
 
     if((args.chunk[0] == 255 and args.chunk[1] == 2084) or args.produce_filelist):
         comm_tod.make_filelists()
@@ -111,7 +119,7 @@ def make_chunk(comm_tod, freq, chunk, args):
 
     U = sa.Unifile(default_latest=True, flight=1)
     Um = sa.UnifileMap(default_latest=True, flight=1)
-    chunkdict = U.event_partition()[chunk]
+    chunkdict = U.event_partition('time_chunk_10min')[chunk]
 
     prefix = 'common'
     
@@ -140,7 +148,7 @@ def make_chunk(comm_tod, freq, chunk, args):
     #or where he got them from
     comm_tod.add_field(prefix + '/vsun', [0,0,0])
 
-    time = U.get_time(star=chunkdict['start'], end=chunkdict['end'], index_mode=chunkdict['index_mode'])
+    time = U.get_time(**chunkdict)
     comm_tod.add_field(prefix + '/time', time[0])
 
     #ntod 
@@ -150,28 +158,62 @@ def make_chunk(comm_tod, freq, chunk, args):
     # get telescope boreshight quaternion
     bore_quats, pflag = Um.get_bore_quat('point07', return_flag=True, hack_bore_sign=True, **chunkdict)
 
-    offsets = Um.get_offset_quats(args.dets[freq]) 
+    offsets = Um.get_offset_quat(args.dets[freq]) 
+
+    r = hp.Rotator(coord=['E', 'G'])
+
+    if args.no_compress:
+        compArray = []
+        psiArray = []
+    else:
+        compArray = [spider.huffman]
+        psiArray = [spider.psiDigitize, spider.huffman]
+
 
     for det, offset in zip(args.dets[freq], offsets):
+
+        print(det)
+
+
         prefix = str(chunk).zfill(6) + '/' + det
         #TOD
-        tod = decimate(U.getdata(det, product='dcclean08', **chunkdict), params.downsample)
+        tod = sig.decimate(U.getdata(det, product='dcclean08', **chunkdict), args.downsample)
+        comm_tod.add_field(prefix + '/tod', tod)
 
         # pix and psi
-        pix, psi = Um.bore2pix(offset, None, bore_quats, nside=512)
+        pix, psi= Um.bore2pix(offset, None, bore_quats, return_pa=True)
+
+        psi_dec = sig.decimate(psi, args.downsample)
+        comm_tod.add_field(prefix + '/psi', psi_dec, psiArray)
+
+        lon, lat = hp.pix2ang(spider.nside, pix, lonlat=True)
+
+        lon_gal, lat_gal = r([lon, lat])
+
+        lat_down = sig.decimate(lat_gal, args.downsample)
+        lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
+
+        pix = hp.ang2pix(spider.nside, lon_down, lat_down, lonlat=True) 
+        comm_tod.add_field(prefix + '/pix', pix, compArray)
 
         # flag
+        flag = U.getdata(det, product='flag_comb08', **chunkdict)
+        flag_extra = U.getdata(det, product='flag_extra02', **chunkdict)        
+        flag_tot = np.uint64(flag + 2**32*flag_extra)
+        
+        #downsample flag by taking bitwise or of each n entries
+        nsplit = np.split(flag_tot, args.downsample)
+        flag_downsampled = np.bitwise_or.reduce(nsplit, 1)
+        comm_tod.add_field(prefix + '/flag', flag_downsampled, compArray)
 
         # scalars
         scalars = [1, 1, 0.1, -2] # gain, sigma0, fknee, alpha
         comm_tod.add_field(prefix + '/scalars', scalars)
 
+        U.raw_close()
 
-
-    comm_tod.finalize_chunk(chunk, loadBalance=1)
+    comm_tod.finalize_chunk(chunk)
     comm_tod.finalize_file()
-
-
 
 if __name__ == '__main__':
     main()

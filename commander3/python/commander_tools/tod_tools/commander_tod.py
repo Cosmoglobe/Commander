@@ -20,10 +20,10 @@
 #================================================================================
 
 import h5py
-#import commander_tools.tod_tools.huffman as huffman
-#import commander_tools.tod_tools.rice as rice
-import tod_tools.huffman as huffman
-import tod_tools.rice as rice
+import commander_tools.tod_tools.huffman as huffman
+import commander_tools.tod_tools.rice as rice
+#import tod_tools.huffman as huffman
+#import tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -196,6 +196,9 @@ class commander_tod:
                 self.outFile.create_dataset(fieldName, data=data)
             except OSError as e:
                 raise OSError(e)
+            except TypeError as te:
+                self.outFile.create_dataset(fieldName, data=np.string_(data))
+
             for attr in self.attrDict.copy().keys():
                 fName, attrName = attr.split('@')
                 if fName == fieldName:

@@ -148,7 +148,7 @@ class Huffman:
 
 
     def GenerateCode(self, array, write=False):
-        array = np.array(array).flatten()
+        array = np.hstack(array)
         self.weight = self.Weights(array)
 
         global _node_number
