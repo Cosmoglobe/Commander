@@ -979,6 +979,18 @@ contains
        end if
 
     end do
+
+    if (cpar%myid == 0) then
+      do i = 1, n
+        do j = i+1, n
+          if (trim(cpar%cs_label(i)) == (cpar%cs_label(j))) then
+              write(*,*) 'COMP_LABEL ', i, ' and ', j, ' are both ', trim(cpar%cs_label(i))
+              write(*,*) 'Only unique components labels allowed'
+              stop
+          end if
+        end do
+      end do
+    end if
     cpar%cs_ncomp           = count(cpar%cs_include)
     !cpar%cg_num_samp_groups = maxval(cpar%cs_cg_samp_group)
 
@@ -2815,6 +2827,8 @@ contains
     call get_parameter_hashtable(htbl, 'COMP_EM_SMOOTHING_SCALE'//itext, len_itext=len_itext,  &
          & par_int=cpar%cs_smooth_scale(i,1))
     cpar%cs_almsamp_init(1,i) = 'none'
+    cpar%cs_spec_pixreg(:,1,i) = 'fullsky'
+    cpar%cs_spec_pixreg_map(:,i) = 'fullsky'
 
     call get_parameter_hashtable(htbl, 'COMP_T_E_POLTYPE'//itext, len_itext=len_itext,  par_int=cpar%cs_poltype(2,i))
     k = cpar%cs_poltype(2,i)

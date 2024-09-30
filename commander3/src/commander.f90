@@ -378,7 +378,7 @@ program commander
       end select
 
       ! Sample stationary zodi components with 2D model
-      call sample_static_zodi_map(cpar, handle)
+      !call sample_static_zodi_map(cpar, handle)
       !call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
@@ -417,14 +417,14 @@ program commander
 
 
      ! Sample non-linear parameters
-     if (iter > 1 .and. cpar%sample_specind) then
+     if (iter > 3 .and. cpar%sample_specind) then
         call timer%start(TOT_SPECIND)
         call sample_nonlin_params(cpar, iter, handle, handle_noise)
         call timer%stop(TOT_SPECIND)
      end if
      !if (mod(iter,cpar%thinning) == 0) call output_FITS_sample(cpar, 100+iter, .true.)
      
-     if (iter > 1) then
+     if (iter > 3) then
         do i = 1, cpar%mcmc_num_samp_groups
             if (index(cpar%mcmc_samp_groups(i), 'gain:') .ne. 0) then
               if (cpar%myid == 0) write(*,*) '| MH sampling map-based gains'
@@ -444,7 +444,7 @@ program commander
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes) then
+     if (cpar%sample_signal_amplitudes .and. iter > 1) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)

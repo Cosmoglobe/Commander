@@ -305,7 +305,7 @@ contains
        end if
 
        ! Draw sample
-       par = -1.d30
+       par = -1.d300
        if (trim(self%operation) == 'optimize') then
           if (mu < self%p_uni(1,id)) then
              par = self%p_uni(1,id)

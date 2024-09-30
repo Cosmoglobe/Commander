@@ -33,7 +33,7 @@ module comm_zodi_mod
       logical(lgt), allocatable, dimension(:,:) :: sampgroup_active_band
       integer(i4b), allocatable, dimension(:)   :: theta2band
       real(dp),     allocatable, dimension(:,:) :: theta_prior
-      real(dp),     allocatable, dimension(:)   :: theta_scale
+      real(dp),     allocatable, dimension(:,:) :: theta_scale
 
       ! Stationary model
 !      real(dp), allocatable, dimension(:)   :: amp_static
@@ -116,7 +116,7 @@ contains
       allocate(zodi_model%theta_stat(zodi_model%npar_tot,0:cpar%zs_num_samp_groups))
       allocate(zodi_model%theta2band(zodi_model%npar_tot))
       allocate(zodi_model%theta_prior(4,zodi_model%npar_tot)) ! [min,max,mean,rms]
-      allocate(zodi_model%theta_scale(zodi_model%npar_tot))
+      allocate(zodi_model%theta_scale(zodi_model%npar_tot,2))
       allocate(zodi_model%par_labels(zodi_model%npar_tot))
       allocate(zodi_model%par_labels_full(zodi_model%npar_tot))
       
@@ -165,7 +165,7 @@ contains
          zodi_model%par_labels(ind:ind+zodi_model%comps(i)%npar-1) = &
               & zodi_model%comps(i)%labels
          do j = ind, ind+zodi_model%comps(i)%npar-1
-            zodi_model%par_labels(j) = &
+            zodi_model%par_labels_full(j) = &
               & trim(zodi_model%comp_labels(i))//':'//trim(zodi_model%par_labels(j))
          end do
             
@@ -173,21 +173,26 @@ contains
          ind = zodi_model%comps(i)%start_ind + zodi_model%comps(i)%npar-1
          do j = 1, numband
             zodi_model%theta_prior(:,ind+j) = [0.d0, 5.d0, 1.d0, -1.d0] ! Emissivity
-            zodi_model%theta_scale(ind+j)   = 1.d0
+            zodi_model%theta_scale(ind+j,:)   = [1.d0,0.1d0]
             zodi_model%par_labels(ind+j)    = 'em@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+j)  = trim(zodi_model%comp_labels(i))//':em@'//trim(band_labels(j))
             
             zodi_model%theta_prior(:,ind+numband+j) = [0.d0, 1.d0, 0.3d0, -1.d0] ! Albedo
-            zodi_model%theta_scale(ind+numband+j)   = 1.d0
+            zodi_model%theta_scale(ind+numband+j,:)   = [1.d0, 0.01d0]
             zodi_model%par_labels(ind+numband+j)    = 'al@'//trim(band_labels(j))
             zodi_model%par_labels_full(ind+numband+j) = trim(zodi_model%comp_labels(i))//':al@'//trim(band_labels(j))
+
+            ! Set DIRBE emissivity rms by hand
+            if (trim(band_instlabels(j)) == '06') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.01d0]
+            if (trim(band_instlabels(j)) == '07') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.02d0]
+            if (trim(band_instlabels(j)) == '08') zodi_model%theta_scale(ind+j,:)   = [1.d0,0.03d0]
          end do
       end do
       ! Monopoles
       do j = 1, numband
          ind = zodi_model%npar_tot - numband + j
          zodi_model%theta_prior(:,ind) = [0.d0, 1d30, 0.d0, -1.d0] ! Priors
-         zodi_model%theta_scale(ind)   = 1.d0
+         zodi_model%theta_scale(ind,:) = [1.d0,0.01d0]
          zodi_model%par_labels(ind)    = 'm@'//trim(band_labels(j))
          zodi_model%par_labels_full(ind) = 'm@'//trim(band_labels(j))
       end do
@@ -259,12 +264,12 @@ contains
       implicit none
       class(ZodiModel),           intent(in)    :: self
       real(dp), dimension(1:,1:), intent(inout) :: prior
-      real(dp), dimension(1:),    intent(inout) :: scale
+      real(dp), dimension(1:,1:), intent(inout) :: scale
 
       prior(:,1) = [250.d0, 300.d0, 286.d0, 5.d0] ! T_0
-      scale(1)   = 286.d0
+      scale(1,:) = [286.d0, 3.d0]
       prior(:,2) = [0.4d0, 0.5d0, 0.467d0, 0.004d0] ! delta
-      scale(2)   = 0.4d0      
+      scale(2,:) = [0.4d0, 0.01d0]      
     end subroutine init_general_priors_and_scales
 
 
@@ -866,6 +871,8 @@ contains
                  if (active(band) .and. band_todtype(band) /= 'none') then
                     !ind       = zodi_model%get_par_ind(mono_band=band)
                     band_update_monopole(band,samp_group) = .true.
+                    ind = zodi_model%get_par_ind(mono_band=band)
+                    stat(ind) = 0
                  end if
                  cycle
               else
@@ -945,12 +952,12 @@ contains
      end do
 
      ! Set up monopoles
-     do i = 1, numband
-        if (active(i) .and. band_todtype(i) /= 'none') then
-           ind = zodi_model%get_par_ind(mono_band=i)
-           stat(ind) = 0
-        end if
-     end do
+!!$     do i = 1, numband
+!!$        if (active(i) .and. band_todtype(i) /= 'none') then
+!!$           ind = zodi_model%get_par_ind(mono_band=i)
+!!$           stat(ind) = 0
+!!$        end if
+!!$     end do
 
      ! Apply explicit parameter wiring
      call get_tokens(cpar%zs_wiring, ',', tokens, n_params) 

@@ -38,7 +38,6 @@ module comm_data_mod
      real(dp)                            :: gain, gain_tmp, gain_prior(2)
      real(dp), allocatable, dimension(:) :: gain_sigmas
      character(len=128)                  :: gain_comp
-     character(len=128)                  :: rescale_comp
      integer(i4b)                        :: gain_lmin, gain_lmax
      integer(i4b)                        :: ndet
      character(len=128)                  :: tod_type
@@ -123,6 +122,7 @@ contains
        data(n)%noise_format   = cpar%ds_noise_format(i)
 
        allocate(data(n)%gain_stat(cpar%mcmc_num_user_samp_groups))
+
        data(n)%gain_stat      = 0 
 
        if (cpar%myid == 0 .and. cpar%verbosity > 0) &

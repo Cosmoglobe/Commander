@@ -1167,7 +1167,7 @@ contains
          filename = trim(cpar%outdir)//'/zodi_powell_sg'//sgroup//'_k'//iter_string//'.dat'
          unit     = getlun()
          open(unit, file=trim(filename), recl=10000)
-         write(unit, '(a)', advance="no") "# "
+         write(unit, '(a)', advance="no") "# chisq_red "
          do i = 1, zodi_model%npar_tot
             if (zodi_model%theta_stat(i,samp_group)==0) then
                write(unit, "(a,a)", advance="no") trim(adjustl(zodi_model%par_labels_full(i))), " "
@@ -1177,7 +1177,7 @@ contains
       end if
 
       ! Get chisq of old point
-      scale = pack(zodi_model%theta_scale, zodi_model%theta_stat(:,samp_group)==0)
+      scale = pack(zodi_model%theta_scale(:,1), zodi_model%theta_stat(:,samp_group)==0)
       call model_to_params(zodi_model, theta_old, samp_group)
 !!$      if (cpar%myid == cpar%root) then
 !!$         do i = 1, npar
@@ -1222,7 +1222,7 @@ contains
          if (chisq_new < chisq_old) then
             accept = .true. 
          else
-            accept = rand_uni(handle) < exp(-0.5d0*(chisq_new-chisq_old)/0.1d0)
+            accept = rand_uni(handle) < exp(-0.5d0*(chisq_new-chisq_old)/0.02d0)
          end if
          if (accept) then
             ! Accept new point; update
@@ -2188,7 +2188,8 @@ contains
         do i = 1, zodi_model%npar_tot
            if (zodi_model%theta_stat(i,samp_group) == 0) then
               j = j+1
-              x(j) = x(j) * (1.d0 + eps*rand_gauss(handle))
+              x(j) = x(j) + eps*zodi_model%theta_scale(i,2)*rand_gauss(handle)
+              !x(j) = x(j) * (1.d0 + eps*rand_gauss(handle))
               x(j) = max(x(j), zodi_model%theta_prior(1,i))
               x(j) = min(x(j), zodi_model%theta_prior(2,i))
            end if

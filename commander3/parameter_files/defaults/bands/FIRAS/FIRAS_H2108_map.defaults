@@ -1,0 +1,45 @@
+# FIRAS 2108 GHz default parameters
+# NOTE: data dir in parameter file
+
+BAND_LABEL&&&                  = FIRAS_H2108
+BAND_INSTRUMENT_LABEL&&&       = FIRAS_H2108
+BAND_OBS_PERIOD&&&             = 1
+BAND_POLARIZATION&&&           = .false.
+BAND_NSIDE&&&                  = 16
+BAND_LMAX&&&                   = 192
+BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_mod and scale weights
+BAND_NOISE_FORMAT&&&           = rms
+BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 
+BAND_MASKFILE&&&               = FIRAS_mask.fits
+BAND_MASKFILE_CALIB&&&         = fullsky
+BAND_BEAMTYPE&&&               = FIRAS         # {b_l, febecop}
+BAND_BEAM_B_L_FILE&&&          = beam_7deg.fits
+BAND_BEAM_B_PTSRC_FILE&&&      = FIRAS_beam_spline.dat
+BAND_PIXEL_WINDOW&&&           = pixel_window_n0016.fits
+BAND_SAMP_NOISE_AMP&&&         = .false.
+BAND_BANDPASS_TYPE&&&          = HFI_submm
+BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
+BAND_NOMINAL_FREQ&&&           = 2108
+BAND_SAMP_BANDPASS&&&          = .false.
+BAND_BANDPASSFILE&&&           = FIRAS_bp_2108GHz_highf_v2.dat
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_PRIOR_MEAN&&&         = 1.
+BAND_GAIN_PRIOR_RMS&&&          = 0
+BAND_GAIN_CALIB_COMP&&&        = all
+BAND_GAIN_LMIN&&&              = -1
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_MASK&&&         = fullsky
+BAND_GAIN_APOD_FWHM&&&         = 120.
+BAND_DEFAULT_GAIN&&&           =   1.
+BAND_DEFAULT_BP_DELTA&&&       =   0.
+BAND_DEFAULT_NOISEAMP&&&       =   1.
+BAND_COMPONENT_SENSITIVITY&&&  = broadband
+
+BAND_TOD_TYPE&&&               = none
+BAND_MAPFILE&&&                = FIRAS_map_2108GHz_highf.fits
+BAND_NOISEFILE&&&              = FIRAS_rms_2108GHz_highf.fits
+BAND_REG_NOISEFILE&&&          = none   
+BAND_NOISE_RMS&&&_SMOOTH01     = none
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+

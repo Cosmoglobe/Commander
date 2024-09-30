@@ -243,9 +243,11 @@ contains
             select type(c)
             class is (comm_diffuse_comp)
               c%x%alm = c%x%alm*scales(i)
+              c%x_scale = c%x_scale * scales(i)
               !call c%x%Y
             class is (comm_template_comp)
               c%T%map = c%T%map*scales(i)
+              c%T_scale = c%T_scale * scales(i)
             class default
               write(*,*) "You have not set behavior for class ", trim(c%class)
               stop
@@ -283,6 +285,26 @@ contains
            write(*,*) '| '
          end if
 
+         i = 0
+         c => compList
+         do while (associated(c))
+            if (c%scale_sigma(l) > 0d0) then
+               i = i + 1
+               select type(c)
+               class is (comm_diffuse_comp)
+                  c%x%alm = c%x%alm/scales(i)
+                  !call c%x%Y
+               class is (comm_template_comp)
+                  c%T%map = c%T%map/scales(i)
+               class default
+                  write(*,*) "You have not set behavior for class ", trim(c%class)
+                  stop
+               end select
+            end if
+            c => c%nextComp()
+         end do
+
+         
          ! Instead of doing compsep, revert the amplitudes here
          if (trim(cpar%mcmc_update_cg_groups(l)) .ne. 'none') call revert_CG_amps(cpar)
 
@@ -683,6 +705,7 @@ contains
                         c%theta(j)%p%map(pix,pol) = c%theta_pixreg_buff(c%ind_pixreg_arr(pix,pol,j),pol,j)
                      end do
                   end do
+                  c%theta_pixreg(:,:,j) = c%theta_pixreg_buff(:,:,j)
                   if (any(c%lmax_ind_pol(:,j) >= 0)) call c%theta(j)%p%YtW_scalar()
                end select
             end do
@@ -808,9 +831,7 @@ contains
     ! Initializing, allocating all gain proposal lengths
     do i = 1, numband
       allocate(data(i)%gain_sigmas(cpar%mcmc_num_user_samp_groups))
-      !allocate(data(i)%rescale_comp(cpar%mcmc_num_user_samp_groups))
       data(i)%gain_sigmas = 0d0
-      !data(i)%rescale_comp = ''
     end do
 
     do i = 1, cpar%mcmc_num_user_samp_groups
@@ -843,16 +864,13 @@ contains
 
 
         else if (n == 1) then
+            call get_tokens(tokens(j), '%', comp_tokens)
+            read(comp_tokens(2), *) sigma
 
             call get_tokens(comp_tokens(1), ':', comp_names)
-            
-            if (comp_names(1)(1:7) == 'rescale') then
-                write(*,*) comp_tokens(1)
-                stop
 
-            else if (trim(comp_names(1)) == 'gain') then
-                call get_tokens(tokens(j), '%', comp_tokens)
-                read(comp_tokens(2), *) sigma
+
+            if (trim(comp_names(1)) == 'gain') then
                 do k = 1, numband
                   if (trim(comp_names(2)) .eq. trim(data(k)%label)) then
                     data(k)%gain_sigmas(i) = sigma
@@ -860,8 +878,6 @@ contains
                 end do
 
             else if (trim(comp_names(2)) == 'scale') then
-              call get_tokens(tokens(j), '%', comp_tokens)
-              read(comp_tokens(2), *) sigma
 
               c => compList
               do while (associated(c))

@@ -304,7 +304,7 @@ contains
     type(hdf_file) :: file
     if (file%sethandle == -1) return
     call h5dclose_f(file%sethandle, file%status)
-    call assert(file%status>=0, 'comm_hdf_mod: Could not close set')
+    call assert(file%status>=0, 'comm_hdf_mod: Could not close set' // file%setname // ' in ' // file%filename)
     file%sethandle = -1
     file%setname   = ''
   end subroutine close_hdf_set
@@ -5311,7 +5311,9 @@ contains
     character(len=*) :: group
     integer(hid_t)   :: gid
     call h5gcreate_f(file%filehandle, group, gid, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot create group "//trim(file%filename)//', '//trim(group))
     call h5gclose_f(gid, file%status)
+    call assert(file%status>=0, "comm_hdf_mod: Cannot close group "//trim(file%filename)//', '//trim(group))
   end subroutine
 
   ! **********************
