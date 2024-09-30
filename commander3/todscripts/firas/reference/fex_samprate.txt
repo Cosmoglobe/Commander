@@ -1,0 +1,19 @@
+ 673.29		!  I&T MTM Sampling Rate
+ 681.43		!  Mission MTM Sampling Rate
+
+!  Reference Dataset FEX_SAMPRATE Text File
+!
+!	This file contains the MTM sampling rates for both I&T and on-orbit
+!	data.
+!
+!	Author:   Gene Eplee
+!		  General Sciences Corp.
+!		  513-7768
+!		  25 June 1992
+!		  SER 9859
+!	Version Date:	1992 August 5
+!	Certification:	1992 August 5 Rick Shafer for Pass 2A
+!
+!       I&T MTM sampling rate changed from 684.00 to 673.29 per analysis
+!           by Gene Eplee.  Steven Alexander, 8/14/92, SPR 9895.
+!	Certification:	1992 August 17 Rick Shafer for Pass 2A

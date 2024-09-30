@@ -1,0 +1,61 @@
+0.02 0.02 0.02 0.02  ! Bolometer voltage fractional tolerances
+0.005 0.005 0.005 0.005 0.05 0.05 0.005 0.005 0.005 0.005  ! GRT fractional tolerances
+6.83421079E-01 9.50153229E-02 9.50153229E-02 ! XCAL S5 vs. S6 |B-A| <= X+Y*A+Z*B; X units degrees K
+4.66147089E+00 2.09719441E-01 2.09719441E-01 ! XCAL tip vs. horn
+5.76738409E-01 2.41855781E-01 2.41855781E-01 ! ICAL 
+5.31837506E-01 3.09347058E-02 3.09347058E-02 ! skyhorn
+9.50488986E-02 8.48032507E-02 8.48032507E-02 ! refhorn
+2500 2500 2500 2500 2500 2500 2500 2500 2500 2500  ! Absolute tolerances for bracketing major frame temp diff - A side; units tenth of a milliK
+2500 2500 2500 2500 2500 2500 2500 2500 2500 2500  ! Absolute tolerances for bracketing major frame temp diff - B side; units tenth of a milliK
+10.0 10.0 10.0 10.0 ! Galactic latitude cutoff for choosing neighbors
+0.75 0.75 0.75 0.75  ! Upper fractional bounds for secondary template 
+0.25 0.25 0.25 0.25  ! Lower fractional bounds for secondary template
+21 21 21 21  ! Number of points around and including IFG peak for secondary template fitting 
+0.0 3.910437E-03 0.0 3.200282E-03 ! Prim temp amplitude cutoff; RH values by scan mode
+0.0 9.437958E-03 0.0 3.647456E-03 ! Prim temp amplitude cutoff; RL values by scan mode
+3.004505E-02 0.0 0.0 8.729302E-02 ! Prim temp amplitude cutoff; LH values by scan mode
+0.172503 4.713346E-02 0.0 0.0 ! Prim temp amplitude cutoff; LL values by scan mode
+0.0 0.0 0.0 0.0 ! Prim temp signal/noise cutoff; RH values by scan mode
+45.6246 0.0 0.0 2.38662 ! Prim temp signal/noise cutoff; RL values by scan mode
+0.351102 8.55462 0.0 0.813985 ! Prim temp signal/noise cutoff; LH values by scan mode
+0.0 6.69978 0.0 0.0 ! Prim temp signal/noise cutoff; LL values by scan mode
+0.0 3.229239E-03 0.0 1.402862E-04 ! Sec temp amplitude cutoff; RH values by scan mode
+3.120842E-03 6.070071E-03 0.0 6.562931E-04 ! Sec temp amplitude cutoff; RL values by scan mode
+6.819824E-05 2.930424E-03 0.0 0.0 ! Sec temp amplitude cutoff; LH values by scan mode
+0.0 0.0 0.0 0.0 ! Sec temp amplitude cutoff; LL values by scan mode
+0.422241 0.788206 0.0 0.0 ! Sec temp signal/noise cutoff; RH values by scan mode
+0.0 6.84626 0.0 0.0 ! Sec temp signal/noise cutoff; RL values by scan mode
+4.508498E-02 1.77851 0.0 0.0 ! Sec temp signal/noise cutoff; LH values by scan mode
+1.86342 1.16900 0.0 4.90552 ! Sec temp signal/noise cutoff; LL values by scan mode
+0.5 0.5 0.5 0.5  ! Minimum IFG noise
+1.5 1.5 1.5 1.5  ! Maximum IFG noise
+2 2 2 2  ! Value below which to disregard IFG: high frequency, four scan modes
+2 2 2 2  ! Value below which to disregard IFG: low frequency, four scan modes
+6.0 6.0 6.0 6.0  ! Maximum point deviation
+6 6 6 6  ! Maximum number of bad points
+2 2 2 2  ! Minimum number of IFGs required to coadd after shape check
+2.5  ! External calibrator temperature; units degrees K
+2.756  ! Internal calibrator temperature; units degrees K
+3.0  ! Average of skyhorn and refhorn temps; units degrees K
+2.0  ! Dihedral temperature; units degrees K
+1.555 1.555 1.555 1.555  ! Bolometer temperature; units degrees K
+1.0 0.7 0.25 1.1  ! Glitch rate per second
+1745  ! Absolute galactic latitude; units 10**-4 radians
+90080011500000  ! Time when MTM began to be shut off during SAA passages
+! 
+!  Author: H. Wang, STX, 12/15/91
+!          from information supplied by A. Trenholme, GSC, and
+!          J. Gales, ARC
+!          S. Alexander, HSTX, 2/16/93, SER 10565:  Delivered for
+!             FIC production.
+!          S. Alexander, HSTX, 2/24/93:  Includes modified information 
+!             supplied by A. Trenholme for the glitch profiles.
+!          Certified:  Rick Shafer 1993 Feb 24, Pass 2a FIC
+!	   S. Alexander, HSTX, 3/22/93, SPR 10732:  Change cutoffs for binning
+! 	      temperatures for ICAL (from 2.765 to 2.756), XCAL (from
+!	      3.0 to 2.5), and bolometers (from 1.547 to 1.555).
+!	   Re-Certified:  Rick Shafer, 1993, March 22, Pass 2A FIC
+!          S. Brodd, HSTX, 5/95, SER 12244:  Add galactic latitude cutoff for 
+!             choosing neighbors; add dihedral temperature cutoff for binning.
+!          S. Brodd, HSTX, 9/95, SPR 12254:  Change dihedral temperature
+!             cutoff from 3.0 to 2.0.

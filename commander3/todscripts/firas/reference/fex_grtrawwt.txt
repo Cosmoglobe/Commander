@@ -1,0 +1,46 @@
+0.5	!XCAL GRT - A side		*** A SIDE ***
+1.0	!Skyhorn GRT - A side
+1.0	!Reference Horn GRT - A side
+1.0	!ICAL GRT - A side
+1.0	!Dihederal GRT - A side
+1.0	!Bolometer RH - A side
+1.0	!Bolometer RL - A side
+1.0	!Bolometer LH - A side
+1.0	!Bolometer LL - A side
+0.5	!Mirror Mount GRT - A side
+0.0	!Cal Res RH - A side
+0.0	!Cal Res RL - A side
+0.0	!Cal Res LH - A side
+0.0	!Cal Res LL - A side
+0.5	!XCAL S5 GRT - A side
+0.5	!Collimator - A side
+0.0	!XCAL GRT - B side		*** B SIDE ***
+1.0	!Skyhorn GRT - B side
+1.0	!Reference Horn GRT - B side
+1.0	!ICAL GRT - B side
+1.0	!Dihederal GRT - B side
+1.0	!Bolometer RH - B side
+1.0	!Bolometer RL - B side
+1.0	!Bolometer LH - B side
+1.0	!Bolometer LL - B side
+1.0	!Mirror Mount GRT - B side
+0.0	!Cal Res RH - B side
+0.0	!Cal Res RL - B side
+0.0	!Cal Res LH - B side
+0.0	!Cal Res LL - B side
+1.0	!XCAL S6 GRT - B side
+0.0	!Collimator - B side
+!
+! FEX_GRTRAWWT 
+!
+!       SPR 8899, GRT weights for raw (FDQ) data.
+!               Nilo Gonzales/STX, August 21, 1991.
+!	1991 Sept 24:  Rick Shafer/685:  Set weights to one as RAW weights
+!		only do combinations of the XCAL and 'structure', and don't
+!		combine sides.  The collimator B and XCAL B weights are
+!		set to zero (no GRTs), and the Cal resistor weights are
+!		always zero.  The XCAL A and S5 are set to 0.5 for the
+!		XCAL combination, and the A side mirror and collimator are
+!		equally weighted for the A side structure measurement.
+!	
+!	Certified: Rick Shafer 1991 Sept 24:  Pass 2.

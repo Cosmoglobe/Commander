@@ -1,0 +1,55 @@
+ 182.486 121.657 121.657  26.373  17.582 70.327 
+ 182.486 121.657 121.657  26.373  17.582 70.327 
+  26.373  17.582  17.582 182.486 58.343 233.372
+  26.373  17.582  17.582 182.486 58.343 233.372
+!Vibration Frequencies Based on an FFT length of 720
+!
+!
+!  Reference Dataset FEX_VIBCORRL Text File
+!
+!	This file contains the frequency offsets for which FCF corrects voltage 
+!	spectra for MTM vibrations.  The coefficients of the vibration 
+!	correction terms are contained in the calibration model solution.
+!
+! 
+! First two lines are primary offsets for the following channels and scan
+!      modes:
+!RHSS RHSF RHLF RLSS RLFS/FL RLLF 
+!LHSS LHSF LHLF LLSS LLFS/FL LLLF 
+! Next two lines are secondary offsets in the same order.
+!
+!
+!	Author:   Gene Eplee
+!		  General Sciences Corp.
+!		  513-7768
+!		  11 February 1993
+!
+!-------------------------------------------------------------------------------
+!
+!	Changes:
+!
+!	Added low frequency short fast vibration offsets
+!	Gene Eplee, GSC, 16 August 1993.
+!
+!	Changed offset points to correspond to 340-point spectra.
+!	Gene Eplee, GSC, 1 July 1994.
+!
+!       Calculated offset points based on 57.57 and 8.32 Hz vibration
+!          frequencies based on an FFT length of 720 (the maximum possible)
+!       Alice Trenholme, GSC, 10 February 1995, SPR 12287.
+!      
+!-------------------------------------------------------------------------------
+!
+!        VIBRATIONS IN HZ
+!57.57 Hz vibration aliased down -- high channels:
+!      57.570000  57.570000  57.570000   57.570000
+!        HSS        HSF         HLS         HLF
+!8.32 Hz vibration aliased down -- low channels:
+!       8.3199997  8.3199997  8.3199997   8.3199997  8.3199997  8.3199997
+!        LSS        LSF         LLS         LLF        LFS         LFS
+!8.32 Hz vibration aliased down -- high channels:  
+!       8.3199997  8.3199997  8.3199997   8.3199997  
+!        HSS        HSF         HLS         HLF
+!57.57 Hz vibration aliased down -- low channels:
+!      57.570000  57.570000   0.78416636 27.608750  27.608750  27.608750
+!        LSS        LSF         LLS         LLF        LFS         LFS
