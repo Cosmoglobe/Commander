@@ -37,15 +37,15 @@ def main():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('planck_dir', type=str, action='store', help='path to the legacy planck data in hdf format')
-    #/mn/stornext/d16/cmbco/bp/data
+    #/mn/stornext/d16/cmbco/archive/bp/data
 
-    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/bp/data/npipe_gains')
+    parser.add_argument('--gains-dir', type=str, action='store', help='path to a directory with the initial gain estimates', default='/mn/stornext/d16/cmbco/archive/bp/data/npipe_gains')
 
-    parser.add_argument('--velocity-file', type=str, action='store', help='path to a file with the satelite velocities', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/satellite_velocity.fits')
+    parser.add_argument('--velocity-file', type=str, action='store', help='path to a file with the satelite velocities', default='/mn/stornext/d16/cmbco/archive/bp/data/auxiliary_data/satellite_velocity.fits')
 
-    parser.add_argument('--position-file', type=str, action='store', help='path to the on disk satellite position file', default='/mn/stornext/d16/cmbco/bp/data/auxiliary_data/planck_xyz.txt')
+    parser.add_argument('--position-file', type=str, action='store', help='path to the on disk satellite position file', default='/mn/stornext/d16/cmbco/archive/bp/data/auxiliary_data/planck_xyz.txt')
 
-    parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d14/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
+    parser.add_argument('--rimo', type=str, action='store', help='path to on disk rimo file', default='/mn/stornext/d16/cmbco/archive/bp/data/auxiliary_data/LFI_RIMO_R3.31.fits')
 
     parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
 

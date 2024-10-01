@@ -76,7 +76,7 @@ def main():
     chunks = range(args.chunks[0], args.chunks[1])
     dicts = {90:manager.dict(), 150:manager.dict()}
 
-    args.dets = {90:U.good_channels(['X2', 'X4', 'X6']), 150:U.good_channels(['X1', 'X3', 'X5'])}
+    args.dets = {90:list(U.good_channels(['X2', 'X4', 'X6'])), 150:list(U.good_channels(['X1', 'X3', 'X5']))}
 
     args.comp_array = ['huffman']
 
@@ -89,10 +89,6 @@ def main():
 
     comm_tod = tod.commander_tod(args.out_dir, 'spider', args.version, dicts, not args.restart)
 
-
-    make_chunk(comm_tod, 150, 10, args)
-
-
     x = [[pool.apply_async(make_chunk, args=[comm_tod, freq, chunk, args]) for freq in args.freqs] for chunk in chunks]
 
 
@@ -103,7 +99,7 @@ def main():
     pool.close()
     pool.join()
 
-    if((args.chunk[0] == 255 and args.chunk[1] == 2084) or args.produce_filelist):
+    if((args.chunks[0] == 255 and args.chunks[1] == 2084) or args.produce_filelist):
         comm_tod.make_filelists()
 
 def make_chunk(comm_tod, freq, chunk, args):
@@ -177,21 +173,31 @@ def make_chunk(comm_tod, freq, chunk, args):
 
         prefix = str(chunk).zfill(6) + '/' + det
         #TOD
-        tod = sig.decimate(U.getdata(det, product='dcclean08', **chunkdict), args.downsample)
+        #tod = sig.decimate(U.getdata(det, product='dcclean08', **chunkdict), args.downsample)
+        tod = U.getdata(det, product='dcclean08', **chunkdict)
+        stepstitch = U.getdata(det, product='stepstitch07', **chunkdict)
+
+        tod = tod - stepstitch
+        tod = tod[::args.downsample]
+        tod = tod - np.mean(tod)
+
         comm_tod.add_field(prefix + '/tod', tod)
 
         # pix and psi
-        pix, psi= Um.bore2pix(offset, None, bore_quats, return_pa=True)
+        pix, psi= Um.bore2pix(offset, None, bore_quats, return_pa=True, **chunkdict)
 
-        psi_dec = sig.decimate(psi, args.downsample)
+        #psi_dec = sig.decimate(psi, args.downsample)
+        psi_dec = psi[::args.downsample]
         comm_tod.add_field(prefix + '/psi', psi_dec, psiArray)
 
         lon, lat = hp.pix2ang(spider.nside, pix, lonlat=True)
 
         lon_gal, lat_gal = r([lon, lat])
 
-        lat_down = sig.decimate(lat_gal, args.downsample)
-        lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
+        #lat_down = sig.decimate(lat_gal, args.downsample)
+        #lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
+        lat_down = lat_gal[::args.downsample]
+        lon_down = lon_gal[::args.downsample]
 
         pix = hp.ang2pix(spider.nside, lon_down, lat_down, lonlat=True) 
         comm_tod.add_field(prefix + '/pix', pix, compArray)
@@ -199,11 +205,15 @@ def make_chunk(comm_tod, freq, chunk, args):
         # flag
         flag = U.getdata(det, product='flag_comb08', **chunkdict)
         flag_extra = U.getdata(det, product='flag_extra02', **chunkdict)        
-        flag_tot = np.uint64(flag + 2**32*flag_extra)
+        flag_stepstictch = U.getdata(det + '_flag', product='stepstitch07', **chunkdict)
         
+        flag_tot = np.uint64(flag + 2**32*flag_extra)#+ 2**30*flag_stepstitch)
+               
+ 
         #downsample flag by taking bitwise or of each n entries
-        nsplit = np.split(flag_tot, args.downsample)
-        flag_downsampled = np.bitwise_or.reduce(nsplit, 1)
+        #nsplit = np.split(flag_tot, args.downsample)
+        #flag_downsampled = np.bitwise_or.reduce(nsplit, 0)
+        flag_downsampled = flag_tot[::args.downsample]
         comm_tod.add_field(prefix + '/flag', flag_downsampled, compArray)
 
         # scalars
