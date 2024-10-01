@@ -1,0 +1,30 @@
+C******************************************************************************
+C  File Name: FEX_CMDGAIN.TXT
+C
+C  Purpose: To be used for making a reference file containing the commanded
+C           gain values for the four bolometer preamps. The data will be used  
+C           to normalize IFGs. These gains were obtained from:
+C           John Sutton, Code 728.1, x6-5454
+C
+C  Written by: Gene Eplee
+C              Applied Research Corp.
+C              286-2437
+C              30 Nov 1988
+C
+C  Changed by: John Sims, STX, 11 July 1991 
+C              (Original data file was changed so it could be read
+C               into a structured record) 
+C              S. Alexander, HSTX, 2/11/93, SER 10565:  Delivered for
+C                 FIC production.
+C  Certified:	Rick Shafer 1993 Feb 22 for Pass 2A FIC data
+C
+C*****************************************************************************
+
+ 1.000000 1.000000 1.000000 1.000000  
+ 2.999940 2.999860 2.999739 2.999850 
+ 10.00000 9.998940 9.998640 9.997999 
+ 29.99940 29.99542 29.99331 29.99250 
+ 100.9165 100.8180 100.9243 100.8040 
+ 302.7434 302.4399 302.7466 302.3967 
+ 1009.165 1008.073 1009.106 1007.838 
+ 3027.434 3024.078 3027.054 3023.364 

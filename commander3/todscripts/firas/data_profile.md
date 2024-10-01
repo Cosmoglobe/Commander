@@ -1,0 +1,228 @@
+# Science data file
+
+- `fdq_sdf_new`
+  - `fdq_sdf_lh`
+    - `attitude`: Attitude related quantities. All quantities are in Epoch 2000.0 coordinates.
+      - `altitude`: COBE altitude. Shape: 590937. Units: 0.1 km.
+      - `att_spares`: ?. Shape: 590937 x 2. **All values are zero.**
+      - `cobe_moon_dist`: Distance from COBE to the moon. Shape: 590937. Units: km.
+      - `dec`: Declination of FIRAS pointing. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `earth_limb`: Angle of Earth limb from FIRAS skyhorn Line-Of-Sight (LOS). Shape: 590937. Units: 10$^{-4}$ rad.
+      - `earth_limb_azimuth`: Azimuth angle of Earth limb about FIRAS LOS in SC frame. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `ecliptic_latitude`: Ecliptic latitude. Shape: 590937. Units: ?
+      - `ecliptic_longitude`: Ecliptic longitude. Shape: 590937. Units: ?
+      - `equatorial`: FIRAS pointing in equatorial coordinates (unit vectors). Shape: 590937 x 3. All values in indices 0 and 1 are 1.469368e-39. Units: ?
+      - `exc_galactic_lat`: Excluded(?) galactic latitude. Shape: 590937. **All values are zero.**
+      - `galactic_latitude`: Galactic latitude. Shape: 590937. Units: ?
+      - `galactic_longitude`: Galactide longitude. Shape: 590937. Units: ?
+      - `mcilwain_l_param`: McIlwain L parameter. Shape: 590937. Units: Earth radii. **All values are zero.**
+      - `moon_angle`: Angle of Moon in FIRAS skyhorn LOS (phi). Shape: 590937. Units: 10$^{-4}$ rad.
+      - `moon_az_angle`: Azimuth angle of Moon about FIRAS LOS in SC frame (theta). Shape: 590937. Units: 10$^{-4}$ rad.
+      - `moon_phase`: Moon phase. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `orbital_phase`: Orbital phase (?). Shape: 590937. Units: ?
+      - `outside_galaxy_cut`: ?. Shape: 590937. **All values are zero.**
+      - `pixel_definition`: ?. Shape: 590937. Values: {b'', b'q'}.
+      - `pixel_no`: FIRAS pixel number. Shape: 590937. Values from -1 to 6143.
+      - `projected_barycentric_velocity`: Solar system barycentric velocity of COBE projected along LOS. Shape: 590937. Units: 0.01 km/sec.
+      - `projected_geocentric_velocity`: Projected geocentric velocity. Shape: 590937. Units: ?
+      - `ra`: Right ascension of FIRAS pointing. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `sc_rotation_angle`: ?. Shape: 590937. Units: ?
+      - `scan_angle`: Angle of the sky that is being scanned (?). Shape: 590937. Units: ?
+      - `skymap_index`: Index of the sky map (?). Shape: 590937. Values: {0, 5}. 0 corresponds to the North Ecliptic Pole and 5 corresponds to South Ecliptic Pole (page 128 of the Explanatory Supplement). Notes: The ecliptic is the plane on which the Earth orbits the Sun. The ecliptic poles are the two points where the ecliptic axis, the imaginary line perpendicular to the ecliptic, intersects the celestial sphere. The north ecliptic pole is in Draco. The south ecliptic pole is in Dorado.
+      - `solution`: ?. Shape: 590937. Values: {0, 3, 4, 6}. If no attitude solution is available for a particular IFG, that record is failed (page 24 of the Explanatory Supplement).
+      - `sun_angle`: Angle of Sun in FIRAS skyhorn LOS. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `sun_moon_dist`: Distance between the sun and the moon. Shape: 590937. Units: km.
+      - `terr_latitude`: Terrestrial latitude of COBE. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `terr_longitude`: Terrestrial longitude of COBE. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `terr_pixel_no`: Terrestrial coordinates based pixel number. Shape: 590937. Units: ?
+      - `terr_rad_byte`: ?. Shape: 590937. Values: {0, 1, 2, 4, 8}.
+    - `collect_time`
+      - `badtime_flag`: ?. Shape: 590937. Values: {0, 1, 2, 6, 7, 8, 9, 11, 12, 14, 15, 18}
+      - `fpp_spare`: ? (FPP = FIRAS Pre-Processor). Shape: 590937. **All values are zero.**
+      - `midpoint_time`: The midpoint time used to determine the appropriate spacecraft attitude solution for the IFG. Shape: 590937. Units: Time (what unit?)
+    - `ct_head`
+      - `dataset_id`: ?. Shape: 590937. Values: {0, 7}.
+      - `gmt`: ?. Shape: 590937. Units: ?
+      - `hskp1_tlm_fmt`: ?. Shape: 590937. **All values are zero.**
+      - `hskp2_tlm_fmt`: ?. Shape: 590937. **All values are zero.**
+      - `ingest_spares`: ?. Shape: 590937 x 18. **All values are zero.**
+      - `instr_spares`: ?. Shape: 590937 x 6. **All values are zero.**
+      - `mjr_frm_no`: ?. Shape: 590937. Units: ?.
+      - `orbit`: ?. Shape: 590937. Units: ?
+      - `space_time`: ?. Shape: 590937 x 6. Values: {-53, -11, 31, 68, 75, 76, 77, 78, 83}
+      - `time`: ? Midpoint of collect time?. Shape: 590937. Units: ?
+    - `dq_data`
+      - `data_quality`: ?. Shape: 590937 x 110. Values: {0, 1, 2, 4, 32}
+      - `dq_spares`: ?. Shape: 590937 x 24. **All values are zero.**
+      - `eng_rec`: ?. Shape: 590937. **All values are zero.**
+      - `eng_time`: Time of associate engineering data record. Shape: 590937. Unit: ?
+      - `fake`: ?. Shape: 590937. Values: {-1, 0, 1} (why is there a -1?)
+      - `ifg_no`: ?. Shape: 590937. Values: up to 2601 and repeats.
+      - `iref_temp`: ?. Shape: 590937. **All values are 1.469368e-39.**
+      - `xcal_pos`: Position of the XCAL. Shape: 590937. Values: {0, 1, 2, 3} (why?).
+    - `ifg_data`
+      - `gltch`: ?. Shape: 590937 x 32. **All values are zero.**
+      - `ifg`: Interferograms. Shape: 590937. Units: ?.
+    - `sci_head`
+      - `chan_id`: ?. Shape: 590937. **All values are three.**
+      - `data_qual`: ? Data quality flags? Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31} (what is this?).
+      - `data_ready`: ?. Shape: 590937 x 8. Values: ?.
+      - `gain`: Gain (of what?). Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}.
+      - `mtm_length`: Length of the MTM (what does that mean? Short and long?). Shape: 590937. Values: {0, 1}.
+      - `mtm_speed`: Speed of the MTM (what does that mean? Slow and fast?). Shape: 590937. Values: {0, 1}.
+      - `sc_head0`: ?. Shape: 590937. Values: {-4638, -4634}.
+      - `sc_head10`: ?. Shape: 590937. Values: {-21846, -1, 0, 512}.
+      - `sc_head11`: Sweeps?. Shape: 590937. Values: {-21845, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2052}.
+      - `sc_head12`: ?. Shape: 590937. Values: many.
+      - `sc_head13`: ?. Shape: 590937. Values: many.
+      - `sc_head14`: ? Shape: 590937. Values: {-1, 3, 5, 6, 7, 8, 10, 13, 16, 20}.
+      - `sc_head15`: ?. Shape: 590937. Values: many.
+      - `sc_head16`: ?. Shape: 590937. Values: {-19115, -4095, 12289, 13281, 14273, 15265}.
+      - `sc_head17`: ?. Shape: 590937. Values: many.
+      - `sc_head18`: ?. Shape: 590937. Values: many.
+      - `sc_head19`: ?. Shape: 590937. Values: {-19807, -3423, -3415, -2652, -1}.
+      - `sc_head1a`: Science mode?. Shape: 590937. Values: {0, 2, 4}.
+      - `sc_head1b`: ?. Shape: 590937. Values: {83}.
+      - `sc_head2`: ?. Shape: 590937. Values: {13416, 13417, 13673}.
+      - `sc_head20`: ?. Shape: 590937. Values: many.
+      - `sc_head21`: ?. Shape: 590937. Values: many.
+      - `sc_head22`: ?. Shape: 590937. Values: {-1, 0, 644, 1024, 3076, 3204, 3368}.
+      - `sc_head23`: ?. Shape: 590937. Values: {-1, 0, 2730, 4096}.
+      - `sc_head24`: ?. Shape: 590937. Values: many.
+      - `sc_head25`: ?. Shape: 590937. Values: {'IH', 'II', 'I\xc8', '\xff\xff'}
+      - `sc_head3`: ?. Shape: 590937. Values: many.
+      - `sc_head4`: ?. Shape: 590937. Values: many.
+      - `sc_head5`: ?. Shape: 590937. Values: many.
+      - `sc_head6`: ?. Shape: 590937. Values: many.
+      - `sc_head7`: ?. Shape: 590937. Values: many.
+      - `sc_head8`: ?. Shape: 590937. Values: many.
+      - `sc_head9`: Adds per group?. Shape: 590937. Values: {-1, 0, 1, 2, 3}.
+  - `fdq_sdf_ll`: Shape: 590926.
+  - `fdq_sdf_rh`: Shape: 591005.
+  - `fdq_sdf_rl`: Shape: 587637.
+
+
+# Engineering data file
+
+- `fdq_eng_new`
+  - `chan`
+    - `dither`: Dither. Shape: 589069 x 4 (? Does not match with any shape in the science data. Could be matching the only accepted data in each mode but it has more than RL.). Values: {0, 1}.
+    - `fakeit`: "Fake-it" data mode, used to conduct engineering tests (page 23 of the Explanatory Supplement). Shape: 589069 x 4. Values: {0, 1}.
+    - `sci_gain`: Gain (of what?). Shape: 589069 x 4. Values: {0, 1, 3, 10, 30, 100, 300, 1000, 3000}.
+    - `setup_spares`: ?. Shape: 589069 x 4 x 15. **All values are zero.**
+    - `up_adds_per_group`: ?. Shape: 589069 x 4. Values: {0, 1, 2, 3, 8, 12}.
+    - `up_sci_mode`: ?. Shape: 589069 x 4. Values: {0, 2, 4}. 2 or 4 mean that there is a digital filter on, and 0 that it is off.
+    - `up_swps_per_ifg`: ?. Shape: 589069 x 4. Values: {0, 1, 4, 16}.
+    - `xmit_mtm_len`: Length of the MTM. Shape: 589069 x 4. Values: {0, 1}.
+    - `xmit_mtm_speed`: Speed of the MTM (slow and fast? Which one is slow and which one is fast?). Shape: 589069 x 4. Values: {0, 1}.
+  - `ct_head`
+    - `dataset_id`: ?. Shape: 589069. **All values are 35.**
+    - `gmt`: ?. Shape: 589069. Values: strings of numbers.
+    - `hskp1_tlm_fmt`: ?. Shape: 589069. **All values are zero.**
+    - `hskp2_tlm_fmt`: ?. Shape: 589069. **All values are zero.**
+    - `instr_spares`: ?. Shape: 589069 x 6. **All values are zero.**
+    - `mjr_frm_no`: ?. Shape: 589069. **All values are zero.**
+    - `orbit`: ?. Shape: 589069. Units: ?.
+    - `space_time`: ?. Shape: 589069 x 6. **All values are zero.** In the science data there are values for the same variable.
+    - `time`: ? Midpoint of collect time?. Shape: 589069. Units: ?
+  - `en_analog`
+    - `group1`
+      - `bol_volt`: ? Bolometer voltage?. Shape: 589069 x 4. Units: ?.
+      - `cna_temp`: ? Temperature? Of what?. Shape: 589069 x 4. Units: ?.
+      - `dbx_tmp`: ?. Shape: 589069 x 2. Units: ?.
+      - `hot_spot`: ?. Shape: 589069 x 4. Units: ?.
+      - `ipdu_amp`: ?. Shape: 589069 x 12. Units? (0 to 1).
+      - `ipdu_bolt`: ?. Shape: 589069 x 20. Units: ?.
+      - `ipdu_temp`: Temperature (of what?). Shape: 589069 x 2. Units: ?.
+      - `mtm_cal_mtr`: ?. Shape: 589069 x 2. Units: ?.
+      - `mtm_pos`: Position of the MTM (why times 2? Because there are 2 mirrors?). Shape: 589069 x 2. Units: ?.
+      - `pamp_chan`: ?. Shape: 589069. Units: ? (Values from 18 to 30).
+      - `pamp_op`: ?. Shape: 589069. Units: ? (Values from 2 to 28).
+      - `stat_mon_temp`: ?. Shape: 589069 x 2. Units: ? (Values from 20 to 31, then 24 to 35)
+      - `temp_ctl`: ?. Shape: 589069 x 8. Units: ?.
+    - `grt`: Germanium Resistance Thermometer. Data is divided into high (hi) (20 - 97 $cm^{-1}$) and low (lo) (1 - 21 $cm^{-1}$) frequency bands
+      - `a_hi_bol_assem`: ?. Shape: 589069 x 4. **All values are -9999.**
+      - `a_hi_cal_resistors`: Calibration resistors (four high and four low?: eight in total - page 46 in the Explanatory Supplement). Used to convert the GRT readings from counts to Ohms. Shape: 589069 x 4. Units: ?.
+      - `a_hi_collimator`: GRT collimator. Shape: 589069. Values: 2 to 10. Units: K?.
+      - `a_hi_dihedral`: Dihedral temperature. Dihedral temperature > 5.5 is failed (page 28 of the Explanatory Supplement). Here, 1134 values are higher than 5.5. The sky coadds are grouped by dihedral temperature (page 62 of the Explanatory Supplement). Shape: 589069. Values: 2 to 10. Units: K?.
+      - `a_hi_ical`: Temperature of the ICAL. Used to form coadd groups (page 27 of the Explanatory Supplement). Shape: 589069?. Values: 2 to 20. Units: K?. 
+      - `a_hi_mirror`: Temperature of the mirror (I am guessing of the mirrors in the MTM, since there is already a variable for the collimator before?). Shape: 589069. Values: 2 to 12. Units: K?.
+      - `a_hi_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 2 to 26. Temperature goes higher than indicated in the Explanatory Supplement (page 20), which should be between 2 and 22 K. Units: K?.
+      - `a_hi_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 2 to 26. Units: ?.
+      - `a_hi_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 2 to 23. Units: K?.
+      - `a_hi_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. Values: 2 to 23. Units: K?.
+      - `a_lo_bol_assem`: Temperature of the ? of the bolometer. Shape: 589069 x 4. Values: 1 to 4. Units: K?.
+      - `a_lo_cal_resistors`: ? of the calibration resistors. Shape: 589069 x 4. Units: ?.
+      - `a_lo_collimator`: Temperature of the collimator mirrors. Shape: 589069. Values: 1 to 5. Units: K?.
+      - `a_lo_dihedral`: Dihedral temperature. Shape: 589069. Values: 1 to 8. Units: K?.
+      - `a_lo_ical`: Temperature of the ICAL. Shape: 589069. Values: 1 to 25. Units: K?.
+      - `a_lo_mirror`: Temperature of the mirror. Shape: 589069. Values: 1 to 4, with some being -9.9990000e+03. Units: K?.
+      - `a_lo_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 1 to 30, with some values being -9.9990000e+03. Units: K?.
+      - `a_lo_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 1 to 29. Units: K?.
+      - `a_lo_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 1 to 34. Units: K?.
+      - `a_lo_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. Values: 1 to 22. Units: K?.
+      - `b_hi_bol_assem`: ?. Shape: 589069 x 4. **All values are -9999.**
+      - `b_hi_cal_resistors`: ?. Shape: 589069 x 4. Units: ?.
+      - `b_hi_collimator`: ?. Shape: 589069. **All values are -9999.**
+      - `b_hi_dihedral`: Dihedral temperature. Shape: 589069. Values: 2 to 11. Units: K?.
+      - `b_hi_ical`: Temperature of the ICAL. Shape: 589069. Values: 2 to 20. Units: K?.
+      - `b_hi_mirror`: Temperature of the mirror. Shape: 589069. Values: 2 to 9, with some values being -9.9990000e+03. Units: K?.
+      - `b_hi_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 2 to 26, with some values being -9.9990000e+03. Units: K?.
+      - `b_hi_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 2 to 26, with some values being -9.9990000e+03. Units: K?.
+      - `b_hi_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 2 to 23. Units: K?.
+      - `b_hi_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. **All values are -9999.**
+      - `b_lo_bol_assem`: ?. Shape: 589069 x 4. Values: 1 to 3. Units: K?.
+      - `b_lo_cal_resistors`: ?. Shape: 589069 x 4. Units: ?.
+      - `b_lo_collimator`: ?. Shape: 589069. **All values are -9999.**
+      - `b_lo_dihedral`: Dihedral temperature. Shape: 589069. Values: 1 to 8. Units: K?.
+      - `b_lo_ical`: Temperature of the ICAL. Shape: 589069. Values: 1 to 22. Units: K?.
+      - `b_lo_mirror`: Temperature of the mirror. Shape: 589069. Values: 1 to 33, with some values being -9.9990000e+03. Units: K?.
+      - `b_lo_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 1 to 27. Units: K?.
+      - `b_lo_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 1 to 27. Units: K?.
+      - `b_lo_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 1 to 26. Units: K?.
+      - `b_lo_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. **All values are -9999.**
+  - `en_stat`
+    - `bol_cmd_bias`: Change in the commanded bolometer bias voltage?. Shape: 589069 x 4. Units: ?.
+    - `dwell_stat`: ?. Shape: 589069 x 2. Values: {0, 1}.
+    - `engstat_spares`: ?. Shape: 589069 x 10. **All values are zero.**
+    - `engstat_spares2`: ?. Shape: 589069 x 5. **All values are zero.**
+    - `ext_cal_temp_a`: ?. Shape: 589069. Values: {0, 256, 2682}.
+    - `ext_cal_temp_b`: ?. Shape: 589069. Values: many.
+    - `grt_addr`: ?. Shape: 589069 x 2. Values: {0, 4, 6, 7, 14}.
+    - `hot_spot_cmd`: ?. Shape: 589069 x 2. Values: {0, 1}.
+    - `int_ref_temp_a`: ?. Shape: 589069. **All values are zero.**
+    - `int_ref_temp_b`: ?. Shape: 589069. Values: many.
+    - `lvdt_stat`: ?. Shape: 589069 x 2. Values: many.
+    - `micro_stat_bus`: Microprocessor status?. Shape: 589069 x 4. The first only has values of 12 and the rest of zero.
+    - `power_a_status`: ?. Shape: 589069 x 2. Values: {21, 81, 85}.
+    - `power_b_status`: ?. Shape: 589069 x 2. Values: {21, 81, 85}.
+    - `ref_hrn_temp_a`: ?. Shape: 589069. **All values are zero.**
+    - `ref_hrn_temp_b`: ?. Shape: 589069. Values: many.
+    - `sky_hrn_temp_a`: ?. Shape: 589069. **All values are zero.**
+    - `sky_hrn_temp_b`: ?. Shape: 589069. Values: many.
+    - `stat_word_1`: Status word?. Shape: 589069. Values: many.
+    - `stat_word_12`: Status word?. Shape: 589069. Values: many.
+    - `stat_word_13`: Status word?. Shape: 589069. Values: many.
+    - `stat_word_16`: Status word?. Shape: 589069. Values: many.
+    - `stat_word_4`: Status word?. Shape: 589069. **All values are zero.**
+    - `stat_word_5`: Status word?. Shape: 589069. Values: many.
+    - `stat_word_8`: Status word?. Shape: 589069. Values: many.
+    - `stat_word_9`: Status word?. Shape: 589069. Values: many.
+  - `en_tail`
+    - `eng_spares`: ?. Shape: 589069 x 9. **All values are zero.**
+    - `engtail_spares`: ?. Shape: 589069 x 8. **All values are zero.**
+    - `hskp_flag`: ?. Shape: 589069. **All values are zero.**
+    - `lmac_analog_temp`: Analog temperature?. Shape: 589069. Values: 14 to 23. Units: K?.
+    - `lmac_digital_temp`: Digital temperature?. Shape: 589069. Values: 12 to 23. Units: K?.
+    - `tlm_qual_maj_frm`: ?. Shape: 589069 x 2. **All values are zero.**
+  - `en_tempdiff`
+    - `bol_assem`: ?. Shape: 589069 x 2 x 4. Values: many.
+    - `collimator_mirror`: ?. Shape: 589069 x 2. Values: many.
+    - `dihedral`: ?. Shape: 589069 x 2. Values: many.
+    - `ical`: ?. Shape: 589069 x 2. Values: many.
+    - `refhorn`: ?. Shape: 589069 x 2. Values: many.
+    - `skyhorn`: ?. Shape: 589069 x 2. Values: many.
+    - `xcal`: ?. Shape: 589069 x 2. Values: many.
+  - `en_xcal`
+    - `pos`: Position of the XCAL?. Shape: 589069 x 2. Values: {1, 2, 3}.
+    - `xcal_spares`: ?. Shape: 589069 x 50. **All values are zero.**
