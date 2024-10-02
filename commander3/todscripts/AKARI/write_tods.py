@@ -43,8 +43,10 @@ import pickle
 
 # Path objects
 AKARI_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/akari/data")
+AKARI_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/akari/data_test")
 HDF5_PATH = Path("/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/")
 CIO_PATH = Path('/mn/stornext/d16/cmbco/ola/akari/TODs')
+CIO_PATH = Path('/mn/stornext/d16/cmbco/ola/akari/TODs/manually_extracted')
 
 # system constants
 N_PROC = multiprocessing.cpu_count()
@@ -471,6 +473,8 @@ def main() -> None:
 
     fnames = list(CIO_PATH.glob('flux/SW/FIS_SW_*_flux.pkl'))
     fnames.sort()
+
+    print(fnames)
 
 
     #fnames = fnames[:2]
