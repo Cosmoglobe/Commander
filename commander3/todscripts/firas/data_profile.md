@@ -4,99 +4,119 @@
   - `fdq_sdf_lh`
     - `attitude`: Attitude related quantities. All quantities are in Epoch 2000.0 coordinates.
       - `altitude`: COBE altitude. Shape: 590937. Units: 0.1 km.
-      - `att_spares`: ?. Shape: 590937 x 2. **All values are zero.**
+      - `att_spares`: Rest of the record. Shape: 590937 x 2. **All values are zero.**
       - `cobe_moon_dist`: Distance from COBE to the moon. Shape: 590937. Units: km.
       - `dec`: Declination of FIRAS pointing. Shape: 590937. Units: 10$^{-4}$ rad.
       - `earth_limb`: Angle of Earth limb from FIRAS skyhorn Line-Of-Sight (LOS). Shape: 590937. Units: 10$^{-4}$ rad.
       - `earth_limb_azimuth`: Azimuth angle of Earth limb about FIRAS LOS in SC frame. Shape: 590937. Units: 10$^{-4}$ rad.
-      - `ecliptic_latitude`: Ecliptic latitude. Shape: 590937. Units: ?
-      - `ecliptic_longitude`: Ecliptic longitude. Shape: 590937. Units: ?
-      - `equatorial`: FIRAS pointing in equatorial coordinates (unit vectors). Shape: 590937 x 3. All values in indices 0 and 1 are 1.469368e-39. Units: ?
-      - `exc_galactic_lat`: Excluded(?) galactic latitude. Shape: 590937. **All values are zero.**
-      - `galactic_latitude`: Galactic latitude. Shape: 590937. Units: ?
-      - `galactic_longitude`: Galactide longitude. Shape: 590937. Units: ?
+      - `ecliptic_latitude`: Ecliptic latitude. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `ecliptic_longitude`: Ecliptic longitude. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `equatorial`: FIRAS pointing in equatorial coordinates (unit vectors). Shape: 590937 x 3. All values in indices 0 and 1 are 1.469368e-39.
+      - `exc_galactic_lat`: Exclude data within +/- galactic latitude. Shape: 590937. Units: 10$^{-4}$ rad. **All values are zero.**
+      - `galactic_latitude`: Galactic latitude. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `galactic_longitude`: Galactide longitude. Shape: 590937. Units: 10$^{-4}$ rad.
       - `mcilwain_l_param`: McIlwain L parameter. Shape: 590937. Units: Earth radii. **All values are zero.**
       - `moon_angle`: Angle of Moon in FIRAS skyhorn LOS (phi). Shape: 590937. Units: 10$^{-4}$ rad.
       - `moon_az_angle`: Azimuth angle of Moon about FIRAS LOS in SC frame (theta). Shape: 590937. Units: 10$^{-4}$ rad.
       - `moon_phase`: Moon phase. Shape: 590937. Units: 10$^{-4}$ rad.
-      - `orbital_phase`: Orbital phase (?). Shape: 590937. Units: ?
-      - `outside_galaxy_cut`: ?. Shape: 590937. **All values are zero.**
-      - `pixel_definition`: ?. Shape: 590937. Values: {b'', b'q'}.
+      - `orbital_phase`: Geocentric angle from the orbital ascending ndoe to COBE position. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `outside_galaxy_cut`: Flag indicating whether FDS destriper included this record in its stripe calculation based on whether its pixel center is outside the galactic latitude cut in the FDS driver. This flag is set by FAD. Shape: 590937. **All values are zero.**
+        - 0 = not set yet (pre-FAD data).
+        - 1 = record included (outside > galactic cut).
+        - 2 = record excluded (outside <= galactic cut).
+      - `pixel_definition`: Type of pixelization. Shape: 590937. Values: {b'', b'q'}.
+        - 'q' = standard quad-cube.
+        - 'O' = orbit average.
+        - 'S' = scan angle.
+        - 'E' = geocentric quad-cube.
       - `pixel_no`: FIRAS pixel number. Shape: 590937. Values from -1 to 6143.
       - `projected_barycentric_velocity`: Solar system barycentric velocity of COBE projected along LOS. Shape: 590937. Units: 0.01 km/sec.
-      - `projected_geocentric_velocity`: Projected geocentric velocity. Shape: 590937. Units: ?
+      - `projected_geocentric_velocity`: Geocentric velocity of COBE projected along LOS. Shape: 590937. Units: m/sec.
       - `ra`: Right ascension of FIRAS pointing. Shape: 590937. Units: 10$^{-4}$ rad.
-      - `sc_rotation_angle`: ?. Shape: 590937. Units: ?
-      - `scan_angle`: Angle of the sky that is being scanned (?). Shape: 590937. Units: ?
-      - `skymap_index`: Index of the sky map (?). Shape: 590937. Values: {0, 5}. 0 corresponds to the North Ecliptic Pole and 5 corresponds to South Ecliptic Pole (page 128 of the Explanatory Supplement). Notes: The ecliptic is the plane on which the Earth orbits the Sun. The ecliptic poles are the two points where the ecliptic axis, the imaginary line perpendicular to the ecliptic, intersects the celestial sphere. The north ecliptic pole is in Draco. The south ecliptic pole is in Dorado.
-      - `solution`: ?. Shape: 590937. Values: {0, 3, 4, 6}. If no attitude solution is available for a particular IFG, that record is failed (page 24 of the Explanatory Supplement).
+      - `sc_rotation_angle`: Spacecraft rotation angle. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `scan_angle`: Azimuth angle, about the Sun direction, of FIRAS LOS, positive in teh ascending sense from the ecliptic. Shape: 590937. Units: 10$^{-4}$ rad.
+      - `skymap_index`: Information supporting `pixel_definition`. Shape: 590937. Values: {0, 5}. 0 corresponds to the North Ecliptic Pole and 5 corresponds to South Ecliptic Pole (page 128 of the Explanatory Supplement).
+      - `solution`: Source of atitude solution. Shape: 590937. Values: {0, 3, 4, 6}. If no attitude solution is available for a particular IFG, that record is failed (page 24 of the Explanatory Supplement).
+        - None = 0.
+        - Simulated = 1.
+        - Predicted = 2.
+        - Coarse = 3.
+        - Fine without DIRBE = 4.
+        - Fine with DIRBE = 5.
+        - Definitive = 6.
       - `sun_angle`: Angle of Sun in FIRAS skyhorn LOS. Shape: 590937. Units: 10$^{-4}$ rad.
       - `sun_moon_dist`: Distance between the sun and the moon. Shape: 590937. Units: km.
       - `terr_latitude`: Terrestrial latitude of COBE. Shape: 590937. Units: 10$^{-4}$ rad.
       - `terr_longitude`: Terrestrial longitude of COBE. Shape: 590937. Units: 10$^{-4}$ rad.
-      - `terr_pixel_no`: Terrestrial coordinates based pixel number. Shape: 590937. Units: ?
-      - `terr_rad_byte`: ?. Shape: 590937. Values: {0, 1, 2, 4, 8}.
+      - `terr_pixel_no`: Terrestrial coordinates based pixel number. Shape: 590937.
+      - `terr_rad_byte`: Terrestrial radiation region location flag. Shape: 590937. Values: {0, 1, 2, 4, 8}.
+        - Bit 0 = Ok.
+        - Bit 1 = North Van Allen Belt.
+        - Bit 2: South Van Allen Belt.
+        - Bit 3: South Atlantic Anomaly.
     - `collect_time`
-      - `badtime_flag`: ?. Shape: 590937. Values: {0, 1, 2, 6, 7, 8, 9, 11, 12, 14, 15, 18}
-      - `fpp_spare`: ? (FPP = FIRAS Pre-Processor). Shape: 590937. **All values are zero.**
+      - `badtime_flag`: Flag for invalid computed midpoint of collect time. Shape: 590937. Values: {0, 1, 2, 6, 7, 8, 9, 11, 12, 14, 15, 18}
+      - `fpp_spare`: Preprocessor spare (FPP = FIRAS Pre-Processor). Shape: 590937. **All values are zero.**
       - `midpoint_time`: The midpoint time used to determine the appropriate spacecraft attitude solution for the IFG. Shape: 590937. Units: Time (what unit?)
     - `ct_head`
-      - `dataset_id`: ?. Shape: 590937. Values: {0, 7}.
-      - `gmt`: ?. Shape: 590937. Units: ?
-      - `hskp1_tlm_fmt`: ?. Shape: 590937. **All values are zero.**
-      - `hskp2_tlm_fmt`: ?. Shape: 590937. **All values are zero.**
-      - `ingest_spares`: ?. Shape: 590937 x 18. **All values are zero.**
-      - `instr_spares`: ?. Shape: 590937 x 6. **All values are zero.**
-      - `mjr_frm_no`: ?. Shape: 590937. Units: ?.
-      - `orbit`: ?. Shape: 590937. Units: ?
-      - `space_time`: ?. Shape: 590937 x 6. Values: {-53, -11, 31, 68, 75, 76, 77, 78, 83}
-      - `time`: ? Midpoint of collect time?. Shape: 590937. Units: ?
+      - `dataset_id`: CT dataset ID. Shape: 590937. Values: {0, 7}.
+      - `gmt`: GMT of start collect. Shape: 590937. Units: ?
+      - `hskp1_tlm_fmt`: Telemetry format for major frame 1. Shape: 590937. **All values are zero.**
+      - `hskp2_tlm_fmt`: Telemetry format for major frame 2. Shape: 590937. **All values are zero.**
+      - `ingest_spares`: Spares. Shape: 590937 x 18. **All values are zero.**
+      - `instr_spares`: Spares. Shape: 590937 x 6. **All values are zero.**
+      - `mjr_frm_no`: Major frame number. Shape: 590937. Units: ?.
+      - `orbit`: Orbit number. Shape: 590937.
+      - `space_time`: Spacecraft time. Shape: 590937 x 6. Values: {-53, -11, 31, 68, 75, 76, 77, 78, 83}
+      - `time`: Binary time. Shape: 590937. Units: ?
     - `dq_data`
-      - `data_quality`: ?. Shape: 590937 x 110. Values: {0, 1, 2, 4, 32}
-      - `dq_spares`: ?. Shape: 590937 x 24. **All values are zero.**
-      - `eng_rec`: ?. Shape: 590937. **All values are zero.**
+      - `data_quality`: Data quality flags. Shape: 590937 x 110. Values: {0, 1, 2, 4, 32}
+      - `dq_spares`: Data qualify spares. Shape: 590937 x 24. **All values are zero.**
+      - `eng_rec`: Engineering record number. Shape: 590937. **All values are zero.**
       - `eng_time`: Time of associate engineering data record. Shape: 590937. Unit: ?
-      - `fake`: ?. Shape: 590937. Values: {-1, 0, 1} (why is there a -1?)
+      - `fake`: Fakeit pulse status. For most of the mission during the COBE passage through the South Atlantic Anomaly, the MTM was put in a position mode, the drive motor was turned off, and readings of a noise signal were taken using a "fake-it" pulse. Noise data taken  Shape: 590937. Values: {-1, 0, 1} (why is there a -1?)
       - `ifg_no`: ?. Shape: 590937. Values: up to 2601 and repeats.
-      - `iref_temp`: ?. Shape: 590937. **All values are 1.469368e-39.**
-      - `xcal_pos`: Position of the XCAL. Shape: 590937. Values: {0, 1, 2, 3} (why?).
+      - `iref_temp`: Internal reference source temperature. Shape: 590937. **All values are 1.469368e-39.**
+      - `xcal_pos`: Position of the XCAL 0?. Shape: 590937. Values: {0, 1, 2, 3} (why?).
     - `ifg_data`
-      - `gltch`: ?. Shape: 590937 x 32. **All values are zero.**
-      - `ifg`: Interferograms. Shape: 590937. Units: ?.
+      - `gltch`: On board glitch map. The on-board glitch map is a packed array of bit flags set by the microprocessor to a value of 1 when it detects a glitch at one of the 512 points of the IFG. A value of 0 at the corresponding IFG position indicates no flitches were detected at that position during the entire collection of the IFG. The 512 bit flags are packed and stored into 32 sixteen bit words. Shape: 590937 x 32. **All values are zero.**
+      - `ifg`: IFG in counts. The iFG in counts is an array of 512 observed points. The IFGs taken during the mission have been averaged by the on-board microprocessors. Depending on the MTM scan mode, a number of consecutive sample points have been averaged to form a group during each sweep of the mirror. The consecutive groups form a buffer of 512 points. In addition, a number of sweeps oof these 512 points each are coadded together to form the resulting 512 point IFG which is then telemetered to the ground. `sc_head9` contains the number of sample points per group and `sc_head11` contains the number of mirror sweeps that are coadded together. Shape: 590937.
     - `sci_head`
-      - `chan_id`: ?. Shape: 590937. **All values are three.**
-      - `data_qual`: ? Data quality flags? Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31} (what is this?).
-      - `data_ready`: ?. Shape: 590937 x 8. Values: ?.
-      - `gain`: Gain (of what?). Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}.
-      - `mtm_length`: Length of the MTM (what does that mean? Short and long?). Shape: 590937. Values: {0, 1}.
-      - `mtm_speed`: Speed of the MTM (what does that mean? Slow and fast?). Shape: 590937. Values: {0, 1}.
-      - `sc_head0`: ?. Shape: 590937. Values: {-4638, -4634}.
-      - `sc_head10`: ?. Shape: 590937. Values: {-21846, -1, 0, 512}.
-      - `sc_head11`: Sweeps?. Shape: 590937. Values: {-21845, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2052}.
-      - `sc_head12`: ?. Shape: 590937. Values: many.
-      - `sc_head13`: ?. Shape: 590937. Values: many.
-      - `sc_head14`: ? Shape: 590937. Values: {-1, 3, 5, 6, 7, 8, 10, 13, 16, 20}.
-      - `sc_head15`: ?. Shape: 590937. Values: many.
-      - `sc_head16`: ?. Shape: 590937. Values: {-19115, -4095, 12289, 13281, 14273, 15265}.
-      - `sc_head17`: ?. Shape: 590937. Values: many.
-      - `sc_head18`: ?. Shape: 590937. Values: many.
-      - `sc_head19`: ?. Shape: 590937. Values: {-19807, -3423, -3415, -2652, -1}.
-      - `sc_head1a`: Science mode?. Shape: 590937. Values: {0, 2, 4}.
-      - `sc_head1b`: ?. Shape: 590937. Values: {83}.
-      - `sc_head2`: ?. Shape: 590937. Values: {13416, 13417, 13673}.
-      - `sc_head20`: ?. Shape: 590937. Values: many.
-      - `sc_head21`: ?. Shape: 590937. Values: many.
-      - `sc_head22`: ?. Shape: 590937. Values: {-1, 0, 644, 1024, 3076, 3204, 3368}.
-      - `sc_head23`: ?. Shape: 590937. Values: {-1, 0, 2730, 4096}.
-      - `sc_head24`: ?. Shape: 590937. Values: many.
-      - `sc_head25`: ?. Shape: 590937. Values: {'IH', 'II', 'I\xc8', '\xff\xff'}
-      - `sc_head3`: ?. Shape: 590937. Values: many.
-      - `sc_head4`: ?. Shape: 590937. Values: many.
-      - `sc_head5`: ?. Shape: 590937. Values: many.
-      - `sc_head6`: ?. Shape: 590937. Values: many.
-      - `sc_head7`: ?. Shape: 590937. Values: many.
-      - `sc_head8`: ?. Shape: 590937. Values: many.
-      - `sc_head9`: Adds per group?. Shape: 590937. Values: {-1, 0, 1, 2, 3}.
+      - `chan_id`: Channel ID. Shape: 590937. **All values are three.**
+      - `data_qual`: Data quality flags. Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? The telemetry dat aquality flags consist of packed bits, 4 for each of the telemetry minor frames over which the IFG is trasmitted. The value of each set of four bits is a code which represents the quality of the telemetry as received on the ground from the spacecraft. Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31}.
+      - `data_ready`: Data ready flags. The data ready flags at transmit consist of 114 packed bits, one from each of the telemetry minor frames over which the IFG is transmitted. A value of 1 indicates that the corresponding section of the iFG buffer for this channel detector was ready for transmission. a value of 0 indicates the existance of a problem for transmission. Shape: 590937 x 8. Values: ?.
+      - `gain`: Gain. The commandable gain for the detector is used in the conversion of the IFG raw counts to volts. Valid commandable gains are 1, 3, 10, 30, 100, 300, 1000, 3000. Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}?.
+      - `mtm_length`: Length of the MTM (what does that mean? Short and long?). Shape: 590937. Values: {0, 1} (0 = short, 1 = long?).
+      - `mtm_speed`: Speed of the MTM (what does that mean? Slow and fast?). Shape: 590937. Values: {0, 1} (0 = slow, 1 = fast?).
+      - `sc_head0`: Data block synchronization. Shape: 590937. Values: {-4638, -4634}.
+      - `sc_head10`: Data points per mirror sweep. Shape: 590937. Values: {-21846, -1, 0, 512}.
+      - `sc_head11`: Number of mirror sweeps. Shape: 590937. Values: {-21845, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 2052}.
+      - `sc_head12`: LSW frame counter. Shape: 590937. Values: many.
+      - `sc_head13`: MSW frame counter. Shape: 590937. Values: many.
+      - `sc_head14`: Deglitcher threshold factor. Shape: 590937. Values: {-1, 3, 5, 6, 7, 8, 10, 13, 16, 20}.
+      - `sc_head15`: Noise level. Shape: 590937. Values: many.
+      - `sc_head16`: S/L counter constants. Shape: 590937. Values: {-19115, -4095, 12289, 13281, 14273, 15265}.
+      - `sc_head17`: Deglitcher seed sample. Shape: 590937. Values: many.
+      - `sc_head18`: Command counter. Shape: 590937. Values: many.
+      - `sc_head19`: Program checksum. Shape: 590937. Values: {-19807, -3423, -3415, -2652, -1}.
+      - `sc_head1a`: Block type (sci mode). All of the science data was taken in science mode 4 during the mission. In this mode the on-board microprocessor averages the data, uses the anti-aliasing filters, and flags the glitches without removing them. The removel of the glitches is done in the ground procesing by the FIRAS pipeline. Shape: 590937. Values: {0, 2, 4}.
+      - `sc_head1b`: Block ID. Shape: 590937. Values: {83}.
+      - `sc_head2`: SW version number. Shape: 590937. Values: {13416, 13417, 13673}.
+      - `sc_head20`: Sturated sample count. Shape: 590937. Values: many.
+      - `sc_head21`: Glitch total. Shape: 590937. Values: many.
+      - `sc_head22`: Deglitcher overflow address. Shape: 590937. Values: {-1, 0, 644, 1024, 3076, 3204, 3368}.
+      - `sc_head23`: Division of IFG performed (FCI RMS files only). Shape: 590937. Values: {-1, 0, 2730, 4096}.
+      - `sc_head24`: FCI raw science intermediate dump data type. Shape: 590937. Values: many.
+      - `sc_head25`: High/low channel indicator. Shape: 590937. Values: {'IH', 'II', 'I\xc8', '\xff\xff'}
+        - 'HI' = high.
+        - 'LO' = low.
+      - `sc_head3`: status bits. Shape: 590937. Values: many.
+      - `sc_head4`: Transmit time LSW. Shape: 590937. Values: many.
+      - `sc_head5`: Transmit time MSW. Shape: 590937. Values: many.
+      - `sc_head6`: Data check. Shape: 590937. Values: many.
+      - `sc_head7`: No a/d samples for collect cycle. Shape: 590937. Values: many.
+      - `sc_head8`: Points process fro collect cycle. Shape: 590937. Values: many.
+      - `sc_head9`: Number of added points 1, 2, 3, 8 or 12 "adds per group". Shape: 590937. Values: {-1, 0, 1, 2, 3}.
   - `fdq_sdf_ll`: Shape: 590926.
   - `fdq_sdf_rh`: Shape: 591005.
   - `fdq_sdf_rl`: Shape: 587637.
@@ -113,8 +133,8 @@
     - `up_adds_per_group`: ?. Shape: 589069 x 4. Values: {0, 1, 2, 3, 8, 12}.
     - `up_sci_mode`: ?. Shape: 589069 x 4. Values: {0, 2, 4}. 2 or 4 mean that there is a digital filter on, and 0 that it is off.
     - `up_swps_per_ifg`: ?. Shape: 589069 x 4. Values: {0, 1, 4, 16}.
-    - `xmit_mtm_len`: Length of the MTM. Shape: 589069 x 4. Values: {0, 1}.
-    - `xmit_mtm_speed`: Speed of the MTM (slow and fast? Which one is slow and which one is fast?). Shape: 589069 x 4. Values: {0, 1}.
+    - `xmit_mtm_len`: Length of the MTM. Shape: 589069 x 4. Values: {0, 1} (0 = short, 1 = long?).
+    - `xmit_mtm_speed`: Speed of the MTM (slow and fast? Which one is slow and which one is fast?). Shape: 589069 x 4. Values: {0, 1} (0 = slow, 1 = fast?).
   - `ct_head`
     - `dataset_id`: ?. Shape: 589069. **All values are 35.**
     - `gmt`: ?. Shape: 589069. Values: strings of numbers.
