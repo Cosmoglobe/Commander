@@ -89,16 +89,13 @@ scalar/adt ENG_TIME
 """
 
 
-print(sum(sci["fdq_sdf_ll/dq_data/eng_time"][()] == 0))
-print(len(sci["fdq_sdf_ll/dq_data/eng_time"][()]))
 # plt.figure()
 # Empty
 # plt.plot(sci['fdq_sdf_lh/dq_data/eng_rec'][()], '.')
 
 eng_times = eng["ct_head/time"][()]
+sci_times = eng["en_head/sci_time/bin_time"][()]
 
-print(eng_times[:10])
-print(sci["fdq_sdf_ll/dq_data/eng_time"][:10])
 label = ["Bad", "XCAL", "Sky", "Transiting"]
 
 # Calibration?
