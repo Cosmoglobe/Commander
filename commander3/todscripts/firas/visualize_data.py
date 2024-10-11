@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-data = np.load("./data/data_ifgs_mtm.npz")
+data = np.load("./data/data_v1.npz")
 
 peak_positions = {
     "lh ss": 357,
@@ -21,7 +21,7 @@ peak_positions = {
     "rl lf": 90,
 }
 
-for i in range(0, len(data["id"]), 100):
+for i in range(0, len(data["id"]), 1):
     speed = data["mtm_speed"][i]
     speed = "s" if speed == 0 else "f"
     length = data["mtm_length"][i]

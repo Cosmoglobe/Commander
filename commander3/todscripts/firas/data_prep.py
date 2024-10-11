@@ -115,7 +115,7 @@ for id_rl in range(10):
         sci_id_lh[id_rl] == -1
         or sci_id_ll[id_rl] == -1
         or sci_id_rh[id_rl] == -1
-        or sci_id_eng[id_rl] == -1  # todo: relax constraints
+        or sci_id_eng[id_rl] == -1
     ):
         continue
     else:
@@ -188,7 +188,7 @@ for id_rl in range(10):
                     ):
 
                         id.append(id[-1] + 1)
-                        time.append(fdq_sdf_rl["dq_data/eng_time"][id_rl])
+                        time.append(fdq_sdf_rl["ct_head/gmt"][id_rl])
                         ifg_lh.append(fdq_sdf_lh["ifg_data/ifg"][id_lh])
                         ifg_ll.append(fdq_sdf_ll["ifg_data/ifg"][id_ll])
                         ifg_rh.append(fdq_sdf_rh["ifg_data/ifg"][id_rh])
