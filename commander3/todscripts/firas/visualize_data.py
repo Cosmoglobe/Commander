@@ -21,7 +21,7 @@ peak_positions = {
     "rl lf": 90,
 }
 
-for i in range(0, len(data["id"]), 1):
+for i in range(0, len(data["id"]), 100):
     speed = data["mtm_speed"][i]
     speed = "s" if speed == 0 else "f"
     length = data["mtm_length"][i]
