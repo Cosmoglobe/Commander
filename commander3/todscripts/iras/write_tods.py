@@ -39,6 +39,12 @@ from cosmoglobe.tod_tools import TODLoader
 
 from astropy.coordinates import SkyCoord, FK4
 
+from astropy.coordinates import (
+    HeliocentricMeanEcliptic,
+    get_body,
+    solar_system_ephemeris,
+)
+
 
 NSIDE = 2048
 t0 = Time('1981-01-01', scale='utc')
@@ -282,9 +288,17 @@ def make_chunk(comm_tod, freq, chunk, args):
 
         if found:
             prefix = str(scan).zfill(6) + '/common'
-            comm_tod.add_field(f'{scan:06}/common/satpos', [0,0,0])
-            comm_tod.add_field(f'{scan:06}/common/vsun', [0,0,0])
             time = t[0]*u.s + t0
+
+            earth_pos = get_body("earth", Time(time.mjd, format="mjd")).transform_to(
+        HeliocentricMeanEcliptic
+    )
+            earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
+            print(earth_pos)
+
+            comm_tod.add_field(f'{scan:06}/common/satpos', earth_pos)
+            comm_tod.add_field(f'{scan:06}/common/earthpos', earth_pos)
+            comm_tod.add_field(f'{scan:06}/common/vsun', [0,0,0])
             comm_tod.add_field(prefix + '/time', [time.mjd,0,0])
 
             nsamps = len(t)
