@@ -52,6 +52,8 @@ IRAS_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/IRAS/sopobs_data")
 
 FSAMP = {'12':16, '25':16, '60':8, '100':4}
 
+BANDPASS = {12: 25e12*u.Hz, 25:12e12*u.Hz, 60:5e12*u.Hz, 100:3e12*u.Hz}
+
 gc = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic')
 Omegas = {1: 14.5,
         2: 12.7,
@@ -245,7 +247,15 @@ def make_chunk(comm_tod, freq, chunk, args):
                 continue
 
 
+            sorted_inds = np.argsort(t)
+            t = t[sorted_inds]
+            lon = lon[sorted_inds]
+            lat = lat[sorted_inds]
+
             tod = tod/(Omegas[det]*1e-7)
+            tod *= u.W/u.m**2/u.sr
+            tod /= BANDPASS[freq]
+            tod = tod.to('MJy/sr').value
 
             
 
@@ -289,17 +299,25 @@ def make_chunk(comm_tod, freq, chunk, args):
         if found:
             prefix = str(scan).zfill(6) + '/common'
             time = t[0]*u.s + t0
+            time_end = t[-1]*u.s + t0
 
             earth_pos = get_body("earth", Time(time.mjd, format="mjd")).transform_to(
         HeliocentricMeanEcliptic
     )
             earth_pos = earth_pos.cartesian.xyz.to(u.AU).transpose()
-            print(earth_pos)
+
+            earth_pos_end = get_body("earth", Time(time_end.mjd, format="mjd")).transform_to(
+        HeliocentricMeanEcliptic
+    )
+            earth_pos_end = earth_pos_end.cartesian.xyz.to(u.AU).transpose()
 
             comm_tod.add_field(f'{scan:06}/common/satpos', earth_pos)
             comm_tod.add_field(f'{scan:06}/common/earthpos', earth_pos)
+            comm_tod.add_field(f'{scan:06}/common/satpos_end', earth_pos_end)
+            comm_tod.add_field(f'{scan:06}/common/earthpos_end', earth_pos_end)
             comm_tod.add_field(f'{scan:06}/common/vsun', [0,0,0])
             comm_tod.add_field(prefix + '/time', [time.mjd,0,0])
+            comm_tod.add_field(prefix + '/time_end', [time_end.mjd,0,0])
 
             nsamps = len(t)
             comm_tod.add_field(prefix + '/ntod', nsamps)   

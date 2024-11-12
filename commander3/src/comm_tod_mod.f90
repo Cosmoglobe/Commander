@@ -2828,6 +2828,10 @@ contains
       do i = 1, self%nscan
          t0(self%scanid(i)) = self%scans(i)%t0(1)
          t1(self%scanid(i)) = self%scans(i)%t1(1)
+         if (self%scans(i)%t0(1) .ge. self%scans(i)%t1(1)) then
+           write(*,*) 'Scan id ', self%scanid(i), ' malformatted, time_start >= time_end', self%scans(i)%t0(1), self%scans(i)%t1(1)
+           stop
+         end if
          x0_obs(:, self%scanid(i)) = self%scans(i)%x0_obs
          x1_obs(:, self%scanid(i)) = self%scans(i)%x1_obs
          x0_earth(:, self%scanid(i)) = self%scans(i)%x0_earth
@@ -2872,7 +2876,10 @@ contains
       end do
 
       do i = 2, size(time)
-         if (.not. time(i) > time(i - 1)) stop "precomputed MJD time array must be strictly increasing"
+         if (.not. time(i) > time(i - 1)) then
+          write(*,*)  "precomputed MJD time array must be strictly increasing", time(i-1), time(i), i
+          stop
+        end if
       end do
 
       do i = 1, 3
