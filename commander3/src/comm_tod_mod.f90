@@ -34,7 +34,7 @@ module comm_tod_mod
   implicit none
 
   private
-  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, comm_scandata
 
 
   ! Structure for individual detectors
@@ -202,6 +202,8 @@ module comm_tod_mod
      procedure(process_tod), deferred    :: process_tod
      procedure                           :: construct_sl_template
      procedure                           :: construct_corrtemp_inst
+     procedure                           :: construct_nonlin_corr_inst
+     procedure                           :: apply_nonlin_corr_inst
      procedure                           :: construct_dipole_template
      procedure                           :: construct_dipole_template_diff
      procedure                           :: output_scan_list
@@ -219,7 +221,7 @@ module comm_tod_mod
      procedure                           :: read_jumplist
      procedure                           :: remove_fixed_scans
   end type comm_tod
-
+  
   abstract interface
      subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
@@ -240,6 +242,34 @@ module comm_tod_mod
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
 
+  ! Class for uncompressed data for a given scan
+  type :: comm_scandata
+     integer(i4b) :: ntod, ndet, nhorn, ndelta
+     real(sp),     allocatable, dimension(:,:)     :: tod        ! Raw data
+     real(sp),     allocatable, dimension(:,:)     :: n_corr     ! Correlated noise in V
+     real(sp),     allocatable, dimension(:,:)     :: s_sl       ! Sidelobe correction
+     real(sp),     allocatable, dimension(:,:)     :: s_sky      ! Stationary sky signal
+     real(sp),     allocatable, dimension(:,:,:)   :: s_sky_prop ! Stationary sky signal proposal for bandpass sampling
+     real(sp),     allocatable, dimension(:,:)     :: s_orb      ! Orbital dipole
+     real(sp),     allocatable, dimension(:,:)     :: s_mono     ! Detector monopole correction 
+     real(sp),     allocatable, dimension(:,:)     :: s_bp       ! Bandpass correction
+     real(sp),     allocatable, dimension(:,:,:)   :: s_bp_prop  ! Bandpass correction proposal     
+     real(sp),     allocatable, dimension(:,:)     :: s_zodi     ! Zodiacal light
+     real(sp),     allocatable, dimension(:,:)     :: s_inst     ! Instrument-specific correction template
+     real(sp),     allocatable, dimension(:,:)     :: s_tot      ! Total signal
+     real(sp),     allocatable, dimension(:,:)     :: mask       ! TOD mask (flags + main processing mask)
+     real(sp),     allocatable, dimension(:,:)     :: mask2      ! Small TOD mask, for bandpass sampling
+     integer(i4b), allocatable, dimension(:,:,:)   :: pix        ! Discretized pointing 
+     integer(i4b), allocatable, dimension(:,:,:)   :: psi        ! Discretized polarization angle
+     integer(i4b), allocatable, dimension(:,:)     :: flag       ! Quality flags
+
+     real(sp),     allocatable, dimension(:,:)     :: s_totA     ! Total signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_totB     ! Total signal, horn B (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbA     ! Orbital signal, horn A (differential only)
+     real(sp),     allocatable, dimension(:,:)     :: s_orbB     ! Orbital signal, horn B (differential only)
+  end type comm_scandata
+
+  
 contains
 
   subroutine initialize_tod_mod(cpar)
@@ -1725,6 +1755,50 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  subroutine construct_nonlin_corr_inst(self, scan, sd)
+    !  Construct an instrument-specific correction template
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    !  scan: int
+    !       scan number
+    !  pix: int
+    !       index for pixel
+    !  psi: int
+    !       integer label for polarization angle
+    !
+    !  Returns:
+    !  --------
+    !  s:   real (sp)
+    !       output template timestream
+    implicit none
+    class(comm_tod),                       intent(inout)    :: self
+    integer(i4b),                          intent(in)       :: scan
+    class(comm_scandata),                  intent(inout)    :: sd
+
+    return
+    
+  end subroutine construct_nonlin_corr_inst
+
+  subroutine apply_nonlin_corr_inst(self, scan, sd)
+    !  Apply an instrument-specific non_linear corrections
+    !
+    !  Arguments:
+    !  ----------
+    !  self: comm_tod object
+    !
+    implicit none
+    class(comm_tod),                       intent(in)       :: self
+    integer(i4b),                          intent(in)       :: scan
+    class(comm_scandata),                  intent(inout)    :: sd
+
+    return
+    
+  end subroutine apply_nonlin_corr_inst
+
+  
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
     !

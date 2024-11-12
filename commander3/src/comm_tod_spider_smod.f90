@@ -378,18 +378,18 @@ contains
         ! Prepare data
         if (sample_rel_bandpass) then
  !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+           call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
         else if (sample_abs_bandpass) then
-           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+           call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
         else
-           call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+           call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
         end if
         allocate(s_buf(sd%ntod,sd%ndet))
 
         ! Calling Simulation Routine
         if (self%enable_tod_simulations) then
            call simulate_tod(self, i, sd%s_tot, sd%n_corr, handle)
-           call sd%dealloc
+           call dealloc_scandata(sd)
            cycle
         end if
 
@@ -658,7 +658,7 @@ contains
         end if
  
         ! Clean up
-        call sd%dealloc
+        call dealloc_scandata(sd)
         deallocate(s_buf, d_calib)
         deallocate(s_jump, jumps, tod_gapfill, jump_calib, test_array)
 

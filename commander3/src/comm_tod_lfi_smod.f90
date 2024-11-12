@@ -765,11 +765,11 @@ contains
        ! Prepare data
        if (sample_rel_bandpass) then
 !          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
        else
-          call sd%init_singlehorn(self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+          call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
        end if
 
        ! Make simulations, or draw correlated noise
@@ -834,7 +834,7 @@ contains
        end if
 
        ! Clean up
-       call sd%dealloc
+       call dealloc_scandata(sd)
        deallocate(d_calib)
 
     end do
@@ -1581,7 +1581,7 @@ contains
 
        ! Prepare data
        tod%apply_inst_corr = .false. ! Disable 1Hz correction for just this call
-       call sd%init_singlehorn(tod, i, map_sky, procmask, procmask2)
+       call init_scan_data_singlehorn(sd, tod, i, map_sky, procmask, procmask2)
        tod%apply_inst_corr = .true.  ! Enable 1Hz correction again
 
        call timer%start(TOD_1HZ, tod%band)
@@ -1638,7 +1638,7 @@ contains
 !!$       end if
 
        ! Clean up
-        call sd%dealloc
+        call dealloc_scandata(sd)
         deallocate(res)
         call timer%stop(TOD_1HZ, tod%band)
     end do

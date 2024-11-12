@@ -424,13 +424,13 @@ contains
 
          ! Prepare data
          if (sample_rel_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+            call init_scan_data_differential(sd, self, i, map_sky, procmask, procmask2, &
               & init_s_bp=.true., init_s_bp_prop=.true., polang=polang)
          else if (sample_abs_bandpass) then
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+            call init_scan_data_differential(sd, self, i, map_sky, procmask, procmask2, &
               & init_s_bp=.true., init_s_sky_prop=.true., polang=polang)
          else
-            call sd%init_differential(self, i, map_sky, procmask, procmask2, &
+            call init_scan_data_differential(sd, self, i, map_sky, procmask, procmask2, &
               & init_s_bp=.true., polang=polang)
          end if
          allocate(s_buf(sd%ntod,sd%ndet))
@@ -494,7 +494,7 @@ contains
          end if
 
          ! Clean up
-         call sd%dealloc
+         call dealloc_scandata(sd)
          deallocate(s_buf, d_calib)
 
       end do
