@@ -26,6 +26,7 @@ import numpy as np
 import math
 from astropy.io import fits
 from astropy import units as u
+from astropy import constants as c
 import healpy as hp
 import sys
 import random
@@ -53,6 +54,25 @@ IRAS_DATA_PATH = Path("/mn/stornext/d5/data/duncanwa/IRAS/sopobs_data")
 FSAMP = {'12':16, '25':16, '60':8, '100':4}
 
 BANDPASS = {12: 25e12*u.Hz, 25:12e12*u.Hz, 60:5e12*u.Hz, 100:3e12*u.Hz}
+
+# From fpainst.cat, Moshier et al. (1992) appendix.
+# Converts from Jy to W/m^2
+K_corr = {
+                      12 :  1.348e-13,
+                      25 :  5.155e-14,
+                      60 :  2.577e-14,
+                     100 :  1.000e-14
+                     }
+
+
+
+for i, freq in enumerate([12, 25, 60, 100]):
+    # These are determined as responses to "constant energy input"
+    data = np.loadtxt(f'/mn/stornext/d16/cmbco/ola/IRAS/data/band{i+1}_{freq}mu.tab')
+    wav  = data[:,0]
+    R_nu = data[:,3]
+    BANDPASS[freq] = np.array([wav, R_nu])
+
 
 gc = SkyCoord(l=0*u.degree, b=0*u.degree, frame='galactic')
 Omegas = {1: 14.5,
@@ -253,8 +273,8 @@ def make_chunk(comm_tod, freq, chunk, args):
             lat = lat[sorted_inds]
 
             tod = tod/(Omegas[det]*1e-7)
-            tod *= u.W/u.m**2/u.sr
-            tod /= BANDPASS[freq]
+            tod /= K_corr[freq]
+            tod *= u.Jy/u.sr
             tod = tod.to('MJy/sr').value
 
             
