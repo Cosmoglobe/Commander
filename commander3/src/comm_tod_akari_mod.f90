@@ -109,7 +109,11 @@ contains
       c%samprate_lowres = 8.  ! Lowres samprate in Hz
       c%nhorn           = 1
       c%ndiode          = 1
-      c%compressed_tod  = .true.
+      if (trim(c%level) == 'L1') then
+          c%compressed_tod  = .true.
+      else
+          c%compressed_tod  = .false.
+      end if
       c%correct_sl      = .false.
       c%correct_orb     = .false.
       c%orb_4pi_beam    = .false.
