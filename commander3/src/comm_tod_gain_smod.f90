@@ -393,8 +393,6 @@ contains
 
     ndet = tod%ndet
     ntod = size(s_sub,1)
-!    p = 5000 ! Buffer width
-!    q = size(mask)-p
     call tod%downsample_tod(s_sub(:,1), ext)    
     allocate(residual(ext(1):ext(2),ndet), r_fill(size(s_sub,1)))
     do j = 1, ndet
@@ -421,23 +419,14 @@ contains
 
        if (dA == 0.) then
           tod%scans(scan)%d(j)%accept = .false.
-          write(*,*) '| Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan), j
-!       else if (abs(db/sqrt(dA)) > 1000. .or. 1/sqrt(dA) < 1d-6) then
-!          tod%scans(scan)%d(j)%accept = .false.
-!          write(*,*) '| Rejecting scan in abs gain due to dubious uncertainty: ', tod%scanid(scan), j, db/dA, 1/sqrt(dA)
+          if (j == 1) then
+            write(*,*) '| Rejecting scan in gain due to no unmasked samples: ', tod%scanid(scan)
+          end if
        else 
           A_abs(j) = A_abs(j) + dA
           b_abs(j) = b_abs(j) + db
-          !write(*,*) scan, j, db/dA
        end if
 
-       !if (tod%scanid(scan) == 30 .and. out) then
-!       if (out .and. dA > 0.d0) then
-!          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # abs', j
-!         !write(*,*) tod%scanid(scan), sum(abs(s_invN(:,j))), sum(abs(residual(:,j))), sum(abs(s_ref(:,j))), '  # absK', j
-!       else if (dA > 0.d0) then
-!          write(*,*) tod%scanid(scan), real(db/dA,sp), real(1/sqrt(dA),sp), '  # rel', j, tod%gain0(0), tod%scans(scan)%d(j)%gain
-!       end if
     end do
 
     deallocate(residual, r_fill)

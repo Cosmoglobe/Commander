@@ -353,9 +353,6 @@ program commander
 !!$      do i = 1, zodi_model%n_comps
 !!$         write(*,*) 'n0', zodi_model%comps(i)%c%n_0
 !!$      end do
-!!$      do i = 1, numband
-!!$         write(*,*) 'emissivity', data(i)%tod%zodi_emissivity, data(i)%tod%zodi_albedo
-!!$      end do
       
       call compute_downsamp_zodi(cpar, zodi_model)      
       if (first_zodi) then

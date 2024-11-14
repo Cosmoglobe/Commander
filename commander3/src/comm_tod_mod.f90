@@ -230,11 +230,9 @@ module comm_tod_mod
 
      ! Zodi parameters and spline objects
      integer(i4b) :: zodi_n_comps
-   !   real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cached s_zodi array for a given processor
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache, zodi_therm_cache ! Cache for zodi
      real(sp), allocatable, dimension(:, :, :) :: zodi_scat_cache_lowres, zodi_therm_cache_lowres ! Cache for lowresolution zodi (used for sampling)
      real(dp)                                  :: zodi_cache_time, zodi_init_cache_time! Time of cached zodi array
-     !real(dp), allocatable, dimension(:)       :: zodi_emissivity, zodi_albedo ! sampled parameters
      real(dp), allocatable, dimension(:, :)    :: zodi_spl_phase_coeffs
      real(dp), allocatable, dimension(:)       :: zodi_spl_solar_irradiance, zodi_phase_func_normalization
      type(spline_type), allocatable            :: zodi_b_nu_spl_obj(:)
@@ -2877,7 +2875,7 @@ contains
 
       do i = 2, size(time)
          if (.not. time(i) > time(i - 1)) then
-          write(*,*)  "precomputed MJD time array must be strictly increasing", time(i-1), time(i), i
+          write(*,*)  "precomputed MJD time array must be strictly increasing", time(i-1), time(i), i, self%scanid(i)
           stop
         end if
       end do

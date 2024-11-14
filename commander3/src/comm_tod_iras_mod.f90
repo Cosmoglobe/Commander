@@ -254,16 +254,8 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-!!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
-!!$        & trim(self%freq) == '03' .or. &
-!!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
-      if (trim(self%freq(1:2)) == '10') then
-         sample_ncorr = .true.
-      else
-         sample_ncorr = .false.
-      end if
+      sample_gain           = .true.                         ! Gain sampling
+      sample_ncorr = .false.
          
       ! Initialize local variables
       ndelta          = size(delta,3)
@@ -321,7 +313,7 @@ contains
          ! 'abscal': the global constant gain factor
          call sample_calibration(self, 'abscal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'relcal': the gain factor that is constant in time but varying between detectors
-         call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
+         !call sample_calibration(self, 'relcal', handle, map_sky, m_gain, procmask, procmask2)
          ! 'deltaG': the time-variable and detector-variable gain
          !call sample_calibration(self, 'deltaG', handle, map_sky, m_gain, procmask, procmask2)
       end if
@@ -348,7 +340,7 @@ contains
 
          sd%n_corr = 0d0
 
-         if (.false. self%myid == 0 .and. i == 1) then
+         if (.false. .and. self%myid == 0 .and. i == 1) then
             open(58,file='tod.dat', recl=1024)
             do j = 1, sd%ntod
                write(58,*) j, sd%tod(j,1), sd%mask(j,1), sd%flag(j,1), sd%n_corr(j,1), sd%s_tot(j,1), sd%s_sky(j,1), sd%s_bp(j,1)
