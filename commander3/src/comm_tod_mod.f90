@@ -691,8 +691,6 @@ contains
        !TODO: figure out how to make this work
        call read_hdf_string2(file, "/common/det", det_buf, n)
        !call read_hdf(file, "/common/det",    det_buf)
-       !write(det_buf, *) "27M, 27S, 28M, 28S"
-       !write(det_buf, *) "18M, 18S, 19M, 19S, 20M, 20S, 21M, 21S, 22M, 22S, 23M, 23S"
        if (index(det_buf(1:n), '.txt') /= 0) then
          ndet_tot = count_detectors(det_buf(1:n))
        else
@@ -713,10 +711,6 @@ contains
 
       
 
-!!$       do i = 1, ndet_tot
-!!$          write(*,*) i, trim(adjustl(dets(i)))
-!!$       end do
-       !write(*,*) ndet_tot
        call read_hdf(file, "common/nside",  self%nside)
        if(self%nside /= self%nside_param) then
          write(*,*) "Nside=", self%nside_param, "found in parameter file does not match nside=", self%nside, "found in data files"

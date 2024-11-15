@@ -254,7 +254,7 @@ contains
       sample_abs_bandpass   = .false.                         ! don't sample absolute bandpasses
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
-      sample_gain           = .true.                         ! Gain sampling
+      sample_gain           = .false.                         ! Gain sampling
       sample_ncorr = .false.
          
       ! Initialize local variables

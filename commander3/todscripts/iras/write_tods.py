@@ -64,6 +64,13 @@ K_corr = {
                      100 :  1.000e-14
                      }
 
+inv_gain = {
+                      12 :  1,
+                      25 :  1,
+                      60 :  1,
+                     100 :  0.6
+                     }
+
 
 
 for i, freq in enumerate([12, 25, 60, 100]):
@@ -274,6 +281,7 @@ def make_chunk(comm_tod, freq, chunk, args):
 
             tod = tod/(Omegas[det]*1e-7)
             tod /= K_corr[freq]
+            tod *= inv_gain[freq]
             tod *= u.Jy/u.sr
             tod = tod.to('MJy/sr').value
 
