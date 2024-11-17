@@ -251,6 +251,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_prior_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
+     character(len=512), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
@@ -815,7 +816,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
-    allocate(cpar%cs_SED_prior(n))
+    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -2637,6 +2638,8 @@ contains
     if (trim(cpar%cs_type(i)) == 'MBBtab') then
        call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_MBBTAB_TYPE'//itext, len_itext=len_itext,  &
+            & par_string=cpar%cs_MBBtab_type(i))
        call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_SED_prior(i))
     end if

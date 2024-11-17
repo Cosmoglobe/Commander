@@ -413,15 +413,17 @@ contains
                  write(*,*) '| MBBtab original'
                  do i = 1, c%ntab
                    if (c%theta_steplen(c%npar+i,l) > 0) then
-                     write(*,*) '|         ', c%SEDtab(3,i)
+                     write(*,*) '|         ', c%SEDtab(3:,i)
                    end if
                  end do
                  write(*,*) '| MBBtab proposal'
                  do i = 1, c%ntab
-                   if (c%theta_steplen(c%npar+i,l) > 0) then
-                     c%SEDtab(3,i) = c%SEDtab(3,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
-                     write(*,*) '|         ',  c%SEDtab(3,i)
-                   end if
+                    if (c%theta_steplen(c%npar+i,l) > 0) then
+                       do j = 3, size(c%SEDtab(:,i))
+                          c%SEDtab(j,i) = c%SEDtab(j,i) + rand_gauss(handle) * c%theta_steplen(c%npar+i,l)
+                       end do
+                       write(*,*) '|         ',  c%SEDtab(3:,i)
+                    end if
                  end do
                end if
 
@@ -481,7 +483,7 @@ contains
               if (maxval(c%theta_steplen(c%npar+1:,l)) > 0) then
                  if (cpar%myid_chain .eq. 0) then
                    do i = 1, c%ntab
-                      c%SEDtab(3,i) = c%SEDtab_buff(3,i)
+                      c%SEDtab(3:,i) = c%SEDtab_buff(3:,i)
                    end do
                  end if
 
@@ -765,7 +767,7 @@ contains
     class(comm_map), pointer :: indmask, mask_ud
 
 
-    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, n_tokens, n_in_group, ierr, num_gains
+    integer(i4b) :: i, j, k, nside, lmax, nmaps, n, m, npar, n_tokens, n_in_group, ierr, num_gains
     integer(i4b) :: wire_to_ind, wire_from_ind
     integer(i4b), allocatable, dimension(:,:)  :: bands_to_sample
     real(dp) :: sigma
