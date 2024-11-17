@@ -422,19 +422,21 @@ contains
                call open_hdf_file(trim(chaindir)//'/res_'//trim(self%label(1))//scantext//'.h5', tod_file, 'w')
                call write_hdf(tod_file, '/tod', sd%tod)
                call write_hdf(tod_file, '/pix', sd%pix(:,:,1))
+               call write_hdf(tod_file, '/pix_sol', self%scans(i)%d(1)%pix_sol)
                call write_hdf(tod_file, '/todz', d_calib(1, :, :))
                call write_hdf(tod_file, '/s_sky', sd%s_sky)
-               call write_hdf(tod_file, '/n_corr', sd%n_corr)
-               call write_hdf(tod_file, '/s_sl', sd%s_sl)
-               call write_hdf(tod_file, '/s_orb', sd%s_orb)
+               !call write_hdf(tod_file, '/n_corr', sd%n_corr)
+               !call write_hdf(tod_file, '/s_sl', sd%s_sl)
+               !call write_hdf(tod_file, '/s_orb', sd%s_orb)
                call write_hdf(tod_file, '/res', d_calib(2, :, :))
                call write_hdf(tod_file, '/zodi', d_calib(7, :, :))
                call write_hdf(tod_file, '/mask', sd%mask)
+               call write_hdf(tod_file, '/flag', sd%flag)
                call write_hdf(tod_file, '/sigma0', self%scans(i)%d(1)%N_psd%sigma0)
-               do k = 1, size(sd%s_zodi_therm, dim=2)
-                  call int2string(k, scantext)
-                  call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
-               end do
+               !do k = 1, size(sd%s_zodi_therm, dim=2)
+               !   call int2string(k, scantext)
+               !   call write_hdf(tod_file , '/zodi'//scantext, d_calib(8 + k, :, :))
+               !end do
                call close_hdf_file(tod_file)
             end if
          end if
