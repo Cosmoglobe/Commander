@@ -39,8 +39,7 @@ import zodipy
 
 # zodi_model = zodipy.Zodipy(extrapolate=True)
 # Path objects
-DIRBE_DATA_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
-HDF5_PATH = Path("/mn/stornext/d16/cmbco/bp/gustavbe/master/dirbe_hdf5_files/")
+DIRBE_DATA_PATH = Path("/mn/stornext/d5//data/duncanwa/DIRBE/hdf_files/")
 BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 CIO_PATH = Path("/mn/stornext/d16/cmbco/ola/dirbe/cio")
 
@@ -93,6 +92,11 @@ FLAG_BITS: dict[str, int] = {
     "space_craft_descending": 24,
     "leading_los": 25,
     "trailing_los": 26,
+        '73P/Schwassmann–Wachmann 3':27,
+        'C/1989 Q1':28,
+        'C/1989 T1':29,
+        'C/1989 X1':30,
+        'C/1990 K1':31,
 }
 
 
@@ -143,12 +147,14 @@ def get_yday_data(
     files: range, nside_out: int, planet_time_delta: timedelta, color_corr: bool
 ) -> list[YdayData]:
     planet_interps = dirbe_utils.get_planet_interps(planet_time_delta)
+    comet_interps, asteroid_interps = dirbe_utils.get_smallbody_interps(planet_time_delta)
 
     with multiprocessing.Pool(processes=N_PROC) as pool:
         proc_chunks = [
             pool.apply_async(
                 get_yday_cio_data,
-                args=(file_number, nside_out, planet_interps, color_corr),
+                args=(file_number, nside_out, planet_interps, comet_interps,
+                    asteroid_interps, color_corr),
             )
             for file_number in files
         ]
@@ -159,6 +165,8 @@ def get_yday_cio_data(
     file_number: int,
     nside_out: int,
     planet_interps: dict[str, dict[str, interp1d]],
+    comet_interps: dict[str, dict[str, interp1d]],
+    asteroid_interps: dict[str, dict[str, interp1d]],
     color_corr: bool,
 ) -> YdayData:
     """Function which extracts and reorders the CIO data from one day CIO file."""
@@ -292,8 +300,29 @@ def get_yday_cio_data(
                 lonlat=True,
             )
 
-            planet_indices = ang_dist <= np.deg2rad(radius)
+            if (body == 'moon') & ((band == 4) | (band == 5)):
+                r = 15
+            else:
+                r = radius
+            planet_indices = ang_dist <= np.deg2rad(r)
             flag[planet_indices] += 2 ** FLAG_BITS[body]
+
+
+        # Get planet flags
+        for body, radius in dirbe_utils.COMET_RADII.items():
+            comet_lon = comet_interps[body]["lon"](time)
+            comet_lat = comet_interps[body]["lat"](time)
+            comet_dist = comet_interps[body]["lon"](time)
+            if comet_dist.min() < 2:
+
+                ang_dist = hp.rotator.angdist(
+                    np.array([lon, lat]),
+                    np.array([comet_lon, comet_lat]),
+                    lonlat=True,
+                )
+
+                comet_indices = ang_dist <= np.deg2rad(radius)
+                flag[comet_indices] += 2 ** FLAG_BITS[body]
 
         # Find which flags correspond to the detector and get the inds of those flags
         xs_noise_inds = (xs_noise_flags & band_bit) > 0
@@ -508,11 +537,11 @@ def write_to_commander_tods(
 def main() -> None:
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
-    nside_out = 256
+    nside_out = 512
 
     start_time = time.perf_counter()
     color_corr = True
-    version = 18
+    version = 21
 
     print(f"{'Writing DIRBE h5 files':=^50}")
     print(f"{version=}, {nside_out=}")
