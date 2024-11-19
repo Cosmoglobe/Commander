@@ -77,26 +77,26 @@ FLAG_BITS: dict[str, int] = {
     "saturn": 10,
     "uranus": 11,
     "neptune": 12,
+    '73P/Schwassmann–Wachmann 3':13,
+    'C/1989 Q1':14,
+    'C/1989 T1':15,
+    'C/1989 X1':16,
+    'C/1990 K1':17,
     # Orbit and attitude flag (each observation has either of each pair turned on)
-    "non_definitive_attitude": 13,
-    "definite_attitude": 14,
-    "course_attitude": 15,
-    "fine_attitude": 16,
-    "merged_attitude": 17,
-    "external_uax_attitude": 18,
-    "space_craft_slewing": 19,
-    "space_craft_not_slewing": 20,
-    "special_pointing": 21,
-    "normal_pointing": 22,
-    "space_craft_ascending": 23,
-    "space_craft_descending": 24,
-    "leading_los": 25,
-    "trailing_los": 26,
-        '73P/Schwassmann–Wachmann 3':27,
-        'C/1989 Q1':28,
-        'C/1989 T1':29,
-        'C/1989 X1':30,
-        'C/1990 K1':31,
+    "non_definitive_attitude": 18,
+    "definite_attitude": 19,
+    "course_attitude": 20,
+    "fine_attitude": 21,
+    "merged_attitude": 22,
+    "external_uax_attitude": 23,
+    "space_craft_slewing": 24,
+    "space_craft_not_slewing": 25,
+    "special_pointing": 26,
+    "normal_pointing": 27,
+    #"space_craft_ascending": 28,
+    #"space_craft_descending": 29,
+    #"leading_los": 25,
+    #"trailing_los": 26,
 }
 
 
@@ -308,21 +308,25 @@ def get_yday_cio_data(
             flag[planet_indices] += 2 ** FLAG_BITS[body]
 
 
-        # Get planet flags
+        # Get comet flags
         for body, radius in dirbe_utils.COMET_RADII.items():
             comet_lon = comet_interps[body]["lon"](time)
             comet_lat = comet_interps[body]["lat"](time)
-            comet_dist = comet_interps[body]["lon"](time)
+            comet_dist = comet_interps[body]["dist"](time)
             if comet_dist.min() < 2:
+                r = radius
+            else:
+                r = 1
 
-                ang_dist = hp.rotator.angdist(
-                    np.array([lon, lat]),
-                    np.array([comet_lon, comet_lat]),
-                    lonlat=True,
-                )
 
-                comet_indices = ang_dist <= np.deg2rad(radius)
-                flag[comet_indices] += 2 ** FLAG_BITS[body]
+            ang_dist = hp.rotator.angdist(
+                np.array([lon, lat]),
+                np.array([comet_lon, comet_lat]),
+                lonlat=True,
+            )
+
+            comet_indices = ang_dist <= np.deg2rad(r)
+            flag[comet_indices] += 2 ** FLAG_BITS[body]
 
         # Find which flags correspond to the detector and get the inds of those flags
         xs_noise_inds = (xs_noise_flags & band_bit) > 0
