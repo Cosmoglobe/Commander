@@ -29,7 +29,8 @@ module comm_MBBtab_comp_mod
   !      Modified Black Body (MBBtab) component
   !**************************************************
   type, extends (comm_diffuse_comp) :: comm_MBBtab_comp
-     !integer(i4b) :: ntab
+     character(len=128) :: mbbtab_type
+     integer(i4b) :: npar_tab
      !real(dp), allocatable, dimension(:,:) :: SEDtab
      !real(dp), allocatable, dimension(:,:) :: SEDtab_buff
    contains
@@ -75,6 +76,17 @@ contains
 
     call c%initDiffuse(cpar, id, id_abs)
 
+    ! Set up MBBtab type
+    c%mbbtab_type  = cpar%cs_mbbtab_type(id_abs)
+    if (trim(c%mbbtab_type) == 'binned') then
+       c%npar_tab = 1
+    else if (trim(c%mbbtab_type) == 'linear') then
+       c%npar_tab = 2
+    else
+       write(*,*) 'Error: Unknown MBBtab type =', trim(c%mbbtab_type)
+       stop
+    end if
+    
     ! Component specific parameters
     allocate(c%theta_def(2), c%p_gauss(2,2), c%p_uni(2,2))
     allocate(c%indlabel(2))
@@ -165,7 +177,12 @@ contains
     do i = 1, self%ntab
        if (nu > self%SEDtab(1,i) .and. nu <= self%SEDtab(2,i)) then
           ! Table defined in flux density
-          evalSED_mbbtab = self%SEDtab(3,i) * (self%nu_ref(pol)/nu)**2
+          if (trim(self%mbbtab_type) == 'binned') then
+             evalSED_mbbtab = self%SEDtab(3,i)
+          else if (trim(self%mbbtab_type) == 'linear') then
+             evalSED_mbbtab = self%SEDtab(3,i) + self%SEDtab(4,i) * (nu-self%SEDtab(1,i))/(self%SEDtab(2,i)-self%SEDtab(1,i))
+          end if
+          evalSED_mbbtab = evalSED_mbbtab * (self%nu_ref(pol)/nu)**2
           return
        end if
     end do
@@ -205,8 +222,8 @@ contains
     end do
 1   close(unit)
 
-    allocate(self%SEDtab(3,self%ntab))
-    allocate(self%SEDtab_buff(3,self%ntab))
+    allocate(self%SEDtab(2+self%npar_tab,self%ntab))
+    allocate(self%SEDtab_buff(2+self%npar_tab,self%ntab))
     open(unit, file=trim(filename))
     i = 0
     do while (.true.)
