@@ -164,7 +164,11 @@ class commander_tod:
                     dictNum = compArr[1]['dictNum']
                     if dictNum not in self.huffDict.keys():
                         self.huffDict[dictNum] = {}
-                    delta = np.diff(data)
+
+                    if(issubclass(data.dtype.type, np.integer)):
+                        delta = np.diff(data).astype(np.int64)
+                    else: #float data 
+                        delta = np.diff(data)
                     delta = np.insert(delta, 0, data[0])
                     self.huffDict[dictNum][fieldName] = delta
                     #print("adding " + fieldName + " to dict, contents ", delta[delta != 0], data[data != 0])

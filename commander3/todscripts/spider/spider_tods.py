@@ -139,7 +139,7 @@ def make_chunk(comm_tod, freq, chunk, args):
     # even though each file only has one chunk for spider
     prefix = str(chunk).zfill(6) + '/common'
 
-    comm_tod.add_field(prefix + '/satpos', [0,0])
+    comm_tod.add_field(prefix + '/satpos', [0,0,0])
     #harald had numbers here for vsun, I'm not sure where they would get used 
     #or where he got them from
     comm_tod.add_field(prefix + '/vsun', [0,0,0])
@@ -148,15 +148,8 @@ def make_chunk(comm_tod, freq, chunk, args):
     comm_tod.add_field(prefix + '/time', time[0])
 
     #ntod 
-    nsamps = U.get_sample_count(**chunkdict) / args.downsample
+    nsamps = int(U.get_sample_count(**chunkdict) / args.downsample)
     comm_tod.add_field(prefix + '/ntod', nsamps)   
-
-    # get telescope boreshight quaternion
-    bore_quats, pflag = Um.get_bore_quat('point07', return_flag=True, hack_bore_sign=True, **chunkdict)
-
-    offsets = Um.get_offset_quat(args.dets[freq]) 
-
-    r = hp.Rotator(coord=['E', 'G'])
 
     if args.no_compress:
         compArray = []
@@ -166,12 +159,39 @@ def make_chunk(comm_tod, freq, chunk, args):
         psiArray = [spider.psiDigitize, spider.huffman]
 
 
-    for det, offset in zip(args.dets[freq], offsets):
-
-        print(det)
-
+    for det in args.dets[freq]:
 
         prefix = str(chunk).zfill(6) + '/' + det
+        
+        # pix and psi
+        try:
+            lon, lat, psi= Um.get_det_coords(det, coord='G', **chunkdict)
+        except ValueError as e:
+            print('Value error in ', freq, chunk, det)
+            # add fake, completely flagged data to fill the chunk
+            fake_data = np.ones(nsamps)
+            comm_tod.add_field(prefix + '/pix', fake_data, compArray)
+            comm_tod.add_field(prefix + '/psi', fake_data, compArray)
+            comm_tod.add_field(prefix + '/tod', fake_data)
+            comm_tod.add_field(prefix + '/flag', np.uint64(fake_data*2**63), compArray)
+            comm_tod.add_field(prefix + '/scalars', [0,0,0,0])
+
+            continue
+
+
+        #psi_dec = sig.decimate(psi, args.downsample)
+        psi_dec = psi[::args.downsample]
+        comm_tod.add_field(prefix + '/psi', psi_dec, psiArray)
+
+        #lat_down = sig.decimate(lat_gal, args.downsample)
+        #lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
+        lat_down = lat[::args.downsample]
+        lon_down = lon[::args.downsample]
+
+        pix = hp.ang2pix(spider.nside, lon_down, lat_down, lonlat=True)
+        comm_tod.add_field(prefix + '/pix', pix, compArray)
+
+
         #TOD
         #tod = sig.decimate(U.getdata(det, product='dcclean08', **chunkdict), args.downsample)
         tod = U.getdata(det, product='dcclean08', **chunkdict)
@@ -183,31 +203,12 @@ def make_chunk(comm_tod, freq, chunk, args):
 
         comm_tod.add_field(prefix + '/tod', tod)
 
-        # pix and psi
-        pix, psi= Um.bore2pix(offset, None, bore_quats, return_pa=True, **chunkdict)
-
-        #psi_dec = sig.decimate(psi, args.downsample)
-        psi_dec = psi[::args.downsample]
-        comm_tod.add_field(prefix + '/psi', psi_dec, psiArray)
-
-        lon, lat = hp.pix2ang(spider.nside, pix, lonlat=True)
-
-        lon_gal, lat_gal = r([lon, lat])
-
-        #lat_down = sig.decimate(lat_gal, args.downsample)
-        #lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
-        lat_down = lat_gal[::args.downsample]
-        lon_down = lon_gal[::args.downsample]
-
-        pix = hp.ang2pix(spider.nside, lon_down, lat_down, lonlat=True) 
-        comm_tod.add_field(prefix + '/pix', pix, compArray)
-
         # flag
         flag = U.getdata(det, product='flag_comb08', **chunkdict)
         flag_extra = U.getdata(det, product='flag_extra02', **chunkdict)        
-        flag_stepstictch = U.getdata(det + '_flag', product='stepstitch07', **chunkdict)
+        flag_stepstitch = U.getdata(det + '_flag', product='stepstitch07', **chunkdict)
         
-        flag_tot = np.uint64(flag + 2**32*flag_extra)#+ 2**30*flag_stepstitch)
+        flag_tot = np.uint64(flag + 2**32*flag_extra+ 2**30*flag_stepstitch)
                
  
         #downsample flag by taking bitwise or of each n entries
