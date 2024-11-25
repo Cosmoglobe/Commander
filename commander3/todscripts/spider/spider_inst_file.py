@@ -63,6 +63,8 @@ def main():
 
             inst_file.add_field(det + '/centFreq', data=freq)
 
+            inst_file.add_field(det + '/fwhm', data=spider.fwhm[freq])
+
             #beam parameters spider doesn't use
             inst_file.add_field(det +'/elip', data=0)
             inst_file.add_field(det + '/mbeam_eff', data=1)

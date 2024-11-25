@@ -28,6 +28,8 @@ class spider(object):
     freqs = [90, 150]
     nside = 512
     npsi = 4096
+    fwhm = {90:41.4, 150:28.8} #in arcminutes
+
 
     huffman = ['huffman', {'dictNum':1}]
     psiDigitize = ['digitize', {'min':0, 'max':2*np.pi,'nbins':npsi, 'offset':1}] # Will give values from 1 to npsi, inclusive.
