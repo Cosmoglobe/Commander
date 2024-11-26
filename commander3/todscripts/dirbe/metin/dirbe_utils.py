@@ -95,6 +95,9 @@ PLANET_RADII = {
     "neptune": 1,
 }
 
+# Note that Ceres, Pallas, and Vesta were flagged in the original analysis, all
+# other asteroids were discovered later on. All comets except C/1989 T1 were
+# discovered by Lisse
 COMET_RADII = {
         '73P/Schwassmann–Wachmann 3':2,
         'C/1989 Q1':2,
@@ -162,7 +165,7 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
     astropy_times = Time(times, format="datetime", scale="utc")
     interpolaters_comet = {}
     interpolaters_asteroids = {}
-    rotator = hp.Rotator(coord=["E", "G"])
+    rotator = hp.Rotator(coord=["C", "G"])
     with solar_system_ephemeris.set('de432s'):
         for c in COMET_RADII:
             interpolaters_comet[c] = {}
@@ -175,7 +178,6 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
                         number=len(astropy_times_i), step='1h')
                 lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
                 dist = eph['r']
-                interpolaters_comet[c]['lon'] = interp1d(astropy_times_i.mjd, lon)
                 lons += lon.tolist()
                 lats += lat.tolist()
                 dists += dist.tolist()
