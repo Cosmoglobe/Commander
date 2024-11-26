@@ -158,47 +158,49 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
     times = np.arange(datetime(1989, 6, 1), datetime(1991, 1, 1), time_delta).astype(
         datetime
     )
+
     astropy_times = Time(times, format="datetime", scale="utc")
     interpolaters_comet = {}
     interpolaters_asteroids = {}
     rotator = hp.Rotator(coord=["E", "G"])
-    for c in COMET_RADII:
-        interpolaters_comet[c] = {}
-        lons = []
-        lats = []
-        dists = []
-        for i in range(len(astropy_times)//1441+1):
-            astropy_times_i = astropy_times[i*1441:(i+1)*1441]
-            eph = MPC.get_ephemeris(c, start=astropy_times_i[0],
-                    number=len(astropy_times_i), step='1h')
-            lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
-            dist = eph['r']
-            interpolaters_comet[c]['lon'] = interp1d(astropy_times_i.mjd, lon)
-            lons += lon.tolist()
-            lats += lat.tolist()
-            dists += dist.tolist()
-        lons = np.array(lons)
-        lats = np.array(lats)
-        dists = np.array(dists)
-        interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
-        interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
-        interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)
+    with solar_system_ephemeris.set('de432s'):
+        for c in COMET_RADII:
+            interpolaters_comet[c] = {}
+            lons = []
+            lats = []
+            dists = []
+            for i in range(len(astropy_times)//1441+1):
+                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
+                eph = MPC.get_ephemeris(c, start=astropy_times_i[0],
+                        number=len(astropy_times_i), step='1h')
+                lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
+                dist = eph['r']
+                interpolaters_comet[c]['lon'] = interp1d(astropy_times_i.mjd, lon)
+                lons += lon.tolist()
+                lats += lat.tolist()
+                dists += dist.tolist()
+            lons = np.array(lons)
+            lats = np.array(lats)
+            dists = np.array(dists)
+            interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
+            interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
+            interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)
 
-    for a in ASTEROID_RADII:
-        interpolaters_asteroids[a] = {}
-        lons = []
-        lats = []
-        for i in range(len(astropy_times)//1441+1):
-            astropy_times_i = astropy_times[i*1441:(i+1)*1441]
-            eph = MPC.get_ephemeris(a, start=astropy_times_i[0],
-                    number=len(astropy_times_i), step='1h')
-            lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
-            lons += lon.tolist()
-            lats += lat.tolist()
-        lons = np.array(lons)
-        latss = np.array(lats)
-        interpolaters_asteroids[a]['lon'] = interp1d(astropy_times.mjd, lons)
-        interpolaters_asteroids[a]['lat'] = interp1d(astropy_times.mjd, lats)
+        for a in ASTEROID_RADII:
+            interpolaters_asteroids[a] = {}
+            lons = []
+            lats = []
+            for i in range(len(astropy_times)//1441+1):
+                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
+                eph = MPC.get_ephemeris(a, start=astropy_times_i[0],
+                        number=len(astropy_times_i), step='1h')
+                lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
+                lons += lon.tolist()
+                lats += lat.tolist()
+            lons = np.array(lons)
+            latss = np.array(lats)
+            interpolaters_asteroids[a]['lon'] = interp1d(astropy_times.mjd, lons)
+            interpolaters_asteroids[a]['lat'] = interp1d(astropy_times.mjd, lats)
     return interpolaters_comet, interpolaters_asteroids
 
 @cache
