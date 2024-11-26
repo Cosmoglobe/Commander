@@ -926,12 +926,13 @@ contains
     !    i.e., residual
     !  d_calib(3,:,:) - correlated noise, mean subtracted, in temperature
     !    units
-    !  d_calib(4,:,:) - bandpass difference contribution
-    !  d_calib(5,:,:) - orbital dipole
-    !  d_calib(6,:,:) - sidelobe
-    !  d_calib(7,:,:) - zodiacal light emission
-    !  d_calib(8,:,:) - instrument correction
-    !  d_calib(9 - 9 + n_zodi_comps,:,:) - zodiacal light components
+    !  d_calib(4,:,:) - second moment of time variation
+    !  d_calib(5,:,:) - bandpass difference contribution
+    !  d_calib(6,:,:) - orbital dipole
+    !  d_calib(7,:,:) - sidelobe
+    !  d_calib(8,:,:) - zodiacal light emission
+    !  d_calib(9,:,:) - instrument correction
+    !  d_calib(10 - 10 + n_zodi_comps,:,:) - zodiacal light components
     implicit none
     class(comm_tod),                       intent(in)   :: tod
     integer(i4b),                          intent(in)   :: scan
@@ -958,15 +959,16 @@ contains
        if (tod%output_n_maps > 1) d_calib(2,:,j) = d_calib(1,:,j) - sd%s_sky(:,j) + sd%s_bp(:,j)              ! residual
        if (tod%output_n_maps > 2) d_calib(3,:,j) = sd%n_corr(:,j) * inv_gain  ! ncorr
        !if (tod%output_n_maps > 2) d_calib(3,:,j) = (sd%n_corr(:,j) - sum(real(sd%n_corr(:,j),dp)/sd%ntod)) * inv_gain  ! ncorr
-       if (tod%output_n_maps > 3) d_calib(4,:,j) = sd%s_bp(:,j)                                               ! bandpass
-       if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
-       if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_sl(:,j)          
-       if ((tod%output_n_maps > 6) .and. allocated(sd%s_zodi)) d_calib(7,:,j) = sd%s_zodi(:,j) ! zodi
-       if ((tod%output_n_maps > 7) .and. allocated(sd%s_inst)) d_calib(8,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
-       if ((tod%output_n_maps > 8) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
+       if (tod%output_n_maps > 3) d_calib(4,:,j) = d_calib(1,:,j)**2  ! time variability
+       if (tod%output_n_maps > 4) d_calib(5,:,j) = sd%s_bp(:,j)                                               ! bandpass
+       if (tod%output_n_maps > 5) d_calib(6,:,j) = sd%s_orb(:,j)                                              ! orbital dipole
+       if (tod%output_n_maps > 6) d_calib(7,:,j) = sd%s_sl(:,j)          
+       if ((tod%output_n_maps > 7) .and. allocated(sd%s_zodi)) d_calib(8,:,j) = sd%s_zodi(:,j) ! zodi
+       if ((tod%output_n_maps > 8) .and. allocated(sd%s_inst)) d_calib(9,:,j) = (sd%s_inst(:,j) - sum(real(sd%s_inst(:,j),dp)/sd%ntod)) * inv_gain  ! instrument specific
+       if ((tod%output_n_maps > 9) .and. allocated(sd%s_zodi_scat) .and. allocated(sd%s_zodi_therm)) then
           do i = 1, size(sd%s_zodi_therm, dim=2)
              !write(*,*) 'b',j,i,  tod%scanid(scan), any(sd%s_zodi_scat(:,i:i,j)/=sd%s_zodi_scat(:,i:i,j)), any(sd%s_zodi_therm(:,i:i,j)/=sd%s_zodi_therm(:,i:i,j))
-             call get_s_zodi(tod%id, sd%s_zodi_therm(:, i:i, j), sd%s_zodi_scat(:, i:i, j), d_calib(8 + i, :, j), comp_id=i)
+             call get_s_zodi(tod%id, sd%s_zodi_therm(:, i:i, j), sd%s_zodi_scat(:, i:i, j), d_calib(9 + i, :, j), comp_id=i)
          end do
        end if
       !  Bandpass proposals

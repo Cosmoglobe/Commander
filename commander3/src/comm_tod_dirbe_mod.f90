@@ -296,7 +296,7 @@ contains
       nside           = map_out%info%nside
       nmaps           = map_out%info%nmaps
       npix            = 12*nside**2
-      self%output_n_maps = 8
+      self%output_n_maps = 9
       if (output_zodi_comps) self%output_n_maps = self%output_n_maps + zodi_model%n_comps
 
       call int2string(chain, ctext)
@@ -502,10 +502,15 @@ contains
          call rms_out%writeFITS(trim(prefix)//'rms'//trim(postfix))
          if (self%output_n_maps > 1) call binmap%outmaps(2)%p%writeFITS(trim(prefix)//'res'//trim(postfix))
          if (self%output_n_maps > 2) call binmap%outmaps(3)%p%writeFITS(trim(prefix)//'ncorr'//trim(postfix))
-         if (self%output_n_maps > 6 .and. self%subtract_zodi) call binmap%outmaps(7)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
-         if (self%output_n_maps > 8 .and. self%subtract_zodi .and. output_zodi_comps) then
+         if (self%output_n_maps > 3) then
+           map_out%map = binmap%outmaps(4)%p%map - binmap%outmaps(1)%p%map**2
+           call map_out%writeFITS(trim(prefix)//'timevar'//trim(postfix))
+           map_out%map = binmap%outmaps(1)%p%map
+         end if
+         if (self%output_n_maps > 7 .and. self%subtract_zodi) call binmap%outmaps(8)%p%writeFITS(trim(prefix)//'zodi'//trim(postfix))
+         if (self%output_n_maps > 9 .and. self%subtract_zodi .and. output_zodi_comps) then
             do i = 1, zodi_model%n_comps
-               call binmap%outmaps(8+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
+               call binmap%outmaps(9+i)%p%writeFITS(trim(prefix)//'zodi_'//trim(zodi_model%comp_labels(i))//trim(postfix))
             end do
          endif
       end if
