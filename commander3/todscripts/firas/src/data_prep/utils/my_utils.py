@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timedelta
+import numpy as np
 
 channels = ["lh", "ll", "rh", "rl"]
 
@@ -62,3 +63,60 @@ def clean_variable(row, variable):
         return valid_values[0]
     else:
         return None
+
+
+def get_temperature_hl(row, element):
+    """
+    Checks fex_grttrans.txt for which high/low current temperature values to use and returns the weighted temperatures.
+    """
+    if (
+        "xcal" in element
+    ):  # for now following what they did with the XCAL, where they weight only the cone GRT. TODO: change this?
+        element_search = "xcal s"
+        element = "xcal_cone"
+    else:
+        element_search = element
+
+    # identify which component is passed on and match to line in fex_grttrans.txt
+    with open("../../reference/fex_grttrans.txt") as f:
+        lines = f.readlines()
+
+    for line in lines:
+        if element_search in line.lower():
+            side = line.split(" - ")[1]
+            if "A" in side:
+                trantemp_a = float(line.split(",")[0])
+                tranhwid_a = float(line.split(",")[1].split("!")[0])
+            elif "B" in side:
+                trantemp_b = float(line.split(",")[0])
+                tranhwid_b = float(line.split(",")[1].split("!")[0])
+
+    tranlo_a = trantemp_a - tranhwid_a
+    tranhi_a = trantemp_a + tranhwid_a
+    tranlo_b = trantemp_b - tranhwid_b
+    tranhi_b = trantemp_b + tranhwid_b
+
+    if row[f"a_lo_{element}"] < tranlo_a:
+        temp_a = row[f"a_lo_{element}"]
+    elif row[f"a_hi_{element}"] > tranhi_a:
+        temp_a = row[f"a_hi_{element}"]
+    else:  # TODO: decide what to do if the temperature is within the uncertainty range
+        temp_a = np.mean([row[f"a_lo_{element}"], row[f"a_hi_{element}"]])
+
+    if (
+        "xcal" != element_search and "collimator" not in element
+    ):  # these on the b side are broken
+        if row[f"b_lo_{element}"] < tranlo_b:
+            temp_b = row[f"b_lo_{element}"]
+        elif row[f"b_hi_{element}"] > tranhi_b:
+            temp_b = row[f"b_hi_{element}"]
+        else:  # TODO: decide what to do if the temperature is within the uncertainty range
+            temp_b = np.mean([row[f"b_lo_{element}"], row[f"b_hi_{element}"]])
+
+    # TODO: decide how to weight sides, fit for weights?
+    if "xcal" != element_search or "collimator" in element:
+        return temp_a
+    elif "ical" in element:
+        return temp_a * 0.1 + temp_b * 0.9
+    else:
+        return np.mean([temp_a, temp_b])

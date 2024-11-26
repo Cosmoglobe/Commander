@@ -13,6 +13,7 @@ import time
 from utils.my_utils import (
     parse_date_string,
     clean_variable,
+    get_temperature_hl,
 )
 
 # check how much time the script takes to run
@@ -290,7 +291,7 @@ a_hi_ical = fdq_eng["en_analog/grt/a_hi_ical"]
 a_lo_ical = fdq_eng["en_analog/grt/a_lo_ical"]
 b_hi_ical = fdq_eng["en_analog/grt/b_hi_ical"]
 b_lo_ical = fdq_eng["en_analog/grt/b_lo_ical"]
-ical = np.mean([a_hi_ical, a_lo_ical, b_hi_ical, b_lo_ical], axis=0)
+# ical = np.mean([a_hi_ical, a_lo_ical, b_hi_ical, b_lo_ical], axis=0)
 
 a_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/a_hi_xcal_cone"])
 a_hi_xcal_tip = np.array(fdq_eng["en_analog/grt/a_hi_xcal_tip"])
@@ -298,15 +299,15 @@ a_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/a_lo_xcal_cone"])
 a_lo_xcal_tip = np.array(fdq_eng["en_analog/grt/a_lo_xcal_tip"])
 b_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/b_hi_xcal_cone"])
 b_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/b_lo_xcal_cone"])
-xcal = np.mean(
-    [
-        a_hi_xcal_cone * 0.9 + a_hi_xcal_tip * 0.1,
-        a_lo_xcal_cone * 0.9 + a_lo_xcal_tip * 0.1,
-        b_hi_xcal_cone,
-        b_lo_xcal_cone,
-    ],
-    axis=0,
-)
+# xcal = np.mean(
+#     [
+#         a_hi_xcal_cone * 0.9 + a_hi_xcal_tip * 0.1,
+#         a_lo_xcal_cone * 0.9 + a_lo_xcal_tip * 0.1,
+#         b_hi_xcal_cone,
+#         b_lo_xcal_cone,
+#     ],
+#     axis=0,
+# )
 
 gmt_eng = np.array(fdq_eng["ct_head/gmt"]).astype(str)
 gmt_eng_parsed = []
@@ -317,9 +318,40 @@ for gmt in gmt_eng:
 df_eng = pd.DataFrame(
     {
         "gmt": gmt_eng_parsed,
-        "ical": list(ical),
-        "xcal": list(xcal),
+        # "ical": list(ical),
+        # "xcal": list(xcal),
+        "a_hi_ical": list(a_hi_ical),
+        "a_lo_ical": list(a_lo_ical),
+        "b_hi_ical": list(b_hi_ical),
+        "b_lo_ical": list(b_lo_ical),
+        "a_hi_xcal_cone": list(a_hi_xcal_cone),
+        "a_hi_xcal_tip": list(a_hi_xcal_tip),
+        "a_lo_xcal_cone": list(a_lo_xcal_cone),
+        "a_lo_xcal_tip": list(a_lo_xcal_tip),
+        "b_hi_xcal_cone": list(b_hi_xcal_cone),
+        "b_lo_xcal_cone": list(b_lo_xcal_cone),
     }
+)
+
+df_eng["ical"] = df_eng.apply(get_temperature_hl, axis=1, args=("ical",))
+df_eng = df_eng.drop(
+    columns=[
+        "a_hi_ical",
+        "a_lo_ical",
+        "b_hi_ical",
+        "b_lo_ical",
+    ]
+)
+df_eng["xcal"] = df_eng.apply(get_temperature_hl, axis=1, args=("xcal",))
+df_eng = df_eng.drop(
+    columns=[
+        "a_hi_xcal_cone",
+        "a_hi_xcal_tip",
+        "a_lo_xcal_cone",
+        "a_lo_xcal_tip",
+        "b_hi_xcal_cone",
+        "b_lo_xcal_cone",
+    ]
 )
 
 # precompute timestamps for merged_df and df_eng
@@ -379,7 +411,7 @@ gmt_str = merged_df["gmt"].dt.strftime("%Y-%m-%d %H:%M:%S").to_numpy(dtype="S")
 print(f"Dataframe after merging engineering data: {merged_df.tail()}")
 
 # saving to a h5 file
-with tb.open_file("./../../data/df_v10.h5", mode="w") as h5file:
+with tb.open_file("./../../data/df_v11.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Merged Data")
 
     h5file.create_array(group, "gmt", gmt_str)
