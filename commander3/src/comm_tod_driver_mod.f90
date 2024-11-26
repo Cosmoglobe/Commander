@@ -88,7 +88,6 @@ contains
        write(*,*) 'Error: init_scan_data_singlehorn only applicable for 1-horn experiments'
        stop
     end if
-        !if (.true. .or. tod%myid == 78) write(*,*) 'c', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     init_s_bp_ = .false.; if (present(init_s_bp)) init_s_bp_ = init_s_bp
     init_s_sky_prop_ = .false.; if (present(init_s_sky_prop)) init_s_sky_prop_ = init_s_sky_prop
@@ -97,7 +96,6 @@ contains
        init_s_bp_prop_  = init_s_bp_prop
        init_s_sky_prop_ = init_s_bp_prop
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c1', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     self%ntod   = tod%scans(scan)%ntod
     self%ndet   = tod%ndet
@@ -130,10 +128,8 @@ contains
       if (tod%sample_zodi) allocate(self%mask_zodi(self%ntod, self%ndet))
     endif
     if (tod%apply_inst_corr) allocate(self%s_inst(self%ntod, self%ndet))
-    !call update_status(status, "todinit_alloc")
+    
     call timer%stop(TOD_ALLOC, tod%band)
-
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c2', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
@@ -143,11 +139,11 @@ contains
             & self%psi(:,j,:), self%flag(:,j))
     end do
     call timer%stop(TOD_DECOMP, tod%band)
-    !call update_status(status, "todinit_decomp")
-    !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+    
+   
     if (tod%symm_flags) call tod%symmetrize_flags(self%flag)
-    !call update_status(status, "todinit_symmflag")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c4', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
+  
+ 
     
     ! Prepare TOD
     if (tod%ndiode == 1) then
@@ -164,8 +160,6 @@ contains
     else
        call tod%diode2tod_inst(scan, map_sky, procmask, self%tod)
     end if
-    !call update_status(status, "todinit_tod")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c5', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sky signal template
     call timer%start(TOD_PROJECT, tod%band)
@@ -180,39 +174,21 @@ contains
        call project_sky(tod, map_gain(:,:,:,1), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
             & procmask, scan, self%s_gain, self%mask)
     end if
-    !call update_status(status, "todinit_sky")
-    !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Set up (optional) bandpass sampling quantities (s_sky_prop, mask2 and bp_prop)
     if (init_s_bp_prop_) then
        do j = 2, self%ndelta
-          !if (.true. .or. tod%myid == 78) write(*,*) 'c61', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, size(map_sky,4)
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2, s_bp=self%s_bp_prop(:,:,j))
        end do
     else if (init_s_sky_prop_) then
        do j = 2, self%ndelta
-          !if (.true. .or. tod%myid == 78) write(*,*) 'c62', j, tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
           call project_sky(tod, map_sky(:,:,:,j), self%pix(:,:,1), self%psi(:,:,1), self%flag, &
                & procmask2, scan, self%s_sky_prop(:,:,j), self%mask2)
        end do
     end if
 
-   !  ! Project zodi sampling mask to timestream
-   !  if (tod%subtract_zodi .and. tod%sample_zodi) then
-   !    if (.not. present(procmask_zodi)) stop "zodi processing mask is not present in init_scan_data_singlehorn but sample zodi is true"
-   !    do j = 1, self%ndet
-   !       do i = 1, tod%scans(scan)%ntod
-   !          self%mask_zodi(i, j) = procmask_zodi(self%pix(i, j, 1))
-   !          if (iand(self%flag(i, j), tod%flag0) .ne. 0) self%mask_zodi(i, j) = 0.
-   !       end do
-   !    end do
-   !  end if
     call timer%stop(TOD_PROJECT, tod%band)
-    !call update_status(status, "todinit_bp")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c71', tod%myid, tod%correct_sl
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c72', tod%myid, tod%ndet
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c73', tod%myid, tod%slconv(1)%p%psires
 
     ! Perform sanity tests
     do j = 1, self%ndet
@@ -220,8 +196,6 @@ contains
        if (all(self%mask(:,j) == 0)) tod%scans(scan)%d(j)%accept = .false.
        if (tod%scans(scan)%d(j)%N_psd%sigma0 <= 0.d0) tod%scans(scan)%d(j)%accept = .false.
     end do
-    !call update_status(status, "todinit_sanity")
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c8', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     
     ! Construct orbital dipole template
     if (tod%correct_orb) then
@@ -231,42 +205,22 @@ contains
     else
        self%s_orb = 0.
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c9', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct zodical light template
     if (tod%subtract_zodi) then
        call timer%start(TOD_ZODI, tod%band)
        if (tod%myid == 0) write(*, fmt='(a24, i3, a1)') ' |  --> Simulating zodi: ', nint(real(scan-1, sp)/real(tod%nscan,sp) * 100, i4b), '%'
        do j = 1, self%ndet
-!!$          call get_zodi_emission(&
-!!$            & tod=tod, &
-!!$            & pix=self%pix(:, j, 1), &
-!!$            & scan=scan, &
-!!$            & det=j, &
-!!$            & s_zodi_scat=self%s_zodi_scat(:, :, j), &
-!!$            & s_zodi_therm=self%s_zodi_therm(:, :, j), &
-!!$            & model=zodi_model &
-!!$          &)
-!!$          call get_s_zodi(&
-!!$            & s_therm=self%s_zodi_therm(:, :, j), &
-!!$            & s_scat=self%s_zodi_scat(:, :, j), &
-!!$            & s_zodi=self%s_zodi(:, j), &
-!!$            & emissivity=tod%zodi_emissivity, &
-!!$            & albedo=tod%zodi_albedo &
-!!$            &)
           call get_s_tot_zodi(zodi_model, tod, j, scan, self%s_zodi(:, j), pix_dynamic=self%pix(:,j,:), pix_static=tod%scans(scan)%d(j)%pix_sol, s_scat=self%s_zodi_scat(:,:,j), s_therm=self%s_zodi_therm(:,:,j))
        end do
        call timer%stop(TOD_ZODI, tod%band)
     end if
-    !if (.true. .or. tod%myid == 78) write(*,*) 'c10', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
 
     ! Construct sidelobe template
-    !if (.true. .or. tod%myid == 78) write(*,*) 'd', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
     if (tod%correct_sl) then
        call timer%start(TOD_SL_INT, tod%band)
        do j = 1, self%ndet
           if (.not. tod%scans(scan)%d(j)%accept) cycle
-          !if (.true. .or. tod%myid == 78) write(*,*) 'e', tod%myid, j, tod%slconv(j)%p%psires, tod%slconv(j)%p%psisteps
           call tod%construct_sl_template(tod%slconv(j)%p, &
                & self%pix(:,j,1), self%psi(:,j,1), self%s_sl(:,j), tod%mbang(j))
           self%s_sl(:,j) = 2.d0 * self%s_sl(:,j) ! Scaling by a factor of 2, by comparison with LevelS. Should be understood
@@ -278,16 +232,7 @@ contains
           self%s_sl(:,j) = 0.
        end do
     end if
-!!$    if (tod%scanid(scan) == 3) then
-!!$       open(58,file='sidelobe_BP10.dat')
-!!$       do k = 1, size(self%s_sl,1)
-!!$          write(58,*) k, self%s_sl(k,1)
-!!$       end do
-!!$       close(58)
-!!$    end if
 
-
-    !call update_status(status, "todinit_sl")
 
     ! Construct monopole correction template
     if (tod%sample_mono) then
@@ -297,6 +242,8 @@ contains
           self%s_mono(:,j) = 0.d0 ! Disabled for now
        end do
     end if
+
+    self%n_corr = 0d0
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then
@@ -563,6 +510,8 @@ contains
     else
        self%s_mono = 0.d0 
     end if
+
+    self%n_corr = 0d0
 
     ! Generate and apply instrument-specific correction template
     if (tod%apply_inst_corr) then

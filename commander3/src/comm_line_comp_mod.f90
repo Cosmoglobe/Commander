@@ -326,7 +326,11 @@ contains
           end do
        end if
        
-       write(*,*) '  Line ratio i = ', id, ' = ', par
+       if (band == self%ref_band) then
+          write(*,*) '  Line ratio i = ', id, ' = ', par, ' (at refband)'
+       else
+          write(*,*) '  Line ratio i = ', id, ' = ', par
+       end if
     end if
     
     ! Distribute new relative line ratio, and update

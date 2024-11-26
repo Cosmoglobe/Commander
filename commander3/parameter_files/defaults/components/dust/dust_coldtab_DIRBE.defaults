@@ -1,6 +1,7 @@
 # Cold thermal dust component
 COMP_LABEL&&                  = dust
 COMP_TYPE&&                   = MBBtab
+COMP_MBBTAB_TYPE              = binned
 COMP_CLASS&&                  = diffuse    # {diffuse, ptsrc}
 COMP_POLARIZATION&&           = .false.
 COMP_CG_SCALE_T&&             = 1.d0
