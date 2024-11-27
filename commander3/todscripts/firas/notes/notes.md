@@ -139,6 +139,14 @@ $$
 
 where $A(x)$ is the apodization function and $a(\nu)$ is the Fourier transform of the apodization function including padding.
 
+The bolometer response fucntion, $B$, is computed from the detector's time constant ($\tau$) and DC responsitivity ($S_o$):
+
+$$
+B(\omega) = \frac{S_o}{1 + i\omega\tau}
+$$
+
+at audio frequency $\omega$.
+
 The spectrum in counts is normalized by the electronics transfer function to yield a spectrum in volts. The bolometer response function is computed for the spectrum based on its commanded bias, readout voltage, and bolometer temperature. The bolometer response function and the optical transfer function $H(\nu)$ (from the XCAL emission) are used to convert the spectrum from volts to MJy/sr, yielding a differential calibrated spectrum of the sky or XCAL (a spectrum of the difference in signal between the sky or XCAL and the ICAL):
 
 $$
