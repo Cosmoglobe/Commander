@@ -7,6 +7,7 @@ import h5py
 import numpy as np
 import pandas as pd
 import tables as tb
+import healpy as hp
 from scipy import interpolate
 import time
 
@@ -24,11 +25,11 @@ fdq_sdf = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h
 fdq_eng = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h5")
 
 # PARSING THE H5 DATA INTO A PANDAS DATAFRAME TO MANIPULATE DATA EASIER
-# decoding the gmt data
-gmt_lh = np.array(fdq_sdf["fdq_sdf_lh/ct_head/gmt"]).astype(str)  # .astype(int)
-gmt_ll = np.array(fdq_sdf["fdq_sdf_ll/ct_head/gmt"]).astype(str)  # .astype(int)
-gmt_rh = np.array(fdq_sdf["fdq_sdf_rh/ct_head/gmt"]).astype(str)  # .astype(int)
-gmt_rl = np.array(fdq_sdf["fdq_sdf_rl/ct_head/gmt"]).astype(str)  # .astype(int)
+print('decoding the gmt data')
+gmt_lh = np.array(fdq_sdf["fdq_sdf_lh/ct_head/gmt"][()]).astype(str)  # .astype(int)
+gmt_ll = np.array(fdq_sdf["fdq_sdf_ll/ct_head/gmt"][()]).astype(str)  # .astype(int)
+gmt_rh = np.array(fdq_sdf["fdq_sdf_rh/ct_head/gmt"][()]).astype(str)  # .astype(int)
+gmt_rl = np.array(fdq_sdf["fdq_sdf_rl/ct_head/gmt"][()]).astype(str)  # .astype(int)
 
 gmt_lh_parsed = []
 gmt_ll_parsed = []
@@ -88,7 +89,33 @@ adds_per_group_ll = fdq_sdf["fdq_sdf_ll/sci_head/sc_head9"]
 adds_per_group_rh = fdq_sdf["fdq_sdf_rh/sci_head/sc_head9"]
 adds_per_group_rl = fdq_sdf["fdq_sdf_rl/sci_head/sc_head9"]
 
-# getting each channel into its own df
+
+NSIDE = 32
+pix_terr = {}  # earth coordinates
+pix_ecl = {}   # ecliptic coordinates
+pix_gal = {}   # galactic coordinates
+pix_cel = {}   # celestial coordinates, probably J1950
+# Longitudes and latitudes are stored in radians*1e4
+fact = 180./np.pi/1e4
+for mode in ['lh', 'll', 'rh', 'rl']:
+    lon = fdq_sdf[f'fdq_sdf_{mode}/attitude/terr_longitude'][()]*fact
+    lat = fdq_sdf[f'fdq_sdf_{mode}/attitude/terr_latitude'][()]*fact
+    pix_terr[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+
+    lon = fdq_sdf[f'fdq_sdf_{mode}/attitude/ecliptic_longitude'][()]*fact
+    lat = fdq_sdf[f'fdq_sdf_{mode}/attitude/ecliptic_latitude'][()]*fact
+    pix_ecl[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+
+    lon = fdq_sdf[f'fdq_sdf_{mode}/attitude/galactic_longitude'][()]*fact
+    lat = fdq_sdf[f'fdq_sdf_{mode}/attitude/galactic_latitude'][()]*fact
+    pix_gal[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+
+    lon = fdq_sdf[f'fdq_sdf_{mode}/attitude/ra'][()]*fact
+    lat = fdq_sdf[f'fdq_sdf_{mode}/attitude/dec'][()]*fact
+    pix_cel[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+
+print('getting each channel into its own df')
+print('lh')
 df_lh = pd.DataFrame(
     {
         "gmt": gmt_lh_parsed,
@@ -99,8 +126,16 @@ df_lh = pd.DataFrame(
         "fake": list(fake_lh),
         "upmode": list(upmode_lh),
         "adds_per_group": list(adds_per_group_lh),
+        "pix_gal": list(pix_gal['lh']),
+        "pix_ecl": list(pix_ecl['lh']),
+        "pix_cel": list(pix_cel['lh']),
+        "pix_terr": list(pix_terr['lh']),
     }
 ).sort_values("gmt")
+print(df_lh.columns)
+
+
+print('ll')
 df_ll = pd.DataFrame(
     {
         "gmt": gmt_ll_parsed,
@@ -111,6 +146,10 @@ df_ll = pd.DataFrame(
         "fake": list(fake_ll),
         "upmode": list(upmode_ll),
         "adds_per_group": list(adds_per_group_ll),
+        "pix_gal": list(pix_gal['ll']),
+        "pix_ecl": list(pix_ecl['ll']),
+        "pix_cel": list(pix_cel['ll']),
+        "pix_terr": list(pix_terr['ll']),
     }
 ).sort_values("gmt")
 df_rh = pd.DataFrame(
@@ -123,8 +162,13 @@ df_rh = pd.DataFrame(
         "fake": list(fake_rh),
         "upmode": list(upmode_rh),
         "adds_per_group": list(adds_per_group_rh),
+        "pix_gal": list(pix_gal['rh']),
+        "pix_ecl": list(pix_ecl['rh']),
+        "pix_cel": list(pix_cel['rh']),
+        "pix_terr": list(pix_terr['rh']),
     }
 ).sort_values("gmt")
+print('rl')
 df_rl = pd.DataFrame(
     {
         "gmt": gmt_rl_parsed,
@@ -135,12 +179,16 @@ df_rl = pd.DataFrame(
         "fake": list(fake_rl),
         "upmode": list(upmode_rl),
         "adds_per_group": list(adds_per_group_rl),
+        "pix_gal": list(pix_gal['rl']),
+        "pix_ecl": list(pix_ecl['rl']),
+        "pix_cel": list(pix_cel['rl']),
+        "pix_terr": list(pix_terr['rl']),
     }
 ).sort_values("gmt")
 
 # USING THIS FOR MERGE_ASOF
 tolerance = pd.Timedelta(seconds=16)
-# getting all possible gmts so that we can do an outer join using merge_asof
+print('getting all possible gmts so that we can do an outer join using merge_asof')
 unified_timestamps = (
     pd.DataFrame(pd.concat([df_lh["gmt"], df_ll["gmt"], df_rh["gmt"], df_rl["gmt"]]))
     .drop_duplicates()
@@ -169,11 +217,13 @@ non_duplicate_timestamps = (
 )
 
 print(f"Timestamps after removing close ones: {non_duplicate_timestamps.tail()}")
-
+print(df_lh.columns)
 # # outer-join the dataframes on gmt
 merged_df = pd.merge_asof(
-    non_duplicate_timestamps, df_lh, on="gmt", direction="nearest", tolerance=tolerance
+    non_duplicate_timestamps, df_lh, on="gmt", direction="nearest",
+    tolerance=tolerance, 
 )
+
 
 merged_df = pd.merge_asof(
     # df_lh,
@@ -183,7 +233,7 @@ merged_df = pd.merge_asof(
     # how="outer",
     direction="nearest",
     suffixes=("_lh", "_ll"),
-    tolerance=tolerance,
+    tolerance=tolerance, by=['pix_gal', 'pix_ecl', 'pix_cel', 'pix_terr'],
 )
 # merged_df = pd.merge(
 merged_df = pd.merge_asof(
@@ -193,7 +243,7 @@ merged_df = pd.merge_asof(
     # how="outer",
     direction="nearest",
     suffixes=("_ll", "_rh"),
-    tolerance=tolerance,
+    tolerance=tolerance, by=['pix_gal', 'pix_ecl', 'pix_cel', 'pix_terr'],
 )
 # merged_df = pd.merge(
 merged_df = pd.merge_asof(
@@ -203,7 +253,7 @@ merged_df = pd.merge_asof(
     # how="outer",
     direction="nearest",
     suffixes=("_rh", "_rl"),
-    tolerance=tolerance,
+    tolerance=tolerance, by=['pix_gal', 'pix_ecl', 'pix_cel', 'pix_terr'],
 )
 
 # sort by gmt
@@ -293,12 +343,12 @@ b_hi_ical = fdq_eng["en_analog/grt/b_hi_ical"]
 b_lo_ical = fdq_eng["en_analog/grt/b_lo_ical"]
 # ical = np.mean([a_hi_ical, a_lo_ical, b_hi_ical, b_lo_ical], axis=0)
 
-a_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/a_hi_xcal_cone"])
-a_hi_xcal_tip = np.array(fdq_eng["en_analog/grt/a_hi_xcal_tip"])
-a_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/a_lo_xcal_cone"])
-a_lo_xcal_tip = np.array(fdq_eng["en_analog/grt/a_lo_xcal_tip"])
-b_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/b_hi_xcal_cone"])
-b_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/b_lo_xcal_cone"])
+a_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/a_hi_xcal_cone"][()])
+a_hi_xcal_tip = np.array(fdq_eng["en_analog/grt/a_hi_xcal_tip"][()])
+a_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/a_lo_xcal_cone"][()])
+a_lo_xcal_tip = np.array(fdq_eng["en_analog/grt/a_lo_xcal_tip"][()])
+b_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/b_hi_xcal_cone"][()])
+b_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/b_lo_xcal_cone"][()])
 # xcal = np.mean(
 #     [
 #         a_hi_xcal_cone * 0.9 + a_hi_xcal_tip * 0.1,
@@ -309,7 +359,7 @@ b_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/b_lo_xcal_cone"])
 #     axis=0,
 # )
 
-gmt_eng = np.array(fdq_eng["ct_head/gmt"]).astype(str)
+gmt_eng = np.array(fdq_eng["ct_head/gmt"][()]).astype(str)
 gmt_eng_parsed = []
 for gmt in gmt_eng:
     gmt_eng_parsed.append(parse_date_string(gmt))
@@ -410,6 +460,7 @@ gmt_str = merged_df["gmt"].dt.strftime("%Y-%m-%d %H:%M:%S").to_numpy(dtype="S")
 
 print(f"Dataframe after merging engineering data: {merged_df.tail()}")
 
+
 # saving to a h5 file
 with tb.open_file("./../../data/df_v11.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Merged Data")
@@ -424,6 +475,10 @@ with tb.open_file("./../../data/df_v11.h5", mode="w") as h5file:
     h5file.create_array(group, "xcal", merged_df["xcal"].tolist())
     h5file.create_array(group, "mtm_length", merged_df["mtm_length"].values)
     h5file.create_array(group, "mtm_speed", merged_df["mtm_speed"].values)
+    h5file.create_array(group, "pix_gal", merged_df["pix_gal"].values)
+    h5file.create_array(group, "pix_ecl", merged_df["pix_ecl"].values)
+    h5file.create_array(group, "pix_cel", merged_df["pix_cel"].values)
+    h5file.create_array(group, "pix_terr", merged_df["pix_terr"].values)
     # h5file.create_array(group, "fake", merged_df["fake"].values)
     # h5file.create_array(group, "upmode", merged_df["upmode"].values)
     h5file.create_array(group, "adds_per_group", merged_df["adds_per_group"].values)
