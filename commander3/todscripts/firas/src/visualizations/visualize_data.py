@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import h5py
 import numpy as np
 
-data = h5py.File("./data/df_v9.h5", "r")
+data = h5py.File("../../data/df_v11.h5", "r")
 
 peak_positions = {
     "lh ss": 357,
@@ -40,7 +40,7 @@ for i in range(0, len(data["df_data/gmt"]), 1):
         xcal_pos == "in"
         and speed == "s"
         and length == "s"
-        and np.round(data["df_data/ical"][i], 2) == np.round(data["df_data/xcal"][i], 2)
+        and data["df_data/ical"][i] > 10
     ):  # conditions for plotting
         fig, ax = plt.subplots(sharex=True, nrows=4)
         ax[0].plot(data["df_data/ifg_lh"][i])
@@ -75,6 +75,6 @@ for i in range(0, len(data["df_data/gmt"]), 1):
             f"{length.upper()}{speed.upper()}, XCAL {xcal_pos}, ICAL: {data['df_data/ical'][i]:.2f} K, XCAL: {data['df_data/xcal'][i]:.2f} K"
         )
         plt.tight_layout()
-        plt.savefig(f"./plots/{data['df_data/gmt'][i]}.png")
+        plt.savefig(f"../../plots/{data['df_data/gmt'][i]}.png")
         plt.clf()
         plt.close()

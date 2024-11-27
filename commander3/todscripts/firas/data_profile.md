@@ -75,7 +75,7 @@
       - `eng_rec`: Engineering record number. Shape: 590937. **All values are zero.**
       - `eng_time`: Time of associate engineering data record. Shape: 590937. Unit: ?
       - `fake`: Fakeit pulse status. For most of the mission during the COBE passage through the South Atlantic Anomaly, the MTM was put in a position mode, the drive motor was turned off, and readings of a noise signal were taken using a "fake-it" pulse. Noise data taken  Shape: 590937. Values: {-1, 0, 1} (why is there a -1?)
-      - `ifg_no`: ?. Shape: 590937. Values: up to 2601 and repeats.
+      - `ifg_no`: IFG number within segment. Shape: 590937. Values: up to 2601 and repeats.
       - `iref_temp`: Internal reference source temperature. Shape: 590937. **All values are 1.469368e-39.**
       - `xcal_pos`: Position of the XCAL 0?. Shape: 590937. Values: {0, 1, 2, 3} (why?).
     - `ifg_data`
@@ -83,8 +83,8 @@
       - `ifg`: IFG in counts. The iFG in counts is an array of 512 observed points. The IFGs taken during the mission have been averaged by the on-board microprocessors. Depending on the MTM scan mode, a number of consecutive sample points have been averaged to form a group during each sweep of the mirror. The consecutive groups form a buffer of 512 points. In addition, a number of sweeps oof these 512 points each are coadded together to form the resulting 512 point IFG which is then telemetered to the ground. `sc_head9` contains the number of sample points per group and `sc_head11` contains the number of mirror sweeps that are coadded together. Shape: 590937.
     - `sci_head`
       - `chan_id`: Channel ID. Shape: 590937. **All values are three.**
-      - `data_qual`: Data quality flags. Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? The telemetry dat aquality flags consist of packed bits, 4 for each of the telemetry minor frames over which the IFG is trasmitted. The value of each set of four bits is a code which represents the quality of the telemetry as received on the ground from the spacecraft. Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31}.
-      - `data_ready`: Data ready flags. The data ready flags at transmit consist of 114 packed bits, one from each of the telemetry minor frames over which the IFG is transmitted. A value of 1 indicates that the corresponding section of the iFG buffer for this channel detector was ready for transmission. a value of 0 indicates the existance of a problem for transmission. Shape: 590937 x 8. Values: ?.
+      - `data_qual`: Data quality flags. Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? The telemetry data quality flags consist of packed bits, 4 for each of the telemetry minor frames over which the IFG is trasmitted. The value of each set of four bits is a code which represents the quality of the telemetry as received on the ground from the spacecraft. Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31}.
+      - `data_ready`: Data ready flags. The data ready flags at transmit consist of 114 packed bits, one from each of the telemetry minor frames over which the IFG is transmitted. A value of 1 indicates that the corresponding section of the IFG buffer for this channel detector was ready for transmission. a value of 0 indicates the existance of a problem for transmission. Shape: 590937 x 8. Values: ?.
       - `gain`: Gain. The commandable gain for the detector is used in the conversion of the IFG raw counts to volts. Valid commandable gains are 1, 3, 10, 30, 100, 300, 1000, 3000. Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}?.
       - `mtm_length`: Length of the MTM (what does that mean? Short and long?). Shape: 590937. Values: {0, 1} (0 = short, 1 = long?).
       - `mtm_speed`: Speed of the MTM (what does that mean? Slow and fast?). Shape: 590937. Values: {0, 1} (0 = slow, 1 = fast?).
@@ -137,20 +137,20 @@
     - `xmit_mtm_speed`: Speed of the MTM (slow and fast? Which one is slow and which one is fast?). Shape: 589069 x 4. Values: {0, 1} (0 = slow, 1 = fast?).
   - `ct_head`
     - `dataset_id`: ?. Shape: 589069. **All values are 35.**
-    - `gmt`: ?. Shape: 589069. Values: strings of numbers.
+    - `gmt`: GMT of start collect. Shape: 589069. Values: strings of numbers.
     - `hskp1_tlm_fmt`: ?. Shape: 589069. **All values are zero.**
     - `hskp2_tlm_fmt`: ?. Shape: 589069. **All values are zero.**
     - `instr_spares`: ?. Shape: 589069 x 6. **All values are zero.**
-    - `mjr_frm_no`: ?. Shape: 589069. **All values are zero.**
-    - `orbit`: ?. Shape: 589069. Units: ?.
-    - `space_time`: ?. Shape: 589069 x 6. **All values are zero.** In the science data there are values for the same variable.
-    - `time`: ? Midpoint of collect time?. Shape: 589069. Units: ?
+    - `mjr_frm_no`: Major frame number. Shape: 589069. **All values are zero.**
+    - `orbit`: Orbit number. Shape: 589069. Units: ?.
+    - `space_time`: Spacecraft time. Shape: 589069 x 6. **All values are zero.** In the science data there are values for the same variable.
+    - `time`: Binary time. Shape: 589069. Units: ?
   - `en_analog`
     - `group1`
       - `bol_volt`: ? Bolometer voltage?. Shape: 589069 x 4. Units: ?.
       - `cna_temp`: ? Temperature? Of what?. Shape: 589069 x 4. Units: ?.
       - `dbx_tmp`: ?. Shape: 589069 x 2. Units: ?.
-      - `hot_spot`: ?. Shape: 589069 x 4. Units: ?.
+      - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 4. Units: ?.
       - `ipdu_amp`: ?. Shape: 589069 x 12. Units? (0 to 1).
       - `ipdu_bolt`: ?. Shape: 589069 x 20. Units: ?.
       - `ipdu_temp`: Temperature (of what?). Shape: 589069 x 2. Units: ?.
@@ -161,26 +161,26 @@
       - `stat_mon_temp`: ?. Shape: 589069 x 2. Units: ? (Values from 20 to 31, then 24 to 35)
       - `temp_ctl`: ?. Shape: 589069 x 8. Units: ?.
     - `grt`: Germanium Resistance Thermometer. Data is divided into high (hi) (20 - 97 $cm^{-1}$) and low (lo) (1 - 21 $cm^{-1}$) frequency bands
-      - `a_hi_bol_assem`: ?. Shape: 589069 x 4. **All values are -9999.**
-      - `a_hi_cal_resistors`: Calibration resistors (four high and four low?: eight in total - page 46 in the Explanatory Supplement). Used to convert the GRT readings from counts to Ohms. Shape: 589069 x 4. Units: ?.
-      - `a_hi_collimator`: GRT collimator. Shape: 589069. Values: 2 to 10. Units: K?.
-      - `a_hi_dihedral`: Dihedral temperature. Dihedral temperature > 5.5 is failed (page 28 of the Explanatory Supplement). Here, 1134 values are higher than 5.5. The sky coadds are grouped by dihedral temperature (page 62 of the Explanatory Supplement). Shape: 589069. Values: 2 to 10. Units: K?.
-      - `a_hi_ical`: Temperature of the ICAL. Used to form coadd groups (page 27 of the Explanatory Supplement). Shape: 589069?. Values: 2 to 20. Units: K?. 
-      - `a_hi_mirror`: Temperature of the mirror (I am guessing of the mirrors in the MTM, since there is already a variable for the collimator before?). Shape: 589069. Values: 2 to 12. Units: K?.
-      - `a_hi_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 2 to 26. Temperature goes higher than indicated in the Explanatory Supplement (page 20), which should be between 2 and 22 K. Units: K?.
-      - `a_hi_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 2 to 26. Units: ?.
-      - `a_hi_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 2 to 23. Units: K?.
-      - `a_hi_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. Values: 2 to 23. Units: K?.
-      - `a_lo_bol_assem`: Temperature of the ? of the bolometer. Shape: 589069 x 4. Values: 1 to 4. Units: K?.
-      - `a_lo_cal_resistors`: ? of the calibration resistors. Shape: 589069 x 4. Units: ?.
-      - `a_lo_collimator`: Temperature of the collimator mirrors. Shape: 589069. Values: 1 to 5. Units: K?.
-      - `a_lo_dihedral`: Dihedral temperature. Shape: 589069. Values: 1 to 8. Units: K?.
-      - `a_lo_ical`: Temperature of the ICAL. Shape: 589069. Values: 1 to 25. Units: K?.
-      - `a_lo_mirror`: Temperature of the mirror. Shape: 589069. Values: 1 to 4, with some being -9.9990000e+03. Units: K?.
-      - `a_lo_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 1 to 30, with some values being -9.9990000e+03. Units: K?.
-      - `a_lo_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 1 to 29. Units: K?.
-      - `a_lo_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 1 to 34. Units: K?.
-      - `a_lo_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. Values: 1 to 22. Units: K?.
+      - `a_hi_bol_assem`: Bolometer assembly. Shape: 589069 x 4. **All values are -9999.**
+      - `a_hi_cal_resistors`: Calibration resistors. Used to convert the GRT readings from counts to Ohms. Shape: 589069 x 4. Units: ?.
+      - `a_hi_collimator`: Collimator. Shape: 589069. Values: 2 to 10. Units: K?.
+      - `a_hi_dihedral`: Dihedral. Dihedral temperature > 5.5 is failed (page 28 of the Explanatory Supplement). Here, 1134 values are higher than 5.5. The sky coadds are grouped by dihedral temperature (page 62 of the Explanatory Supplement). Shape: 589069. Values: 2 to 10. Units: K?.
+      - `a_hi_ical`: Internal reference source. Used to form coadd groups (page 27 of the Explanatory Supplement). Shape: 589069?. Values: 2 to 20. Units: K?. 
+      - `a_hi_mirror`: Mirror assembly. Shape: 589069. Values: 2 to 12. Units: K?.
+      - `a_hi_refhorn`: Reference horn. Shape: 589069. Values: 2 to 26. Temperature goes higher than indicated in the Explanatory Supplement (page 20), which should be between 2 and 22 K. Units: K?.
+      - `a_hi_skyhorn`: Sky horn. Shape: 589069. Values: 2 to 26. Units: ?.
+      - `a_hi_xcal_cone`: Additional XCAL temperature. Shape: 589069. Values: 2 to 23. Units: K?.
+      - `a_hi_xcal_tip`: External calibrator tip. Shape: 589069. Values: 2 to 23. Units: K?.
+      - `a_lo_bol_assem`: Bolometer assembly. Shape: 589069 x 4. Values: 1 to 4. Units: K?.
+      - `a_lo_cal_resistors`: Cal resistors. Shape: 589069 x 4. Units: ?.
+      - `a_lo_collimator`: Collimator. Shape: 589069. Values: 1 to 5. Units: K?.
+      - `a_lo_dihedral`: Dihedral. Shape: 589069. Values: 1 to 8. Units: K?.
+      - `a_lo_ical`: Internal reference source. Shape: 589069. Values: 1 to 25. Units: K?.
+      - `a_lo_mirror`: Mirror assembly. Shape: 589069. Values: 1 to 4, with some being -9.9990000e+03. Units: K?.
+      - `a_lo_refhorn`: Reference horn. Shape: 589069. Values: 1 to 30, with some values being -9.9990000e+03. Units: K?.
+      - `a_lo_skyhorn`: Sky horn. Shape: 589069. Values: 1 to 29. Units: K?.
+      - `a_lo_xcal_cone`: External calibrator tip. Shape: 589069. Values: 1 to 34. Units: K?.
+      - `a_lo_xcal_tip`: Additional XCAL temperature. Shape: 589069. Values: 1 to 22. Units: K?.
       - `b_hi_bol_assem`: ?. Shape: 589069 x 4. **All values are -9999.**
       - `b_hi_cal_resistors`: ?. Shape: 589069 x 4. Units: ?.
       - `b_hi_collimator`: ?. Shape: 589069. **All values are -9999.**
@@ -194,32 +194,32 @@
       - `b_lo_bol_assem`: ?. Shape: 589069 x 4. Values: 1 to 3. Units: K?.
       - `b_lo_cal_resistors`: ?. Shape: 589069 x 4. Units: ?.
       - `b_lo_collimator`: ?. Shape: 589069. **All values are -9999.**
-      - `b_lo_dihedral`: Dihedral temperature. Shape: 589069. Values: 1 to 8. Units: K?.
-      - `b_lo_ical`: Temperature of the ICAL. Shape: 589069. Values: 1 to 22. Units: K?.
+      - `b_lo_dihedral`: Dihedral. Shape: 589069. Values: 1 to 8. Units: K?.
+      - `b_lo_ical`: Internal reference source. Shape: 589069. Values: 1 to 22. Units: K?.
       - `b_lo_mirror`: Temperature of the mirror. Shape: 589069. Values: 1 to 33, with some values being -9.9990000e+03. Units: K?.
-      - `b_lo_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 1 to 27. Units: K?.
-      - `b_lo_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 1 to 27. Units: K?.
-      - `b_lo_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 1 to 26. Units: K?.
+      - `b_lo_refhorn`: Reference horn. Shape: 589069. Values: 1 to 27. Units: K?.
+      - `b_lo_skyhorn`: Sky horn. Shape: 589069. Values: 1 to 27. Units: K?.
+      - `b_lo_xcal_cone`: External calibrator tip. Shape: 589069. Values: 1 to 26. Units: K?.
       - `b_lo_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. **All values are -9999.**
   - `en_stat`
-    - `bol_cmd_bias`: Change in the commanded bolometer bias voltage?. Shape: 589069 x 4. Units: ?.
-    - `dwell_stat`: ?. Shape: 589069 x 2. Values: {0, 1}.
+    - `bol_cmd_bias`: Bolometer bias?. Shape: 589069 x 4. Units: ?.
+    - `dwell_stat`: Dwell status A,B. Shape: 589069 x 2. Values: {0, 1}.
     - `engstat_spares`: ?. Shape: 589069 x 10. **All values are zero.**
     - `engstat_spares2`: ?. Shape: 589069 x 5. **All values are zero.**
-    - `ext_cal_temp_a`: ?. Shape: 589069. Values: {0, 256, 2682}.
-    - `ext_cal_temp_b`: ?. Shape: 589069. Values: many.
-    - `grt_addr`: ?. Shape: 589069 x 2. Values: {0, 4, 6, 7, 14}.
+    - `ext_cal_temp_a`: External calibrator. Shape: 589069. Values: {0, 256, 2682}.
+    - `ext_cal_temp_b`: External calibrator. Shape: 589069. Values: many.
+    - `grt_addr`: Dwell address A,B?. Shape: 589069 x 2. Values: {0, 4, 6, 7, 14}.
     - `hot_spot_cmd`: ?. Shape: 589069 x 2. Values: {0, 1}.
-    - `int_ref_temp_a`: ?. Shape: 589069. **All values are zero.**
-    - `int_ref_temp_b`: ?. Shape: 589069. Values: many.
-    - `lvdt_stat`: ?. Shape: 589069 x 2. Values: many.
-    - `micro_stat_bus`: Microprocessor status?. Shape: 589069 x 4. The first only has values of 12 and the rest of zero.
-    - `power_a_status`: ?. Shape: 589069 x 2. Values: {21, 81, 85}.
-    - `power_b_status`: ?. Shape: 589069 x 2. Values: {21, 81, 85}.
-    - `ref_hrn_temp_a`: ?. Shape: 589069. **All values are zero.**
-    - `ref_hrn_temp_b`: ?. Shape: 589069. Values: many.
-    - `sky_hrn_temp_a`: ?. Shape: 589069. **All values are zero.**
-    - `sky_hrn_temp_b`: ?. Shape: 589069. Values: many.
+    - `int_ref_temp_a`: Internal reference source. Shape: 589069. **All values are zero.**
+    - `int_ref_temp_b`: Internal reference source. Shape: 589069. Values: many.
+    - `lvdt_stat`: LVDT status A,B. Shape: 589069 x 2. Values: many.
+    - `micro_stat_bus`: Micro status bus readout?. Shape: 589069 x 4. The first only has values of 12 and the rest of zero.
+    - `power_a_status`: Status for power to FIRAS A. Shape: 589069 x 2. Values: {21, 81, 85}.
+    - `power_b_status`: Status for power to FIRAS B. Shape: 589069 x 2. Values: {21, 81, 85}.
+    - `ref_hrn_temp_a`: Reference horn. Shape: 589069. **All values are zero.**
+    - `ref_hrn_temp_b`: Reference horn. Shape: 589069. Values: many.
+    - `sky_hrn_temp_a`: Sky horn. Shape: 589069. **All values are zero.**
+    - `sky_hrn_temp_b`: Sky horn. Shape: 589069. Values: many.
     - `stat_word_1`: Status word?. Shape: 589069. Values: many.
     - `stat_word_12`: Status word?. Shape: 589069. Values: many.
     - `stat_word_13`: Status word?. Shape: 589069. Values: many.
