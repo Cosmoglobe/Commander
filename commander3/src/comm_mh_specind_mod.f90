@@ -348,7 +348,7 @@ contains
 
     real(dp)     :: chisq, my_chisq, chisq_old, chisq_new, chisq_prop, mval, mval_0
     integer(i4b) :: band, ierr, i, j, k, m, pol, pix
-    logical(lgt)  :: include_comp, reject, todo
+    logical(lgt)  :: include_comp, reject, todo, negative
     character(len=512) :: tokens(10), str_buff, operation
     class(comm_comp),   pointer           :: c => null()
     class(comm_map), pointer              :: invN_res => null(), map => null(), sig => null(), res => null()
@@ -363,7 +363,7 @@ contains
 
        mval_0 = -1d0
        k = 0
-
+       
        c => compList
        do while (associated(c))
           k = k + 1
@@ -398,6 +398,7 @@ contains
 
        call store_buffer()
 
+       negative = .false.
        c => compList
        do while (associated(c))
                        
@@ -427,7 +428,7 @@ contains
                  end do
                end if
 
-
+               negative = negative .or. any(c%SEDtab(3:,:) < 0.d0)
             end if
             call mpi_bcast(c%SEDtab, size(c%SEDtab), MPI_DOUBLE_PRECISION, &
               & 0, data(1)%info%comm, ierr)
@@ -461,7 +462,7 @@ contains
        end if
 
        ! Check MH statistic
-       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2
+       reject = log(rand_uni(handle)) > (chisq_old - chisq_prop)/2 .or. negative
        call mpi_bcast(reject, 1, MPI_LOGICAL, 0, data(1)%info%comm, ierr)
 
 
