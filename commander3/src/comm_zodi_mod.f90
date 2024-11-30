@@ -400,6 +400,52 @@ contains
                  &)
             allocate(self%comps(i)%labels(10))
             self%comps(i)%labels = [param_labels%common, param_labels%comet]
+         case ('wrightcloudring')
+            allocate (ZodiWrightCloudRing::self%comps(i)%c)
+            self%comps(i)%c = ZodiWrightCloudRing(&
+                & n_0=params(i, 1), &
+                & incl=params(i, 2), &
+                & Omega=params(i, 3), &
+                & x_0=params(i, 4), &
+                & y_0=params(i, 5), &
+                & z_0=params(i, 6), &
+                & p1=params(i, 7), &
+                & p3=params(i, 8), &
+                & p4=params(i, 9), &
+                & p5=params(i, 10), &
+                & p6=params(i, 11), &
+                & p7=params(i, 12), &
+                & p8=params(i, 13), &
+                & p9=params(i, 14), &
+                & p10=params(i, 15), &
+                & p13=params(i, 16), &
+                & p14=params(i, 17), &
+                & p15=params(i, 18), &
+                & p16=params(i, 19), &
+                & p17=params(i, 20), &
+                & p18=params(i, 21), &
+                & p19=params(i, 22) &
+                &)
+            allocate(self%comps(i)%labels(22))
+            self%comps(i)%labels = [param_labels%common, param_labels%wrightcloudring]
+         case ('wrightband')
+            allocate (ZodiWrightBand::self%comps(i)%c)
+            self%comps(i)%c = ZodiWrightBand(&
+                & n_0=params(i, 1), &
+                & incl=params(i, 2), &
+                & Omega=params(i, 3), &
+                & x_0=params(i, 4), &
+                & y_0=params(i, 5), &
+                & z_0=params(i, 6), &
+                & q1=params(i, 7), &
+                & q5=params(i, 8), &
+                & q6=params(i, 9), &
+                & q7=params(i, 10), &
+                & q8=params(i, 11), &
+                & R_1=params(i, 12) &
+                &)
+            allocate(self%comps(i)%labels(12))
+            self%comps(i)%labels = [param_labels%common, param_labels%wrightband]
          case default
             print *, 'Invalid zodi component type in zodi `init_from_params`:', trim(adjustl(comp_types(i)))
             stop
@@ -479,11 +525,37 @@ contains
             x(running_idx + 4) = comp%Z_midplane_0
             x(running_idx + 5) = comp%R_outer
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
-            class is (ZodiComet)
+         class is (ZodiComet)
             x(running_idx + 1) = comp%P
             x(running_idx + 2) = comp%Z_midplane_0
             x(running_idx + 3) = comp%R_inner
             x(running_idx + 4) = comp%R_outer
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightCloudRing)
+            x(running_idx + 1)  = comp%p1
+            x(running_idx + 2)  = comp%p3
+            x(running_idx + 3)  = comp%p4
+            x(running_idx + 4)  = comp%p5
+            x(running_idx + 5)  = comp%p6
+            x(running_idx + 6)  = comp%p7
+            x(running_idx + 7)  = comp%p8
+            x(running_idx + 8)  = comp%p9
+            x(running_idx + 9)  = comp%p10
+            x(running_idx + 10) = comp%p13
+            x(running_idx + 11) = comp%p14
+            x(running_idx + 12) = comp%p15
+            x(running_idx + 13) = comp%p16
+            x(running_idx + 14) = comp%p17
+            x(running_idx + 15) = comp%p18
+            x(running_idx + 16) = comp%p19
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightBand)
+            x(running_idx + 1)  = comp%q1
+            x(running_idx + 2)  = comp%q5
+            x(running_idx + 3)  = comp%q6
+            x(running_idx + 4)  = comp%q7
+            x(running_idx + 5)  = comp%q8
+            x(running_idx + 6)  = comp%R_1
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          if (present(labels)) then
@@ -568,6 +640,32 @@ contains
             comp%Z_midplane_0 = x(running_idx + 2)
             comp%R_inner = x(running_idx + 3)
             comp%R_outer = x(running_idx + 4)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightCloudRing)
+            comp%p1  = x(running_idx + 1)
+            comp%p3  = x(running_idx + 2)
+            comp%p4  = x(running_idx + 3)
+            comp%p5  = x(running_idx + 4)
+            comp%p6  = x(running_idx + 5)
+            comp%p7  = x(running_idx + 6)
+            comp%p8  = x(running_idx + 7)
+            comp%p9  = x(running_idx + 8)
+            comp%p10 = x(running_idx + 9)
+            comp%p13 = x(running_idx + 10)
+            comp%p14 = x(running_idx + 11)
+            comp%p15 = x(running_idx + 12)
+            comp%p16 = x(running_idx + 13)
+            comp%p17 = x(running_idx + 14)
+            comp%p18 = x(running_idx + 15)
+            comp%p19 = x(running_idx + 16)
+            running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
+         class is (ZodiWrightBand)
+            comp%q1  = x(running_idx + 1)
+            comp%q5  = x(running_idx + 2)
+            comp%q6  = x(running_idx + 3)
+            comp%q7  = x(running_idx + 4)
+            comp%q8  = x(running_idx + 5)
+            comp%R_1 = x(running_idx + 6)
             running_idx = running_idx + size(self%comps(i)%labels) - self%n_common_params
          end select
          call self%comps(i)%c%init()
@@ -1286,7 +1384,7 @@ contains
             end if
          end do
 !!$         call vec2ang(unit_vector, lat, lon)
-!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:))!, sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
+!!$         write(58,*) i, lon*180.d0/pi, 90.d0-180.d0/pi*lat, 0.958*sum(s_zodi_therm(i,:)), sum(s_zodi_scat(i,:)), sum(s_zodi_therm(i,:))+sum(s_zodi_scat(i,:))
 !!$
 !!$         write(*,*) "X", comp_LOS(1)%X(1,:)
 !!$         write(*,*) "Y", comp_LOS(1)%X(2,:)
@@ -1298,8 +1396,9 @@ contains
 !!$         !write(*,*) "F", comp_LOS(1)%F_sol*1.d20
 !!$         !write(*,*) "Phi", comp_LOS(1)%Phi
 !!$         !write(*,*) "s", comp_LOS(1)%F_sol*comp_LOS(1)%Phi*1d20 * 0.255d0 + (1.d0-0.255d0) * 1.d0 * comp_LOS(1)%B_nu* 1.d0
+!!$         write(*,*) "T_0, delta", model%T_0, model%delta
+!!$         write(*,*) "T", comp_LOS(1)%T
 !!$         write(*,*) "s", comp_LOS(1)%B_nu*0.958
-
       end do
 
 !!$      close(58)

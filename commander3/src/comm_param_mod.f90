@@ -41,16 +41,18 @@ module comm_param_mod
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=128), dimension(2) :: general = [character(len=128) :: "T_0", "T_DELTA"]
-     character(len=128), dimension(6) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
-     character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
-     character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(2) :: interstellar = [character(len=128) :: 'R', 'ALPHA']
-     character(len=128), dimension(5) :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
-     character(len=128), dimension(4) :: comet = [character(len=128) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
-     character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
+     character(len=128), dimension(2)  :: general = [character(len=128) :: "T_0", "T_DELTA"]
+     character(len=128), dimension(6)  :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
+     character(len=128), dimension(4)  :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
+     character(len=128), dimension(4)  :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
+     character(len=128), dimension(5)  :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(5)  :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(2)  :: interstellar = [character(len=128) :: 'R', 'ALPHA']
+     character(len=128), dimension(5)  :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
+     character(len=128), dimension(4)  :: comet = [character(len=128) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
+     character(len=128), dimension(16) :: WrightCloudRing = [character(len=128) :: 'p1', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19']
+     character(len=128), dimension(6)  :: WrightBand = [character(len=128) :: 'q1', 'q5', 'q6', 'q7', 'q8', 'R_1']
+     character(len=128), dimension(6)  :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE', 'WRIGHTCLOUDRING', 'WRIGHTBAND']
      
      contains
             procedure :: get_labels
@@ -2935,7 +2937,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      type(hash_tbl_sll), intent(in) :: htbl
      type(comm_params),  intent(inout) :: cpar
 
-     integer(i4b) :: i, j, k, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
+     integer(i4b) :: i, j, k, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_WRIGHTCLOUDRING_PARAMETERS, N_WRIGHTBAND_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
      character(len=2) :: itext2
      character(len=3) :: itext
      character(len=64), allocatable :: parameter_labels(:)
@@ -4118,7 +4120,11 @@ end subroutine
      case ('FAN')
           labels = self%fan
      case ('COMET')
-          labels = self%comet
+        labels = self%comet
+     case ('WRIGHTCLOUDRING')
+        labels = self%wrightcloudring
+     case ('WRIGHTBAND')
+        labels = self%wrightband
      case default
           print *, 'Unknown component type: ', comp_type
           stop
