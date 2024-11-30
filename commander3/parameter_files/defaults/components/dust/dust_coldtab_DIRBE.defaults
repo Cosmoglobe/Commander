@@ -52,8 +52,8 @@ COMP_BETA_SMOOTHING_SCALE&&   = 1
 COMP_BETA_POLTYPE&&           = 2          # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
 
 COMP_T_DEFAULT&&              = 16.
-COMP_T_PRIOR_UNI_LOW&&        = 10.
-COMP_T_PRIOR_UNI_HIGH&&       = 35.
+COMP_T_PRIOR_UNI_LOW&&        = 8.
+COMP_T_PRIOR_UNI_HIGH&&       = 20.
 COMP_T_PRIOR_GAUSS_MEAN&&     = 18
 COMP_T_PRIOR_GAUSS_RMS&&      =  1.
 COMP_T_SMOOTHING_SCALE&&      = 1
