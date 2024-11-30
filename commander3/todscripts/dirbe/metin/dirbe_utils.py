@@ -18,6 +18,7 @@ from astropy.coordinates import (
     get_body,
     HeliocentricMeanEcliptic,
 )
+from astroquery.mpc import MPC
 
 DIRBE_SKYMAP_INFO = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/DIRBE_SKYMAP_INFO.FITS"
 DIRBE_BANDPASSES = "/mn/stornext/d16/cmbco/ola/dirbe/auxdata/bandpass/DIRBE_SYSTEM_SPECTRAL_RESPONSE_TABLE.ASC"
@@ -94,6 +95,35 @@ PLANET_RADII = {
     "neptune": 1,
 }
 
+# Note that Ceres, Pallas, and Vesta were flagged in the original analysis, all
+# other asteroids were discovered later on. All comets except C/1989 T1 were
+# discovered by Lisse
+COMET_RADII = {
+        '73P/Schwassmann–Wachmann 3':2,
+        'C/1989 Q1':2,
+        'C/1989 T1':2,
+        'C/1989 X1':15,
+        'C/1990 K1':2
+        }
+ASTEROID_RADII = {
+        '1 Ceres':1,
+        '2 Pallas':1,
+        '4 Vesta':1,
+        '15 Eunomia':1,
+        '31 Euphrosyne':1,
+        '41 Daphne':1,
+        '42 Isis':1,
+        '85 Io':1,
+        '185 Eunike':1,
+        '194 Prokne':1,
+        '372 Palma':1,
+        '405 Thia':1,
+        '511 Davida':1,
+        '704 Interamnia':1,
+        '747 Winchester':1,
+        '1021 Flammario':1,
+        }
+
 SIGMA_0 = {
     1: 0.1820848274487808,
     2: 0.1785923183102134,
@@ -127,6 +157,55 @@ def get_planet_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
 
     return interpolaters
 
+def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d]]:
+    times = np.arange(datetime(1989, 6, 1), datetime(1991, 1, 1), time_delta).astype(
+        datetime
+    )
+
+    astropy_times = Time(times, format="datetime", scale="utc")
+    interpolaters_comet = {}
+    interpolaters_asteroids = {}
+    rotator = hp.Rotator(coord=["C", "G"])
+    with solar_system_ephemeris.set('de432s'):
+        for ci, c in enumerate(COMET_RADII):
+            interpolaters_comet[c] = {}
+            lons = []
+            lats = []
+            dists = []
+            for i in range(len(astropy_times)//1441+1):
+                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
+                eph = MPC.get_ephemeris(c, start=astropy_times_i[0],
+                        number=len(astropy_times_i), step='1h')
+                lon, lat = rotator(eph['RA'].value, eph['Dec'].value, lonlat=True)
+                dist = eph['r']
+                lons += lon.tolist()
+                lats += lat.tolist()
+                dists += dist.tolist()
+            lons = np.array(lons)
+            lats = np.array(lats)
+            dists = np.array(dists)
+            locs = np.array([lons, lats])
+            np.save(f'comet_{ci}', locs)
+            interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
+            interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
+            interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)
+
+        for a in ASTEROID_RADII:
+            interpolaters_asteroids[a] = {}
+            lons = []
+            lats = []
+            for i in range(len(astropy_times)//1441+1):
+                astropy_times_i = astropy_times[i*1441:(i+1)*1441]
+                eph = MPC.get_ephemeris(a, start=astropy_times_i[0],
+                        number=len(astropy_times_i), step='1h')
+                lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
+                lons += lon.tolist()
+                lats += lat.tolist()
+            lons = np.array(lons)
+            latss = np.array(lats)
+            interpolaters_asteroids[a]['lon'] = interp1d(astropy_times.mjd, lons)
+            interpolaters_asteroids[a]['lat'] = interp1d(astropy_times.mjd, lats)
+    return interpolaters_comet, interpolaters_asteroids
 
 @cache
 def band_to_bit(band: int) -> int:
