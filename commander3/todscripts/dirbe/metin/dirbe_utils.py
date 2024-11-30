@@ -167,7 +167,7 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
     interpolaters_asteroids = {}
     rotator = hp.Rotator(coord=["C", "G"])
     with solar_system_ephemeris.set('de432s'):
-        for c in COMET_RADII:
+        for ci, c in enumerate(COMET_RADII):
             interpolaters_comet[c] = {}
             lons = []
             lats = []
@@ -176,7 +176,7 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
                 astropy_times_i = astropy_times[i*1441:(i+1)*1441]
                 eph = MPC.get_ephemeris(c, start=astropy_times_i[0],
                         number=len(astropy_times_i), step='1h')
-                lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
+                lon, lat = rotator(eph['RA'].value, eph['Dec'].value, lonlat=True)
                 dist = eph['r']
                 lons += lon.tolist()
                 lats += lat.tolist()
@@ -184,6 +184,8 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
             lons = np.array(lons)
             lats = np.array(lats)
             dists = np.array(dists)
+            locs = np.array([lons, lats])
+            np.save(f'comet_{ci}', locs)
             interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
             interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
             interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)

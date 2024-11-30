@@ -80,19 +80,21 @@ FLAG_BITS: dict[str, int] = {
     '73P/Schwassmann–Wachmann 3':13,
     'C/1989 Q1':14,
     'C/1989 T1':15,
-    'C/1989 X1':16,
-    'C/1990 K1':17,
+    'C/1990 K1':16,
+    '1 Ceres':17,
+    '2 Pallas':18,
+    '4 Vesta':19,
     # Orbit and attitude flag (each observation has either of each pair turned on)
-    "non_definitive_attitude": 18,
-    "definite_attitude": 19,
-    "course_attitude": 20,
-    "fine_attitude": 21,
-    "merged_attitude": 22,
-    "external_uax_attitude": 23,
-    "space_craft_slewing": 24,
-    "space_craft_not_slewing": 25,
-    "special_pointing": 26,
-    "normal_pointing": 27,
+    "non_definitive_attitude": 20,
+    # "definite_attitude": 19,
+    "coarse_attitude": 21,
+    # "fine_attitude": 21,
+    # "merged_attitude": 22,
+    # "external_uax_attitude": 23,
+    # "space_craft_slewing": 24,
+    # "space_craft_not_slewing": 25,
+    # "special_pointing": 26,
+    # "normal_pointing": 27,
     #"space_craft_ascending": 28,
     #"space_craft_descending": 29,
     #"leading_los": 25,
@@ -104,6 +106,7 @@ FLAG_BITS: dict[str, int] = {
 class YdayData:
     tods: dict[str, np.ndarray]
     pixels: dict[str, np.ndarray]
+    psis: dict[str, np.ndarray]
     flags: dict[str, np.ndarray]
     time_start: float
     time_stop: float
@@ -117,6 +120,7 @@ class YdayData:
 class CIO:
     tods: list[np.ndarray]
     pixels: list[np.ndarray]
+    psis: list[np.ndarray]
     flags: list[np.ndarray]
     time_start: list[float]
     time_stop: list[float]
@@ -131,6 +135,7 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
         f"{band:02}": CIO(
             tods=[yday.tods[f"{band:02}"] for yday in yday_data],
             pixels=[yday.pixels[f"{band:02}"] for yday in yday_data],
+            psis=[yday.psis[f"{band:02}"] for yday in yday_data],
             flags=[yday.flags[f"{band:02}"] for yday in yday_data],
             time_start=[yday.time_start for yday in yday_data],
             time_stop=[yday.time_stop for yday in yday_data],
@@ -146,8 +151,8 @@ def get_cios(yday_data: list[YdayData]) -> dict[str, CIO]:
 def get_yday_data(
     files: range, nside_out: int, planet_time_delta: timedelta, color_corr: bool
 ) -> list[YdayData]:
-    planet_interps = dirbe_utils.get_planet_interps(planet_time_delta)
     comet_interps, asteroid_interps = dirbe_utils.get_smallbody_interps(planet_time_delta)
+    planet_interps = dirbe_utils.get_planet_interps(planet_time_delta)
 
     with multiprocessing.Pool(processes=N_PROC) as pool:
         proc_chunks = [
@@ -210,6 +215,7 @@ def get_yday_cio_data(
     bad_data_padding = padd_vals(base_padding, BAD_DATA_SENTINEL)
     pix_padding = padd_vals(base_padding, 0, dtype=np.int64)
     flag_padding = padd_vals(base_padding, 2 ** FLAG_BITS["bad_data"], dtype=np.int16)
+    psi_padding = padd_vals(base_padding, 0, dtype=np.int64)
 
     # Get cio flags
     rad_zone_flags = data["RadZone"].astype(np.int8)[time_sorted_inds]
@@ -241,6 +247,7 @@ def get_yday_cio_data(
     # Extract tods, and modify pointing vectors per detector according to beam data
     tods: dict[str, np.ndarray] = {}
     pixels: dict[str, np.ndarray] = {}
+    psis: dict[str, np.ndarray] = {}
     flags: dict[str, np.ndarray] = {}
     for band in dirbe_utils.BANDS:
         band_label = f"{band:02}"
@@ -277,7 +284,7 @@ def get_yday_cio_data(
         )
 
         # Rotate ecliptic vectors to galactic (commander convention) and apply time ordered sorting
-        unit_vectors = los[:, time_sorted_inds]
+        unit_vectors = new_los[:, time_sorted_inds]
         unit_vectors_gal = ROTATOR(unit_vectors)
 
         # Convert unit vectors to requested nside resolution healpix pixels
@@ -285,6 +292,19 @@ def get_yday_cio_data(
         lon, lat = hp.pix2ang(nside_out, pix, lonlat=True)
 
         tod = data[f"Phot{cio_band_label}"].astype(np.float64)[time_sorted_inds]
+
+        # Compute polarization angle
+        lonrad = np.deg2rad(lon)
+        latrad = np.deg2rad(lat)
+        colat = np.pi/2 - latrad
+        att_x = natv[:,0]*np.cos(lonrad) + natv[:,1]*np.sin(lonrad)
+        att_y = natv[:,1]*np.cos(lonrad) - natv[:,0]*np.sin(lonrad)
+
+        xp = att_x*np.cos(colat) - natv[:,2]*np.sin(colat)
+        psi = np.arctan2(att_y, xp)
+        psi[psi < 0] += 2*np.pi
+        psi = psi % (2*np.pi)
+
 
         # Remove the iras convention color correction
         iras_color_corr_factor = dirbe_utils.get_iras_factor(band)
@@ -310,6 +330,8 @@ def get_yday_cio_data(
 
         # Get comet flags
         for body, radius in dirbe_utils.COMET_RADII.items():
+            if body not in FLAG_BITS.keys():
+                continue
             comet_lon = comet_interps[body]["lon"](time)
             comet_lat = comet_interps[body]["lat"](time)
             comet_dist = comet_interps[body]["dist"](time)
@@ -327,6 +349,23 @@ def get_yday_cio_data(
 
             comet_indices = ang_dist <= np.deg2rad(r)
             flag[comet_indices] += 2 ** FLAG_BITS[body]
+
+        for body, radius in dirbe_utils.ASTEROID_RADII.items():
+            if body not in FLAG_BITS.keys():
+                continue
+            aster_lon = asteroid_interps[body]["lon"](time)
+            aster_lat = asteroid_interps[body]["lat"](time)
+
+
+            ang_dist = hp.rotator.angdist(
+                np.array([lon, lat]),
+                np.array([aster_lon, aster_lat]),
+                lonlat=True,
+            )
+
+            aster_indices = ang_dist <= np.deg2rad(r)
+            flag[aster_indices] += 2 ** FLAG_BITS[body]
+
 
         # Find which flags correspond to the detector and get the inds of those flags
         xs_noise_inds = (xs_noise_flags & band_bit) > 0
@@ -357,6 +396,10 @@ def get_yday_cio_data(
             padding=bad_data_padding,
         )
 
+        psis[band_label] = padd_array_gaps(
+            np.split(psi, split_inds), padding=psi_padding
+        )
+
         flags[band_label] = padd_array_gaps(
             np.split(flag, split_inds), padding=flag_padding
         )
@@ -364,6 +407,7 @@ def get_yday_cio_data(
     return YdayData(
         tods, 
         pixels, 
+        psis,
         flags, 
         time_start=time[0], 
         time_stop=time[-1], 
@@ -463,7 +507,7 @@ def write_band(
         ]
         comm_tod.add_field(
             pid_det_group + "/psi",
-            np.zeros_like(cio.tods[pid]),
+            cio.psis[pid],
             [psi_digitize_compression, HUFFMAN_COMPRESSION],
         )
 
@@ -544,7 +588,7 @@ def main() -> None:
     nside_out = 512
 
     start_time = time.perf_counter()
-    color_corr = True
+    color_corr = False
     version = 21
 
     print(f"{'Writing DIRBE h5 files':=^50}")
@@ -605,7 +649,7 @@ def main() -> None:
             "neptune",
             "non_definitive_attitude",
             # "definite_attitude",
-            "course_attitude",
+            "coarse_attitude",
             # "fine_attitude",
             # "merged_attitude",
             # "external_uax_attitude",
