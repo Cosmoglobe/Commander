@@ -96,9 +96,9 @@ def get_temperature_hl(row, element):
     tranlo_b = trantemp_b - tranhwid_b
     tranhi_b = trantemp_b + tranhwid_b
 
-    if row[f"a_lo_{element}"] < tranlo_a:
+    if row[f"a_lo_{element}"] < tranlo_a and row[f"a_hi_{element}"] < tranlo_a:
         temp_a = row[f"a_lo_{element}"]
-    elif row[f"a_hi_{element}"] > tranhi_a:
+    elif row[f"a_hi_{element}"] > tranhi_a and row[f"a_lo_{element}"] > tranhi_a:
         temp_a = row[f"a_hi_{element}"]
     else:  # TODO: decide what to do if the temperature is within the uncertainty range
         temp_a = np.mean([row[f"a_lo_{element}"], row[f"a_hi_{element}"]])
@@ -106,9 +106,9 @@ def get_temperature_hl(row, element):
     if (
         "xcal" != element_search and "collimator" not in element
     ):  # these on the b side are broken
-        if row[f"b_lo_{element}"] < tranlo_b:
+        if row[f"b_lo_{element}"] < tranlo_b and row[f"b_hi_{element}"] < tranlo_b:
             temp_b = row[f"b_lo_{element}"]
-        elif row[f"b_hi_{element}"] > tranhi_b:
+        elif row[f"b_hi_{element}"] > tranhi_b and row[f"b_lo_{element}"] > tranhi_b:
             temp_b = row[f"b_hi_{element}"]
         else:  # TODO: decide what to do if the temperature is within the uncertainty range
             temp_b = np.mean([row[f"b_lo_{element}"], row[f"b_hi_{element}"]])

@@ -185,22 +185,22 @@
       - `b_hi_cal_resistors`: ?. Shape: 589069 x 4. Units: ?.
       - `b_hi_collimator`: ?. Shape: 589069. **All values are -9999.**
       - `b_hi_dihedral`: Dihedral temperature. Shape: 589069. Values: 2 to 11. Units: K?.
-      - `b_hi_ical`: Temperature of the ICAL. Shape: 589069. Values: 2 to 20. Units: K?.
+      - `b_hi_ical`: Internal reference source. Shape: 589069. Values: 2 to 20. Units: K?.
       - `b_hi_mirror`: Temperature of the mirror. Shape: 589069. Values: 2 to 9, with some values being -9.9990000e+03. Units: K?.
-      - `b_hi_refhorn`: Temperature of the reference horn. Shape: 589069. Values: 2 to 26, with some values being -9.9990000e+03. Units: K?.
-      - `b_hi_skyhorn`: Temperature of the sky horn. Shape: 589069. Values: 2 to 26, with some values being -9.9990000e+03. Units: K?.
+      - `b_hi_refhorn`: Reference horn. Shape: 589069. Values: 2 to 26, with some values being -9.9990000e+03. Units: K?.
+      - `b_hi_skyhorn`: Sky horn. Shape: 589069. Values: 2 to 26, with some values being -9.9990000e+03. Units: K?.
       - `b_hi_xcal_cone`: Temperature of the cone of the XCAL. Shape: 589069. Values: 2 to 23. Units: K?.
-      - `b_hi_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. **All values are -9999.**
-      - `b_lo_bol_assem`: ?. Shape: 589069 x 4. Values: 1 to 3. Units: K?.
-      - `b_lo_cal_resistors`: ?. Shape: 589069 x 4. Units: ?.
-      - `b_lo_collimator`: ?. Shape: 589069. **All values are -9999.**
+      - `b_hi_xcal_tip`: External calibrator tip. Shape: 589069. **All values are -9999.**
+      - `b_lo_bol_assem`: Bolometer assembly. Shape: 589069 x 4. Values: 1 to 3. Units: K?.
+      - `b_lo_cal_resistors`: Cal resistors. Shape: 589069 x 4. Units: ?.
+      - `b_lo_collimator`: Collimator. Shape: 589069. **All values are -9999.**
       - `b_lo_dihedral`: Dihedral. Shape: 589069. Values: 1 to 8. Units: K?.
       - `b_lo_ical`: Internal reference source. Shape: 589069. Values: 1 to 22. Units: K?.
-      - `b_lo_mirror`: Temperature of the mirror. Shape: 589069. Values: 1 to 33, with some values being -9.9990000e+03. Units: K?.
+      - `b_lo_mirror`: Mirror assembly. Shape: 589069. Values: 1 to 33, with some values being -9.9990000e+03. Units: K?.
       - `b_lo_refhorn`: Reference horn. Shape: 589069. Values: 1 to 27. Units: K?.
       - `b_lo_skyhorn`: Sky horn. Shape: 589069. Values: 1 to 27. Units: K?.
-      - `b_lo_xcal_cone`: External calibrator tip. Shape: 589069. Values: 1 to 26. Units: K?.
-      - `b_lo_xcal_tip`: Temperature of the tip of the XCAL. Shape: 589069. **All values are -9999.**
+      - `b_lo_xcal_cone`: Additional XCAL temp. Shape: 589069. Values: 1 to 26. Units: K?.
+      - `b_lo_xcal_tip`: External calibrator tip. Shape: 589069. **All values are -9999.**
   - `en_stat`
     - `bol_cmd_bias`: Bolometer bias?. Shape: 589069 x 4. Units: ?.
     - `dwell_stat`: Dwell status A,B. Shape: 589069 x 2. Values: {0, 1}.
