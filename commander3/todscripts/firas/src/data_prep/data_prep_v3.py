@@ -396,6 +396,11 @@ bol_cmd_bias_rl = fdq_eng["en_stat/bol_cmd_bias"][:, 1]
 bol_cmd_bias_lh = fdq_eng["en_stat/bol_cmd_bias"][:, 2]
 bol_cmd_bias_ll = fdq_eng["en_stat/bol_cmd_bias"][:, 3]
 
+sci_gain_rh = fdq_eng["chan/sci_gain"][:, 0]
+sci_gain_rl = fdq_eng["chan/sci_gain"][:, 1]
+sci_gain_lh = fdq_eng["chan/sci_gain"][:, 2]
+sci_gain_ll = fdq_eng["chan/sci_gain"][:, 3]
+
 
 # make engineeering data df
 df_eng = pd.DataFrame(
@@ -421,6 +426,10 @@ df_eng = pd.DataFrame(
         "bol_cmd_bias_rl": list(bol_cmd_bias_rl),
         "bol_cmd_bias_lh": list(bol_cmd_bias_lh),
         "bol_cmd_bias_ll": list(bol_cmd_bias_ll),
+        "sci_gain_rh": list(sci_gain_rh),
+        "sci_gain_rl": list(sci_gain_rl),
+        "sci_gain_lh": list(sci_gain_lh),
+        "sci_gain_ll": list(sci_gain_ll),
     }
 )
 
@@ -463,6 +472,10 @@ bol_cmd_bias_rh_new = []
 bol_cmd_bias_rl_new = []
 bol_cmd_bias_lh_new = []
 bol_cmd_bias_ll_new = []
+sci_gain_rh_new = []
+sci_gain_rl_new = []
+sci_gain_lh_new = []
+sci_gain_ll_new = []
 
 # iterate over science times and find engineering indices within 1 minute
 for target_time in science_times:
@@ -540,6 +553,30 @@ for target_time in science_times:
             fill_value="extrapolate",
         )
         bol_cmd_bias_ll_new.append(f(target_time))
+        f = interpolate.interp1d(
+            engineering_times[indices],
+            df_eng["sci_gain_rh"][indices],
+            fill_value="extrapolate",
+        )
+        sci_gain_rh_new.append(f(target_time))
+        f = interpolate.interp1d(
+            engineering_times[indices],
+            df_eng["sci_gain_rl"][indices],
+            fill_value="extrapolate",
+        )
+        sci_gain_rl_new.append(f(target_time))
+        f = interpolate.interp1d(
+            engineering_times[indices],
+            df_eng["sci_gain_lh"][indices],
+            fill_value="extrapolate",
+        )
+        sci_gain_lh_new.append(f(target_time))
+        f = interpolate.interp1d(
+            engineering_times[indices],
+            df_eng["sci_gain_ll"][indices],
+            fill_value="extrapolate",
+        )
+        sci_gain_ll_new.append(f(target_time))
         # elif not xcal_pos_series.empty and xcal_pos_series.iloc[0] == 2:
         #     xcal_new.append(np.nan)
     else:
@@ -553,6 +590,10 @@ for target_time in science_times:
         bol_cmd_bias_rl_new.append(np.nan)
         bol_cmd_bias_lh_new.append(np.nan)
         bol_cmd_bias_ll_new.append(np.nan)
+        sci_gain_rh_new.append(np.nan)
+        sci_gain_rl_new.append(np.nan)
+        sci_gain_lh_new.append(np.nan)
+        sci_gain_ll_new.append(np.nan)
 
 
 merged_df["ical"] = ical_new
@@ -565,6 +606,10 @@ merged_df["bol_cmd_bias_rh"] = bol_cmd_bias_rh_new
 merged_df["bol_cmd_bias_rl"] = bol_cmd_bias_rl_new
 merged_df["bol_cmd_bias_lh"] = bol_cmd_bias_lh_new
 merged_df["bol_cmd_bias_ll"] = bol_cmd_bias_ll_new
+merged_df["sci_gain_rh"] = sci_gain_rh_new
+merged_df["sci_gain_rl"] = sci_gain_rl_new
+merged_df["sci_gain_lh"] = sci_gain_lh_new
+merged_df["sci_gain_ll"] = sci_gain_ll_new
 
 # drop rows without ical data
 merged_df = merged_df[merged_df["ical"].notna()]
@@ -579,7 +624,7 @@ print(f"Dataframe after merging engineering data: {merged_df.tail()}")
 print("Column names in merged_df:", merged_df.columns)
 
 # saving to a h5 file
-with tb.open_file("./../../data/df_v12.h5", mode="w") as h5file:
+with tb.open_file("./../../data/df_v13.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Merged Data")
 
     h5file.create_array(group, "gmt", gmt_str)
@@ -608,6 +653,10 @@ with tb.open_file("./../../data/df_v12.h5", mode="w") as h5file:
     h5file.create_array(group, "bol_cmd_bias_lh", merged_df["bol_cmd_bias_lh"].tolist())
     h5file.create_array(group, "bol_cmd_bias_ll", merged_df["bol_cmd_bias_ll"].tolist())
     h5file.create_array(group, "time", merged_df["time"].values)
+    h5file.create_array(group, "sci_gain_rh", merged_df["sci_gain_rh"].tolist())
+    h5file.create_array(group, "sci_gain_rl", merged_df["sci_gain_rl"].tolist())
+    h5file.create_array(group, "sci_gain_lh", merged_df["sci_gain_lh"].tolist())
+    h5file.create_array(group, "sci_gain_ll", merged_df["sci_gain_ll"].tolist())
 
 end_time = time.time()
 print(f"Time taken: {(end_time - start_time)/60} minutes")
