@@ -107,3 +107,22 @@ def clean_ifg(ifg, mtm_length, mtm_speed, channel, adds_per_group, bol_cmd_bias,
     spec = spec[:len(otf)] / otf
 
     return spec
+
+def planck(freq, temp):
+    """
+    Planck function returning in units of MJy/sr.
+    Input frequency in GHz and temperature in K.
+    """
+    h = 6.62607015e-34 * 1e9 # J GHz-1
+    c = 299792458e-9 # m GHz
+    k = 1.380649e-23 # J K-1
+
+    b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20 # MJy sr-1
+
+    return b
+
+def residuals(temperature, frequency_data, sky_data): # doing least squares for now
+    """
+    Function to calculate the residuals between the sky data and the Planck function for fitting a sky/XCAL temperature.
+    """
+    return np.sum((sky_data - planck(frequency_data, temperature[0]))**2)
