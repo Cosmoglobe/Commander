@@ -75,7 +75,7 @@ if(COMPILE_CFITSIO)
 	# List of arguments to apply to CFitsIO build
 	list(APPEND _CFITSIO_ARGS_ 
 			# Build type
-			-DCMAKE_BUILD_TYPE=Release
+      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 			# Specifying installations paths for binaries and libraries
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 			# Specifying compilers

@@ -143,18 +143,16 @@ contains
     integer(i4b) :: i, j, k, r, q, p, pl, np, nlm, l_, m_, idx, delta, burnin
     integer(i4b) :: nsamp, out_every, check_every, num_accepted, smooth_scale, id_native, ierr, ind, nalm_tot_reg
     integer(i4b) :: p_min, p_max, nalm_tot, pix, region
-    real(dp)     :: t1, t2, ts, dalm, thresh, steplen
-    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior, alms_mean, alms_var, chisq_jeffreys, chisq_temp
+    real(dp)     :: t1, t2, ts, dalm, thresh
+    real(dp)     :: mu, par, accept_rate, diff, chisq_prior, chisq_jeffreys, chisq_temp
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
-    integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
-    character(len=2) :: itext
     character(len=3) :: tag
     character(len=15) :: regfmt
     character(len=9) :: ar_tag
     character(len=1000) :: outmessage
     character(len=512) :: filename
 
-    logical :: accepted, exist, doexit, optimize, apply_prior
+    logical :: accepted, doexit, optimize, apply_prior
     class(comm_mapinfo), pointer :: info => null()
     class(comm_mapinfo), pointer :: info_theta => null()
     class(comm_map),     pointer :: theta => null() ! Spectral parameter of one poltype index (too be smoothed)
@@ -163,7 +161,6 @@ contains
     type(map_ptr),     allocatable, dimension(:) :: df
 
     real(dp),          allocatable, dimension(:,:,:)  :: alms, regs, buffer3
-    real(dp),          allocatable, dimension(:,:)    :: m
     real(dp),          allocatable, dimension(:)      :: buffer, buffer2, rgs, chisq, theta_pixreg_prop, theta_delta_prop
     integer(c_int),    allocatable, dimension(:)      :: maxit
     real(dp)     :: theta_max, theta_min
@@ -932,12 +929,10 @@ contains
 
     integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, p_ind, p_min, p_max
     integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind, ind_pol
-    real(dp)     :: t1, t2, ts, dalm, fwhm_prior, temp_theta
-    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior
+    real(dp)     :: t1, t2, ts, dalm
+    real(dp)     :: mu, par
     integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
     integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
-    character(len=2) :: itext
-    logical :: accepted, exist, doexit, skip
     class(comm_mapinfo), pointer :: info => null()
     class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
@@ -946,12 +941,8 @@ contains
     class(comm_map),     pointer :: temp_map2  => null()
     class(comm_comp),    pointer :: c    => null()
     class(comm_map),     pointer :: theta_single_pol => null() ! Spectral parameter of one poltype index (too be smoothed)
-    real(dp),          allocatable, dimension(:,:,:)   :: alms
     real(dp),          allocatable, dimension(:,:) :: m
-    real(dp),          allocatable, dimension(:) :: buffer, rgs, chisq
 
-    integer(c_int),    allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     c           => compList     
     do while (c%id /= comp_id)
@@ -1329,37 +1320,24 @@ contains
     type(planck_rng),   intent(inout) :: handle    
     character(len=512), dimension(:), intent(in)    :: comp_labels
 
-    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, p_ind, p_min, p_max, id, ncomp, npar, pix_out
-    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind, ind_pol, pol, pix
-    real(dp)     :: t1, t2, ts, dalm, fwhm_prior, temp_theta
-    real(dp)     :: mu, sigma, par, accept_rate, diff, chisq_prior
-    integer(i4b), allocatable, dimension(:) :: status_fit   ! 0 = excluded, 1 = native, 2 = smooth
-    integer(i4b)                            :: status_amp   !               1 = native, 2 = smooth
-    real(dp)     :: s, lnL_old, lnL_new, eps
+    integer(i4b) :: i, j, k, q, p, pl, np, nlm, l_, m_, idx, p_min, p_max, id, ncomp, npar, pix_out
+    integer(i4b) :: nsamp, out_every, num_accepted, smooth_scale, id_native, ierr, ind, pol, pix
+    real(dp)     :: t1, t2, ts, dalm
+    real(dp)     :: mu
+    real(dp)     :: lnL_old, lnL_new, eps
     real(dp), allocatable, dimension(:) :: theta, theta_old
-    character(len=2) :: itext
-    logical :: accepted, exist, doexit, skip
     class(comm_mapinfo), pointer :: info => null()
     class(comm_mapinfo), pointer :: info_lowres => null()
-    class(comm_N),       pointer :: tmp  => null()
     class(comm_map),     pointer :: res  => null()
     class(comm_map),     pointer :: raw  => null()
     class(comm_map),     pointer :: raw2  => null()
     class(comm_map),     pointer :: raw_lowres  => null()
-    class(comm_map),     pointer :: temp_res  => null()
     class(comm_map),     pointer :: temp_map  => null()
-    class(comm_map),     pointer :: temp_map2  => null()
     class(comm_map),     pointer :: chisq_lowres  => null()
     class(comm_map),     pointer :: chisq_old  => null()
     class(comm_comp),    pointer :: c_in    => null()
     class(comm_diffuse_comp),    pointer :: c    => null()
     type(diff_ptr),    allocatable, dimension(:) :: comps
-    real(dp),          allocatable, dimension(:,:,:)   :: alms
-    real(dp),          allocatable, dimension(:,:) :: m
-    real(dp),          allocatable, dimension(:) :: buffer, rgs, chisq
-
-    integer(c_int),    allocatable, dimension(:,:) :: lm
-    integer(i4b), dimension(MPI_STATUS_SIZE) :: mpistat
 
     call wall_time(t1)
     eps = 1d-9
@@ -1936,7 +1914,7 @@ contains
     integer(i4b),                            intent(in)           :: par_id, comp_id, iter
 
     integer(i4b) :: pix, ierr, pol, status
-    real(dp)     :: s, x(3), lnL_old, lnL_new, eps, theta_old
+    real(dp)     :: x(3), lnL_old, lnL_new, eps, theta_old
     class(comm_comp),         pointer :: c => null()
     class(comm_diffuse_comp), pointer :: c_lnL => null()
 
@@ -2067,7 +2045,7 @@ contains
     integer(i4b),                            intent(in)           :: comp_id, iter
 
     integer(i4b) :: i, pix, ierr, pol, status
-    real(dp)     :: s, x(3), lnL_old, lnL_new, eps
+    real(dp)     :: lnL_old, lnL_new, eps
     real(dp), allocatable, dimension(:) :: theta, theta_old
     class(comm_comp),         pointer :: c => null()
     class(comm_diffuse_comp), pointer :: c_lnL => null()
@@ -2199,22 +2177,17 @@ contains
     type(planck_rng),                        intent(inout)        :: handle
     integer(i4b),                            intent(in)           :: par_id, comp_id, iter
 
-    integer(i4b) :: i, j, k, l, n, p, q, pix, ierr, ind(1), counter, n_ok, id
-    integer(i4b) :: i_min, i_max, n_pix, n_pix_tot, flag, npar, np, nmaps
-    real(dp)     :: a, b, a_tot, b_tot, s, t1, t2, x_min, x_max, delta_lnL_threshold
-    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
-    real(dp)     :: x(1), theta_min, theta_max
-    logical(lgt) :: ok
+    integer(i4b) :: i, j, k, n, p, q, pix, ierr, ind(1), n_ok, id
+    integer(i4b) :: npar, np, nmaps
+    real(dp)     :: t1, t2, delta_lnL_threshold
+    real(dp)     :: mu
+    real(dp)     :: theta_min, theta_max
     logical(lgt), save :: first_call = .true.
     class(comm_comp),         pointer :: c => null()
     class(comm_diffuse_comp), pointer :: c_lnL => null()
-    real(dp),     allocatable, dimension(:)   :: lnL, P_tot, F, theta, a_curr
-    real(dp),     allocatable, dimension(:,:) :: amp, buffer_lnL, alm_old
+    real(dp),     allocatable, dimension(:,:) :: buffer_lnL
     !Following is for the local sampler
-    real(dp)     :: old_theta, new_theta, mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, accept_rate
-    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop
-    integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len
-    logical(lgt) :: first_sample
+    integer(i4b) :: p_min, p_max
     class(comm_mapinfo),            pointer :: info => null()
 
     delta_lnL_threshold = 25.d0
@@ -2330,46 +2303,44 @@ contains
     integer(i4b),                            intent(in)           :: p       !incoming polarization
     integer(i4b),                            intent(in)           :: iter    !Gibbs iteration
 
-    integer(i4b) :: i, j, k, l, m, n, q, pr, max_pr, pix, ierr, ind(1), counter, n_ok, id
+    integer(i4b) :: i, j, k, l, n, q, pr, pix, ierr, ind(1), n_ok, id
     integer(i4b) :: i_mono,l_mono,m_mono, N_theta_MC, l_count
-    integer(i4b) :: i_min, i_max, n_pix, n_pix_tot, flag, npar, np, nmaps, nsamp
-    real(dp)     :: a, b, a_tot, b_tot, s, t0, t1, t2, t3, t4, x_min, x_max, delta_lnL_threshold
-    real(dp)     :: mu, sigma, par, w, mu_p, sigma_p, a_old, chisq, chisq_old, chisq_tot, unitconv
-    real(dp)     :: buff_init, theta_min, theta_max, running_accept, running_dlnL
+    integer(i4b) :: npar, np, nmaps, nsamp
+    real(dp)     :: a, b, t0, t1, t2, delta_lnL_threshold
+    real(dp)     :: mu, sigma, mu_p, sigma_p
+    real(dp)     :: theta_min, theta_max, running_accept, running_dlnL
     real(dp)     :: running_correlation, correlation_limit
-    logical(lgt) :: ok, outside, sample_mono
+    logical(lgt) :: outside, sample_mono
     logical(lgt), save :: first_call = .true.
     class(comm_comp),         pointer :: c => null()
     class(comm_comp),         pointer :: c2 => null()
     class(comm_diffuse_comp), pointer :: c_lnL => null()
     class(comm_md_comp),      pointer :: c_mono => null()
     !Following is for the local sampler
-    real(dp)     :: mixing_old, mixing_new, lnL_new, lnL_old, res_lnL, delta_lnL, lnL_prior, lnL_init
-    real(dp)     :: accept_rate, accept_scale, lnL_sum, proplen, chisq_jeffreys, avg_dlnL, lnL_total_init
+    real(dp)     :: mixing_old, mixing_new, lnL_new, lnL_old, delta_lnL, lnL_prior, lnL_init
+    real(dp)     :: accept_rate, accept_scale, proplen, avg_dlnL, lnL_total_init
     real(dp)     :: old_theta, new_theta, prior_rms_scaling
-    integer(i4b) :: i_s, p_min, p_max, pixreg_nprop, band_count, pix_count, buff1_i(1), buff2_i(1), burn_in
+    integer(i4b) :: p_min, p_max, pixreg_nprop, band_count, pix_count, burn_in
     integer(i4b) :: n_spec_prop, n_accept, n_corr_prop, n_prop_limit, n_corr_limit, corr_len, out_every
     integer(i4b) :: npixreg, smooth_scale, arr_ind, np_lr, np_fr, myid_pix, unit
     logical(lgt) :: first_sample, loop_exit, use_det, burned_in, sampled_nprop, sampled_proplen, first_nprop, sample_accepted
-    character(len=512) :: filename, postfix, fmt_pix, npixreg_txt, monocorr_type
+    character(len=512) :: filename, postfix, monocorr_type
     character(len=6) :: itext
     character(len=4) :: ctext
     character(len=2) :: pind_txt
     character(len=512), dimension(1000) :: tokens
-    real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_old_arr, mixing_new_arr
-    real(dp),      allocatable, dimension(:) :: old_thetas, new_thetas, init_thetas, sum_theta
+    real(dp),      allocatable, dimension(:) :: all_thetas, data_arr, invN_arr, mixing_new_arr
+    real(dp),      allocatable, dimension(:) :: old_thetas, new_thetas, init_thetas
     real(dp),      allocatable, dimension(:) :: theta_corr_arr
-    real(dp),      allocatable, dimension(:) :: old_theta_smooth, new_theta_smooth, dlnL_arr
+    real(dp),      allocatable, dimension(:) :: new_theta_smooth, dlnL_arr
     real(dp),  allocatable, dimension(:,:,:) :: theta_MC_arr
     integer(i4b),  allocatable, dimension(:) :: band_i, pol_j, accept_arr
     class(comm_mapinfo),             pointer :: info_fr => null() !full resolution
     class(comm_mapinfo),             pointer :: info_fr_single => null() !full resolution, nmaps=1
     class(comm_mapinfo),             pointer :: info_lr => null() !low resolution
     class(comm_mapinfo),             pointer :: info_lr_single => null() !low resolution, nmaps=1
-    class(comm_mapinfo),             pointer :: info_data => null() !data band map info
     class(comm_map),                 pointer :: theta_single_fr => null() ! Spectral parameter of polt_id index
     class(comm_map),                 pointer :: theta_single_lr => null() ! smoothed spec. ind. of polt_id index
-    class(comm_map),                 pointer :: theta_lr => null() ! smoothed spec. ind. of polt_id index
     class(comm_map),                 pointer :: theta_lr_hole => null() ! smoothed spec. ind. of polt_id index
     class(comm_map),                 pointer :: theta_fr => null() ! smoothed spec. ind. of polt_id index
     class(comm_map),                 pointer :: mask_lr => null() ! lowres mask
@@ -2377,10 +2348,7 @@ contains
     class(comm_map),                 pointer :: res_map => null() ! lowres  residual map
     class(comm_map),                 pointer :: ones_map => null() ! Constant sky
     class(comm_map),                 pointer :: Ninv_map => null() ! Inverse covariance diagonal
-    class(comm_map),                 pointer :: temp_res => null() 
     class(comm_map),                 pointer :: temp_map => null() 
-    class(comm_map),                 pointer :: temp_noise => null() 
-    class(comm_map),                 pointer :: temp_mixing => null() 
     class(comm_map),                 pointer :: temp_chisq => null() 
     type(map_ptr), allocatable, dimension(:) :: df
     real(dp),      allocatable, dimension(:) :: monopole_val, monopole_rms, monopole_mu, monopole_mixing
@@ -3700,7 +3668,7 @@ contains
        end if
 
 
-    end do !pr = 1,max_pr
+    end do 
     if (allocated(theta_corr_arr)) deallocate(theta_corr_arr)
 
     !bcast proposal length
@@ -3960,7 +3928,7 @@ contains
     integer(i4b),               intent(in), optional :: arr_len
     real(dp)                                         :: comp_lnL_marginal_diagonal
 
-    integer(i4b) :: i, j, mat_len
+    integer(i4b) :: i, j
     real(dp)     :: MNd,MNM,invMNM
     real(dp), dimension(:), allocatable :: MN
     !  Function to evaluate the log-likelihood for a pixel across all bands in one polarization,
@@ -4039,7 +4007,7 @@ contains
     integer(i4b),               intent(in), optional :: arr_len
     real(dp)                                         :: comp_lnL_max_chisq_diagonal
 
-    integer(i4b) :: i, j, mat_len
+    integer(i4b) :: i, j
     real(dp)     :: MNd,MNM,invMNM, amp, chisq
     real(dp), dimension(:), allocatable :: MN
     !  

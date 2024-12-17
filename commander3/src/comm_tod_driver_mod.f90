@@ -259,6 +259,15 @@ contains
 !!$            & albedo=tod%zodi_albedo &
 !!$            &)
           call get_s_tot_zodi(zodi_model, tod, j, scan, self%s_zodi(:, j), pix_dynamic=self%pix(:,j,:), pix_static=tod%scans(scan)%d(j)%pix_sol, s_scat=self%s_zodi_scat(:,:,j), s_therm=self%s_zodi_therm(:,:,j))
+!!$          if (tod%myid == 0) then
+!!$             open(58,file='zodi.dat')
+!!$             do k =  1, size(self%s_zodi(:,j))
+!!$                write(58,*) k, self%s_zodi(k,j), self%mask(k,j)
+!!$             end do
+!!$             close(58)
+!!$          end if
+!!$          call mpi_finalize(k)
+!!$          stop
        end do
        call timer%stop(TOD_ZODI, tod%band)
     end if

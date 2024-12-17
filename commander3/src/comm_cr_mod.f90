@@ -446,11 +446,10 @@ contains
 
   end subroutine cr_amp2x_full
 
-  subroutine cr_x2amp_full(samp_group, x, store_buff)
+  subroutine cr_x2amp_full(samp_group, x)
     implicit none
     integer(i4b),           intent(in) :: samp_group
     real(dp), dimension(:), intent(in) :: x
-    logical(lgt), intent(in), optional :: store_buff
 
     integer(i4b) :: i, ind
     class(comm_comp), pointer :: c => null()
@@ -461,36 +460,19 @@ contains
        select type (c)
        class is (comm_diffuse_comp)
           do i = 1, c%x%info%nmaps
-             if (c%active_samp_group(samp_group)) then
-               if (store_buff) then
-                 c%x%alm_buff(:,i) = c%x%alm(:,i) 
-               end if
-               c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
-             end if
+             if (c%active_samp_group(samp_group)) c%x%alm(:,i) = x(ind:ind+c%x%info%nalm-1)
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          if(.not. c%precomputed_amps) then
-            do i = 1, c%nmaps
-              if (c%myid == 0) then
-                if (c%active_samp_group(samp_group)) then
-                  if (store_buff) then
-                    c%x_buff(:,i) = c%x(:,i)
-                  end if
-                  c%x(:,i) = x(ind:ind+c%nsrc-1)
-                end if
-                ind = ind + c%nsrc
-              end if
-            end do
-          end if
+          do i = 1, c%nmaps
+            if (c%myid == 0) then
+              if (c%active_samp_group(samp_group)) c%x(:,i) = x(ind:ind+c%nsrc-1)
+              ind = ind + c%nsrc
+            end if
+          end do
        class is (comm_template_comp)
           if (c%myid == 0) then
-             if (c%active_samp_group(samp_group)) then
-               if (store_buff) then
-                 c%x_buff(1,1) = c%x(1,1)
-               end if
-               c%x(1,1) = x(ind)
-             end if
+             if (c%active_samp_group(samp_group)) c%x(1,1) = x(ind)
              ind      = ind + 1
           end if
        end select

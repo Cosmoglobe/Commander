@@ -52,6 +52,7 @@ module comm_template_comp_mod
      real(dp),  dimension(2)    :: P         ! Gaussian prior on amplitude (mean,sigma)
      real(dp),  dimension(2)    :: P_cg      ! Gaussian prior on amplitude for CG (mean,sigma)
      class(comm_map), pointer   :: T    => null()   ! Template
+     real(dp)                   :: T_scale          ! overall scaling amplitude for the template
      class(comm_map), pointer   :: mask => null()   ! Template mask
    contains
      procedure :: dumpFITS      => dumpTemplateToFITS
@@ -112,6 +113,7 @@ contains
     c%comm      = cpar%comm_chain
     c%numprocs  = cpar%numprocs_chain
     c%P         = [mu,rms]
+    c%T_scale   = 1.d0
     npre                  = npre + 1
     comm_pre              = cpar%comm_chain
     myid_pre              = cpar%myid_chain
@@ -296,6 +298,9 @@ contains
        call create_hdf_group(chainfile, trim(adjustl(path)))
        path = trim(adjustl(path))//'/'//trim(adjustl(data(self%band)%label))
        call write_hdf(chainfile, trim(adjustl(path)), self%x)
+       if(self%T_scale /= 1.d0 .and. self%myid == 0) then
+         call write_hdf(chainfile, trim(adjustl(path)) // 'T_scale', self%T_scale)
+       end if
     end if
     
   end subroutine dumpTemplateToFITS

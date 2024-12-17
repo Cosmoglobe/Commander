@@ -129,6 +129,7 @@ contains
     constructor%lmin   = cpar%cs_lmin_amp(id_abs)
     constructor%lmax   = cpar%cs_lmax_amp(id_abs)
     constructor%lmax_prior = cpar%cs_lmax_amp_prior(id_abs)
+    constructor%l_apod = cpar%cs_l_apod(id_abs)
     constructor%unit   = cpar%cs_unit(id_abs)
     constructor%nu_ref = cpar%cs_nu_ref(id_abs,:)
     constructor%nmaps  = 1; if (cpar%cs_polarization(id_abs)) constructor%nmaps = 3

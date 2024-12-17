@@ -97,6 +97,7 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      class(comm_map),               pointer     :: defmask => null()
      class(comm_map),               pointer     :: priormask => null()
      class(comm_map),               pointer     :: x => null()           ! Spatial parameters
+     real(dp)                                   :: x_scale !overall scaling parameter for component
      class(comm_map),               pointer     :: x_smooth => null()    ! Spatial parameters
      class(comm_map),               pointer     :: mu => null()          ! Spatial prior mean
      class(comm_B),                 pointer     :: B_out => null()       ! Output beam
@@ -112,9 +113,9 @@ module comm_diffuse_comp_mod ! only interfaces in this file, accompanying smod.f
      logical(lgt),    dimension(:,:), allocatable :: F_null     ! Don't allocate space for null mixmat's
      type(F_int_ptr), dimension(:,:,:), allocatable :: F_int        ! SED integrator
      integer(i4b) :: ntab
-     real(dp), allocatable, dimension(:,:) :: SEDtab
-     real(dp), allocatable, dimension(:,:) :: SEDtab_buff
-     real(dp)                              :: SEDtab_prior  ! Single value for MH proposals, per comp
+     real(dp), allocatable, dimension(:,:) :: SEDtab        ! (2+npar_tab, nbin)
+     real(dp), allocatable, dimension(:,:) :: SEDtab_buff   ! 
+     real(dp)                              :: SEDtab_prior  ! (npar_tab), Single value for MH proposals, per comp
    contains
      procedure :: initDiffuse
      procedure :: initPixregSampling
