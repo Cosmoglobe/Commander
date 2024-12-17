@@ -29,8 +29,8 @@ COMP_BETA_PRIOR_GAUSS_MEAN&&  =  0.
 COMP_BETA_PRIOR_GAUSS_RMS&&   =  0.3
 
 COMP_T_DEFAULT&&            = 3000.0
-COMP_T_NU_MIN&&             = 61182.13428571  ! GHz, DIRBE 04
-COMP_T_NU_MAX&&             = 239833.966      ! GHz, DIRBE 01
+COMP_T_NU_MIN&&             = 60000           ! GHz, DIRBE 04
+COMP_T_NU_MAX&&             = 300000         ! GHz, DIRBE 01
 COMP_T_PRIOR_UNI_LOW&&      = 1500.0
 COMP_T_PRIOR_UNI_HIGH&&     = 12000.0
 COMP_T_PRIOR_GAUSS_MEAN&&   = 3000.0

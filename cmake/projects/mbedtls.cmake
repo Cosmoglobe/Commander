@@ -81,7 +81,7 @@ if(NOT (CFITSIO_FOUND AND CURL_FOUND) AND CFITSIO_USE_CURL)
 			# commands how to build the project
 			DOWNLOAD_COMMAND ""
 			CMAKE_ARGS
-				-DCMAKE_BUILD_TYPE=Release
+				-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
 				# Specifying installations paths for binaries and libraries
 				-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 				# ensuring that the lib name would be lib and not lib64

@@ -41,16 +41,18 @@ module comm_param_mod
   type(status_file)                :: status
 
   type InterplanetaryDustParamLabels
-     character(len=128), dimension(2) :: general = [character(len=128) :: "T_0", "T_DELTA"]
-     character(len=128), dimension(6) :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
-     character(len=128), dimension(4) :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
-     character(len=128), dimension(4) :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
-     character(len=128), dimension(5) :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(5) :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
-     character(len=128), dimension(2) :: interstellar = [character(len=128) :: 'R', 'ALPHA']
-     character(len=128), dimension(5) :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
-     character(len=128), dimension(4) :: comet = [character(len=128) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
-     character(len=128), dimension(4) :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE']
+     character(len=128), dimension(2)  :: general = [character(len=128) :: "T_0", "T_DELTA"]
+     character(len=128), dimension(6)  :: common = [character(len=128) :: 'N_0', 'I', 'OMEGA', 'X_0', 'Y_0', 'Z_0']
+     character(len=128), dimension(4)  :: cloud = [character(len=128) :: 'ALPHA', 'BETA', 'GAMMA', 'MU']
+     character(len=128), dimension(4)  :: band = [character(len=128) :: 'DELTA_ZETA', 'DELTA_R', 'V', 'P']
+     character(len=128), dimension(5)  :: ring = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(5)  :: feature = [character(len=128) :: 'R', 'SIGMA_R', 'SIGMA_Z', 'THETA', 'SIGMA_THETA']
+     character(len=128), dimension(2)  :: interstellar = [character(len=128) :: 'R', 'ALPHA']
+     character(len=128), dimension(5)  :: fan = [character(len=128) :: 'Q', 'P', 'gamma', 'Z_midplane_0', 'R_outer']
+     character(len=128), dimension(4)  :: comet = [character(len=128) :: 'P', 'Z_midplane_0', 'R_inner', 'R_outer']
+     character(len=128), dimension(16) :: WrightCloudRing = [character(len=128) :: 'p1', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10', 'p13', 'p14', 'p15', 'p16', 'p17', 'p18', 'p19']
+     character(len=128), dimension(6)  :: WrightBand = [character(len=128) :: 'q1', 'q5', 'q6', 'q7', 'q8', 'R_1']
+     character(len=128), dimension(6)  :: comp_types = [character(len=128) :: 'CLOUD', 'BAND', 'RING', 'FEATURE', 'WRIGHTCLOUDRING', 'WRIGHTBAND']
      
      contains
             procedure :: get_labels
@@ -251,6 +253,7 @@ module comm_param_mod
      character(len=512), allocatable, dimension(:)     :: cs_prior_amp
      character(len=512), allocatable, dimension(:,:)   :: cs_input_ind
      character(len=512), allocatable, dimension(:,:)   :: cs_SED_template
+     character(len=512), allocatable, dimension(:)     :: cs_MBBtab_type
      real(dp),           allocatable, dimension(:)     :: cs_SED_prior
      real(dp),           allocatable, dimension(:,:)   :: cs_theta_def
      real(dp),           allocatable, dimension(:,:)   :: cs_nu_break
@@ -282,6 +285,20 @@ module comm_param_mod
      character(len=2048), allocatable        :: zs_samp_groups(:), zs_samp_group_bands(:)
      logical(lgt)                            :: zs_output_comps, zs_output_ascii, zs_joint_mono, zs_output_tod_res
      type(InterplanetaryDustParamLabels)     :: zodi_param_labels
+
+
+     ! MH spectral index sampling parameters
+     integer(i4b)                                :: mcmc_num_user_samp_groups                     ! NUM_MCMC_SAMPLING_GROUPS
+     integer(i4b)                                :: mcmc_num_samp_groups                          ! NUM_MCMC_SAMPLING_GROUPS
+     character(len=2048), allocatable            :: mcmc_samp_groups(:)                           ! MCMC_SAMPLING_GROUP_PARAMS, MCMC_SAMPLING_GROUP_CHISQ_BANDS
+     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_mask
+     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_samp_group_bands
+     character(len=512), dimension(MAXSAMPGROUP) :: mcmc_update_cg_groups                         ! MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS&&
+                                                                                                  ! Sample using specificed cg
+                                                                                                  ! groups. If none, skip amplitude
+                                                                                                  ! sampling
+     integer(i4b), allocatable, dimension(:,:)   :: mcmc_group_bands_indices
+     integer(i4b), allocatable, dimension(:)     :: mcmc_samp_group_numstep
   end type comm_params
 
 
@@ -759,6 +776,19 @@ contains
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_MAXITER'//itext, par_int=cpar%cg_samp_group_maxiter(i))
        call get_parameter_hashtable(htbl, 'CG_SAMPLING_GROUP_BANDS'//itext, par_string=cpar%cg_samp_group_bands(i))
     end do
+
+    call get_parameter_hashtable(htbl, 'NUM_MCMC_SAMPLING_GROUPS', par_int=cpar%mcmc_num_user_samp_groups)
+    cpar%mcmc_num_samp_groups = cpar%mcmc_num_user_samp_groups
+    allocate(cpar%mcmc_samp_groups(cpar%mcmc_num_user_samp_groups), cpar%mcmc_samp_group_numstep(cpar%mcmc_num_user_samp_groups))
+    do i = 1, cpar%mcmc_num_user_samp_groups
+       call int2string(i, itext)
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_MASK'//itext, par_string=cpar%mcmc_samp_group_mask(i), path=.true.)
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_CHISQ_BANDS'//itext, par_string=cpar%mcmc_samp_group_bands(i))
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_PARAMS'//itext, par_string=cpar%mcmc_samp_groups(i))
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_UPDATE_CG_GROUPS'//itext, par_string=cpar%mcmc_update_cg_groups(i))
+       call get_parameter_hashtable(htbl, 'MCMC_SAMPLING_GROUP_NUMSTEP'//itext, par_int=cpar%mcmc_samp_group_numstep(i))
+    end do
+
     call get_parameter_hashtable(htbl, 'LOCALSAMP_BURN_IN', par_int=cpar%cs_local_burn_in)
     call get_parameter_hashtable(htbl, 'LOCALSAMP_OUTPUT_MAPS', par_lgt=cpar%cs_output_localsamp_maps)
 
@@ -788,7 +818,7 @@ contains
     allocate(cpar%cs_input_amp(n), cpar%cs_prior_amp(n), cpar%cs_input_ind(MAXPAR,n))
     allocate(cpar%cs_theta_def(MAXPAR,n), cpar%cs_p_uni(n,2,MAXPAR), cpar%cs_p_gauss(n,2,MAXPAR))
     allocate(cpar%cs_catalog(n), cpar%cs_init_catalog(n), cpar%cs_SED_template(4,n), cpar%cs_cg_scale(3,n))
-    allocate(cpar%cs_SED_prior(n))
+    allocate(cpar%cs_SED_prior(n), cpar%cs_MBBtab_type(n))
     allocate(cpar%cs_ptsrc_template(n), cpar%cs_output_ptsrc_beam(n), cpar%cs_min_src_dist(n))
     allocate(cpar%cs_auxpar(MAXAUXPAR,n), cpar%cs_apply_pos_prior(n))
     allocate(cpar%cs_nu_min_beta(n,MAXPAR), cpar%cs_nu_max_beta(n,MAXPAR), cpar%cs_burn_in(n))
@@ -2610,6 +2640,8 @@ contains
     if (trim(cpar%cs_type(i)) == 'MBBtab') then
        call get_parameter_hashtable(htbl, 'COMP_SED_TEMPLATE'//itext, len_itext=len_itext,  &
             & par_string=cpar%cs_SED_template(1,i), path=.true.)
+       call get_parameter_hashtable(htbl, 'COMP_MBBTAB_TYPE'//itext, len_itext=len_itext,  &
+            & par_string=cpar%cs_MBBtab_type(i))
        call get_parameter_hashtable(htbl, 'COMP_SED_PRIOR'//itext, len_itext=len_itext,  &
             & par_dp=cpar%cs_SED_prior(i))
     end if
@@ -2905,7 +2937,7 @@ subroutine read_zodi_params_hash(htbl, cpar)
      type(hash_tbl_sll), intent(in) :: htbl
      type(comm_params),  intent(inout) :: cpar
 
-     integer(i4b) :: i, j, k, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
+     integer(i4b) :: i, j, k, comp_idx, len_itext, n_params, n_tokens, N_COMMON_PARAMETERS, N_CLOUD_PARAMETERS, N_BAND_PARAMETERS, N_RING_PARAMETERS, N_WRIGHTCLOUDRING_PARAMETERS, N_WRIGHTBAND_PARAMETERS, N_FEATURE_PARAMETERS, N_DIRBE_BANDS, num_e, num_a
      character(len=2) :: itext2
      character(len=3) :: itext
      character(len=64), allocatable :: parameter_labels(:)
@@ -3459,6 +3491,11 @@ end subroutine
     do i = 1, cpar%cg_num_user_samp_groups
        if (trim(cpar%cg_samp_group_mask(i)) /= 'fullsky') then
           call validate_file(trim(cpar%cg_samp_group_mask(i)), 'CG_SAMPLING_GROUP_MASK'//itext)
+       end if
+    end do
+    do i = 1, cpar%mcmc_num_user_samp_groups
+       if (trim(cpar%mcmc_samp_group_mask(i)) /= 'fullsky') then
+          call validate_file(trim(cpar%mcmc_samp_group_mask(i)), 'MCMC_SAMPLING_GROUP_MASK'//itext)
        end if
     end do
 
@@ -4053,6 +4090,10 @@ end subroutine
        write(*,*) 'Error -- too many CG sampling groups defined. Increase MAXSAMPGROUP'
        stop
     end if
+
+
+    ! Temporary
+    cpar%mcmc_num_samp_groups = cpar%mcmc_num_user_samp_groups 
     
   end subroutine define_cg_samp_groups
   
@@ -4079,7 +4120,11 @@ end subroutine
      case ('FAN')
           labels = self%fan
      case ('COMET')
-          labels = self%comet
+        labels = self%comet
+     case ('WRIGHTCLOUDRING')
+        labels = self%wrightcloudring
+     case ('WRIGHTBAND')
+        labels = self%wrightband
      case default
           print *, 'Unknown component type: ', comp_type
           stop

@@ -55,7 +55,7 @@ contains
     integer(i4b) :: i, j, k, l, m, ntot, nloc, p
     real(dp) :: fwhm_prior, sigma_prior, param_dp
     logical(lgt) :: exist
-    type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud
+    type(comm_mapinfo), pointer :: info => null(), info_def => null(), info_ud, info_tempfit
     class(comm_map), pointer :: indmask, mask_ud
     
     call self%initComp(cpar, id, id_abs)
@@ -86,6 +86,7 @@ contains
     self%apply_jeffreys = .false.
     self%sample_first_niter = cpar%cs_local_burn_in
     self%output_localsamp_maps = cpar%cs_output_localsamp_maps
+    self%x_scale       = 1.d0
 
     only_pol            = cpar%only_pol
     only_I              = cpar%only_I
@@ -311,6 +312,10 @@ contains
        else if (trim(self%mono_prior_type) == 'bandmono') then
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_band=trim(filename)
+       else if (trim(self%mono_prior_type) == 'monopole+tempfit') then
+          filename = get_token(temp_filename, ",", 1)
+          info_tempfit => comm_mapinfo(cpar%comm_chain, self%nside, 0, 2, .false.)
+          self%mono_prior_map => comm_map(info_tempfit, trim(filename))
        else          
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(filename))
@@ -2503,6 +2508,10 @@ contains
           !write(*,*) 'path2', trim(path)//'/amp_'
           call map%writeFITS(trim(dir)//'/'//trim(filename), &
                & hdffile=chainfile, hdfpath=trim(path)//'/amp_', output_hdf_map=.false.)
+          !if we have set the overall scale parameter
+          if (self%x_scale /= 1.d0 .and. self%myid == 0) then
+            call write_hdf(chainfile, trim(path)//'/x_scale', self%x_scale)
+          end if
        else
           call map%writeFITS(trim(dir)//'/'//trim(filename))
        end if
@@ -2754,6 +2763,10 @@ contains
           if (l < self%lmin_amp) self%x%alm(i,:) = 0.d0
        end do
 
+       if (trim(self%type) == 'MBBtab') then
+         call read_hdf(hdffile, trim(adjustl(path))//'/SED', self%SEDtab)
+       end if
+
        do i = 1, self%npar
           call self%theta(i)%p%readHDF(hdffile, trim(path)//'/'//trim(adjustl(self%indlabel(i)))//&
                & '_map', .true.)
@@ -2798,14 +2811,7 @@ contains
                 end do
                 call tp%dealloc(); deallocate(tp)
              end if
-          end if !lmax_ind > 0
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%map(:,1) = 1.65d0 
-          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%map(:,1) = 18.d0 
-          !if (trim(self%label) == 'dust' .and. i > 1) self%theta(i)%p%map(:,1) = 1.6d0 
-          !if (trim(self%label) == 'dust' .and. i == 1) self%theta(i)%p%alm(:,:) = 1.65d0 * sqrt(4*pi)
-          !if (trim(self%label) == 'dust' .and. i == 2) self%theta(i)%p%alm(:,:) = 18 * sqrt(4*pi)
-          !if (trim(self%label) == 'synch' .and. i > 1) self%theta(i)%p%alm(:,:) = -3.11d0 * sqrt(4*pi)
-          !if (trim(self%label) == 'ame' .and. i == 1) self%theta(i)%p%alm(:,1) = self%theta(i)%p%alm(:,1) + 0.5d0*sqrt(4*pi)
+          end if
 
           !Need to initialize pixelregions and local sampler from chain as well (where relevant)
           npol=min(self%nmaps,self%poltype(i))!only concerned about the maps/poltypes in use
@@ -2841,7 +2847,6 @@ contains
        end do !i = 1,npar
     end if
 
-    !if (trim(self%label) == 'dust') write(*,*) 'range beta = ', minval(self%theta(1)%p%map), maxval(self%theta(1)%p%map)
     call self%updateMixmat
 
   end subroutine initDiffuseHDF
@@ -3555,6 +3560,22 @@ contains
           end if
        end if
 
+    else if (trim(self%mono_prior_type) == 'monopole+tempfit') then 
+
+       ! Compute mean outside mask; no noise weighting for now at least
+       Amat = 0.d0; bmat = 0.d0
+       do i = 0, self%x%info%np-1
+          if (self%mono_prior_map%map(i,2) < 0.5d0) cycle
+          Amat(1,1) = Amat(1,1) + 1.d0
+          Amat(2,1) = Amat(2,1) + self%mono_prior_map%map(i,1)
+          Amat(1,2) = Amat(1,2) + self%mono_prior_map%map(i,1)
+          Amat(2,2) = Amat(2,2) + self%mono_prior_map%map(i,1)**2 
+          bmat(1)   = bmat(1)   + map%map(i,1)
+          bmat(2)   = bmat(2)   + map%map(i,1)*self%mono_prior_map%map(i,1)
+       end do
+       call mpi_allreduce(MPI_IN_PLACE, Amat(1:2,1:2), 4, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call mpi_allreduce(MPI_IN_PLACE, bmat(1:2),     2, MPI_DOUBLE_PRECISION, MPI_SUM, self%x%info%comm, ierr)
+       call solve_system_real(Amat(1:2,1:2), mu(1:2), bmat(1:2))
 
     else if (trim(self%mono_prior_type) == 'crosscorr') then ! Enforce zero intercept in correlation with specified map
        !ud-grade amplitude map if necessary
@@ -3858,21 +3879,28 @@ contains
 
     end if
     
-    ! Subtract mean in harmonic space
-    do i = 0, self%x%info%nalm-1
-       if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu(0) * sqrt(4.d0*pi)
-       end if
-       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == -1) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu(2) * sqrt(4.d0*pi/3.d0)
-       end if
-       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 0) then
-          self%x%alm(i,1) = self%x%alm(i,1) - mu(3) * sqrt(4.d0*pi/3.d0)
-       end if
-       if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
-          self%x%alm(i,1) = self%x%alm(i,1) + mu(1) * sqrt(4.d0*pi/3.d0)
-       end if
-    end do
+    ! Prepare template corrected map in harmonic space
+    if (trim(self%mono_prior_type) == 'monopole+tempfit') then
+       map%map      = 0.d0
+       map%map(:,1) = mu(1) + mu(2)*self%mono_prior_map%map(:,1)
+       call map%YtW()
+       self%x%alm(:,1) = self%x%alm(:,1) - map%alm(:,1)
+    else
+       do i = 0, self%x%info%nalm-1
+          if (self%x%info%lm(1,i) == 0 .and. self%x%info%lm(2,i) == 0) then
+             self%x%alm(i,1) = self%x%alm(i,1) - mu(0) * sqrt(4.d0*pi)
+          end if
+          if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == -1) then
+             self%x%alm(i,1) = self%x%alm(i,1) - mu(2) * sqrt(4.d0*pi/3.d0)
+          end if
+          if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 0) then
+             self%x%alm(i,1) = self%x%alm(i,1) - mu(3) * sqrt(4.d0*pi/3.d0)
+          end if
+          if (self%x%info%lm(1,i) == 1 .and. self%x%info%lm(2,i) == 1) then
+             self%x%alm(i,1) = self%x%alm(i,1) + mu(1) * sqrt(4.d0*pi/3.d0)
+          end if
+       end do
+    end if
 
     call map%dealloc(); deallocate(map)
     

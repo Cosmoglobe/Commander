@@ -74,6 +74,7 @@ contains
     ! Component specific parameters
     
     allocate(c%theta_def(1), c%p_gauss(2,1), c%p_uni(2,1))
+    allocate(c%theta_steplen(1,cpar%mcmc_num_samp_groups))
     allocate(c%indlabel(1))
     allocate(c%nu_min_ind(1), c%nu_max_ind(1))
     do i = 1, 1
@@ -83,6 +84,7 @@ contains
        c%nu_min_ind(i) = cpar%cs_nu_min_beta(id_abs,i)
        c%nu_max_ind(i) = cpar%cs_nu_max_beta(id_abs,i)
     end do
+    c%theta_steplen = 0d0
     c%indlabel  = ['Te']
 
     !c%npar         = 1
