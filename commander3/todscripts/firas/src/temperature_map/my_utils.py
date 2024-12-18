@@ -4,26 +4,20 @@ import matplotlib.pyplot as plt
 from utils.fut import apod_recnuml, get_recnum
 from utils.frd import apodl, elex_transfcnl
 
-from astropy.io import fits
+from numba import jit, njit
 
 
-def calculate_dc_response(bol_cmd_bias, bol_volt, fits_data):
+@njit(parallel=True)
+def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
     rscale = 1.0e-7
 
     cmd_bias = np.double(bol_cmd_bias) / 25.5
 
-    Jo = fits_data[1].data["BOLPARM8"][0]
-    Jg = fits_data[1].data["BOLPARM9"][0]
     V = (bol_volt - Jo) / Jg
 
     RL = 4.0e7
     R = RL * V / (cmd_bias - V)
 
-    Tbol = fits_data[1].data["BOLOM_B2"][0]
-    T0 = fits_data[1].data["BOLPARM2"][0]
-
-    R0 = fits_data[1].data["BOLPARM_"][0]
-    rho = fits_data[1].data["BOLPARM5"][0]
     X = V * rho
     Y = R / R0 / X
 
@@ -34,8 +28,6 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, fits_data):
 
     Tbol = T0 / (SQ * SQ)
 
-    G1 = fits_data[1].data["BOLPARM3"][0]
-    beta = fits_data[1].data["BOLPARM4"][0]
     G = G1 * Tbol**beta
 
     H = Tbol / X * np.tanh(X / Tbol)
@@ -49,17 +41,37 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, fits_data):
     return S0
 
 
-def clean_ifg(ifg, mtm_length, mtm_speed, channel, adds_per_group, bol_cmd_bias, bol_volt, fits_data, fnyq, frec):
-    fake_it = 0
-    upmode = 4
-
+@jit(parallel=True)
+def clean_ifg(
+    ifg,
+    mtm_length,
+    mtm_speed,
+    channel,
+    adds_per_group,
+    bol_cmd_bias,
+    bol_volt,
+    fnyq_icm,
+    fnyq_hz,
+    otf,
+    Jo,
+    Jg,
+    Tbol,
+    rho,
+    R0,
+    T0,
+    beta,
+    G1,
+    tau,
+):
     # subtract dither
-    ifg = ifg - np.median(ifg)
+    ifg = ifg - np.median(ifg, axis=1)[:, np.newaxis]
 
     # apodize
     sm = 2 * mtm_length + mtm_speed
+    print(f"sm: {sm.shape}")
 
-    arecno = int(apod_recnuml(channel, sm, fake_it, upmode, adds_per_group, 0))
+    arecno = apod_recnuml(channel, sm, adds_per_group)
+    print(f"arecno: {arecno.shape}")
     apodl_all = apodl()
     apod = apodl_all[arecno, :]
 
@@ -74,55 +86,50 @@ def clean_ifg(ifg, mtm_length, mtm_speed, channel, adds_per_group, bol_cmd_bias,
 
     # etf
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec))
-    erecno = int(get_recnum(fake_it, mtm_speed, channel, upmode, adds_per_group))
+    erecno = get_recnum(mtm_speed, channel, adds_per_group)
     etf = etfl_all[erecno, :]
 
-    
-    fnyq_icm = fnyq["icm"][frec]
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
     spec = spec / (etf * spec_norm)
 
-    # bolometer function
-    tau = fits_data[1].data['TIME_CON'][0]
-
     # fcc_spec_length = 321
     spec_len = len(ifg) // 2 + 1
-    fnyq_hz = fnyq['hz'][frec]
     dw = 2.0 * np.pi * fnyq_hz / spec_len
     # afreq = np.arange(fcc_spec_length) * dw # had to change because i'm not padding for now
     afreq = np.arange(spec_len) * dw
 
-    S0 = calculate_dc_response(bol_cmd_bias, bol_volt, fits_data)
+    S0 = calculate_dc_response(
+        bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1
+    )
     B = 1.0 + 1j * tau * afreq
 
     spec = B * spec / S0
 
     # optical transfer function
-    otf = fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
-    otf = otf[np.abs(otf) > 0]
-
-    spec = spec[:len(otf)] / otf
+    spec = spec[: len(otf)] / otf
 
     return spec
+
 
 def planck(freq, temp):
     """
     Planck function returning in units of MJy/sr.
     Input frequency in GHz and temperature in K.
     """
-    h = 6.62607015e-34 * 1e9 # J GHz-1
-    c = 299792458e-9 # m GHz
-    k = 1.380649e-23 # J K-1
+    h = 6.62607015e-34 * 1e9  # J GHz-1
+    c = 299792458e-9  # m GHz
+    k = 1.380649e-23  # J K-1
 
-    b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20 # MJy sr-1
+    b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20  # MJy sr-1
 
     return b
 
-def residuals(temperature, frequency_data, sky_data): # doing least squares for now
+
+def residuals(temperature, frequency_data, sky_data):  # doing least squares for now
     """
     Function to calculate the residuals between the sky data and the Planck function for fitting a sky/XCAL temperature.
     """
-    return np.sum((sky_data - planck(frequency_data, temperature[0]))**2)
+    return np.sum((sky_data - planck(frequency_data, temperature[0])) ** 2)

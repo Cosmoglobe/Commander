@@ -15,6 +15,7 @@ from utils.my_utils import (
     parse_date_string,
     clean_variable,
     get_temperature_hl,
+    convert_gain,
 )
 
 # check how much time the script takes to run
@@ -24,76 +25,31 @@ start_time = time.time()
 fdq_sdf = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5")
 fdq_eng = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_eng_new.h5")
 
+channels = {"lh": 2, "ll": 3, "rh": 0, "rl": 1}
+
 # PARSING THE H5 DATA INTO A PANDAS DATAFRAME TO MANIPULATE DATA EASIER
 print("decoding the gmt data")
-gmt_lh = np.array(fdq_sdf["fdq_sdf_lh/ct_head/gmt"][()]).astype(str)  # .astype(int)
-gmt_ll = np.array(fdq_sdf["fdq_sdf_ll/ct_head/gmt"][()]).astype(str)  # .astype(int)
-gmt_rh = np.array(fdq_sdf["fdq_sdf_rh/ct_head/gmt"][()]).astype(str)  # .astype(int)
-gmt_rl = np.array(fdq_sdf["fdq_sdf_rl/ct_head/gmt"][()]).astype(str)  # .astype(int)
+gmt = {}
+for channel in channels:
+    gmt[channel] = np.array(fdq_sdf[f"fdq_sdf_{channel}/ct_head/gmt"][()]).astype(str)  # .astype(int)
 
-gmt_lh_parsed = []
-gmt_ll_parsed = []
-gmt_rh_parsed = []
-gmt_rl_parsed = []
+gmt_parsed = {"lh": [], "ll": [], "rh": [], "rl": []}
 
-for gmt_nb in gmt_lh:
-    gmt_lh_parsed.append(parse_date_string(gmt_nb))
-for gmt_nb in gmt_ll:
-    gmt_ll_parsed.append(parse_date_string(gmt_nb))
-for gmt_nb in gmt_rh:
-    # gmt_rh_parsed.append(parse_date_string((gmt_nb.astype(int) - 250).astype(str)))
-    gmt_rh_parsed.append(parse_date_string(gmt_nb))
-for gmt_nb in gmt_rl:
-    # gmt_rl_parsed.append(parse_date_string((gmt_nb.astype(int) - 250).astype(str)))
-    gmt_rl_parsed.append(parse_date_string(gmt_nb))
+for channel in channels:
+    for gmt_nb in gmt[channel]:
+        gmt_parsed[channel].append(parse_date_string(gmt_nb))
 
-# getting the ifg data
-ifg_lh = fdq_sdf["fdq_sdf_lh/ifg_data/ifg"]
-ifg_ll = fdq_sdf["fdq_sdf_ll/ifg_data/ifg"]
-ifg_rh = fdq_sdf["fdq_sdf_rh/ifg_data/ifg"]
-ifg_rl = fdq_sdf["fdq_sdf_rl/ifg_data/ifg"]
 
-# getting the xcal_pos data
-xcal_pos_lh = fdq_sdf["fdq_sdf_lh/dq_data/xcal_pos"]
-xcal_pos_ll = fdq_sdf["fdq_sdf_ll/dq_data/xcal_pos"]
-xcal_pos_rh = fdq_sdf["fdq_sdf_rh/dq_data/xcal_pos"]
-xcal_pos_rl = fdq_sdf["fdq_sdf_rl/dq_data/xcal_pos"]
-
-# mtm length
-mtm_length_lh = fdq_sdf["fdq_sdf_lh/sci_head/mtm_length"]
-mtm_length_ll = fdq_sdf["fdq_sdf_ll/sci_head/mtm_length"]
-mtm_length_rh = fdq_sdf["fdq_sdf_rh/sci_head/mtm_length"]
-mtm_length_rl = fdq_sdf["fdq_sdf_rl/sci_head/mtm_length"]
-
-# mtm speed
-mtm_speed_lh = fdq_sdf["fdq_sdf_lh/sci_head/mtm_speed"]
-mtm_speed_ll = fdq_sdf["fdq_sdf_ll/sci_head/mtm_speed"]
-mtm_speed_rh = fdq_sdf["fdq_sdf_rh/sci_head/mtm_speed"]
-mtm_speed_rl = fdq_sdf["fdq_sdf_rl/sci_head/mtm_speed"]
-
-# fake-it mode
-fake_lh = fdq_sdf["fdq_sdf_lh/dq_data/fake"]
-fake_ll = fdq_sdf["fdq_sdf_ll/dq_data/fake"]
-fake_rh = fdq_sdf["fdq_sdf_rh/dq_data/fake"]
-fake_rl = fdq_sdf["fdq_sdf_rl/dq_data/fake"]
-
-# upmode - science data is taken in mode 4
-upmode_lh = fdq_sdf["fdq_sdf_lh/sci_head/sc_head1a"]
-upmode_ll = fdq_sdf["fdq_sdf_ll/sci_head/sc_head1a"]
-upmode_rh = fdq_sdf["fdq_sdf_rh/sci_head/sc_head1a"]
-upmode_rl = fdq_sdf["fdq_sdf_rl/sci_head/sc_head1a"]
-
-# adds per group
-adds_per_group_lh = fdq_sdf["fdq_sdf_lh/sci_head/sc_head9"]
-adds_per_group_ll = fdq_sdf["fdq_sdf_ll/sci_head/sc_head9"]
-adds_per_group_rh = fdq_sdf["fdq_sdf_rh/sci_head/sc_head9"]
-adds_per_group_rl = fdq_sdf["fdq_sdf_rl/sci_head/sc_head9"]
-
-# binary time - average
-time_ll = fdq_sdf["fdq_sdf_ll/ct_head/time"]
-time_lh = fdq_sdf["fdq_sdf_lh/ct_head/time"]
-time_rl = fdq_sdf["fdq_sdf_rl/ct_head/time"]
-time_rh = fdq_sdf["fdq_sdf_rh/ct_head/time"]
+ifg = {}
+xcal_pos  = {}
+mtm_length = {}
+mtm_speed = {}
+fake = {}
+upmode = {}
+adds_per_group = {}
+t = {}
+sweeps = {}
+gain = {}
 
 NSIDE = 32
 pix_terr = {}  # earth coordinates
@@ -102,104 +58,68 @@ pix_gal = {}  # galactic coordinates
 pix_cel = {}  # celestial coordinates, probably J1950
 # Longitudes and latitudes are stored in radians*1e4
 fact = 180.0 / np.pi / 1e4
-for mode in ["lh", "ll", "rh", "rl"]:
-    lon = fdq_sdf[f"fdq_sdf_{mode}/attitude/terr_longitude"][()] * fact
-    lat = fdq_sdf[f"fdq_sdf_{mode}/attitude/terr_latitude"][()] * fact
-    pix_terr[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
-    lon = fdq_sdf[f"fdq_sdf_{mode}/attitude/ecliptic_longitude"][()] * fact
-    lat = fdq_sdf[f"fdq_sdf_{mode}/attitude/ecliptic_latitude"][()] * fact
-    pix_ecl[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+for channel in channels:
+    ifg[channel] = fdq_sdf[f"fdq_sdf_{channel}/ifg_data/ifg"][()]
+    xcal_pos[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/xcal_pos"][()]
+    mtm_length[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/mtm_length"][()]
+    mtm_speed[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/mtm_speed"][()]
+    fake[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/fake"][()]
+    upmode[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/sc_head1a"][()]
+    adds_per_group[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/sc_head9"][()]
+    t[channel] = fdq_sdf[f"fdq_sdf_{channel}/ct_head/time"][()]
+    sweeps[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/sc_head11"][()]
+    gain[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/gain"][()]
 
-    lon = fdq_sdf[f"fdq_sdf_{mode}/attitude/galactic_longitude"][()] * fact
-    lat = fdq_sdf[f"fdq_sdf_{mode}/attitude/galactic_latitude"][()] * fact
-    pix_gal[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+    lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/terr_longitude"][()] * fact
+    lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/terr_latitude"][()] * fact
+    pix_terr[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
-    lon = fdq_sdf[f"fdq_sdf_{mode}/attitude/ra"][()] * fact
-    lat = fdq_sdf[f"fdq_sdf_{mode}/attitude/dec"][()] * fact
-    pix_cel[mode] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+    lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_longitude"][()] * fact
+    lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/ecliptic_latitude"][()] * fact
+    pix_ecl[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+
+    lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/galactic_longitude"][()] * fact
+    lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/galactic_latitude"][()] * fact
+    pix_gal[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
+
+    lon = fdq_sdf[f"fdq_sdf_{channel}/attitude/ra"][()] * fact
+    lat = fdq_sdf[f"fdq_sdf_{channel}/attitude/dec"][()] * fact
+    pix_cel[channel] = hp.ang2pix(NSIDE, lon, lat, lonlat=True).astype(float)
 
 print("getting each channel into its own df")
-print("lh")
-df_lh = pd.DataFrame(
-    {
-        "gmt": gmt_lh_parsed,
-        "ifg": list(ifg_lh),
-        "xcal_pos": list(xcal_pos_lh),
-        "mtm_length": list(mtm_length_lh),
-        "mtm_speed": list(mtm_speed_lh),
-        "fake": list(fake_lh),
-        "upmode": list(upmode_lh),
-        "adds_per_group": list(adds_per_group_lh),
-        "pix_gal": list(pix_gal["lh"]),
-        "pix_ecl": list(pix_ecl["lh"]),
-        "pix_cel": list(pix_cel["lh"]),
-        "pix_terr": list(pix_terr["lh"]),
-        "time": list(time_lh),
-    }
-).sort_values("gmt")
-print(df_lh.columns)
 
+df = {}
 
-print("ll")
-df_ll = pd.DataFrame(
-    {
-        "gmt": gmt_ll_parsed,
-        "ifg": list(ifg_ll),
-        "xcal_pos": list(xcal_pos_ll),
-        "mtm_length": list(mtm_length_ll),
-        "mtm_speed": list(mtm_speed_ll),
-        "fake": list(fake_ll),
-        "upmode": list(upmode_ll),
-        "adds_per_group": list(adds_per_group_ll),
-        "pix_gal": list(pix_gal["ll"]),
-        "pix_ecl": list(pix_ecl["ll"]),
-        "pix_cel": list(pix_cel["ll"]),
-        "pix_terr": list(pix_terr["ll"]),
-        "time": list(time_ll),
-    }
-).sort_values("gmt")
-df_rh = pd.DataFrame(
-    {
-        "gmt": gmt_rh_parsed,
-        "ifg": list(ifg_rh),
-        "xcal_pos": list(xcal_pos_rh),
-        "mtm_length": list(mtm_length_rh),
-        "mtm_speed": list(mtm_speed_rh),
-        "fake": list(fake_rh),
-        "upmode": list(upmode_rh),
-        "adds_per_group": list(adds_per_group_rh),
-        "pix_gal": list(pix_gal["rh"]),
-        "pix_ecl": list(pix_ecl["rh"]),
-        "pix_cel": list(pix_cel["rh"]),
-        "pix_terr": list(pix_terr["rh"]),
-        "time": list(time_rh),
-    }
-).sort_values("gmt")
-print("rl")
-df_rl = pd.DataFrame(
-    {
-        "gmt": gmt_rl_parsed,
-        "ifg": list(ifg_rl),
-        "xcal_pos": list(xcal_pos_rl),
-        "mtm_length": list(mtm_length_rl),
-        "mtm_speed": list(mtm_speed_rl),
-        "fake": list(fake_rl),
-        "upmode": list(upmode_rl),
-        "adds_per_group": list(adds_per_group_rl),
-        "pix_gal": list(pix_gal["rl"]),
-        "pix_ecl": list(pix_ecl["rl"]),
-        "pix_cel": list(pix_cel["rl"]),
-        "pix_terr": list(pix_terr["rl"]),
-        "time": list(time_rl),
-    }
-).sort_values("gmt")
+for channel in channels:
+    print(channel)
+    df[channel] = pd.DataFrame(
+        {
+            "gmt": gmt_parsed[channel],
+            "ifg": list(ifg[channel]),
+            "xcal_pos": list(xcal_pos[channel]),
+            "mtm_length": list(mtm_length[channel]),
+            "mtm_speed": list(mtm_speed[channel]),
+            "fake": list(fake[channel]),
+            "upmode": list(upmode[channel]),
+            "adds_per_group": list(adds_per_group[channel]),
+            "pix_gal": list(pix_gal[channel]),
+            "pix_ecl": list(pix_ecl[channel]),
+            "pix_cel": list(pix_cel[channel]),
+            "pix_terr": list(pix_terr[channel]),
+            "time": list(t[channel]),
+            "sweeps": list(sweeps[channel]),
+            "gain": list(gain[channel]),
+        }
+    ).sort_values("gmt")
+    print(df[channel].columns)
+
 
 # USING THIS FOR MERGE_ASOF
 tolerance = pd.Timedelta(seconds=16)
 print("getting all possible gmts so that we can do an outer join using merge_asof")
 unified_timestamps = (
-    pd.DataFrame(pd.concat([df_lh["gmt"], df_ll["gmt"], df_rh["gmt"], df_rl["gmt"]]))
+    pd.DataFrame(pd.concat([df["lh"]["gmt"], df["ll"]["gmt"], df["rh"]["gmt"], df["rl"]["gmt"]]))
     .drop_duplicates()
     .sort_values("gmt")
     .reset_index(drop=True)
@@ -226,45 +146,38 @@ non_duplicate_timestamps = (
 )
 
 print(f"Timestamps after removing close ones: {non_duplicate_timestamps.tail()}")
-print(df_lh.columns)
-# # outer-join the dataframes on gmt
+print(df["lh"].columns)
+# outer-join the dataframes on gmt
 merged_df = pd.merge_asof(
     non_duplicate_timestamps,
-    df_lh,
+    df["lh"],
     on="gmt",
     direction="nearest",
     tolerance=tolerance,
 )
 
-
 merged_df = pd.merge_asof(
-    # df_lh,
     merged_df,
-    df_ll,
+    df["ll"],
     on="gmt",
-    # how="outer",
     direction="nearest",
     suffixes=("_lh", "_ll"),
     tolerance=tolerance,
     by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
 )
-# merged_df = pd.merge(
 merged_df = pd.merge_asof(
     merged_df,
-    df_rh,
+    df["rh"],
     on="gmt",
-    # how="outer",
     direction="nearest",
     suffixes=("_ll", "_rh"),
     tolerance=tolerance,
     by=["pix_gal", "pix_ecl", "pix_cel", "pix_terr"],
 )
-# merged_df = pd.merge(
 merged_df = pd.merge_asof(
     merged_df,
-    df_rl,
+    df["rl"],
     on="gmt",
-    # how="outer",
     direction="nearest",
     suffixes=("_rh", "_rl"),
     tolerance=tolerance,
@@ -284,14 +197,13 @@ merged_df = merged_df[
 
 zero_list = [0] * 512
 # filling out ifg nans with zeros
-for column in ["ifg_lh", "ifg_ll", "ifg_rh", "ifg_rl"]:
-    merged_df[column] = merged_df[column].apply(
+for channel in channels:
+    merged_df[f"ifg_{channel}"] = merged_df[f"ifg_{channel}"].apply(
         lambda x: zero_list if (isinstance(x, float) and np.isnan(x)) else x
     )
 
 # CLEANING XCAL_POS AND CONSTRAINING FOR ONLY 1 AND 2
 # making sure xcal_pos is the same within each record
-# merged_df["xcal_pos"] = merged_df.apply(clean_xcal_pos, axis=1)
 merged_df["xcal_pos"] = merged_df.apply(clean_variable, axis=1, args=("xcal_pos",))
 merged_df = merged_df.drop(
     columns=["xcal_pos_lh", "xcal_pos_ll", "xcal_pos_rh", "xcal_pos_rl"]
@@ -299,9 +211,7 @@ merged_df = merged_df.drop(
 merged_df = merged_df[(merged_df["xcal_pos"] == 1) | (merged_df["xcal_pos"] == 2)]
 
 # same thing but for mtm length and speed
-# merged_df["mtm_length"] = merged_df.apply(clean_mtm_length, axis=1)
 merged_df["mtm_length"] = merged_df.apply(clean_variable, axis=1, args=("mtm_length",))
-# merged_df["mtm_speed"] = merged_df.apply(clean_mtm_speed, axis=1)
 merged_df["mtm_speed"] = merged_df.apply(clean_variable, axis=1, args=("mtm_speed",))
 merged_df = merged_df.drop(
     columns=["mtm_length_lh", "mtm_length_ll", "mtm_length_rh", "mtm_length_rl"]
@@ -329,22 +239,24 @@ merged_df = merged_df.drop(
     columns=["upmode", "upmode_lh", "upmode_ll", "upmode_rh", "upmode_rl"]
 )
 
-# adds per group
-merged_df["adds_per_group"] = merged_df.apply(
-    clean_variable, axis=1, args=("adds_per_group",)
-)
-merged_df = merged_df.drop(
-    columns=[
-        "adds_per_group_lh",
-        "adds_per_group_ll",
-        "adds_per_group_rh",
-        "adds_per_group_rl",
-    ]
-)
+# the following variables i don't think necessarily need to be the same in all channels for the record to be valid
+for channel in channels:
+    # adds per group
+    merged_df = merged_df[(merged_df[f"adds_per_group_{channel}"] == 1) | (merged_df[f"adds_per_group_{channel}"] == 2) | (merged_df[f"adds_per_group_{channel}"] == 3) | (merged_df[f"adds_per_group_{channel}"] == 8) | (merged_df[f"adds_per_group_{channel}"] == 12)]
+    # sweeps - TODO: CHECK IF 1 IS A VALID VALUE
+    merged_df = merged_df[(merged_df[f"sweeps_{channel}"] == 1) | (merged_df[f"sweeps_{channel}"] == 4) | (merged_df[f"sweeps_{channel}"] == 16)]
+
+    # gain
+    merged_df[f"gain_{channel}"] = merged_df.apply(convert_gain, axis=1, args=(channel,))
+    merged_df = merged_df[(merged_df[f"gain_{channel}"] == 1) | (merged_df[f"gain_{channel}"] == 3) | (merged_df[f"gain_{channel}"] == 10) | (merged_df[f"gain_{channel}"] == 30) | (merged_df[f"gain_{channel}"] == 100) | (merged_df[f"gain_{channel}"] == 300) | (merged_df[f"gain_{channel}"] == 1000) | (merged_df[f"gain_{channel}"] == 3000)]
+    
 
 # binary time - average
 merged_df["time"] = np.mean(
     merged_df[["time_lh", "time_ll", "time_rh", "time_rl"]], axis=1
+)
+merged_df = merged_df.drop(
+    columns=["time_lh", "time_ll", "time_rh", "time_rl"]
 )
 
 # reset index
@@ -357,50 +269,33 @@ print(f"Dataframe after cleaning science data: {merged_df.tail()}")
 # merged_df["xcal"][merged_df["xcal_pos"] == 1] = 0
 
 # ENGINEERING DATA
-a_hi_ical = fdq_eng["en_analog/grt/a_hi_ical"]
-a_lo_ical = fdq_eng["en_analog/grt/a_lo_ical"]
-b_hi_ical = fdq_eng["en_analog/grt/b_hi_ical"]
-b_lo_ical = fdq_eng["en_analog/grt/b_lo_ical"]
-# ical = np.mean([a_hi_ical, a_lo_ical, b_hi_ical, b_lo_ical], axis=0)
 
-a_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/a_hi_xcal_cone"][()])
-a_hi_xcal_tip = np.array(fdq_eng["en_analog/grt/a_hi_xcal_tip"][()])
-a_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/a_lo_xcal_cone"][()])
-a_lo_xcal_tip = np.array(fdq_eng["en_analog/grt/a_lo_xcal_tip"][()])
-b_hi_xcal_cone = np.array(fdq_eng["en_analog/grt/b_hi_xcal_cone"][()])
-b_lo_xcal_cone = np.array(fdq_eng["en_analog/grt/b_lo_xcal_cone"][()])
-# xcal = np.mean(
-#     [
-#         a_hi_xcal_cone * 0.9 + a_hi_xcal_tip * 0.1,
-#         a_lo_xcal_cone * 0.9 + a_lo_xcal_tip * 0.1,
-#         b_hi_xcal_cone,
-#         b_lo_xcal_cone,
-#     ],
-#     axis=0,
-# )
+currents = ["hi", "lo"]
+sides = ["a", "b"]
+
+ical = {}
+xcal_cone = {}
+xcal_tip = {}
+for side in sides:
+    for current in currents:
+        ical[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_ical"][()]
+        xcal_cone[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_xcal_cone"][()]
+        # important to note that all xcal tip b side values are nonsense - for now the tip is actually ignored in get_temperature_hl()
+        xcal_tip[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_xcal_tip"][()]
+
 
 gmt_eng = np.array(fdq_eng["ct_head/gmt"][()]).astype(str)
 gmt_eng_parsed = []
 for gmt in gmt_eng:
     gmt_eng_parsed.append(parse_date_string(gmt))
 
-# bolometer voltages
-bol_volt_rh = fdq_eng["en_analog/group1/bol_volt"][:, 0]
-bol_volt_rl = fdq_eng["en_analog/group1/bol_volt"][:, 1]
-bol_volt_lh = fdq_eng["en_analog/group1/bol_volt"][:, 2]
-bol_volt_ll = fdq_eng["en_analog/group1/bol_volt"][:, 3]
-
-# commanded bolometer bias?
-bol_cmd_bias_rh = fdq_eng["en_stat/bol_cmd_bias"][:, 0]
-bol_cmd_bias_rl = fdq_eng["en_stat/bol_cmd_bias"][:, 1]
-bol_cmd_bias_lh = fdq_eng["en_stat/bol_cmd_bias"][:, 2]
-bol_cmd_bias_ll = fdq_eng["en_stat/bol_cmd_bias"][:, 3]
-
-sci_gain_rh = fdq_eng["chan/sci_gain"][:, 0]
-sci_gain_rl = fdq_eng["chan/sci_gain"][:, 1]
-sci_gain_lh = fdq_eng["chan/sci_gain"][:, 2]
-sci_gain_ll = fdq_eng["chan/sci_gain"][:, 3]
-
+bol_volt = {}
+bol_cmd_bias = {}
+for channel, chan in channels.items():
+    # bolometer voltages
+    bol_volt[channel] = fdq_eng["en_analog/group1/bol_volt"][:, chan]
+    # commanded bolometer bias?
+    bol_cmd_bias[channel] = fdq_eng["en_stat/bol_cmd_bias"][:, chan]
 
 # make engineeering data df
 df_eng = pd.DataFrame(
@@ -408,28 +303,26 @@ df_eng = pd.DataFrame(
         "gmt": gmt_eng_parsed,
         # "ical": list(ical),
         # "xcal": list(xcal),
-        "a_hi_ical": list(a_hi_ical),
-        "a_lo_ical": list(a_lo_ical),
-        "b_hi_ical": list(b_hi_ical),
-        "b_lo_ical": list(b_lo_ical),
-        "a_hi_xcal_cone": list(a_hi_xcal_cone),
-        "a_hi_xcal_tip": list(a_hi_xcal_tip),
-        "a_lo_xcal_cone": list(a_lo_xcal_cone),
-        "a_lo_xcal_tip": list(a_lo_xcal_tip),
-        "b_hi_xcal_cone": list(b_hi_xcal_cone),
-        "b_lo_xcal_cone": list(b_lo_xcal_cone),
-        "bol_volt_rh": list(bol_volt_rh),
-        "bol_volt_rl": list(bol_volt_rl),
-        "bol_volt_lh": list(bol_volt_lh),
-        "bol_volt_ll": list(bol_volt_ll),
-        "bol_cmd_bias_rh": list(bol_cmd_bias_rh),
-        "bol_cmd_bias_rl": list(bol_cmd_bias_rl),
-        "bol_cmd_bias_lh": list(bol_cmd_bias_lh),
-        "bol_cmd_bias_ll": list(bol_cmd_bias_ll),
-        "sci_gain_rh": list(sci_gain_rh),
-        "sci_gain_rl": list(sci_gain_rl),
-        "sci_gain_lh": list(sci_gain_lh),
-        "sci_gain_ll": list(sci_gain_ll),
+        "a_hi_ical": list(ical[f"a_hi"]),
+        "a_lo_ical": list(ical[f"a_lo"]),
+        "b_hi_ical": list(ical[f"b_hi"]),
+        "b_lo_ical": list(ical[f"b_lo"]),
+        "a_hi_xcal_cone": list(xcal_cone["a_hi"]),
+        "a_hi_xcal_tip": list(xcal_tip["a_hi"]),
+        "a_lo_xcal_cone": list(xcal_cone["a_lo"]),
+        "a_lo_xcal_tip": list(xcal_tip["a_lo"]),
+        "b_hi_xcal_cone": list(xcal_cone["b_hi"]),
+        "b_hi_xcal_tip": list(xcal_tip["b_hi"]),
+        "b_lo_xcal_cone": list(xcal_cone["b_lo"]),
+        "b_lo_xcal_tip": list(xcal_tip["b_lo"]),
+        "bol_volt_rh": list(bol_volt["rh"]),
+        "bol_volt_rl": list(bol_volt["rl"]),
+        "bol_volt_lh": list(bol_volt["lh"]),
+        "bol_volt_ll": list(bol_volt["ll"]),
+        "bol_cmd_bias_rh": list(bol_cmd_bias["rh"]),
+        "bol_cmd_bias_rl": list(bol_cmd_bias["rl"]),
+        "bol_cmd_bias_lh": list(bol_cmd_bias["lh"]),
+        "bol_cmd_bias_ll": list(bol_cmd_bias["ll"]),
     }
 )
 
@@ -452,7 +345,9 @@ df_eng = df_eng.drop(
         "a_lo_xcal_cone",
         "a_lo_xcal_tip",
         "b_hi_xcal_cone",
+        "b_hi_xcal_tip",
         "b_lo_xcal_cone",
+        "b_lo_xcal_tip",
     ]
 )
 
@@ -472,10 +367,6 @@ bol_cmd_bias_rh_new = []
 bol_cmd_bias_rl_new = []
 bol_cmd_bias_lh_new = []
 bol_cmd_bias_ll_new = []
-sci_gain_rh_new = []
-sci_gain_rl_new = []
-sci_gain_lh_new = []
-sci_gain_ll_new = []
 
 # iterate over science times and find engineering indices within 1 minute
 for target_time in science_times:
@@ -553,30 +444,6 @@ for target_time in science_times:
             fill_value="extrapolate",
         )
         bol_cmd_bias_ll_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["sci_gain_rh"][indices],
-            fill_value="extrapolate",
-        )
-        sci_gain_rh_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["sci_gain_rl"][indices],
-            fill_value="extrapolate",
-        )
-        sci_gain_rl_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["sci_gain_lh"][indices],
-            fill_value="extrapolate",
-        )
-        sci_gain_lh_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["sci_gain_ll"][indices],
-            fill_value="extrapolate",
-        )
-        sci_gain_ll_new.append(f(target_time))
         # elif not xcal_pos_series.empty and xcal_pos_series.iloc[0] == 2:
         #     xcal_new.append(np.nan)
     else:
@@ -590,10 +457,6 @@ for target_time in science_times:
         bol_cmd_bias_rl_new.append(np.nan)
         bol_cmd_bias_lh_new.append(np.nan)
         bol_cmd_bias_ll_new.append(np.nan)
-        sci_gain_rh_new.append(np.nan)
-        sci_gain_rl_new.append(np.nan)
-        sci_gain_lh_new.append(np.nan)
-        sci_gain_ll_new.append(np.nan)
 
 
 merged_df["ical"] = ical_new
@@ -606,10 +469,6 @@ merged_df["bol_cmd_bias_rh"] = bol_cmd_bias_rh_new
 merged_df["bol_cmd_bias_rl"] = bol_cmd_bias_rl_new
 merged_df["bol_cmd_bias_lh"] = bol_cmd_bias_lh_new
 merged_df["bol_cmd_bias_ll"] = bol_cmd_bias_ll_new
-merged_df["sci_gain_rh"] = sci_gain_rh_new
-merged_df["sci_gain_rl"] = sci_gain_rl_new
-merged_df["sci_gain_lh"] = sci_gain_lh_new
-merged_df["sci_gain_ll"] = sci_gain_ll_new
 
 # drop rows without ical data
 merged_df = merged_df[merged_df["ical"].notna()]
@@ -624,7 +483,7 @@ print(f"Dataframe after merging engineering data: {merged_df.tail()}")
 print("Column names in merged_df:", merged_df.columns)
 
 # saving to a h5 file
-with tb.open_file("./../../data/df_v13.h5", mode="w") as h5file:
+with tb.open_file("./../../data/df_v14.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Merged Data")
 
     h5file.create_array(group, "gmt", gmt_str)
@@ -643,7 +502,10 @@ with tb.open_file("./../../data/df_v13.h5", mode="w") as h5file:
     h5file.create_array(group, "pix_terr", merged_df["pix_terr"].values)
     # h5file.create_array(group, "fake", merged_df["fake"].values)
     # h5file.create_array(group, "upmode", merged_df["upmode"].values)
-    h5file.create_array(group, "adds_per_group", merged_df["adds_per_group"].values)
+    h5file.create_array(group, "adds_per_group_lh", merged_df["adds_per_group_lh"].values)
+    h5file.create_array(group, "adds_per_group_ll", merged_df["adds_per_group_ll"].values)
+    h5file.create_array(group, "adds_per_group_rh", merged_df["adds_per_group_rh"].values)
+    h5file.create_array(group, "adds_per_group_rl", merged_df["adds_per_group_rl"].values)
     h5file.create_array(group, "bol_volt_rh", merged_df["bol_volt_rh"].tolist())
     h5file.create_array(group, "bol_volt_rl", merged_df["bol_volt_rl"].tolist())
     h5file.create_array(group, "bol_volt_lh", merged_df["bol_volt_lh"].tolist())
@@ -653,10 +515,14 @@ with tb.open_file("./../../data/df_v13.h5", mode="w") as h5file:
     h5file.create_array(group, "bol_cmd_bias_lh", merged_df["bol_cmd_bias_lh"].tolist())
     h5file.create_array(group, "bol_cmd_bias_ll", merged_df["bol_cmd_bias_ll"].tolist())
     h5file.create_array(group, "time", merged_df["time"].values)
-    h5file.create_array(group, "sci_gain_rh", merged_df["sci_gain_rh"].tolist())
-    h5file.create_array(group, "sci_gain_rl", merged_df["sci_gain_rl"].tolist())
-    h5file.create_array(group, "sci_gain_lh", merged_df["sci_gain_lh"].tolist())
-    h5file.create_array(group, "sci_gain_ll", merged_df["sci_gain_ll"].tolist())
+    h5file.create_array(group, "gain_rh", merged_df["gain_rh"].tolist())
+    h5file.create_array(group, "gain_rl", merged_df["gain_rl"].tolist())
+    h5file.create_array(group, "gain_lh", merged_df["gain_lh"].tolist())
+    h5file.create_array(group, "gain_ll", merged_df["gain_ll"].tolist())
+    h5file.create_array(group, "sweeps_lh", merged_df["sweeps_lh"].values)
+    h5file.create_array(group, "sweeps_ll", merged_df["sweeps_ll"].values)
+    h5file.create_array(group, "sweeps_rh", merged_df["sweeps_rh"].values)
+    h5file.create_array(group, "sweeps_rl", merged_df["sweeps_rl"].values)
 
 end_time = time.time()
 print(f"Time taken: {(end_time - start_time)/60} minutes")

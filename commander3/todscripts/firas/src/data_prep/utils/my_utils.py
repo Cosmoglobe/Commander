@@ -120,3 +120,8 @@ def get_temperature_hl(row, element):
         return temp_a * 0.1 + temp_b * 0.9
     else:
         return np.mean([temp_a, temp_b])
+
+def convert_gain(row, channel):
+    conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
+
+    return conv[row[f"gain_{channel}"]]
