@@ -3,19 +3,19 @@ Data processing script has to be re-written again, not matching eng_time/time no
 and instead interpolating over gmt to get the engineering data corresponding to the science data.
 """
 
+import time
+
 import h5py
+import healpy as hp
 import numpy as np
 import pandas as pd
 import tables as tb
-import healpy as hp
 from scipy import interpolate
-import time
-
 from utils.my_utils import (
-    parse_date_string,
     clean_variable,
-    get_temperature_hl,
     convert_gain,
+    get_temperature_hl,
+    parse_date_string,
 )
 
 # check how much time the script takes to run
@@ -31,7 +31,9 @@ channels = {"lh": 2, "ll": 3, "rh": 0, "rl": 1}
 print("decoding the gmt data")
 gmt = {}
 for channel in channels:
-    gmt[channel] = np.array(fdq_sdf[f"fdq_sdf_{channel}/ct_head/gmt"][()]).astype(str)  # .astype(int)
+    gmt[channel] = np.array(fdq_sdf[f"fdq_sdf_{channel}/ct_head/gmt"][()]).astype(
+        str
+    )  # .astype(int)
 
 gmt_parsed = {"lh": [], "ll": [], "rh": [], "rl": []}
 
@@ -41,7 +43,7 @@ for channel in channels:
 
 
 ifg = {}
-xcal_pos  = {}
+xcal_pos = {}
 mtm_length = {}
 mtm_speed = {}
 fake = {}
@@ -67,6 +69,13 @@ for channel in channels:
     fake[channel] = fdq_sdf[f"fdq_sdf_{channel}/dq_data/fake"][()]
     upmode[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/sc_head1a"][()]
     adds_per_group[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/sc_head9"][()]
+    # check for nans in adds_per_group
+    if np.isnan(adds_per_group[channel]).any():
+        print(f"There are nans in adds_per_group (checkpoint 1, channel {channel})")
+        # how many nans are there?
+        print(np.sum(np.isnan(adds_per_group[channel])))
+    else:
+        print(f"No nans in adds_per_group (checkpoint 1, channel {channel})")
     t[channel] = fdq_sdf[f"fdq_sdf_{channel}/ct_head/time"][()]
     sweeps[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/sc_head11"][()]
     gain[channel] = fdq_sdf[f"fdq_sdf_{channel}/sci_head/gain"][()]
@@ -113,13 +122,22 @@ for channel in channels:
         }
     ).sort_values("gmt")
     print(df[channel].columns)
+    # check for nans in adds_per_group
+    if np.isnan(df[channel]["adds_per_group"]).any():
+        print(f"There are nans in adds_per_group (checkpoint 2, channel {channel})")
+        # how many nans are there?
+        print(np.sum(np.isnan(df[channel]["adds_per_group"])))
+    else:
+        print(f"No nans in adds_per_group (checkpoint 2, channel {channel})")
 
 
 # USING THIS FOR MERGE_ASOF
 tolerance = pd.Timedelta(seconds=16)
 print("getting all possible gmts so that we can do an outer join using merge_asof")
 unified_timestamps = (
-    pd.DataFrame(pd.concat([df["lh"]["gmt"], df["ll"]["gmt"], df["rh"]["gmt"], df["rl"]["gmt"]]))
+    pd.DataFrame(
+        pd.concat([df["lh"]["gmt"], df["ll"]["gmt"], df["rh"]["gmt"], df["rl"]["gmt"]])
+    )
     .drop_duplicates()
     .sort_values("gmt")
     .reset_index(drop=True)
@@ -242,22 +260,48 @@ merged_df = merged_df.drop(
 # the following variables i don't think necessarily need to be the same in all channels for the record to be valid
 for channel in channels:
     # adds per group
-    merged_df = merged_df[(merged_df[f"adds_per_group_{channel}"] == 1) | (merged_df[f"adds_per_group_{channel}"] == 2) | (merged_df[f"adds_per_group_{channel}"] == 3) | (merged_df[f"adds_per_group_{channel}"] == 8) | (merged_df[f"adds_per_group_{channel}"] == 12)]
+    merged_df = merged_df[
+        (merged_df[f"adds_per_group_{channel}"] == 1)
+        | (merged_df[f"adds_per_group_{channel}"] == 2)
+        | (merged_df[f"adds_per_group_{channel}"] == 3)
+        | (merged_df[f"adds_per_group_{channel}"] == 8)
+        | (merged_df[f"adds_per_group_{channel}"] == 12)
+    ]
+    # check for nans in adds_per_group
+    if np.isnan(merged_df[f"adds_per_group_{channel}"]).any():
+        print(f"There are nans in adds_per_group (checkpoint 3, channel {channel})")
+        # how many nans are there?
+        print(np.sum(np.isnan(merged_df[f"adds_per_group_{channel}"])))
+    else:
+        print(f"No nans in adds_per_group (checkpoint 3, channel {channel})")
     # sweeps - TODO: CHECK IF 1 IS A VALID VALUE
-    merged_df = merged_df[(merged_df[f"sweeps_{channel}"] == 1) | (merged_df[f"sweeps_{channel}"] == 4) | (merged_df[f"sweeps_{channel}"] == 16)]
+    merged_df = merged_df[
+        (merged_df[f"sweeps_{channel}"] == 1)
+        | (merged_df[f"sweeps_{channel}"] == 4)
+        | (merged_df[f"sweeps_{channel}"] == 16)
+    ]
 
     # gain
-    merged_df[f"gain_{channel}"] = merged_df.apply(convert_gain, axis=1, args=(channel,))
-    merged_df = merged_df[(merged_df[f"gain_{channel}"] == 1) | (merged_df[f"gain_{channel}"] == 3) | (merged_df[f"gain_{channel}"] == 10) | (merged_df[f"gain_{channel}"] == 30) | (merged_df[f"gain_{channel}"] == 100) | (merged_df[f"gain_{channel}"] == 300) | (merged_df[f"gain_{channel}"] == 1000) | (merged_df[f"gain_{channel}"] == 3000)]
-    
+    merged_df[f"gain_{channel}"] = merged_df.apply(
+        convert_gain, axis=1, args=(channel,)
+    )
+    merged_df = merged_df[
+        (merged_df[f"gain_{channel}"] == 1)
+        | (merged_df[f"gain_{channel}"] == 3)
+        | (merged_df[f"gain_{channel}"] == 10)
+        | (merged_df[f"gain_{channel}"] == 30)
+        | (merged_df[f"gain_{channel}"] == 100)
+        | (merged_df[f"gain_{channel}"] == 300)
+        | (merged_df[f"gain_{channel}"] == 1000)
+        | (merged_df[f"gain_{channel}"] == 3000)
+    ]
+
 
 # binary time - average
 merged_df["time"] = np.mean(
     merged_df[["time_lh", "time_ll", "time_rh", "time_rl"]], axis=1
 )
-merged_df = merged_df.drop(
-    columns=["time_lh", "time_ll", "time_rh", "time_rl"]
-)
+merged_df = merged_df.drop(columns=["time_lh", "time_ll", "time_rh", "time_rl"])
 
 # reset index
 merged_df = merged_df.reset_index(drop=True)
@@ -279,9 +323,13 @@ xcal_tip = {}
 for side in sides:
     for current in currents:
         ical[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_ical"][()]
-        xcal_cone[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_xcal_cone"][()]
+        xcal_cone[f"{side}_{current}"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_xcal_cone"
+        ][()]
         # important to note that all xcal tip b side values are nonsense - for now the tip is actually ignored in get_temperature_hl()
-        xcal_tip[f"{side}_{current}"] = fdq_eng[f"en_analog/grt/{side}_{current}_xcal_tip"][()]
+        xcal_tip[f"{side}_{current}"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_xcal_tip"
+        ][()]
 
 
 gmt_eng = np.array(fdq_eng["ct_head/gmt"][()]).astype(str)
@@ -502,10 +550,18 @@ with tb.open_file("./../../data/df_v14.h5", mode="w") as h5file:
     h5file.create_array(group, "pix_terr", merged_df["pix_terr"].values)
     # h5file.create_array(group, "fake", merged_df["fake"].values)
     # h5file.create_array(group, "upmode", merged_df["upmode"].values)
-    h5file.create_array(group, "adds_per_group_lh", merged_df["adds_per_group_lh"].values)
-    h5file.create_array(group, "adds_per_group_ll", merged_df["adds_per_group_ll"].values)
-    h5file.create_array(group, "adds_per_group_rh", merged_df["adds_per_group_rh"].values)
-    h5file.create_array(group, "adds_per_group_rl", merged_df["adds_per_group_rl"].values)
+    h5file.create_array(
+        group, "adds_per_group_lh", merged_df["adds_per_group_lh"].values
+    )
+    h5file.create_array(
+        group, "adds_per_group_ll", merged_df["adds_per_group_ll"].values
+    )
+    h5file.create_array(
+        group, "adds_per_group_rh", merged_df["adds_per_group_rh"].values
+    )
+    h5file.create_array(
+        group, "adds_per_group_rl", merged_df["adds_per_group_rl"].values
+    )
     h5file.create_array(group, "bol_volt_rh", merged_df["bol_volt_rh"].tolist())
     h5file.create_array(group, "bol_volt_rl", merged_df["bol_volt_rl"].tolist())
     h5file.create_array(group, "bol_volt_lh", merged_df["bol_volt_lh"].tolist())

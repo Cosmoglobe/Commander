@@ -1,13 +1,12 @@
+from datetime import datetime, timedelta
+
 import numpy as np
-import matplotlib.pyplot as plt
-
-from utils.fut import apod_recnuml, get_recnum
+from numba import njit, prange
 from utils.frd import apodl, elex_transfcnl
+from utils.fut import apod_recnuml, get_recnum
 
-from numba import jit, njit
 
-
-@njit(parallel=True)
+# @njit(parallel=True)
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
     rscale = 1.0e-7
 
@@ -41,10 +40,54 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, bet
     return S0
 
 
-@jit(parallel=True)
+@njit(parallel=True)
+def my_median(arr):
+    sort = np.zeros_like(arr)
+    for i in prange(len(arr)):
+        tmp = np.sort(arr[i])
+        sort[i] = tmp
+
+    n = arr.shape[1]
+    # n is always even so we can just use this formula
+
+    median = (sort[:, n // 2] + sort[:, n // 2 - 1]) / 2
+    return median
+
+
+# @njit(parallel=True)
 def clean_ifg(
     ifg,
     mtm_length,
+    mtm_speed,
+    channel,
+    adds_per_group,
+    gain,
+    sweeps,
+):
+    # subtract dither
+    ifg = ifg - my_median(ifg)[:, np.newaxis]
+
+    ifg = ifg / gain[:, np.newaxis] / sweeps[:, np.newaxis]
+
+    # apodize
+    sm = 2 * mtm_length + mtm_speed
+
+    arecno = apod_recnuml(channel, sm, adds_per_group).astype(np.int32)
+    apodl_all = apodl()
+    apod = apodl_all[arecno, :]
+
+    ifg = ifg * apod
+
+    # roll
+    peak_pos = 360
+    ifg = np.roll(ifg, -peak_pos)
+
+    return ifg
+
+
+# @njit(parallel=True)
+def ifg_to_spec(
+    ifg,
     mtm_speed,
     channel,
     adds_per_group,
@@ -63,30 +106,13 @@ def clean_ifg(
     G1,
     tau,
 ):
-    # subtract dither
-    ifg = ifg - np.median(ifg, axis=1)[:, np.newaxis]
-
-    # apodize
-    sm = 2 * mtm_length + mtm_speed
-    print(f"sm: {sm.shape}")
-
-    arecno = apod_recnuml(channel, sm, adds_per_group)
-    print(f"arecno: {arecno.shape}")
-    apodl_all = apodl()
-    apod = apodl_all[arecno, :]
-
-    ifg = ifg * apod
-
-    # roll
-    peak_pos = 360
-    ifg = np.roll(ifg, -peak_pos)
-
     # fft
     spec = np.fft.rfft(ifg)
 
     # etf
-    etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec))
-    erecno = get_recnum(mtm_speed, channel, adds_per_group)
+    etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
+
+    erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
     etf = etfl_all[erecno, :]
 
     fac_etendu = 1.5  # nathan's pipeline
@@ -96,7 +122,7 @@ def clean_ifg(
     spec = spec / (etf * spec_norm)
 
     # fcc_spec_length = 321
-    spec_len = len(ifg) // 2 + 1
+    spec_len = len(ifg[0]) // 2 + 1
     dw = 2.0 * np.pi * fnyq_hz / spec_len
     # afreq = np.arange(fcc_spec_length) * dw # had to change because i'm not padding for now
     afreq = np.arange(spec_len) * dw
@@ -106,10 +132,15 @@ def clean_ifg(
     )
     B = 1.0 + 1j * tau * afreq
 
-    spec = B * spec / S0
+    spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]
 
     # optical transfer function
-    spec = spec[: len(otf)] / otf
+    spec = spec[:, : len(otf)] / otf
+
+    fac_icm_ghz = 29.9792458
+    fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
+
+    spec = spec * fac_erg_to_mjy
 
     return spec
 
@@ -123,6 +154,12 @@ def planck(freq, temp):
     c = 299792458e-9  # m GHz
     k = 1.380649e-23  # J K-1
 
+    print(f"freq: {freq.shape}, temp: {temp.shape}")
+    if temp.shape != ():
+        freq = freq[np.newaxis, :]
+        temp = temp[:, np.newaxis]
+
+    # b = np.zeros((len(temp), len(freq)))
     b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20  # MJy sr-1
 
     return b

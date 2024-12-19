@@ -1,14 +1,13 @@
-import h5py
-import numpy as np
-import matplotlib.pyplot as plt
 import os
 
-import models.frd as frd
-import models.fut as fut
-
-from astropy.modeling.models import BlackBody
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+import utils.frd as frd
+import utils.fut as fut
 from astropy import constants as c
 from astropy import units as u
+from astropy.modeling.models import BlackBody
 
 fac_icm_ghz = 29.9792458  # convert cm-1 to GHz
 fac_watt_to_mjy = 1.0e15 / fac_icm_ghz
@@ -269,7 +268,7 @@ if __name__ == "__main__":
     etfl_all = frd.elex_transfcnl(samprate, 512)
     print(f"shape of etfl_all: {etfl_all.shape}")
     plt.plot(etfl_all)
-    plt.savefig("../output/etfl_all.png")
+    plt.savefig("../../output/etfl_all.png")
 
     # Gain values for the four bolometer preamps. Used to normalise the IFG data.
     gains = read_cmdgain()
@@ -369,26 +368,26 @@ if __name__ == "__main__":
         T_xcal_cone = data_orig_eng["en_analog/grt/a_lo_xcal_cone"][ifg_ind, 0]
         print(f"T_xcal_cone: {T_xcal_cone}")
         # Temperature of the mirror. Not used anywhere else.
-    #     T_mirror = data_orig_eng["en_analog/grt/a_lo_mirror"][ifg_ind, 0]
+        #     T_mirror = data_orig_eng["en_analog/grt/a_lo_mirror"][ifg_ind, 0]
         # Temperature of the collimator. Not used anywhere else.
-    #     T_collimator = data_orig_eng["en_analog/grt/a_lo_collimator"][ifg_ind, 0]
+        #     T_collimator = data_orig_eng["en_analog/grt/a_lo_collimator"][ifg_ind, 0]
         # Temperature of the bolometers. Not used anywhere else.
-    #     T_bolometers = data_orig_eng["en_analog/grt/a_lo_bol_assem"][
-    #         ifg_ind, :
-    #     ]  # 4 detectors
+        #     T_bolometers = data_orig_eng["en_analog/grt/a_lo_bol_assem"][
+        #         ifg_ind, :
+        #     ]  # 4 detectors
         # Temperature of the sky horn. Used as observation temperature if the XCAL is out. Used to get SI units of the intensity.
         T_sky = data_orig_eng["en_analog/grt/a_lo_skyhorn"][ifg_ind, 0]
         print(f"T_sky: {T_sky}")
         # Temperature of the reference horn. Not used anywhere else.
-    #     T_refhorn = data_orig_eng["en_analog/grt/a_lo_refhorn"][ifg_ind, 0]
+        #     T_refhorn = data_orig_eng["en_analog/grt/a_lo_refhorn"][ifg_ind, 0]
         # Temperature of the dihedral. Not used anywhere else.
-    #     T_dihedral = data_orig_eng["en_analog/grt/a_lo_dihedral"][ifg_ind, 0]
+        #     T_dihedral = data_orig_eng["en_analog/grt/a_lo_dihedral"][ifg_ind, 0]
 
-    #     print("xcal_pos")
-    #     print(xcal_pos)
+        #     print("xcal_pos")
+        #     print(xcal_pos)
 
-    #     print("T_ical, T_xcal_tip, T_xcal_cone, T_sky, T_refhorn")
-    #     print(T_ical, T_xcal_tip, T_xcal_cone, T_sky, T_refhorn)
+        #     print("T_ical, T_xcal_tip, T_xcal_cone, T_sky, T_refhorn")
+        #     print(T_ical, T_xcal_tip, T_xcal_cone, T_sky, T_refhorn)
 
         if xcal_pos == 1:
             T_obs = T_xcal_tip
@@ -401,7 +400,7 @@ if __name__ == "__main__":
 
         # Gain of what? Used to get the counts to voltage in the IFG.
         gain = gains[channel, gain]
-        print (f"gain: {gain}")
+        print(f"gain: {gain}")
 
         # Mode used to get the record number of the ETF and the apodization function. This line is not actually needed.
         upmode = sci_mode
@@ -418,7 +417,7 @@ if __name__ == "__main__":
         # Index for the Nyquist frequency. Value is 4.
         index = 4 * (channel % 2) + sm
         print(f"index for nyquist frequency: {index}")
-    #     # print(nyquistl['icm'][index])
+        #     # print(nyquistl['icm'][index])
         # Nyquist frequency in cm^-1.
         fnyq_icm = nyquistl["icm"][index]  # cm-1
         print(f"fnyq_icm: {fnyq_icm}")
@@ -450,20 +449,20 @@ if __name__ == "__main__":
         etf = etfl_all[erecno, :]
         apod = apodl_all[arecno, :]
         plt.figure()
-        plt.plot(etfl_all[erecno,:].real, label="real")
-        plt.plot(etfl_all[erecno,:].imag, label="imag")
+        plt.plot(etfl_all[erecno, :].real, label="real")
+        plt.plot(etfl_all[erecno, :].imag, label="imag")
         plt.title("ETF")
         plt.ylabel("ETF")
         plt.legend(loc="best")
-        plt.savefig("../output/etf.png")
+        plt.savefig("../../output/etf.png")
         plt.clf()
 
-    #     # print(mtm_length)
-    #     # print(mtm_speed)
-    #     # print(sweeps)
-    #     # print(pts_per_sweep)
-    #     # print(adds_per_group)
-    #     # print(gain)
+        #     # print(mtm_length)
+        #     # print(mtm_speed)
+        #     # print(sweeps)
+        #     # print(pts_per_sweep)
+        #     # print(adds_per_group)
+        #     # print(gain)
 
         # Speed of what? Not used anywhere else.
         # speed = 0.8  # cm/s
@@ -497,7 +496,7 @@ if __name__ == "__main__":
         plt.xlabel("Distance [cm]")
         plt.ylabel("Dither-subtracted IFG [counts]")
         plt.title("Dither-subtracted IFG")
-        plt.savefig("../output/ifg.png")
+        plt.savefig("../../output/ifg.png")
         plt.clf()
 
         plt.figure(2)
@@ -507,19 +506,21 @@ if __name__ == "__main__":
         plt.ylabel("IFG [volts]")
         plt.title("IFG, pre and post-apodized and rolled")
         plt.legend(loc="best")
-        plt.savefig("../output/ifg_apod.png")
+        plt.savefig("../../output/ifg_apod.png")
         plt.clf()
-        
+
         # The apodization function is designed to be one at the IFG peak and to fall to zero at the ends (page 36 of the Explanatory Supplement).
         plt.figure(3)
         # rfft = real fast fourier transform
         plt.plot(np.fft.rfft(ifg / sweeps / gain), label="Non-apodized")
-        plt.plot(np.fft.rfft(ifg / sweeps / gain * np.roll(apod, peak_pos)), label="Apodized")
+        plt.plot(
+            np.fft.rfft(ifg / sweeps / gain * np.roll(apod, peak_pos)), label="Apodized"
+        )
         plt.xlabel(r"Frequency [$\mathrm{cm^{-1}}$]")
         plt.ylabel("Spectra [V cm]")
         plt.title("Real FFT")
         plt.legend(loc="best")
-        plt.savefig("../output/fft.png")
+        plt.savefig("../../output/fft.png")
         plt.clf()
 
     ifg = np.roll(ifg, -peak_pos)
@@ -532,7 +533,7 @@ if __name__ == "__main__":
     plt.xlabel(r"Frequency [$\mathrm{cm^{-1}}$]")
     plt.ylabel("Spectra")
     plt.title("Spectra")
-    plt.savefig("../output/spectra.png")
+    plt.savefig("../../output/spectra.png")
     plt.clf()
 
     plt.figure()
@@ -544,13 +545,13 @@ if __name__ == "__main__":
     plt.xlabel(r"Frequency [$\mathrm{cm^{-1}}$]")
     plt.ylabel("Spectra")
     plt.title("Spectra with ETF removed")
-    plt.savefig("../output/spectra_etf_removed.png")
+    plt.savefig("../../output/spectra_etf_removed.png")
 
     nu = np.arange(1, 513) * dGHz
 
     bb_sky = BlackBody(temperature=T_obs * u.K)
     bb_ical = BlackBody(temperature=T_ical * u.K)
-    I_sky = bb_sky(nu)  # .to('erg s-1 cm-2 sr-1 Hz-1') 
+    I_sky = bb_sky(nu)  # .to('erg s-1 cm-2 sr-1 Hz-1')
     I_sky = (I_sky * c.c).to("erg s-1 cm-2 sr-1 cm")
     I_ical = (bb_ical(nu) * c.c).to("erg s-1 cm-2 sr-1 cm")
 
@@ -562,9 +563,8 @@ if __name__ == "__main__":
     plt.ylabel("Intensity [erg s-1 cm-2 sr-1 cm]")
     plt.title("Blackbody intensities")
     plt.tight_layout()
-    plt.savefig("../output/blackbody.png")
+    plt.savefig("../../output/blackbody.png")
     plt.clf()
-
 
     # # emiss = model['emissivity']
 
@@ -597,7 +597,7 @@ if __name__ == "__main__":
     plt.plot(np.arange(1, 513), B.imag)
     plt.ylabel("Imaginary part of B")
     plt.title("Imaginary part of B")
-    plt.savefig("../output/B_imag.png")
+    plt.savefig("../../output/B_imag.png")
     plt.clf()
     # # B[0] = 0
 
@@ -623,7 +623,7 @@ if __name__ == "__main__":
     plt.xlabel("Distance [cm]")
     plt.ylabel("Real part of b_x")
     plt.title("Real part of b_x")
-    plt.savefig("../output/real_b_x.png")
+    plt.savefig("../../output/real_b_x.png")
     plt.clf()
 
     plt.figure()
@@ -634,7 +634,7 @@ if __name__ == "__main__":
     plt.xlabel("Distance [cm]")
     plt.ylabel("Phase")
     plt.title("Phase")
-    plt.savefig("../output/phase.png")
+    plt.savefig("../../output/phase.png")
     plt.clf()
     phi = -1.26
     plt.figure()
@@ -644,14 +644,14 @@ if __name__ == "__main__":
     plt.xlabel("Distance [cm]")
     plt.ylabel("?")
     plt.title("?")
-    plt.savefig("../output/real_imag.png")
+    plt.savefig("../../output/real_imag.png")
     plt.clf()
     plt.figure()
-    plt.plot(x, (np.exp(-1j*phi)*b_x).real * gain * spec_norm)
+    plt.plot(x, (np.exp(-1j * phi) * b_x).real * gain * spec_norm)
     plt.xlabel("Distance [cm]")
     plt.ylabel("?")
     plt.title("?")
-    plt.savefig("../output/real.png")
+    plt.savefig("../../output/real.png")
     plt.clf()
 
     # plt.show()
