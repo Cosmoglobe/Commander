@@ -150,9 +150,9 @@
       - `bol_volt`: ? Bolometer voltage?. Shape: 589069 x 4. Units: ?.
       - `cna_temp`: ? Temperature? Of what?. Shape: 589069 x 4. Units: ?.
       - `dbx_tmp`: ?. Shape: 589069 x 2. Units: ?.
-      - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 4. Units: ?.
+      - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 2. Units: ?.
       - `ipdu_amp`: ?. Shape: 589069 x 12. Units? (0 to 1).
-      - `ipdu_bolt`: ?. Shape: 589069 x 20. Units: ?.
+      - `ipdu_volt`: ?. Shape: 589069 x 20. Units: ?.
       - `ipdu_temp`: Temperature (of what?). Shape: 589069 x 2. Units: ?.
       - `mtm_cal_mtr`: ?. Shape: 589069 x 2. Units: ?.
       - `mtm_pos`: Position of the MTM (why times 2? Because there are 2 mirrors?). Shape: 589069 x 2. Units: ?.
@@ -160,7 +160,7 @@
       - `pamp_op`: ?. Shape: 589069. Units: ? (Values from 2 to 28).
       - `stat_mon_temp`: ?. Shape: 589069 x 2. Units: ? (Values from 20 to 31, then 24 to 35)
       - `temp_ctl`: ?. Shape: 589069 x 8. Units: ?.
-    - `grt`: Germanium Resistance Thermometer. Data is divided into high (hi) (20 - 97 $cm^{-1}$) and low (lo) (1 - 21 $cm^{-1}$) frequency bands
+    - `grt`: Germanium Resistance Thermometer. Data is divided into high (hi) and low (lo) current readings.
       - `a_hi_bol_assem`: Bolometer assembly. Shape: 589069 x 4. **All values are -9999.**
       - `a_hi_cal_resistors`: Calibration resistors. Used to convert the GRT readings from counts to Ohms. Shape: 589069 x 4. Units: ?.
       - `a_hi_collimator`: Collimator. Shape: 589069. Values: 2 to 10. Units: K?.
