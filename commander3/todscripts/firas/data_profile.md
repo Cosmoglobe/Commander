@@ -150,7 +150,7 @@
       - `bol_volt`: ? Bolometer voltage?. Shape: 589069 x 4. Units: ?.
       - `cna_temp`: ? Temperature? Of what?. Shape: 589069 x 4. Units: ?.
       - `dbx_tmp`: ?. Shape: 589069 x 2. Units: ?.
-      - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 4. Units: ?.
+      - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 2. Units: ?.
       - `ipdu_amp`: ?. Shape: 589069 x 12. Units? (0 to 1).
       - `ipdu_bolt`: ?. Shape: 589069 x 20. Units: ?.
       - `ipdu_temp`: Temperature (of what?). Shape: 589069 x 2. Units: ?.
