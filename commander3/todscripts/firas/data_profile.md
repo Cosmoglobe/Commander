@@ -152,7 +152,7 @@
       - `dbx_tmp`: ?. Shape: 589069 x 2. Units: ?.
       - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 2. Units: ?.
       - `ipdu_amp`: ?. Shape: 589069 x 12. Units? (0 to 1).
-      - `ipdu_bolt`: ?. Shape: 589069 x 20. Units: ?.
+      - `ipdu_volt`: ?. Shape: 589069 x 20. Units: ?.
       - `ipdu_temp`: Temperature (of what?). Shape: 589069 x 2. Units: ?.
       - `mtm_cal_mtr`: ?. Shape: 589069 x 2. Units: ?.
       - `mtm_pos`: Position of the MTM (why times 2? Because there are 2 mirrors?). Shape: 589069 x 2. Units: ?.
