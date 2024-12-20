@@ -19,29 +19,30 @@ data = h5py.File(
     "r",
 )
 
-# indices of the data where xcal is in
-idx_xcal_in = np.where(np.array(data["df_data/xcal_pos"][()]) == 1)
+# indices to run for
+# idx_xcal_in = np.where(np.array(data["df_data/xcal_pos"][()]) == 1)
+idx = np.where(np.array(data["df_data/xcal_pos"][()]) == 2)
 
 print("parsing gmts")
 # getting the xcal data into their own variables
-gmts = np.array(data["df_data/gmt"][()])[idx_xcal_in].astype(str)
+gmts = np.array(data["df_data/gmt"][()])[idx].astype(str)
 gmt = pd.to_datetime(gmts).strftime("%Y-%m-%d %H:%M:%S").to_numpy()
 
 print("other variables")
-ical_xcal_in = np.array(data["df_data/ical"][()])[idx_xcal_in]
-xcal = np.array(data["df_data/xcal"][()])[idx_xcal_in]
-ifg_ll = np.array(data["df_data/ifg_ll"][()])[idx_xcal_in]
-ifg_lh = np.array(data["df_data/ifg_lh"][()])[idx_xcal_in]
-ifg_rl = np.array(data["df_data/ifg_rl"][()])[idx_xcal_in]
-ifg_rh = np.array(data["df_data/ifg_rh"][()])[idx_xcal_in]
-mtm_length = np.array(data["df_data/mtm_length"][()])[idx_xcal_in]
-mtm_speed = np.array(data["df_data/mtm_speed"][()])[idx_xcal_in]
-bol_cmd_bias_ll = np.array(data["df_data/bol_cmd_bias_ll"][()])[idx_xcal_in]
-bol_volt_ll = np.array(data["df_data/bol_volt_ll"][()])[idx_xcal_in]
-times = np.array(data["df_data/time"][()])[idx_xcal_in]
-adds_per_group_ll = np.array(data["df_data/adds_per_group_ll"][()])[idx_xcal_in]
-gain_ll = np.array(data["df_data/gain_ll"][()])[idx_xcal_in]
-sweeps_ll = np.array(data["df_data/sweeps_ll"][()])[idx_xcal_in]
+ical_xcal_in = np.array(data["df_data/ical"][()])[idx]
+xcal = np.array(data["df_data/xcal"][()])[idx]
+ifg_ll = np.array(data["df_data/ifg_ll"][()])[idx]
+ifg_lh = np.array(data["df_data/ifg_lh"][()])[idx]
+ifg_rl = np.array(data["df_data/ifg_rl"][()])[idx]
+ifg_rh = np.array(data["df_data/ifg_rh"][()])[idx]
+mtm_length = np.array(data["df_data/mtm_length"][()])[idx]
+mtm_speed = np.array(data["df_data/mtm_speed"][()])[idx]
+bol_cmd_bias_ll = np.array(data["df_data/bol_cmd_bias_ll"][()])[idx]
+bol_volt_ll = np.array(data["df_data/bol_volt_ll"][()])[idx]
+times = np.array(data["df_data/time"][()])[idx]
+adds_per_group_ll = np.array(data["df_data/adds_per_group_ll"][()])[idx]
+gain_ll = np.array(data["df_data/gain_ll"][()])[idx]
+sweeps_ll = np.array(data["df_data/sweeps_ll"][()])[idx]
 
 data.close()
 
@@ -130,28 +131,13 @@ spec = ifg_to_spec(
     tau,
 )
 
-# check if the spectra have some nans or weird values
-if np.isnan(spec).any():
-    print("Nans in spectra")
-    print(spec[np.isnan(spec)])
-
 print("plotting")
 
-# make a vertical heatmap of each of the 60740 spectra
-# each vertical line should be one spectra, and the x axis should go from 0 to len(spec)
-# the y axis should go from 0 to len(spec[0])
-# the color should be the absolute value of the spectra
 plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
-# plt.imshow(np.abs(spec))
-plt.savefig("../../output/tests/spectra_over_time.png")
+plt.savefig("../../output/tests/spectra_diff_over_time.png")
 plt.clf()
 
-for i in range(0, len(spec), 100):
-    plt.plot(np.abs(spec[i]))
-    plt.savefig(f"../../output/tests/spectrum_{i}.png")
-    plt.clf()
-
-quit()
+print("making the diff")
 
 # frequency mapping
 f_icm = np.arange(210) * (fnyq["icm"][frec] / 320) + 2
@@ -165,23 +151,49 @@ bb_ical = planck(f_ghz[: len(spec)], t_ical)
 ical_emiss = fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
 ical_emiss = ical_emiss[: len(spec)]
 
-print(f"spec: {spec.shape}")
-
 sky = spec - (bb_ical * ical_emiss)[:, : len(spec[0])] / otf[np.newaxis, :]
 
+print("saving sky")
+
+# save the sky
+np.save("../../output/data/sky.npy", sky)
+
+print("plotting sky")
+
+# plot the sky
+plt.imshow(
+    np.abs(sky).T, aspect="auto", extent=[0, len(sky), 0, len(sky[0])], vmax=500, vmin=0
+)
+plt.savefig("../../output/tests/sky_over_time.png")
+plt.clf()
+
+for i in range(0, len(sky), 1000):
+    plt.plot(f_ghz[1 : len(spec[0])], np.abs(sky[i, 1:]))
+    plt.title(f"Sky_{i:03d}")
+    plt.savefig(f"../../output/sky/sky_{i:03d}.png")
+    plt.clf()
+
+quit()
+
 t0 = 2.7
-fit = minimize(residuals, t0, args=(f_ghz[1 : len(spec)], np.abs(sky[1:])))
+fit = minimize(residuals, t0, args=(f_ghz[1 : len(spec[0])], np.abs(sky[:, 1:])))
+
+print(f"fit: {fit}")
 
 fit_temp = fit.x[0]
+
+print(f"fit_temp shape: {fit_temp.shape}")
 
 bb_xcal = planck(f_ghz[1 : len(spec)], xcal)
 
 print(f"Temperature fit: {fit_temp}, actual temperature: {xcal}")
-# plt.plot(f_ghz[1:len(spec)], np.abs(sky[1:]), label="Sky")
-# plt.plot(f_ghz[1:len(spec)], np.abs(bb_ical * ical_emiss / otf)[1:], label="ICAL")
-# plt.plot(f_ghz[1:len(spec)], planck(f_ghz[1:len(spec)], fit_temp), label="Fit")
-# plt.plot(f_ghz[1:len(spec)], bb_xcal, label="XCAL")
-plt.plot(f_ghz[1 : len(spec)], spec[1:], label="Difference (spectrum)")
-plt.plot(f_ghz[1 : len(spec)], np.abs(bb_xcal - bb_ical[1:]), label="Difference (BBs)")
+plt.plot(f_ghz[1 : len(spec[0])], np.abs(sky[1:]), label="Sky")
+plt.plot(f_ghz[1 : len(spec[0])], np.abs(bb_ical * ical_emiss / otf)[1:], label="ICAL")
+plt.plot(f_ghz[1 : len(spec[0])], planck(f_ghz[1 : len(spec)], fit_temp), label="Fit")
+plt.plot(f_ghz[1 : len(spec[0])], bb_xcal, label="XCAL")
+plt.plot(f_ghz[1 : len(spec[0])], spec[1:], label="Difference (spectrum)")
+plt.plot(
+    f_ghz[1 : len(spec[0])], np.abs(bb_xcal - bb_ical[1:]), label="Difference (BBs)"
+)
 plt.legend()
 plt.savefig("../../output/tests/fit.png")

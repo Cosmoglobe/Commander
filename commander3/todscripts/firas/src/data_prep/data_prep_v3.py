@@ -60,6 +60,8 @@ pix_gal = {}  # galactic coordinates
 pix_cel = {}  # celestial coordinates, probably J1950
 # Longitudes and latitudes are stored in radians*1e4
 fact = 180.0 / np.pi / 1e4
+latitude = {}
+longitude = {}
 
 for channel in channels:
     ifg[channel] = fdq_sdf[f"fdq_sdf_{channel}/ifg_data/ifg"][()]
@@ -531,7 +533,7 @@ print(f"Dataframe after merging engineering data: {merged_df.tail()}")
 print("Column names in merged_df:", merged_df.columns)
 
 # saving to a h5 file
-with tb.open_file("./../../data/df_v14.h5", mode="w") as h5file:
+with tb.open_file("./../../data/df_v15.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Merged Data")
 
     h5file.create_array(group, "gmt", gmt_str)

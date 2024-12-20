@@ -1,5 +1,4 @@
-from datetime import datetime, timedelta
-
+import matplotlib.pyplot as plt
 import numpy as np
 from numba import njit, prange
 from utils.frd import apodl, elex_transfcnl
@@ -113,13 +112,21 @@ def ifg_to_spec(
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
 
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
+
     etf = etfl_all[erecno, :]
+
+    for i in prange(len(etfl_all)):
+        plt.plot(etfl_all[i])
+        plt.title(f"etf_{i:03d}")
+        plt.savefig(f"../../output/tests/etfs/etf_{i:03d}.png")
+        plt.clf()
 
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    spec = spec / (etf * spec_norm)
+    spec = spec / etf
+    spec = spec / spec_norm
 
     # fcc_spec_length = 321
     spec_len = len(ifg[0]) // 2 + 1
@@ -130,6 +137,7 @@ def ifg_to_spec(
     S0 = calculate_dc_response(
         bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1
     )
+
     B = 1.0 + 1j * tau * afreq
 
     spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]
@@ -154,12 +162,10 @@ def planck(freq, temp):
     c = 299792458e-9  # m GHz
     k = 1.380649e-23  # J K-1
 
-    print(f"freq: {freq.shape}, temp: {temp.shape}")
     if temp.shape != ():
         freq = freq[np.newaxis, :]
         temp = temp[:, np.newaxis]
 
-    # b = np.zeros((len(temp), len(freq)))
     b = 2 * h * freq**3 / c**2 / (np.exp(h * freq / (k * temp)) - 1) * 1e20  # MJy sr-1
 
     return b
@@ -168,5 +174,7 @@ def planck(freq, temp):
 def residuals(temperature, frequency_data, sky_data):  # doing least squares for now
     """
     Function to calculate the residuals between the sky data and the Planck function for fitting a sky/XCAL temperature.
+    Works with numpy arrays.
     """
-    return np.sum((sky_data - planck(frequency_data, temperature[0])) ** 2)
+    res = np.sum((sky_data - planck(frequency_data, temperature)) ** 2, axis=1)
+    return res
