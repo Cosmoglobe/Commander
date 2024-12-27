@@ -70,14 +70,14 @@
       - `space_time`: Spacecraft time. Shape: 590937 x 6. Values: {-53, -11, 31, 68, 75, 76, 77, 78, 83}
       - `time`: Binary time. Shape: 590937. Units: ?
     - `dq_data`
-      - `data_quality`: Data quality flags. Shape: 590937 x 110. Values: {0, 1, 2, 4, 32}
+      - `data_quality`: Data quality flags. The 110 data quality flags indicate whether engineering, microprocessor, and attitude quantities associated with the IFG are within green, yellow, or red tolerance limits. Shape: 590937 x 110. Values: {0, 1, 2, 4, 32}
       - `dq_spares`: Data qualify spares. Shape: 590937 x 24. **All values are zero.**
       - `eng_rec`: Engineering record number. Shape: 590937. **All values are zero.**
       - `eng_time`: Time of associate engineering data record. Shape: 590937. Unit: ?
-      - `fake`: Fakeit pulse status. For most of the mission during the COBE passage through the South Atlantic Anomaly, the MTM was put in a position mode, the drive motor was turned off, and readings of a noise signal were taken using a "fake-it" pulse. Noise data taken  Shape: 590937. Values: {-1, 0, 1} (why is there a -1?)
+      - `fake`: Fakeit pulse status. For most of the mission during the COBE passage through the South Atlantic Anomaly, the MTM was put in a position mode, the drive motor was turned off, and readings of a noise signal were taken using a "fake-it" pulse. Shape: 590937. Values: {-1, 0, 1} (why is there a -1?)
       - `ifg_no`: IFG number within segment. Shape: 590937. Values: up to 2601 and repeats.
       - `iref_temp`: Internal reference source temperature. Shape: 590937. **All values are 1.469368e-39.**
-      - `xcal_pos`: Position of the XCAL 0?. Shape: 590937. Values: {0, 1, 2, 3}, corresponding to {error, xcal in, xcal out, xcal transition}.
+      - `xcal_pos`: Position of the XCAL 0. The external calibrator position (XCAL_POS) field indicates whether the data are sky or calibration data. A value of 1 indicates that the XCAL is in the horn and the IFGs are thus calibration data. A value of 2 indicates that the XCAL is completely out of the horn and the IFGs are thus sky data. Sky IFGs are averaged together for the same pixel, MTM scan mode, and Ical temperature during a mission period. Calibration IFGs are similarly averaged over a constant temperature plateaus for the same scan mode. Data with any other value of the XCAL_POS are not used. Shape: 590937. Values: {0, 1, 2, 3}, corresponding to {error, xcal in, xcal out, xcal transition}.
     - `ifg_data`
       - `gltch`: On board glitch map. The on-board glitch map is a packed array of bit flags set by the microprocessor to a value of 1 when it detects a glitch at one of the 512 points of the IFG. A value of 0 at the corresponding IFG position indicates no flitches were detected at that position during the entire collection of the IFG. The 512 bit flags are packed and stored into 32 sixteen bit words. Shape: 590937 x 32. **All values are zero.**
       - `ifg`: IFG in counts. The iFG in counts is an array of 512 observed points. The IFGs taken during the mission have been averaged by the on-board microprocessors. Depending on the MTM scan mode, a number of consecutive sample points have been averaged to form a group during each sweep of the mirror. The consecutive groups form a buffer of 512 points. In addition, a number of sweeps oof these 512 points each are coadded together to form the resulting 512 point IFG which is then telemetered to the ground. `sc_head9` contains the number of sample points per group and `sc_head11` contains the number of mirror sweeps that are coadded together. Shape: 590937.
@@ -85,7 +85,7 @@
       - `chan_id`: Channel ID. Shape: 590937. **All values are three.**
       - `data_qual`: Data quality flags. Does this flag the ifg as a bad one according to the criteria defined in the Explanatory Supplement? The telemetry data quality flags consist of packed bits, 4 for each of the telemetry minor frames over which the IFG is trasmitted. The value of each set of four bits is a code which represents the quality of the telemetry as received on the ground from the spacecraft. Shape: 590937 x 60. Values: {-16, -1, 0, 15, 16, 31}.
       - `data_ready`: Data ready flags. The data ready flags at transmit consist of 114 packed bits, one from each of the telemetry minor frames over which the IFG is transmitted. A value of 1 indicates that the corresponding section of the IFG buffer for this channel detector was ready for transmission. a value of 0 indicates the existance of a problem for transmission. Shape: 590937 x 8. Values: ?.
-      - `gain`: Gain. The commandable gain for the detector is used in the conversion of the IFG raw counts to volts. Valid commandable gains are 1, 3, 10, 30, 100, 300, 1000, 3000. Seems like these values don't match up with the expected but the values in the engineering data do. Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}?.
+      - `gain`: Gain. The commandable gain for the detector is used in the conversion of the IFG raw counts to volts. Valid commandable gains are 1, 3, 10, 30, 100, 300, 1000, 3000. Shape: 590937. Values: {-1, 0, 1, 2, 3, 4, 5, 6}.
       - `mtm_length`: Length of the MTM (what does that mean? Short and long?). Shape: 590937. Values: {0, 1} (0 = short, 1 = long?).
       - `mtm_speed`: Speed of the MTM (what does that mean? Slow and fast?). Shape: 590937. Values: {0, 1} (0 = slow, 1 = fast?).
       - `sc_head0`: Data block synchronization. Shape: 590937. Values: {-4638, -4634}.
@@ -99,7 +99,7 @@
       - `sc_head17`: Deglitcher seed sample. Shape: 590937. Values: many.
       - `sc_head18`: Command counter. Shape: 590937. Values: many.
       - `sc_head19`: Program checksum. Shape: 590937. Values: {-19807, -3423, -3415, -2652, -1}.
-      - `sc_head1a`: Block type (sci mode). All of the science data was taken in science mode 4 during the mission. In this mode the on-board microprocessor averages the data, uses the anti-aliasing filters, and flags the glitches without removing them. The removel of the glitches is done in the ground procesing by the FIRAS pipeline. Shape: 590937. Values: {0, 2, 4}.
+      - `sc_head1a`: Block type (sci mode). All of the science data was taken in science mode 4 during the mission. In this mode the on-board microprocessor averages the data, uses the anti-aliasing filters, and flags the glitches without removing them. The removal of the glitches is done in the ground procesing by the FIRAS pipeline. Shape: 590937. Values: {0, 2, 4}.
       - `sc_head1b`: Block ID. Shape: 590937. Values: {83}.
       - `sc_head2`: SW version number. Shape: 590937. Values: {13416, 13417, 13673}.
       - `sc_head20`: Sturated sample count. Shape: 590937. Values: many.
@@ -125,41 +125,42 @@
 # Engineering data file
 
 - `fdq_eng_new`
-  - `chan`
-    - `dither`: Dither. Shape: 589069 x 4 (? Does not match with any shape in the science data. Could be matching the only accepted data in each mode but it has more than RL.). Values: {0, 1}.
+  - `chan`: This structure stores some of the information associated with the
+science records corresponding to this engineering record.
+    - `dither`: Dither bit. Shape: 589069 x 4. Values: {0, 1}.
     - `fakeit`: "Fake-it" data mode, used to conduct engineering tests (page 23 of the Explanatory Supplement). Shape: 589069 x 4. Values: {0, 1}.
-    - `sci_gain`: Gain. The amplitude of the data depends on this. Shape: 589069 x 4. Values: {0, 1, 3, 10, 30, 100, 300, 1000, 3000}.
-    - `setup_spares`: ?. Shape: 589069 x 4 x 15. **All values are zero.**
-    - `up_adds_per_group`: ?. Shape: 589069 x 4. Values: {0, 1, 2, 3, 8, 12}.
-    - `up_sci_mode`: ?. Shape: 589069 x 4. Values: {0, 2, 4}. 2 or 4 mean that there is a digital filter on, and 0 that it is off.
-    - `up_swps_per_ifg`: ?. Shape: 589069 x 4. Values: {0, 1, 4, 16}.
-    - `xmit_mtm_len`: Length of the MTM. Shape: 589069 x 4. Values: {0, 1} (0 = short, 1 = long?).
-    - `xmit_mtm_speed`: Speed of the MTM (slow and fast? Which one is slow and which one is fast?). Shape: 589069 x 4. Values: {0, 1} (0 = slow, 1 = fast?).
+    - `sci_gain`: Science gain. The amplitude of the data depends on this. Shape: 589069 x 4. Values: {0, 1, 3, 10, 30, 100, 300, 1000, 3000}.
+    - `setup_spares`: Setup spares. Shape: 589069 x 4 x 15. **All values are zero.**
+    - `up_adds_per_group`: uP adds per group. Shape: 589069 x 4. Values: {0, 1, 2, 3, 8, 12}.
+    - `up_sci_mode`: uP science mode. Shape: 589069 x 4. Values: {0, 2, 4}. 2 or 4 mean that there is a digital filter on, and 0 that it is off.
+    - `up_swps_per_ifg`: uP sweeps per ifg. Shape: 589069 x 4. Values: {0, 1, 4, 16}.
+    - `xmit_mtm_len`: MTM length at transmit. Shape: 589069 x 4. Values: {0, 1} (0 = short, 1 = long?).
+    - `xmit_mtm_speed`: MTM speed at transmit. Shape: 589069 x 4. Values: {0, 1} (0 = slow, 1 = fast?).
   - `ct_head`
-    - `dataset_id`: ?. Shape: 589069. **All values are 35.**
-    - `gmt`: GMT of start collect. Shape: 589069. Values: strings of numbers.
+    - `dataset_id`: CT dataset ID. Shape: 589069. **All values are 35.**
+    - `gmt`: The Julian time in character and binary format of the engineering record; this is the average time of the science records with which this engineering record is associated. Shape: 589069. Values: strings of numbers.
     - `hskp1_tlm_fmt`: ?. Shape: 589069. **All values are zero.**
     - `hskp2_tlm_fmt`: ?. Shape: 589069. **All values are zero.**
-    - `instr_spares`: ?. Shape: 589069 x 6. **All values are zero.**
+    - `instr_spares`: Spares. Shape: 589069 x 6. **All values are zero.**
     - `mjr_frm_no`: Major frame number. Shape: 589069. **All values are zero.**
     - `orbit`: Orbit number. Shape: 589069. Units: ?.
     - `space_time`: Spacecraft time. Shape: 589069 x 6. **All values are zero.** In the science data there are values for the same variable.
-    - `time`: Binary time. Shape: 589069. Units: ?
+    - `time`: The Julian time in character and binary format of the engineering record; this is the average time of the science records with which this engineering record is associated. Shape: 589069. Units: ?
   - `en_analog`
     - `group1`
-      - `bol_volt`: ? Bolometer voltage?. Shape: 589069 x 4. Units: ?.
-      - `cna_temp`: ? Temperature? Of what?. Shape: 589069 x 4. Units: ?.
-      - `dbx_tmp`: ?. Shape: 589069 x 2. Units: ?.
-      - `hot_spot`: Hot spot command for A,B side. Shape: 589069 x 2. Units: ?.
-      - `ipdu_amp`: ?. Shape: 589069 x 12. Units? (0 to 1).
-      - `ipdu_bolt`: ?. Shape: 589069 x 20. Units: ?.
-      - `ipdu_temp`: Temperature (of what?). Shape: 589069 x 2. Units: ?.
-      - `mtm_cal_mtr`: ?. Shape: 589069 x 2. Units: ?.
-      - `mtm_pos`: Position of the MTM (why times 2? Because there are 2 mirrors?). Shape: 589069 x 2. Units: ?.
-      - `pamp_chan`: ?. Shape: 589069. Units: ? (Values from 18 to 30).
-      - `pamp_op`: ?. Shape: 589069. Units: ? (Values from 2 to 28).
-      - `stat_mon_temp`: ?. Shape: 589069 x 2. Units: ? (Values from 20 to 31, then 24 to 35)
-      - `temp_ctl`: ?. Shape: 589069 x 8. Units: ?.
+      - `bol_volt`: Bolometer voltages. Use to get bolometer temperatures? Shape: 589069 x 4. Units: ?.
+      - `cna_temp`: Channel temps. Shape: 589069 x 4. Units: ?.
+      - `dbx_tmp`: Drive box temps. Shape: 589069 x 2. Units: ?.
+      - `hot_spot`: Hot spot heater A,B. Shape: 589069 x 2. Units: ?.
+      - `ipdu_amp`: IPDU currents. Shape: 589069 x 12. Units? (0 to 1).
+      - `ipdu_volt`: IPDU voltages. Shape: 589069 x 20. Units: ?.
+      - `ipdu_temp`: IPDU temps A,B. Shape: 589069 x 2. Units: ?.
+      - `mtm_cal_mtr`: MTM/Cal motors. Shape: 589069 x 2. Units: ?.
+      - `mtm_pos`: MTM position. Shape: 589069 x 2. Units: ?.
+      - `pamp_chan`: Channel preamp. Shape: 589069. Units: ? (Values from 18 to 30).
+      - `pamp_op`: Optical preamp. Shape: 589069. Units: ? (Values from 2 to 28).
+      - `stat_mon_temp`: Status monitor temp. Shape: 589069 x 2. Units: ? (Values from 20 to 31, then 24 to 35)
+      - `temp_ctl`: Temperature controllers. Shape: 589069 x 8. Units: ?.
     - `grt`: Germanium Resistance Thermometer. Data is divided into high (hi) and low (lo) current readings.
       - `a_hi_bol_assem`: Bolometer assembly. Shape: 589069 x 4. **All values are -9999.**
       - `a_hi_cal_resistors`: Calibration resistors. Used to convert the GRT readings from counts to Ohms. Shape: 589069 x 4. Units: ?.
@@ -209,7 +210,7 @@
     - `ext_cal_temp_a`: External calibrator. Shape: 589069. Values: {0, 256, 2682}.
     - `ext_cal_temp_b`: External calibrator. Shape: 589069. Values: many.
     - `grt_addr`: Dwell address A,B?. Shape: 589069 x 2. Values: {0, 4, 6, 7, 14}.
-    - `hot_spot_cmd`: ?. Shape: 589069 x 2. Values: {0, 1}.
+    - `hot_spot_cmd`: Hot spot command for A, B side. Shape: 589069 x 2. Values: {0, 1}.
     - `int_ref_temp_a`: Internal reference source. Shape: 589069. **All values are zero.**
     - `int_ref_temp_b`: Internal reference source. Shape: 589069. Values: many.
     - `lvdt_stat`: LVDT status A,B. Shape: 589069 x 2. Values: many.
@@ -229,20 +230,20 @@
     - `stat_word_8`: Status word?. Shape: 589069. Values: many.
     - `stat_word_9`: Status word?. Shape: 589069. Values: many.
   - `en_tail`
-    - `eng_spares`: ?. Shape: 589069 x 9. **All values are zero.**
-    - `engtail_spares`: ?. Shape: 589069 x 8. **All values are zero.**
-    - `hskp_flag`: ?. Shape: 589069. **All values are zero.**
-    - `lmac_analog_temp`: Analog temperature?. Shape: 589069. Values: 14 to 23. Units: K?.
-    - `lmac_digital_temp`: Digital temperature?. Shape: 589069. Values: 12 to 23. Units: K?.
-    - `tlm_qual_maj_frm`: ?. Shape: 589069 x 2. **All values are zero.**
-  - `en_tempdiff`
-    - `bol_assem`: ?. Shape: 589069 x 2 x 4. Values: many.
-    - `collimator_mirror`: ?. Shape: 589069 x 2. Values: many.
-    - `dihedral`: ?. Shape: 589069 x 2. Values: many.
-    - `ical`: ?. Shape: 589069 x 2. Values: many.
-    - `refhorn`: ?. Shape: 589069 x 2. Values: many.
-    - `skyhorn`: ?. Shape: 589069 x 2. Values: many.
-    - `xcal`: ?. Shape: 589069 x 2. Values: many.
+    - `eng_spares`: Engineering record spares. Shape: 589069 x 9. **All values are zero.**
+    - `engtail_spares`: Channel specific spares. Shape: 589069 x 8. **All values are zero.**
+    - `hskp_flag`: Housekeeping flag {0=housekeeping present, 1=no housekeeping data for time of engineering record}. Shape: 589069. **All values are zero.**
+    - `lmac_analog_temp`: LMAC temperature for analog converter. Spacecraft Sides 1 and 2 read FIRAS A Side only. Shape: 589069. Values: 14 to 23. Units: K?.
+    - `lmac_digital_temp`: LMAC temperature for digital converter. Spacecraft Sides 1 and 2 read FIRAS A Side only. Shape: 589069. Values: 12 to 23. Units: K?.
+    - `tlm_qual_maj_frm`: Overall telemetry quality for MJF. Shape: 589069 x 2. **All values are zero.**
+  - `en_tempdiff`: Temperature difference between bracketing major frames in units of a tenth of a millikelvin. Stores temperature differences between the bracketing housekeeping major frames from which this engineering record was derived. These values are used for consistency checking in the FIRAS pipeline software to eliminate data whose housekeeping values vary too much between major frames.
+    - `bol_assem`: Bolometer assembly temp diff. Shape: 589069 x 2 x 4. Values: many.
+    - `collimator_mirror`: Collimator and mirror temp diff. Shape: 589069 x 2. Values: many.
+    - `dihedral`: Dihedral temp diff. Shape: 589069 x 2. Values: many.
+    - `ical`: Internal ref source temp diff. Shape: 589069 x 2. Values: many.
+    - `refhorn`: Reference horn temp diff. Shape: 589069 x 2. Values: many.
+    - `skyhorn`: Sky horn temp diff. Shape: 589069 x 2. Values: many.
+    - `xcal`: External calibrator temp diff. Shape: 589069 x 2. Values: many.
   - `en_xcal`
-    - `pos`: Position of the XCAL?. Shape: 589069 x 2. Values: {1, 2, 3}.
+    - `pos`: XCal position {0 = error, 1 = in sky horn, 2 = stowed (out of horn), 3 = transit (between in and out)}. Shape: 589069 x 2. Values: {1, 2, 3}. The external calibrator position field indicates whether the data are sky or calibration data. A value of 1 indicates that the XCAL is in the horn and the interferograms are thus calibration data. A value of 2 indicates that the XCAL is completely out of the horn and the interferograms are sky data. Data with any other value are not used.
     - `xcal_spares`: ?. Shape: 589069 x 50. **All values are zero.**

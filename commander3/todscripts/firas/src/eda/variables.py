@@ -2,7 +2,7 @@ import h5py
 import matplotlib
 import numpy as np
 
-matplotlib.use("tkagg")
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 fdq_sdf = h5py.File("/mn/stornext/d16/cmbco/ola/firas/initial_data/fdq_sdf_new.h5")
@@ -136,3 +136,25 @@ for channel in channels:
         print(np.sum(np.isnan(adds_per_group[channel])))
     else:
         print("No nans in adds_per_group (main.py)")
+
+
+print("data_quality")
+
+data_quality = {}
+
+for channel in channels:
+    total_values = {}
+    data_quality[channel] = np.array(fdq_sdf[f"fdq_sdf_{channel}/dq_data/data_quality"])
+    print(f"{channel}: {data_quality[channel].shape}")
+
+    for i in range(len(data_quality[channel])):
+        unique_values = sorted(set(data_quality[channel][i].tolist()))
+
+        for val in unique_values:
+            total_values[val] = total_values.get(val, 0) + data_quality[channel][
+                i
+            ].tolist().count(val)
+
+    # print total values sorted by the keys
+    for key in sorted(total_values.keys()):
+        print(f"{key}: {total_values[key]}")
