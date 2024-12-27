@@ -71,9 +71,9 @@ names_en_analog_grt = [
                    'b_hi_bol_assem', 'b_hi_mirror', 'b_hi_cal_resistors',
                    'b_hi_xcal_cone', 'b_hi_collimator']
 names_en_analog_group1 = [
-                   'temp_ctl', 'ipdu_temp', 'cna_temp', 'dbx_tmp', 'stat_mon_temp',
+                   'temp_ctrl', 'ipdu_temp', 'cna_temp', 'dbx_tmp', 'stat_mon_temp',
                    'pamp_chan', 'pamp_op', 'hot_spot', 'mtm_cal_mtr', 'mtm_pos', 'bol_volt',
-                   'ipdu_bolt', 'ipdu_amp']
+                   'ipdu_volt', 'ipdu_amp']
 
 
 lens_grt =  [
