@@ -2,7 +2,7 @@
 2.597, .054	!Skyhorn GRT - A side
 2.428, .048	!Reference Horn GRT - A side
 2.485, .048	!ICAL GRT - A side
-2.487, .049	!Dihederal GRT - A side
+2.487, .049	!Dihedral GRT - A side
 2.24, 0.10	!Bolometer RH - A side
 2.50, 0.11	!Bolometer RL - A side
 2.61, 0.12	!Bolometer LH - A side
@@ -18,7 +18,7 @@
 2.399, .050	!Skyhorn GRT - B side
 2.636, .055	!Reference Horn GRT - B side
 2.495, .050	!ICAL GRT - B side
-2.761, .057	!Dihederal GRT - B side
+2.761, .057	!Dihedral GRT - B side
 2.37, 0.10	!Bolometer RH - B side
 2.37, 0.11	!Bolometer RL - B side
 2.37, 0.10	!Bolometer LH - B side

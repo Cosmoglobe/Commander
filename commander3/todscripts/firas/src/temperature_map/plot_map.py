@@ -14,12 +14,11 @@ reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
 sky = np.load("../../output/data/sky.npy")
 data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/df_v14.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
     "r",
 )
 
-idx = np.where(np.array(data["df_data/xcal_pos"][()]) == 2)
-pix_gal = np.array(data["df_data/pix_gal"][()])[idx].astype(int)
+pix_gal = np.array(data["df_data/pix_gal"][()]).astype(int)
 
 # frequency mapping
 fnyq = gen_nyquistl(
@@ -37,32 +36,36 @@ f_ghz = f_icm * c * 1e-9
 NSIDE = 32
 npix = hp.nside2npix(NSIDE)
 
-# for freq in range(len(f_ghz)):
-#     hpxmap = np.zeros(npix)
-#     data_density = np.zeros(npix)
+for freq in range(len(f_ghz)):
+    hpxmap = np.zeros(npix)
+    data_density = np.zeros(npix)
 
-#     for i in range(len(pix_gal)):
-#         hpxmap[pix_gal[i]] += np.abs(sky[i][freq])
-#         data_density[pix_gal[i]] += 1
+    for i in range(len(pix_gal)):
+        hpxmap[pix_gal[i]] += np.abs(sky[i][freq])
+        data_density[pix_gal[i]] += 1
 
-#     m = np.zeros(npix)
-#     mask = data_density == 0
-#     m[~mask] = hpxmap[~mask] / data_density[~mask]
+    m = np.zeros(npix)
+    mask = data_density == 0
+    m[~mask] = hpxmap[~mask] / data_density[~mask]
 
-#     # mask the map
-#     m[mask] = hp.UNSEEN
+    # mask the map
+    m[mask] = hp.UNSEEN
 
-# hp.mollview(
-#     m,
-#     coord="G",
-#     title=f"{int(f_ghz[freq]):04d} GHz",
-#     unit="MJy/sr",
-#     min=0,
-#     max=500,
-# )
-# # hp.graticule(coord="G")
-# plt.savefig(f"../../output/maps/sky_map_{int(f_ghz[freq]):04d}.png")
-# plt.close()
+    hp.mollview(
+        m,
+        coord="G",
+        title=f"{int(f_ghz[freq]):04d} GHz",
+        unit="MJy/sr",
+        min=0,
+        max=500,
+    )
+    # hp.graticule(coord="G")
+    plt.savefig(f"../../output/maps/sky_map/{int(f_ghz[freq]):04d}.png")
+    plt.close()
+
+    hp.fitsfunc.write_map(
+        f"../../output/maps/fits/{int(f_ghz[freq]):04d}.fits", m, overwrite=True
+    )
 
 print(f"pix_gal: {pix_gal.shape}")
 

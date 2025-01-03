@@ -160,7 +160,7 @@ science records corresponding to this engineering record.
       - `pamp_chan`: Channel preamp. Shape: 589069. Units: ? (Values from 18 to 30).
       - `pamp_op`: Optical preamp. Shape: 589069. Units: ? (Values from 2 to 28).
       - `stat_mon_temp`: Status monitor temp. Shape: 589069 x 2. Units: ? (Values from 20 to 31, then 24 to 35)
-      - `temp_ctl`: Temperature controllers. Shape: 589069 x 8. Units: ?.
+      - `temp_ctrl`: Temperature controllers. Shape: 589069 x 8. Units: ?.
     - `grt`: Germanium Resistance Thermometer. Data is divided into high (hi) and low (lo) current readings.
       - `a_hi_bol_assem`: Bolometer assembly. Shape: 589069 x 4. **All values are -9999.**
       - `a_hi_cal_resistors`: Calibration resistors. Used to convert the GRT readings from counts to Ohms. Shape: 589069 x 4. Units: ?.

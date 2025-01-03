@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timedelta
+
 import numpy as np
 
 channels = ["lh", "ll", "rh", "rl"]
@@ -47,22 +48,20 @@ def parse_date_string(gmt_nb):
 
 
 def clean_variable(row, variable):
-    # filter out channels with non-NaN values
-    valid_values = [
-        row[f"{variable}_{channel}"]
-        for channel in channels
-        if not math.isnan(row[f"{variable}_{channel}"])
-    ]
+    """
+    Function to clean up variables so that instead of 4 of each variable (one for each channel), we have only one variable after checking that the four channels are all the same (except for the ones that are NaNs).
+    """
+    values = np.array([row[f"{variable}_{channel}"] for channel in channels])
 
-    # if there are no valid channels, return None
-    if not valid_values:
-        return None
+    # check if all values are NaN
+    if np.all(np.isnan(values)):
+        return np.nan
 
     # check if all valid values are the same
-    if all(value == valid_values[0] for value in valid_values):
-        return valid_values[0]
+    if np.array_equal(values, values, equal_nan=True):
+        return values[0]
     else:
-        return None
+        return np.nan
 
 
 def get_temperature_hl(row, element):
@@ -121,7 +120,11 @@ def get_temperature_hl(row, element):
     else:
         return np.mean([temp_a, temp_b])
 
-def convert_gain(row, channel):
-    conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
 
-    return conv[row[f"gain_{channel}"]]
+def convert_gain(row, channel):
+    if row[f"gain_{channel}"] == -1:
+        return np.nan
+    else:
+        conv = {0: 1, 1: 3, 2: 10, 3: 30, 4: 100, 5: 300, 6: 1000, 7: 3000}
+
+        return conv[row[f"gain_{channel}"]]

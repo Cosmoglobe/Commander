@@ -11,14 +11,13 @@ sky = np.load("../../output/data/sky.npy")
 sky = np.abs(sky)
 print(f"sky shape: {sky.shape}")
 data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/df_v14.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
     "r",
 )
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-idx = np.where(np.array(data["df_data/xcal_pos"][()]) == 2)
-pix_gal = np.array(data["df_data/pix_gal"][()])[idx].astype(int)
+pix_gal = np.array(data["df_data/pix_gal"][()]).astype(int)
 
 # frequency mapping
 fnyq = gen_nyquistl(
