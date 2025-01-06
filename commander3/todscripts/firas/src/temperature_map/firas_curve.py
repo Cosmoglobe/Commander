@@ -17,7 +17,16 @@ data = h5py.File(
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-pix_gal = np.array(data["df_data/pix_gal"][()]).astype(int)
+ical = np.array(data["df_data/ical"][()])
+ical_lower_3 = ical < 3
+
+pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
+
+# to not use ICAL higher than 3 temps
+ical = np.array(data["df_data/ical"][()])
+ical_lower_3 = ical < 3
+pix_gal = pix_gal[ical_lower_3]
+sky = sky[ical_lower_3]
 
 # frequency mapping
 fnyq = gen_nyquistl(

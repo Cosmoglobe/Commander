@@ -18,7 +18,15 @@ data = h5py.File(
     "r",
 )
 
-pix_gal = np.array(data["df_data/pix_gal"][()]).astype(int)
+# pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
+pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
+
+# to not use ICAL higher than 3 temps
+ical = np.array(data["df_data/ical"][()])
+ical_lower_3 = ical < 3
+# pix_gal = pix_gal[ical_lower_3]
+pix_terr = pix_terr[ical_lower_3]
+sky = sky[ical_lower_3]
 
 # frequency mapping
 fnyq = gen_nyquistl(
@@ -36,26 +44,31 @@ f_ghz = f_icm * c * 1e-9
 NSIDE = 32
 npix = hp.nside2npix(NSIDE)
 
+# for freq in range(len(f_ghz)):
+hpxmap = np.zeros((npix, len(f_ghz)))
+data_density = np.zeros(npix)
+
+# for i in range(len(pix_gal)):
+#     hpxmap[pix_gal[i]] += np.abs(sky[i][freq])
+#     data_density[pix_gal[i]] += 1
+for i in range(len(pix_terr)):
+    hpxmap[pix_terr[i]] += np.abs(sky[i])
+    data_density[pix_terr[i]] += 1
+
+m = np.zeros((npix, len(f_ghz)))
+mask = data_density == 0
+m[~mask] = hpxmap[~mask] / data_density[~mask, np.newaxis]
+
+# mask the map
+m[mask] = hp.UNSEEN
+
 for freq in range(len(f_ghz)):
-    hpxmap = np.zeros(npix)
-    data_density = np.zeros(npix)
-
-    for i in range(len(pix_gal)):
-        hpxmap[pix_gal[i]] += np.abs(sky[i][freq])
-        data_density[pix_gal[i]] += 1
-
-    m = np.zeros(npix)
-    mask = data_density == 0
-    m[~mask] = hpxmap[~mask] / data_density[~mask]
-
-    # mask the map
-    m[mask] = hp.UNSEEN
-
     hp.mollview(
-        m,
-        coord="G",
+        m[:, freq],
+        # coord="G",
         title=f"{int(f_ghz[freq]):04d} GHz",
         unit="MJy/sr",
+        # norm="hist",
         min=0,
         max=500,
     )
@@ -63,29 +76,28 @@ for freq in range(len(f_ghz)):
     plt.savefig(f"../../output/maps/sky_map/{int(f_ghz[freq]):04d}.png")
     plt.close()
 
-    hp.fitsfunc.write_map(
-        f"../../output/maps/fits/{int(f_ghz[freq]):04d}.fits", m, overwrite=True
-    )
-
-print(f"pix_gal: {pix_gal.shape}")
+# print(f"pix_gal: {pix_gal.shape}")
 
 # fit bb to each pixel
-sum = np.zeros((npix, len(sky[0])))
-sum_density = np.zeros(npix)
-for i in range(len(pix_gal)):
-    sum[pix_gal[i]] += np.abs(sky[i])
-    sum_density[pix_gal[i]] += 1
+# sum = np.zeros((npix, len(sky[0])))
+# sum_density = np.zeros(npix)
+# # for i in range(len(pix_gal)):
+# #     sum[pix_gal[i]] += np.abs(sky[i])
+# #     sum_density[pix_gal[i]] += 1
+# for i in range(len(pix_terr)):
+#     sum[pix_terr[i]] += np.abs(sky[i])
+#     sum_density[pix_terr[i]] += 1
 
 temps = np.zeros(npix)
 
-sum[sum_density != 0] = (
-    sum[sum_density != 0] / sum_density[sum_density != 0][:, np.newaxis]
-)
+# hpxmap[data_density != 0] = (
+#     hpxmap[data_density != 0] / data_density[data_density != 0][:, np.newaxis]
+# )
 t0 = 2.726
 
-for i in range(len(sum)):
-    if sum_density[i] != 0:
-        fit = minimize(residuals, t0, args=(f_ghz[1:], sum[i][1:]))
+for i in range(len(m)):
+    if data_density[i] != 0:
+        fit = minimize(residuals, t0, args=(f_ghz[1:], m[i, 1:]))
         temps[i] = fit.x[0]
     else:
         temps[i] = hp.UNSEEN
@@ -94,10 +106,11 @@ print(temps)
 
 hp.mollview(
     temps,
-    coord="G",
+    # coord="G",
     title="Temperature map",
     unit="K",
-    min=2.5,
+    # norm="hist",
+    min=2.7,
     max=2.8,
 )
 plt.savefig("../../output/maps/temperature_map.png")

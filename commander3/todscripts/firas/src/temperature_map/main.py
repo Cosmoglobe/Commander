@@ -152,7 +152,7 @@ print("plotting sky")
 plt.imshow(
     np.abs(sky).T, aspect="auto", extent=[0, len(sky), 0, len(sky[0])], vmax=500, vmin=0
 )
-plt.savefig("../../output/tests/sky_over_time.png")
+plt.savefig("../../output/plots/sky_over_time.png")
 plt.clf()
 
 for i in range(0, len(sky), 1000):
