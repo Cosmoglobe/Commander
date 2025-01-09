@@ -10,22 +10,26 @@ from my_utils import residuals
 from scipy.optimize import minimize
 from utils.config import gen_nyquistl
 
+T_CMB = 2.72548  # Fixsen 2009
+
 reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
 sky = np.load("../../output/data/sky.npy")
 data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.1.h5",
     "r",
 )
 
-# pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
-pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
+pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
+# pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
 
-# to not use ICAL higher than 3 temps
-ical = np.array(data["df_data/ical"][()])
+# to not use ICAL higher than 3
+a_ical = np.array(data["df_data/a_ical"][()])
+b_ical = np.array(data["df_data/b_ical"][()])
+ical = (a_ical + b_ical) / 2
 ical_lower_3 = ical < 3
-# pix_gal = pix_gal[ical_lower_3]
-pix_terr = pix_terr[ical_lower_3]
+pix_gal = pix_gal[ical_lower_3]
+# pix_terr = pix_terr[ical_lower_3]
 sky = sky[ical_lower_3]
 
 # frequency mapping
@@ -48,12 +52,12 @@ npix = hp.nside2npix(NSIDE)
 hpxmap = np.zeros((npix, len(f_ghz)))
 data_density = np.zeros(npix)
 
-# for i in range(len(pix_gal)):
-#     hpxmap[pix_gal[i]] += np.abs(sky[i][freq])
-#     data_density[pix_gal[i]] += 1
-for i in range(len(pix_terr)):
-    hpxmap[pix_terr[i]] += np.abs(sky[i])
-    data_density[pix_terr[i]] += 1
+for i in range(len(pix_gal)):
+    hpxmap[pix_gal[i]] += np.abs(sky[i])
+    data_density[pix_gal[i]] += 1
+# for i in range(len(pix_terr)):
+#     hpxmap[pix_terr[i]] += np.abs(sky[i])
+#     data_density[pix_terr[i]] += 1
 
 m = np.zeros((npix, len(f_ghz)))
 mask = data_density == 0
@@ -68,31 +72,16 @@ for freq in range(len(f_ghz)):
         # coord="G",
         title=f"{int(f_ghz[freq]):04d} GHz",
         unit="MJy/sr",
-        # norm="hist",
-        min=0,
-        max=500,
+        norm="hist",
+        # min=0,
+        # max=500,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/sky_map/{int(f_ghz[freq]):04d}.png")
     plt.close()
 
-# print(f"pix_gal: {pix_gal.shape}")
-
-# fit bb to each pixel
-# sum = np.zeros((npix, len(sky[0])))
-# sum_density = np.zeros(npix)
-# # for i in range(len(pix_gal)):
-# #     sum[pix_gal[i]] += np.abs(sky[i])
-# #     sum_density[pix_gal[i]] += 1
-# for i in range(len(pix_terr)):
-#     sum[pix_terr[i]] += np.abs(sky[i])
-#     sum_density[pix_terr[i]] += 1
-
 temps = np.zeros(npix)
 
-# hpxmap[data_density != 0] = (
-#     hpxmap[data_density != 0] / data_density[data_density != 0][:, np.newaxis]
-# )
 t0 = 2.726
 
 for i in range(len(m)):
@@ -109,9 +98,9 @@ hp.mollview(
     # coord="G",
     title="Temperature map",
     unit="K",
-    # norm="hist",
-    min=2.7,
-    max=2.8,
+    norm="hist",
+    # min=2.7,
+    # max=2.8,
 )
 plt.savefig("../../output/maps/temperature_map.png")
 plt.close()

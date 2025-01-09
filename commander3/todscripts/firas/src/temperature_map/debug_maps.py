@@ -13,114 +13,64 @@ import numpy as np
 
 sky = np.load("../../output/data/sky.npy")
 data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.1.h5",
     "r",
 )
 
-print(data["df_data"].keys())
+print(sky.shape)
 
-spec_bad = np.empty((len(sky)))
-spec_good = np.empty((len(sky)))
-adds_per_group_bad = np.empty((len(sky)))
-adds_per_group_good = np.empty((len(sky)))
-bol_cmd_bias_bad = np.empty((len(sky)))
-bol_cmd_bias_good = np.empty((len(sky)))
-bol_volt_bad = np.empty((len(sky)))
-bol_volt_good = np.empty((len(sky)))
-dihedral_bad = np.empty((len(sky)))
-dihedral_good = np.empty((len(sky)))
-gain_bad = np.empty((len(sky)))
-gain_good = np.empty((len(sky)))
-ical_bad = np.empty((len(sky)))
-ical_good = np.empty((len(sky)))
-mtm_length_bad = np.empty((len(sky)))
-mtm_length_good = np.empty((len(sky)))
-mtm_speed_bad = np.empty((len(sky)))
-mtm_speed_good = np.empty((len(sky)))
-sweeps_bad = np.empty((len(sky)))
-sweeps_good = np.empty((len(sky)))
+spec = np.mean(np.abs(sky[:, 1:]), axis=1)
 
-spec_bad[np.max(sky[:, 1:]) > 1000] = np.mean(np.abs(sky[:, 1:]), axis=1)
-spec_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-spec_good[np.max(sky[:, 1:]) <= 1000] = np.mean(np.abs(sky[:, 1:]), axis=1)
-spec_good[np.max(sky[:, 1:]) > 1000] = np.nan
+variable_names = [
+    "a_dihedral",
+    "a_ical",
+    "b_dihedral",
+    "b_ical",
+    "ext_cal_temp_a",
+    "ext_cal_temp_b",
+    "hot_spot_cmd_a",
+    "hot_spot_cmd_b",
+    "int_ref_temp_a",
+    "int_ref_temp_b",
+    "lvdt_stat_a",
+    "lvdt_stat_b",
+    "mtm_length",
+    "mtm_speed",
+    "power_a_status_a",
+    "power_a_status_b",
+    "power_b_status_a",
+    "power_b_status_b",
+    "ref_hrn_temp_a",
+    "ref_hrn_temp_b",
+    "stat_word_1",
+    "stat_word_12",
+    "stat_word_13",
+    "stat_word_16",
+    "stat_word_4",
+    "stat_word_5",
+    "stat_word_8",
+    "stat_word_9",
+]
+channel_dependent = ["adds_per_group", "bol_cmd_bias", "bol_volt", "gain", "sweeps"]
 
-adds_per_group_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/adds_per_group_ll"][()]
-adds_per_group_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-adds_per_group_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/adds_per_group_ll"][()]
-adds_per_group_good[np.max(sky[:, 1:]) > 1000] = np.nan
+variables = {}
 
-bol_cmd_bias_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/bol_cmd_bias_ll"][()]
-bol_cmd_bias_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-bol_cmd_bias_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/bol_cmd_bias_ll"][()]
-bol_cmd_bias_good[np.max(sky[:, 1:]) > 1000] = np.nan
+for name in variable_names:
+    variables[name] = np.array(data["df_data/" + name][()])
 
-bol_volt_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/bol_volt_ll"][()]
-bol_volt_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-bol_volt_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/bol_volt_ll"][()]
-bol_volt_good[np.max(sky[:, 1:]) > 1000] = np.nan
+for name in channel_dependent:
+    variables[name] = np.array(data["df_data/" + name + "_ll"][()])
 
-dihedral_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/dihedral"][()]
-dihedral_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-dihedral_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/dihedral"][()]
-dihedral_good[np.max(sky[:, 1:]) > 1000] = np.nan
+print(len(variables.keys()))
 
-gain_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/gain_ll"][()]
-gain_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-gain_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/gain_ll"][()]
-gain_good[np.max(sky[:, 1:]) > 1000] = np.nan
+fig, ax = plt.subplots(6, 6, figsize=(20, 20), sharex=True)
 
-ical_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/ical"][()]
-ical_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-ical_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/ical"][()]
-ical_good[np.max(sky[:, 1:]) > 1000] = np.nan
+for i, name in enumerate(variables.keys()):
+    ax[i // 6, i % 6].plot(variables[name])
+    ax[i // 6, i % 6].set_title(name)
 
-mtm_length_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/mtm_length"][()]
-mtm_length_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-mtm_length_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/mtm_length"][()]
-mtm_length_good[np.max(sky[:, 1:]) > 1000] = np.nan
-
-mtm_speed_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/mtm_speed"][()]
-mtm_speed_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-mtm_speed_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/mtm_speed"][()]
-mtm_speed_good[np.max(sky[:, 1:]) > 1000] = np.nan
-
-sweeps_bad[np.max(sky[:, 1:]) > 1000] = data["df_data/sweeps_ll"][()]
-sweeps_bad[np.max(sky[:, 1:]) <= 1000] = np.nan
-sweeps_good[np.max(sky[:, 1:]) <= 1000] = data["df_data/sweeps_ll"][()]
-sweeps_good[np.max(sky[:, 1:]) > 1000] = np.nan
-
-fig, ax = plt.subplots(5, 2, figsize=(10, 10), sharex=True)
-ax[0, 0].plot(spec_bad, color="red")
-ax[0, 0].plot(spec_good, color="green")
-ax[0, 0].set_title("spec")
-ax[0, 1].plot(adds_per_group_bad, color="red")
-ax[0, 1].plot(adds_per_group_good, color="green")
-ax[0, 1].set_title("adds_per_group")
-ax[1, 0].plot(bol_cmd_bias_bad, color="red")
-ax[1, 0].plot(bol_cmd_bias_good, color="green")
-ax[1, 0].set_title("bol_cmd_bias")
-ax[1, 1].plot(bol_volt_bad, color="red")
-ax[1, 1].plot(bol_volt_good, color="green")
-ax[1, 1].set_title("bol_volt")
-ax[2, 0].plot(dihedral_bad, color="red")
-ax[2, 0].plot(dihedral_good, color="green")
-ax[2, 0].set_title("dihedral")
-ax[2, 1].plot(gain_bad, color="red")
-ax[2, 1].plot(gain_good, color="green")
-ax[2, 1].set_title("gain")
-ax[3, 0].plot(ical_bad, color="red")
-ax[3, 0].plot(ical_good, color="green")
-ax[3, 0].set_title("ical")
-ax[3, 1].plot(mtm_length_bad, color="red")
-ax[3, 1].plot(mtm_length_good, color="green")
-ax[3, 1].set_title("mtm_length")
-ax[4, 0].plot(mtm_speed_bad, color="red")
-ax[4, 0].plot(mtm_speed_good, color="green")
-ax[4, 0].set_title("mtm_speed")
-ax[4, 1].plot(sweeps_bad, color="red")
-ax[4, 1].plot(sweeps_good, color="green")
-ax[4, 1].set_title("sweeps")
+ax[-1, -1].plot(spec)
+ax[-1, -1].set_title("spec")
 
 plt.tight_layout()
 plt.show()

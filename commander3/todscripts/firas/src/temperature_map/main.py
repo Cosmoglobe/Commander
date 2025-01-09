@@ -10,8 +10,11 @@ from astropy.io import fits
 from my_utils import clean_ifg, ifg_to_spec, planck
 from utils.config import gen_nyquistl
 
+T_CMB = 2.72548  # Fixsen 2009
+
 sky_data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.1.h5",
+    # "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
     "r",
 )
 # cal_data = h5py.File(
@@ -25,9 +28,13 @@ gmts = np.array(sky_data["df_data/gmt"][()]).astype(str)
 gmt = pd.to_datetime(gmts).strftime("%Y-%m-%d %H:%M:%S").to_numpy()
 
 print("other variables")
-ical = np.array(sky_data["df_data/ical"][()])
-dihedral = np.array(sky_data["df_data/dihedral"][()])
-ifg_ll = np.array(sky_data["df_data/ifg_ll"][()])
+# ical = np.array(sky_data["df_data/ical"][()])
+a_ical = np.array(sky_data["df_data/a_ical"][()])
+b_ical = np.array(sky_data["df_data/b_ical"][()])
+# dihedral = np.array(sky_data["df_data/dihedral"][()])
+a_dihedral = np.array(sky_data["df_data/a_dihedral"][()])
+b_dihedral = np.array(sky_data["df_data/b_dihedral"][()])
+ifg_ll = np.array(sky_data["df_data/ifg_ll"])
 ifg_lh = np.array(sky_data["df_data/ifg_lh"][()])
 ifg_rl = np.array(sky_data["df_data/ifg_rl"][()])
 ifg_rh = np.array(sky_data["df_data/ifg_rh"][()])
@@ -35,7 +42,6 @@ mtm_length = np.array(sky_data["df_data/mtm_length"][()])
 mtm_speed = np.array(sky_data["df_data/mtm_speed"][()])
 bol_cmd_bias_ll = np.array(sky_data["df_data/bol_cmd_bias_ll"][()])
 bol_volt_ll = np.array(sky_data["df_data/bol_volt_ll"][()])
-times = np.array(sky_data["df_data/time"][()])
 adds_per_group_ll = np.array(sky_data["df_data/adds_per_group_ll"][()])
 gain_ll = np.array(sky_data["df_data/gain_ll"][()])
 sweeps_ll = np.array(sky_data["df_data/sweeps_ll"][()])
@@ -70,6 +76,16 @@ rho = fits_data[1].data["BOLPARM5"][0]
 G1 = fits_data[1].data["BOLPARM3"][0]
 beta = fits_data[1].data["BOLPARM4"][0]
 
+# plot ifgs over time
+plt.imshow(ifg_ll.T, aspect="auto", extent=[0, len(ifg_ll), 0, len(ifg_ll[0])])
+plt.savefig("../../output/plots/ifg_over_time.png")
+plt.clf()
+
+# plot random ifg
+plt.plot(ifg_ll[np.random.randint(0, len(ifg_ll))])
+plt.savefig("../../output/plots/random_ifg.png")
+plt.clf()
+
 print("cleaning interferograms")
 
 ifg = clean_ifg(
@@ -81,6 +97,11 @@ ifg = clean_ifg(
     gain=gain_ll,
     sweeps=sweeps_ll,
 )
+
+# plot cleaned ifgs
+plt.imshow(ifg.T, aspect="auto", extent=[0, len(ifg), 0, len(ifg[0])])
+plt.savefig("../../output/plots/cleaned_ifg_over_time.png")
+plt.clf()
 
 # check if nans in ifgs
 if np.isnan(ifg).any():
@@ -124,11 +145,17 @@ c = 3e8 * 1e2  # cm/s
 f_ghz = f_icm * c * 1e-9
 
 # ical spectrum
+ical = (
+    a_ical + b_ical
+) / 2  # doing the mean between the two sides for now, will be fitted later
 bb_ical = planck(f_ghz[: len(spec)], ical)
+# switching the sign for when the ical has higher temp than T_CMB
+# bb_ical[ical > T_CMB] = -1 * bb_ical[ical > T_CMB]
 ical_emiss = fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
 ical_emiss = ical_emiss[: len(spec)]
 
 # dihedral spectrum
+dihedral = (a_dihedral + b_dihedral) / 2  # same for dihedral
 bb_dihedral = planck(f_ghz[: len(spec)], dihedral)
 dihedral_emiss = (
     fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
@@ -137,8 +164,11 @@ dihedral_emiss = dihedral_emiss[: len(spec)]
 
 sky = (
     spec
-    - (bb_ical * ical_emiss)[:, : len(spec[0])] / otf[np.newaxis, :]
-    - (bb_dihedral * dihedral_emiss)[:, : len(spec[0])] / otf[np.newaxis, :]
+    - (
+        (bb_ical * ical_emiss)[:, : len(spec[0])]
+        + (bb_dihedral * dihedral_emiss)[:, : len(spec[0])]
+    )
+    / otf[np.newaxis, :]
 )
 
 print("saving sky")
@@ -154,9 +184,3 @@ plt.imshow(
 )
 plt.savefig("../../output/plots/sky_over_time.png")
 plt.clf()
-
-for i in range(0, len(sky), 1000):
-    plt.plot(f_ghz[1 : len(spec[0])], np.abs(sky[i, 1:]))
-    plt.title(f"Sky_{i:03d}")
-    plt.savefig(f"../../output/sky/sky_{i:03d}.png")
-    plt.clf()

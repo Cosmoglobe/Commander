@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from numba import njit, prange
+from numba import jit, njit, prange
 from utils.frd import apodl, elex_transfcnl
 from utils.fut import apod_recnuml, get_recnum
 
@@ -9,7 +9,7 @@ from utils.fut import apod_recnuml, get_recnum
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
     rscale = 1.0e-7
 
-    cmd_bias = np.double(bol_cmd_bias) / 25.5
+    cmd_bias = bol_cmd_bias.astype("double") / 25.5
 
     V = (bol_volt - Jo) / Jg
 
@@ -39,7 +39,7 @@ def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, bet
     return S0
 
 
-@njit(parallel=True)
+# @njit(parallel=True)
 def my_median(arr):
     sort = np.zeros_like(arr)
     for i in prange(len(arr)):
@@ -63,10 +63,18 @@ def clean_ifg(
     gain,
     sweeps,
 ):
-    # subtract dither
-    ifg = ifg - my_median(ifg)[:, np.newaxis]
+    median_ifg = np.expand_dims(my_median(ifg), axis=-1)
 
-    ifg = ifg / gain[:, np.newaxis] / sweeps[:, np.newaxis]
+    # subtract dither
+    ifg = ifg - median_ifg
+
+    # Ensure gain and sweeps are reshaped for broadcasting
+    gain = np.expand_dims(gain, axis=-1)
+    sweeps = np.expand_dims(sweeps, axis=-1)
+
+    ifg = ifg / gain / sweeps
+
+    print("ifg shape after division:", ifg.shape)
 
     # apodize
     sm = 2 * mtm_length + mtm_speed
@@ -84,7 +92,7 @@ def clean_ifg(
     return ifg
 
 
-# @njit(parallel=True)
+# @njit(parallel=True) - can't use it because of rfft
 def ifg_to_spec(
     ifg,
     mtm_speed,
@@ -108,6 +116,11 @@ def ifg_to_spec(
     # fft
     spec = np.fft.rfft(ifg)
 
+    # plot initial spec over time
+    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
+    plt.savefig("../../output/plots/initial_spec_over_time.png")
+    plt.clf()
+
     # etf
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
 
@@ -115,18 +128,17 @@ def ifg_to_spec(
 
     etf = etfl_all[erecno, :]
 
-    for i in prange(len(etfl_all)):
-        plt.plot(etfl_all[i])
-        plt.title(f"etf_{i:03d}")
-        plt.savefig(f"../../output/tests/etfs/etf_{i:03d}.png")
-        plt.clf()
-
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
     spec = spec / etf
     spec = spec / spec_norm
+
+    # plot etf spec over time
+    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
+    plt.savefig("../../output/plots/etf_spec_over_time.png")
+    plt.clf()
 
     # fcc_spec_length = 321
     spec_len = len(ifg[0]) // 2 + 1
@@ -142,8 +154,18 @@ def ifg_to_spec(
 
     spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]
 
+    # plot spec after bolometer transfer function
+    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
+    plt.savefig("../../output/plots/spec_after_bolometer_transfer_function.png")
+    plt.clf()
+
     # optical transfer function
     spec = spec[:, : len(otf)] / otf
+
+    # plot spec after optical transfer function
+    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
+    plt.savefig("../../output/plots/spec_after_optical_transfer_function.png")
+    plt.clf()
 
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
@@ -153,6 +175,7 @@ def ifg_to_spec(
     return spec
 
 
+# @njit(parallel=True)
 def planck(freq, temp):
     """
     Planck function returning in units of MJy/sr.
@@ -171,6 +194,7 @@ def planck(freq, temp):
     return b
 
 
+# @njit(parallel=True)
 def residuals(temperature, frequency_data, sky_data):  # doing least squares for now
     """
     Function to calculate the residuals between the sky data and the Planck function for fitting a sky/XCAL temperature.

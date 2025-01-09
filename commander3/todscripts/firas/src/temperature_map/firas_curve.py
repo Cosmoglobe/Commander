@@ -7,23 +7,24 @@ from my_utils import planck, residuals
 from scipy.optimize import minimize
 from utils.config import gen_nyquistl
 
+T_CMB = 2.72548  # Fixsen 2009
+
 sky = np.load("../../output/data/sky.npy")
 sky = np.abs(sky)
 print(f"sky shape: {sky.shape}")
 data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.1.h5",
     "r",
 )
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-ical = np.array(data["df_data/ical"][()])
-ical_lower_3 = ical < 3
-
 pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
 
 # to not use ICAL higher than 3 temps
-ical = np.array(data["df_data/ical"][()])
+a_ical = np.array(data["df_data/a_ical"][()])
+b_ical = np.array(data["df_data/b_ical"][()])
+ical = (a_ical + b_ical) / 2
 ical_lower_3 = ical < 3
 pix_gal = pix_gal[ical_lower_3]
 sky = sky[ical_lower_3]
