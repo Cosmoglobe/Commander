@@ -22,11 +22,18 @@ data = h5py.File(
 
 pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
 # pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
+mtm_length = np.array(data["df_data/mtm_length"][()])
+mtm_speed = np.array(data["df_data/mtm_speed"][()])
+
+short_filter = mtm_length == 0
+slow_filter = mtm_speed == 0
+pix_gal = pix_gal[short_filter & slow_filter]
 
 # to not use ICAL higher than 3
 a_ical = np.array(data["df_data/a_ical"][()])
 b_ical = np.array(data["df_data/b_ical"][()])
 ical = (a_ical + b_ical) / 2
+ical = ical[short_filter & slow_filter]
 ical_lower_3 = ical < 3
 pix_gal = pix_gal[ical_lower_3]
 # pix_terr = pix_terr[ical_lower_3]
@@ -41,9 +48,12 @@ scan_mode = 0  # SS
 channel = 3  # LL
 frec = 4 * (channel % 2) + scan_mode
 
-f_icm = np.arange(len(sky[0])) * (fnyq["icm"][frec] / 320) + 1
+f_icm = np.arange(len(sky[0])) * (fnyq["icm"][frec] / 320)
 c = 3e8 * 1e2  # cm/s
-f_ghz = f_icm * c * 1e-9
+f_ghz = (
+    f_icm * c * 1e-9 + 55
+)  # this might not be right but it is what matches the initial frequencies of the firas movie
+
 
 NSIDE = 32
 npix = hp.nside2npix(NSIDE)
@@ -69,12 +79,12 @@ m[mask] = hp.UNSEEN
 for freq in range(len(f_ghz)):
     hp.mollview(
         m[:, freq],
-        # coord="G",
+        coord="G",
         title=f"{int(f_ghz[freq]):04d} GHz",
         unit="MJy/sr",
-        norm="hist",
-        # min=0,
-        # max=500,
+        # norm="hist",
+        min=0,
+        max=500,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/sky_map/{int(f_ghz[freq]):04d}.png")
@@ -95,12 +105,12 @@ print(temps)
 
 hp.mollview(
     temps,
-    # coord="G",
+    coord="G",
     title="Temperature map",
     unit="K",
-    norm="hist",
-    # min=2.7,
-    # max=2.8,
+    # norm="hist",
+    min=2.7,
+    max=2.8,
 )
 plt.savefig("../../output/maps/temperature_map.png")
 plt.close()
