@@ -292,10 +292,10 @@ for channel in channels:
         print(np.sum(np.isnan(merged_df[f"adds_per_group_{channel}"])))
     else:
         print(f"No nans in adds_per_group (checkpoint 3, channel {channel})")
-    # sweeps - TODO: CHECK IF 1 IS A VALID VALUE
+    # sweeps
     merged_df = merged_df[
-        (merged_df[f"sweeps_{channel}"] == 1)
-        | (merged_df[f"sweeps_{channel}"] == 4)
+        # (merged_df[f"sweeps_{channel}"] == 1) |
+        (merged_df[f"sweeps_{channel}"] == 4)
         | (merged_df[f"sweeps_{channel}"] == 16)
     ]
 
@@ -633,7 +633,7 @@ sky_variables = [
 ]
 
 # saving to a h5 file
-with tb.open_file("./../../data/sky_v4.1.h5", mode="w") as h5file:
+with tb.open_file("./../../data/sky_v4.2.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Sky Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)

@@ -13,8 +13,8 @@ from utils.config import gen_nyquistl
 T_CMB = 2.72548  # Fixsen 2009
 # channels = ["rh", "rl", "lh", "ll"]
 channels = ["ll"]
-# modes = ["ss", "sf", "ls", "lf", "fs", "fl"]
-modes = ["ss"]
+modes = ["ss", "sf", "ls", "lf", "fs", "fl"]
+# modes = ["ss"]
 
 sky_data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.1.h5",
@@ -59,25 +59,25 @@ sky_data.close()
 
 # using only ss data for now to test
 # make filter with true/false where mtm_length and mtm_speed are 0
-short_filter = mtm_length == 0
-slow_filter = mtm_speed == 0
+# short_filter = mtm_length == 0
+# slow_filter = mtm_speed == 0
 
-a_ical = a_ical[short_filter & slow_filter]
-b_ical = b_ical[short_filter & slow_filter]
-a_dihedral = a_dihedral[short_filter & slow_filter]
-b_dihedral = b_dihedral[short_filter & slow_filter]
-mtm_length = mtm_length[short_filter & slow_filter]
-mtm_speed = mtm_speed[short_filter & slow_filter]
-ifg["ll"] = ifg["ll"][short_filter & slow_filter]
-bol_cmd_bias["ll"] = bol_cmd_bias["ll"][short_filter & slow_filter]
-bol_volt["ll"] = bol_volt["ll"][short_filter & slow_filter]
-adds_per_group["ll"] = adds_per_group["ll"][short_filter & slow_filter]
-gain["ll"] = gain["ll"][short_filter & slow_filter]
-sweeps["ll"] = sweeps["ll"][short_filter & slow_filter]
+# a_ical = a_ical[short_filter & slow_filter]
+# b_ical = b_ical[short_filter & slow_filter]
+# a_dihedral = a_dihedral[short_filter & slow_filter]
+# b_dihedral = b_dihedral[short_filter & slow_filter]
+# mtm_length = mtm_length[short_filter & slow_filter]
+# mtm_speed = mtm_speed[short_filter & slow_filter]
+# ifg["ll"] = ifg["ll"][short_filter & slow_filter]
+# bol_cmd_bias["ll"] = bol_cmd_bias["ll"][short_filter & slow_filter]
+# bol_volt["ll"] = bol_volt["ll"][short_filter & slow_filter]
+# adds_per_group["ll"] = adds_per_group["ll"][short_filter & slow_filter]
+# gain["ll"] = gain["ll"][short_filter & slow_filter]
+# sweeps["ll"] = sweeps["ll"][short_filter & slow_filter]
 
 print(f"data loaded: {len(ifg['ll'])}")
 
-fits_data = fits.open(
+fits_data_ss = fits.open(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
 )
 fnyq = gen_nyquistl(
@@ -89,19 +89,19 @@ channel = 3  # LL
 frec = 4 * (channel % 2) + scan_mode
 
 # optical transfer function
-otf = fits_data[1].data["RTRANSFE"][0] + 1j * fits_data[1].data["ITRANSFE"][0]
-otf = otf[np.abs(otf) > 0]
+otf_ss = fits_data_ss[1].data["RTRANSFE"][0] + 1j * fits_data_ss[1].data["ITRANSFE"][0]
+otf_ss = otf_ss[np.abs(otf_ss) > 0]
 
 # bolometer function
-tau = fits_data[1].data["TIME_CON"][0]
-Jo = fits_data[1].data["BOLPARM8"][0]
-Jg = fits_data[1].data["BOLPARM9"][0]
-Tbol = fits_data[1].data["BOLOM_B2"][0]
-T0 = fits_data[1].data["BOLPARM2"][0]
-R0 = fits_data[1].data["BOLPARM_"][0]
-rho = fits_data[1].data["BOLPARM5"][0]
-G1 = fits_data[1].data["BOLPARM3"][0]
-beta = fits_data[1].data["BOLPARM4"][0]
+tau_ss = fits_data_ss[1].data["TIME_CON"][0]
+Jo_ss = fits_data_ss[1].data["BOLPARM8"][0]
+Jg_ss = fits_data_ss[1].data["BOLPARM9"][0]
+Tbol_ss = fits_data_ss[1].data["BOLOM_B2"][0]
+T0_ss = fits_data_ss[1].data["BOLPARM2"][0]
+R0_ss = fits_data_ss[1].data["BOLPARM_"][0]
+rho_ss = fits_data_ss[1].data["BOLPARM5"][0]
+G1_ss = fits_data_ss[1].data["BOLPARM3"][0]
+beta_ss = fits_data_ss[1].data["BOLPARM4"][0]
 
 # plot ifgs over time
 plt.imshow(ifg["ll"].T, aspect="auto", extent=[0, len(ifg["ll"]), 0, len(ifg["ll"][0])])
@@ -137,7 +137,7 @@ if np.isnan(ifg["ll"]).any():
 
 print("converting interferograms to spectra")
 
-spec = ifg_to_spec(
+spec_ss = ifg_to_spec(
     ifg["ll"],
     mtm_speed,
     channel,
@@ -146,21 +146,23 @@ spec = ifg_to_spec(
     bol_volt["ll"],
     fnyq["icm"][frec],
     fnyq["hz"][frec],
-    otf,
-    Jo,
-    Jg,
-    Tbol,
-    rho,
-    R0,
-    T0,
-    beta,
-    G1,
-    tau,
+    otf_ss,
+    Jo_ss,
+    Jg_ss,
+    Tbol_ss,
+    rho_ss,
+    R0_ss,
+    T0_ss,
+    beta_ss,
+    G1_ss,
+    tau_ss,
 )
 
 print("plotting")
 
-plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
+plt.imshow(
+    np.abs(spec_ss).T, aspect="auto", extent=[0, len(spec_ss), 0, len(spec_ss[0])]
+)
 plt.savefig("../../output/tests/spectra_diff_over_time.png")
 plt.clf()
 
@@ -175,39 +177,43 @@ f_ghz = f_icm * c * 1e-9
 ical = (
     a_ical + b_ical
 ) / 2  # doing the mean between the two sides for now, will be fitted later
-bb_ical = planck(f_ghz[: len(spec)], ical)
+bb_ical = planck(f_ghz[: len(spec_ss)], ical)
 # switching the sign for when the ical has higher temp than T_CMB
 # bb_ical[ical > T_CMB] = -1 * bb_ical[ical > T_CMB]
-ical_emiss = fits_data[1].data["RICAL"][0] + 1j * fits_data[1].data["IICAL"][0]
-ical_emiss = ical_emiss[: len(spec)]
+ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
+ical_emiss_ss = ical_emiss_ss[: len(spec_ss)]
 
 # dihedral spectrum
 dihedral = (a_dihedral + b_dihedral) / 2  # same for dihedral
-bb_dihedral = planck(f_ghz[: len(spec)], dihedral)
-dihedral_emiss = (
-    fits_data[1].data["RDIHEDRA"][0] + 1j * fits_data[1].data["IDIHEDRA"][0]
+bb_dihedral = planck(f_ghz[: len(spec_ss)], dihedral)
+dihedral_emiss_ss = (
+    fits_data_ss[1].data["RDIHEDRA"][0] + 1j * fits_data_ss[1].data["IDIHEDRA"][0]
 )
-dihedral_emiss = dihedral_emiss[: len(spec)]
+dihedral_emiss_ss = dihedral_emiss_ss[: len(spec_ss)]
 
-sky = (
-    spec
+sky_ss = (
+    spec_ss
     - (
-        (bb_ical * ical_emiss)[:, : len(spec[0])]
-        + (bb_dihedral * dihedral_emiss)[:, : len(spec[0])]
+        (bb_ical * ical_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_dihedral * dihedral_emiss_ss)[:, : len(spec_ss[0])]
     )
-    / otf[np.newaxis, :]
+    / otf_ss[np.newaxis, :]
 )
 
 print("saving sky")
 
 # save the sky
-np.save("../../output/data/sky.npy", sky)
+np.save("../../output/data/sky.npy", sky_ss)
 
 print("plotting sky")
 
 # plot the sky
 plt.imshow(
-    np.abs(sky).T, aspect="auto", extent=[0, len(sky), 0, len(sky[0])], vmax=500, vmin=0
+    np.abs(sky_ss).T,
+    aspect="auto",
+    extent=[0, len(sky_ss), 0, len(sky_ss[0])],
+    vmax=500,
+    vmin=0,
 )
 plt.savefig("../../output/plots/sky_over_time.png")
 plt.clf()

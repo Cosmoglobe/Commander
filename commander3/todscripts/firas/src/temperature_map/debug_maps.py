@@ -1,7 +1,7 @@
 import h5py
-import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
+from astropy.io import fits
 
 # m = hp.fitsfunc.read_map(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/maps/fits/0179.fits",
@@ -11,15 +11,19 @@ import numpy as np
 # plt.show()
 
 
-sky = np.load("../../output/data/sky.npy")
+sky = np.load(
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npy"
+)
 data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.1.h5",
     "r",
 )
+mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
+mask = mask[1].data.astype(int)
+print(mask)
 
-print(sky.shape)
-
-spec = np.mean(np.abs(sky[:, 1:]), axis=1)
+spec = np.max(np.abs(sky[:, 1:]), axis=1)
+pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
 
 variable_names = [
     "a_dihedral",
@@ -62,6 +66,21 @@ for name in channel_dependent:
     variables[name] = np.array(data["df_data/" + name + "_ll"][()])
 
 print(len(variables.keys()))
+
+short_filter = variables["mtm_length"] == 0
+slow_filter = variables["mtm_speed"] == 0
+
+for name in variables.keys():
+    variables[name] = variables[name][short_filter & slow_filter]
+
+pix_gal = pix_gal[short_filter & slow_filter]
+
+# remove data inside the mask
+for name in variables.keys():
+    variables[name] = variables[name][mask[pix_gal] == 1]
+
+# spec = spec[short_filter & slow_filter] - this filter already comes from main.py
+spec = spec[mask[pix_gal] == 1]
 
 fig, ax = plt.subplots(6, 6, figsize=(20, 20), sharex=True)
 
