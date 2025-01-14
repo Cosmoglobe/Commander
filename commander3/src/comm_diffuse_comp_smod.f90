@@ -1287,24 +1287,25 @@ contains
   end subroutine initSpecindProp
 
 
-  module subroutine initDiffPrecond(comm)
+  module subroutine initDiffPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
     select case (trim(precond_type))
     case ("diagonal")
-       call initDiffPrecond_diagonal(comm)
+       call initDiffPrecond_diagonal(comm, samp_group)
     case ("pseudoinv")
-       call initDiffPrecond_pseudoinv(comm)
+       call initDiffPrecond_pseudoinv(comm, samp_group)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
 
   end subroutine initDiffPrecond
 
-  module subroutine initDiffPrecond_diagonal(comm)
+  module subroutine initDiffPrecond_diagonal(comm, samp_group)
     implicit none
     integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
@@ -1315,7 +1316,7 @@ contains
 
     call update_status(status, "init_diffpre1")
     if (npre == 0) return
-    if (allocated(P_cr%invM_diff)) return
+    if (allocated(P_cr(samp_group)%invM_diff)) return
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1336,7 +1337,7 @@ contains
     
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
+    allocate(P_cr(samp_group)%invM_diff(0:info_pre%nalm-1,info_pre%nmaps))
     !!$OMP PARALLEL PRIVATE(mat, ind, j, i1, l, m, q, i2, k1, p1, k2, n)
     allocate(mat(npre,npre), ind(npre))
     do j = 1, info_pre%nmaps
@@ -1345,15 +1346,18 @@ contains
           call info_pre%i2lm(i1, l, m)
           mat = 0.d0
           do q = 1, numband
+             if (.not. data(q)%cr_active) cycle
              call data(q)%info%lm2i(l,m,i2)
              if (i2 == -1) cycle
              if (j > data(q)%info%nmaps) cycle
              do k1 = 1, npre
                 p1 => diffComps(k1)%p
+                if (.not. p1%active_samp_group(samp_group)) cycle
                 if (l > p1%lmax_amp) cycle
                 if (j > p1%nmaps) cycle
                 do k2 = 1, npre
                    p2 => diffComps(k2)%p
+                   if (.not. p2%active_samp_group(samp_group)) cycle
                    if (l > p2%lmax_amp) cycle
                    if (j > p2%nmaps) cycle
                    mat(k1,k2) = mat(k1,k2) + &
@@ -1365,20 +1369,20 @@ contains
           end do
 
           n = 0
-          allocate(P_cr%invM_diff(i1,j)%comp2ind(npre))
-          P_cr%invM_diff(i1,j)%comp2ind = -1
+          allocate(P_cr(samp_group)%invM_diff(i1,j)%comp2ind(npre))
+          P_cr(samp_group)%invM_diff(i1,j)%comp2ind = -1
           do k1 = 1, npre
              if (mat(k1,k1) > 0.d0) then
                 n = n+1
                 ind(n) = k1
-                P_cr%invM_diff(i1,j)%comp2ind(k1) = n
+                P_cr(samp_group)%invM_diff(i1,j)%comp2ind(k1) = n
              end if
           end do
-          P_cr%invM_diff(i1,j)%n = n
-          allocate(P_cr%invM_diff(i1,j)%ind(n))
-          allocate(P_cr%invM_diff(i1,j)%M0(n,n), P_cr%invM_diff(i1,j)%M(n,n))
-          P_cr%invM_diff(i1,j)%ind = ind(1:n)
-          P_cr%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
+          P_cr(samp_group)%invM_diff(i1,j)%n = n
+          allocate(P_cr(samp_group)%invM_diff(i1,j)%ind(n))
+          allocate(P_cr(samp_group)%invM_diff(i1,j)%M0(n,n), P_cr(samp_group)%invM_diff(i1,j)%M(n,n))
+          P_cr(samp_group)%invM_diff(i1,j)%ind = ind(1:n)
+          P_cr(samp_group)%invM_diff(i1,j)%M0   = mat(ind(1:n),ind(1:n))
        end do
        !!$OMP END DO
     end do
@@ -1390,9 +1394,9 @@ contains
   end subroutine initDiffPrecond_diagonal
 
 
-  module subroutine initDiffPrecond_pseudoinv(comm)
+  module subroutine initDiffPrecond_pseudoinv(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
     integer(i4b) :: i, i1, i2, j, k1, k2, q, l, m, n
     real(dp)     :: t1, t2
@@ -1402,7 +1406,7 @@ contains
     real(dp),     allocatable, dimension(:,:) :: mat
 
     if (npre == 0) return
-    if (allocated(P_cr%invM_diff)) return
+    if (allocated(P_cr(samp_group)%invM_diff)) return
     
     if (.not. allocated(diffComps)) then
        ! Set up an array of all the diffuse components
@@ -1422,10 +1426,10 @@ contains
     
     ! Allocate space for pseudo-inverse of U
     call wall_time(t1)
-    allocate(P_cr%invM_diff(0:lmax_pre,info_pre%nmaps))
+    allocate(P_cr(samp_group)%invM_diff(0:lmax_pre,info_pre%nmaps))
     do j = 1, info_pre%nmaps
        do l = 0, lmax_pre
-          allocate(P_cr%invM_diff(l,j)%M(npre,numband+npre))
+          allocate(P_cr(samp_group)%invM_diff(l,j)%M(npre,numband+npre))
        end do
     end do
 
@@ -1468,7 +1472,7 @@ contains
     !self%invM    = self%invM0
     do j = 1, info_pre%nmaps
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n > 0) P_cr%invM_diff(i,j)%M = P_cr%invM_diff(i,j)%M0
+          if (P_cr(samp_group)%invM_diff(i,j)%n > 0) P_cr(samp_group)%invM_diff(i,j)%M = P_cr(samp_group)%invM_diff(i,j)%M0
        end do
     end do
 
@@ -1484,11 +1488,11 @@ contains
           if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
-                   alm(i,j) = P_cr%invM_diff(i,j)%M(q,p)
+                   alm(i,j) = P_cr(samp_group)%invM_diff(i,j)%M(q,p)
                 else
                    alm(i,j) = 0.d0
                 end if
@@ -1501,10 +1505,10 @@ contains
           !stop
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
-                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(q,p) = alm(i,j)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr(samp_group)%invM_diff(i,j)%M(q,p) = alm(i,j)
              end do
           end do
        end do
@@ -1524,11 +1528,11 @@ contains
           if (.not. diffComps(k2)%p%active_samp_group(samp_group)) cycle
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
                 if (p /= -1 .and. q /= -1) then
-                   alm(i,j) = P_cr%invM_diff(i,j)%M(p,q)
+                   alm(i,j) = P_cr(samp_group)%invM_diff(i,j)%M(p,q)
                 else
                    alm(i,j) = 0.d0
                 end if
@@ -1539,10 +1543,10 @@ contains
 !          if (info_pre%myid == 0) write(*,*) 'd', k1, k2, alm(4,1)
           do j = 1, info_pre%nmaps
              do i = 0, info_pre%nalm-1
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                q = P_cr%invM_diff(i,j)%comp2ind(k2)
-                if (p /= -1 .and. q /= -1) P_cr%invM_diff(i,j)%M(p,q) = alm(i,j)
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                q = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k2)
+                if (p /= -1 .and. q /= -1) P_cr(samp_group)%invM_diff(i,j)%M(p,q) = alm(i,j)
              end do
           end do
        end do
@@ -1556,8 +1560,8 @@ contains
     ! Nullify temperature block if only polarization
     if (only_pol) then
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,1)%n == 0) cycle                
-          P_cr%invM_diff(i,1)%M = 0.d0
+          if (P_cr(samp_group)%invM_diff(i,1)%n == 0) cycle                
+          P_cr(samp_group)%invM_diff(i,1)%M = 0.d0
        end do
     end if
 
@@ -1575,9 +1579,9 @@ contains
           !end if
           if (l <= diffComps(k1)%p%lmax_amp) then
              do j = 1, info_pre%nmaps
-                if (P_cr%invM_diff(i,j)%n == 0) cycle                
-                p = P_cr%invM_diff(i,j)%comp2ind(k1)
-                if (p > 0) P_cr%invM_diff(i,j)%M(p,p) = P_cr%invM_diff(i,j)%M(p,p) + 1.d0
+                if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
+                p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
+                if (p > 0) P_cr(samp_group)%invM_diff(i,j)%M(p,p) = P_cr(samp_group)%invM_diff(i,j)%M(p,p) + 1.d0
              end do
           end if
        end do
@@ -1589,13 +1593,13 @@ contains
     ! Nullify elements that are not involved in current sample group
     do j = 1, info_pre%nmaps
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n == 0) cycle                
+          if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle                
           do k1 = 1, npre
              if (diffComps(k1)%p%active_samp_group(samp_group)) cycle
-             p = P_cr%invM_diff(i,j)%comp2ind(k1)
+             p = P_cr(samp_group)%invM_diff(i,j)%comp2ind(k1)
              if (p == -1) cycle
-             P_cr%invM_diff(i,j)%M(p,:) = 0.d0
-             P_cr%invM_diff(i,j)%M(:,p) = 0.d0
+             P_cr(samp_group)%invM_diff(i,j)%M(p,:) = 0.d0
+             P_cr(samp_group)%invM_diff(i,j)%M(:,p) = 0.d0
           end do
        end do
     end do
@@ -1609,10 +1613,10 @@ contains
        do j = 1, nmaps_pre
           do i = 0, info_pre%nalm-1
              call info_pre%i2lm(i, l, m)
-             n = P_cr%invM_diff(i,j)%n
+             n = P_cr(samp_group)%invM_diff(i,j)%n
              if (n > 0) then
                 allocate(W(n), ind(n))
-                call get_eigenvalues(P_cr%invM_diff(i,j)%M, W)
+                call get_eigenvalues(P_cr(samp_group)%invM_diff(i,j)%M, W)
                 W_ref    = minval(abs(W))
                 cond(l)  = max(cond(l), maxval(abs(W/W_ref)))
                 W_min(l) = min(W_min(l), minval(W))
@@ -1644,8 +1648,8 @@ contains
     call wall_time(t1)
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n > 0) then
-             if (any(P_cr%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr%invM_diff(i,j)%M)
+          if (P_cr(samp_group)%invM_diff(i,j)%n > 0) then
+             if (any(P_cr(samp_group)%invM_diff(i,j)%M /= 0.d0)) call invert_matrix_with_mask(P_cr(samp_group)%invM_diff(i,j)%M)
           end if
        end do
     end do
@@ -1713,8 +1717,8 @@ contains
           end do
 
           ! Store pseudo-inverse of U
-          call compute_pseudo_inverse(mat, P_cr%invM_diff(l,j)%M)
-          !P_cr%invM_diff(l,j)%M = transpose(mat)
+          call compute_pseudo_inverse(mat, P_cr(samp_group)%invM_diff(l,j)%M)
+          !P_cr(samp_group)%invM_diff(l,j)%M = transpose(mat)
        end do
     end do
     deallocate(mat)
@@ -2075,6 +2079,7 @@ contains
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
        else
+          write(*,*) "skal ikke vaere her, eval", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
           call m%Y()
           m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
           call m%YtW()
@@ -2147,6 +2152,7 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
+       write(*,*) "skal ikke vaere her, proj", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
        if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
@@ -2162,15 +2168,16 @@ contains
   end function projectDiffuseBand
 
 
-  module subroutine applyDiffPrecond(x)
+  module subroutine applyDiffPrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
     select case (trim(precond_type))
     case ("diagonal")
-       call applyDiffPrecond_diagonal(x)
+       call applyDiffPrecond_diagonal(x, samp_group)
     case ("pseudoinv")
-       call applyDiffPrecond_pseudoinv(x)
+       call applyDiffPrecond_pseudoinv(x, samp_group)
     case default
        call report_error("Preconditioner type not supported: "//trim(precond_type))
     end select
@@ -2178,9 +2185,10 @@ contains
   end subroutine applyDiffPrecond
 
 
-  module subroutine applyDiffPrecond_diagonal(x)
+  module subroutine applyDiffPrecond_diagonal(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
     integer(i4b)              :: i, j, k, l, m, nmaps
     real(dp), allocatable, dimension(:,:)   :: alm
@@ -2205,9 +2213,9 @@ contains
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
        do i = 0, info_pre%nalm-1
-          if (P_cr%invM_diff(i,j)%n == 0) cycle
-          y(P_cr%invM_diff(i,j)%ind,i,j) = &
-               & matmul(P_cr%invM_diff(i,j)%M, y(P_cr%invM_diff(i,j)%ind,i,j))
+          if (P_cr(samp_group)%invM_diff(i,j)%n == 0) cycle
+          y(P_cr(samp_group)%invM_diff(i,j)%ind,i,j) = &
+               & matmul(P_cr(samp_group)%invM_diff(i,j)%M, y(P_cr(samp_group)%invM_diff(i,j)%ind,i,j))
        end do
     end do
 
@@ -2230,9 +2238,10 @@ contains
   end subroutine applyDiffPrecond_diagonal
 
 
-  module subroutine applyDiffPrecond_pseudoinv(x)
+  module subroutine applyDiffPrecond_pseudoinv(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
+    integer(i4b),                     intent(in)    :: samp_group
 
     integer(i4b)              :: i, ii, j, k, l, m, p, q, qq, nmaps, npre_int
     real(dp)                  :: t1, t2
@@ -2280,7 +2289,7 @@ contains
           do q = 1, npre_int
              qq = ind_pre(q)
              do p = 1, nmaps
-                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr%invM_diff(l,p)%M(qq,k) * y(q,j,p)
+                invN_x%alm(i,p) = invN_x%alm(i,p) + P_cr(samp_group)%invM_diff(l,p)%M(qq,k) * y(q,j,p)
              end do
           end do
        end do
@@ -2309,7 +2318,7 @@ contains
           do q = 1, npre_int
              qq = ind_pre(q)
              do p = 1, nmaps
-                z(q,j,p) = z(q,j,p) + P_cr%invM_diff(l,p)%M(qq,k) * invN_x%alm(i,p)
+                z(q,j,p) = z(q,j,p) + P_cr(samp_group)%invM_diff(l,p)%M(qq,k) * invN_x%alm(i,p)
              end do
           end do
        end do
@@ -2335,13 +2344,13 @@ contains
           w2       = 0.d0
           do j = 1, npre_int
              do k = 1, npre_int
-                w2(j) = w2(j) + P_cr%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(k)
+                w2(j) = w2(j) + P_cr(samp_group)%invM_diff(l,p)%M(ind_pre(k),numband+ind_pre(j))*w(k)
              end do
           end do
           w       = 0.d0
           do j = 1, npre_int
              do k = 1, npre_int
-                w(j) = w(j) + P_cr%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(k)
+                w(j) = w(j) + P_cr(samp_group)%invM_diff(l,p)%M(ind_pre(j),numband+ind_pre(k))*w2(k)
              end do
           end do
           z(:,i,p) = z(:,i,p) + w
@@ -2890,8 +2899,9 @@ contains
 
   end subroutine sampleDiffuseSpecInd
   
-  module subroutine print_precond_mat
+  module subroutine print_precond_mat(samp_group)
     implicit none
+    integer(i4b), intent(in) :: samp_group
 
     integer(i4b) :: l, m, i, j, p
     real(dp), allocatable, dimension(:)   :: W
@@ -2906,18 +2916,18 @@ contains
           call info_pre%lm2i(l, 0, i)
           write(*,*) 
           write(*,*) l 
-          do j = 1, size(P_cr%invM_diff(i,p)%M(j,:),1)
-             write(*,*) real(P_cr%invM_diff(i,p)%M(j,:),sp)
+          do j = 1, size(P_cr(samp_group)%invM_diff(i,p)%M(j,:),1)
+             write(*,*) real(P_cr(samp_group)%invM_diff(i,p)%M(j,:),sp)
           end do
-          allocate(W(P_cr%invM_diff(i,p)%n))
-          call get_eigenvalues(P_cr%invM_diff(i,p)%M, W)
+          allocate(W(P_cr(samp_group)%invM_diff(i,p)%n))
+          call get_eigenvalues(P_cr(samp_group)%invM_diff(i,p)%M, W)
           write(58,*) l, real(W,sp)
           deallocate(W)
        end do
     else
        allocate(mat(npre,npre))
        do l = 0, info_pre%lmax
-          mat = matmul(P_cr%invM_diff(l,p)%M, transpose(P_cr%invM_diff(l,p)%M))
+          mat = matmul(P_cr(samp_group)%invM_diff(l,p)%M, transpose(P_cr(samp_group)%invM_diff(l,p)%M))
           write(*,*) 
           write(*,*) l 
           do j = 1, npre

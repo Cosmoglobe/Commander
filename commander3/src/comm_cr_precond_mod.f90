@@ -34,6 +34,6 @@ module comm_cr_precond_mod
      type(invM), allocatable, dimension(:,:)      :: invM_temp ! (1,1)
   end type precond
 
-  type(precond) :: P_cr
+  type(precond), allocatable, dimension(:) :: P_cr   ! (n_sampgroup)
   
 end module comm_cr_precond_mod
