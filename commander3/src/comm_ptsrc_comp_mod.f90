@@ -1497,9 +1497,9 @@ contains
     
   end subroutine compute_symmetric_beam
 
-  subroutine initPtsrcPrecond(comm)
+  subroutine initPtsrcPrecond(comm, samp_group)
     implicit none
-    integer(i4b),                intent(in) :: comm
+    integer(i4b),                intent(in) :: comm, samp_group
 
     integer(i4b) :: i, i1, i2, j, j1, j2, k1, k2, q, l, la, m, n, p, p1, p2, n1, n2, myid, ierr, cnt
     real(dp)     :: t1, t2, t3, t4
@@ -1511,13 +1511,13 @@ contains
     if (ncomp_pre == 0) return
     if (.not. recompute_ptsrc_precond) return
     if (.not. apply_ptsrc_precond) return
-    if (allocated(P_cr%invM_src)) deallocate(P_cr%invM_src)
+    if (allocated(P_cr(samp_group)%invM_src)) deallocate(P_cr(samp_group)%invM_src)
 
     call mpi_comm_rank(comm, myid, ierr)
         
     ! Build frequency-dependent part of preconditioner
     call wall_time(t1)
-    allocate(P_cr%invM_src(1,nmaps_pre))
+    allocate(P_cr(samp_group)%invM_src(1,nmaps_pre))
     allocate(mat(npre,npre), mat2(npre,npre))
     do j = 1, nmaps_pre
 
@@ -1662,8 +1662,8 @@ contains
           call invert_matrix_with_mask(mat2)
           call wall_time(t4)
  if (myid_pre == 0) write(*,*) 'ptsrc precond inv = ', real(t4-t3,sp)
-          allocate(P_cr%invM_src(1,j)%M(npre,npre))
-          P_cr%invM_src(1,j)%M = mat2
+          allocate(P_cr(samp_group)%invM_src(1,j)%M(npre,npre))
+          P_cr(samp_group)%invM_src(1,j)%M = mat2
        end if
     end do
     call wall_time(t2)
@@ -1680,15 +1680,16 @@ contains
     implicit none
     integer(i4b), intent(in) :: samp_group
 
-    call initPtsrcPrecond(comm_pre)
+    call initPtsrcPrecond(comm_pre, samp_group)
        
   end subroutine updatePtsrcPrecond
 
 
-  subroutine applyPtsrcPrecond(x)
+  subroutine applyPtsrcPrecond(x, samp_group)
     implicit none
     real(dp),           dimension(:), intent(inout) :: x
-
+    integer(i4b),                     intent(in)    :: samp_group
+    
     integer(i4b)              :: i, j, k, l, m, nmaps
     logical(lgt)              :: skip
     real(dp), allocatable, dimension(:,:) :: amp
@@ -1725,7 +1726,7 @@ contains
 
     ! Multiply with preconditioner
     do j = 1, nmaps_pre
-       y(:,j) = matmul(P_cr%invM_src(1,j)%M, y(:,j))
+       y(:,j) = matmul(P_cr(samp_group)%invM_src(1,j)%M, y(:,j))
     end do
 
     ! Reformat y(npre,nmaps) structure back into linear array

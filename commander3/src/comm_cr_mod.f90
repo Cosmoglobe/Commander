@@ -1026,9 +1026,9 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
-    call applyDiffPrecond(cr_invM)
-    call applyPtsrcPrecond(cr_invM)
-    call applyTemplatePrecond(cr_invM)
+    call applyDiffPrecond(cr_invM, samp_group)
+    call applyPtsrcPrecond(cr_invM, samp_group)
+    call applyTemplatePrecond(cr_invM, samp_group)
 
     if (Q_is_active) cr_invM = cr_invM + Qx
     

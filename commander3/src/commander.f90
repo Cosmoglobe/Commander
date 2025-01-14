@@ -416,7 +416,7 @@ program commander
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)
-     if (cpar%sample_signal_amplitudes .and. iter > 1) then
+     if (cpar%sample_signal_amplitudes .and. iter > 0) then
 
         ! Do CG group sampling
         call sample_all_amps_by_CG(cpar, handle, handle_noise)

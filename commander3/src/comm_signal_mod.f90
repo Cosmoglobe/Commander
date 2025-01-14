@@ -291,7 +291,8 @@ contains
     call cr_computeRHS(cpar%operation, cpar%resamp_CMB, cpar%only_pol,&
          & handle, handle_noise, mask, samp_group, rhs)
     call update_status(status, "init_precond1")
-    call initPrecond(cpar%comm_chain)
+    if (.not. allocated(P_cr)) allocate(P_cr(cpar%cg_num_user_samp_groups))
+    call initPrecond(cpar%comm_chain, samp_group)
     call update_status(status, "init_precond2")
     call solve_cr_eqn_by_CG(cpar, samp_group, x, rhs, stat)
     call cr_x2amp(samp_group, x)
@@ -388,12 +389,12 @@ contains
 
   end subroutine sample_all_amps_by_CG
 
-  subroutine initPrecond(comm)
+  subroutine initPrecond(comm, samp_group)
     implicit none
-    integer(i4b), intent(in) :: comm
-    call initDiffPrecond(comm)
-    call initPtsrcPrecond(comm)
-    call initTemplatePrecond(comm)
+    integer(i4b), intent(in) :: comm, samp_group
+    call initDiffPrecond(comm, samp_group)
+    call initPtsrcPrecond(comm, samp_group)
+    call initTemplatePrecond(comm, samp_group)
   end subroutine initPrecond
 
   subroutine add_to_complist(c)
