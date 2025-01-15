@@ -282,10 +282,10 @@ for channel in channels:
         print(np.sum(np.isnan(merged_df[f"adds_per_group_{channel}"])))
     else:
         print(f"No nans in adds_per_group (checkpoint 3, channel {channel})")
-    # sweeps - TODO: CHECK IF 1 IS A VALID VALUE
+    # sweeps
     merged_df = merged_df[
-        (merged_df[f"sweeps_{channel}"] == 1)
-        | (merged_df[f"sweeps_{channel}"] == 4)
+        # (merged_df[f"sweeps_{channel}"] == 1) |
+        (merged_df[f"sweeps_{channel}"] == 4)
         | (merged_df[f"sweeps_{channel}"] == 16)
     ]
 
@@ -342,6 +342,29 @@ for channel, chan in channels.items():
     # commanded bolometer bias?
     bol_cmd_bias[channel] = fdq_eng["en_stat/bol_cmd_bias"][:, chan]
 
+stat_word_1 = fdq_eng["en_stat/stat_word_1"][()]
+stat_word_12 = fdq_eng["en_stat/stat_word_12"][()]
+stat_word_13 = fdq_eng["en_stat/stat_word_13"][()]
+stat_word_16 = fdq_eng["en_stat/stat_word_16"][()]
+stat_word_4 = fdq_eng["en_stat/stat_word_4"][()]
+stat_word_5 = fdq_eng["en_stat/stat_word_5"][()]
+stat_word_8 = fdq_eng["en_stat/stat_word_8"][()]
+stat_word_9 = fdq_eng["en_stat/stat_word_9"][()]
+int_ref_temp_a = fdq_eng["en_stat/int_ref_temp_a"][()]
+int_ref_temp_b = fdq_eng["en_stat/int_ref_temp_b"][()]
+ref_hrn_temp_a = fdq_eng["en_stat/ref_hrn_temp_a"][()]
+ref_hrn_temp_b = fdq_eng["en_stat/ref_hrn_temp_b"][()]
+ext_cal_temp_a = fdq_eng["en_stat/ext_cal_temp_a"][()]
+ext_cal_temp_b = fdq_eng["en_stat/ext_cal_temp_b"][()]
+lvdt_stat_a = fdq_eng["en_stat/lvdt_stat"][:, 0]
+lvdt_stat_b = fdq_eng["en_stat/lvdt_stat"][:, 1]
+power_a_status_a = fdq_eng["en_stat/power_a_status"][:, 0]
+power_a_status_b = fdq_eng["en_stat/power_a_status"][:, 1]
+power_b_status_a = fdq_eng["en_stat/power_b_status"][:, 0]
+power_b_status_b = fdq_eng["en_stat/power_b_status"][:, 1]
+hot_spot_cmd_a = fdq_eng["en_stat/hot_spot_cmd"][:, 0]
+hot_spot_cmd_b = fdq_eng["en_stat/hot_spot_cmd"][:, 1]
+
 # make engineeering data df
 df_eng = pd.DataFrame(
     {
@@ -362,12 +385,35 @@ df_eng = pd.DataFrame(
         "bol_cmd_bias_rl": list(bol_cmd_bias["rl"]),
         "bol_cmd_bias_lh": list(bol_cmd_bias["lh"]),
         "bol_cmd_bias_ll": list(bol_cmd_bias["ll"]),
+        "stat_word_1": list(stat_word_1),
+        "stat_word_12": list(stat_word_12),
+        "stat_word_13": list(stat_word_13),
+        "stat_word_16": list(stat_word_16),
+        "stat_word_4": list(stat_word_4),
+        "stat_word_5": list(stat_word_5),
+        "stat_word_8": list(stat_word_8),
+        "stat_word_9": list(stat_word_9),
+        "int_ref_temp_a": list(int_ref_temp_a),
+        "int_ref_temp_b": list(int_ref_temp_b),
+        "ref_hrn_temp_a": list(ref_hrn_temp_a),
+        "ref_hrn_temp_b": list(ref_hrn_temp_b),
+        "ext_cal_temp_a": list(ext_cal_temp_a),
+        "ext_cal_temp_b": list(ext_cal_temp_b),
+        "lvdt_stat_a": list(lvdt_stat_a),
+        "lvdt_stat_b": list(lvdt_stat_b),
+        "power_a_status_a": list(power_a_status_a),
+        "power_a_status_b": list(power_a_status_b),
+        "power_b_status_a": list(power_b_status_a),
+        "power_b_status_b": list(power_b_status_b),
+        "hot_spot_cmd_a": list(hot_spot_cmd_a),
+        "hot_spot_cmd_b": list(hot_spot_cmd_b),
     }
 )
 
 print(f"Columns of df_eng: {df_eng.columns}")
 
-df_eng["ical"] = df_eng.apply(get_temperature_hl, axis=1, args=("ical",))
+df_eng["a_ical"] = df_eng.apply(get_temperature_hl, axis=1, args=("ical", "a"))
+df_eng["b_ical"] = df_eng.apply(get_temperature_hl, axis=1, args=("ical", "b"))
 df_eng = df_eng.drop(
     columns=[
         "a_hi_ical",
@@ -376,7 +422,8 @@ df_eng = df_eng.drop(
         "b_lo_ical",
     ]
 )
-df_eng["dihedral"] = df_eng.apply(get_temperature_hl, axis=1, args=("dihedral",))
+df_eng["a_dihedral"] = df_eng.apply(get_temperature_hl, axis=1, args=("dihedral", "a"))
+df_eng["b_dihedral"] = df_eng.apply(get_temperature_hl, axis=1, args=("dihedral", "b"))
 df_eng = df_eng.drop(
     columns=[
         "a_hi_dihedral",
@@ -390,21 +437,51 @@ df_eng = df_eng.drop(
 science_times = merged_df["gmt"].apply(lambda x: x.timestamp()).values
 engineering_times = df_eng["gmt"].apply(lambda x: x.timestamp()).values
 
-# initialize list for interpolated values
-ical_new = []
-dihedral_new = []
-# also need to interpolate bolometer voltages and commanded biases
-bol_volt_rh_new = []
-bol_volt_rl_new = []
-bol_volt_lh_new = []
-bol_volt_ll_new = []
-bol_cmd_bias_rh_new = []
-bol_cmd_bias_rl_new = []
-bol_cmd_bias_lh_new = []
-bol_cmd_bias_ll_new = []
+# initialise dict for all of the arrays that need to be interpolated
+eng_variables = [
+    "a_ical",
+    "b_ical",
+    "a_dihedral",
+    "b_dihedral",
+    "bol_volt_rh",
+    "bol_volt_rl",
+    "bol_volt_lh",
+    "bol_volt_ll",
+    "bol_cmd_bias_rh",
+    "bol_cmd_bias_rl",
+    "bol_cmd_bias_lh",
+    "bol_cmd_bias_ll",
+    "stat_word_1",
+    "stat_word_12",
+    "stat_word_13",
+    "stat_word_16",
+    "stat_word_4",
+    "stat_word_5",
+    "stat_word_8",
+    "stat_word_9",
+    "int_ref_temp_a",
+    "int_ref_temp_b",
+    "ref_hrn_temp_a",
+    "ref_hrn_temp_b",
+    "ext_cal_temp_a",
+    "ext_cal_temp_b",
+    "lvdt_stat_a",
+    "lvdt_stat_b",
+    "power_a_status_a",
+    "power_a_status_b",
+    "power_b_status_a",
+    "power_b_status_b",
+    "hot_spot_cmd_a",
+    "hot_spot_cmd_b",
+]
+
+# initialise dict for the new interpolated arrays
+new_variables = {}
+for variable in eng_variables:
+    new_variables[variable] = np.empty(len(science_times))
 
 # iterate over science times and find engineering indices within 1 minute
-for target_time in science_times:
+for target_time, i in zip(science_times, range(len(science_times))):
     # find engineering times within 1 minute of the current science time - TODO: change the constraint?
     lower_bound = target_time - 60
     upper_bound = target_time + 60
@@ -415,102 +492,29 @@ for target_time in science_times:
     indices = range(start_idx, end_idx)
 
     # check if indices are available
-    if len(indices) > 1:
-        # interpolate only if there are multiple points in the range
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["ical"][indices],
-            fill_value="extrapolate",
-        )
-        ical_new.append(f(target_time))
-        # xcal_pos_series = merged_df[merged_df["gmt"] == target_time]["xcal_pos"]
-        # if not xcal_pos_series.empty and xcal_pos_series.iloc[0] == 1: # FIX TO NOT GET XCAL TEMP FOR ALL
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["dihedral"][indices],
-            fill_value="extrapolate",
-        )
-        dihedral_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_volt_rh"][indices],
-            fill_value="extrapolate",
-        )
-        bol_volt_rh_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_volt_rl"][indices],
-            fill_value="extrapolate",
-        )
-        bol_volt_rl_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_volt_lh"][indices],
-            fill_value="extrapolate",
-        )
-        bol_volt_lh_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_volt_ll"][indices],
-            fill_value="extrapolate",
-        )
-        bol_volt_ll_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_cmd_bias_rh"][indices],
-            fill_value="extrapolate",
-        )
-        bol_cmd_bias_rh_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_cmd_bias_rl"][indices],
-            fill_value="extrapolate",
-        )
-        bol_cmd_bias_rl_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_cmd_bias_lh"][indices],
-            fill_value="extrapolate",
-        )
-        bol_cmd_bias_lh_new.append(f(target_time))
-        f = interpolate.interp1d(
-            engineering_times[indices],
-            df_eng["bol_cmd_bias_ll"][indices],
-            fill_value="extrapolate",
-        )
-        bol_cmd_bias_ll_new.append(f(target_time))
-        # elif not xcal_pos_series.empty and xcal_pos_series.iloc[0] == 2:
-        #     xcal_new.append(np.nan)
+    if len(indices) > 1:  # interpolate only if there are multiple points in the range
+        for variable in eng_variables:
+            f = interpolate.interp1d(
+                engineering_times[indices],
+                df_eng[variable][indices],
+                fill_value="extrapolate",
+            )
+            new_variables[variable][i] = f(target_time)
     else:
-        ical_new.append(np.nan)
-        dihedral_new.append(np.nan)
-        bol_volt_rh_new.append(np.nan)
-        bol_volt_rl_new.append(np.nan)
-        bol_volt_lh_new.append(np.nan)
-        bol_volt_ll_new.append(np.nan)
-        bol_cmd_bias_rh_new.append(np.nan)
-        bol_cmd_bias_rl_new.append(np.nan)
-        bol_cmd_bias_lh_new.append(np.nan)
-        bol_cmd_bias_ll_new.append(np.nan)
+        for variable in eng_variables:
+            new_variables[variable][i] = np.nan
 
-
-merged_df["ical"] = ical_new
-merged_df["dihedral"] = dihedral_new
-merged_df["bol_volt_rh"] = bol_volt_rh_new
-merged_df["bol_volt_rl"] = bol_volt_rl_new
-merged_df["bol_volt_lh"] = bol_volt_lh_new
-merged_df["bol_volt_ll"] = bol_volt_ll_new
-merged_df["bol_cmd_bias_rh"] = bol_cmd_bias_rh_new
-merged_df["bol_cmd_bias_rl"] = bol_cmd_bias_rl_new
-merged_df["bol_cmd_bias_lh"] = bol_cmd_bias_lh_new
-merged_df["bol_cmd_bias_ll"] = bol_cmd_bias_ll_new
+for variable in eng_variables:
+    merged_df[variable] = new_variables[variable]
 
 # REJECTS
 # dihedral temperature must be lower than or equal to 5.5 K
-merged_df = merged_df[merged_df["dihedral"] <= 5.5]
+merged_df = merged_df[
+    (merged_df["a_dihedral"] <= 5.5) | (merged_df["b_dihedral"] <= 5.5)
+]
 
 # drop rows without ical data
-merged_df = merged_df[merged_df["ical"].notna()]
+merged_df = merged_df[(merged_df["a_ical"].notna()) & (merged_df["b_ical"].notna())]
 
 # SPLIT CALIBRATION AND SKY DATA
 calibration_df = merged_df[merged_df["xcal_pos"] == 1]
@@ -582,7 +586,8 @@ df_xcal = pd.DataFrame(
     }
 )
 
-df_xcal["xcal"] = df_xcal.apply(get_temperature_hl, axis=1, args=("xcal",))
+df_xcal["a_xcal"] = df_xcal.apply(get_temperature_hl, axis=1, args=("xcal", "a"))
+df_xcal["b_xcal"] = df_xcal.apply(get_temperature_hl, axis=1, args=("xcal", "b"))
 df_xcal = df_xcal.drop(
     columns=[
         "a_hi_xcal_cone",
@@ -600,10 +605,11 @@ df_xcal = df_xcal.drop(
 science_times = calibration_df["gmt"].apply(lambda x: x.timestamp()).values
 engineering_times = df_xcal["gmt"].apply(lambda x: x.timestamp()).values
 
-xcal_new = []
+a_xcal_new = np.empty(len(science_times))
+b_xcal_new = np.empty(len(science_times))
 
 # iterate over science times and find engineering indices within 1 minute
-for target_time in science_times:
+for target_time, i in zip(science_times, range(len(science_times))):
     # find engineering times within 1 minute of the current science time - TODO: change the constraint?
     lower_bound = target_time - 60
     upper_bound = target_time + 60
@@ -618,14 +624,22 @@ for target_time in science_times:
         # interpolate only if there are multiple points in the range
         f = interpolate.interp1d(
             engineering_times[indices],
-            df_xcal["xcal"][indices],
+            df_xcal["a_xcal"][indices],
             fill_value="extrapolate",
         )
-        xcal_new.append(f(target_time))
+        a_xcal_new[i] = f(target_time)
+        f = interpolate.interp1d(
+            engineering_times[indices],
+            df_xcal["b_xcal"][indices],
+            fill_value="extrapolate",
+        )
+        b_xcal_new[i] = f(target_time)
     else:
-        xcal_new.append(np.nan)
+        a_xcal_new[i] = np.nan
+        b_xcal_new[i] = np.nan
 
-calibration_df["xcal"] = xcal_new
+calibration_df["a_xcal"] = a_xcal_new
+calibration_df["b_xcal"] = b_xcal_new
 
 # converting gmt to string so we can save
 gmt_str_sky = sky_df["gmt"].dt.strftime("%Y-%m-%d %H:%M:%S").to_numpy(dtype="S")
@@ -650,8 +664,30 @@ for channel in channels:
         lambda x: zero_list if (isinstance(x, float) and np.isnan(x)) else x
     )
 
+sky_variables = eng_variables + [
+    "mtm_length",
+    "mtm_speed",
+    "pix_gal",
+    "pix_ecl",
+    "pix_cel",
+    "pix_terr",
+    "adds_per_group_lh",
+    "adds_per_group_ll",
+    "adds_per_group_rh",
+    "adds_per_group_rl",
+    "time",
+    "gain_rh",
+    "gain_rl",
+    "gain_lh",
+    "gain_ll",
+    "sweeps_lh",
+    "sweeps_ll",
+    "sweeps_rh",
+    "sweeps_rl",
+]
+
 # saving to a h5 file
-with tb.open_file("./../../data/sky_v1.h5", mode="w") as h5file:
+with tb.open_file("./../../data/sky_v2.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Sky Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)
@@ -659,38 +695,19 @@ with tb.open_file("./../../data/sky_v1.h5", mode="w") as h5file:
     h5file.create_array(group, "ifg_ll", np.stack(sky_df["ifg_ll"].values))
     h5file.create_array(group, "ifg_rh", np.stack(sky_df["ifg_rh"].values))
     h5file.create_array(group, "ifg_rl", np.stack(sky_df["ifg_rl"].values))
-    h5file.create_array(group, "ical", sky_df["ical"].tolist())
-    h5file.create_array(group, "dihedral", sky_df["dihedral"].tolist())
-    h5file.create_array(group, "mtm_length", sky_df["mtm_length"].values)
-    h5file.create_array(group, "mtm_speed", sky_df["mtm_speed"].values)
-    h5file.create_array(group, "pix_gal", sky_df["pix_gal"].values)
-    h5file.create_array(group, "pix_ecl", sky_df["pix_ecl"].values)
-    h5file.create_array(group, "pix_cel", sky_df["pix_cel"].values)
-    h5file.create_array(group, "pix_terr", sky_df["pix_terr"].values)
-    h5file.create_array(group, "adds_per_group_lh", sky_df["adds_per_group_lh"].values)
-    h5file.create_array(group, "adds_per_group_ll", sky_df["adds_per_group_ll"].values)
-    h5file.create_array(group, "adds_per_group_rh", sky_df["adds_per_group_rh"].values)
-    h5file.create_array(group, "adds_per_group_rl", sky_df["adds_per_group_rl"].values)
-    h5file.create_array(group, "bol_volt_rh", sky_df["bol_volt_rh"].tolist())
-    h5file.create_array(group, "bol_volt_rl", sky_df["bol_volt_rl"].tolist())
-    h5file.create_array(group, "bol_volt_lh", sky_df["bol_volt_lh"].tolist())
-    h5file.create_array(group, "bol_volt_ll", sky_df["bol_volt_ll"].tolist())
-    h5file.create_array(group, "bol_cmd_bias_rh", sky_df["bol_cmd_bias_rh"].tolist())
-    h5file.create_array(group, "bol_cmd_bias_rl", sky_df["bol_cmd_bias_rl"].tolist())
-    h5file.create_array(group, "bol_cmd_bias_lh", sky_df["bol_cmd_bias_lh"].tolist())
-    h5file.create_array(group, "bol_cmd_bias_ll", sky_df["bol_cmd_bias_ll"].tolist())
-    h5file.create_array(group, "time", sky_df["time"].values)
-    h5file.create_array(group, "gain_rh", sky_df["gain_rh"].tolist())
-    h5file.create_array(group, "gain_rl", sky_df["gain_rl"].tolist())
-    h5file.create_array(group, "gain_lh", sky_df["gain_lh"].tolist())
-    h5file.create_array(group, "gain_ll", sky_df["gain_ll"].tolist())
-    h5file.create_array(group, "sweeps_lh", sky_df["sweeps_lh"].values)
-    h5file.create_array(group, "sweeps_ll", sky_df["sweeps_ll"].values)
-    h5file.create_array(group, "sweeps_rh", sky_df["sweeps_rh"].values)
-    h5file.create_array(group, "sweeps_rl", sky_df["sweeps_rl"].values)
+
+    # for loop to save all the other variables
+    for variable in sky_variables:
+        h5file.create_array(group, variable, sky_df[variable].values)
+
+cal_variables = sky_variables + [
+    "a_xcal",
+    "b_xcal",
+    "upmode",
+]
 
 # saving to a h5 file
-with tb.open_file("./../../data/cal_v1.h5", mode="w") as h5file:
+with tb.open_file("./../../data/cal_v2.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Calibration Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)
@@ -698,52 +715,10 @@ with tb.open_file("./../../data/cal_v1.h5", mode="w") as h5file:
     h5file.create_array(group, "ifg_ll", np.stack(calibration_df["ifg_ll"].values))
     h5file.create_array(group, "ifg_rh", np.stack(calibration_df["ifg_rh"].values))
     h5file.create_array(group, "ifg_rl", np.stack(calibration_df["ifg_rl"].values))
-    h5file.create_array(group, "ical", calibration_df["ical"].tolist())
-    h5file.create_array(group, "dihedral", calibration_df["dihedral"].tolist())
-    h5file.create_array(group, "mtm_length", calibration_df["mtm_length"].values)
-    h5file.create_array(group, "mtm_speed", calibration_df["mtm_speed"].values)
-    h5file.create_array(group, "pix_gal", calibration_df["pix_gal"].values)
-    h5file.create_array(group, "pix_ecl", calibration_df["pix_ecl"].values)
-    h5file.create_array(group, "pix_cel", calibration_df["pix_cel"].values)
-    h5file.create_array(group, "pix_terr", calibration_df["pix_terr"].values)
-    h5file.create_array(group, "upmode", calibration_df["upmode"].values)
-    h5file.create_array(
-        group, "adds_per_group_lh", calibration_df["adds_per_group_lh"].values
-    )
-    h5file.create_array(
-        group, "adds_per_group_ll", calibration_df["adds_per_group_ll"].values
-    )
-    h5file.create_array(
-        group, "adds_per_group_rh", calibration_df["adds_per_group_rh"].values
-    )
-    h5file.create_array(
-        group, "adds_per_group_rl", calibration_df["adds_per_group_rl"].values
-    )
-    h5file.create_array(group, "bol_volt_rh", calibration_df["bol_volt_rh"].tolist())
-    h5file.create_array(group, "bol_volt_rl", calibration_df["bol_volt_rl"].tolist())
-    h5file.create_array(group, "bol_volt_lh", calibration_df["bol_volt_lh"].tolist())
-    h5file.create_array(group, "bol_volt_ll", calibration_df["bol_volt_ll"].tolist())
-    h5file.create_array(
-        group, "bol_cmd_bias_rh", calibration_df["bol_cmd_bias_rh"].tolist()
-    )
-    h5file.create_array(
-        group, "bol_cmd_bias_rl", calibration_df["bol_cmd_bias_rl"].tolist()
-    )
-    h5file.create_array(
-        group, "bol_cmd_bias_lh", calibration_df["bol_cmd_bias_lh"].tolist()
-    )
-    h5file.create_array(
-        group, "bol_cmd_bias_ll", calibration_df["bol_cmd_bias_ll"].tolist()
-    )
-    h5file.create_array(group, "time", calibration_df["time"].values)
-    h5file.create_array(group, "gain_rh", calibration_df["gain_rh"].tolist())
-    h5file.create_array(group, "gain_rl", calibration_df["gain_rl"].tolist())
-    h5file.create_array(group, "gain_lh", calibration_df["gain_lh"].tolist())
-    h5file.create_array(group, "gain_ll", calibration_df["gain_ll"].tolist())
-    h5file.create_array(group, "sweeps_lh", calibration_df["sweeps_lh"].values)
-    h5file.create_array(group, "sweeps_ll", calibration_df["sweeps_ll"].values)
-    h5file.create_array(group, "sweeps_rh", calibration_df["sweeps_rh"].values)
-    h5file.create_array(group, "sweeps_rl", calibration_df["sweeps_rl"].values)
+
+    # for loop to save all the other variables
+    for variable in cal_variables:
+        h5file.create_array(group, variable, calibration_df[variable].values)
 
 end_time = time.time()
 print(f"Time taken: {(end_time - start_time)/60} minutes")
