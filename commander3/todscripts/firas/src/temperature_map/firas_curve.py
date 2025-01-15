@@ -11,7 +11,6 @@ T_CMB = 2.72548  # Fixsen 2009
 
 sky = np.load("../../output/data/sky.npy")
 sky = np.abs(sky)
-print(f"sky shape: {sky.shape}")
 data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
     "r",
@@ -31,50 +30,59 @@ stat_word_16 = np.array(data["df_data/stat_word_16"][()]).astype(int)
 
 short_filter = mtm_length == 0
 slow_filter = mtm_speed == 0
-# pix_gal = pix_gal[short_filter & slow_filter]
+pix_gal = pix_gal[short_filter & slow_filter]
+sky = sky[short_filter & slow_filter]
+
 
 # to not use ICAL higher than 3 temps
-# a_ical = np.array(data["df_data/a_ical"][()])
-# b_ical = np.array(data["df_data/b_ical"][()])
-# ical = (a_ical + b_ical) / 2
-# ical = ical[short_filter & slow_filter]
-# ical_lower_3 = ical < 3
-# pix_gal = pix_gal[ical_lower_3]
-# sky = sky[ical_lower_3]
+a_ical = np.array(data["df_data/a_ical"][()])
+b_ical = np.array(data["df_data/b_ical"][()])
+ical = (a_ical + b_ical) / 2
+ical = ical[short_filter & slow_filter]
+ical_lower_3 = ical < 3
+pix_gal = pix_gal[ical_lower_3]
+sky = sky[ical_lower_3]
 
 # remove data that i flagged
-filter1 = stat_word_1 != 46
-filter2 = stat_word_12 != 19121
-filter3 = stat_word_9 != 45110
-filter4 = stat_word_12 != 18536
-filter5 = stat_word_12 != 54906
-filter6 = lvdt_stat_b != 83
-filter7 = stat_word_12 != 63675
-filter8 = stat_word_13 != 19585
-filter9 = stat_word_16 != 14372
+# stat_word_1 = stat_word_1[short_filter & slow_filter]
+# stat_word_12 = stat_word_12[short_filter & slow_filter]
+# stat_word_9 = stat_word_9[short_filter & slow_filter]
+# lvdt_stat_b = lvdt_stat_b[short_filter & slow_filter]
+# stat_word_13 = stat_word_13[short_filter & slow_filter]
+# stat_word_16 = stat_word_16[short_filter & slow_filter]
 
-pix_gal = pix_gal[
-    filter1
-    & filter2
-    & filter3
-    & filter4
-    & filter5
-    & filter6
-    & filter7
-    & filter8
-    & filter9
-]
-sky = sky[
-    filter1
-    & filter2
-    & filter3
-    & filter4
-    & filter5
-    & filter6
-    & filter7
-    & filter8
-    & filter9
-]
+# filter1 = stat_word_1 != 46
+# filter2 = stat_word_12 != 19121
+# filter3 = stat_word_9 != 45110
+# filter4 = stat_word_12 != 18536
+# filter5 = stat_word_12 != 54906
+# filter6 = lvdt_stat_b != 83
+# filter7 = stat_word_12 != 63675
+# filter8 = stat_word_13 != 19585
+# filter9 = stat_word_16 != 14372
+
+# pix_gal = pix_gal[
+#     filter1
+#     & filter2
+#     & filter3
+#     & filter4
+#     & filter5
+#     & filter6
+#     & filter7
+#     & filter8
+#     & filter9
+# ]
+# sky = sky[
+#     filter1
+#     & filter2
+#     & filter3
+#     & filter4
+#     & filter5
+#     & filter6
+#     & filter7
+#     & filter8
+#     & filter9
+# ]
 
 # frequency mapping
 fnyq = gen_nyquistl(
@@ -96,6 +104,8 @@ npix = hp.nside2npix(NSIDE)
 
 bb_curve = np.zeros(len(f_ghz))
 
+print(f"sky shape: {sky.shape} and pix_gal shape: {pix_gal.shape}")
+
 print("Calculating BB curve")
 
 for freq in range(len(f_ghz)):
@@ -103,7 +113,7 @@ for freq in range(len(f_ghz)):
     data_density = np.zeros(npix)
 
     for i in range(len(pix_gal)):
-        hpxmap[pix_gal[i]] += np.abs(sky[i][freq])
+        hpxmap[pix_gal[i]] += sky[i][freq]
         data_density[pix_gal[i]] += 1
 
     m = np.zeros(npix)

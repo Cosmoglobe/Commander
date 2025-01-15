@@ -31,6 +31,23 @@ sky_data = h5py.File(
 # gmts = np.array(sky_data["df_data/gmt"][()]).astype(str)
 # gmt = pd.to_datetime(gmts).strftime("%Y-%m-%d %H:%M:%S").to_numpy()
 
+start = "89-326-1130"
+
+# ends of each mission period
+mission_periods = [
+    "89-327-2359",
+    "89-343-0151",
+    "90-019-0204",
+    "90-080-0114",
+    "90-128-2359",
+    "90-139-1534",
+    "90-193-1849",
+    "90-207-1103",
+    "90-208-1119",
+    "90-220-0459",
+    "90-264-0936",
+]
+
 print("other variables")
 # ical = np.array(sky_data["df_data/ical"][()])
 a_ical = np.array(sky_data["df_data/a_ical"][()])
@@ -74,6 +91,11 @@ sky_data.close()
 # adds_per_group["ll"] = adds_per_group["ll"][short_filter & slow_filter]
 # gain["ll"] = gain["ll"][short_filter & slow_filter]
 # sweeps["ll"] = sweeps["ll"][short_filter & slow_filter]
+
+# constraining to the recs with ical temp at certain bins
+ical = (
+    a_ical + b_ical
+) / 2  # doing the mean between the two sides for now, will be fitted later
 
 print(f"data loaded: {len(ifg['ll'])}")
 
@@ -174,9 +196,6 @@ c = 3e8 * 1e2  # cm/s
 f_ghz = f_icm * c * 1e-9
 
 # ical spectrum
-ical = (
-    a_ical + b_ical
-) / 2  # doing the mean between the two sides for now, will be fitted later
 bb_ical = planck(f_ghz[: len(spec_ss)], ical)
 # switching the sign for when the ical has higher temp than T_CMB
 # bb_ical[ical > T_CMB] = -1 * bb_ical[ical > T_CMB]
@@ -204,16 +223,3 @@ print("saving sky")
 
 # save the sky
 np.save("../../output/data/sky.npy", sky_ss)
-
-print("plotting sky")
-
-# plot the sky
-plt.imshow(
-    np.abs(sky_ss).T,
-    aspect="auto",
-    extent=[0, len(sky_ss), 0, len(sky_ss[0])],
-    vmax=500,
-    vmin=0,
-)
-plt.savefig("../../output/plots/sky_over_time.png")
-plt.clf()
