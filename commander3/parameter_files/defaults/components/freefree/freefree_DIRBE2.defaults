@@ -12,7 +12,7 @@ COMP_MONOPOLE_PRIOR&&         = monopole-dipole:mask_ff_monoprior_bp10_n1024_TQU
 COMP_DEFLATION_MASK&&         = fullsky
 COMP_L_APOD&&                 = 1500
 COMP_LMAX_IND&&               = 0 -1       # Use input map as is
-COMP_OUTPUT_FWHM&&            = 30         # arcmin
+COMP_OUTPUT_FWHM&&            = 15         # arcmin
 COMP_UNIT&&                   = uK_RJ
 COMP_NU_MIN&&                 = 0.d0
 COMP_NU_MAX&&                 = 1d30
@@ -25,20 +25,20 @@ COMP_CL_POLTYPE&&             = 2  # {1 = {T+E+B}, 2 = {T,E+B}, 3 = {T,E,B}}
 COMP_CL_BETA_PRIOR_MEAN&&     = -0.0
 COMP_CL_BETA_PRIOR_RMS&&      = 0.0
 COMP_CL_L_PIVOT&&             = 50  1          # Pivot multipole
-COMP_CL_DEFAULT_AMP_T&&       = 1e3          # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_T&&       = 1e8          # D_l = amp * (l/lpivot)**beta
 COMP_CL_DEFAULT_AMP_E&&       = 50
 COMP_CL_DEFAULT_AMP_B&&       = 50
-COMP_CL_DEFAULT_BETA_T&&      = 2.0d0 -0.5d0
+COMP_CL_DEFAULT_BETA_T&&      = 0. 2.0d0 -0.5d0
 COMP_CL_DEFAULT_BETA_E&&      = -0.5d0
 COMP_CL_DEFAULT_BETA_B&&      = -0.5d0
-COMP_CL_DEFAULT_THETA_T&&     = 30.d0 # equivalent to BETA for CL_TYPE = gauss (see synch), BP8.0 used 90.d0
+COMP_CL_DEFAULT_THETA_T&&     = 19.d0 # equivalent to BETA for CL_TYPE = gauss (see synch), BP8.0 used 90.d0
 COMP_CL_DEFAULT_THETA_E&&     = 90.d0
 COMP_CL_DEFAULT_THETA_B&&     = 90.d0
 
 COMP_AMP_LMIN&&               = 0
 COMP_AMP_LMAX&&               = 1500
 COMP_AMP_INPUT_MAP&&          = init_ff_amp_BP8.1_v1.fits
-COMP_AMP_PRIOR_MAP&&          = ff_prior_mean_2015_median_90arc.fits none
+COMP_AMP_PRIOR_MAP&&          = none ff_prior_mean_2015_median_90arc.fits none
 COMP_AMP_PRIOR_LMAX&&         = -1
 
 COMP_EM_POLTYPE&&             = 1 # index {1 = {T+Q+U}, 2 = {T,Q+U}, 3 = {T,Q,U}}
