@@ -14,41 +14,46 @@ T_CMB = 2.72548  # Fixsen 2009
 
 reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
-sky = np.load("../../output/data/sky.npy")
-data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
-    "r",
-)
+sky = np.load("../../output/data/sky.npz")["sky"]
+pix_gal = np.load("../../output/data/sky.npz")["pix_gal"]
+# data = h5py.File(
+#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
+#     "r",
+# )
 
 # pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
-pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
-mtm_length = np.array(data["df_data/mtm_length"][()])
-mtm_speed = np.array(data["df_data/mtm_speed"][()])
-stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
-stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
-stat_word_9 = np.array(data["df_data/stat_word_9"][()]).astype(int)
-lvdt_stat_b = np.array(data["df_data/lvdt_stat_b"][()]).astype(int)
-stat_word_13 = np.array(data["df_data/stat_word_13"][()]).astype(int)
-stat_word_16 = np.array(data["df_data/stat_word_16"][()]).astype(int)
+# # pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
+# mtm_length = np.array(data["df_data/mtm_length"][()])
+# mtm_speed = np.array(data["df_data/mtm_speed"][()])
 
-short_filter = mtm_length == 0
-slow_filter = mtm_speed == 0
+print(f"sky data size: {len(sky)}")
+print(f"pix_gal data size: {len(pix_gal)}")
+
+# short_filter = mtm_length == 0
+# slow_filter = mtm_speed == 0
 # pix_gal = pix_gal[short_filter & slow_filter]
-pix_terr = pix_terr[short_filter & slow_filter]
-sky = sky[short_filter & slow_filter]
+# pix_terr = pix_terr[short_filter & slow_filter]
+# sky = sky[short_filter & slow_filter]
 
 
 # to not use ICAL higher than 3
-a_ical = np.array(data["df_data/a_ical"][()])
-b_ical = np.array(data["df_data/b_ical"][()])
-ical = (a_ical + b_ical) / 2
-ical = ical[short_filter & slow_filter]
-ical_lower_3 = ical < 3
-# pix_gal = pix_gal[ical_lower_3]
-pix_terr = pix_terr[ical_lower_3]
-sky = sky[ical_lower_3]
+# a_ical = np.array(data["df_data/a_ical"][()])
+# b_ical = np.array(data["df_data/b_ical"][()])
+# ical = (a_ical + b_ical) / 2
+# ical = ical[short_filter & slow_filter]
+# ical_lower_3 = ical < 3
+# # pix_gal = pix_gal[ical_lower_3]
+# pix_terr = pix_terr[ical_lower_3]
+# sky = sky[ical_lower_3]
 
 # remove data that i flagged
+# stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
+# stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
+# stat_word_9 = np.array(data["df_data/stat_word_9"][()]).astype(int)
+# lvdt_stat_b = np.array(data["df_data/lvdt_stat_b"][()]).astype(int)
+# stat_word_13 = np.array(data["df_data/stat_word_13"][()]).astype(int)
+# stat_word_16 = np.array(data["df_data/stat_word_16"][()]).astype(int)
+
 # stat_word_1 = stat_word_1[short_filter & slow_filter]
 # stat_word_12 = stat_word_12[short_filter & slow_filter]
 # stat_word_9 = stat_word_9[short_filter & slow_filter]
@@ -136,12 +141,12 @@ npix = hp.nside2npix(NSIDE)
 hpxmap = np.zeros((npix, len(f_ghz)))
 data_density = np.zeros(npix)
 
-# for i in range(len(pix_gal)):
-#     hpxmap[pix_gal[i]] += np.abs(sky[i])
-#     data_density[pix_gal[i]] += 1
-for i in range(len(pix_terr)):
-    hpxmap[pix_terr[i]] += np.abs(sky[i])
-    data_density[pix_terr[i]] += 1
+for i in range(len(pix_gal)):
+    hpxmap[pix_gal[i]] += np.abs(sky[i])
+    data_density[pix_gal[i]] += 1
+# for i in range(len(pix_terr)):
+#     hpxmap[pix_terr[i]] += np.abs(sky[i])
+#     data_density[pix_terr[i]] += 1
 
 m = np.zeros((npix, len(f_ghz)))
 mask = data_density == 0
