@@ -323,6 +323,9 @@ sides = ["a", "b"]
 
 ical = {}
 dihedral = {}
+refhorn = {}
+skyhorn = {}
+bol_assem = {}  # ONLY SAVING LL FOR NOW -----------------------
 
 for side in sides:
     for current in currents:
@@ -330,6 +333,15 @@ for side in sides:
         dihedral[f"{side}_{current}"] = fdq_eng[
             f"en_analog/grt/{side}_{current}_dihedral"
         ][()]
+        refhorn[f"{side}_{current}"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_refhorn"
+        ][()]
+        skyhorn[f"{side}_{current}"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_skyhorn"
+        ][()]
+        bol_assem[f"{side}_{current}"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_bol_assem"
+        ][:, 3]
 
 
 bol_volt = {}
@@ -376,6 +388,18 @@ df_eng = pd.DataFrame(
         "a_lo_dihedral": list(dihedral["a_lo"]),
         "b_hi_dihedral": list(dihedral["b_hi"]),
         "b_lo_dihedral": list(dihedral["b_lo"]),
+        "a_hi_refhorn": list(refhorn["a_hi"]),
+        "a_lo_refhorn": list(refhorn["a_lo"]),
+        "b_hi_refhorn": list(refhorn["b_hi"]),
+        "b_lo_refhorn": list(refhorn["b_lo"]),
+        "a_hi_skyhorn": list(skyhorn["a_hi"]),
+        "a_lo_skyhorn": list(skyhorn["a_lo"]),
+        "b_hi_skyhorn": list(skyhorn["b_hi"]),
+        "b_lo_skyhorn": list(skyhorn["b_lo"]),
+        "a_lo_bol_assem": list(bol_assem["a_lo"]),
+        "b_lo_bol_assem": list(bol_assem["b_lo"]),
+        "a_hi_bol_assem": list(bol_assem["a_hi"]),
+        "b_hi_bol_assem": list(bol_assem["b_hi"]),
         "bol_volt_rh": list(bol_volt["rh"]),
         "bol_volt_rl": list(bol_volt["rl"]),
         "bol_volt_lh": list(bol_volt["lh"]),
@@ -438,6 +462,51 @@ df_eng = df_eng.drop(
         "a_lo_dihedral",
         "b_hi_dihedral",
         "b_lo_dihedral",
+    ]
+)
+
+df_eng["a_refhorn"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("refhorn", "a", "reference horn")
+).astype(np.float64)
+df_eng["b_refhorn"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("refhorn", "b", "reference horn")
+).astype(np.float64)
+df_eng = df_eng.drop(
+    columns=[
+        "a_hi_refhorn",
+        "a_lo_refhorn",
+        "b_hi_refhorn",
+        "b_lo_refhorn",
+    ]
+)
+
+df_eng["a_skyhorn"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("skyhorn", "a")
+).astype(np.float64)
+df_eng["b_skyhorn"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("skyhorn", "b")
+).astype(np.float64)
+df_eng = df_eng.drop(
+    columns=[
+        "a_hi_skyhorn",
+        "a_lo_skyhorn",
+        "b_hi_skyhorn",
+        "b_lo_skyhorn",
+    ]
+)
+
+df_eng["a_bol_assem"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem", "a", "bolometer")
+).astype(np.float64)
+df_eng["b_bol_assem"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem", "b", "bolometer")
+).astype(np.float64)
+df_eng = df_eng.drop(
+    columns=[
+        "a_lo_bol_assem",
+        "b_lo_bol_assem",
+        "a_hi_bol_assem",
+        "b_hi_bol_assem",
     ]
 )
 
@@ -582,6 +651,12 @@ sky_variables = [
     "b_ical",
     "a_dihedral",
     "b_dihedral",
+    "a_refhorn",
+    "b_refhorn",
+    "a_skyhorn",
+    "b_skyhorn",
+    "a_bolometer",
+    "b_bolemeter",
     "bol_volt_rh",
     "bol_volt_rl",
     "bol_volt_lh",

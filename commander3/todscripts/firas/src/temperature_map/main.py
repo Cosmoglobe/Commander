@@ -20,7 +20,6 @@ modes = ["ss", "sf", "ls", "lf", "fs", "fl"]
 
 sky_data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
-    # "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v1.h5",
     "r",
 )
 # cal_data = h5py.File(
@@ -28,10 +27,67 @@ sky_data = h5py.File(
 #     "r",
 # )
 
-print("parsing gmts")
-# getting the xcal data into their own variables
-gmts = np.array(sky_data["df_data/gmt"][()]).astype(str)
-gmt = np.array([datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in gmts])
+print("getting variables")
+variable_names = [
+    "gmt",
+    "a_ical",
+    "b_ical",
+    "a_dihedral",
+    "b_dihedral",
+    "a_refhorn",
+    "b_refhorn",
+    "a_skyhorn",
+    "b_skyhorn",
+    "a_bol_assem",
+    "b_bol_assem",
+    "mtm_length",
+    "mtm_speed",
+    "pix_gal",
+]
+channel_dependent = [
+    "adds_per_group",
+    "bol_cmd_bias",
+    "bol_volt",
+    "gain",
+    "sweeps",
+    "ifg",
+]
+
+for channel in channels:
+    for variable_name in channel_dependent:
+        variable_names = variable_names + [f"{variable_name}_{channel}"]
+
+variables = {}
+for variable_name in variable_names:
+    variables[variable_name] = np.array(sky_data["df_data/" + variable_name][()])
+
+variables["pix_gal"] = variables["pix_gal"].astype(int)
+variables["gmt"] = variables["gmt"].astype(str)
+variables["gmt"] = np.array(
+    [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
+)
+
+sky_data.close()
+
+# using only ss data for now to test
+# make filter with true/false where mtm_length and mtm_speed are 0
+short_filter = variables["mtm_length"] == 0
+slow_filter = variables["mtm_speed"] == 0
+
+for variable in variables.keys():
+    variables[variable] = variables[variable][short_filter & slow_filter]
+
+# constraining to the recs with ical temp at certain bins
+variables["ical"] = (
+    # variables["a_ical"] * 0.1 + variables["b_ical"] * 0.9
+    # )  # using their weights
+    (variables["a_ical"] + variables["b_ical"])
+    / 2
+)
+variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
+variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
+variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
+variables["bolometer"] = (variables["a_bol_assem"] + variables["b_bol_assem"]) / 2
 
 start = "89-326-1130"
 start_dt = datetime.strptime(start, "%y-%j-%H%M")
@@ -67,98 +123,33 @@ ical_temps = [
     [2.758, 2.771],
 ]
 
-# dihedral_temps = [ # not using for now because i can't make sense of how they did it
-#     [2.14, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.02, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.14, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.14, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [1.98, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.0, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.03, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.01, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.01, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.0, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-#     [2.0, 2.5, 3.1, 3.7, 4.3, 4.9, 5.5],
-# ]
-
 missions_periods_dt = [
     datetime.strptime(period, "%y-%j-%H%M") for period in mission_periods
 ]
 
-print("other variables")
-# ical = np.array(sky_data["df_data/ical"][()])
-a_ical = np.array(sky_data["df_data/a_ical"][()])
-b_ical = np.array(sky_data["df_data/b_ical"][()])
-# dihedral = np.array(sky_data["df_data/dihedral"][()])
-a_dihedral = np.array(sky_data["df_data/a_dihedral"][()])
-b_dihedral = np.array(sky_data["df_data/b_dihedral"][()])
-mtm_length = np.array(sky_data["df_data/mtm_length"][()])
-mtm_speed = np.array(sky_data["df_data/mtm_speed"][()])
-pix_gal = np.array(sky_data["df_data/pix_gal"]).astype(int)
-
-ifg = {}
-bol_cmd_bias = {}
-bol_volt = {}
-adds_per_group = {}
-gain = {}
-sweeps = {}
-for channel in channels:
-    ifg[channel] = np.array(sky_data["df_data/ifg_" + channel])
-    bol_cmd_bias[channel] = np.array(sky_data["df_data/bol_cmd_bias_" + channel])
-    bol_volt[channel] = np.array(sky_data["df_data/bol_volt_" + channel])
-    adds_per_group[channel] = np.array(sky_data["df_data/adds_per_group_" + channel])
-    gain[channel] = np.array(sky_data["df_data/gain_" + channel])
-    sweeps[channel] = np.array(sky_data["df_data/sweeps_" + channel])
-
-sky_data.close()
-
-# using only ss data for now to test
-# make filter with true/false where mtm_length and mtm_speed are 0
-short_filter = mtm_length == 0
-slow_filter = mtm_speed == 0
-
-a_ical = a_ical[short_filter & slow_filter]
-b_ical = b_ical[short_filter & slow_filter]
-a_dihedral = a_dihedral[short_filter & slow_filter]
-b_dihedral = b_dihedral[short_filter & slow_filter]
-mtm_length = mtm_length[short_filter & slow_filter]
-mtm_speed = mtm_speed[short_filter & slow_filter]
-ifg["ll"] = ifg["ll"][short_filter & slow_filter]
-bol_cmd_bias["ll"] = bol_cmd_bias["ll"][short_filter & slow_filter]
-bol_volt["ll"] = bol_volt["ll"][short_filter & slow_filter]
-adds_per_group["ll"] = adds_per_group["ll"][short_filter & slow_filter]
-gain["ll"] = gain["ll"][short_filter & slow_filter]
-sweeps["ll"] = sweeps["ll"][short_filter & slow_filter]
-gmt = gmt[short_filter & slow_filter]
-pix_gal = pix_gal[short_filter & slow_filter]
-
-# constraining to the recs with ical temp at certain bins
-ical = (
-    a_ical + b_ical
-) / 2  # doing the mean between the two sides for now, will be fitted later
-dihedral = (a_dihedral + b_dihedral) / 2  # same for dihedral
-
-period_filter = np.empty((len(mission_periods), len(gmt)), dtype=bool)
-period_filter[0] = (gmt < missions_periods_dt[0]) & (gmt > start_dt)
+period_filter = np.empty((len(mission_periods), len(variables["gmt"])), dtype=bool)
+period_filter[0] = (variables["gmt"] < missions_periods_dt[0]) & (
+    variables["gmt"] > start_dt
+)
 
 for i in range(len(missions_periods_dt) - 1):
-    period_filter[i + 1] = (gmt < missions_periods_dt[i + 1]) & (
-        gmt > missions_periods_dt[i]
+    period_filter[i + 1] = (variables["gmt"] < missions_periods_dt[i + 1]) & (
+        variables["gmt"] > missions_periods_dt[i]
     )
 
 # get filter for ical temps to be +- 2 mK for each mission period depending on the ical temps
-ical_periods = np.empty((len(mission_periods), len(ical)), dtype=bool)
+ical_periods = np.empty((len(mission_periods), len(variables["ical"])), dtype=bool)
 
 for i in range(len(ical_temps)):
     for j in range(len(ical_temps[i])):
         if j == 0:
-            ical_periods[i] = (ical_temps[i][j] - 0.002 < ical) & (
-                ical < ical_temps[i][j] + 0.002
+            ical_periods[i] = (ical_temps[i][j] - 0.002 < variables["ical"]) & (
+                variables["ical"] < ical_temps[i][j] + 0.002
             )
         else:
-            ical_periods[i] = ical_periods[i] | (ical_temps[i][j] - 0.002 < ical) & (
-                ical < ical_temps[i][j] + 0.002
-            )
+            ical_periods[i] = ical_periods[i] | (
+                ical_temps[i][j] - 0.002 < variables["ical"]
+            ) & (variables["ical"] < ical_temps[i][j] + 0.002)
 
 # full ical temp and mission filter has to be with and between the two
 ical_filter = (
@@ -175,41 +166,7 @@ ical_filter = (
     | (ical_periods[10] & period_filter[10])
 )
 
-# dihedral filter
-# dihedral_periods = np.empty((len(mission_periods), len(dihedral)), dtype=bool)
-# for i in range(len(dihedral_temps)):
-#     for j in range(len(dihedral_temps[i])):
-#         if j == 0:
-#             dihedral_periods[i] = dihedral_temps[i][j] == np.round(
-#                 dihedral, len(str(dihedral_temps[i][j])[2:])
-#             )
-#         else:
-#             dihedral_periods[i] = dihedral_periods[i] | (
-#                 np.round(dihedral, len(str(dihedral_temps[i][j])[2:]))
-#                 == dihedral_temps[i][j]
-#             )
-
-# dihedral_filter = (
-#     (dihedral_periods[0] & period_filter[0])
-#     | (dihedral_periods[1] & period_filter[1])
-#     | (dihedral_periods[2] & period_filter[2])
-#     | (dihedral_periods[3] & period_filter[3])
-#     | (dihedral_periods[4] & period_filter[4])
-#     | (dihedral_periods[5] & period_filter[5])
-#     | (dihedral_periods[6] & period_filter[6])
-#     | (dihedral_periods[7] & period_filter[7])
-#     | (dihedral_periods[8] & period_filter[8])
-#     | (dihedral_periods[9] & period_filter[9])
-#     | (dihedral_periods[10] & period_filter[10])
-# )
-
-# print(f"dihedral before filter: {len(dihedral)}")
-
-# dihedral = dihedral[dihedral_filter]
-
-# print(f"dihedral after filter: {len(dihedral)}")
-
-print(f"data loaded: {len(ifg['ll'])}")
+print(f"data loaded: {len(variables['ifg_ll'])}")
 
 fits_data_ss = fits.open(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
@@ -238,58 +195,57 @@ G1_ss = fits_data_ss[1].data["BOLPARM3"][0]
 beta_ss = fits_data_ss[1].data["BOLPARM4"][0]
 
 # plot ifgs over time
-plt.imshow(ifg["ll"].T, aspect="auto", extent=[0, len(ifg["ll"]), 0, len(ifg["ll"][0])])
+plt.imshow(
+    variables["ifg_ll"].T,
+    aspect="auto",
+    extent=[0, len(variables["ifg_ll"]), 0, len(variables["ifg_ll"][0])],
+)
 plt.savefig("../../output/plots/ifg_over_time.png")
 plt.clf()
 
 # plot random ifg
-plt.plot(ifg["ll"][np.random.randint(0, len(ifg["ll"]))])
+plt.plot(variables["ifg_ll"][np.random.randint(0, len(variables["ifg_ll"]))])
 plt.savefig("../../output/plots/random_ifg.png")
 plt.clf()
 
 print("cleaning interferograms")
 
-ifg["ll"] = ifg["ll"][ical_filter]
-mtm_length = mtm_length[ical_filter]
-mtm_speed = mtm_speed[ical_filter]
-bol_cmd_bias["ll"] = bol_cmd_bias["ll"][ical_filter]
-bol_volt["ll"] = bol_volt["ll"][ical_filter]
-adds_per_group["ll"] = adds_per_group["ll"][ical_filter]
-gain["ll"] = gain["ll"][ical_filter]
-sweeps["ll"] = sweeps["ll"][ical_filter]
-dihedral = dihedral[ical_filter]
-ical = ical[ical_filter]
-pix_gal = pix_gal[ical_filter]
+for variable in variables.keys():
+    variables[variable] = variables[variable][ical_filter]
 
-ifg["ll"] = clean_ifg(
-    ifg=ifg["ll"],
-    mtm_length=mtm_length,
-    mtm_speed=mtm_speed,
+variables["ifg_ll"] = clean_ifg(
+    ifg=variables["ifg_ll"],
+    mtm_length=variables["mtm_length"],
+    mtm_speed=variables["mtm_speed"],
     channel=3,
-    adds_per_group=adds_per_group["ll"],
-    gain=gain["ll"],
-    sweeps=sweeps["ll"],
+    adds_per_group=variables["adds_per_group_ll"],
+    gain=variables["gain_ll"],
+    sweeps=variables["sweeps_ll"],
 )
 
 # plot cleaned ifgs
-plt.imshow(ifg["ll"].T, aspect="auto", extent=[0, len(ifg["ll"]), 0, len(ifg["ll"][0])])
+plt.imshow(
+    variables["ifg_ll"].T,
+    aspect="auto",
+    extent=[0, len(variables["ifg_ll"]), 0, len(variables["ifg_ll"][0])],
+)
 plt.savefig("../../output/plots/cleaned_ifg_over_time.png")
 plt.clf()
 
 # check if nans in ifgs
-if np.isnan(ifg["ll"]).any():
+if np.isnan(variables["ifg_ll"]).any():
     print("Nans in interferograms")
-    print(ifg["ll"][np.isnan(ifg["ll"])])
+    print(variables["ifg_ll"][np.isnan(variables["ifg_ll"])])
 
 print("converting interferograms to spectra")
 
 spec_ss = ifg_to_spec(
-    ifg["ll"],
-    mtm_speed,
+    variables["ifg_ll"],
+    variables["mtm_speed"],
     channel,
-    adds_per_group["ll"],
-    bol_cmd_bias["ll"],
-    bol_volt["ll"],
+    variables["adds_per_group_ll"],
+    variables["bol_cmd_bias_ll"],
+    variables["bol_volt_ll"],
     fnyq["icm"][frec],
     fnyq["hz"][frec],
     otf_ss,
@@ -320,24 +276,45 @@ c = 3e8 * 1e2  # cm/s
 f_ghz = f_icm * c * 1e-9
 
 # ical spectrum
-bb_ical = planck(f_ghz[: len(spec_ss)], ical)
-# switching the sign for when the ical has higher temp than T_CMB
-# bb_ical[ical > T_CMB] = -1 * bb_ical[ical > T_CMB]
+bb_ical = planck(f_ghz[: len(spec_ss)], variables["ical"])
 ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
 ical_emiss_ss = ical_emiss_ss[: len(spec_ss)]
 
 # dihedral spectrum
-bb_dihedral = planck(f_ghz[: len(spec_ss)], dihedral)
+bb_dihedral = planck(f_ghz[: len(spec_ss)], variables["dihedral"])
 dihedral_emiss_ss = (
     fits_data_ss[1].data["RDIHEDRA"][0] + 1j * fits_data_ss[1].data["IDIHEDRA"][0]
 )
 dihedral_emiss_ss = dihedral_emiss_ss[: len(spec_ss)]
+
+# refhorn spectrum
+bb_refhorn = planck(f_ghz[: len(spec_ss)], variables["refhorn"])
+refhorn_emiss_ss = (
+    fits_data_ss[1].data["RREFHORN"][0] + 1j * fits_data_ss[1].data["IREFHORN"][0]
+)
+refhorn_emiss_ss = refhorn_emiss_ss[: len(spec_ss)]
+
+# skyhorn spectrum
+bb_skyhorn = planck(f_ghz[: len(spec_ss)], variables["skyhorn"])
+skyhorn_emiss_ss = (
+    fits_data_ss[1].data["RSKYHORN"][0] + 1j * fits_data_ss[1].data["ISKYHORN"][0]
+)
+skyhorn_emiss_ss = skyhorn_emiss_ss[: len(spec_ss)]
+
+# bolometer spectrum
+bb_bolometer = planck(f_ghz[: len(spec_ss)], variables["bolometer"])
+bolometer_emiss_ss = (
+    fits_data_ss[1].data["RBOLOMET"][0] + 1j * fits_data_ss[1].data["IBOLOMET"][0]
+)
 
 sky_ss = (
     spec_ss
     - (
         (bb_ical * ical_emiss_ss)[:, : len(spec_ss[0])]
         + (bb_dihedral * dihedral_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_refhorn * refhorn_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_skyhorn * skyhorn_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_bolometer * bolometer_emiss_ss)[:, : len(spec_ss[0])]
     )
     / otf_ss[np.newaxis, :]
 )
@@ -345,4 +322,9 @@ sky_ss = (
 print("saving sky")
 
 # save the sky
-np.savez("../../output/data/sky.npz", sky=sky_ss, pix_gal=pix_gal)
+np.savez(
+    "../../output/data/sky.npz",
+    **variables,
+    sky=sky_ss,
+    allow_pickle=True,
+)

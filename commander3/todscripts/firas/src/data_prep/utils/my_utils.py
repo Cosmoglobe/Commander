@@ -64,7 +64,7 @@ def clean_variable(row, variable):
         return np.nan
 
 
-def get_temperature_hl(row, element, side):
+def get_temperature_hl(row, element, side, name_search=None):
     """
     Checks fex_grttrans.txt for which high/low current temperature values to use and returns the weighted temperatures.
     """
@@ -80,22 +80,36 @@ def get_temperature_hl(row, element, side):
     with open("../../reference/fex_grttrans.txt") as f:
         lines = f.readlines()
 
-    for line in lines:
-        if element_search in line.lower():
-            side_search = line.split(" - ")[1]
-            if side.upper() in side_search:
-                trantemp = float(line.split(",")[0])
-                tranhwid = float(line.split(",")[1].split("!")[0])
+    if name_search is not None:
+        element_search = name_search
 
-    tranlo = trantemp - tranhwid
-    tranhi = trantemp + tranhwid
-
-    if row[f"{side}_lo_{element}"] < tranlo and row[f"{side}_hi_{element}"] < tranlo:
-        temp = row[f"{side}_lo_{element}"]
-    elif row[f"{side}_hi_{element}"] > tranhi and row[f"{side}_lo_{element}"] > tranhi:
+    if element == "refhorn" and side == "a":
         temp = row[f"{side}_hi_{element}"]
-    else:  # TODO: decide what to do if the temperature is within the uncertainty range
-        temp = np.mean([row[f"a_lo_{element}"], row[f"a_hi_{element}"]])
+    if (element == "refhorn" or element == "skyhorn") and side == "b":
+        temp = row[f"{side}_lo_{element}"]
+    else:
+        for line in lines:
+            if element_search in line.lower():
+                side_search = line.split(" - ")[1]
+                if side.upper() in side_search:
+                    trantemp = float(line.split(",")[0])
+                    tranhwid = float(line.split(",")[1].split("!")[0])
+
+        tranlo = trantemp - tranhwid
+        tranhi = trantemp + tranhwid
+
+        if (
+            row[f"{side}_lo_{element}"] < tranlo
+            and row[f"{side}_hi_{element}"] < tranlo
+        ):
+            temp = row[f"{side}_lo_{element}"]
+        elif (
+            row[f"{side}_hi_{element}"] > tranhi
+            and row[f"{side}_lo_{element}"] > tranhi
+        ):
+            temp = row[f"{side}_hi_{element}"]
+        else:  # TODO: decide what to do if the temperature is within the uncertainty range
+            temp = np.mean([row[f"a_lo_{element}"], row[f"a_hi_{element}"]])
 
     return temp
 

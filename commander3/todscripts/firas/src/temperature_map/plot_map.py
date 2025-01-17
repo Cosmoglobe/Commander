@@ -12,28 +12,11 @@ from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 
-reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
-
 sky = np.load("../../output/data/sky.npz")["sky"]
 pix_gal = np.load("../../output/data/sky.npz")["pix_gal"]
-# data = h5py.File(
-#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
-#     "r",
-# )
-
-# pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
-# # pix_terr = np.array(data["df_data/pix_terr"]).astype(int)
-# mtm_length = np.array(data["df_data/mtm_length"][()])
-# mtm_speed = np.array(data["df_data/mtm_speed"][()])
 
 print(f"sky data size: {len(sky)}")
 print(f"pix_gal data size: {len(pix_gal)}")
-
-# short_filter = mtm_length == 0
-# slow_filter = mtm_speed == 0
-# pix_gal = pix_gal[short_filter & slow_filter]
-# pix_terr = pix_terr[short_filter & slow_filter]
-# sky = sky[short_filter & slow_filter]
 
 
 # to not use ICAL higher than 3
@@ -105,19 +88,6 @@ print(f"pix_gal data size: {len(pix_gal)}")
 #     & filter9
 # ]
 
-print("plotting sky")
-
-# plot the sky
-plt.imshow(
-    np.abs(sky).T,
-    aspect="auto",
-    extent=[0, len(sky), 0, len(sky[0])],
-    vmax=500,
-    vmin=0,
-)
-plt.savefig("../../output/plots/sky_over_time.png")
-plt.clf()
-
 # frequency mapping
 fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
@@ -132,6 +102,20 @@ c = 3e8 * 1e2  # cm/s
 f_ghz = (
     f_icm * c * 1e-9 + 55
 )  # this might not be right but it is what matches the initial frequencies of the firas movie
+
+
+print("plotting sky")
+
+# plot the sky
+plt.imshow(
+    np.abs(sky).T,
+    aspect="auto",
+    extent=[0, len(sky), 0, len(sky[0])],
+    vmax=500,
+    vmin=0,
+)
+plt.savefig("../../output/plots/sky_over_time.png")
+plt.clf()
 
 
 NSIDE = 32
@@ -161,9 +145,9 @@ for freq in range(len(f_ghz)):
         # coord="G",
         title=f"{int(f_ghz[freq]):04d} GHz",
         unit="MJy/sr",
-        # norm="hist",
-        min=300,
-        max=400,
+        norm="hist",
+        # min=350,
+        # max=360,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/sky_map/{int(f_ghz[freq]):04d}.png")

@@ -2,6 +2,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from utils.config import gen_nyquistl
 
 # m = hp.fitsfunc.read_map(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/maps/fits/0179.fits",
@@ -10,91 +11,102 @@ from astropy.io import fits
 # hp.mollview(m, coord="G", title="179", unit="MJy/sr", min=0, max=500)
 # plt.show()
 
+reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
-sky = np.load(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npy"
+# comparing otf with ical emiss ---------------
+fits_data_ss = fits.open(
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
 )
-data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
-    "r",
-)
-mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
-mask = mask[1].data.astype(int)
-print(mask)
 
-spec = np.max(np.abs(sky[:, 1:]), axis=1)
-pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
+otf_ss = fits_data_ss[1].data["RTRANSFE"][0] + 1j * fits_data_ss[1].data["ITRANSFE"][0]
+otf_ss = otf_ss[np.abs(otf_ss) > 0]
+
+ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
+ical_emiss_ss = ical_emiss_ss[np.abs(ical_emiss_ss) > 0]
+
+plt.plot(ical_emiss_ss / otf_ss)
+plt.show()
+
+quit()
+
+data = np.load(
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npz",
+    allow_pickle=True,
+)
 
 variable_names = [
-    "a_dihedral",
+    "gmt",
     "a_ical",
-    "b_dihedral",
     "b_ical",
-    "ext_cal_temp_a",
-    "ext_cal_temp_b",
-    "hot_spot_cmd_a",
-    "hot_spot_cmd_b",
-    "int_ref_temp_a",
-    "int_ref_temp_b",
-    "lvdt_stat_a",
-    "lvdt_stat_b",
+    "a_dihedral",
+    "b_dihedral",
+    "a_refhorn",
+    "b_refhorn",
+    "a_skyhorn",
+    "b_skyhorn",
     "mtm_length",
     "mtm_speed",
-    "power_a_status_a",
-    "power_a_status_b",
-    "power_b_status_a",
-    "power_b_status_b",
-    "ref_hrn_temp_a",
-    "ref_hrn_temp_b",
-    "stat_word_1",
-    "stat_word_12",
-    "stat_word_13",
-    "stat_word_16",
-    "stat_word_4",
-    "stat_word_5",
-    "stat_word_8",
-    "stat_word_9",
+    "pix_gal",
 ]
-channel_dependent = ["adds_per_group", "bol_cmd_bias", "bol_volt", "gain", "sweeps"]
 
+sky = data["sky"]
+# variables = data["variables"]
 variables = {}
+for variable_name in variable_names:
+    variables[variable_name] = data[variable_name]
 
-for name in variable_names:
-    variables[name] = np.array(data["df_data/" + name][()])
+# data = h5py.File(
+#     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
+#     "r",
+# )
+fnyq = gen_nyquistl(
+    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
+)
 
-for name in channel_dependent:
-    variables[name] = np.array(data["df_data/" + name + "_ll"][()])
+scan_mode = 0  # SS
+channel = 3  # LL
+frec = 4 * (channel % 2) + scan_mode
 
-print(len(variables.keys()))
+# f_icm = np.arange(len(sky[0])) * (fnyq["icm"][frec] / 320)
+# c = 3e8 * 1e2  # cm/s
+# f_ghz = f_icm * c * 1e-9 + 55
 
-short_filter = variables["mtm_length"] == 0
-slow_filter = variables["mtm_speed"] == 0
+mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
+mask = mask[1].data.astype(int)
 
-for name in variables.keys():
-    variables[name] = variables[name][short_filter & slow_filter]
-
-spec = spec[short_filter & slow_filter]
-pix_gal = pix_gal[short_filter & slow_filter]
+spec = np.abs(sky[:, 1:])
+spec = np.max(spec, axis=1)
 
 # remove data inside the mask
-for name in variables.keys():
-    variables[name] = variables[name][mask[pix_gal] == 1]
+# for name in variables.keys():
+#     variables[name] = variables[name][mask[pix_gal] == 1]
 
-# spec = spec[short_filter & slow_filter] - this filter already comes from main.py
-spec = spec[mask[pix_gal] == 1]
+# for freq in range(1, len(spec[0])):
+#     plt.plot(ical, spec[:, (freq - 1)], ".")
+#     plt.xlabel("ical")
+#     plt.ylabel("spec")
+#     plt.title(f"Frequency {int(f_ghz[(freq)]):04d} GHz")
+#     plt.savefig(
+#         f"/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/plots/ical_vs_spec/{int(f_ghz[(freq)]):04d}.png"
+#     )
 
-print(f"stat_word_16[35620]: {variables['stat_word_16'][35620]}")
+#     if int(f_ghz[(freq)]) == 204:
+#         plt.show()
+#     plt.clf()
 
-# quit()
+print("plotting")
 
-fig, ax = plt.subplots(6, 6, figsize=(20, 20), sharex=True)
+print(variables.keys())
+
+n_cols = 6
+n_rows = len(variables.keys()) // n_cols + 1
+fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
 
 for i, name in enumerate(variables.keys()):
-    ax[i // 6, i % 6].plot(variables[name])
-    ax[i // 6, i % 6].set_title(name)
+    ax[i // n_cols, i % n_cols].plot(variables[name])
+    ax[i // n_cols, i % n_cols].set_title(name)
 
 ax[-1, -1].plot(spec)
 ax[-1, -1].set_title("spec")
 
-plt.tight_layout()
 plt.show()
