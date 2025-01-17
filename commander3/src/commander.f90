@@ -259,7 +259,7 @@ program commander
   iter  = first_sample
   first = .true.
   first_zodi = .true.
-  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind)) modfact = 2
+  modfact = 1; if (cpar%enable_TOD_analysis .and. cpar%sample_zodi .and. (cpar%sample_signal_amplitudes .or. cpar%sample_specind .or. cpar%mcmc_num_samp_groups > 0)) modfact = 2
   !----------------------------------------------------------------------------------
   ! Part of Simulation routine
   !----------------------------------------------------------------------------------
