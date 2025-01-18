@@ -791,12 +791,14 @@ contains
 
                ! Allocate other downsampled quantities with same shape
                ndownsamp = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
+               if (.not. allocated(data(i)%tod%scans(scan)%d(j)%downsamp_scat)) then
+                  allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
+                  allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
+                  allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
 
                ! Compute downsampled pointing in various coordinates
-               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ndownsamp,5))
+                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ndownsamp,5))
+               end if
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
 !!$                  call pix2ang_ring(data(i)%tod%nside, data(i)%tod%scans(scan)%d(j)%downsamp_pix(k), lat, lon)
 !!$                  phi = phi * 180.d0/pi

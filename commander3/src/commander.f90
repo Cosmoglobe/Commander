@@ -344,10 +344,12 @@ program commander
 !     if (.true. .and. cpar%include_tod_zodi) then
       call timer%start(TOT_ZODI_SAMP)
       call project_and_downsamp_sky(cpar)
+      call downsamp_invariant_structs(cpar)
       if (first_zodi) then
          ! in the first tod gibbs iter we precompute timeinvariant downsampled quantities
-         call downsamp_invariant_structs(cpar)
          call precompute_lowres_zodi_lookups(cpar)
+      else
+         call apply_zodi_glitch_mask(cpar)
       end if
 
 !!$      do i = 1, zodi_model%n_comps
@@ -357,9 +359,10 @@ program commander
 !!$         write(*,*) 'emissivity', data(i)%tod%zodi_emissivity, data(i)%tod%zodi_albedo
 !!$      end do
       
+
       call compute_downsamp_zodi(cpar, zodi_model)      
       if (first_zodi) then
-         call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
+         !call sample_linear_zodi(cpar, handle, iter, zodi_model, verbose=.true.)
          call compute_downsamp_zodi(cpar, zodi_model)
          call create_zodi_glitch_mask(cpar, handle)
          first_zodi = .false.
@@ -378,7 +381,7 @@ program commander
       end select
 
       ! Sample stationary zodi components with 2D model
-      !call sample_static_zodi_map(cpar, handle)
+      call sample_static_zodi_map(cpar, handle)
       !call sample_static_zodi_amps(cpar, handle)
       
 !!$      if (mod(iter-2,10) == 0) then
