@@ -38,11 +38,17 @@ variable_names = [
     "b_refhorn",
     "a_skyhorn",
     "b_skyhorn",
-    "a_bol_assem",
-    "b_bol_assem",
     "mtm_length",
     "mtm_speed",
     "pix_gal",
+    "a_bol_assem_rh",
+    "b_bol_assem_rh",
+    "a_bol_assem_rl",
+    "b_bol_assem_rl",
+    "a_bol_assem_lh",
+    "b_bol_assem_lh",
+    "a_bol_assem_ll",
+    "b_bol_assem_ll",
 ]
 channel_dependent = [
     "adds_per_group",
@@ -87,7 +93,18 @@ variables["ical"] = (
 variables["dihedral"] = (variables["a_dihedral"] + variables["b_dihedral"]) / 2
 variables["refhorn"] = (variables["a_refhorn"] + variables["b_refhorn"]) / 2
 variables["skyhorn"] = (variables["a_skyhorn"] + variables["b_skyhorn"]) / 2
-variables["bolometer"] = (variables["a_bol_assem"] + variables["b_bol_assem"]) / 2
+variables["bolometer_rh"] = (
+    variables["a_bol_assem_rh"] + variables["b_bol_assem_rh"]
+) / 2
+variables["bolometer_rl"] = (
+    variables["a_bol_assem_rl"] + variables["b_bol_assem_rl"]
+) / 2
+variables["bolometer_lh"] = (
+    variables["a_bol_assem_lh"] + variables["b_bol_assem_lh"]
+) / 2
+variables["bolometer_ll"] = (
+    variables["a_bol_assem_ll"] + variables["b_bol_assem_ll"]
+) / 2
 
 start = "89-326-1130"
 start_dt = datetime.strptime(start, "%y-%j-%H%M")
@@ -302,7 +319,11 @@ skyhorn_emiss_ss = (
 skyhorn_emiss_ss = skyhorn_emiss_ss[: len(spec_ss)]
 
 # bolometer spectrum
-bb_bolometer = planck(f_ghz[: len(spec_ss)], variables["bolometer"])
+bb_bolometer_rh = planck(f_ghz[: len(spec_ss)], variables["bolometer_rh"])
+bb_bolometer_rl = planck(f_ghz[: len(spec_ss)], variables["bolometer_rl"])
+bb_bolometer_lh = planck(f_ghz[: len(spec_ss)], variables["bolometer_lh"])
+bb_bolometer_ll = planck(f_ghz[: len(spec_ss)], variables["bolometer_ll"])
+
 bolometer_emiss_ss = (
     fits_data_ss[1].data["RBOLOMET"][0] + 1j * fits_data_ss[1].data["IBOLOMET"][0]
 )
@@ -314,7 +335,10 @@ sky_ss = (
         + (bb_dihedral * dihedral_emiss_ss)[:, : len(spec_ss[0])]
         + (bb_refhorn * refhorn_emiss_ss)[:, : len(spec_ss[0])]
         + (bb_skyhorn * skyhorn_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_bolometer * bolometer_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_bolometer_rh * bolometer_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_bolometer_rl * bolometer_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_bolometer_lh * bolometer_emiss_ss)[:, : len(spec_ss[0])]
+        + (bb_bolometer_ll * bolometer_emiss_ss)[:, : len(spec_ss[0])]
     )
     / otf_ss[np.newaxis, :]
 )

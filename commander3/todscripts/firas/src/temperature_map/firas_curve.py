@@ -9,8 +9,6 @@ from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 
-sky = np.load("../../output/data/sky.npy")
-sky = np.abs(sky)
 data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
     "r",
@@ -18,30 +16,27 @@ data = h5py.File(
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-pix_gal = np.array(data["df_data/pix_gal"]).astype(int)
-mtm_length = np.array(data["df_data/mtm_length"][()])
-mtm_speed = np.array(data["df_data/mtm_speed"][()])
-stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
-stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
-stat_word_9 = np.array(data["df_data/stat_word_9"][()]).astype(int)
-lvdt_stat_b = np.array(data["df_data/lvdt_stat_b"][()]).astype(int)
-stat_word_13 = np.array(data["df_data/stat_word_13"][()]).astype(int)
-stat_word_16 = np.array(data["df_data/stat_word_16"][()]).astype(int)
+data = np.load("../../output/data/sky.npz")
 
-short_filter = mtm_length == 0
-slow_filter = mtm_speed == 0
-pix_gal = pix_gal[short_filter & slow_filter]
-sky = sky[short_filter & slow_filter]
+sky = np.abs(data["sky"])
+pix_gal = data["pix_gal"]
+mtm_length = data["mtm_length"]
+mtm_speed = data["mtm_speed"]
+# stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
+# stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
+# stat_word_9 = np.array(data["df_data/stat_word_9"][()]).astype(int)
+# lvdt_stat_b = np.array(data["df_data/lvdt_stat_b"][()]).astype(int)
+# stat_word_13 = np.array(data["df_data/stat_word_13"][()]).astype(int)
+# stat_word_16 = np.array(data["df_data/stat_word_16"][()]).astype(int)
 
 
 # to not use ICAL higher than 3 temps
-a_ical = np.array(data["df_data/a_ical"][()])
-b_ical = np.array(data["df_data/b_ical"][()])
-ical = (a_ical + b_ical) / 2
-ical = ical[short_filter & slow_filter]
-ical_lower_3 = ical < 3
-pix_gal = pix_gal[ical_lower_3]
-sky = sky[ical_lower_3]
+# a_ical = np.array(data["df_data/a_ical"][()])
+# b_ical = np.array(data["df_data/b_ical"][()])
+# ical = (a_ical + b_ical) / 2
+# ical_lower_3 = ical < 3
+# pix_gal = pix_gal[ical_lower_3]
+# sky = sky[ical_lower_3]
 
 # remove data that i flagged
 # stat_word_1 = stat_word_1[short_filter & slow_filter]

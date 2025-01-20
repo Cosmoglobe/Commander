@@ -339,7 +339,16 @@ for side in sides:
         skyhorn[f"{side}_{current}"] = fdq_eng[
             f"en_analog/grt/{side}_{current}_skyhorn"
         ][()]
-        bol_assem[f"{side}_{current}"] = fdq_eng[
+        bol_assem[f"{side}_{current}_rh"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_bol_assem"
+        ][:, 0]
+        bol_assem[f"{side}_{current}_rl"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_bol_assem"
+        ][:, 1]
+        bol_assem[f"{side}_{current}_lh"] = fdq_eng[
+            f"en_analog/grt/{side}_{current}_bol_assem"
+        ][:, 2]
+        bol_assem[f"{side}_{current}_ll"] = fdq_eng[
             f"en_analog/grt/{side}_{current}_bol_assem"
         ][:, 3]
 
@@ -396,10 +405,22 @@ df_eng = pd.DataFrame(
         "a_lo_skyhorn": list(skyhorn["a_lo"]),
         "b_hi_skyhorn": list(skyhorn["b_hi"]),
         "b_lo_skyhorn": list(skyhorn["b_lo"]),
-        "a_lo_bol_assem": list(bol_assem["a_lo"]),
-        "b_lo_bol_assem": list(bol_assem["b_lo"]),
-        "a_hi_bol_assem": list(bol_assem["a_hi"]),
-        "b_hi_bol_assem": list(bol_assem["b_hi"]),
+        "a_hi_bol_assem_rh": list(bol_assem["a_hi_rh"]),
+        "b_hi_bol_assem_rh": list(bol_assem["b_hi_rh"]),
+        "a_lo_bol_assem_rh": list(bol_assem["a_lo_rh"]),
+        "b_lo_bol_assem_rh": list(bol_assem["b_lo_rh"]),
+        "a_hi_bol_assem_rl": list(bol_assem["a_hi_rl"]),
+        "b_hi_bol_assem_rl": list(bol_assem["b_hi_rl"]),
+        "a_lo_bol_assem_rl": list(bol_assem["a_lo_rl"]),
+        "b_lo_bol_assem_rl": list(bol_assem["b_lo_rl"]),
+        "a_hi_bol_assem_lh": list(bol_assem["a_hi_lh"]),
+        "b_hi_bol_assem_lh": list(bol_assem["b_hi_lh"]),
+        "a_lo_bol_assem_lh": list(bol_assem["a_lo_lh"]),
+        "b_lo_bol_assem_lh": list(bol_assem["b_lo_lh"]),
+        "a_lo_bol_assem_ll": list(bol_assem["a_lo_ll"]),
+        "b_lo_bol_assem_ll": list(bol_assem["b_lo_ll"]),
+        "a_hi_bol_assem_ll": list(bol_assem["a_hi_ll"]),
+        "b_hi_bol_assem_ll": list(bol_assem["b_hi_ll"]),
         "bol_volt_rh": list(bol_volt["rh"]),
         "bol_volt_rl": list(bol_volt["rl"]),
         "bol_volt_lh": list(bol_volt["lh"]),
@@ -495,18 +516,48 @@ df_eng = df_eng.drop(
     ]
 )
 
-df_eng["a_bol_assem"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem", "a", "bolometer")
+df_eng["a_bol_assem_rh"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_rh", "a", "bolometer")
 ).astype(np.float64)
-df_eng["b_bol_assem"] = df_eng.apply(
-    get_temperature_hl, axis=1, args=("bol_assem", "b", "bolometer")
+df_eng["b_bol_assem_rh"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_rh", "b", "bolometer")
+).astype(np.float64)
+df_eng["a_bol_assem_rl"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_rl", "a", "bolometer")
+).astype(np.float64)
+df_eng["b_bol_assem_rl"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_rl", "b", "bolometer")
+).astype(np.float64)
+df_eng["a_bol_assem_lh"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_lh", "a", "bolometer")
+).astype(np.float64)
+df_eng["b_bol_assem_lh"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_lh", "b", "bolometer")
+).astype(np.float64)
+df_eng["a_bol_assem_ll"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_ll", "a", "bolometer")
+).astype(np.float64)
+df_eng["b_bol_assem_ll"] = df_eng.apply(
+    get_temperature_hl, axis=1, args=("bol_assem_ll", "b", "bolometer")
 ).astype(np.float64)
 df_eng = df_eng.drop(
     columns=[
-        "a_lo_bol_assem",
-        "b_lo_bol_assem",
-        "a_hi_bol_assem",
-        "b_hi_bol_assem",
+        "a_hi_bol_assem_rh",
+        "b_hi_bol_assem_rh",
+        "a_lo_bol_assem_rh",
+        "b_lo_bol_assem_rh",
+        "a_hi_bol_assem_rl",
+        "b_hi_bol_assem_rl",
+        "a_lo_bol_assem_rl",
+        "b_lo_bol_assem_rl",
+        "a_hi_bol_assem_lh",
+        "b_hi_bol_assem_lh",
+        "a_lo_bol_assem_lh",
+        "b_lo_bol_assem_lh",
+        "a_lo_bol_assem_ll",
+        "b_lo_bol_assem_ll",
+        "a_hi_bol_assem_ll",
+        "b_hi_bol_assem_ll",
     ]
 )
 
@@ -655,8 +706,14 @@ sky_variables = [
     "b_refhorn",
     "a_skyhorn",
     "b_skyhorn",
-    "a_bolometer",
-    "b_bolemeter",
+    "a_bol_assem_rh",
+    "b_bol_assem_rh",
+    "a_bol_assem_rl",
+    "b_bol_assem_rl",
+    "a_bol_assem_lh",
+    "b_bol_assem_lh",
+    "a_bol_assem_ll",
+    "b_bol_assem_ll",
     "bol_volt_rh",
     "bol_volt_rl",
     "bol_volt_lh",
