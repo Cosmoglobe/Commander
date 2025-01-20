@@ -15,8 +15,7 @@ from utils.config import gen_nyquistl
 T_CMB = 2.72548  # Fixsen 2009
 # channels = ["rh", "rl", "lh", "ll"]
 channels = ["ll"]
-modes = ["ss", "sf", "ls", "lf", "fs", "fl"]
-# modes = ["ss"]
+modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
@@ -51,12 +50,12 @@ variable_names = [
     "b_bol_assem_ll",
 ]
 channel_dependent = [
+    "ifg",
     "adds_per_group",
     "bol_cmd_bias",
     "bol_volt",
     "gain",
     "sweeps",
-    "ifg",
 ]
 
 for channel in channels:
@@ -67,6 +66,8 @@ variables = {}
 for variable_name in variable_names:
     variables[variable_name] = np.array(sky_data["df_data/" + variable_name][()])
 
+print(f"variables keys: {variables.keys()}")
+
 variables["pix_gal"] = variables["pix_gal"].astype(int)
 variables["gmt"] = variables["gmt"].astype(str)
 variables["gmt"] = np.array(
@@ -75,13 +76,6 @@ variables["gmt"] = np.array(
 
 sky_data.close()
 
-# using only ss data for now to test
-# make filter with true/false where mtm_length and mtm_speed are 0
-short_filter = variables["mtm_length"] == 0
-slow_filter = variables["mtm_speed"] == 0
-
-for variable in variables.keys():
-    variables[variable] = variables[variable][short_filter & slow_filter]
 
 # constraining to the recs with ical temp at certain bins
 variables["ical"] = (
@@ -183,172 +177,242 @@ ical_filter = (
     | (ical_periods[10] & period_filter[10])
 )
 
-print(f"data loaded: {len(variables['ifg_ll'])}")
+for variable in variables.keys():
+    variables[variable] = variables[variable][ical_filter]
 
-fits_data_ss = fits.open(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LLSS.FITS"
-)
+# filtering the data based on the mode used
+short_filter = variables["mtm_length"] == 0
+long_filter = variables["mtm_length"] == 1
+slow_filter = variables["mtm_speed"] == 0
+fast_filter = variables["mtm_speed"] == 1
+
+filters = {}
+filters["ss"] = short_filter & slow_filter
+filters["lf"] = long_filter & fast_filter
+
+variablesm = {}
+for variable in variables.keys():
+    for mode in modes.keys():
+        variablesm[f"{variable}_{mode}"] = variables[variable][filters[mode]]
+
+
+for mode in modes.keys():
+    print(f"{mode}: {len(variablesm['ifg_ll_' + mode])}")
+
+fits_data = {}
+for mode in modes.keys():
+    fits_data[mode] = fits.open(
+        f"/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/reference/FIRAS_CALIBRATION_MODEL_LL{mode.upper()}.FITS"
+    )
+
 fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
-scan_mode = 0  # SS
 channel = 3  # LL
-frec = 4 * (channel % 2) + scan_mode
+frec = {}
+for key, value in modes.items():
+    frec[key] = 4 * (channel % 2) + value
 
 # optical transfer function
-otf_ss = fits_data_ss[1].data["RTRANSFE"][0] + 1j * fits_data_ss[1].data["ITRANSFE"][0]
-otf_ss = otf_ss[np.abs(otf_ss) > 0]
+otf = {}
+for mode in modes.keys():
+    otf[mode] = (
+        fits_data[mode][1].data["RTRANSFE"][0]
+        + 1j * fits_data[mode][1].data["ITRANSFE"][0]
+    )
+    plt.plot(np.abs(otf[mode]))
+    plt.show()
+    otf[mode] = otf[mode][np.abs(otf[mode]) > 0]
+
+tau = {}
+Jo = {}
+Jg = {}
+Tbol = {}
+T0 = {}
+R0 = {}
+rho = {}
+G1 = {}
+beta = {}
 
 # bolometer function
-tau_ss = fits_data_ss[1].data["TIME_CON"][0]
-Jo_ss = fits_data_ss[1].data["BOLPARM8"][0]
-Jg_ss = fits_data_ss[1].data["BOLPARM9"][0]
-Tbol_ss = fits_data_ss[1].data["BOLOM_B2"][0]
-T0_ss = fits_data_ss[1].data["BOLPARM2"][0]
-R0_ss = fits_data_ss[1].data["BOLPARM_"][0]
-rho_ss = fits_data_ss[1].data["BOLPARM5"][0]
-G1_ss = fits_data_ss[1].data["BOLPARM3"][0]
-beta_ss = fits_data_ss[1].data["BOLPARM4"][0]
+for mode in modes.keys():
+    tau[mode] = fits_data[mode][1].data["TIME_CON"][0]
+    Jo[mode] = fits_data[mode][1].data["BOLPARM8"][0]
+    Jg[mode] = fits_data[mode][1].data["BOLPARM9"][0]
+    Tbol[mode] = fits_data[mode][1].data["BOLOM_B2"][0]
+    T0[mode] = fits_data[mode][1].data["BOLPARM2"][0]
+    R0[mode] = fits_data[mode][1].data["BOLPARM_"][0]
+    rho[mode] = fits_data[mode][1].data["BOLPARM5"][0]
+    G1[mode] = fits_data[mode][1].data["BOLPARM3"][0]
+    beta[mode] = fits_data[mode][1].data["BOLPARM4"][0]
 
 # plot ifgs over time
 plt.imshow(
-    variables["ifg_ll"].T,
+    variablesm["ifg_ll_ss"].T,
     aspect="auto",
-    extent=[0, len(variables["ifg_ll"]), 0, len(variables["ifg_ll"][0])],
+    extent=[0, len(variablesm["ifg_ll_ss"]), 0, len(variablesm["ifg_ll_ss"][0])],
 )
 plt.savefig("../../output/plots/ifg_over_time.png")
 plt.clf()
 
 # plot random ifg
-plt.plot(variables["ifg_ll"][np.random.randint(0, len(variables["ifg_ll"]))])
+plt.plot(variablesm["ifg_ll_ss"][np.random.randint(0, len(variablesm["ifg_ll_ss"]))])
 plt.savefig("../../output/plots/random_ifg.png")
 plt.clf()
 
 print("cleaning interferograms")
 
-for variable in variables.keys():
-    variables[variable] = variables[variable][ical_filter]
-
-variables["ifg_ll"] = clean_ifg(
-    ifg=variables["ifg_ll"],
-    mtm_length=variables["mtm_length"],
-    mtm_speed=variables["mtm_speed"],
-    channel=3,
-    adds_per_group=variables["adds_per_group_ll"],
-    gain=variables["gain_ll"],
-    sweeps=variables["sweeps_ll"],
-)
+for mode in modes:
+    variablesm[f"ifg_ll_{mode}"] = clean_ifg(
+        ifg=variablesm[f"ifg_ll_{mode}"],
+        mtm_length=0 if mode[0] == "s" else 1,
+        mtm_speed=0 if mode[1] == "s" else 1,
+        channel=3,
+        adds_per_group=variablesm[f"adds_per_group_ll_{mode}"],
+        gain=variablesm[f"gain_ll_{mode}"],
+        sweeps=variablesm[f"sweeps_ll_{mode}"],
+    )
 
 # plot cleaned ifgs
 plt.imshow(
-    variables["ifg_ll"].T,
+    variablesm["ifg_ll_ss"].T,
     aspect="auto",
-    extent=[0, len(variables["ifg_ll"]), 0, len(variables["ifg_ll"][0])],
+    extent=[0, len(variablesm["ifg_ll_ss"]), 0, len(variablesm["ifg_ll_ss"][0])],
 )
 plt.savefig("../../output/plots/cleaned_ifg_over_time.png")
 plt.clf()
 
-# check if nans in ifgs
-if np.isnan(variables["ifg_ll"]).any():
-    print("Nans in interferograms")
-    print(variables["ifg_ll"][np.isnan(variables["ifg_ll"])])
-
 print("converting interferograms to spectra")
 
-spec_ss = ifg_to_spec(
-    variables["ifg_ll"],
-    variables["mtm_speed"],
-    channel,
-    variables["adds_per_group_ll"],
-    variables["bol_cmd_bias_ll"],
-    variables["bol_volt_ll"],
-    fnyq["icm"][frec],
-    fnyq["hz"][frec],
-    otf_ss,
-    Jo_ss,
-    Jg_ss,
-    Tbol_ss,
-    rho_ss,
-    R0_ss,
-    T0_ss,
-    beta_ss,
-    G1_ss,
-    tau_ss,
-)
-
-print("plotting")
-
-plt.imshow(
-    np.abs(spec_ss).T, aspect="auto", extent=[0, len(spec_ss), 0, len(spec_ss[0])]
-)
-plt.savefig("../../output/tests/spectra_diff_over_time.png")
-plt.clf()
+spec = {}
+for mode in modes.keys():
+    spec[mode] = ifg_to_spec(
+        ifg=variablesm[f"ifg_ll_{mode}"],
+        mtm_speed=0 if mode[1] == "s" else 1,
+        channel=channel,
+        adds_per_group=variablesm[f"adds_per_group_ll_{mode}"],
+        bol_cmd_bias=variablesm[f"bol_cmd_bias_ll_{mode}"],
+        bol_volt=variablesm[f"bol_volt_ll_{mode}"],
+        fnyq_icm=fnyq["icm"][frec[mode]],
+        fnyq_hz=fnyq["hz"][frec[mode]],
+        otf=otf[mode],
+        Jo=Jo[mode],
+        Jg=Jg[mode],
+        Tbol=Tbol[mode],
+        rho=rho[mode],
+        R0=R0[mode],
+        T0=T0[mode],
+        beta=beta[mode],
+        G1=G1[mode],
+        tau=tau[mode],
+    )
 
 print("making the diff")
 
 # frequency mapping
-f_icm = np.arange(210) * (fnyq["icm"][frec] / 320) + 2
 c = 3e8 * 1e2  # cm/s
-f_ghz = f_icm * c * 1e-9
+f_icm = {}
+f_ghz = {}
+for mode in modes.keys():
+    f_icm[mode] = np.arange(210) * (fnyq["icm"][frec[mode]] / 320) + 2
+    f_ghz[mode] = f_icm[mode] * c * 1e-9
 
 # ical spectrum
-bb_ical = planck(f_ghz[: len(spec_ss)], variables["ical"])
-ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
-ical_emiss_ss = ical_emiss_ss[: len(spec_ss)]
+bb_ical = {}
+ical_emiss = {}
+for mode in modes.keys():
+    bb_ical[mode] = planck(f_ghz[mode][: len(spec["ss"])], variablesm[f"ical_{mode}"])
+    ical_emiss[mode] = (
+        fits_data[mode][1].data["RICAL"][0] + 1j * fits_data[mode][1].data["IICAL"][0]
+    )
+    ical_emiss[mode] = ical_emiss[mode][: len(spec[mode])]
 
 # dihedral spectrum
-bb_dihedral = planck(f_ghz[: len(spec_ss)], variables["dihedral"])
-dihedral_emiss_ss = (
-    fits_data_ss[1].data["RDIHEDRA"][0] + 1j * fits_data_ss[1].data["IDIHEDRA"][0]
-)
-dihedral_emiss_ss = dihedral_emiss_ss[: len(spec_ss)]
+bb_dihedral = {}
+dihedral_emiss = {}
+for mode in modes.keys():
+    bb_dihedral[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"dihedral_{mode}"]
+    )
+    dihedral_emiss[mode] = (
+        fits_data[mode][1].data["RDIHEDRA"][0]
+        + 1j * fits_data[mode][1].data["IDIHEDRA"][0]
+    )
+    dihedral_emiss[mode] = dihedral_emiss[mode][: len(spec[mode])]
 
 # refhorn spectrum
-bb_refhorn = planck(f_ghz[: len(spec_ss)], variables["refhorn"])
-refhorn_emiss_ss = (
-    fits_data_ss[1].data["RREFHORN"][0] + 1j * fits_data_ss[1].data["IREFHORN"][0]
-)
-refhorn_emiss_ss = refhorn_emiss_ss[: len(spec_ss)]
+bb_refhorn = {}
+refhorn_emiss = {}
+for mode in modes.keys():
+    bb_refhorn[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"refhorn_{mode}"]
+    )
+    refhorn_emiss[mode] = (
+        fits_data[mode][1].data["RREFHORN"][0]
+        + 1j * fits_data[mode][1].data["IREFHORN"][0]
+    )
+    refhorn_emiss[mode] = refhorn_emiss[mode][: len(spec[mode])]
 
 # skyhorn spectrum
-bb_skyhorn = planck(f_ghz[: len(spec_ss)], variables["skyhorn"])
-skyhorn_emiss_ss = (
-    fits_data_ss[1].data["RSKYHORN"][0] + 1j * fits_data_ss[1].data["ISKYHORN"][0]
-)
-skyhorn_emiss_ss = skyhorn_emiss_ss[: len(spec_ss)]
+bb_skyhorn = {}
+skyhorn_emiss = {}
+for mode in modes.keys():
+    bb_skyhorn[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"skyhorn_{mode}"]
+    )
+    skyhorn_emiss[mode] = (
+        fits_data[mode][1].data["RSKYHORN"][0]
+        + 1j * fits_data[mode][1].data["ISKYHORN"][0]
+    )
+    skyhorn_emiss[mode] = skyhorn_emiss[mode][: len(spec[mode])]
 
 # bolometer spectrum
-bb_bolometer_rh = planck(f_ghz[: len(spec_ss)], variables["bolometer_rh"])
-bb_bolometer_rl = planck(f_ghz[: len(spec_ss)], variables["bolometer_rl"])
-bb_bolometer_lh = planck(f_ghz[: len(spec_ss)], variables["bolometer_lh"])
-bb_bolometer_ll = planck(f_ghz[: len(spec_ss)], variables["bolometer_ll"])
-
-bolometer_emiss_ss = (
-    fits_data_ss[1].data["RBOLOMET"][0] + 1j * fits_data_ss[1].data["IBOLOMET"][0]
-)
-
-sky_ss = (
-    spec_ss
-    - (
-        (bb_ical * ical_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_dihedral * dihedral_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_refhorn * refhorn_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_skyhorn * skyhorn_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_bolometer_rh * bolometer_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_bolometer_rl * bolometer_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_bolometer_lh * bolometer_emiss_ss)[:, : len(spec_ss[0])]
-        + (bb_bolometer_ll * bolometer_emiss_ss)[:, : len(spec_ss[0])]
+bb_bolometer_rh = {}
+bb_bolometer_rl = {}
+bb_bolometer_lh = {}
+bb_bolometer_ll = {}
+bolometer_emiss = {}
+for mode in modes.keys():
+    bb_bolometer_rh[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"bolometer_rh_{mode}"]
     )
-    / otf_ss[np.newaxis, :]
-)
+    bb_bolometer_rl[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"bolometer_rl_{mode}"]
+    )
+    bb_bolometer_lh[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"bolometer_lh_{mode}"]
+    )
+    bb_bolometer_ll[mode] = planck(
+        f_ghz[mode][: len(spec["ss"])], variablesm[f"bolometer_ll_{mode}"]
+    )
+    bolometer_emiss[mode] = (
+        fits_data[mode][1].data["RBOLOMET"][0]
+        + 1j * fits_data[mode][1].data["IBOLOMET"][0]
+    )
+
+sky = {}
+for mode in modes.keys():
+    sky[mode] = (
+        spec[mode]
+        - (
+            (bb_ical[mode] * ical_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_dihedral[mode] * dihedral_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_refhorn[mode] * refhorn_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_skyhorn[mode] * skyhorn_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_bolometer_rh[mode] * bolometer_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_bolometer_rl[mode] * bolometer_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_bolometer_lh[mode] * bolometer_emiss[mode])[:, : len(spec[mode][0])]
+            + (bb_bolometer_ll[mode] * bolometer_emiss[mode])[:, : len(spec[mode][0])]
+        )
+        / otf[mode][np.newaxis, :]
+    )
 
 print("saving sky")
 
 # save the sky
 np.savez(
     "../../output/data/sky.npz",
-    **variables,
-    sky=sky_ss,
-    allow_pickle=True,
+    **variablesm,
+    **sky,
 )
