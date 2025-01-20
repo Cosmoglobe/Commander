@@ -1160,7 +1160,7 @@ contains
       ! Initialize active monopoles
       do i = 1, numband
          ind = zodi_model%get_par_ind(mono_band=i)
-         if (zodi_model%theta_stat(ind,samp_group) == 0) band_monopole(i) = get_monopole_amp(data(i)%label)
+         band_monopole(i) = get_monopole_amp(data(i)%label)
       end do
 
       if (cpar%myid_chain == 0) then
@@ -1390,7 +1390,12 @@ contains
                    &)
                call wall_time(t3)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
-               
+
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'tod  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_tod))
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'sky  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_sky))
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'zodi ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_zodi))
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'mono ', mono
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'noise', data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &
