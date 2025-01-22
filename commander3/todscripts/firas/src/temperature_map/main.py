@@ -18,9 +18,11 @@ channels = ["ll"]
 modes = {"ss": 0, "lf": 3}  # can change when i have the new cal models
 
 sky_data = h5py.File(
-    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
+    "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.3.h5",
     "r",
 )
+
+print(f"sky_data keys: {sky_data["df_data"].keys()}")
 # cal_data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/cal_v1.h5",
 #     "r",
@@ -74,7 +76,7 @@ variables["gmt"] = np.array(
     [datetime.strptime(gmt, "%Y-%m-%d %H:%M:%S") for gmt in variables["gmt"]]
 )
 
-sky_data.close()
+# sky_data.close()
 
 
 # constraining to the recs with ical temp at certain bins
@@ -222,7 +224,7 @@ for mode in modes.keys():
         + 1j * fits_data[mode][1].data["ITRANSFE"][0]
     )
     plt.plot(np.abs(otf[mode]))
-    plt.show()
+    # plt.show()
     otf[mode] = otf[mode][np.abs(otf[mode]) > 0]
 
 tau = {}
@@ -409,6 +411,29 @@ for mode in modes.keys():
     )
 
 print("saving sky")
+
+# other varibles that i just want to save in the same place
+extra_variables = [
+    "adds_per_group_ll",
+    "stat_word_1",
+    "stat_word_12",
+    "stat_word_13",
+    "stat_word_16",
+    "stat_word_4",
+    "stat_word_5",
+    "stat_word_8",
+    "stat_word_9",
+    "lvdt_stat_a",
+    "lvdt_stat_b",
+]
+for variable in extra_variables:
+    for mode in modes.keys():
+        variablesm[f"{variable}_{mode}"] = np.array(sky_data["df_data/" + variable])[
+            ical_filter
+        ]
+        variablesm[f"{variable}_{mode}"] = variablesm[f"{variable}_{mode}"][
+            filters[mode]
+        ]
 
 # save the sky
 np.savez(

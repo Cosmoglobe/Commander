@@ -48,6 +48,16 @@ variable_names = [
     "mtm_speed",
     "pix_gal",
     "adds_per_group_ll",
+    "stat_word_1",
+    "stat_word_12",
+    "stat_word_13",
+    "stat_word_16",
+    "stat_word_4",
+    "stat_word_5",
+    "stat_word_8",
+    "stat_word_9",
+    "lvdt_stat_a",
+    "lvdt_stat_b",
 ]
 
 sky = {}

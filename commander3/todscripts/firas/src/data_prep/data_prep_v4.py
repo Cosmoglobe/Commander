@@ -765,7 +765,7 @@ sky_variables = [
 ]
 
 # saving to a h5 file
-with tb.open_file("./../../data/sky_v4.2.h5", mode="w") as h5file:
+with tb.open_file("./../../data/sky_v4.3.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Sky Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)
@@ -788,7 +788,7 @@ cal_variables = sky_variables + [
 print(f"Saving calibration data")
 
 # saving to a h5 file
-with tb.open_file("./../../data/cal_v4.1.h5", mode="w") as h5file:
+with tb.open_file("./../../data/cal_v4.3.h5", mode="w") as h5file:
     group = h5file.create_group("/", "df_data", "Calibration Data")
 
     h5file.create_array(group, "gmt", gmt_str_sky)
