@@ -8,6 +8,7 @@ from scipy.optimize import minimize
 from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
+modes = {"ss": 0, "lf": 3}
 
 data = h5py.File(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
@@ -18,10 +19,12 @@ mask = mask[1].data.astype(int)
 
 data = np.load("../../output/data/sky.npz")
 
-sky = np.abs(data["sky"])
-pix_gal = data["pix_gal"]
-mtm_length = data["mtm_length"]
-mtm_speed = data["mtm_speed"]
+sky = {}
+pix_gal = {}
+for mode in modes:
+    sky[mode] = np.abs(data[f"sky_{mode}"])
+    pix_gal[mode] = data[f"pix_gal_{mode}"]
+
 # stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
 # stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
 # stat_word_9 = np.array(data["df_data/stat_word_9"][()]).astype(int)
@@ -84,9 +87,11 @@ fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
-scan_mode = 0  # SS
+# scan_mode = 0  # SS
 channel = 3  # LL
-frec = 4 * (channel % 2) + scan_mode
+frec = {}
+for key, item in modes.items():
+    frec[key] = 4 * (channel % 2) + item
 
 f_icm = np.arange(len(sky[0])) * (fnyq["icm"][frec] / 320)
 c = 3e8 * 1e2  # cm/s

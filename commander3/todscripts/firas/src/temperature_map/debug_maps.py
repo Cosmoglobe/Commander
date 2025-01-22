@@ -11,6 +11,8 @@ from utils.config import gen_nyquistl
 # hp.mollview(m, coord="G", title="179", unit="MJy/sr", min=0, max=500)
 # plt.show()
 
+modes = {"ss": 0, "lf": 3}
+
 reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
 # comparing otf with ical emiss ---------------
@@ -24,10 +26,8 @@ otf_ss = otf_ss[np.abs(otf_ss) > 0]
 ical_emiss_ss = fits_data_ss[1].data["RICAL"][0] + 1j * fits_data_ss[1].data["IICAL"][0]
 ical_emiss_ss = ical_emiss_ss[np.abs(ical_emiss_ss) > 0]
 
-plt.plot(ical_emiss_ss / otf_ss)
-plt.show()
-
-quit()
+# plt.plot(ical_emiss_ss / otf_ss)
+# plt.show()
 
 data = np.load(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npz",
@@ -47,13 +47,17 @@ variable_names = [
     "mtm_length",
     "mtm_speed",
     "pix_gal",
+    "adds_per_group_ll",
 ]
 
-sky = data["sky"]
+sky = {}
+for mode in modes.keys():
+    sky[mode] = data[mode]
 # variables = data["variables"]
 variables = {}
-for variable_name in variable_names:
-    variables[variable_name] = data[variable_name]
+for mode in modes.keys():
+    for variable_name in variable_names:
+        variables[f"{variable_name}_{mode}"] = data[f"{variable_name}_{mode}"]
 
 # data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
@@ -63,9 +67,11 @@ fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
-scan_mode = 0  # SS
+# scan_mode = 0  # SS
 channel = 3  # LL
-frec = 4 * (channel % 2) + scan_mode
+frec = {}
+for mode, item in modes.items():
+    frec[mode] = 4 * (channel % 2) + item
 
 # f_icm = np.arange(len(sky[0])) * (fnyq["icm"][frec] / 320)
 # c = 3e8 * 1e2  # cm/s
@@ -74,8 +80,10 @@ frec = 4 * (channel % 2) + scan_mode
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-spec = np.abs(sky[:, 1:])
-spec = np.max(spec, axis=1)
+spec = {}
+for mode in modes.keys():
+    spec[mode] = np.abs(sky[mode][:, 1:])
+    # spec[mode] = np.max(spec[mode], axis=1)
 
 # remove data inside the mask
 # for name in variables.keys():
@@ -96,17 +104,23 @@ spec = np.max(spec, axis=1)
 
 print("plotting")
 
-print(variables.keys())
-
 n_cols = 6
-n_rows = len(variables.keys()) // n_cols + 1
-fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
+n_rows = len(variable_names) // n_cols + 1
+for mode in modes:
+    print(f"Mode: {mode}")
+    fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
 
-for i, name in enumerate(variables.keys()):
-    ax[i // n_cols, i % n_cols].plot(variables[name])
-    ax[i // n_cols, i % n_cols].set_title(name)
+    for i, name in enumerate(variable_names):
+        ax[i // n_cols, i % n_cols].plot(variables[f"{name}_{mode}"])
+        ax[i // n_cols, i % n_cols].set_title(name)
 
-ax[-1, -1].plot(spec)
-ax[-1, -1].set_title("spec")
+    ax[-1, -1].imshow(
+        np.abs(sky[mode]).T,
+        aspect="auto",
+        extent=[0, len(sky[mode]), 0, len(sky[mode][0])],
+        vmax=500,
+        vmin=0,
+    )
+    ax[-1, -1].set_title("spec")
 
-plt.show()
+    plt.show()

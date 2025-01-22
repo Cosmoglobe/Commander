@@ -9,32 +9,58 @@ from utils.fut import apod_recnuml, get_recnum
 def calculate_dc_response(bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1):
     rscale = 1.0e-7
 
-    cmd_bias = bol_cmd_bias.astype("double") / 25.5
+    cmd_bias = (
+        bol_cmd_bias.astype("double") / 25.5
+    )  # only use the factor for when it's not in volts? i.e. don't use for the data from lambda
+
+    # print("cmd_bias:", cmd_bias)
 
     V = (bol_volt - Jo) / Jg
+
+    # print("V:", V)
 
     RL = 4.0e7
     R = RL * V / (cmd_bias - V)
 
+    # print("R:", R, "RL:", RL)
+
     X = V * rho
     Y = R / R0 / X
+
+    # print("X:", X, "Y:", Y)
 
     SQ = np.log(Y * Tbol * np.sinh(X / Tbol))
     Tbol = T0 / SQ**2
 
+    # print("SQ:", SQ, "Tbol:", Tbol)
+
     SQ = np.log(Y * Tbol * np.sinh(X / Tbol))
+
+    # print("SQ:", SQ)
 
     Tbol = T0 / (SQ * SQ)
 
+    # print("Tbol:", Tbol)
+
     G = G1 * Tbol**beta
+
+    # print("G:", G)
 
     H = Tbol / X * np.tanh(X / Tbol)
 
+    # print("H:", H)
+
     DT = 1.0 / H - 1.0 - 0.5 * np.sqrt(T0 / Tbol)
+
+    # print("DT:", DT)
 
     Z = (G * Tbol * R + DT * V**2) / (G * Tbol * R / H - DT * V**2)
 
+    # print("Z:", Z)
+
     S0 = rscale * R * (Z - H) / (V * (Z * R / RL + 1.0) * (H + 1.0))
+
+    # print("S0:", S0)
 
     return S0
 
@@ -116,10 +142,7 @@ def ifg_to_spec(
     # fft
     spec = np.fft.rfft(ifg)
 
-    # plot initial spec over time
-    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
-    plt.savefig("../../output/plots/initial_spec_over_time.png")
-    plt.clf()
+    # print("spec after rfft:", spec)
 
     # etf
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
@@ -128,11 +151,14 @@ def ifg_to_spec(
 
     etf = etfl_all[erecno, :]
 
+    # print("etf:", etf)
+
     fac_etendu = 1.5  # nathan's pipeline
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
     spec = spec / etf
+    # print("spec after etf:", spec)
     spec = spec / spec_norm
 
     # plot etf spec over time
@@ -146,13 +172,30 @@ def ifg_to_spec(
     # afreq = np.arange(fcc_spec_length) * dw # had to change because i'm not padding for now
     afreq = np.arange(spec_len) * dw
 
+    # print("afreq:", afreq)
+
     S0 = calculate_dc_response(
-        bol_cmd_bias, bol_volt, Jo, Jg, Tbol, rho, R0, T0, beta, G1
+        bol_cmd_bias=bol_cmd_bias,
+        bol_volt=bol_volt,
+        Jo=Jo,
+        Jg=Jg,
+        Tbol=Tbol,
+        rho=rho,
+        R0=R0,
+        T0=T0,
+        beta=beta,
+        G1=G1,
     )
+
+    # print("S0:", S0)
 
     B = 1.0 + 1j * tau * afreq
 
+    # print("B:", B)
+
     spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]
+
+    # print("spec after dc response:", spec)
 
     # plot spec after bolometer transfer function
     plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])

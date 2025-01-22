@@ -117,7 +117,7 @@ for mode in modes.keys():
         np.abs(sky[mode]).T,
         aspect="auto",
         extent=[0, len(sky[mode]), 0, len(sky[mode][0])],
-        vmax=500,
+        vmax=400,
         vmin=0,
     )
     plt.savefig(f"../../output/plots/sky_over_time_{mode}.png")
@@ -157,9 +157,9 @@ for mode in modes.keys():
             # coord="G",
             title=f"{int(f_ghz[mode][freq]):04d} GHz",
             unit="MJy/sr",
-            norm="hist",
-            # min=0,
-            # max=4,
+            # norm="log",
+            min=0,
+            max=400,
         )
         # hp.graticule(coord="G")
         plt.savefig(
@@ -185,9 +185,9 @@ for freq in range(len(f_ghz["lf"])):
         # coord="G",
         title=f"{int(f_ghz['lf'][freq]):04d} GHz",
         unit="MJy/sr",
-        norm="hist",
-        # min=350,
-        # max=360,
+        # norm="hist",
+        min=100,
+        max=400,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/sky_map/joint/{int(f_ghz['lf'][freq]):04d}.png")
