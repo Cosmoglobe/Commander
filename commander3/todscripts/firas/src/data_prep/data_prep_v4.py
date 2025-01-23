@@ -374,6 +374,8 @@ int_ref_temp_a = fdq_eng["en_stat/int_ref_temp_a"][()]
 int_ref_temp_b = fdq_eng["en_stat/int_ref_temp_b"][()]
 ref_hrn_temp_a = fdq_eng["en_stat/ref_hrn_temp_a"][()]
 ref_hrn_temp_b = fdq_eng["en_stat/ref_hrn_temp_b"][()]
+sky_hrn_temp_a = fdq_eng["en_stat/sky_hrn_temp_a"][()]
+sky_hrn_temp_b = fdq_eng["en_stat/sky_hrn_temp_b"][()]
 ext_cal_temp_a = fdq_eng["en_stat/ext_cal_temp_a"][()]
 ext_cal_temp_b = fdq_eng["en_stat/ext_cal_temp_b"][()]
 lvdt_stat_a = fdq_eng["en_stat/lvdt_stat"][:, 0]
@@ -385,6 +387,30 @@ power_b_status_b = fdq_eng["en_stat/power_b_status"][:, 1]
 hot_spot_cmd_a = fdq_eng["en_stat/hot_spot_cmd"][:, 0]
 hot_spot_cmd_b = fdq_eng["en_stat/hot_spot_cmd"][:, 1]
 t_eng = fdq_eng["ct_head/time"][()]
+dwell_stat_a = fdq_eng["en_stat/dwell_stat"][:, 0]
+dwell_stat_b = fdq_eng["en_stat/dwell_stat"][:, 1]
+engstat_spares_1 = fdq_eng["en_stat/engstat_spares"][:, 0]
+engstat_spares_2 = fdq_eng["en_stat/engstat_spares"][:, 1]
+engstat_spares_3 = fdq_eng["en_stat/engstat_spares"][:, 2]
+engstat_spares_4 = fdq_eng["en_stat/engstat_spares"][:, 3]
+engstat_spares_5 = fdq_eng["en_stat/engstat_spares"][:, 4]
+engstat_spares_6 = fdq_eng["en_stat/engstat_spares"][:, 5]
+engstat_spares_7 = fdq_eng["en_stat/engstat_spares"][:, 6]
+engstat_spares_8 = fdq_eng["en_stat/engstat_spares"][:, 7]
+engstat_spares_9 = fdq_eng["en_stat/engstat_spares"][:, 8]
+engstat_spares_10 = fdq_eng["en_stat/engstat_spares"][:, 9]
+engstat_spares2_1 = fdq_eng["en_stat/engstat_spares2"][:, 0]
+engstat_spares2_2 = fdq_eng["en_stat/engstat_spares2"][:, 1]
+engstat_spares2_3 = fdq_eng["en_stat/engstat_spares2"][:, 2]
+engstat_spares2_4 = fdq_eng["en_stat/engstat_spares2"][:, 3]
+engstat_spares2_5 = fdq_eng["en_stat/engstat_spares2"][:, 4]
+micro_stat_bus_1 = fdq_eng["en_stat/micro_stat_bus"][:, 0]
+micro_stat_bus_2 = fdq_eng["en_stat/micro_stat_bus"][:, 1]
+micro_stat_bus_3 = fdq_eng["en_stat/micro_stat_bus"][:, 2]
+micro_stat_bus_4 = fdq_eng["en_stat/micro_stat_bus"][:, 3]
+grt_addr_a = fdq_eng["en_stat/grt_addr"][:, 0]
+grt_addr_b = fdq_eng["en_stat/grt_addr"][:, 1]
+
 
 # make engineeering data df
 df_eng = pd.DataFrame(
@@ -452,6 +478,31 @@ df_eng = pd.DataFrame(
         "hot_spot_cmd_a": list(hot_spot_cmd_a),
         "hot_spot_cmd_b": list(hot_spot_cmd_b),
         "time": list(t_eng),
+        "dwell_stat_a": list(dwell_stat_a),
+        "dwell_stat_b": list(dwell_stat_b),
+        "engstat_spares_1": list(engstat_spares_1),
+        "engstat_spares_2": list(engstat_spares_2),
+        "engstat_spares_3": list(engstat_spares_3),
+        "engstat_spares_4": list(engstat_spares_4),
+        "engstat_spares_5": list(engstat_spares_5),
+        "engstat_spares_6": list(engstat_spares_6),
+        "engstat_spares_7": list(engstat_spares_7),
+        "engstat_spares_8": list(engstat_spares_8),
+        "engstat_spares_9": list(engstat_spares_9),
+        "engstat_spares_10": list(engstat_spares_10),
+        "engstat_spares2_1": list(engstat_spares2_1),
+        "engstat_spares2_2": list(engstat_spares2_2),
+        "engstat_spares2_3": list(engstat_spares2_3),
+        "engstat_spares2_4": list(engstat_spares2_4),
+        "engstat_spares2_5": list(engstat_spares2_5),
+        "micro_stat_bus_1": list(micro_stat_bus_1),
+        "micro_stat_bus_2": list(micro_stat_bus_2),
+        "micro_stat_bus_3": list(micro_stat_bus_3),
+        "micro_stat_bus_4": list(micro_stat_bus_4),
+        "grt_addr_a": list(grt_addr_a),
+        "grt_addr_b": list(grt_addr_b),
+        "sky_hrn_temp_a": list(sky_hrn_temp_a),
+        "sky_hrn_temp_b": list(sky_hrn_temp_b),
     }
 )
 
@@ -762,6 +813,31 @@ sky_variables = [
     "sweeps_ll",
     "sweeps_rh",
     "sweeps_rl",
+    "dwell_stat_a",
+    "dwell_stat_b",
+    "engstat_spares_1",
+    "engstat_spares_2",
+    "engstat_spares_3",
+    "engstat_spares_4",
+    "engstat_spares_5",
+    "engstat_spares_6",
+    "engstat_spares_7",
+    "engstat_spares_8",
+    "engstat_spares_9",
+    "engstat_spares_10",
+    "engstat_spares2_1",
+    "engstat_spares2_2",
+    "engstat_spares2_3",
+    "engstat_spares2_4",
+    "engstat_spares2_5",
+    "micro_stat_bus_1",
+    "micro_stat_bus_2",
+    "micro_stat_bus_3",
+    "micro_stat_bus_4",
+    "grt_addr_a",
+    "grt_addr_b",
+    "sky_hrn_temp_a",
+    "sky_hrn_temp_b",
 ]
 
 # saving to a h5 file

@@ -245,3 +245,45 @@ def residuals(temperature, frequency_data, sky_data):  # doing least squares for
     """
     res = np.sum((sky_data - planck(frequency_data, temperature)) ** 2, axis=1)
     return res
+
+
+def filter_crap(
+    stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
+):
+    filter1 = stat_word_5 != 19585
+    filter2 = stat_word_9 != 15414
+    filter3 = (
+        (stat_word_13 != 27073) and (stat_word_13 != 17345) and (stat_word_13 != 19585)
+    )
+    filter4 = (
+        (stat_word_16 != 35584) and (stat_word_16 != 36032) and (stat_word_16 != 52992)
+    )
+    filter5 = (
+        (lvdt_stat_a != 11)
+        and (lvdt_stat_a != 12)
+        and (lvdt_stat_a != 17)
+        and (lvdt_stat_a != 26)
+        and (lvdt_stat_a != 34)
+        and (lvdt_stat_a != 38)
+        and (lvdt_stat_a != 45)
+    )
+    filter6 = (
+        (lvdt_stat_b != -127)
+        and (lvdt_stat_b != -124)
+        and (lvdt_stat_b != -108)
+        and (lvdt_stat_b != -79)
+        and (lvdt_stat_b != -74)
+        and (lvdt_stat_b != -71)
+        and (lvdt_stat_b != -70)
+        and (lvdt_stat_b != 70)
+        and (lvdt_stat_b != 75)
+        and (lvdt_stat_b != 77)
+        and (lvdt_stat_b != 79)
+        and (lvdt_stat_b != 83)
+        and (lvdt_stat_b != 87)
+        and (lvdt_stat_b != 96)
+        and (lvdt_stat_b != 100)
+        and (lvdt_stat_b != 101)
+        and (lvdt_stat_b != 111)
+        and (lvdt_stat_b != 121)
+    )
