@@ -21,6 +21,7 @@
 module comm_beam_mod
   use comm_B_mod
   use comm_B_bl_mod
+  use comm_B_FIRAS_mod
   implicit none
 
 end module comm_beam_mod

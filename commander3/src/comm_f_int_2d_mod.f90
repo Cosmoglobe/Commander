@@ -20,28 +20,23 @@
 !================================================================================
 module comm_F_int_2D_mod
   use comm_F_int_mod
-  use comm_comp_mod
-  use comm_bp_mod
-  use spline_2D_mod
-  use comm_utils
   implicit none
 
   private
   public comm_F_int_2D
 
   type, extends (comm_F_int) :: comm_F_int_2D
-     class(comm_comp), pointer :: comp => null()
      real(dp), allocatable, dimension(:)       :: x, y
      real(dp), allocatable, dimension(:,:,:,:) :: coeff
    contains
      ! Data procedures
-     procedure :: eval       => evalIntF
-     procedure :: eval_deriv => evalIntdF
-     procedure :: update     => updateIntF
+     procedure :: eval       => evalIntF_2d
+     procedure :: eval_deriv => evalIntdF_2d
+     procedure :: update     => updateIntF_2d
   end type comm_F_int_2D
 
   interface comm_F_int_2D
-     procedure constructor
+     procedure constructor_2d
   end interface comm_F_int_2D
 
   integer(i4b) :: n = 100
@@ -51,45 +46,44 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(comp, bp, pol)
+  function constructor_2d(comp, bp, pol) result(c)
     implicit none
     class(comm_comp),     intent(in), target :: comp
     class(comm_bp),       intent(in), target :: bp
     integer(i4b),         intent(in)         :: pol
-    class(comm_F_int_2D), pointer            :: constructor
+    class(comm_F_int_2D), pointer            :: c
 
     integer(i4b) :: i
 
-    allocate(constructor)
-    constructor%comp => comp
-    constructor%bp   => bp
+    allocate(c)
+    c%comp => comp
+    c%bp   => bp
 
-    allocate(constructor%x(n), constructor%y(n), constructor%coeff(4,4,n,n))
+    allocate(c%x(n), c%y(n), c%coeff(4,4,n,n))
     do i = 1, n
-       constructor%x(i) = constructor%comp%p_uni(1,1) + (constructor%comp%p_uni(2,1)-constructor%comp%p_uni(1,1))/(n-1) * (i-1)
-       constructor%y(i) = constructor%comp%p_uni(1,2) + (constructor%comp%p_uni(2,2)-constructor%comp%p_uni(1,2))/(n-1) * (i-1)
+       c%x(i) = c%comp%p_uni(1,1) + (c%comp%p_uni(2,1)-c%comp%p_uni(1,1))/(n-1) * (i-1)
+       c%y(i) = c%comp%p_uni(1,2) + (c%comp%p_uni(2,2)-c%comp%p_uni(1,2))/(n-1) * (i-1)
     end do
 
-    call constructor%update(pol=pol)
-
+    call c%update(pol=pol)
     
-  end function constructor
+  end function constructor_2d
 
   
   ! Evaluate SED in brightness temperature normalized to reference frequency
-  function evalIntF(self, theta)
+  function evalIntF_2d(self, theta)
     class(comm_F_int_2D),                intent(in) :: self
     real(dp),             dimension(1:), intent(in) :: theta
-    real(dp)                                        :: evalIntF
-    evalIntF = splin2_full_precomp(self%x, self%y, self%coeff, theta(1), theta(2)) 
-  end function evalIntF
+    real(dp)                                        :: evalIntF_2d
+    evalIntF_2d = splin2_full_precomp(self%x, self%y, self%coeff, theta(1), theta(2)) 
+  end function evalIntF_2d
 
   ! Evaluate partial derivative of SED in brightness temperature normalized to reference frequency
-  function evalIntdF(self, theta, par)
+  function evalIntdF_2d(self, theta, par)
     class(comm_F_int_2D),                intent(in) :: self
     real(dp),             dimension(1:), intent(in) :: theta
     integer(i4b),                        intent(in) :: par
-    real(dp)                                        :: evalIntdF
+    real(dp)                                        :: evalIntdF_2d
 
     real(dp) :: p(2), delta = 1.d-10, f1, f2
 
@@ -97,11 +91,11 @@ contains
     p(par) = p(par) + delta
     f1     = self%eval(theta)
     f2     = self%eval(p)
-    evalIntdF = (f2-f1)/delta
-  end function evalIntdF
+    evalIntdF_2d = (f2-f1)/delta
+  end function evalIntdF_2d
 
   ! Compute/update integration look-up tables
-  subroutine updateIntF(self, f_precomp, pol)
+  subroutine updateIntF_2d(self, f_precomp, pol)
     class(comm_F_int_2D), intent(inout)           :: self
     real(dp),             intent(in),    optional :: f_precomp
     integer(i4b),         intent(in),    optional :: pol
@@ -147,7 +141,7 @@ contains
 
     deallocate(F, Fp, s)
 
-  end subroutine updateIntF
+  end subroutine updateIntF_2d
 
 
 end module comm_F_int_2D_mod

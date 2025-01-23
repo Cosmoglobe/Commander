@@ -19,9 +19,7 @@
 !
 !================================================================================
 module comm_fft_mod
-  use comm_utils
   use comm_param_mod
-  use locate_mod
   implicit none
 
   private
@@ -50,7 +48,7 @@ contains
     if(cpar%fft_magic_number_file(1:1) == '/') then ! full path given
       filename = trim(cpar%fft_magic_number_file)
     else
-      filename = trim(cpar%datadir)//'/'//trim(cpar%fft_magic_number_file)
+      filename = trim(cpar%fft_magic_number_file)
     end if
 
     open(unit, file=trim(filename))

@@ -1,0 +1,69 @@
+#DIRBE 240 micron CIO default parameters
+# NOTE: data dir in parameter file
+
+BAND_LABEL&&&                  = 10
+BAND_INSTRUMENT_LABEL&&&       = 10
+BAND_OBS_PERIOD&&&             = 1
+BAND_POLARIZATION&&&           = .false.
+BAND_NSIDE&&&                  = 512
+BAND_LMAX&&&                   = 1500
+BAND_UNIT&&&                   = MJy/sr # Need to implement micron -> GHz in bp_mod and scale weights
+BAND_NOISE_FORMAT&&&           = rms
+BAND_NOISE_UNIFORMIZE_FSKY&&&  = 0.0 1
+BAND_MASKFILE&&&               = fullsky
+BAND_MASKFILE_CALIB&&&         = mask_common_dx12_n0512.fits  fullsky
+BAND_BEAMTYPE&&&               = b_l         # {b_l, febecop}
+BAND_BEAM_B_L_FILE&&&          = DIRBE_BL10_P3B_symm.fits
+BAND_BEAM_B_PTSRC_FILE&&&      = none
+BAND_PIXEL_WINDOW&&&           = pixel_window_n0512.fits
+BAND_SAMP_NOISE_AMP&&&         = .false.
+BAND_BANDPASS_TYPE&&&          = DIRBE
+BAND_BANDPASS_MODEL&&&         = additive_shift   # {powlaw_tilt, additive_shift}
+BAND_NOMINAL_FREQ&&&           = 1249.13524167
+BAND_SAMP_BANDPASS&&&          = .false.
+BAND_BANDPASSFILE&&&           = DIRBE_instrument_02.h5
+BAND_SAMP_GAIN&&&              = .false.
+BAND_GAIN_PRIOR_MEAN&&&         = 1.
+BAND_GAIN_PRIOR_RMS&&&          = 0
+BAND_GAIN_CALIB_COMP&&&        = firas
+BAND_GAIN_LMIN&&&              = -1
+BAND_GAIN_LMAX&&&              = -1
+BAND_GAIN_APOD_MASK&&&         = fullsky
+BAND_GAIN_APOD_FWHM&&&         = 120.
+BAND_DEFAULT_GAIN&&&           =   1.
+BAND_DEFAULT_BP_DELTA&&&       =   0.
+BAND_DEFAULT_NOISEAMP&&&       =   1.
+BAND_COMPONENT_SENSITIVITY&&&  = broadband
+
+BAND_TOD_TYPE&&&               = DIRBE
+BAND_TOD_BP_INIT_PROP&&&       = bp_init_DIRBE_10.dat
+BAND_TOD_HALFRING&&&           = 0
+BAND_TOD_START_SCANID&&&       = 1
+BAND_TOD_END_SCANID&&&         = 285
+BAND_TOD_TOT_NUMSCAN&&&        = 285
+BAND_TOD_FLAG&&&               = 2047   # Don't mask Uranus and Neptune, 8191
+BAND_TOD_ORBITAL_ONLY_ABSCAL&&& =.false.
+BAND_TOD_DETECTOR_LIST&&&      = 10_A
+BAND_TOD_INIT_FROM_HDF&&&      = default
+BAND_TOD_JUMPLIST&&&           = none
+BAND_TOD_LEVEL&&&              = L2
+BAND_MAPFILE&&&                = DIRBE_10_512_v1.fits
+BAND_NOISEFILE&&&              = DIRBE_10_SIGMA_512_v1.fits
+
+BAND_REG_NOISEFILE&&&          = none   
+BAND_NOISE_RMS&&&_SMOOTH01     = DIRBE_10_SIGMA_512_v1_1deg_n256_v2.fits
+BAND_NOISE_RMS&&&_SMOOTH02     = none
+BAND_NOISE_RMS&&&_SMOOTH03     = none
+
+BAND_TOD_MAIN_PROCMASK&&&      = mask_common_dx12_n0512.fits
+BAND_TOD_SMALL_PROCMASK&&&     = mask_common_dx12_n0512.fits
+BAND_TOD_RIMO&&&               = DIRBE_instrument_02.h5
+BAND_TOD_FILELIST&&&           = filelist_DIRBE_10_nside512_V18.txt
+BAND_TOD_ABSCAL_COMP&&&        = full
+N_GIBBS_PER_TOD&&&             = 1
+
+BAND_TOD_ZODI_SUBTRACTION&&&   = .true.
+BAND_TOD_ZODI_MASK&&&          = zodi_proc_mask_10_n512.fits
+BAND_TOD_ZODI_EMISSIVITY&&&    = 0.51912085401950736d0,1.3996145963796358d0,1.3996145963796358d0,1.3996145963796358d0,0.85763800994217443d0,0.85763800994217443d0
+BAND_TOD_ZODI_ALBEDO&&&        = 0.d0,0.d0,0.d0,0.d0,0.d0,0.d0
+BAND_TOD_ZODI_REFERENCE_BAND&&&= .false.

@@ -42,6 +42,12 @@
 #endif()
 
 if(COMPILE_HDF5)
+
+	# Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP
+  #if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+	#	cmake_policy(SET CMP0135 NEW)
+	#endif()
+
 	if(NOT HDF5_Fortran_FOUND)
 		message(STATUS "Missing component -- Fortran -- will be compiled from source.")	
 	endif()
@@ -98,7 +104,8 @@ if(COMPILE_HDF5)
 		# commands how to build the project
 		DOWNLOAD_COMMAND	""
 		CMAKE_ARGS
-			-DCMAKE_BUILD_TYPE=Release
+      #-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+      -DCMAKE_BUILD_TYPE=Release
 			# Specifying installations paths for binaries and libraries
 			-DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR>
 			#-DCMAKE_Fortran_MODULE_DIRECTORY:PATH=${CMAKE_Fortran_MODULE_DIRECTORY}

@@ -27,8 +27,6 @@
 ! pass an empty string for the file name.
 
 module comm_status_mod
-  use comm_utils
-  use comm_system_mod
   use comm_shared_output_mod
   use comm_timing_mod
   implicit none

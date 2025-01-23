@@ -58,5 +58,5 @@ COMP_ALPHA_POL_FIX_PIXREG&&    = none
 COMP_ALPHA_PIXREG_MAP&&        = fullsky      # Pixel region map (from 1 -> N). 'fullsky' -> all pixels = 1
 COMP_ALPHA_PIXREG_INITVALUE_MAP&& = none
 COMP_ALPHA_COMBINED_MONOPOLE_SAMPLING&& = .false.
-COMP_ALPHA_CORRELATION_CONVERGENCE_SAMPLING&& = .fasle.
+COMP_ALPHA_CORRELATION_CONVERGENCE_SAMPLING&& = .false.
 

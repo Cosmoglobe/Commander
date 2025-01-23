@@ -20,8 +20,10 @@
 #================================================================================
 
 import h5py
-import commander_tools.tod_tools.huffman as huffman
-import commander_tools.tod_tools.rice as rice
+#import commander_tools.tod_tools.huffman as huffman
+#import commander_tools.tod_tools.rice as rice
+import tod_tools.huffman as huffman
+import tod_tools.rice as rice
 import healpy as hp
 import numpy as np
 import multiprocessing as mp
@@ -63,15 +65,15 @@ class commander_tod:
         if os.path.exists(self.outName):
             self.exists = True
         if mode == 'w':
-            if self.exists and self.overwrite:
-                os.remove(self.outName)
+            #if self.exists and self.overwrite:
+            #    os.remove(self.outName)
             try:
                 self.outFile = h5py.File(self.outName, 'a')
 
-                if self.exists and not self.overwrite:
-                    for pid in self.load_field('/common/pids'):
-                        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
-                        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
+                #if self.exists and not self.overwrite:
+                #    for pid in self.load_field('/common/pids'):
+                #        loadBalance = self.load_field('/' + str(pid).zfill(6) + '/common/load')
+                #        self.pids[pid] = str(float(loadBalance[0])) + ' ' + str(float(loadBalance[1]))
             except (KeyError, OSError):
                 if(hasattr(self, 'outFile')):
                     self.outFile.close()
@@ -117,6 +119,10 @@ class commander_tod:
 
     #Single field write
     def add_field(self, fieldName, data, compression=None):
+          
+        if self.overwrite:
+            if fieldName in self.outFile.keys():
+                del self.outFile[fieldName]
         data = np.nan_to_num(data)
         writeField = True
         if(compression is not None and compression is not []):
@@ -139,7 +145,7 @@ class commander_tod:
                     self.add_attribute(fieldName, 'offset', compArr[1]['offset'])
 
                 elif compArr[0] == 'digitize':
-                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'])
+                    bins = np.linspace(compArr[1]['min'], compArr[1]['max'], num = compArr[1]['nbins'] + 1)
                     data = np.digitize(data, bins)
                     metaName = '/common/n' + fieldName.split('/')[-1]
                     self.add_encoding(metaName, compArr[1]['nbins'])
@@ -198,11 +204,7 @@ class commander_tod:
             try:
                 self.outFile.create_dataset(fieldName, data=data)
             except OSError as e:
-                if self.overwrite:
-                    del self.outFile[fieldName]
-                    self.outFile.create_dataset(fieldName, data=data)
-                else:
-                    raise OSError(e)
+                raise OSError(e)
             for attr in self.attrDict.copy().keys():
                 fName, attrName = attr.split('@')
                 if fName == fieldName:
@@ -232,7 +234,7 @@ class commander_tod:
                 self.add_field(encoding, [self.encodings[encoding]])
                 #print('adding ' + encoding + ' to file ' + self.outName)
 
-            self.add_field('/common/version', self.version)
+            self.add_field('/common/version', np.string_(self.version))
             # [Maksym]: was getting the error:
             # ...
             # File ".../python/commander_tools/tod_tools/commander_tod.py", line 213, in finaliz    e_file
@@ -392,8 +394,8 @@ class commander_tod:
                     nmin = self.outFile[field].attrs['min']
                     nmax = self.outFile[field].attrs['max']
 
-                    bins = np.linspace(nmin, nmax, num = nbins)
-                    dataBuf = bins[dataBuf]
+                    bins = np.linspace(nmin, nmax, num = nbins + 1)
+                    dataBuf = bins[dataBuf.astype('int')]
 
                 elif comp == 'huffman':
                     pid = field.split('/')[1]

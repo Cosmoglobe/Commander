@@ -19,11 +19,7 @@
 !
 !================================================================================
 module comm_B_bl_mod
-  use comm_param_mod
-  use comm_map_mod
   use comm_B_mod
-  use comm_utils
-  use spline_1D_mod
   implicit none
 
   private
@@ -32,8 +28,8 @@ module comm_B_bl_mod
   type, extends (comm_B) :: comm_B_bl
    contains
      ! Data procedures
-     procedure :: conv           => matmulB
-     procedure :: deconv         => matmulInvB
+     procedure :: conv           => matmulB_bl
+     procedure :: deconv         => matmulInvB_bl
      procedure :: update         => updateBeam
   end type comm_B_bl
 
@@ -70,8 +66,9 @@ contains
     dir = trim(cpar%datadir) // '/'
 
     ! Component specific parameters
-    constructor%type  =  'b_l'    
-    constructor%info  => info
+    constructor%type        =  'b_l'    
+    constructor%info        => info
+    constructor%almFromConv = .true.
     if (present(fwhm)) then
        allocate(constructor%b_l(0:constructor%info%lmax,constructor%info%nmaps))
 !!$       do l = 0, constructor%info%lmax
@@ -80,7 +77,7 @@ contains
        if (present(nside)) then
           call int2string(nside, nside_text)
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
-               & pixwin=trim(dir)//'/pixel_window_n'//nside_text//'.fits')
+               & pixwin=trim(dir)//'pixel_window_n'//nside_text//'.fits')
        else if (present(pixwin)) then
           call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, fwhm=fwhm, &
                & pixwin=trim(dir)//'/'//trim(pixwin))
@@ -89,8 +86,8 @@ contains
        end if
     else
        call read_beam(constructor%info%lmax, constructor%info%nmaps, constructor%b_l, &
-            & beamfile=trim(dir)//trim(cpar%ds_blfile(id_abs)), &
-            & pixwin=trim(dir)//trim(cpar%ds_pixwin(id_abs)))
+            & beamfile=trim(cpar%ds_blfile(id_abs)), &
+            & pixwin=trim(cpar%ds_pixwin(id_abs)))
     end if
 
     ! Multiply with main beam filling factor
@@ -105,7 +102,7 @@ contains
     
   end function constructor
   
-  subroutine matmulB(self, trans, map)
+  subroutine matmulB_bl(self, trans, map)
     implicit none
     class(comm_B_bl), intent(in)    :: self
     logical(lgt),     intent(in)    :: trans
@@ -124,9 +121,9 @@ contains
        end if
     end do
 
-  end subroutine matmulB
+  end subroutine matmulB_bl
 
-  subroutine matmulInvB(self, trans, map)
+  subroutine matmulInvB_bl(self, trans, map)
     implicit none
     class(comm_B_bl), intent(in)    :: self
     logical(lgt),     intent(in)    :: trans
@@ -149,7 +146,7 @@ contains
        end if
     end do
 
-  end subroutine matmulInvB
+  end subroutine matmulInvB_bl
 
   subroutine updateBeam(self, b_l_norm, mb_eff) 
     implicit none

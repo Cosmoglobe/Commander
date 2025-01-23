@@ -24,11 +24,14 @@ module comm_F_mod
   use comm_map_mod
   use comm_bp_mod
   use comm_F_int_mod
+  use comm_F_int_0D_mod
   use comm_F_int_1D_mod
+  use comm_F_int_2D_mod
+  use comm_F_line_mod
   implicit none
 
-  private
-  public comm_F
+!  private
+!  public comm_F
 
   type :: comm_F
      ! Linked list variables
@@ -44,19 +47,19 @@ module comm_F_mod
      real(dp)                   :: checksum
    contains
      ! Linked list procedures
-     procedure :: next    ! get the link after this link
-     procedure :: prev    ! get the link before this link
-     procedure :: setNext ! set the link after this link
-     procedure :: add     ! add new link at the end
+     procedure :: nextF    ! get the link after this link
+     procedure :: prevF    ! get the link before this link
+     procedure :: setNextF ! set the link after this link
+     procedure :: addF     ! add new link at the end
 
      ! Data procedures
      procedure :: F          => matmulF
      procedure :: update     => updateTheta
-     procedure :: writeFITS 
+     procedure :: write_F_to_FITS 
   end type comm_F
 
   interface comm_F
-     procedure constructor
+     procedure constructor_F
   end interface comm_F
 
 contains
@@ -64,21 +67,21 @@ contains
   !**************************************************
   !             Routine definitions
   !**************************************************
-  function constructor(info, comp, bp)
+  function constructor_F(info, comp, bp) result(c)
     implicit none
     class(comm_mapinfo), intent(in), target :: info
     class(comm_comp),    intent(in), target :: comp
     class(comm_bp),      intent(in), target :: bp
-    class(comm_F),       pointer            :: constructor
+    class(comm_F),       pointer            :: c
 
     ! General parameters
-    allocate(constructor)
-    constructor%c        => comp
-    constructor%bp       => bp
-    constructor%F_diag   => comm_map(info)
-    constructor%checksum =  -1.d30
+    allocate(c)
+    c%c        => comp
+    c%bp       => bp
+    c%F_diag   => comm_map(info)
+    c%checksum =  -1.d30
     
-  end function constructor
+  end function constructor_F
 
   ! Return map_out = F * map
   subroutine matmulF(self, map, res)
@@ -146,32 +149,32 @@ contains
 
   end subroutine updateTheta
   
-  subroutine writeFITS(self, filename)
+  subroutine write_F_to_FITS(self, filename)
     implicit none
     class(comm_F),    intent(in) :: self
     character(len=*), intent(in) :: filename
     call self%F_diag%writeFITS(filename)
-  end subroutine writeFITS
+  end subroutine write_F_to_FITS
   
-  function next(self)
+  function nextF(self)
     class(comm_F) :: self
-    class(comm_F), pointer :: next
-    next => self%nextLink
-  end function next
+    class(comm_F), pointer :: nextF
+    nextF => self%nextLink
+  end function nextF
 
-  function prev(self)
+  function prevF(self)
     class(comm_F) :: self
-    class(comm_F), pointer :: prev
-    prev => self%prevLink
-  end function prev
+    class(comm_F), pointer :: prevF
+    prevF => self%prevLink
+  end function prevF
   
-  subroutine setNext(self,next)
+  subroutine setNextF(self,next)
     class(comm_F) :: self
     class(comm_F), pointer :: next
     self%nextLink => next
-  end subroutine setNext
+  end subroutine setNextF
 
-  subroutine add(self,link)
+  subroutine addF(self,link)
     class(comm_F)         :: self
     class(comm_F), target :: link
 
@@ -183,6 +186,6 @@ contains
     end do
     link%prevLink => c
     c%nextLink    => link
-  end subroutine add  
+  end subroutine addF
   
 end module comm_F_mod
