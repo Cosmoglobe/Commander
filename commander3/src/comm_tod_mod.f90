@@ -1494,8 +1494,8 @@ contains
 
     npar = 3+self%n_xi
     if (self%baseline_order >= 0) npar = npar + self%baseline_order + 1
-    allocate(output(self%nscan_tot,self%ndet,npar))
-    allocate(  mjds(self%nscan_tot))
+    allocate(output(self%first_scan:self%last_scan,self%ndet,npar))
+    allocate(  mjds(self%first_scan:self%last_scan))
 
     ! Collect all parameters
     output = 0.d0
@@ -1535,15 +1535,15 @@ contains
        do j = 1, self%ndet
           do i = 1, npar
              if (i >= 2 .and. i <= 4) cycle
-             do k = 1, self%nscan_tot
+             do k = self%first_scan, self%last_scan
                 if (output(k,j,i) == 0.d0) then
                    l = k
-                   if (k == 1) then
-                      do while (output(l,j,i) == 0.d0 .and. l < self%nscan)
+                   if (k == self%first_scan) then
+                      do while (output(l,j,i) == 0.d0 .and. l < self%last_scan)
                          l = l+1
                       end do
                    else
-                      do while (output(l,j,i) == 0.d0 .and. l > 1)
+                      do while (output(l,j,i) == 0.d0 .and. l > self%first_scan)
                          l = l-1
                       end do
                    end if
@@ -2380,23 +2380,63 @@ contains
 
   subroutine decompress_pointing_and_flags(self, scan, det, pix, psi, flag)
     implicit none
-    class(comm_tod),                    intent(in)            :: self
+    class(comm_tod),                    intent(inout)         :: self
     integer(i4b),                       intent(in)            :: scan, det
     integer(i4b),        dimension(:),  intent(out), optional :: flag
     integer(i4b),        dimension(:,:),intent(out), optional :: psi, pix
     integer(i4b) :: i, j, k
+
+    if(scan == 1 .and. det == 425) then
+      write(*,*) 'Into decompress pointing+flags', present(flag), present(psi), present(pix), self%scans(scan)%d(det)%accept
+    end if
+
+
+    if (present(flag)) then
+      call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+         ! Apply dynamic mask if it exists
+         if (allocated(self%scans(scan)%d(det)%mask_dyn)) then
+            do i = 1, size(self%scans(scan)%d(det)%mask_dyn,2)
+              j = self%scans(scan)%d(det)%mask_dyn(1,i)
+              k = self%scans(scan)%d(det)%mask_dyn(2,i)
+              flag(j:k) = huge(flag(j))
+            end do
+         end if
+    end if
+
+    if(scan == 1 .and. det == 425) then
+      write(*,*) 'Decompressed flag', flag(1000:1010)
+    end if
+
+    !check if chunk is completely flagged, skip it
+    if(count(iand(self%scans(scan)%d(det)%flag, self%flag0) .ne. 0) == self%scans(scan)%ntod) then
+      self%scans(scan)%d(i)%accept = .false.
+      write(*,*) "Skipping reading chunk ",self%scans(scan)%d(det)%label, self%scans(scan)%chunk_num, "because it is completely flagged"
+    end if
+        
+    if(scan == 1 .and. det == 425) then
+      write(*,*) 'At this point', present(flag), present(psi), present(pix), self%scans(scan)%d(det)%accept, count(iand(self%scans(scan)%d(det)%flag, self%flag0) .ne. 0), self%scans(scan)%ntod
+    end if
+
+
     do i=1, self%nhorn
+       if(.not. self%scans(scan)%d(det)%accept) cycle
+
        if (present(pix)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%pix(i)%p,  pix(:,i))
        end if
+       if(scan == 1 .and. det == 425) then
+         write(*,*) 'Decompressed pix', pix(1000:1010, i)
+       end if
+
+
        if (present(psi)) then
           call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%psi(i)%p,  psi(:,i))
           if (minval(psi) < 1) then
-            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed'
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', should be 1-indexed in scan ', self%scans(scan)%chunk_num, self%scans(scan)%d(i)%label
             stop
           end if
           if (maxval(psi) > self%npsi) then
-            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', greater than npsi,', self%npsi
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', greater than npsi,', self%npsi, ' in scan ', self%scans(scan)%chunk_num, self%scans(scan)%d(i)%label
             stop
           end if
           if (self%polang(det) /= 0.) then
@@ -2411,20 +2451,16 @@ contains
                 psi(j,i) = psi(j,i) - self%npsi
              end if
           end do
-       end if
-    end do
-    if (present(flag)) then
-       call huffman_decode2_int(self%scans(scan)%hkey, self%scans(scan)%d(det)%flag, flag)
+          if ((maxval(psi) > self%npsi) .or. (minval(psi) < 1)) then
+            write(*,*) 'Psi bin ranges from ', minval(psi), maxval(psi), ', greater than npsi,', self%npsi, ' in scan ', self%scans(scan)%chunk_num, self%scans(scan)%d(i)%label, 'after postprocessing'
+          end if
 
-       ! Apply dynamic mask if it exists
-       if (allocated(self%scans(scan)%d(det)%mask_dyn)) then
-          do i = 1, size(self%scans(scan)%d(det)%mask_dyn,2)
-             j = self%scans(scan)%d(det)%mask_dyn(1,i)
-             k = self%scans(scan)%d(det)%mask_dyn(2,i)
-             flag(j:k) = huge(flag(j))
-          end do
        end if
-    end if
+       if(scan == 1 .and. det == 425) then
+         write(*,*) 'Decompressed psi', psi(1000:1010, i)
+       end if
+
+    end do
 
   end subroutine decompress_pointing_and_flags
 

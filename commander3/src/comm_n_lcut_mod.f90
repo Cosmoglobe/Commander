@@ -20,6 +20,7 @@
 !================================================================================
 module comm_N_lcut_mod
   use comm_N_mod
+  use comm_status_mod
   implicit none
 
   private
@@ -444,7 +445,9 @@ contains
     end do
 
     ! Compute coupling matrix
+    call update_status(status, "multiplying Y matrix")
     C = matmul(transpose(Y), Y)
+    call update_status(status, "allreducing Y matrix")
     call mpi_allreduce(MPI_IN_PLACE, C,  size(C), MPI_DOUBLE_PRECISION, MPI_SUM, self%info%comm, ierr)
 
     ! Compute eigen-decomposition

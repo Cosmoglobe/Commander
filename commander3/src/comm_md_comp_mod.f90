@@ -315,7 +315,8 @@ contains
 1   close(unit)
   
     if (n < numband .and. cpar%myid == 0) then
-       write(*,'(a,i6)') ' | Warning: Number of channels without a monopole/dipole definition = ', numband-n
+       write(*,'(a,i6)') ' | Error: Number of channels without a monopole/dipole definition = ', numband-n
+       write(*,*) "Exiting"
        stop
     end if
 

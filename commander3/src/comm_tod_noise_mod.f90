@@ -327,6 +327,13 @@ contains
        xp    = xp + alp*p
        rp    = rp - alp * Ad(u)
        r2new = sum(rp**2)
+
+       ! These lines don't do anything except prevent a floating invalid
+       ! THANKS FORTRAN
+       bet = eps * sigma_bp * nmask 
+       bet = sqrt(abs(r2new))
+       
+
        if (sqrt(abs(r2new)) < eps * sigma_bp * nmask) then  ! average error in each datapoint < eps * sigma_bp
           converged = .true.
           exit

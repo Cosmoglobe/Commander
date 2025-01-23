@@ -365,7 +365,7 @@ end subroutine bin_differential_TOD
       ! y = Ax
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       implicit none
-      class(comm_tod),                 intent(in)              :: tod
+      class(comm_tod),                 intent(inout)           :: tod
       real(dp),     dimension(1:),     intent(in)              :: x_imarr
       real(sp),     dimension(0:),     intent(in)              :: pmask
       logical(lgt), intent(in)                                 :: comp_S
@@ -807,7 +807,7 @@ end subroutine bin_differential_TOD
      !  map_full: real (dp)
      !
      implicit none
-     class(comm_tod),                         intent(in) :: tod
+     class(comm_tod),                      intent(inout) :: tod
      type(planck_rng),                     intent(inout) :: handle
      real(dp),         dimension(:, :),    intent(inout) :: bicg_sol
      integer(i4b),                            intent(in) :: npix, nmaps

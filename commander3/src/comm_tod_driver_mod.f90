@@ -137,15 +137,36 @@ contains
 
     ! Decompress pointing, psi and flags for current scan
     call timer%start(TOD_DECOMP, tod%band)
-    
+ 
     do j = 1, self%ndet
+       self%pix(:,j,:) =1
+       self%flag(:,j) = 2
+       self%psi(:,j,:) = 3
+       if(tod%scans(scan)%d(j)%label == 'x3r03c00' .and. tod%scans(scan)%chunk_num == 295) then
+         write(*,*) 'accept = ', tod%scans(scan)%d(j)%accept, scan, j
+       end if
        if (.not. tod%scans(scan)%d(j)%accept) cycle
        call tod%decompress_pointing_and_flags(scan, j, self%pix(:,j,:), &
             & self%psi(:,j,:), self%flag(:,j))
-    end do
+      
+       if(tod%scans(scan)%d(j)%label == 'x3r03c00' .and. tod%scans(scan)%chunk_num == 295) then
+        do i = 1000, 1010
+            write(*,*) i, self%pix(i,j,1), self%flag(i, j), self%psi(i, j, 1)
+        end do
+       end if
 
+ 
+
+       !if(tod%scans(scan)%d(j)%label == 'x3r03c00' .and. tod%scans(scan)%chunk_num == 295) then
+       !  do k=1, tod%scans(scan)%ntod
+       !    write(*,*) k, self%psi(k, j, :), self%flag(k, j)
+       !  end do
+       !end if
+    end do
+    
     ! Reverse polarization angle 
     if ((trim(tod%tod_type)=='SPIDER') .and. .true.) self%psi(:,:,:) = (4096 + 1) - self%psi(:,:,:)
+    
     call timer%stop(TOD_DECOMP, tod%band)
     !call update_status(status, "todinit_decomp")
     !if (tod%myid == 78) write(*,*) 'c3', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires

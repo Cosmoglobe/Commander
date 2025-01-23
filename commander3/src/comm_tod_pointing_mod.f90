@@ -39,6 +39,8 @@ contains
 
       integer(i4b)                                      :: i, j, k, p, det, nmap
       real(sp)                                          :: s
+      real(dp)                                          :: t
+      character(len=1024) :: filename
 
       ! s = T + Q * cos(2 * psi) + U * sin(2 * psi)
       ! T - temperature; Q, U - Stoke's parameters
@@ -51,27 +53,43 @@ contains
             tmask(:, det) = 0.
             cycle
          end if
+
+         if(tod%scans(scan_id)%d(det)%label == 'x3r03c00' .and. tod%scans(scan_id)%chunk_num == 295) then
+            call wall_time(t)
+            write(filename, "(F20.1)")
+            open(54321, file='data'// trim(filename) //'.txt')
+         end if
+
          do i = 1, tod%scans(scan_id)%ntod
+            tmask(i,det) = pmask(pix(i,det))
+            if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
+
             p = tod%pix2ind(pix(i,det))
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61121', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
             
             if (nmap == 3) then
-                if ((psi(i,det) > 4096)) then
-                  write(*,*) 'Polarization angle is wrong', det, tod%scanid(scan_id), psi(i, det)
-                  cycle
+                !if ((psi(i,det) > tod%npsi) .and. tmask(i,det) .ne. 0. .and. tod%scans(scan_id)%d(det)%label == 'x3r03c00' .and. tod%scans(scan_id)%chunk_num == 295) then
+                !  write(*,*) 'Polarization angle is wrong', tod%scans(scan_id)%d(det)%label, tod%scans(scan_id)%chunk_num, psi(i,det), tod%scans(scan_id)%d(det)%accept, i
+                
+                !end if
+                if(tod%scans(scan_id)%d(det)%label == 'x3r03c00' .and. tod%scans(scan_id)%chunk_num == 295) then
+                  write(54321,*) i, p, tmask(i, det), psi(i, det)
                 end if
-                s_sky(i,det) = map(1,p,det) + &
+                if(p > 0) then
+                  s_sky(i,det) = map(1,p,det) + &
                          & map(2,p,det) * tod%cos2psi(psi(i,det)) + &
                          & map(3,p,det) * tod%sin2psi(psi(i,det))
+                end if
             else if (nmap == 1) then
                 s_sky(i,det) = map(1,p,det)  ! HFI 545 thing
             end if  
 
 
             !if (tod%myid == 78 .and. p == 7863) write(*,*) 'c61122', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires, i, p
-            tmask(i,det) = pmask(pix(i,det))
-            if (iand(flag(i,det), tod%flag0) .ne. 0) tmask(i,det) = 0.
          end do
+         if (tod%scans(scan_id)%d(det)%label == 'x3r03c00' .and. tod%scans(scan_id)%chunk_num == 295) then
+           close(54321)
+         end if
       end do
 
       if (present(s_bp)) then

@@ -173,7 +173,7 @@ def make_chunk(comm_tod, freq, chunk, args):
             comm_tod.add_field(prefix + '/pix', fake_data, compArray)
             comm_tod.add_field(prefix + '/psi', fake_data, compArray)
             comm_tod.add_field(prefix + '/tod', fake_data)
-            comm_tod.add_field(prefix + '/flag', np.uint64(fake_data*2**63), compArray)
+            comm_tod.add_field(prefix + '/flag', fake_data, compArray)
             comm_tod.add_field(prefix + '/scalars', [0,0,0,0])
 
             continue
@@ -181,7 +181,11 @@ def make_chunk(comm_tod, freq, chunk, args):
 
         #psi_dec = sig.decimate(psi, args.downsample)
         psi_dec = psi[::args.downsample]
-        comm_tod.add_field(prefix + '/psi', psi_dec, psiArray)
+
+        psi_rad = np.deg2rad(psi_dec)
+        psi_rad[psi_rad<=0] += 2*np.pi 
+
+        comm_tod.add_field(prefix + '/psi', psi_rad, psiArray)
 
         #lat_down = sig.decimate(lat_gal, args.downsample)
         #lon_down = stats.circmean(np.split(lon_gal, args.downsample), high=360.0, axis=0)
@@ -208,7 +212,7 @@ def make_chunk(comm_tod, freq, chunk, args):
         flag_extra = U.getdata(det, product='flag_extra02', **chunkdict)        
         flag_stepstitch = U.getdata(det + '_flag', product='stepstitch07', **chunkdict)
         
-        flag_tot = np.uint64(flag + 2**32*flag_extra+ 2**30*flag_stepstitch)
+        flag_tot = np.where(np.bitwise_and(np.uint64(flag + 2**32*flag_extra) ,35180601409535) == 0, 0, 1)
                
  
         #downsample flag by taking bitwise or of each n entries

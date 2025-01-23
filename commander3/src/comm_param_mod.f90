@@ -3549,6 +3549,12 @@ end subroutine
           if (trim(cpar%ds_tod_bp_init(i)) /= 'none') then
             call validate_file(trim(cpar%ds_tod_bp_init(i)), 'BAND_TOD_BP_INIT_PROP'//itext)    ! BP prop and init
           end if
+        
+          if (cpar%include_tod_zodi) then
+            call validate_file(trim(cpar%ds_tod_solar_mask(i)), 'BAND_TOD_SOLAR_CENTRIC_MASK'//itext)  ! Solar centric/sidelobe mask
+            call validate_file(trim(cpar%ds_tod_solar_init(i)), 'BAND_TOD_SOLAR_CENTRIC_INITMAP'//itext)  ! Initial solar centric map
+          end if
+
        end if
 
     end do

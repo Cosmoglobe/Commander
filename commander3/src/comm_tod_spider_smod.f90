@@ -396,31 +396,6 @@ contains
         end if
 
 
-
-
-
-
-
-
-
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        ! REMOVE JUMPS ----------------------------------
         allocate(s_jump(sd%ntod, sd%ndet))
         allocate(jumps(sd%ntod, sd%ndet))
         allocate(tod_gapfill(sd%ntod, sd%ndet))
@@ -431,13 +406,20 @@ contains
         do j=1, sd%ndet
 
          ! call tod2file(trim(adjustl(chaindir))//'/psi_'//trim(adjustl(self%label(j)))//'.txt', sd%psi(:,j,1))
-         
+        
+         if(self%scans(i)%chunk_num == 295 .and. self%scans(i)%d(j)%label == 'x3r03c00') then
+           write(*,*) "processing 295 x3r03c00, accept=", self%scans(i)%d(j)%accept 
+         end if
+
+
          ! Throw away detectors that are more than 80% flagged. Also throw away detectors that don't have a partner. 
          if ((sum(sd%flag(:,j)) > 0.8*sd%ntod) .or. (.not. self%scans(i)%d(j)%accept) .or. (j==self%partner(j))) then
             self%scans(i)%d(j)%accept = .false.
             cycle
          end if
     
+
+
            ! Retrieve offset template from previous run, if it exist
            if (allocated(self%scans(i)%d(j)%offset_range)) then
               call expand_offset_list(              &
@@ -470,8 +452,6 @@ contains
             & chaindir,                                  &
             & debug)
             
-
-
               ! Add offsets to persistent list that survives until the next Gibbs iteration
               if (.not. allocated(self%scans(i)%d(j)%offset_range)) then
                  allocate(self%scans(i)%d(j)%offset_range(size(offset_level),2))
@@ -526,46 +506,6 @@ contains
               call tod2file(trim(adjustl(chaindir))//'/s_tot_'//trim(adjustl(self%label(j)))//'_'//trim(adjustl(it_label))//'.txt',       sd%s_tot(:,j))
            end if
         end do
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
         ! Sample correlated noise
@@ -654,27 +594,6 @@ contains
             
          end do
       end if
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         ! Compute noise spectrum parameters
       !   call sample_noise_psd(self, sd%tod, handle, i, sd%mask, sd%s_tot, sd%n_corr)

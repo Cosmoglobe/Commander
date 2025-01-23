@@ -702,6 +702,7 @@ contains
     
     ! Initialize solar centric maps
     do i = 1, numband
+       if (.not. cpar%include_tod_zodi) cycle
        if (trim(data(i)%tod_type) == 'none') cycle
        data(i)%tod%map_solar_allocated = .false.
        model = cpar%ds_tod_solar_model(data(i)%tod%band)
