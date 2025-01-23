@@ -184,11 +184,16 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
             lons = np.array(lons)
             lats = np.array(lats)
             dists = np.array(dists)
-            locs = np.array([lons, lats])
+            #locs = np.array([astropy_times.mjd, lons, lats])
+            x, y, z = hp.dir2vec(lons, lats, lonlat=True)
+            locs = np.array([astropy_times.mjd, x, y, z])
             np.save(f'comet_{ci}', locs)
             interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
             interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
             interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)
+            interpolaters_comet[c]['x'] = interp1d(astropy_times.mjd, x)
+            interpolaters_comet[c]['y'] = interp1d(astropy_times.mjd, y)
+            interpolaters_comet[c]['z'] = interp1d(astropy_times.mjd, z)
 
         for a in ASTEROID_RADII:
             interpolaters_asteroids[a] = {}
@@ -198,13 +203,17 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
                 astropy_times_i = astropy_times[i*1441:(i+1)*1441]
                 eph = MPC.get_ephemeris(a, start=astropy_times_i[0],
                         number=len(astropy_times_i), step='1h')
-                lon, lat = rotator(eph['RA'], eph['Dec'], lonlat=True)
+                lon, lat = rotator(eph['RA'].value, eph['Dec'].value, lonlat=True)
                 lons += lon.tolist()
                 lats += lat.tolist()
             lons = np.array(lons)
-            latss = np.array(lats)
+            lats = np.array(lats)
+            x, y, z = hp.dir2vec(lons, lats, lonlat=True)
             interpolaters_asteroids[a]['lon'] = interp1d(astropy_times.mjd, lons)
             interpolaters_asteroids[a]['lat'] = interp1d(astropy_times.mjd, lats)
+            interpolaters_asteroids[a]['x'] = interp1d(astropy_times.mjd, x)
+            interpolaters_asteroids[a]['y'] = interp1d(astropy_times.mjd, y)
+            interpolaters_asteroids[a]['z'] = interp1d(astropy_times.mjd, z)
     return interpolaters_comet, interpolaters_asteroids
 
 @cache

@@ -44,7 +44,7 @@ BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 CIO_PATH = Path("/mn/stornext/d16/cmbco/ola/dirbe/cio")
 
 # system constants
-N_PROC = multiprocessing.cpu_count()
+N_PROC = multiprocessing.cpu_count() // 2
 
 ROTATOR = hp.Rotator(coord=["E", "G"])
 YDAYS = np.concatenate([np.arange(89345, 89366), np.arange(90001, 90265)])
@@ -80,7 +80,8 @@ FLAG_BITS: dict[str, int] = {
     '73P/Schwassmann–Wachmann 3':13,
     'C/1989 Q1':14,
     'C/1989 T1':15,
-    'C/1990 K1':16,
+    #'C/1990 K1':16,
+    'C/1989 X1':16,
     '1 Ceres':17,
     '2 Pallas':18,
     '4 Vesta':19,
@@ -290,6 +291,8 @@ def get_yday_cio_data(
         # Convert unit vectors to requested nside resolution healpix pixels
         pix = hp.vec2pix(nside_out, *unit_vectors_gal)
         lon, lat = hp.pix2ang(nside_out, pix, lonlat=True)
+        #v_x, v_y, v_z = hp.pix2vec(nside_out, pix)
+        v_x, v_y, v_z = unit_vectors_gal
 
         tod = data[f"Phot{cio_band_label}"].astype(np.float64)[time_sorted_inds]
 
@@ -309,6 +312,7 @@ def get_yday_cio_data(
         # Remove the iras convention color correction
         iras_color_corr_factor = dirbe_utils.get_iras_factor(band)
         flag = common_flags.copy()
+        print(np.unique(flag), 'Pre-planet indicies')
         # Get planet flags
         for body, radius in dirbe_utils.PLANET_RADII.items():
             planet_lon = planet_interps[body]["lon"](time)
@@ -328,44 +332,54 @@ def get_yday_cio_data(
             flag[planet_indices] += 2 ** FLAG_BITS[body]
 
 
+        print(np.unique(flag), 'Pre-comet indicies')
         # Get comet flags
+        np.save(f'horn_pos_{yday}',
+            np.array([v_x, v_y, v_z]))
         for body, radius in dirbe_utils.COMET_RADII.items():
             if body not in FLAG_BITS.keys():
                 continue
-            comet_lon = comet_interps[body]["lon"](time)
-            comet_lat = comet_interps[body]["lat"](time)
+            comet_x = comet_interps[body]["x"](time)
+            comet_y = comet_interps[body]["y"](time)
+            comet_z = comet_interps[body]["z"](time)
             comet_dist = comet_interps[body]["dist"](time)
             if comet_dist.min() < 2:
                 r = radius
             else:
                 r = 1
 
-
             ang_dist = hp.rotator.angdist(
-                np.array([lon, lat]),
-                np.array([comet_lon, comet_lat]),
-                lonlat=True,
+                np.array([v_x, v_y, v_z]),
+                np.array([comet_x, comet_y, comet_z])
             )
+            
+            np.save(f'comet_pos_{yday}_{body[-6:]}',
+                np.array([comet_x, comet_y, comet_z]))
 
             comet_indices = ang_dist <= np.deg2rad(r)
+            print(np.unique(flag), f'Pre-adding {body}')
             flag[comet_indices] += 2 ** FLAG_BITS[body]
+            #print(body, (np.bitwise_and(flag, 2**FLAG_BITS[body]) > 0).sum() / len(flag))
 
+        print(np.unique(flag), 'Pre-asteroid indicies')
         for body, radius in dirbe_utils.ASTEROID_RADII.items():
             if body not in FLAG_BITS.keys():
                 continue
-            aster_lon = asteroid_interps[body]["lon"](time)
-            aster_lat = asteroid_interps[body]["lat"](time)
-
+            aster_x = asteroid_interps[body]["x"](time)
+            aster_y = asteroid_interps[body]["y"](time)
+            aster_z = asteroid_interps[body]["z"](time)
 
             ang_dist = hp.rotator.angdist(
-                np.array([lon, lat]),
-                np.array([aster_lon, aster_lat]),
-                lonlat=True,
+                np.array([v_x, v_y, v_z]),
+                np.array([aster_x, aster_y, aster_z])
             )
 
-            aster_indices = ang_dist <= np.deg2rad(r)
+            aster_indices = ang_dist <= np.deg2rad(radius)
+            np.save(f'aster_pos_{yday}_{body[-6:]}',
+                np.array([aster_x, aster_y, aster_z]))
             flag[aster_indices] += 2 ** FLAG_BITS[body]
-
+        print(np.unique(flag), "final situation")
+        asdf
 
         # Find which flags correspond to the detector and get the inds of those flags
         xs_noise_inds = (xs_noise_flags & band_bit) > 0
@@ -403,6 +417,14 @@ def get_yday_cio_data(
         flags[band_label] = padd_array_gaps(
             np.split(flag, split_inds), padding=flag_padding
         )
+
+        #  print('Total flags:')
+        #  test_arr = np.zeros(18)
+        #  for i in range(18):
+        #      test = np.bitwise_and(flags[band_label], 2**i)
+        #      test_arr[i] = (test != 0).sum() / len(flags[band_label])
+        #  print(np.arange(18))
+        #  print(test_arr)
 
     return YdayData(
         tods, 
