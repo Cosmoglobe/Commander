@@ -791,12 +791,14 @@ contains
 
                ! Allocate other downsampled quantities with same shape
                ndownsamp = size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
-               allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
+               if (.not. allocated(data(i)%tod%scans(scan)%d(j)%downsamp_scat)) then
+                  allocate (data(i)%tod%scans(scan)%d(j)%downsamp_zodi(ndownsamp))
+                  allocate (data(i)%tod%scans(scan)%d(j)%downsamp_scat(ndownsamp, zodi_model%n_comps))
+                  allocate (data(i)%tod%scans(scan)%d(j)%downsamp_therm(ndownsamp, zodi_model%n_comps))
 
                ! Compute downsampled pointing in various coordinates
-               allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ndownsamp,5))
+                  allocate(data(i)%tod%scans(scan)%d(j)%downsamp_point(ndownsamp,5))
+               end if
                do k = 1, size(data(i)%tod%scans(scan)%d(j)%downsamp_pix)
 !!$                  call pix2ang_ring(data(i)%tod%nside, data(i)%tod%scans(scan)%d(j)%downsamp_pix(k), lat, lon)
 !!$                  phi = phi * 180.d0/pi
@@ -1158,7 +1160,7 @@ contains
       ! Initialize active monopoles
       do i = 1, numband
          ind = zodi_model%get_par_ind(mono_band=i)
-         if (zodi_model%theta_stat(ind,samp_group) == 0) band_monopole(i) = get_monopole_amp(data(i)%label)
+         band_monopole(i) = get_monopole_amp(data(i)%label)
       end do
 
       if (cpar%myid_chain == 0) then
@@ -1388,7 +1390,12 @@ contains
                    &)
                call wall_time(t3)
                !if (data(1)%tod%myid == 10) write(*,*) ' CPU2 = ', t3-t4
-               
+
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'tod  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_tod))
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'sky  ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_sky))
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'zodi ', minval((data(i)%tod%scans(scan)%d(j)%downsamp_tod)), maxval((data(i)%tod%scans(scan)%d(j)%downsamp_zodi))
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'mono ', mono
+               !write(*,*) data(i)%tod%scanid(scan), data(1)%tod%myid, 'noise', data(i)%tod%scans(scan)%d(j)%N_psd%sigma0
                chisq = sum( &
                   & ((data(i)%tod%scans(scan)%d(j)%downsamp_tod &
                   &   - data(i)%tod%scans(scan)%d(j)%downsamp_sky &

@@ -127,7 +127,7 @@ contains
          call get_tokens(cpar%zs_samp_group_bands(i), ',', tokens, ntok) 
          do j = 1, ntok
             k = get_string_index(band_labels, tokens(j))
-            zodi_model%sampgroup_active_band(k,i) = .true.
+            zodi_model%sampgroup_active_band(k,i) = .true. 
          end do
          call samp_group2stat(cpar, i, zodi_model%sampgroup_active_band(:,i), zodi_model%theta_stat(:,i))
       end do
@@ -1024,7 +1024,7 @@ contains
                  ind = zodi_model%get_par_ind(comp=zodi_model%comps(c), em_string=comp_param(2))
                  stat(ind) = 0
               end if
-           else if (trim(label(1:2)) == 'al') then
+           else if (trim(label(1:2)) == 'al' .and. trim(label) /= 'alpha') then
               ! Albedo
               call get_tokens(label, '@', comp_param, num=n)
               if (n == 1) then
@@ -1264,7 +1264,7 @@ contains
       else
          scattering = .false.
          do i = 1, zodi_model%n_comps
-            if (zodi_model%comps(i)%c%emissivity(tod%id) > EPS) then
+            if (zodi_model%comps(i)%c%albedo(tod%id) > EPS) then
                scattering = .true.
                exit
             end if
@@ -1365,6 +1365,11 @@ contains
             end if
 
             call get_dust_grain_temperature(comp_LOS(k)%R, comp_LOS(k)%T, model%T_0, model%delta)
+!!$            write(*,*) tod%info%myid, k, size(comp_LOS(k)%T), size(tod%zodi_B_nu_spl_obj(det)%x), size(tod%zodi_B_nu_spl_obj(det)%y)
+!!$            write(*,*) tod%info%myid, k, comp_LOS(k)%T
+!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%x
+!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%y
+!!$            write(*,*) tod%info%myid, k, tod%zodi_B_nu_spl_obj(det)%y2
             call splint_simple_multi(tod%zodi_b_nu_spl_obj(det), comp_LOS(k)%T, comp_LOS(k)%B_nu)
 
             call model%comps(k)%c%get_density(comp_LOS(k)%X, earth_lon, comp_LOS(k)%n)
