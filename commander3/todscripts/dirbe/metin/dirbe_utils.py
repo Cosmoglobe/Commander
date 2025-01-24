@@ -103,7 +103,7 @@ COMET_RADII = {
         'C/1989 Q1':2,
         'C/1989 T1':2,
         'C/1989 X1':15,
-        'C/1990 K1':2
+        'C/1990 K1':5
         }
 ASTEROID_RADII = {
         '1 Ceres':1,
@@ -184,10 +184,8 @@ def get_smallbody_interps(time_delta: TimeDelta) -> dict[str, dict[str, interp1d
             lons = np.array(lons)
             lats = np.array(lats)
             dists = np.array(dists)
-            #locs = np.array([astropy_times.mjd, lons, lats])
             x, y, z = hp.dir2vec(lons, lats, lonlat=True)
-            locs = np.array([astropy_times.mjd, x, y, z])
-            np.save(f'comet_{ci}', locs)
+
             interpolaters_comet[c]['lon'] = interp1d(astropy_times.mjd, lons)
             interpolaters_comet[c]['lat'] = interp1d(astropy_times.mjd, lats)
             interpolaters_comet[c]['dist'] = interp1d(astropy_times.mjd, dists)

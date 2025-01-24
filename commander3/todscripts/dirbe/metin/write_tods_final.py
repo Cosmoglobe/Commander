@@ -35,16 +35,14 @@ import dirbe_utils
 from scipy.interpolate import interp1d
 from astropy.time import Time, TimeDelta
 from cosmoglobe.tod_tools import TODLoader
-import zodipy
 
-# zodi_model = zodipy.Zodipy(extrapolate=True)
 # Path objects
 DIRBE_DATA_PATH = Path("/mn/stornext/d5//data/duncanwa/DIRBE/hdf_files/")
 BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 CIO_PATH = Path("/mn/stornext/d16/cmbco/ola/dirbe/cio")
 
 # system constants
-N_PROC = multiprocessing.cpu_count() // 2
+N_PROC = multiprocessing.cpu_count() // 4
 
 ROTATOR = hp.Rotator(coord=["E", "G"])
 YDAYS = np.concatenate([np.arange(89345, 89366), np.arange(90001, 90265)])
@@ -77,30 +75,25 @@ FLAG_BITS: dict[str, int] = {
     "saturn": 10,
     "uranus": 11,
     "neptune": 12,
-    '73P/Schwassmann–Wachmann 3':13,
-    'C/1989 Q1':14,
-    'C/1989 T1':15,
-    #'C/1990 K1':16,
-    'C/1989 X1':16,
-    '1 Ceres':17,
-    '2 Pallas':18,
-    '4 Vesta':19,
+    "comets": 13,
+    "asteroids": 14,
     # Orbit and attitude flag (each observation has either of each pair turned on)
-    "non_definitive_attitude": 20,
-    # "definite_attitude": 19,
-    "coarse_attitude": 21,
-    # "fine_attitude": 21,
-    # "merged_attitude": 22,
-    # "external_uax_attitude": 23,
-    # "space_craft_slewing": 24,
-    # "space_craft_not_slewing": 25,
-    # "special_pointing": 26,
-    # "normal_pointing": 27,
-    #"space_craft_ascending": 28,
-    #"space_craft_descending": 29,
-    #"leading_los": 25,
-    #"trailing_los": 26,
+    "non_definitive_attitude": 15,
+    "coarse_attitude": 16,
 }
+
+'''
+The default DIRBE flags used for Commander analysis are in the defaults directory. For example,
+for band 1 the default value is BAND_TOD_FLAG&&& = 2047, which includes all the radiation zone flags,
+the excess noise flag, the bad data flag, and the planet flags. Currently it seems that the attitude flags
+are not necessary, but they are included now for completeness.
+
+Only a few bands are sensitive to the infrared radiation from comets and asteroids, specifically bands 4 and 5. For these,
+the flags should include the comet and asteroid flags. When summed together, these flags should be 32767 = 2**15 - 1.
+
+Comet flags and asteroid flags currently are set by hand, since their FWHM are not documented anywhere specifically, although
+Arendt 2014 does specify that the comet tails are up to 15 degrees long when they are within 2 AU of the sun.
+'''
 
 
 @dataclass
@@ -215,15 +208,15 @@ def get_yday_cio_data(
 
     bad_data_padding = padd_vals(base_padding, BAD_DATA_SENTINEL)
     pix_padding = padd_vals(base_padding, 0, dtype=np.int64)
-    flag_padding = padd_vals(base_padding, 2 ** FLAG_BITS["bad_data"], dtype=np.int16)
+    flag_padding = padd_vals(base_padding, 2 ** FLAG_BITS["bad_data"], dtype=np.int32)
     psi_padding = padd_vals(base_padding, 0, dtype=np.int64)
 
     # Get cio flags
-    rad_zone_flags = data["RadZone"].astype(np.int8)[time_sorted_inds]
-    xs_noise_flags = data["XSNoise"].astype(np.int16)[time_sorted_inds]
-    oa_flags = data["OA_Flags"].astype(np.int16)[time_sorted_inds]
+    rad_zone_flags = data["RadZone"].astype(np.int32)[time_sorted_inds]
+    xs_noise_flags = data["XSNoise"].astype(np.int32)[time_sorted_inds]
+    oa_flags = data["OA_Flags"].astype(np.int32)[time_sorted_inds]
 
-    common_flags = np.zeros_like(rad_zone_flags, dtype=np.int16)
+    common_flags = np.zeros_like(rad_zone_flags, dtype=np.int32)
     non_zero_rad_zone_inds = rad_zone_flags > 0
     common_flags[non_zero_rad_zone_inds > 0] += (
         2 ** rad_zone_flags[non_zero_rad_zone_inds]
@@ -291,7 +284,6 @@ def get_yday_cio_data(
         # Convert unit vectors to requested nside resolution healpix pixels
         pix = hp.vec2pix(nside_out, *unit_vectors_gal)
         lon, lat = hp.pix2ang(nside_out, pix, lonlat=True)
-        #v_x, v_y, v_z = hp.pix2vec(nside_out, pix)
         v_x, v_y, v_z = unit_vectors_gal
 
         tod = data[f"Phot{cio_band_label}"].astype(np.float64)[time_sorted_inds]
@@ -312,7 +304,6 @@ def get_yday_cio_data(
         # Remove the iras convention color correction
         iras_color_corr_factor = dirbe_utils.get_iras_factor(band)
         flag = common_flags.copy()
-        print(np.unique(flag), 'Pre-planet indicies')
         # Get planet flags
         for body, radius in dirbe_utils.PLANET_RADII.items():
             planet_lon = planet_interps[body]["lon"](time)
@@ -332,13 +323,8 @@ def get_yday_cio_data(
             flag[planet_indices] += 2 ** FLAG_BITS[body]
 
 
-        print(np.unique(flag), 'Pre-comet indicies')
         # Get comet flags
-        np.save(f'horn_pos_{yday}',
-            np.array([v_x, v_y, v_z]))
         for body, radius in dirbe_utils.COMET_RADII.items():
-            if body not in FLAG_BITS.keys():
-                continue
             comet_x = comet_interps[body]["x"](time)
             comet_y = comet_interps[body]["y"](time)
             comet_z = comet_interps[body]["z"](time)
@@ -353,18 +339,11 @@ def get_yday_cio_data(
                 np.array([comet_x, comet_y, comet_z])
             )
             
-            np.save(f'comet_pos_{yday}_{body[-6:]}',
-                np.array([comet_x, comet_y, comet_z]))
 
             comet_indices = ang_dist <= np.deg2rad(r)
-            print(np.unique(flag), f'Pre-adding {body}')
-            flag[comet_indices] += 2 ** FLAG_BITS[body]
-            #print(body, (np.bitwise_and(flag, 2**FLAG_BITS[body]) > 0).sum() / len(flag))
+            flag[comet_indices] += 2 ** FLAG_BITS["comets"]
 
-        print(np.unique(flag), 'Pre-asteroid indicies')
         for body, radius in dirbe_utils.ASTEROID_RADII.items():
-            if body not in FLAG_BITS.keys():
-                continue
             aster_x = asteroid_interps[body]["x"](time)
             aster_y = asteroid_interps[body]["y"](time)
             aster_z = asteroid_interps[body]["z"](time)
@@ -375,11 +354,7 @@ def get_yday_cio_data(
             )
 
             aster_indices = ang_dist <= np.deg2rad(radius)
-            np.save(f'aster_pos_{yday}_{body[-6:]}',
-                np.array([aster_x, aster_y, aster_z]))
-            flag[aster_indices] += 2 ** FLAG_BITS[body]
-        print(np.unique(flag), "final situation")
-        asdf
+            flag[aster_indices] += 2 ** FLAG_BITS["asteroids"]
 
         # Find which flags correspond to the detector and get the inds of those flags
         xs_noise_inds = (xs_noise_flags & band_bit) > 0
@@ -393,18 +368,7 @@ def get_yday_cio_data(
         pixels[band_label] = padd_array_gaps(
             np.split(pix, split_inds), padding=pix_padding
         )
-        # nus, weights = dirbe_utils.get_bandpass(band)
-        # zodi_tods = zodi_model.get_emission_pix(
-        #     freq=nus,
-        #     weights=weights,
-        #     pixels=pixels[band_label],
-        #     obs_time=Time(time[0], format="mjd"),
-        #     obs_pos=sat_pos * u.au,
-        #     nside=nside_out,
-        #     coord_in="G",
-        # )
 
-        # tods[band_label] = zodi_tods.value
         tods[band_label] = padd_array_gaps(
             np.split(tod * iras_color_corr_factor if color_corr else tod, split_inds),
             padding=bad_data_padding,
@@ -417,14 +381,6 @@ def get_yday_cio_data(
         flags[band_label] = padd_array_gaps(
             np.split(flag, split_inds), padding=flag_padding
         )
-
-        #  print('Total flags:')
-        #  test_arr = np.zeros(18)
-        #  for i in range(18):
-        #      test = np.bitwise_and(flags[band_label], 2**i)
-        #      test_arr[i] = (test != 0).sum() / len(flags[band_label])
-        #  print(np.arange(18))
-        #  print(test_arr)
 
     return YdayData(
         tods, 
@@ -451,6 +407,27 @@ def padd_vals(
 
 
 def get_oa_flags(oa_flags: np.ndarray, yday: int) -> np.ndarray:
+    """
+    Function which converts the OA flags to the new flag system. The new flag system is as follows:
+    - The OA flags are split into 7 bits, each bit corresponding to a different flag.
+    From the DIRBE Explanatory supplement, these are
+    - Bit 0: 1 if non-definitive attitude, 0 if definitive attitude
+    - Bit 1: 1 if coarse attitude, 0 if fine attitude
+    - Bit 2: 1 if merged attitude, 0 if external UAX attitude
+    - Bit 3: 1 if spacecraft slewing, 0 if spacecraft not slewing
+    - Bit 4: 1 if special pointing, 0 if normal pointing
+    - Bit 5: 1 when spacecraft in ascending portion of COBE orbit, 
+                i.e., moving up toward North Ecliptic Pole,
+             0 when spacecraft in descending portion of COBE orbit,
+                i.e., moving down toward South Ecliptic Pole
+    - Bit 6: 1 if leading LOS, 0 if trailing LOS
+    - Bit 7: Not used
+
+    Currently, only the non-definitive attitude is considered a gamechanger, so flags with value of 15 (2**15 = 32768)
+    need to be removed. All others are set to 2**16 = 65536
+
+    Default assumptions si taht the attitude solutions are the highest values. 
+    """
     new_bits = iter(
         [
             bit
@@ -460,15 +437,13 @@ def get_oa_flags(oa_flags: np.ndarray, yday: int) -> np.ndarray:
     )
     flags = np.zeros_like(oa_flags)
     for cio_bit, bit1 in zip(range(7), new_bits):
-        bit2 = next(new_bits)
         inds = (oa_flags & 2**cio_bit) > 0
         flags[inds] += 2**bit1
-        flags[~inds] += 2**bit2
-
     return flags
 
 
 def get_flag_sum(flags: list[str]) -> int:
+
     if flags:
         return sum(2 ** FLAG_BITS[flag] for flag in flags)
     return 0
@@ -670,19 +645,8 @@ def main() -> None:
             "uranus",
             "neptune",
             "non_definitive_attitude",
-            # "definite_attitude",
             "coarse_attitude",
-            # "fine_attitude",
-            # "merged_attitude",
-            # "external_uax_attitude",
-            # "space_craft_slewing",
-            # "space_craft_not_slewing",
             "special_pointing",
-            # "normal_pointing",
-            # "space_craft_ascending",
-            # "space_craft_descending",
-            # "leading_los",
-            # "trailing_los",
         ]
     )
     print(f"flag bit sum: {flag_bit_sum}")
