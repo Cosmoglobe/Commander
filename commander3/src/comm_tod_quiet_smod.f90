@@ -274,15 +274,15 @@ contains
        if (sample_rel_bandpass) then
           !call sd%init_differential(self, i, map_sky, procmask, procmask2, &
           !  & init_s_bp=.true., init_s_bp_prop=.true.)
-         call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+         call sd%init_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else if (sample_abs_bandpass) then
          ! call sd%init_differential(self, i, map_sky, procmask, procmask2, &
          !   & init_s_bp=.true., init_s_sky_prop=.true.)
-         call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+         call sd%init_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
        else
          ! call sd%init_differential(self, i, map_sky, procmask, procmask2, &
          !   & init_s_bp=.true.)
-         call init_scan_data_singlehorn(sd, self, i, map_sky, procmask, procmask2, init_s_bp=.true.)
+         call sd%init_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
        end if
        allocate(s_buf(sd%ntod,sd%ndet))
 
