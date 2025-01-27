@@ -662,6 +662,65 @@ contains
   end subroutine compute_hermitian_root
 
 
+  subroutine compute_hermitian_root_sp(A, pow, trunc)
+    implicit none
+
+    real(sp),                   intent(in)    :: pow
+    real(sp), dimension(1:,1:), intent(inout) :: A
+    logical(lgt), intent(in), optional :: trunc
+
+    integer(i8b)     :: i, n, liwork, lwork, lda, ldb, info
+    character(len=1) :: job, uplo
+    real(sp),     allocatable, dimension(:,:) :: V
+    real(dp),     allocatable, dimension(:)   :: W, work
+    integer(i4b), allocatable, dimension(:)   :: iwork
+
+    job    = 'v'
+    uplo   = 'l'
+    n      = size(A(1,:))
+    lda    = n
+    ldb    = n
+    liwork = 5*n + 3
+    lwork  = 2*n**2 + 6*n + 1
+
+    ! Perform eigenvalue decomposition
+    allocate(work(lwork))
+    allocate(iwork(liwork))
+    allocate(V(n,n))
+    allocate(W(n))
+    V = A
+    call dsyevd(job, uplo, n, V, lda, W, work, lwork, iwork, liwork, info)
+
+    if (present(trunc)) then
+       where (W < 0.d0)
+          W = 0.d0
+       end where
+    else
+       if (any(W <= 0.d0)) then
+!       write(*,*) 'W = ', W
+          A(1,1) = -1.30
+          deallocate(V)
+          deallocate(W)
+          deallocate(work)
+          deallocate(iwork)
+          return
+       end if
+    end if
+
+    ! Re-compose matrix
+    do i = 1, n
+       A(i,:) = W(i)**pow * V(:,i)
+    end do
+    A = matmul(V, A)
+
+    deallocate(V)
+    deallocate(W)
+    deallocate(work)
+    deallocate(iwork)
+
+  end subroutine compute_hermitian_root_sp
+
+
   subroutine compute_hermitian_root_with_mask(A, pow, A2, pow2)
     implicit none
 
@@ -807,7 +866,7 @@ contains
     integer(i4b)                                      :: myid, i, n    
     real(dp)                                          :: maxeigenval  
 
-    myid = 1000
+    myid = 1000 ! ???
     n = size(matrix(1,:))
     allocate(matrix2(n,n))
     allocate(eigenvals(n))

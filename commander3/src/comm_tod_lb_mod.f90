@@ -32,6 +32,7 @@ module comm_tod_LB_mod
   !
    use comm_tod_mod
   use comm_tod_driver_mod
+  use comm_conviqt_mod
   implicit none
 
   !private

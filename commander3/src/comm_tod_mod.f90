@@ -22,11 +22,16 @@ module comm_tod_mod
   use comm_fft_mod
   use comm_huffman_mod
   use comm_conviqt_mod
+  use comm_tod_cray_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_shared_arr_mod
+  use comm_utils
   USE ISO_C_BINDING
   implicit none
+
+  private
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -36,6 +41,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
+     real(dp)          :: baseline1, baseline2
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
@@ -126,8 +132,8 @@ module comm_tod_mod
      integer(i4b) :: flag0
      integer(i4b) :: n_xi                                         ! Number of noise parameters
      integer(i4b) :: ntime                                        ! Number of time values
+     integer(i4b) :: n_cray_temps = 0                             ! number of classes of cosmic rays we have
      integer(i4b) :: baseline_order                               ! Polynomial order for baseline
-
      real(dp)     :: central_freq                                 !Central frequency
      real(dp)     :: samprate, samprate_lowres                    ! Sample rate in Hz
      real(dp)     :: chisq_threshold                              ! Quality threshold in sigma
@@ -136,7 +142,6 @@ module comm_tod_mod
      logical(lgt) :: apply_inst_corr               
      logical(lgt) :: sample_abs_bp
      logical(lgt) :: symm_flags               
-     logical(lgt) :: HFI_flag 
      class(comm_orbdipole), pointer :: orb_dp
      real(dp), allocatable, dimension(:)     :: gain0                                      ! Mean gain
      real(dp), allocatable, dimension(:)     :: polang                                      ! Detector polarization angle
@@ -199,7 +204,8 @@ module comm_tod_mod
      class(comm_mapinfo), pointer                      :: slinfo => null()  ! Sidelobe map info
      class(comm_mapinfo), pointer                      :: mbinfo => null()  ! Main beam map info
      class(map_ptr),     allocatable, dimension(:)     :: slbeam, mbeam   ! Sidelobe beam data (ndet)
-     class(conviqt_ptr), allocatable, dimension(:)     :: slconv ! SL-convolved maps (ndet)
+     class(conviqt_ptr), allocatable, dimension(:)     :: slconv   ! SL-convolved maps (ndet)
+     class(cray_ptr),    allocatable, dimension(:)     :: cray ! cosmic ray templates
      class(conviqt_ptr), allocatable, dimension(:)     :: slconvA, slconvB ! SL-convolved maps (ndet)
      real(dp),           allocatable, dimension(:,:)   :: bp_delta  ! Bandpass parameters (0:ndet, npar)
      real(dp),           allocatable, dimension(:,:)   :: spinaxis ! For load balancing
@@ -278,7 +284,7 @@ module comm_tod_mod
      procedure                           :: create_dynamic_mask
      procedure                           :: get_s_static
   end type comm_tod
-
+  
   abstract interface
      subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
@@ -298,7 +304,7 @@ module comm_tod_mod
   type tod_pointer
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
-
+  
 contains
 
   subroutine initialize_tod_mod(cpar)
@@ -514,6 +520,15 @@ contains
     ! Allocate orbital dipole object; this should go in the experiment files, since it must be done after beam init
     !allocate(self%orb_dp)
     !self%orb_dp => comm_orbdipole(self%mbeam)
+
+    ! Init cosmic ray template removal
+    if(self%n_cray_temps > 0) then 
+      allocate(self%cray(self%ndet))
+      do i = 1, self%ndet
+        self%cray(i)%p => comm_cray(self%n_cray_temps)
+      end do
+    end if
+
   end subroutine tod_constructor
 
   subroutine precompute_lookups(self)
@@ -619,6 +634,7 @@ contains
     type(hdf_file) :: h5_file
     integer(i4b) :: lmax_beam, lmax_sl, i
     type(comm_mapinfo), pointer :: info_beam
+
 
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
@@ -909,9 +925,9 @@ contains
     character(len=*), dimension(:), intent(in)    :: detlabels
     character(len=*), dimension(:,:), intent(in)  :: diode_names
 
-    integer(i4b)       :: i,j,k,l, n, m, ext(1)
+    integer(i4b)       :: i,j,k,l, n, m, ext(1), setsize(1)
     real(sp)           :: nu
-    real(dp)           :: scalars(4)
+    real(dp)           :: scalars(4), time
     character(len=6)   :: slabel
     character(len=128) :: field
     type(hdf_file)     :: file
@@ -946,10 +962,15 @@ contains
 
     ! Read common scan data
     call read_hdf(file, slabel // "/common/vsun",  self%v_sun, opt=.true.)
+   
+    call get_size_hdf(file, slabel // "/common/time", setsize)
 
-    ! Read in time at the start and end of each scan (if available)
-    call read_hdf(file, slabel // "/common/time",  self%t0)
-    call read_hdf(file, slabel // "/common/time_end",  self%t1, opt=.true.)
+    if(setsize(1) == 3) then
+      call read_hdf(file, slabel // "/common/time",  self%t0)
+    else 
+      call read_hdf(file, slabel // "/common/time", time)
+      self%t0(2) = time
+    end if
 
     ! HKE: LFI files should be regenerated with (x,y,z) info
     ! Read in satellite and earth position at the start and end of each scan (if available)
@@ -957,6 +978,7 @@ contains
     call read_hdf(file, slabel // "/common/satpos_end",  self%x1_obs, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos",  self%x0_earth, opt=.true.)
     call read_hdf(file, slabel // "/common/earthpos_end",  self%x1_earth, opt=.true.)
+
 
     ! Read detector scans
     allocate(self%d(ndet), buffer_sp(n))
@@ -1096,10 +1118,13 @@ contains
     call hufmak_precomp_int(hsymb,htree,self%hkey)
     deallocate(hsymb, htree)
     if (tod%compressed_tod) then
-       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb_sp)
+!!$       call read_alloc_hdf(file, slabel // "/common/todsymb", hsymb)
+!!$       call read_alloc_hdf(file, slabel // "/common/todtree", htree)
+       !TODO: this needs to be generalized to work for both floats and ints
+       call read_alloc_hdf(file, slabel // "/common/huffsymb2", hsymb)
        call read_alloc_hdf(file, slabel // "/common/hufftree2", htree)
-       call hufmak_precomp_sp(hsymb_sp,htree,self%todkey)
-       deallocate(hsymb_sp, htree)
+       call hufmak_precomp_int(hsymb,htree,self%todkey)
+       deallocate(hsymb, htree)
     end if
 
     ! Read instrument-specific infomation
@@ -1896,6 +1921,7 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
     !
@@ -2522,8 +2548,17 @@ contains
     real(sp),            dimension(:),  intent(out) :: tod
 
     byte,  allocatable, dimension(:)  :: test
+    integer(i4b), allocatable, dimension(:) :: tod_int
 
-    call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    if( index(self%instlabel, 'LFI') /= 0) then ! raw data is naturally a float
+          call huffman_decode2_sp(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod)
+    else ! raw data is an int
+      allocate(tod_int(size(tod)))
+      !write(*,*) self%scans(scan)%d(det)%label, self%scans(scan)%chunk_num, size(self%scans(scan)%d(det)%ztod)
+      call huffman_decode2_int(self%scans(scan)%todkey, self%scans(scan)%d(det)%ztod, tod_int)
+      tod = real(tod_int, sp)
+      deallocate(tod_int)
+    endif
 
   end subroutine decompress_tod
   

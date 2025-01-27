@@ -31,6 +31,7 @@ module comm_tod_lfi_mod
   !   process_LFI_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out)
   !       Routine which processes the time ordered data
   !
+  use comm_conviqt_mod
   use comm_tod_driver_mod
   implicit none
 
