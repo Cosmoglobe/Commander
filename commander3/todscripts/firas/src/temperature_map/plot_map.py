@@ -157,9 +157,9 @@ for mode in modes.keys():
             # coord="G",
             title=f"{int(f_ghz[mode][freq]):04d} GHz",
             unit="MJy/sr",
-            # norm="log",
-            min=0,
-            max=400,
+            norm="hist",
+            # min=0,
+            # max=400,
         )
         # hp.graticule(coord="G")
         plt.savefig(
@@ -185,9 +185,9 @@ for freq in range(len(f_ghz["lf"])):
         # coord="G",
         title=f"{int(f_ghz['lf'][freq]):04d} GHz",
         unit="MJy/sr",
-        # norm="hist",
-        min=100,
-        max=400,
+        norm="hist",
+        # min=100,
+        # max=400,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/sky_map/joint/{int(f_ghz['lf'][freq]):04d}.png")
@@ -204,9 +204,9 @@ for mode in modes:
     temps[mode] = np.zeros(npix)
     for i in range(len(m[mode])):
         fit[mode] = minimize(residuals, t0, args=(f_ghz[mode][1:], m[mode][i, 1:]))
-        temps[mode] = fit[mode].x[0]
+        temps[mode][i] = fit[mode].x[0]
 
-    print(f"{mode}: {temps}")
+    print(f"{mode}: {temps[mode]}")
 
     hp.mollview(
         temps[mode],
@@ -220,6 +220,7 @@ for mode in modes:
     plt.savefig(f"../../output/maps/temperature_map_{mode}.png")
     plt.close()
 
+temps = np.zeros(npix)
 for i in range(len(m_joint)):
     if joint_density[i] != 0:
         fit = minimize(residuals, t0, args=(f_ghz["lf"][1:], m_joint[i, 1:]))

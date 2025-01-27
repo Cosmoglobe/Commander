@@ -1,4 +1,9 @@
 import numpy as np
+from astropy.io import fits
+
+# modes = {"ss": 0, "lf": 3}
+# modes = {"ss": 0}
+modes = {"lf": 3}
 
 data = np.load(
     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/output/data/sky.npz",
@@ -6,10 +11,28 @@ data = np.load(
 )
 
 # print(data.files)
+variables_names = [
+    "stat_word_16",
+    "stat_word_13",
+    "stat_word_5",
+    "stat_word_9",
+    "lvdt_stat_a",
+    "lvdt_stat_b",
+]
 
-print(f"stat_word_16: {data["stat_word_16_lf"][137900]}")
-print(f"stat_word_13: {data["stat_word_13_lf"][158400]}")
-print(f"stat_word_5: {data["stat_word_5_lf"][1055]}")
-print(f"stat_word_9: {data["stat_word_9_lf"][6253]}")
-print(f"lvdt_stat_a: {data["lvdt_stat_a_lf"][93609]}")
-print(f"lvdt_stat_b: {data["lvdt_stat_b_lf"][93609]}")
+mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
+mask = mask[1].data.astype(int)
+
+variables = {}
+for mode in modes.keys():
+    print(f"mode: {mode}")
+    pix_gal = data[f"pix_gal_{mode}"]
+    for name in variables_names:
+        variables[name] = data[f"{name}_{mode}"][mask[pix_gal] == 1]
+
+    print(f"stat_word_16: {variables["stat_word_16"][76950]}")
+    print(f"stat_word_13: {variables["stat_word_13"][1421]}")
+    print(f"stat_word_5: {variables["stat_word_5"][1421]}")
+    print(f"stat_word_9: {variables["stat_word_9"][1067]}")
+    print(f"lvdt_stat_a: {variables["lvdt_stat_a"][1067]}")
+    print(f"lvdt_stat_b: {variables["lvdt_stat_b"][792]}")

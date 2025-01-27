@@ -99,13 +99,20 @@ variable_names = [
 ]
 
 sky = {}
+spec = {}
+pix_gal = {}
 for mode in modes.keys():
     sky[mode] = data[mode]
+    print(f"sky[mode]: {sky[mode].shape}")
+    spec[mode] = np.abs(sky[mode][:, 1:])
+    print(f"spec[mode]: {spec[mode].shape}")
+    pix_gal[mode] = data[f"pix_gal_{mode}"]
 # variables = data["variables"]
 variables = {}
 for mode in modes.keys():
     for variable_name in variable_names:
         variables[f"{variable_name}_{mode}"] = data[f"{variable_name}_{mode}"]
+        print(f"{variable_name}_{mode}: {variables[f'{variable_name}_{mode}'].shape}")
 
 # data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
@@ -128,14 +135,15 @@ for mode, item in modes.items():
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
-spec = {}
-for mode in modes.keys():
-    spec[mode] = np.abs(sky[mode][:, 1:])
-    # spec[mode] = np.max(spec[mode], axis=1)
-
 # remove data inside the mask
-# for name in variables.keys():
-#     variables[name] = variables[name][mask[pix_gal] == 1]
+for mode in modes:
+    spec[mode] = spec[mode][mask[pix_gal[mode]] == 1]
+    print(f"size of spec: {spec[mode].shape}")
+    for name in variable_names:
+        variables[f"{name}_{mode}"] = variables[f"{name}_{mode}"][
+            mask[pix_gal[mode]] == 1
+        ]
+        print(f"size of {name}_{mode}: {variables[f'{name}_{mode}'].shape}")
 
 # for freq in range(1, len(spec[0])):
 #     plt.plot(ical, spec[:, (freq - 1)], ".")
@@ -156,6 +164,8 @@ n_cols = 6
 n_rows = len(variable_names) // n_cols + 1
 for mode in modes:
     print(f"Mode: {mode}")
+    print(f"Shape of spec: {spec[mode].shape}")
+
     fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
 
     for i, name in enumerate(variable_names):
@@ -163,9 +173,9 @@ for mode in modes:
         ax[i // n_cols, i % n_cols].set_title(name)
 
     ax[-1, -1].imshow(
-        np.abs(sky[mode]).T,
+        np.abs(spec[mode]).T,
         aspect="auto",
-        extent=[0, len(sky[mode]), 0, len(sky[mode][0])],
+        extent=[0, len(spec[mode]), 0, len(spec[mode][0])],
         vmax=500,
         vmin=0,
     )
