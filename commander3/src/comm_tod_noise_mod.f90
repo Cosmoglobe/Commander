@@ -21,6 +21,8 @@
 module comm_tod_noise_mod
   use comm_tod_mod
   use InvSamp_mod
+  use comm_tod_noise_psd_mod
+  use comm_status_mod
   implicit none
 
 

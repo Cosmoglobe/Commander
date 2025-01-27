@@ -26,8 +26,12 @@ module comm_tod_mod
   use comm_tod_orbdipole_mod
   use comm_tod_noise_psd_mod
   use comm_shared_arr_mod
+  use comm_utils
   USE ISO_C_BINDING
   implicit none
+
+  private
+  public comm_tod, comm_scan, initialize_tod_mod, fill_masked_region, fill_all_masked, tod_pointer, distribute_sky_maps
 
   ! Structure for individual detectors
   type :: comm_detscan
@@ -37,6 +41,7 @@ module comm_tod_mod
      real(dp)          :: chisq
      real(dp)          :: chisq_prop
      real(dp)          :: chisq_masked
+     real(dp)          :: baseline1, baseline2
      logical(lgt)      :: accept
      class(comm_noise_psd), pointer :: N_psd                            ! Noise PSD object
      real(sp),           allocatable, dimension(:)     :: tod            ! Detector values in time domain, (ntod)
@@ -279,7 +284,7 @@ module comm_tod_mod
      procedure                           :: create_dynamic_mask
      procedure                           :: get_s_static
   end type comm_tod
-
+  
   abstract interface
      subroutine process_tod(self, chaindir, chain, iter, handle, map_in, delta, map_out, rms_out, map_gain)
        import i4b, comm_tod, comm_map, map_ptr, dp, planck_rng
@@ -299,7 +304,7 @@ module comm_tod_mod
   type tod_pointer
     class(comm_tod), pointer :: p => null()
   end type tod_pointer
-
+  
 contains
 
   subroutine initialize_tod_mod(cpar)
@@ -629,6 +634,7 @@ contains
     type(hdf_file) :: h5_file
     integer(i4b) :: lmax_beam, lmax_sl, i
     type(comm_mapinfo), pointer :: info_beam
+
 
     if(len(trim(self%instfile)) == 0) then
       write(*,*) "Cannot open instrument file with empty name for tod: " // self%tod_type
@@ -1915,6 +1921,7 @@ contains
 
   end subroutine construct_corrtemp_inst
 
+  
   subroutine construct_dipole_template(self, scan, pix, psi, s_dip)
     !  construct a CMB dipole template in the time domain
     !
