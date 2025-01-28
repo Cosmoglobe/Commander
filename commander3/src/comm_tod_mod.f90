@@ -2964,7 +2964,11 @@ contains
          rms = rms + res(i)**2
          n   = n   + 1
       end do
-      rms = sqrt(rms/(n-1))
+      if (n <= 1) then
+        rms = 0
+      else
+        rms = sqrt(rms/(n-1))
+      end if
 
 !      write(*,*) 'a'
       ! Get full-sky mask

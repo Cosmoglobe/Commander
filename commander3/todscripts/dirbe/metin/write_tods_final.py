@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import itertools
 from pathlib import Path
-from datetime import timedelta
+from datetime import timedelta, datetime
 import multiprocessing
 
 import time
@@ -42,7 +42,8 @@ BANDPASS_PATH = Path("/mn/stornext/d5/data/metins/dirbe/data/")
 CIO_PATH = Path("/mn/stornext/d16/cmbco/ola/dirbe/cio")
 
 # system constants
-N_PROC = multiprocessing.cpu_count() // 4
+N_PROC = multiprocessing.cpu_count() // 2
+N_PROC = 2
 
 ROTATOR = hp.Rotator(coord=["E", "G"])
 YDAYS = np.concatenate([np.arange(89345, 89366), np.arange(90001, 90265)])
@@ -80,6 +81,7 @@ FLAG_BITS: dict[str, int] = {
     # Orbit and attitude flag (each observation has either of each pair turned on)
     "non_definitive_attitude": 15,
     "coarse_attitude": 16,
+    "glitch": 17,
 }
 
 '''
@@ -93,6 +95,10 @@ the flags should include the comet and asteroid flags. When summed together, the
 
 Comet flags and asteroid flags currently are set by hand, since their FWHM are not documented anywhere specifically, although
 Arendt 2014 does specify that the comet tails are up to 15 degrees long when they are within 2 AU of the sun.
+
+Flag glitch, bit 17 or 131072, should only apply to bands 7 and 8, since these
+bands are especially sensitivie to cosmic ray hits, and it affects the gain
+and/or baseline over very short timescales.
 '''
 
 
@@ -325,6 +331,8 @@ def get_yday_cio_data(
 
         # Get comet flags
         for body, radius in dirbe_utils.COMET_RADII.items():
+            #if (band < 4) | (band < 7):
+            #    continue
             comet_x = comet_interps[body]["x"](time)
             comet_y = comet_interps[body]["y"](time)
             comet_z = comet_interps[body]["z"](time)
@@ -344,6 +352,8 @@ def get_yday_cio_data(
             flag[comet_indices] += 2 ** FLAG_BITS["comets"]
 
         for body, radius in dirbe_utils.ASTEROID_RADII.items():
+            #if (band < 4) | (band < 7):
+            #    continue
             aster_x = asteroid_interps[body]["x"](time)
             aster_y = asteroid_interps[body]["y"](time)
             aster_z = asteroid_interps[body]["z"](time)
@@ -364,6 +374,34 @@ def get_yday_cio_data(
         bad_data_inds = tod <= BAD_DATA_SENTINEL
         flag[bad_data_inds] += 2 ** FLAG_BITS["bad_data"]
 
+        # Large glitch-rate related excitations
+        # Applied for both 7 and 8, since they have the same detector material,
+        # Ge:Ga. These were determined by hand by looking at residual maps per
+        # day, and should be automated in the future.
+        if (band == 7) | (band == 8):
+            t = np.arange(len(flag))
+            scan_no = file_number + 1
+            if (scan_no == 90):
+                glitch_inds = ((t > 270_000) & (t < 275_000))
+                flag[glitch_inds] += 2**FLAG_BITS["glitch"]
+            if (scan_no == 91):
+                glitch_inds = ((t > 273_500) & (t < 273_750))
+                flag[glitch_inds] += 2**FLAG_BITS["glitch"]
+            if (scan_no == 93):
+                glitch_inds = ((t > 272_000) & (t < 273_000))
+                flag[glitch_inds] += 2**FLAG_BITS["glitch"]
+            if (scan_no == 118):
+                glitch_inds = ((t > 211_900) & (t < 212_100))
+                flag[glitch_inds] += 2**FLAG_BITS["glitch"]
+            if (scan_no == 131):
+                glitch_inds = ((t > 553_500) & (t < 554_125))
+                flag[glitch_inds] += 2**FLAG_BITS["glitch"]
+            if (scan_no == 181):
+                glitch_inds = ((t > 270_000) & (t < 275_000))
+                flag[glitch_inds] += 2**FLAG_BITS["glitch"]
+
+
+
         # padd tods, pix and flags to remove gaps in data
         pixels[band_label] = padd_array_gaps(
             np.split(pix, split_inds), padding=pix_padding
@@ -381,6 +419,8 @@ def get_yday_cio_data(
         flags[band_label] = padd_array_gaps(
             np.split(flag, split_inds), padding=flag_padding
         )
+
+    print(yday, datetime.now())
 
     return YdayData(
         tods, 
@@ -580,6 +620,7 @@ def write_to_commander_tods(
 
 
 def main() -> None:
+    print(datetime.now())
     time_delta = timedelta(hours=1)
     files = range(N_CIO_FILES)
     nside_out = 512
