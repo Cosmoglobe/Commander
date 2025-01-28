@@ -2098,7 +2098,7 @@ contains
              m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
           end do
        else
-          write(*,*) "skal ikke vaere her, eval", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
+          ! write(*,*) "skal ikke vaere her, eval", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
           call m%Y()
           m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
           call m%YtW()
@@ -2171,7 +2171,7 @@ contains
           m%alm(:,i) = m%alm(:,i) * self%F_mean(band,d,i)
        end do
     else
-       write(*,*) "skal ikke vaere her, proj", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
+       ! write(*,*) "skal ikke vaere her, proj", trim(self%label), self%lmax_ind_mix(1:nmaps,:), self%latmask
        if (data(band)%B(d)%p%almFromConv) call m%Y()
        m%map(:,1:nmaps) = m%map(:,1:nmaps) * self%F(band,d)%p%map(:,1:nmaps)
        call m%YtW()
