@@ -504,10 +504,6 @@ print("saving sky")
 
 # other varibles that i just want to save in the same place
 extra_variables = [
-    "adds_per_group_ll",
-    "adds_per_group_lh",
-    "adds_per_group_rl",
-    "adds_per_group_rh",
     "stat_word_1",
     "stat_word_12",
     "stat_word_4",

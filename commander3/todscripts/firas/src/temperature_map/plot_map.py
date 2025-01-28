@@ -12,14 +12,21 @@ from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
+channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
 data = np.load("../../output/data/sky.npz")
 
+print(data.files)
+
 sky = {}
 pix_gal = {}
-for mode in modes.keys():
-    sky[mode] = data[mode]
-    pix_gal[mode] = data[f"pix_gal_{mode}"]
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            sky[f"{channel}_{mode}"] = data[f"{channel}_{mode}"]
+            pix_gal[mode] = data[f"pix_gal_{mode}"]
 
 # to not use ICAL higher than 3
 # a_ical = np.array(data["df_data/a_ical"][()])
@@ -95,33 +102,65 @@ fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
-channel = 3  # LL
+# c = 3e8 * 1e2  # cm/s
+# frec = {}
+# f_icm = {}
+# f_ghz = {}
+# for channel, channel_value in channels.items():
+#     for mode, mode_value in modes.items():
+#         if mode == "lf" and (channel == "lh" or channel == "rh"):
+#             continue
+#         else:
+#             frec[f"{channel}_{mode}"] = 4 * (channel_value % 2) + channel_value
 
-c = 3e8 * 1e2  # cm/s
-frec = {}
-f_icm = {}
+#             f_icm[f"{channel}_{mode}"] = np.arange(len(sky[f"{channel}_{mode}"][0])) * (
+#                 fnyq["icm"][frec[f"{channel}_{mode}"]] / 320
+#             )
+#             f_ghz[f"{channel}_{mode}"] = (
+#                 f_icm[f"{channel}_{mode}"] * c * 1e-9 + 55
+#             )  # this might not be right but it is what matches the initial frequencies of the firas movie
+
+#             print(f"{channel}_{mode}: {f_ghz[f"{channel}_{mode}"]}")
+
+nu0 = {"ss": 68.020812, "lf": 23.807283}
+dnu = {"ss": 13.604162, "lf": 3.4010405}
+nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
+
 f_ghz = {}
-for key, value in modes.items():
-    frec[key] = 4 * (channel % 2) + value
-
-    f_icm[key] = np.arange(len(sky[key][0])) * (fnyq["icm"][frec[key]] / 320)
-    f_ghz[key] = (
-        f_icm[key] * c * 1e-9 + 55
-    )  # this might not be right but it is what matches the initial frequencies of the firas movie
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            f_ghz[f"{channel}_{mode}"] = np.linspace(
+                nu0[mode],
+                nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
+                nf[f"{channel}_{mode}"],
+            )
+            print(f"{channel}_{mode}: {f_ghz[f"{channel}_{mode}"]}")
 
 print("plotting sky")
 
-for mode in modes.keys():
-    # plot the sky
-    plt.imshow(
-        np.abs(sky[mode]).T,
-        aspect="auto",
-        extent=[0, len(sky[mode]), 0, len(sky[mode][0])],
-        vmax=400,
-        vmin=0,
-    )
-    plt.savefig(f"../../output/plots/sky_over_time_{mode}.png")
-    plt.clf()
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            # plot the sky
+            plt.imshow(
+                np.abs(sky[f"{channel}_{mode}"]).T,
+                aspect="auto",
+                extent=[
+                    0,
+                    len(sky[f"{channel}_{mode}"]),
+                    0,
+                    len(sky[f"{channel}_{mode}"][0]),
+                ],
+                vmax=400,
+                vmin=0,
+            )
+            plt.savefig(f"../../output/plots/sky_over_time_{f"{channel}_{mode}"}.png")
+            plt.clf()
 
 
 NSIDE = 32
@@ -131,66 +170,86 @@ npix = hp.nside2npix(NSIDE)
 hpxmap = {}
 data_density = {}
 
-for mode in modes.keys():
-    hpxmap[mode] = np.zeros((npix, len(f_ghz[mode])))
-    data_density[mode] = np.zeros(npix)
-    for i in range(len(pix_gal[mode])):
-        hpxmap[mode][pix_gal[mode][i]] += np.abs(sky[mode][i])
-        data_density[mode][pix_gal[mode][i]] += 1
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            hpxmap[f"{channel}_{mode}"] = np.zeros(
+                (npix, len(f_ghz[f"{channel}_{mode}"]))
+            )
+            data_density[f"{channel}_{mode}"] = np.zeros(npix)
+            for i in range(len(pix_gal[mode])):
+                hpxmap[f"{channel}_{mode}"][pix_gal[mode][i]] += np.abs(
+                    sky[f"{channel}_{mode}"][i]
+                )
+                data_density[f"{channel}_{mode}"][pix_gal[mode][i]] += 1
 # for i in range(len(pix_terr)):
 #     hpxmap[pix_terr[i]] += np.abs(sky[i])
 #     data_density[pix_terr[i]] += 1
 
 m = {}
-for mode in modes.keys():
-    m[mode] = np.zeros((npix, len(f_ghz[mode])))
-    mask = data_density[mode] == 0
-    m[mode][~mask] = hpxmap[mode][~mask] / data_density[mode][~mask, np.newaxis]
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            m[f"{channel}_{mode}"] = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
+            mask = data_density[f"{channel}_{mode}"] == 0
+            m[f"{channel}_{mode}"][~mask] = (
+                hpxmap[f"{channel}_{mode}"][~mask]
+                / data_density[f"{channel}_{mode}"][~mask, np.newaxis]
+            )
 
-    # mask the map
-    m[mode][mask] = hp.UNSEEN
+            # mask the map
+            m[f"{channel}_{mode}"][mask] = hp.UNSEEN
 
-for mode in modes.keys():
-    for freq in range(len(f_ghz[mode])):
-        hp.mollview(
-            m[mode][:, freq],
-            # coord="G",
-            title=f"{int(f_ghz[mode][freq]):04d} GHz",
-            unit="MJy/sr",
-            norm="hist",
-            # min=0,
-            # max=400,
-        )
-        # hp.graticule(coord="G")
-        plt.savefig(
-            f"../../output/maps/sky_map/{mode}/{int(f_ghz[mode][freq]):04d}.png"
-        )
-        plt.close()
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            for freq in range(len(f_ghz[f"{channel}_{mode}"])):
+                hp.mollview(
+                    m[f"{channel}_{mode}"][:, freq],
+                    # coord="G",
+                    title=f"{int(f_ghz[f"{channel}_{mode}"][freq]):04d} GHz",
+                    unit="MJy/sr",
+                    norm="hist",
+                    # min=0,
+                    # max=400,
+                )
+                # hp.graticule(coord="G")
+                plt.savefig(
+                    f"../../output/maps/sky_map/{f"{channel}_{mode}"}/{int(f_ghz[f"{channel}_{mode}"][freq]):04d}.png"
+                )
+                plt.close()
 
 # make maps taking into account both of the modes matching the frequencies
-joint_map = hpxmap["lf"]
-joint_density = data_density["lf"]
-for i in range(len(f_ghz["ss"])):
-    joint_map[:, i + 3 * i] += hpxmap["ss"][:, i]
-    joint_density += data_density["ss"]
+# low frequencies
+joint_map = hpxmap["ll_lf"] + hpxmap["rl_lf"]
+joint_density = data_density["ll_lf"] + data_density["rl_lf"]
+for i in range(len(f_ghz["ll_ss"])):
+    joint_map[:, i + 3 * i] += hpxmap["ll_ss"][:, i] + hpxmap["rl_ss"][:, i]
+    joint_density += data_density["ll_ss"] + data_density["rl_ss"]
 
-m_joint = np.zeros((npix, len(f_ghz["lf"])))
+m_joint = np.zeros((npix, len(f_ghz["ll_lf"])))
 joint_mask = joint_density == 0
 m_joint[~joint_mask] = joint_map[~joint_mask] / joint_density[~joint_mask, np.newaxis]
 m_joint[joint_mask] = hp.UNSEEN
 
-for freq in range(len(f_ghz["lf"])):
+for freq in range(len(f_ghz["ll_lf"])):
     hp.mollview(
         m_joint[:, freq],
         # coord="G",
-        title=f"{int(f_ghz['lf'][freq]):04d} GHz",
+        title=f"{int(f_ghz['ll_lf'][freq]):04d} GHz",
         unit="MJy/sr",
         norm="hist",
         # min=100,
         # max=400,
     )
     # hp.graticule(coord="G")
-    plt.savefig(f"../../output/maps/sky_map/joint/{int(f_ghz['lf'][freq]):04d}.png")
+    plt.savefig(f"../../output/maps/sky_map/joint/{int(f_ghz['ll_lf'][freq]):04d}.png")
     plt.close()
 
 print("Calculating temperature map")
@@ -200,30 +259,38 @@ t0 = 2.726
 
 fit = {}
 temps = {}
-for mode in modes:
-    temps[mode] = np.zeros(npix)
-    for i in range(len(m[mode])):
-        fit[mode] = minimize(residuals, t0, args=(f_ghz[mode][1:], m[mode][i, 1:]))
-        temps[mode][i] = fit[mode].x[0]
+for channel in ["ll", "rl"]:
+    for mode in modes:
+        temps[f"{channel}_{mode}"] = np.zeros(npix)
+        for i in range(len(m[f"{channel}_{mode}"])):
+            fit[f"{channel}_{mode}"] = minimize(
+                residuals,
+                t0,
+                args=(
+                    f_ghz[f"{channel}_{mode}"][1:],
+                    m[f"{channel}_{mode}"][i, 1:],
+                ),
+            )
+            temps[f"{channel}_{mode}"][i] = fit[f"{channel}_{mode}"].x[0]
 
-    print(f"{mode}: {temps[mode]}")
+        print(f"{f"{channel}_{mode}"}: {temps[f"{channel}_{mode}"]}")
 
-    hp.mollview(
-        temps[mode],
-        coord="G",
-        title="Temperature map",
-        unit="K",
-        # norm="hist",
-        min=2.7,
-        max=2.8,
-    )
-    plt.savefig(f"../../output/maps/temperature_map_{mode}.png")
-    plt.close()
+        hp.mollview(
+            temps[f"{channel}_{mode}"],
+            coord="G",
+            title="Temperature map",
+            unit="K",
+            # norm="hist",
+            min=2.7,
+            max=2.8,
+        )
+        plt.savefig(f"../../output/maps/temperature_map_{f"{channel}_{mode}"}.png")
+        plt.close()
 
 temps = np.zeros(npix)
 for i in range(len(m_joint)):
     if joint_density[i] != 0:
-        fit = minimize(residuals, t0, args=(f_ghz["lf"][1:], m_joint[i, 1:]))
+        fit = minimize(residuals, t0, args=(f_ghz["ll_lf"][1:], m_joint[i, 1:]))
         temps[i] = fit.x[0]
     else:
         temps[i] = hp.UNSEEN
