@@ -510,7 +510,6 @@ contains
 
       call create_hdf_group(chainfile, 'parameters')
       n = size(cpar%cs_label)
-
       do i = 1, n
          hdf_path = 'parameters/'//trim(adjustl(cpar%cs_label(i)))
          call create_hdf_group(chainfile, trim(hdf_path))
