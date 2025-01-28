@@ -3473,7 +3473,7 @@ end subroutine
     type(comm_params), intent(inout) :: cpar
 
     integer(i4b) :: i, j
-    character(len=512) :: chaindir
+    character(len=512) :: datadir, chaindir, filename, filename1
     character(len=2) :: itext, jtext
     logical(lgt) :: exist
 
@@ -3565,6 +3565,13 @@ end subroutine
           if (trim(cpar%cs_input_amp(i)) /= 'none') then
                call validate_file(trim(cpar%cs_input_amp(i)), 'COMP_AMP_INPUT_MAP'//itext)
           end if
+          
+          if (trim(cpar%cs_mono_prior(i)) /= 'none') then
+            filename = get_token(cpar%cs_mono_prior(i), ":", 2)
+            filename1 = get_token(filename, ",", 1)
+            call validate_file(trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
+          end if 
+ 
           if (trim(cpar%cs_prior_amp(i)) /= 'none') then
                call validate_file(trim(cpar%cs_prior_amp(i)), 'COMP_AMP_PRIOR_MAP'//itext)
           end if

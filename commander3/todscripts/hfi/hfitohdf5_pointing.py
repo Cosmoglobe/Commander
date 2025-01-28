@@ -58,19 +58,23 @@ def main():
     #https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/preproc_modules/transf1_nodemod.py
     parser.add_argument('--calib-params', type=str, action='store', help='hash dump of HFI housekeeping imo from npipe', default='/mn/stornext/d16/cmbco/bp/HFI/aux/hficalibparams.dat')
 
-    parser.add_argument('--out-dir', type=str, action='store', default=os.getcwd(), help='path to output data structure you want to generate')
+    parser.add_argument('--out-dir', type=str, action='store', default='/mn/stornext/d5/data/artemba/HFI_data_pointing_DPC/143', help='path to output data structure you want to generate')
 
     parser.add_argument('--num-procs', type=int, action='store', default=1, help='number of processes to use')
 
-    parser.add_argument('--freqs', type=int, nargs='+', default=hfi.freqs, help='which hfi frequencies to operate on')
+    parser.add_argument('--freqs', type=int, nargs='+', default=[545], help='which hfi frequencies to operate on')
 
-    parser.add_argument('--ods', type=int, nargs=2, default=[91, 975], help='the operational days to operate on')
+    parser.add_argument('--ods', type=int, nargs=2, default=[91, 975], help='the operational days to operate on') # [92,93] - test ODs; [91, 975] - full
 
     parser.add_argument('--no-compress', action='store_true', default=False, help='Produce uncompressed data output')
 
     parser.add_argument('--restart', action='store_true', default=False, help="restart from a previous run that didn't finish")
 
-    parser.add_argument('--produce-filelist', action='store_true', default=False, help='force the production of a filelist even if only some files are present')
+    parser.add_argument('--produce-filelist', action='store_true', default=True, help='force the production of a filelist even if only some files are present')
+
+    parser.add_argument('--pointing_dir', type=str, action='store', default='/mn/stornext/d5/data/artemba/HFI_pointing/143')
+    # 545: '/mn/stornext/u3/hke/data_d5/HFI/pointing/545'
+    # 143: '/mn/stornext/d5/data/artemba/HFI_pointing/143'
 
     in_args = parser.parse_args()
 
@@ -91,7 +95,7 @@ def main():
         dicts[freq] = manager.dict()
 
     comm_tod = tod.commander_tod(in_args.out_dir, 'HFI', in_args.version, dicts, not in_args.restart)
-
+    
     x = [[pool.apply_async(make_od, args=[comm_tod, freq, od, in_args]) for freq in in_args.freqs] for od in ods]
 
     for res1 in np.array(x):
@@ -100,7 +104,7 @@ def main():
 
     pool.close()
     pool.join()
-
+    
     if ((in_args.ods[0] == 91 and in_args.ods[1] == 975) or in_args.produce_filelist) :
         comm_tod.make_filelists()
         #write file lists 
@@ -130,7 +134,7 @@ def make_od(comm_tod, freq, od, args):
         #make common group for things we only read once
         #polang, mbeamang, nside, fsamp
         prefix = '/common'
-        rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + hfi.dets[freq][0])
+        rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + hfi.dets[freq][0])[0]
 
         #sampling frequency
         fsamp = rimo[1].data.field('f_samp')[rimo_i]
@@ -143,9 +147,9 @@ def make_od(comm_tod, freq, od, args):
         polangs = []
         mainbeamangs = []
         for det in hfi.dets[freq]:
-            rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)
-
+            rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)[0]
             detNames += str(freq) + '-' + det + ', '
+            if len(rimo_i) == 1: rimo_i = rimo_i[0]
             polangs.append(math.radians(rimo[1].data.field('psi_pol')[rimo_i]))
             mainbeamangs.append(math.radians(rimo[1].data.field('psi_uv')[rimo_i]))
 
@@ -181,8 +185,56 @@ def make_od(comm_tod, freq, od, args):
         try:
             extraFlagsFile = h5py.File(os.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'), 'r')
         except (OSError):
-            print("Failed to open file " + s.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
+            print("Failed to open file " + os.path.join(args.planck_dir, str(od).zfill(4), 'extra_flags_' + str(od).zfill(4)  + '.h5'))
             return
+
+
+        dpc_times = np.array([])
+        angle_dict = dict() 
+        for ods in range(od-1, od+2):
+            
+            if ods == 90 or ods == 976:
+                continue
+
+            try:
+                DPC_pointing_file = fits.open(os.path.join(args.pointing_dir, 'HFI_TOI_' + str(freq) + '-PTG_R2.01_OD'+ str(ods).zfill(4) + '.fits'))
+            except (OSError):
+                print("Failed to open file " + os.path.join(args.pointing_dir, 'HFI_TOI_' + str(freq) + '-PTG_R2.01_OD'+ str(ods).zfill(4) + '.fits'))
+                return
+       
+            dpc_times = np.concatenate([dpc_times, DPC_pointing_file[1].data['OBT']/2.**16])
+
+            try:
+                for i, det in enumerate(hfi.dets[freq]):
+                    if det in angle_dict.keys():
+                        angle_dict[det]['phi'] = np.concatenate([angle_dict[det]['phi'], DPC_pointing_file[i+2].data['PHI']])
+                        angle_dict[det]['theta'] = np.concatenate([angle_dict[det]['theta'], DPC_pointing_file[i+2].data['THETA']])
+                        angle_dict[det]['psi'] = np.concatenate([angle_dict[det]['psi'], DPC_pointing_file[i+2].data['PSI']])
+                    else:
+                        angle_dict[det] = dict()
+                        angle_dict[det]['phi'] = DPC_pointing_file[i+2].data['PHI']
+                        angle_dict[det]['theta'] = DPC_pointing_file[i+2].data['THETA']
+                        angle_dict[det]['psi'] = DPC_pointing_file[i+2].data['PSI']
+            except:
+                print("failed to allocate array at od", od)
+                print("od:", od)
+                return
+
+
+            DPC_pointing_file.close()
+
+
+        def closest_argmin(A, B):
+            # fucntion to find the closest time value between the two arrays
+            L = B.size
+            sidx_B = B.argsort()
+            sorted_B = B[sidx_B]
+            sorted_idx = np.searchsorted(sorted_B, A)
+            sorted_idx[sorted_idx==L] = L-1
+            mask = (sorted_idx > 0) & \
+           ((np.abs(A - sorted_B[sorted_idx-1]) < np.abs(A - sorted_B[sorted_idx])) )
+            return sidx_B[sorted_idx-mask]
+
 
 
         #open database with pid info in it
@@ -195,6 +247,8 @@ def make_od(comm_tod, freq, od, args):
         #per pid
         for dbentry in c.execute("SELECT * FROM ring_times_hfi WHERE stop_time >= '{0}' AND start_time < '{1}'".format(starttime, endtime)):
             pid = dbentry[0]
+
+            #if pid != 10666: continue
 
             start_time = dbentry[2]
             end_time = dbentry[3]        
@@ -212,11 +266,23 @@ def make_od(comm_tod, freq, od, args):
             if pid_start == pid_end:#catch chunks with no data like od 1007
                 continue
 
-            #common fields per pid
+            pid_times = exFile[1].data['obt'][pid_start:pid_end]/1e9
+
+            # find inicies corresponding to the same time staps in DPC files
+            indices_dpc = closest_argmin(pid_times, dpc_times)
+
+            # fix shift by 3 samples
+            indices_dpc -= 3
+
+
+            #if pid == 10666:
+            #     print(max(pid_times - dpc_times[indices_dpc]))
+            #     print(pid_times - dpc_times[indices_dpc])
+
             prefix = str(pid).zfill(6) + '/common'
 
             #time field
-            comm_tod.add_field(prefix + '/time', [exFile[1].data['obt'][pid_start]])
+            comm_tod.add_field(prefix + '/time', [exFile[1].data['obt'][pid_start]/1.e+9])
             comm_tod.add_attribute(prefix + '/time','index','OBT in s')
 
             #length of the tod
@@ -238,7 +304,7 @@ def make_od(comm_tod, freq, od, args):
             comm_tod.add_attribute(prefix + '/satpos','index','X, Y, Z')
             comm_tod.add_attribute(prefix + '/satpos','coords','heliocentric')
             comm_tod.add_attribute(prefix + '/satpos', 'units', 'AU')
-
+            '''
             #read boresight pointing for this chunk
             quat_x = pointingFile[3].data['quaternion_x'][pid_start:pid_end]
             quat_y = pointingFile[3].data['quaternion_y'][pid_start:pid_end]
@@ -248,22 +314,25 @@ def make_od(comm_tod, freq, od, args):
             quat_arr = np.array([quat_x, quat_y, quat_z, quat_s]).transpose()
 
             r_boresight = rot.from_quat(quat_arr)
-
-            extra_flags = extraFlagsFile[str(pid).zfill(6) + '/flag_extra']
+            '''
+            extra_flags = extraFlagsFile[str(pid).zfill(6) + '/flag_extra'][()]
 
 
             #per detector fields
             for det in hfi.dets[freq]:
-           
                 prefix = str(pid).zfill(6) + '/' + str(freq) + '-' + det
 
                 #get RIMO index
                 #print(rimo[1].data.field('detector').flatten().shape, rimo[1].data.field('detector').flatten(), 'LFI' +str(horn) + hornType)
-                rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)
+                rimo_i = np.where(rimo[1].data.field('detector').flatten() == str(freq) + '-' + det)[0]
                 data_i = exFile.index_of(str(freq) + '-' + det)        
             
                 #make flag data
                 flagArray = exFile[data_i].data.field('flag')[pid_start:pid_end]
+
+                # naughty od list (all pointing is 0)
+                if od in [157, 266, 267, 366, 367, 368]:
+                    flagArray = np.ones(len(flagArray))
 
                 #add extra flagging from txt files
                 ex_flags = extra_flags
@@ -271,24 +340,23 @@ def make_od(comm_tod, freq, od, args):
                     ex_flags = extraFlagsFile[str(pid).zfill(6) + '/flags_extra_353-1']
                 flagArray += ex_flags
 
+
                 #with np.printoptions(threshold=np.inf):
                 #    print(flagArray)
-    
+   
                 if (len(flagArray) > 0):
                     comm_tod.add_field(prefix + '/flag', flagArray, compArr)
+
 
                 #make pixel number 
                 
                 #create detector pointing offset quaternion
                 # Follows this npipe function: 
                 # https://github.com/planck-npipe/toast-npipe/blob/master/toast_planck/utilities.py#L1503-L1575            
-
+                '''
                 phi = math.radians(rimo[1].data.field('phi_uv')[rimo_i])
                 theta = math.radians(rimo[1].data.field('theta_uv')[rimo_i])
                 psi = math.radians(rimo[1].data.field('psi_uv')[rimo_i] + rimo[1].data.field('psi_pol')[rimo_i]) - phi
-                #print(phi)
-                #print(theta)
-                #print(psi)
 
                 det_s = np.cos(0.5 * theta) * np.cos(0.5 * (phi + psi))
                 # vector part
@@ -298,11 +366,7 @@ def make_od(comm_tod, freq, od, args):
 
                 #convert from boresight pointing to per detector pointing
                 r_det = rot.from_quat([det_x, det_y, det_z, det_s])
-                #print r_det 
-                #print r_boresight
-                #print
 
-                #print("Disabling focal plane")
                 r_total = r_boresight * r_det
 
                 #convert to theta, phi, psi
@@ -316,30 +380,35 @@ def make_od(comm_tod, freq, od, args):
                 r = hp.rotator.Rotator(coord=['E', 'G'], deg=False)
 
                 galTheta, galPhi = r(theta_array, phi_array)
-                
                 pixels = hp.pixelfunc.ang2pix(nside, galTheta, galPhi)
+               
+                print('Old pointing:') 
+                print(galPhi)
+                print(galTheta)
+                print(pixels)
+                print()
+                '''
 
-                if(pid == 25083):
+                galPhi = angle_dict[det]['phi'][indices_dpc]
+                galTheta = angle_dict[det]['theta'][indices_dpc]
+                psi_array = angle_dict[det]['psi'][indices_dpc]
+                try:
+                    pixels = hp.pixelfunc.ang2pix(nside, galTheta, galPhi)
+                except:
+                    print('Theta:', galTheta, min(galTheta), max(galTheta))
+                    print('Phi:', galPhi, min(galPhi), max(galPhi))
 
-                    x = np.arange(0, 20000)
-
-                    theta_, phi_ = hp.pix2ang(nside, pixels)
-
-                    plt.plot(x, theta_[-20000:], label='theta')
-                    plt.plot(x, phi_[-20000:], label='phi')
-                    plt.plot(x, quat_x[-20000:], label='x')
-                    plt.plot(x, quat_y[-20000:], label='y')
-                    plt.plot(x, quat_z[-20000:], label='z')
-                    plt.plot(x, quat_s[-20000:], label='s')
-                    plt.legend(loc='best')
-
-                    plt.savefig('quat_test.pdf')
-                    #sys.exit()
+                #print(galPhi)
+                #print(galTheta)
 
 
                 if len(pixels > 0):
                     #compute average outer product
-                    outAng = hfi.ring_outer_product(galTheta, galPhi)
+                    try:
+                        outAng = hfi.ring_outer_product(galTheta, galPhi)
+                    except:
+                        print('Outer product error:', galTheta, min(galTheta), max(galTheta))
+                        print('od, pid', od, pid)
                     comm_tod.add_field(prefix + '/outP', data=outAng)
                     if(args.no_compress):
                         comm_tod.add_field(prefix+'/theta', data=galTheta)
@@ -381,7 +450,7 @@ def make_od(comm_tod, freq, od, args):
                 gain = gain/gain1[0]
 
                 #make white noise
-                sigma0 = rimo[1].data.field('net')[rimo_i][0] * math.sqrt(fsamp)
+                sigma0 = rimo[1].data.field('net')[rimo_i][0] * math.sqrt(fsamp[0])
 
                 #make f_knee
                 #fknee = rimo[1].data.field('f_knee')[rimo_i][0]
@@ -399,15 +468,6 @@ def make_od(comm_tod, freq, od, args):
                    
                 #make tod data
                 tod = exFile[exFile.index_of(str(freq)+'-' + det)].data.field('signal')[pid_start:pid_end] #- offset
-
-                #fout1 = open("output.dat","w")
-                #for i in range(len(tod)):
-                #    fout1.write(str(tod[i])+"\n")
-                #fout1.close()
-
-                #print(tod)
-                #print(offset)
-                #ghj
 
                 #compArray = [hfi.todDtype, hfi.rice]
                 compArray = [hfi.todDtype, hfi.huffTod]

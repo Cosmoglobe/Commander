@@ -869,6 +869,7 @@ contains
        ! Clean up
        call sd%dealloc
        call timer%start(TOD_ALLOC, self%band)
+       call sd%dealloc
        deallocate(d_calib)
        call timer%stop(TOD_ALLOC, self%band)
 

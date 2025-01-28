@@ -336,6 +336,15 @@ contains
          stop
       end if
 
+       ! Prepare data
+       if (sample_rel_bandpass) then
+!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
+       else if (sample_abs_bandpass) then
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
+       else
+          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
+       end if
 
 
       !------------------------------------
