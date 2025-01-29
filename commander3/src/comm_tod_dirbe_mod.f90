@@ -281,12 +281,9 @@ contains
       select_data           = .false. !self%first_call        ! only perform data selection the first time
       output_scanlist       = mod(iter-1,10) == 0             ! only output scanlist every 10th iteration
       sample_gain           = .false.                         ! Gain sampling, LB TOD sims have perfect gain
-!!$      if (trim(self%freq) == '01' .or. trim(self%freq) == '02' .or. &
-!!$        & trim(self%freq) == '03' .or. &
-!!$        & trim(self%freq) == '09' .or. trim(self%freq) == '10') then
-      !if (trim(self%freq(1:2)) == '09' .or. trim(self%freq(1:2)) == '10') then
       if (trim(self%freq(1:2)) == '10') then
          sample_ncorr = .true.
+         sample_ncorr = .false.
       else
          sample_ncorr = .false.
       end if
@@ -335,16 +332,6 @@ contains
          call close_hdf_file(tod_file)
          stop
       end if
-
-       ! Prepare data
-       if (sample_rel_bandpass) then
-!          if (.true. .or. self%myid == 78) write(*,*) 'b', self%myid, self%correct_sl, self%ndet, self%slconv(1)%p%psires
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_bp_prop=.true.)
-       else if (sample_abs_bandpass) then
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true., init_s_sky_prop=.true.)
-       else
-          call init_scan_data_singlehorn(sd, self, i, map_sky, m_gain, procmask, procmask2, init_s_bp=.true.)
-       end if
 
 
       !------------------------------------

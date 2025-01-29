@@ -116,6 +116,7 @@ contains
     allocate(sd%s_bp(sd%ntod, sd%ndet))
     allocate(sd%s_orb(sd%ntod, sd%ndet))
     allocate(sd%s_tot(sd%ntod, sd%ndet))
+    allocate(sd%s_gain(sd%ntod, sd%ndet))
     allocate(sd%mask(sd%ntod, sd%ndet))
     allocate(sd%pix(sd%ntod, sd%ndet, sd%nhorn))
     allocate(sd%psi(sd%ntod, sd%ndet, sd%nhorn))
@@ -124,8 +125,14 @@ contains
     if (init_s_bp_prop_)     allocate(sd%s_bp_prop(sd%ntod, sd%ndet, 2:sd%ndelta))
     if (init_s_sky_prop_)    allocate(sd%mask2(sd%ntod, sd%ndet))
     if (tod%sample_mono)     allocate(sd%s_mono(sd%ntod, sd%ndet))
-    if (tod%subtract_zodi)   allocate(sd%s_zodi(sd%ntod, sd%ndet))
     if (tod%apply_inst_corr) allocate(sd%s_inst(sd%ntod, sd%ndet))
+    if (tod%subtract_zodi) then
+      call tod%clear_zodi_cache()
+      allocate(sd%s_zodi(sd%ntod, sd%ndet))
+      allocate(sd%s_zodi_scat(sd%ntod, tod%zodi_n_comps, sd%ndet))
+      allocate(sd%s_zodi_therm(sd%ntod, tod%zodi_n_comps, sd%ndet))
+      if (tod%sample_zodi) allocate(sd%mask_zodi(sd%ntod, sd%ndet))
+    end if
     !call update_status(status, "todinit_alloc")
     call timer%stop(TOD_ALLOC, tod%band)
 
@@ -169,9 +176,13 @@ contains
     if (init_s_bp_) then
        call project_sky(tod, map_sky(:,:,:,1), sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, &
             & procmask, scan, sd%s_sky, sd%mask, s_bp=sd%s_bp)
+       call project_sky(tod, map_gain(:,:,:,1), sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, &
+            & procmask, scan, sd%s_gain, sd%mask, s_bp=sd%s_bp)
     else
        call project_sky(tod, map_sky(:,:,:,1), sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, &
             & procmask, scan, sd%s_sky, sd%mask)
+       call project_sky(tod, map_gain(:,:,:,1), sd%pix(:,:,1), sd%psi(:,:,1), sd%flag, &
+            & procmask, scan, sd%s_gain, sd%mask)
     end if
     !call update_status(status, "todinit_sky")
     !if (tod%myid == 78) write(*,*) 'c6', tod%myid, tod%correct_sl, tod%ndet, tod%slconv(1)%p%psires
@@ -314,7 +325,11 @@ contains
     ! Construct total sky signal
     do j = 1, sd%ndet
        if (.not. tod%scans(scan)%d(j)%accept) cycle
-       sd%s_tot(:,j) = sd%s_sky(:,j) + sd%s_sl(:,j) + sd%s_orb(:,j)
+       if (tod%subtract_zodi) then 
+           sd%s_tot(:,j) = sd%s_sky(:,j) + sd%s_sl(:,j) + sd%s_orb(:,j) + sd%s_zodi(:,j)
+       else
+           sd%s_tot(:,j) = sd%s_sky(:,j) + sd%s_sl(:,j) + sd%s_orb(:,j)
+       end if
        if (tod%sample_mono) sd%s_tot(:,j) = sd%s_tot(:,j) + sd%s_mono(:,j)
        if (tod%apply_inst_corr) sd%s_tot(:,j) = sd%s_tot(:,j) + sd%s_inst(:,j)
     end do
@@ -377,11 +392,14 @@ contains
     allocate(sd%s_sky(sd%ntod, sd%ndet))
     allocate(sd%s_bp(sd%ntod, sd%ndet))
     allocate(sd%s_orb(sd%ntod, sd%ndet))
+    allocate(sd%s_orbA(sd%ntod, sd%ndet))
+    allocate(sd%s_orbB(sd%ntod, sd%ndet))
     allocate(sd%s_tot(sd%ntod, sd%ndet))
     allocate(sd%s_totA(sd%ntod, sd%ndet))
     allocate(sd%s_totB(sd%ntod, sd%ndet))
-    allocate(sd%s_orbA(sd%ntod, sd%ndet))
-    allocate(sd%s_orbB(sd%ntod, sd%ndet))
+    allocate(sd%s_gain(sd%ntod, sd%ndet))
+    allocate(sd%s_gainA(sd%ntod, sd%ndet))
+    allocate(sd%s_gainB(sd%ntod, sd%ndet))
     allocate(sd%mask(sd%ntod, sd%ndet))
     allocate(sd%pix(sd%ntod, 1, sd%nhorn))
     allocate(sd%psi(sd%ntod, 1, sd%nhorn))
@@ -391,12 +409,15 @@ contains
     if (init_s_sky_prop_)   allocate(sd%mask2(sd%ntod, sd%ndet))
     if (tod%sample_mono)    allocate(sd%s_mono(sd%ntod, sd%ndet))
     if (tod%subtract_zodi)  allocate(sd%s_zodi(sd%ntod, sd%ndet))
-    sd%s_tot  = 0.
-    sd%s_totA = 0.
-    sd%s_totB = 0.
-    sd%s_orb  = 0.
-    sd%s_orbA = 0.
-    sd%s_orbB = 0.
+    sd%s_tot   = 0.
+    sd%s_totA  = 0.
+    sd%s_totB  = 0.
+    sd%s_orb   = 0.
+    sd%s_orbA  = 0.
+    sd%s_orbB  = 0.
+    sd%s_gain  = 0.
+    sd%s_gainA = 0.
+    sd%s_gainB = 0.
 
     allocate(s_bufA(sd%ntod, sd%ndet))
     allocate(s_bufB(sd%ntod, sd%ndet))
@@ -446,7 +467,7 @@ contains
     if (init_s_bp_prop_) then
        do k = 2, sd%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, sd%mask, s_bpA=s_buf2A, s_bpB=s_buf2B)
+               & procmask2, scan, s_bufA, s_bufB, sd%mask2, s_bpA=s_buf2A, s_bpB=s_buf2B)
           do j = 1, sd%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              sd%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j)  - (1.-tod%x_im(j))*s_bufB(:,j)
@@ -456,7 +477,7 @@ contains
     else if (init_s_sky_prop_) then
        do k = 2, sd%ndelta
           call project_sky_differential(tod, map_sky(:,:,:,k), sd%pix(:,1,:), sd%psi(:,1,:), sd%flag(:,1), &
-               & procmask, scan, s_bufA, s_bufB, sd%mask)
+               & procmask2, scan, s_bufA, s_bufB, sd%mask2)
           do j = 1, sd%ndet
              if (.not. tod%scans(scan)%d(j)%accept) cycle
              sd%s_sky_prop(:,j,k) = (1.+tod%x_im(j))*s_bufA(:,j) - (1.-tod%x_im(j))*s_bufB(:,j)
@@ -493,8 +514,6 @@ contains
           sd%s_totA(:,j) = sd%s_totA(:,j) + s_bufA(:,j)
           sd%s_totB(:,j) = sd%s_totB(:,j) + s_bufB(:,j)
        end do
-    else
-       sd%s_zodi = 0.
     end if
 
     ! Construct sidelobe template
@@ -553,8 +572,6 @@ contains
           sd%s_totB(:,j) = sd%s_totB(:,j) + s_bufB(:,j)
        end do
        call timer%stop(TOD_ZODI, tod%band)
-   !  else
-   !     self%s_zodi = 0.
     end if
 
     ! Clean-up
@@ -575,17 +592,22 @@ contains
     deallocate(sd%tod, sd%n_corr, sd%s_sl, sd%s_sky)
     deallocate(sd%s_orb, sd%s_tot, sd%mask)
     deallocate(sd%pix, sd%psi, sd%flag)
-    if (allocated(sd%s_sky_prop))  deallocate(sd%s_sky_prop)
-    if (allocated(sd%s_bp_prop))   deallocate(sd%s_bp_prop)
-    if (allocated(sd%s_bp))        deallocate(sd%s_bp)
-    if (allocated(sd%s_mono))      deallocate(sd%s_mono)
-    if (allocated(sd%mask2))       deallocate(sd%mask2)
-    if (allocated(sd%s_zodi))      deallocate(sd%s_zodi)
-    if (allocated(sd%s_totA))      deallocate(sd%s_totA)
-    if (allocated(sd%s_totB))      deallocate(sd%s_totB)
-    if (allocated(sd%s_inst))      deallocate(sd%s_inst)
-    if (allocated(sd%s_orbA))      deallocate(sd%s_orbA)
-    if (allocated(sd%s_orbB))      deallocate(sd%s_orbB)
+    if (allocated(sd%s_sky_prop))    deallocate(sd%s_sky_prop)
+    if (allocated(sd%s_bp_prop))     deallocate(sd%s_bp_prop)
+    if (allocated(sd%s_bp))          deallocate(sd%s_bp)
+    if (allocated(sd%s_mono))        deallocate(sd%s_mono)
+    if (allocated(sd%mask2))         deallocate(sd%mask2)
+    if (allocated(sd%s_zodi))        deallocate(sd%s_zodi)
+    if (allocated(sd%s_zodi_scat))   deallocate(sd%s_zodi_scat)
+    if (allocated(sd%s_zodi_therm))  deallocate(sd%s_zodi_therm)
+    if (allocated(sd%s_totA))        deallocate(sd%s_totA)
+    if (allocated(sd%s_totB))        deallocate(sd%s_totB)
+    if (allocated(sd%s_inst))        deallocate(sd%s_inst)
+    if (allocated(sd%s_orbA))        deallocate(sd%s_orbA)
+    if (allocated(sd%s_orbB))        deallocate(sd%s_orbB)
+    if (allocated(sd%s_gain))        deallocate(sd%s_gain)
+    if (allocated(sd%s_gainA))       deallocate(sd%s_gainA)
+    if (allocated(sd%s_gainB))       deallocate(sd%s_gainB)
 
   end subroutine dealloc_scan_data
 
