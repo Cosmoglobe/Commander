@@ -12,6 +12,7 @@ from utils.config import gen_nyquistl
 # plt.show()
 
 modes = {"ss": 0, "lf": 3}
+channels = {"rh": 0, "rl": 1, "lh": 2, "ll": 3}
 
 reference_maps = "/mn/stornext/d16/cmbco/ola/firas/healpix_maps/"
 
@@ -34,6 +35,10 @@ data = np.load(
     allow_pickle=True,
 )
 
+sky = {}
+spec = {}
+pix_gal = {}
+variables = {}
 variable_names = [
     # "gmt",
     # "a_ical",
@@ -49,6 +54,9 @@ variable_names = [
     # "pix_gal",
     # "adds_per_group_ll",
     "bol_cmd_bias_ll",
+    "bol_cmd_bias_lh",
+    "bol_cmd_bias_rl",
+    "bol_cmd_bias_rh",
     "dwell_stat_a",
     "dwell_stat_b",
     "engstat_spares_1",
@@ -98,21 +106,19 @@ variable_names = [
     # "sky_hrn_temp_b",
 ]
 
-sky = {}
-spec = {}
-pix_gal = {}
-for mode in modes.keys():
-    sky[mode] = data[mode]
-    print(f"sky[mode]: {sky[mode].shape}")
-    spec[mode] = np.abs(sky[mode][:, 1:])
-    print(f"spec[mode]: {spec[mode].shape}")
-    pix_gal[mode] = data[f"pix_gal_{mode}"]
-# variables = data["variables"]
-variables = {}
-for mode in modes.keys():
-    for variable_name in variable_names:
-        variables[f"{variable_name}_{mode}"] = data[f"{variable_name}_{mode}"]
-        print(f"{variable_name}_{mode}: {variables[f'{variable_name}_{mode}'].shape}")
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            sky[f"{channel}_{mode}"] = data[f"{channel}_{mode}"]
+            print(f"sky[{channel}_{mode}]: {sky[f"{channel}_{mode}"].shape}")
+            spec[f"{channel}_{mode}"] = np.abs(sky[f"{channel}_{mode}"])
+            print(f"spec[{channel}_{mode}]: {spec[f"{channel}_{mode}"].shape}")
+            pix_gal[mode] = data[f"pix_gal_{mode}"]
+            # variables = data["variables"]
+            for variable_name in variable_names:
+                variables[f"{variable_name}_{mode}"] = data[f"{variable_name}_{mode}"]
 
 # data = h5py.File(
 #     "/mn/stornext/u3/aimartin/d5/firas-reanalysis/Commander/commander3/todscripts/firas/data/sky_v4.2.h5",
@@ -122,28 +128,24 @@ fnyq = gen_nyquistl(
     "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
 )
 
-# scan_mode = 0  # SS
-channel = 3  # LL
-frec = {}
-for mode, item in modes.items():
-    frec[mode] = 4 * (channel % 2) + item
-
-# f_icm = np.arange(len(sky[0])) * (fnyq["icm"][frec] / 320)
-# c = 3e8 * 1e2  # cm/s
-# f_ghz = f_icm * c * 1e-9 + 55
-
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
 
 # remove data inside the mask
-for mode in modes:
-    spec[mode] = spec[mode][mask[pix_gal[mode]] == 1]
-    print(f"size of spec: {spec[mode].shape}")
+for mode in modes.keys():
     for name in variable_names:
         variables[f"{name}_{mode}"] = variables[f"{name}_{mode}"][
             mask[pix_gal[mode]] == 1
         ]
         print(f"size of {name}_{mode}: {variables[f'{name}_{mode}'].shape}")
+    for channel in channels.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            spec[f"{channel}_{mode}"] = spec[f"{channel}_{mode}"][
+                mask[pix_gal[mode]] == 1
+            ]
+            print(f"size of spec: {spec[f"{channel}_{mode}"].shape}")
 
 # for freq in range(1, len(spec[0])):
 #     plt.plot(ical, spec[:, (freq - 1)], ".")
@@ -162,23 +164,32 @@ print("plotting")
 
 n_cols = 6
 n_rows = len(variable_names) // n_cols + 1
-for mode in modes:
-    print(f"Mode: {mode}")
-    print(f"Shape of spec: {spec[mode].shape}")
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            print(f"Mode: {f"{channel}_{mode}"}")
+            print(f"Shape of spec: {spec[f"{channel}_{mode}"].shape}")
 
-    fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
+            fig, ax = plt.subplots(n_rows, n_cols, figsize=(20, 20), sharex=True)
 
-    for i, name in enumerate(variable_names):
-        ax[i // n_cols, i % n_cols].plot(variables[f"{name}_{mode}"])
-        ax[i // n_cols, i % n_cols].set_title(name)
+            for i, name in enumerate(variable_names):
+                ax[i // n_cols, i % n_cols].plot(variables[f"{name}_{mode}"])
+                ax[i // n_cols, i % n_cols].set_title(name)
 
-    ax[-1, -1].imshow(
-        np.abs(spec[mode]).T,
-        aspect="auto",
-        extent=[0, len(spec[mode]), 0, len(spec[mode][0])],
-        vmax=500,
-        vmin=0,
-    )
-    ax[-1, -1].set_title("spec")
+            ax[-1, -1].imshow(
+                np.abs(spec[f"{channel}_{mode}"]).T,
+                aspect="auto",
+                extent=[
+                    0,
+                    len(spec[f"{channel}_{mode}"]),
+                    0,
+                    len(spec[f"{channel}_{mode}"][0]),
+                ],
+                vmax=500,
+                vmin=0,
+            )
+            ax[-1, -1].set_title("spec")
 
-    plt.show()
+            plt.show()

@@ -157,7 +157,7 @@ def ifg_to_spec(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    spec = spec / etf
+    spec = spec / etf  # kills 0 frequency
     # print("spec after etf:", spec)
     spec = spec / spec_norm
 
@@ -202,8 +202,13 @@ def ifg_to_spec(
     plt.savefig("../../output/plots/spec_after_bolometer_transfer_function.png")
     plt.clf()
 
+    if mtm_speed == 0:
+        cutoff = 5
+    else:
+        cutoff = 7
+
     # optical transfer function
-    spec = spec[:, : len(otf)] / otf
+    spec = spec[:, cutoff : (len(otf) + cutoff)] / otf
 
     # plot spec after optical transfer function
     plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
@@ -250,47 +255,77 @@ def residuals(temperature, frequency_data, sky_data):  # doing least squares for
 def filter_crap(
     stat_word_5, stat_word_9, stat_word_13, stat_word_16, lvdt_stat_a, lvdt_stat_b
 ):
-    filter1 = (stat_word_5 != 16641) & (
-        stat_word_5 != 17921
-    )  # & (stat_word_5 != 19457)
+    filter1 = (stat_word_5 != 16641) & (stat_word_5 != 17921) & (stat_word_5 != 17217)
     print("filter1:", np.count_nonzero(filter1))
     filter2 = stat_word_9 != 15414
     print("filter2:", np.count_nonzero(filter2))
     filter3 = (
         (stat_word_13 != 17345)
+        & (stat_word_13 != 17393)
+        & (stat_word_13 != 19585)  # makes the hole?
         & (stat_word_13 != 25201)
+        & (stat_word_13 != 25585)
         & (stat_word_13 != 26945)
         & (stat_word_13 != 27073)
         & (stat_word_13 != 27649)
         & (stat_word_13 != 27697)
+        # & (stat_word_13 != 27777)
         & (stat_word_13 != 60465)
         & (stat_word_13 != 60593)
     )
     print("filter3:", np.count_nonzero(filter3))
     filter4 = (
-        # (stat_word_16 != 14372)
-        # (stat_word_16 != 35584)
-        (stat_word_16 != 36032)
+        (stat_word_16 != 0)
+        & (stat_word_16 != 14372)  # makes the hole?
+        & (stat_word_16 != 35584)  # makes the hole?
+        & (stat_word_16 != 36032)
         & (stat_word_16 != 52992)
         & (stat_word_16 != 53056)
     )
     print("filter4:", np.count_nonzero(filter4))
     filter5 = (
-        (lvdt_stat_a != 4)
+        (lvdt_stat_a != 1)
+        & (lvdt_stat_a != 2)
+        & (lvdt_stat_a != 4)
+        & (lvdt_stat_a != 6)
+        & (lvdt_stat_a != 13)
         & (lvdt_stat_a != 17)
+        & (lvdt_stat_a != 21)
+        & (lvdt_stat_a != 24)
         & (lvdt_stat_a != 26)
         & (lvdt_stat_a != 31)
+        & (lvdt_stat_a != 32)
+        & (lvdt_stat_a != 35)
+        & (lvdt_stat_a != 47)
         & (lvdt_stat_a != 49)
     )
     print("filter5:", np.count_nonzero(filter5))
     filter6 = (
         (lvdt_stat_b != -127)
         & (lvdt_stat_b != -124)
+        & (lvdt_stat_b != -108)
+        & (lvdt_stat_b != -83)
         & (lvdt_stat_b != -79)
+        & (lvdt_stat_b != -78)
+        & (lvdt_stat_b != -71)
+        & (lvdt_stat_b != -70)
+        & (lvdt_stat_b != 75)
+        & (lvdt_stat_b != 79)
         & (lvdt_stat_b != 82)
         & (lvdt_stat_b != 83)
+        & (lvdt_stat_b != 85)
+        & (lvdt_stat_b != 86)
+        & (lvdt_stat_b != 87)
+        & (lvdt_stat_b != 91)
+        & (lvdt_stat_b != 93)
+        & (lvdt_stat_b != 95)
         & (lvdt_stat_b != 96)
+        & (lvdt_stat_b != 99)
+        & (lvdt_stat_b != 100)
+        & (lvdt_stat_b != 103)
+        & (lvdt_stat_b != 107)
         & (lvdt_stat_b != 111)
+        & (lvdt_stat_b != 121)
     )
     print("filter6:", np.count_nonzero(filter6))
 

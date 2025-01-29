@@ -9,6 +9,7 @@ from utils.config import gen_nyquistl
 
 T_CMB = 2.72548  # Fixsen 2009
 modes = {"ss": 0, "lf": 3}
+channels = {"rl": 1, "ll": 3}
 
 mask = fits.open("BP_CMB_I_analysis_mask_n1024_v2.fits")
 mask = mask[1].data.astype(int)
@@ -18,9 +19,10 @@ data = np.load("../../output/data/sky.npz")
 
 sky = {}
 pix_gal = {}
-for mode in modes:
-    sky[mode] = np.abs(data[f"{mode}"])
-    pix_gal[mode] = data[f"pix_gal_{mode}"]
+for channel in channels.keys():
+    for mode in modes.keys():
+        sky[f"{channel}_{mode}"] = np.abs(data[f"{channel}_{mode}"])
+        pix_gal[mode] = data[f"pix_gal_{mode}"]
 
 # stat_word_1 = np.array(data["df_data/stat_word_1"][()]).astype(int)
 # stat_word_12 = np.array(data["df_data/stat_word_12"][()]).astype(int)
@@ -80,22 +82,21 @@ for mode in modes:
 # ]
 
 # frequency mapping
-fnyq = gen_nyquistl(
-    "../../reference/fex_samprate.txt", "../../reference/fex_nyquist.txt", "int"
-)
+nu0 = {"ss": 68.020812, "lf": 23.807283}
+dnu = {"ss": 13.604162, "lf": 3.4010405}
+nf = {"lh_ss": 210, "ll_lf": 182, "ll_ss": 43, "rh_ss": 210, "rl_lf": 182, "rl_ss": 43}
 
-# scan_mode = 0  # SS
-channel = 3  # LL
-frec = {}
 f_ghz = {}
-for mode, item in modes.items():
-    frec[mode] = 4 * (channel % 2) + item
-
-    f_icm = np.arange(len(sky[mode][0])) * (fnyq["icm"][frec[mode]] / 320)
-    c = 3e8 * 1e2  # cm/s
-    f_ghz[mode] = (
-        f_icm * c * 1e-9 + 55
-    )  # this might not be right but it is what matches the initial frequencies of the firas movie
+for channel in channels.keys():
+    for mode in modes.keys():
+        if mode == "lf" and (channel == "lh" or channel == "rh"):
+            continue
+        else:
+            f_ghz[f"{channel}_{mode}"] = np.linspace(
+                nu0[mode],
+                nu0[mode] + dnu[mode] * (nf[f"{channel}_{mode}"] - 1),
+                nf[f"{channel}_{mode}"],
+            )
 
 NSIDE = 32
 npix = hp.nside2npix(NSIDE)
@@ -104,41 +105,50 @@ npix = hp.nside2npix(NSIDE)
 
 print("Calculating BB curve")
 
-for mode in modes.keys():
-    bb_curve = np.zeros(len(f_ghz[mode]))
-    for freq in range(len(f_ghz[mode])):
-        hpxmap = np.zeros(npix)
-        data_density = np.zeros(npix)
+for channel in channels.keys():
+    for mode in modes.keys():
+        bb_curve = np.zeros(len(f_ghz[f"{channel}_{mode}"]))
+        for freq in range(len(f_ghz[f"{channel}_{mode}"])):
+            hpxmap = np.zeros(npix)
+            data_density = np.zeros(npix)
 
-        for i in range(len(pix_gal)):
-            hpxmap[pix_gal[mode][i]] += sky[mode][i][freq]
-            data_density[pix_gal[mode][i]] += 1
+            for i in range(len(pix_gal)):
+                hpxmap[pix_gal[mode][i]] += sky[f"{channel}_{mode}"][i][freq]
+                data_density[pix_gal[mode][i]] += 1
 
-        m = np.zeros(npix)
-        mask2 = data_density == 0
-        m[~mask2] = hpxmap[~mask2] / data_density[~mask2]
+            m = np.zeros(npix)
+            mask2 = data_density == 0
+            m[~mask2] = hpxmap[~mask2] / data_density[~mask2]
 
-        # mask the map with the points of no data
-        m[mask2] = hp.UNSEEN
-        # mask the galaxy
-        m[mask] = hp.UNSEEN
+            # mask the map with the points of no data
+            m[mask2] = hp.UNSEEN
+            # mask the galaxy
+            m[mask] = hp.UNSEEN
 
-        # average all points at this frequency to get each frequency point in the bb curve
-        bb_curve[freq] = np.mean(m[m != hp.UNSEEN])
+            # average all points at this frequency to get each frequency point in the bb curve
+            bb_curve[freq] = np.mean(m[m != hp.UNSEEN])
 
-    # print(f"Fitting BB curve: {bb_curve}")
+        # print(f"Fitting BB curve: {bb_curve}")
 
-    t0 = np.array(2.726)
-    fit = minimize(residuals, t0, args=(f_ghz[mode][1:], bb_curve[1:]))
+        t0 = np.array(2.726)
+        fit = minimize(residuals, t0, args=(f_ghz[f"{channel}_{mode}"], bb_curve))
 
-    print(f"Plotting BB curve: {fit.x[0]}")
+        print(f"Plotting BB curve: {fit.x[0]}")
 
-    plt.plot(f_ghz[mode][1:], bb_curve[1:], label="Data")
-    plt.plot(f_ghz[mode][1:], planck(f_ghz[mode], fit.x[0])[1:], label="Fit")
-    plt.plot(f_ghz[mode][1:], planck(f_ghz[mode], t0)[1:], label="Original")
-    plt.xlabel("Frequency [GHz]")
-    plt.ylabel("Brightness [MJy/sr]")
-    plt.title("BB curve")
-    plt.legend()
-    plt.savefig(f"../../output/plots/bb_curve_{mode}.png")
-    plt.clf()
+        plt.plot(f_ghz[f"{channel}_{mode}"], bb_curve, label="Data")
+        plt.plot(
+            f_ghz[f"{channel}_{mode}"],
+            planck(f_ghz[f"{channel}_{mode}"], fit.x[0]),
+            label="Fit",
+        )
+        plt.plot(
+            f_ghz[f"{channel}_{mode}"],
+            planck(f_ghz[f"{channel}_{mode}"], t0),
+            label="Original",
+        )
+        plt.xlabel("Frequency [GHz]")
+        plt.ylabel("Brightness [MJy/sr]")
+        plt.title("BB curve")
+        plt.legend()
+        plt.savefig(f"../../output/plots/bb_curve_{f"{channel}_{mode}"}.png")
+        plt.clf()
