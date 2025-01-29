@@ -2881,7 +2881,10 @@ contains
       ! filter out non zero values
       t0_packed = pack(t0, t0 /= 0.)
       t1_packed = pack(t1, t1 /= 0.)
-      if (size(t0_packed) /= size(t1_packed)) stop "t0 and t1 are not the same size"
+      if (size(t0_packed) /= size(t1_packed)) then
+          write(*,*) "t0 and t1 are not the same size", size(t0_packed), size(t1_packed)
+          stop
+      end if
   
 
       allocate(x0_obs_packed(3, size(t0_packed)), x1_obs_packed(3, size(t0_packed)))
