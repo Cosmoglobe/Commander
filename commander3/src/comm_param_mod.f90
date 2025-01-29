@@ -3583,7 +3583,7 @@ end subroutine
           if (trim(cpar%cs_mono_prior(i)) /= 'none') then
             filename = get_token(cpar%cs_mono_prior(i), ":", 2)
             filename1 = get_token(filename, ",", 1)
-            call validate_file(trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
+            call validate_file(trim(cpar%datadir)//'/'//trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
           end if 
  
           if (trim(cpar%cs_prior_amp(i)) /= 'none') then
