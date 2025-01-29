@@ -1,0 +1,704 @@
+**************************************************************
+*                  Commander parameter file                  *
+**************************************************************
+@DEFAULT planck2015_1deg.defaults
+
+OPERATION                     = sample  # {sample,optimize}
+#OPERATION                     = optimize  # {sample,optimize}
+VERBOSITY                     = 3       # [0,...,3]
+
+##############################################################
+#                   Algorithm specification                  #
+##############################################################
+
+# Monte Carlo options
+NUMCHAIN         = 1       # Number of independent chains
+NUM_GIBBS_ITER   = 250     # Length of each Markov chain
+CHAIN_STATUS     = new
+NUM_INIT_CHAINS  = 1
+
+INIT_CHAIN01 = none
+
+OUTPUT_MIXING_MATRIX          = .true.
+OUTPUT_INPUT_MODEL            = .true.
+OUTPUT_SIGNALS_PER_BAND       = .true.
+NSIDE_CHISQ                   = 256
+
+##############################################################
+#                       Output options                       #
+##############################################################
+
+OUTPUT_DIRECTORY              = chains
+
+##############################################################
+#                         Data sets                          #
+##############################################################	
+
+DATA_DIRECTORY                 = /mn/stornext/d16/cmbco/AST9240/2024/planck2015_comm3/data
+NUMBAND                        = 32
+
+# HFI 
+INCLUDE_BAND001                = .true.   # 857-2
+INCLUDE_BAND002                = .true.   # 545-2
+INCLUDE_BAND003                = .true.   # 545-4
+INCLUDE_BAND004                = .true.   # 353-ds2
+INCLUDE_BAND005                = .true.   # 353-1
+INCLUDE_BAND006                = .true.   # 217-1
+INCLUDE_BAND007                = .true.   # 217-2
+INCLUDE_BAND008                = .true.   # 217-3
+INCLUDE_BAND009                = .true.   # 217-4
+INCLUDE_BAND010                = .true.   # 143-ds1
+INCLUDE_BAND011                = .true.   # 143-ds2
+INCLUDE_BAND012                = .true.   # 143-5
+INCLUDE_BAND013                = .true.   # 143-6
+INCLUDE_BAND014                = .true.   # 143-7
+INCLUDE_BAND015                = .true.   # 100-ds1
+INCLUDE_BAND016                = .true.   # 100-ds2
+
+# LFI
+INCLUDE_BAND017                = .true.   # 30 GHz
+INCLUDE_BAND018                = .true.   # 44 GHz
+INCLUDE_BAND019                = .true.   # 70-ds1
+INCLUDE_BAND020                = .true.   # 70-ds2
+INCLUDE_BAND021                = .true.   # 70-ds3
+
+# WMAP 
+INCLUDE_BAND022                = .true.    # K
+INCLUDE_BAND023                = .true.    # Ka
+INCLUDE_BAND024                = .true.    # Q1 
+INCLUDE_BAND025                = .true.    # Q2 
+INCLUDE_BAND026                = .true.    # V1 
+INCLUDE_BAND027                = .true.    # V2
+INCLUDE_BAND028                = .true.    # W1
+INCLUDE_BAND029                = .true.    # W2
+INCLUDE_BAND030                = .true.    # W3
+INCLUDE_BAND031                = .true.    # W4 
+
+# Haslam
+INCLUDE_BAND032                = .true.    # Haslam
+
+
+# 857-2
+@START 001
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 857-2
+BAND_INSTRUMENT_LABEL&&&       = 857-2
+BAND_UNIT&&&                   = MJy/sr
+BAND_BANDPASS_TYPE&&&          = HFI_submm
+BAND_NOMINAL_FREQ&&&           = 857.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_857-2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_857-2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_857-2.dat
+@END 001
+
+# 545-2
+@START 002
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 545-2
+BAND_INSTRUMENT_LABEL&&&       = 545-2
+BAND_UNIT&&&                   = MJy/sr
+BAND_BANDPASS_TYPE&&&          = HFI_submm
+BAND_NOMINAL_FREQ&&&           = 545.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_545-2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_545-2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_545-2.dat
+@END 002
+
+# 545-4
+@START 003
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 545-4
+BAND_INSTRUMENT_LABEL&&&       = 545-4
+BAND_UNIT&&&                   = MJy/sr
+BAND_BANDPASS_TYPE&&&          = HFI_submm
+BAND_NOMINAL_FREQ&&&           = 545.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_545-4_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_545-4_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_545-4.dat
+@END 003
+
+# 353-ds2
+@START 004
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 353-ds2
+BAND_INSTRUMENT_LABEL&&&       = 353-ds2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 353.
+BAND_MAPFILE&&&                = map_dx11d_r2_zbpcg_353-ds2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_353-ds2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_353-ds2.dat
+@END 004
+
+# 353-1
+@START 005
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 353-1
+BAND_INSTRUMENT_LABEL&&&       = 353-1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 353.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_353-1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_353-1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_353-1.dat
+@END 005
+
+# 217-1
+@START 006
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 217-1
+BAND_INSTRUMENT_LABEL&&&       = 217-1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 217.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_217-1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_217-1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_217-1.dat
+@END 006
+
+# 217-2
+@START 007
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 217-2
+BAND_INSTRUMENT_LABEL&&&       = 217-2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 217.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_217-2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_217-2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_217-2.dat
+@END 007
+
+# 217-3
+@START 008
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 217-3
+BAND_INSTRUMENT_LABEL&&&       = 217-3
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 217.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_217-3_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_217-3_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_217-3.dat
+@END 008
+
+# 217-1
+@START 009
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 217-4
+BAND_INSTRUMENT_LABEL&&&       = 217-4
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 217.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_217-4_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_217-4_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_217-4.dat
+@END 009
+
+# 143-ds1
+@START 010
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 143-ds1
+BAND_INSTRUMENT_LABEL&&&       = 143-ds1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 143.
+BAND_MAPFILE&&&                = map_dx11d_r2_zbpcg_143-ds1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_143-ds1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_143-ds1.dat
+@END 010
+
+# 143-ds2
+@START 011
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 143-ds2
+BAND_INSTRUMENT_LABEL&&&       = 143-ds2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 143.
+BAND_MAPFILE&&&                = map_dx11d_r2_zbpcg_143-ds2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_143-ds2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_143-ds2.dat
+@END 011
+
+# 143-5
+@START 012
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 143-5
+BAND_INSTRUMENT_LABEL&&&       = 143-5
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 143.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_143-5_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_143-5_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_143-5.dat
+@END 012
+
+# 143-6
+@START 013
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 143-6
+BAND_INSTRUMENT_LABEL&&&       = 143-6
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 143.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_143-6_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_143-6_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_143-6.dat
+@END 013
+
+# 143-7
+@START 014
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 143-7
+BAND_INSTRUMENT_LABEL&&&       = 143-7
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 143.
+BAND_MAPFILE&&&                = map_dx11d_r2_zc_143-7_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_143-7_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_143-7.dat
+@END 014
+
+# 100-ds1
+@START 015
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 100-ds1
+BAND_INSTRUMENT_LABEL&&&       = 100-ds1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 100.
+BAND_MAPFILE&&&                = map_dx11d_r2_zbpcg_100-ds1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_100-ds1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_100-ds1.dat
+@END 015
+
+# 100-ds2
+@START 016
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 100-ds2
+BAND_INSTRUMENT_LABEL&&&       = 100-ds2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = HFI_cmb
+BAND_NOMINAL_FREQ&&&           = 100.
+BAND_MAPFILE&&&                = map_dx11d_r2_zbpcg_100-ds2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_100-ds2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v307_100-ds2.dat
+@END 016
+
+# 30 GHz
+@START 017
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 030
+BAND_INSTRUMENT_LABEL&&&       = 030
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = LFI
+BAND_NOMINAL_FREQ&&&           = 28.4
+BAND_MAPFILE&&&                = map_dx11d_r2_nobpc_030_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_030_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_030.dat
+@END 017
+
+# 44 GHz
+@START 018
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 044
+BAND_INSTRUMENT_LABEL&&&       = 044
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = LFI
+BAND_NOMINAL_FREQ&&&           = 44.1
+BAND_MAPFILE&&&                = map_dx11d_r2_nobpc_044_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_044_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_044.dat
+@END 018
+
+# 70-ds1 
+@START 019
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 070-ds1
+BAND_INSTRUMENT_LABEL&&&       = 070-ds1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = LFI
+BAND_NOMINAL_FREQ&&&           = 70.3
+BAND_MAPFILE&&&                = map_dx11d_r2_nobpc_070-18_23_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_070-18_23_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v2_070-18_23.dat
+@END 019
+
+# 70-ds2 
+@START 020
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 070-ds2
+BAND_INSTRUMENT_LABEL&&&       = 070-ds2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = LFI
+BAND_NOMINAL_FREQ&&&           = 70.3
+BAND_MAPFILE&&&                = map_dx11d_r2_nobpc_070-19_22_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_070-19_22_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v2_070-19_22.dat
+@END 020
+
+# 70-ds3 
+@START 021
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = 070-ds3
+BAND_INSTRUMENT_LABEL&&&       = 070-ds3
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = LFI
+BAND_NOMINAL_FREQ&&&           = 70.3
+BAND_MAPFILE&&&                = map_dx11d_r2_nobpc_070-20_21_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_dx11d_r2_resc_070-20_21_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_dx11d_v2_070-20_21.dat
+@END 021
+
+# WMAP K
+@START 022
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_K
+BAND_INSTRUMENT_LABEL&&&       = WMAP_K
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 22.8
+BAND_MAPFILE&&&                = map_wmap9_K_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_K_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_K_v3.dat
+@END 022
+
+# WMAP Ka
+@START 023
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_Ka
+BAND_INSTRUMENT_LABEL&&&       = WMAP_Ka
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 33.0
+BAND_MAPFILE&&&                = map_wmap9_Ka_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_Ka_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_Ka_v3.dat
+@END 023
+
+# WMAP Q1
+@START 024
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_Q1
+BAND_INSTRUMENT_LABEL&&&       = WMAP_Q1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 40.6
+BAND_MAPFILE&&&                = map_wmap9_Q1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_Q1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_Q1_v3.dat
+@END 024
+
+# WMAP Q2
+@START 025
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_Q2
+BAND_INSTRUMENT_LABEL&&&       = WMAP_Q2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 40.6
+BAND_MAPFILE&&&                = map_wmap9_Q2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_Q2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_Q2_v3.dat
+@END 025
+
+# WMAP V1
+@START 026
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_V1
+BAND_INSTRUMENT_LABEL&&&       = WMAP_V1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 60.8
+BAND_MAPFILE&&&                = map_wmap9_V1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_V1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_V1_v3.dat
+@END 026
+
+# WMAP V2
+@START 027
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_V2
+BAND_INSTRUMENT_LABEL&&&       = WMAP_V2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 60.8
+BAND_MAPFILE&&&                = map_wmap9_V2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_V2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_V2_v3.dat
+@END 027
+
+# WMAP W1
+@START 028
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_W1
+BAND_INSTRUMENT_LABEL&&&       = WMAP_W1
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 93.5
+BAND_MAPFILE&&&                = map_wmap9_W1_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_W1_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_W1_v3.dat
+@END 028
+
+# WMAP W2
+@START 029
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_W2
+BAND_INSTRUMENT_LABEL&&&       = WMAP_W2
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 93.5
+BAND_MAPFILE&&&                = map_wmap9_W2_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_W2_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_W2_v3.dat
+@END 029
+
+# WMAP W3
+@START 030
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_W3
+BAND_INSTRUMENT_LABEL&&&       = WMAP_W3
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 93.5
+BAND_MAPFILE&&&                = map_wmap9_W3_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_W3_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_W3_v3.dat
+@END 030
+
+# WMAP W4
+@START 031
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = WMAP_W4
+BAND_INSTRUMENT_LABEL&&&       = WMAP_W4
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = WMAP
+BAND_NOMINAL_FREQ&&&           = 93.5
+BAND_MAPFILE&&&                = map_wmap9_W4_0256_60arcmin_full.fits
+BAND_NOISEFILE&&&              = rms_wmap9_W4_0256_60arcmin_full.fits
+BAND_BANDPASSFILE&&&           = bp_wmap9_W4_v3.dat
+@END 031
+
+# Haslam
+@START 032
+@DEFAULT bands/planck2015_1deg.defaults
+BAND_LABEL&&&                  = Haslam
+BAND_INSTRUMENT_LABEL&&&       = Haslam
+BAND_UNIT&&&                   = uK_cmb
+BAND_BANDPASS_TYPE&&&          = delta
+BAND_NOMINAL_FREQ&&&           = 0.408
+BAND_MAPFILE&&&                = map_haslam408_ds_Remazeilles2014_1deg_n256_uK_TQU.fits
+BAND_NOISEFILE&&&              = rms_haslam408_ds_Remazeilles2014_1deg_n256_uK_0.8K_1pct_TQU.fits
+BAND_BANDPASSFILE&&&           = haslam_bp.dat
+@END 032
+
+
+##############################################################
+#                     Model parameters                       #
+##############################################################	
+
+INSTRUMENT_PARAM_FILE         = init_instpar_planck2015_v1.dat
+INIT_INSTRUMENT_FROM_HDF      = none
+ 
+NUM_SIGNAL_COMPONENTS         = 13
+INCLUDE_COMP01                = .true.  # CMB
+INCLUDE_COMP02                = .true.  # Relativistic CMB correction
+INCLUDE_COMP03                = .true.  # Dust
+INCLUDE_COMP04                = .true.  # Synch
+INCLUDE_COMP05                = .true.  # Free-free
+INCLUDE_COMP06                = .true.  # AME1
+INCLUDE_COMP07                = .true.  # AME2
+INCLUDE_COMP08                = .true.  # CO10
+INCLUDE_COMP09                = .true.  # CO21
+INCLUDE_COMP10                = .true.  # CO32
+INCLUDE_COMP11                = .false.  # HCN
+INCLUDE_COMP12                = .false.  # SZ
+INCLUDE_COMP13                = .true.  # Monopole
+
+# CMB
+@START 01
+@DEFAULT components/cmb/cmb_planck2015_1deg.defaults
+COMP_AMP_INPUT_MAP&&          = init_cmb_rc2_n256_v03.fits
+COMP_MONOPOLE_PRIOR&&         = none
+@END 01
+
+# CMB relativistic quadrupole correction
+@START 02
+@DEFAULT components/cmb/cmb_relquad_planck2015_1deg.defaults
+COMP_TEMPLATE_DEFINITION_FILE&& = cmb_relquad_planck2015_1deg.txt
+@END 02
+
+# Thermal dust component
+@START 03
+@DEFAULT components/dust/dust_planck2015_1deg.defaults
+COMP_NU_REF_T&&               = 545
+COMP_NU_REF_P&&               = 545
+COMP_INDMASK&&                = fullsky
+COMP_AMP_INPUT_MAP&&          = init_dust_rc2_n256_v03.fits
+COMP_BETA_INPUT_MAP&&         = init_dust_beta_rc2_n256_v03.fits
+COMP_T_INPUT_MAP&&            = init_dust_Td_rc2_n256_v03.fits
+COMP_BETA_SMOOTHING_SCALE&&   = 0
+COMP_AMP_LMAX&&               = 750
+@DEFAULT components/dust/dust_LFI_localsampler.defaults
+# New Local sampling parameters, 'dust'
+COMP_IND_LMAX&&               = 750
+COMP_BETA_DEFAULT&&           = 1.50
+COMP_T_DEFAULT&&              = 19.5
+COMP_BETA_COMBINED_MONOPOLE_SAMPLING&& = .false.
+COMP_BETA_ALMSAMP_INIT&&      = none
+COMP_BETA_MASK&&              = fullsky
+COMP_INIT_FROM_HDF&&          = default
+COMP_BETA_INT_LNLTYPE&&       = prior chisq
+COMP_BETA_INT_LMAX&&          = -1
+COMP_BETA_INT_PIXREG&&        = pixreg
+COMP_BETA_POL_LNLTYPE&&       = prior
+COMP_BETA_INT_PRIOR_MEAN&&    = 1.50
+COMP_BETA_POL_PRIOR_MEAN&&    = 1.50
+COMP_BETA_POL_PRIOR_RMS&&     = 0.03 0.03
+COMP_BETA_INT_PRIOR_RMS&&     = 0.03 
+COMP_BETA_PRIOR_GAUSS_RMS&&   = 0.05
+COMP_BETA_POL_LMAX&&          = -1
+COMP_CL_DEFAULT_AMP_T&&       =  1e4        # D_l = amp * (l/lpivot)**beta
+COMP_CL_DEFAULT_AMP_E&&       =  100
+COMP_CL_DEFAULT_AMP_B&&       =  100
+COMP_CL_DEFAULT_BETA_T&&      =  14.d0
+COMP_CL_DEFAULT_BETA_E&&      =  14.d0
+COMP_CL_DEFAULT_BETA_B&&      =  14.d0
+@END 03
+
+# Synchrotron component
+@START 04
+@DEFAULT components/synch/synch_planck2015_1deg.defaults
+COMP_LABEL&&                  = synch
+COMP_TYPE&&                   = spindust
+COMP_NU_REF_T&&               = 0.408
+COMP_NU_P_INPUT_MAP&&         = init_synch_nup_rc2_n256_v03.fits
+COMP_SED_TEMPLATE&&           = Synchrotron_template_GHz_extended.txt
+COMP_AMP_INPUT_MAP&&          = init_synch_rc2_n256_v03.fits
+COMP_INIT_FROM_HDF&&          = none
+@END 04
+
+# freefree component ---------------------------------------------------------------------
+@START 05
+@DEFAULT components/freefree/freefree_planck2015_1deg.defaults
+@DEFAULT components/freefree/freefree_planck2015_1deg_localsampler.defaults
+COMP_EM_INPUT_MAP&&           = init_ff_EM_rc2_n256_v03.fits
+COMP_T_E_INPUT_MAP&&          = init_ff_T_e_rc2_n256_v03.fits
+@END 05
+
+# AME1 component ------------------------------------------------------------------
+@START 06
+@DEFAULT components/ame/ame_planck2015_1deg.defaults
+COMP_LABEL&&                  = ame1
+COMP_TYPE&&                   = spindust
+COMP_NU_REF_T&&                 = 22.8
+COMP_NU_P_INPUT_MAP&&         = init_ame1_nup_rc2_n256_v03.fits
+COMP_SED_TEMPLATE&&           = spdust2_cnm.dat
+COMP_AMP_INPUT_MAP&&          = init_ame1_rc2_n256_v03.fits
+COMP_INIT_FROM_HDF&&          = none
+@END 06
+
+# AME1 component ------------------------------------------------------------------
+@START 07
+@DEFAULT components/ame/ame_planck2015_1deg.defaults
+COMP_LABEL&&                  = ame2
+COMP_TYPE&&                   = spindust
+COMP_NU_REF_T&&                 = 41
+COMP_NU_P_INPUT_MAP&&         = init_ame2_nup_rc2_n256_v03.fits
+COMP_SED_TEMPLATE&&           = spdust2_cnm.dat
+COMP_AMP_INPUT_MAP&&          = init_ame2_rc2_n256_v03.fits
+COMP_INIT_FROM_HDF&&          = none
+@END 07
+
+
+# CO10 line emission
+@START 08
+@DEFAULT components/co/co_planck2015_1deg.defaults
+COMP_LABEL&&                  = co100
+COMP_NU_REF_T&&               = 115.27
+COMP_BAND_REF&&               = 100-ds1
+COMP_LINE_TEMPLATE&&          = co100_line_template_planck2015_1deg_v1.dat
+COMP_AMP_INPUT_MAP&&          = init_co10_rc2_n256_v03.fits
+@END 08
+
+# CO21 line emission
+@START 09
+@DEFAULT components/co/co_planck2015_1deg.defaults
+COMP_LABEL&&                  = co217
+COMP_NU_REF_T&&               = 230.54
+COMP_BAND_REF&&               = 217-1
+COMP_LINE_TEMPLATE&&          = co217_line_template_planck2015_1deg_v1.dat
+COMP_AMP_INPUT_MAP&&          = init_co21_rc2_n256_v03.fits
+@END 09
+
+# CO32 line emission
+@START 10
+@DEFAULT components/co/co_planck2015_1deg.defaults
+COMP_LABEL&&                  = co353
+COMP_NU_REF_T&&               = 345.81
+COMP_BAND_REF&&               = 353-ds2
+COMP_LINE_TEMPLATE&&          = co353_line_template_planck2015_1deg_v1.dat
+COMP_AMP_INPUT_MAP&&          = init_co32_rc2_n256_v03.fits
+@END 10
+
+# HCN line emission
+@START 11
+@DEFAULT components/co/co_planck2015_1deg.defaults
+COMP_LABEL&&                  = hcn
+COMP_NU_REF_T&&               = 88.6
+COMP_BAND_REF&&               = 100-ds1
+COMP_LINE_TEMPLATE&&          = /mn/stornext/d5/data/metins/dirbe/data/hcn_line_template_DIRBE_v1.dat
+COMP_AMP_INPUT_MAP&&          = lambda_wco_dht2001_n2048.fits
+@END 11
+
+# SZ placeholder -- not implemented yet
+@START 12
+@DEFAULT components/cmb/cmb_planck2015_1deg.defaults
+COMP_LABEL&&                  = sz
+COMP_AMP_INPUT_MAP&&          = init_cmb_rc2_n256_v03.fits
+COMP_MONOPOLE_PRIOR&&         = none
+@END 12
+
+# Mono- and dipole component
+@START 13
+@DEFAULT components/monodipole/md_LFI.defaults
+COMP_MD_MONO_FROM_PRIORS&&    = none
+COMP_MD_DEFINITION_FILE&&     = init_md_planck2015_1deg.dat
+COMP_INIT_FROM_HDF&&          = none
+@END 13
+
+
+
+
+
+
+
+
+
+NUM_CG_SAMPLING_GROUPS = 2
+NUM_MCMC_SAMPLING_GROUPS = 0
+
+@START 01
+CG_SAMPLING_GROUP&&          = cmb,ff,ame,synch,dust
+CG_SAMPLING_GROUP_MASK&&     = fullsky
+CG_SAMPLING_GROUP_MAXITER&&  = 60
+CG_SAMPLING_GROUP_BANDS&&    = all
+@END 01
+
+@START 02
+CG_SAMPLING_GROUP&&          = md
+CG_SAMPLING_GROUP_MASK&&     = mask_chisq_15band_n256_v2_ptsrc.fits
+CG_SAMPLING_GROUP_MAXITER&&  = 7
+CG_SAMPLING_GROUP_BANDS&&    = all
+@END 02
+
+
+
+NUM_SMOOTHING_SCALES           = 1
+SMOOTHING_SCALE_FWHM01          = 60.      # Arcmin; 0 = native resolution
+SMOOTHING_SCALE_LMAX01          = 750
+SMOOTHING_SCALE_NSIDE01         = 256  # Must match NSIDE of component it is used for
+SMOOTHING_SCALE_PIXWIN01        = pixel_window_n0256.fits
+SMOOTHING_SCALE_FWHM_POSTPROC01 = 60.    # Smoothing FWHM after pixel-by-pixel fit
