@@ -81,11 +81,11 @@ module comm_tod_mod
      real(dp)       :: n_proctime  = 0                             ! Number of completed loops
      real(dp)       :: v_sun(3)                                    ! Observatory velocity relative to Sun in km/s
      real(dp)       :: t0(3)                                       ! MJD, OBT, SCET for start of chunk
-     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end f chunk
+     real(dp)       :: t1(3)                                       ! MJD, OBT, SCET for end of chunk
      real(dp)       :: x0_obs(3)                                   ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end f chunk
+     real(dp)       :: x1_obs(3)                                   ! Observatory position (x,y,z) for end of chunk
      real(dp)       :: x0_earth(3)                                 ! Observatory position (x,y,z) for start of chunk
-     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end f chunk
+     real(dp)       :: x1_earth(3)                                 ! Observatory position (x,y,z) for end of chunk
 
      type(huffcode) :: hkey                                        ! Huffman decompression key
      type(huffcode) :: todkey                                      ! Huffman decompression key
@@ -971,6 +971,19 @@ contains
       call read_hdf(file, slabel // "/common/time", time)
       self%t0(2) = time
     end if
+
+
+    if (hdf_group_exists(file, slabel // "/common/time_end")) then
+       call get_size_hdf(file, slabel // "/common/time_end", setsize)
+       if (setsize(1) == 3) then
+         call read_hdf(file, slabel // "/common/time_end",  self%t1)
+       else
+         self%t1 = 0
+       end if
+     else
+       self%t1 = 0
+     end if
+
 
     ! HKE: LFI files should be regenerated with (x,y,z) info
     ! Read in satellite and earth position at the start and end of each scan (if available)
@@ -2882,7 +2895,7 @@ contains
       t0_packed = pack(t0, t0 /= 0.)
       t1_packed = pack(t1, t1 /= 0.)
       if (size(t0_packed) /= size(t1_packed)) then
-          write(*,*) "t0 and t1 are not the same size", size(t0_packed), size(t1_packed)
+          write(*,*) "Irregularity in number of unique start/end-times of tods, ", size(t0_packed), ' versus ', size(t1_packed), ' needed for zodi/tod interpolation'
           stop
       end if
   
