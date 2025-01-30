@@ -1090,7 +1090,8 @@ contains
        end if
        cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
     end if
-    call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i), path=.true.)
+    ! Note to future Mathew: don't try to add path=true, it's not always a path
+    call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))
     call get_parameter_hashtable(htbl, 'COMP_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_mask(i), path=.true.)
     if(cpar%cs_mask(i) /= 'fullsky') then
       maskfile = adjustl(trim(cpar%cs_mask(i)))

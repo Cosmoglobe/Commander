@@ -334,7 +334,7 @@ contains
           filename = get_token(temp_filename, ",", 1)
           info_tempfit => comm_mapinfo(cpar%comm_chain, self%nside, 0, 2, .false.)
           self%mono_prior_map => comm_map(info_tempfit, trim(filename))
-       else          
+       else 
           filename = get_token(temp_filename, ",", 1)
           self%mono_prior_map => comm_map(self%x%info, trim(filename))
        end if
