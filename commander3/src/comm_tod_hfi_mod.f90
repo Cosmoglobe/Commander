@@ -98,15 +98,22 @@ contains
     c%noise_psd_model = 'oof'
     allocate(c%xi_n_P_uni(c%n_xi,2))
     allocate(c%xi_n_P_rms(c%n_xi))
+    allocate(c%xi_n_nu_fit(c%n_xi, 2))
 
     ! just so that it actually runs
     c%xi_n_P_uni(2,:) = [0.010d0, 0.45d0]  ! fknee
     c%xi_n_P_uni(3,:) = [-2.5d0, -0.4d0]   ! alpha
-    !c%xi_n_nu_fit     = [0.d0, 1.225d0] ! I took it from freq=30 for LFI, so not true
+    
+    !TODO: These numbers are made up, we should refine them
+    c%xi_n_nu_fit(1,:) = [3.d0, 10.d0] 
+    c%xi_n_nu_fit(2,:) = [0.d0, 1.25d0]
+    c%xi_n_nu_fit(3,:) = [0.d0, 1.25d0]
 
     c%xi_n_P_rms      = [-1.d0, 0.1d0, 0.2d0] ! [sigma0, fknee, alpha]; sigma0 is not used
 
     c%n_cray_temps    = 3
+
+    c%ndiode = 1
 
     ! Initialize common parameters
     call c%tod_constructor(cpar, id, id_abs, info, tod_type)

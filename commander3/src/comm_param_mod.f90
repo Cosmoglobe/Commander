@@ -1090,7 +1090,7 @@ contains
        end if
        cpar%cs_cl_amp_def(i,:) = cpar%cs_cl_amp_def(i,:) / cpar%cs_cg_scale(:,i)**2
     end if
-    call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i))
+    call get_parameter_hashtable(htbl, 'COMP_MONOPOLE_PRIOR'//itext, len_itext=len_itext, par_string=cpar%cs_mono_prior(i), path=.true.)
     call get_parameter_hashtable(htbl, 'COMP_MASK'//itext, len_itext=len_itext,            par_string=cpar%cs_mask(i), path=.true.)
     if(cpar%cs_mask(i) /= 'fullsky') then
       maskfile = adjustl(trim(cpar%cs_mask(i)))
@@ -3583,7 +3583,7 @@ end subroutine
           if (trim(cpar%cs_mono_prior(i)) /= 'none') then
             filename = get_token(cpar%cs_mono_prior(i), ":", 2)
             filename1 = get_token(filename, ",", 1)
-            call validate_file(trim(cpar%datadir)//'/'//trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
+            call validate_file(trim(cpar%datadir) //"/"// trim(filename1),"COMP_MONOPOLE_PRIOR"//itext)
           end if 
  
           if (trim(cpar%cs_prior_amp(i)) /= 'none') then
