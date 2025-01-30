@@ -1,0 +1,26 @@
+c-------------------------------------------------------------------------------
+c  File:	FAD_MSG.TXT
+c
+c  Purpose: To be used as an include file for declaration of external 
+c           FAD messages in FAD modules.
+c
+c  Author: Larry P. Rosen, April 1993, Hughes STX.
+c-------------------------------------------------------------------------------
+	external	fad_normal		! Successful completion.
+	external	fad_abort		! Process aborted.
+	external	fad_model_mismatch	! FEX_EJ has different model
+						!    solution than FCF data.
+	external	fad_parserr	! Error parsing command line.
+	external	fad_lunerr	! Error getting logic unit number.
+	external	fad_openerr	! Error opening FEX_EJ or FEX_GN.
+	external	fad_readerr	! Error reading FEX_EJ or FEX_GN.
+	external	fad_closerr	! Error closing FEX_EJ or FEX_GN.
+	external	fad_ctinit	! Cobetrieve ct_init failure.
+	external	fad_openrep	! Error opening report file.
+	external	fad_closerep	! Error closing report file.
+	external	fad_csaopen	! Error opening skymap.
+	external	fad_csaoffset	! Error calling csa_field_offset_values.
+	external	fad_csaread	! Error calling csa_read_pixels.
+	external	fad_csawrite	! Error calling csa_write_pixels.
+	external	fad_csaclose	! Error closing skymap.
+	external	fad_query_cat	! Error querying archive catalog.

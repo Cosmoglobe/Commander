@@ -1,0 +1,62 @@
+c------------------------------------------------------------------------------
+c
+c	FIP_FREQUENCY.TXT
+c
+c	This include file contains the processing parameters and invocation
+c	parameters for the FIP frequency cut.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 25 May 1993
+c
+c-------------------------------------------------------------------------------
+c
+c  Changes:
+c
+c	Added FCC_FCHAN and FCC_FSMODE.
+c	Gene Eplee GSC, 10 February 1994.
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+
+	integer * 4	fcc_hifreq_default	!  Default high frequency cutoff
+	parameter	(fcc_hifreq_default = 100)
+	integer * 4	fcc_jhi_default		!  Default high frequency index
+	parameter	(fcc_jhi_default = 180)
+	integer * 4	fcc_jlo_default		!  Default low frequency index
+	parameter	(fcc_jlo_default = 1)
+	integer * 4	fcc_lofreq_default	!  Default low frequency cutoff
+	parameter	(fcc_lofreq_default = 0)
+
+c
+c  Set the invocation flags.
+c
+	integer * 4	fcc_fchan		!  channel number
+	integer * 4	fcc_freq		!  /FREQ_RANGE qualifier
+	integer * 4	fcc_freq_offset		!  frequency index offset
+	integer * 4	fcc_fsmode		!  scan mode number
+	integer * 4	fcc_hifreq		!  high frequency cutoff
+	integer * 4	fcc_jhi			!  low frequency index
+	integer * 4	fcc_jlo			!  high frequeny index
+	integer * 4	fcc_lofreq		!  low frequency cutoff
+	integer * 4	fcc_nfreq		!  number of frequency points
+
+	real	* 4	fcc_dnu			!  optical frequency interval in
+                                                !    GHz
+	real	* 4	fcc_dw			!  audio frequency interval in
+                                                !    radians/sec
+	real	* 4	fcc_nu0			!  first optical frequency point
+                                                !    in GHz
+	real	* 4	fcc_w0			!  first audio frequency point
+                                                !    in radians/sec
+
+c
+c  Define the common block.
+c
+	common  /fcc_freq/  fcc_fchan, fcc_fsmode, fcc_freq, fcc_lofreq,
+     .			    fcc_jlo, fcc_hifreq, fcc_jhi, fcc_freq_offset,
+     .			    fcc_nfreq, fcc_nu0, fcc_dnu, fcc_w0, fcc_dw

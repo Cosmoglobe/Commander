@@ -1,0 +1,40 @@
+0.0	!XCAL GRT - A side		*** A SIDE ***
+0.5	!Skyhorn GRT - A side
+0.5	!Reference Horn GRT - A side
+0.1	!ICAL GRT - A side
+0.5	!Dihederal GRT - A side
+0.5	!Bolometer RH - A side
+0.5	!Bolometer RL - A side
+0.5	!Bolometer LH - A side
+0.5	!Bolometer LL - A side
+0.0	!Mirror Mount GRT - A side
+0.0	!Cal Res RH - A side
+0.0	!Cal Res RL - A side
+0.0	!Cal Res LH - A side
+0.0	!Cal Res LL - A side
+0.5	!XCAL S5 GRT - A side
+0.5	!Collimator - A side
+0.0	!XCAL GRT - B side		*** B SIDE ***
+0.0	!Skyhorn GRT - B side
+0.5	!Reference Horn GRT - B side
+0.9	!ICAL GRT - B side
+0.5	!Dihederal GRT - B side
+0.5	!Bolometer RH - B side
+0.5	!Bolometer RL - B side
+0.5	!Bolometer LH - B side
+0.5	!Bolometer LL - B side
+0.0	!Mirror Mount GRT - B side
+0.0	!Cal Res RH - B side
+0.0	!Cal Res RL - B side
+0.0	!Cal Res LH - B side
+0.0	!Cal Res LL - B side
+0.5	!XCAL S6 GRT - B side
+0.0	!Collimator - B side
+!
+! FEX_GRTCOAWT.TXT 
+!
+!       SPR 8899, GRT weights for coadd data.
+!                 Nilo Gonzales/STX, August 21, 1991.  
+!       SER 10565, S. Alexander, HSTX, 2/11/93:  Delivered for
+!                  FIC production.
+!	Certified Rick Shafer - 1993 Feb 22, Pass 2A, FIC production

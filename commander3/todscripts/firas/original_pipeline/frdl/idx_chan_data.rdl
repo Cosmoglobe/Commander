@@ -1,0 +1,25 @@
+!
+!  Channel specific data for the index record.
+!
+        union
+
+          map
+            scalar/byte         uP_SCI_MODE
+            scalar/byte         FAKEIT
+            scalar/byte         uP_ADDS_PER_GRP
+            scalar/byte         uP_SWEEPS_PER_IFG
+            scalar/byte         MTM_SPEED_AT_XMIT
+            scalar/byte         MTM_LENGTH_AT_XMIT
+          endmap
+
+          map
+            array/byte/dim=6    GROUP6
+          endmap
+
+        endunion
+
+        scalar/word             SCIENCE_GAIN
+        scalar/byte             BOL_CMD_BIAS
+        scalar/byte             BOL_READOUT_VOLT
+        scalar/byte             CHAN_SPARE1
+        scalar/byte             CHAN_SPARE2

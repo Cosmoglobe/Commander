@@ -1,0 +1,66 @@
+	INTEGER*4 FUNCTION FUT_QGET_ENG (ENG_LUN, ENG_REC)
+
+C-------------------------------------------------------------------------
+C
+C	PROGRAM NAME:
+C	  FUT_QGET_ENG
+C
+C	PROGRAM DESCRIPTION:
+C	  Program to read FIRAS Engineering Archive
+C
+C	AUTHOR:
+C	  E.Fung
+C	  GSFC
+C	  OCTOBER 31, 1985
+C
+C	Input parameters:
+C	  ENG_LUN	I*2	Logical unit for reading Engineering Archive
+C
+C	Output parameters:
+C	  ENG_REC		RECORD	Buffer containing Engineering record
+C
+C	INPUT FILES:
+C	  FIRAS Engineering ARCHIVE
+C
+C	OUTPUT FILES:
+C	  NONE
+C
+C	SUBROUTINES CALLED:
+C	  CT_QUERY_GET
+C
+C	INCLUDE FILES USED:
+C	  CT$LIBRARY:CTUSER.INC
+C
+C-------------------------------------------------------------------------
+
+	IMPLICIT	NONE
+
+	INCLUDE		'CT$LIBRARY:CTUSER.INC'
+
+	DICTIONARY	'FDQ_ENG'
+	RECORD /FDQ_ENG/ ENG_REC
+
+	INTEGER		*2	ENG_LUN
+	INTEGER		*2	ISTAT
+	INTEGER		*2	CT_STAT(20)
+
+	EXTERNAL		FUT_NORMAL
+	EXTERNAL		FUT_EOF
+	EXTERNAL		FUT_CTQGET_ERR
+
+
+	CALL CT_QUERY_GET (, ENG_LUN, ENG_REC, CT_STAT)
+	IF (CT_STAT(1) .NE. CTP_NORMAL) THEN
+	  IF (CT_STAT(1) .EQ. CTP_ENDOFFILE) THEN
+	    FUT_QGET_ENG = %LOC(FUT_EOF)
+	  ELSE
+	    CALL LIB$SIGNAL (FUT_CTQGET_ERR, %VAL(1), %VAL(CT_STAT(1)))
+	    FUT_QGET_ENG = %LOC(FUT_CTQGET_ERR)
+	  ENDIF
+	  RETURN
+	ENDIF
+
+	FUT_QGET_ENG = %LOC(FUT_NORMAL)
+
+	RETURN
+	END

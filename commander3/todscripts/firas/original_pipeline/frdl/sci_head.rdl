@@ -1,0 +1,80 @@
+!
+! Science data channel header written by the FIRAS stripper
+!   and FIRAS Preprocessor.
+!
+        scalar/word             CHAN_ID
+                                !  Channel id
+        scalar/word             GAIN
+                                !  Gain
+        scalar/word             MTM_SPEED
+                                !  MTM speed
+        scalar/word             MTM_LENGTH
+                                !  MTM scan length
+        array/byte/dim=60       DATA_QUAL
+                                !  Data quality flags
+        array/word/dim=8        DATA_READY
+                                !  Data ready flags
+!
+! Scan data.
+!
+        scalar/word             SC_HEAD0
+                                !  Data block synchronization
+        scalar/byte             SC_HEAD1A
+                                !  Block type (sci mode)
+        scalar/byte             SC_HEAD1B
+                                !  Block ID
+        scalar/word             SC_HEAD2
+                                !  SW version number
+        scalar/word             SC_HEAD3
+                                !  Status bits
+        scalar/word             SC_HEAD4
+                                !  Transmit time LSW
+        scalar/word             SC_HEAD5
+                                !  Transmit time MSW
+        scalar/word             SC_HEAD6
+                                !  Data check
+        scalar/word             SC_HEAD7
+                                !  No a/d samples for collect
+                                !    cycle
+        scalar/word             SC_HEAD8
+                                !  Points process for collect
+                                !    cycle
+        scalar/word             SC_HEAD9
+                                !  Number of added points 1,2,
+                                !   3,8,or 12 "adds per group"
+        scalar/word             SC_HEAD10
+                                !  Data points per mirror sweep
+        scalar/word             SC_HEAD11
+                                !  Number of mirror sweeps
+        scalar/word             SC_HEAD12
+                                !  LSW frame counter
+        scalar/word             SC_HEAD13
+                                !  MSW frame counter
+        scalar/word             SC_HEAD14
+                                !  Deglitcher threshold factor
+        scalar/word             SC_HEAD15
+                                !  Noise level
+        scalar/word             SC_HEAD16
+                                !  S/L counter constants
+        scalar/word             SC_HEAD17
+                                !  Deglitcher Seed Sample
+        scalar/word             SC_HEAD18
+                                !  Command Counter
+        scalar/word             SC_HEAD19
+                                !  Program Checksum
+        scalar/word             SC_HEAD20
+                                !  Saturated Sample Count
+        scalar/word             SC_HEAD21
+                                !  Glitch total
+        scalar/word             SC_HEAD22
+                                !  Deglitcher overflow address
+        scalar/word             SC_HEAD23
+                                !  Division of IFG performed
+                                !    (FCI RMS files only)
+        scalar/word             SC_HEAD24
+                                !  FCI raw science intermediate
+                                !    dump data type
+        scalar/word             SC_HEAD25
+                                !  High/low channel indicator
+                                !    'HI' = high
+                                !    'LO' = low

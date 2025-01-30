@@ -1,0 +1,35 @@
+!
+!  Glitch Profile Record Structure
+!
+Record FEX_GLTCHPRO FEX_GLTCHPRO
+
+  Array/Float/Dim=512           GLTCHPRO
+                                ! Glitch Profiles
+                                !
+                                !   First 510 points store actual profile;
+                                !   point 511 is index of glitch peak
+                                !   position; point 512 is offset from 511
+                                !   to "true" peak position obtained by
+                                !   parabolic interpolation.
+                                !
+                                !   Stored in 312 records; each group of 26
+                                !   records has 1 record for adds-per-group=1,
+                                !   2 for adds-per-group=2, and so on for
+                                !   adds-per-group values 1,2,3,8, and 12.
+                                !
+                                !   Slow MTM Speed   1 - 104
+                                !      RH            1 -  26
+                                !      RL           27 -  52
+                                !      LH           53 -  78
+                                !      LL           79 - 104
+                                !   Fast MTM Speed 105 - 208
+                                !      RH          105 - 130
+                                !      RL          131 - 156
+                                !      LH          157 - 182
+                                !      LL          183 - 208
+                                !   Fake-it Mode   209 - 312
+                                !      RH          209 - 234
+                                !      RL          235 - 260
+                                !      LH          261 - 286
+                                !      LL          287 - 312
+End_Record

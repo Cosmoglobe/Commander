@@ -1,0 +1,29 @@
+C------------------------------------------------------------------------
+C  FIT_DATA.TXT
+C	This include-file contains the engineering stats data structure.
+C
+C	Author: F. Shuman
+C		STX
+C		October 23, 1987
+C
+C------------------------------------------------------------------------
+C	Revisions:
+C
+C	1987 Nov 5    unknown
+C
+C       version 4.5.1 QFix 530, SPRs 4669, 4670.  F. Shuman,  STX,  1989 Oct 2.
+C                     Successive cropping of endtime; shuffling of data.
+C                     Changes to FIT.for, FIT_Extract_Eng_Stats.for,
+C                     FIT_Merge_Eng_Stats.for, and FIT_Data.txt.
+C------------------------------------------------------------------------
+
+	Integer		*4	num_stats_types
+	Parameter	(num_stats_types = 5)
+
+	Structure /Orb_Data/ 
+
+	   Integer	*4	nrecs
+	   Byte 		stats_data(fac_engtemp_size + fac_lmaceng_size,
+	2                                  fac_max_stats_recs, num_stats_types)
+
+	End Structure

@@ -1,0 +1,51 @@
+!
+!  FIRAS Merged Skymap Correction Spectrum
+!    Record Structure
+!
+record FMS_COR FMS_COR
+
+!
+!  Header Information
+!
+    scalar/text/length=14    GMT
+                             !  GMT Dataset Timetag
+    scalar/adt               TIME
+                             !  Binary Dataset Timetag
+    scalar/text/length=4     CHANSCAN
+                             !  Channel and Scan Mode of
+                             !    Merged Skymap
+    scalar/text/length=40    MODEL_LABEL
+                             !  Calibration Solution Label
+    scalar/long              TRANS_FREQ
+                             !  Offset/Gain Correction
+                             !    Transition Frequency
+
+!
+!  Correction Spectrum and Spectral Weights
+!
+    array/doublec/dim=257    GAIN_COR_SPEC
+                             !  Gain Correction Spectrum
+    array/doublec/dim=257    OFF_COR_SPEC
+                             !  Offset Correction Spectrum
+    array/double/dim=257     WR_ONE
+                             !  Relative Weight of Sky
+                             !    Spectra in First Skymap
+    scalar/double            TR_ONE
+                             !  Average of WR_ONE
+    array/double/dim=257     WR_TWO
+                             !  Relative Weight of Sky
+                             !    Spectra in Second Skymap
+    scalar/double            TR_TWO
+                             !  Average of WR_TWO
+    array/double/dim=257     WC_ONE
+                             !  Relative Weight of Correction
+                             !    Spectrum for First Skymap
+    array/double/dim=257     WC_TWO
+                             !  Relative Weight of Correction
+                             !    Spectrum for Second Skymap
+
+    array/byte/dim=362       SPARES
+                             !  Spares to Pad Record to
+                             !  Block Boundary
+
+end_record

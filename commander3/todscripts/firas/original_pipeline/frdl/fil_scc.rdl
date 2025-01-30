@@ -1,0 +1,8 @@
+!
+!  Timetags of sky ifgs passing and failing consistency check.
+!
+record FIL_SCC FIL_SCC
+
+  include con_checkl.rdl
+
+end_record

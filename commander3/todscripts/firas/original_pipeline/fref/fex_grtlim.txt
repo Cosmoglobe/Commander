@@ -1,0 +1,106 @@
+****************************************************************************
+*
+*	File Name:       FEX_GRTLIM.TXT
+*
+*	Description:
+*                        File containing GRT limits for the Fex_Englim record.
+*	                 Each line contains the GRT array field name and array 
+*		         position of one of the the GRTs in the FEX_Englim 
+*			 record followed by the real*4 values of the limits: 
+*			 Red Low, Yellow Low, Yellow High and Red High. There
+*			 are 48 GRTs within each GRT array of 64 positions. The
+*		         calibrator resistors  fill the other 16 positions.
+*		         However the calibrator resistors have no limits 
+*			 defined and are therefore not included in the 
+*		         processing of limits. GRTs will be numbered 1 to 12
+*		         for each group in FEX_Grtlims.Txt. 
+*			 The limits record arranges the parameters into groups:
+*			 A Low GRTs, A High GRTs, B Low GRTs and B High GRTs.
+*			 The order of the parameters on the line is fixed 
+*			 but the starting column for each field may vary.
+*		         Comment lines must begin with a '*' or a '!' in
+*			 column one. Blank lines are allowed.
+*	Assumptions: 
+*			 The positions of the individual GRTs in the 
+*			 FEX_ENGLIM.En_Analog structure remain constant.
+*
+*	Purpose of File: To be used in creating the limits database for FDQ.
+*
+*	Designer:	 Shirley M. Read  ( STX )  January 1988
+*  
+***************************************************************************
+*       Modification History:
+*
+*       10/02/91  D. Bouler Hughes-STX 
+*                 Modified for Phase 1 reprocessing of FIRAS data.
+*                 Input from R. Shafer, Science Working Group.
+*
+*	Certification:  1991 Oct 2 Rick Shafer Pass 2
+*
+****************************************************************************
+*
+*   GRTs - A Low
+*
+A_LO_GRT    1    0.20    0.20    25.0    25.0
+A_LO_GRT    2    1.00    1.00    28.0    28.0
+A_LO_GRT    3    0.20    0.20    28.0    28.0
+A_LO_GRT    4    0.20    0.20    20.0    20.0
+A_LO_GRT    5    1.00    1.00     8.0     8.0
+A_LO_GRT    6    1.30    1.30     6.0     6.0
+A_LO_GRT    7    1.30    1.30     6.0     6.0
+A_LO_GRT    8    1.30    1.30     6.0     6.0
+A_LO_GRT    9    1.30    1.30     6.0     6.0
+A_LO_GRT   10    1.30    1.30     6.0     6.0
+*
+A_LO_GRT   11    0.20    0.20    25.0    25.0
+A_LO_GRT   12    1.20    1.20     4.5     4.5
+*
+*   GRTs - A High
+*
+A_HI_GRT    1    0.20    0.20    25.0    25.0
+A_HI_GRT    2    1.00    1.00    28.0    28.0
+A_HI_GRT    3    0.20    0.20    28.0    28.0
+A_HI_GRT    4    0.20    0.20    20.0    20.0
+A_HI_GRT    5    1.00    1.00     8.0     8.0
+A_HI_GRT    6    1.30    1.30     6.0     6.0
+A_HI_GRT    7    1.30    1.30     6.0     6.0
+A_HI_GRT    8    1.30    1.30     6.0     6.0
+A_HI_GRT    9    1.30    1.30     6.0     6.0
+A_HI_GRT   10    1.30    1.30     6.0     6.0
+*
+A_HI_GRT   11    0.20    0.20    25.0    25.0
+A_HI_GRT   12    1.20    1.20     4.5     4.5
+*
+*   GRTs - B Low
+*
+B_LO_GRT    1    0.20    0.20    25.0    25.0
+B_LO_GRT    2    1.00    1.00    28.0    28.0
+B_LO_GRT    3    0.20    0.20    28.0    28.0
+B_LO_GRT    4    0.20    0.20    20.0    20.0
+B_LO_GRT    5    1.00    1.00     8.0     8.0
+B_LO_GRT    6    1.30    1.30     6.0     6.0
+B_LO_GRT    7    1.30    1.30     6.0     6.0
+B_LO_GRT    8    1.30    1.30     6.0     6.0
+B_LO_GRT    9    1.30    1.30     6.0     6.0
+B_LO_GRT   10    1.30    1.30     6.0     6.0
+*
+B_LO_GRT   11    0.20    0.20    25.0    25.0
+B_LO_GRT   12    1.20    1.20     4.5     4.5
+*
+*   GRTs - B High
+*
+B_HI_GRT    1    0.20    0.20    25.0    25.0
+B_HI_GRT    2    1.00    1.00    28.0    28.0
+B_HI_GRT    3    0.20    0.20    28.0    28.0
+B_HI_GRT    4    0.20    0.20    20.0    20.0
+B_HI_GRT    5    1.00    1.00     8.0     8.0
+B_HI_GRT    6    1.30    1.30     6.0     6.0
+B_HI_GRT    7    1.30    1.30     6.0     6.0
+B_HI_GRT    8    1.30    1.30     6.0     6.0
+B_HI_GRT    9    1.30    1.30     6.0     6.0
+B_HI_GRT   10    1.30    1.30     6.0     6.0
+*
+B_HI_GRT   11    0.20    0.20    25.0    25.0
+B_HI_GRT   12    1.20    1.20     4.5     4.5
+*
+

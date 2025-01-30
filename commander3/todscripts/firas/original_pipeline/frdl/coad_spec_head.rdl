@@ -1,0 +1,40 @@
+!
+! Coadd and spectrum header.
+!
+        scalar/text/length=14   FIRST_GMT
+                                !  GMT of first IFG
+        scalar/adt              FIRST_TIME
+                                !  Binary time of first IFG
+        array/byte/dim=6        FIRST_SPACE_TIME
+                                !  Spacecraft time of first
+                                !    IFG
+        scalar/long             FIRST_MJR_FRM_NO
+                                !  Major frame number
+                                !    of first IFG
+        scalar/text/length=14   LAST_GMT
+                                !  GMT of last IFG
+        scalar/adt              LAST_TIME
+                                !  Binary time of last IFG
+        array/byte/dim=6        LAST_SPACE_TIME
+                                !  Spacecraft time of last
+                                !    IFG
+        scalar/long             LAST_MJR_FRM_NO
+                                !  Major frame number
+                                !    of last IFG
+        scalar/long             COADD_NO
+                                !  Record number of coadd
+                                !    within coadd file
+        scalar/word             NUM_IFGS
+                                !  Number of IFGs in coadd
+        scalar/text/length=60   LABEL
+                                !  Coadd/spectrum label
+        scalar/float            COMB_NUM_IFGS
+                                !  Number of IFGs in combined
+                                !    spectrum
+        scalar/float            REAL_COMB_CHI_SQUARE
+                                !  Real part of chi-Square of
+                                !    combined spectrum
+        scalar/float            IMAG_COMB_CHI_SQUARE
+                                !  Real part of chi-Square of
+                                !    combined spectrum
+        array/byte/dim=4        SPARES

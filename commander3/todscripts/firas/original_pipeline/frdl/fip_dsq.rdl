@@ -1,0 +1,18 @@
+!
+! FIRAS Destriper Stripe Covariance Matrix
+!    project dataset record structure 
+!
+record FIP_DSQ FIP_DSQ
+!
+! Calibration model solution label
+scalar/text/length=40    MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4     CHANSCAN
+!
+! Stripe Covariance Matrix
+array/double/dim=(5,5)   Q_INVERSE
+!
+! Stripe Conversion Matrix
+array/double/dim=(5,5)   STRIPE_CONVERT
+!
+end_record

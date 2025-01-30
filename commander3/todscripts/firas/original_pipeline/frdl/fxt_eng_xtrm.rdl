@@ -1,0 +1,238 @@
+!
+!  Engineering Extrema record structure.
+!
+record FXT_ENG_XTRM FXT_ENG_XTRM
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+! Structure for FIRAS Engineering Analogs Extrema
+!   Dimension 1: Minimum Engineering Values
+!   Dimension 2: Maximum Engineering Values
+
+  structure/dim=2  MinMax
+!
+! Instrument temperatures.
+!
+      union
+          map
+!             GRT Side A, Low current.
+
+              scalar/float     XCAL_TEMP_AL
+              scalar/float     SKY_HORN_TEMP_AL
+              scalar/float     REFERENCE_HORN_TEMP_AL
+              scalar/float     INTERNAL_CALIBRATOR_TEMP_AL
+              scalar/float     DIHEDRAL_TEMP_AL
+              scalar/float     BOLOMETER_ASSEMBLY_RH_TEMP_AL
+              scalar/float     BOLOMETER_ASSEMBLY_RL_TEMP_AL
+              scalar/float     BOLOMETER_ASSEMBLY_LH_TEMP_AL
+              scalar/float     BOLOMETER_ASSEMBLY_LL_TEMP_AL
+              scalar/float     MIRROR_TEMP_AL
+              scalar/float     CAL_RESISTORS_RH_TEMP_AL
+              scalar/float     CAL_RESISTORS_RL_TEMP_AL
+              scalar/float     CAL_RESISTORS_LH_TEMP_AL
+              scalar/float     CAL_RESISTORS_LL_TEMP_A
+              scalar/float     XCAL_TEMP_S5_AL
+              scalar/float     COLIMATOR_TEMP_AL
+
+!             Side A, High current.
+
+              scalar/float     XCAL_TEMP_AH
+              scalar/float     SKY_HORN_TEMP_AH
+              scalar/float     REFERENCE_HORN_TEMP_AH
+              scalar/float     INTERNAL_CALIBRATOR_TEMP_AH
+              scalar/float     DIHEDRAL_TEMP_AH
+              scalar/float     BOLOMETER_ASSEMBLY_RH_TEMP_AH
+              scalar/float     BOLOMETER_ASSEMBLY_RL_TEMP_AH
+              scalar/float     BOLOMETER_ASSEMBLY_LH_TEMP_AH
+              scalar/float     BOLOMETER_ASSEMBLY_LL_TEMP_AH
+              scalar/float     MIRROR_TEMP_AH
+              scalar/float     CAL_RESISTORS_RH_TEMP_AH
+              scalar/float     CAL_RESISTORS_RL_TEMP_AH
+              scalar/float     CAL_RESISTORS_LH_TEMP_AH
+              scalar/float     CAL_RESISTORS_LL_TEMP_AH
+              scalar/float     XCAL_TEMP_S5_AH
+              scalar/float     COLIMATOR_TEMP_AH
+
+!             Side B, Low current.
+
+              scalar/float     XCAL_TEMP_BL
+              scalar/float     SKY_HORN_TEMP_BL
+              scalar/float     REFERENCE_HORN_TEMP_BL
+              scalar/float     INTERNAL_CALIBRATOR_TEMP_BL
+              scalar/float     DIHEDRAL_TEMP_BL
+              scalar/float     BOLOMETER_ASSEMBLY_RH_TEMP_BL
+              scalar/float     BOLOMETER_ASSEMBLY_RL_TEMP_BL
+              scalar/float     BOLOMETER_ASSEMBLY_LH_TEMP_BL
+              scalar/float     BOLOMETER_ASSEMBLY_LL_TEMP_BL
+              scalar/float     MIRROR_TEMP_BL
+              scalar/float     CAL_RESISTORS_RH_TEMP_BL
+              scalar/float     CAL_RESISTORS_RL_TEMP_BL
+              scalar/float     CAL_RESISTORS_LH_TEMP_BL
+              scalar/float     CAL_RESISTORS_LL_TEMP_BL
+              scalar/float     XCAL_TEMP_S6_BL
+              scalar/float     COLIMATOR_TEMP_BL
+
+!             Side B, High current.
+
+              scalar/float     XCAL_TEMP_BH
+              scalar/float     SKY_HORN_TEMP_BH
+              scalar/float     REFERENCE_HORN_TEMP_BH
+              scalar/float     INTERNAL_CALIBRATOR_TEMP_BH
+              scalar/float     DIHEDRAL_TEMP_BH
+              scalar/float     BOLOMETER_ASSEMBLY_RH_TEMP_BH
+              scalar/float     BOLOMETER_ASSEMBLY_RL_TEMP_BH
+              scalar/float     BOLOMETER_ASSEMBLY_LH_TEMP_BH
+              scalar/float     BOLOMETER_ASSEMBLY_LL_TEMP_BH
+              scalar/float     MIRROR_TEMP_BH
+              scalar/float     CAL_RESISTORS_RH_TEMP_BH
+              scalar/float     CAL_RESISTORS_RL_TEMP_BH
+              scalar/float     CAL_RESISTORS_LH_TEMP_BH
+              scalar/float     CAL_RESISTORS_LL_TEMP_BH
+              scalar/float     XCAL_TEMP_S6_BH
+              scalar/float     COLIMATOR_TEMP_BH
+ 
+          endmap
+
+          map
+              array/float/dim=64  GRT
+                               !  GRT Temperatures
+          endmap
+
+      endunion
+
+!     GRT Times
+
+      array/adt/dim=64            GRT_TIME        
+                                    !  GRT extrema times
+      union
+          map
+
+!             Temperatures
+
+              scalar/float        IPDU_TEMP_A
+              scalar/float        IPDU_TEMP_B
+              scalar/float        CHANNEL_TEMP_RH
+              scalar/float        CHANNEL_TEMP_RL
+              scalar/float        CHANNEL_TEMP_LH
+              scalar/float        CHANNEL_TEMP_LL
+              scalar/float        DRIVE_BOX_TEMP_A
+              scalar/float        DRIVE_BOX_TEMP_B
+              scalar/float        STATUS_MONITOR_TEMP_A
+              scalar/float        STATUS_MONITOR_TEMP_B
+              scalar/float        CHAN_PREAMP_TEMP
+              scalar/float        OPTICAL_PREAMP
+
+!             Currents
+
+              scalar/float        HOT_SPOT_CURRENT_A
+              scalar/float        HOT_SPOT_CURRENT_B
+              scalar/float        MTM_CAL_MOTOR_A
+              scalar/float        MTM_CAL_MOTOR_B
+
+          endmap
+
+          map
+              array/float/dim=16  T_and_I
+                                  ! Temperatures and
+                                  ! currents
+          endmap
+
+      endunion
+
+!     T and I  Times
+
+      array/adt/dim=16            T_and_I_TIME        
+                                  !  T and I extrema times
+      union
+
+          map 
+
+!             Bolometer voltages
+
+              scalar/float        BOLOMETER_BIAS_VOLTAGE_RH
+              scalar/float        BOLOMETER_BIAS_VOLTAGE_RL
+              scalar/float        BOLOMETER_BIAS_VOLTAGE_LH
+              scalar/float        BOLOMETER_BIAS_VOLTAGE_LL
+
+!             IPDU voltages.
+
+              scalar/float        DIGITAL_CONV_N15V_A
+              scalar/float        DIGITAL_CONV_N15V_B
+              scalar/float        DIGITAL_CONV_P15V_A
+              scalar/float        DIGITAL_CONV_P15V_B
+              scalar/float        DIGITAL_CONV_P5V_A
+              scalar/float        DIGITAL_CONV_P5V_B
+              scalar/float        ANALOG_CONV_P15V_A
+              scalar/float        ANALOG_CONV_P15V_B
+              scalar/float        ANALOG_CONV_N15V_A
+              scalar/float        ANALOG_CONV_N15V_B
+              scalar/float        BIAS_PRE_REG_P25V_A
+              scalar/float        BIAS_PRE_REG_P25V_B
+              scalar/float        INT_PS_P28V_A
+              scalar/float        INT_PS_P28V_B
+              scalar/float        INT_PS_P15V_A
+              scalar/float        INT_PS_P15V_B
+              scalar/float        INT_PS_N15V_A
+              scalar/float        INT_PS_N15V_B
+              scalar/float        INT_PS_P5V_A
+              scalar/float        INT_PS_P5V_B
+
+!             IPDU currents.
+
+              scalar/float        BIAS_PRE_REG_A
+              scalar/float        BIAS_PRE_REG_B
+              scalar/float        ANALOG_CONV_A
+              scalar/float        ANALOG_CONV_B
+              scalar/float        DIGITAL_CONV_A
+              scalar/float        DIGITAL_CONV_B
+              scalar/float        CON_CURRENT_RH
+              scalar/float        CON_CURRENT_LH
+              scalar/float        CON_CURRENT_RL
+              scalar/float        CON_CURRENT_LL
+              scalar/float        CON_INT_CONV_A
+              scalar/float        CON_INT_CONV_B
+          endmap
+
+          map
+
+              array/float/dim=36     V_and_I
+                                        ! Volts and currents
+          endmap
+
+      endunion
+
+!     V and I Times
+
+      array/adt/dim=36            V_and_I_TIME        
+                                    !  Vand I extrema times
+
+!     LMAC temperatures.
+
+      union 
+          map
+     
+              scalar/float        LMAC_ANALOG_TEMP
+                                  ! LMAC analog
+                                  ! temperature
+              scalar/float        LMAC_DIGITAL_TEMP
+                                  ! LMAC digital
+                                  ! temperature
+          endmap
+          map
+
+              array/float/dim=2   LMACS
+                                  ! LMAC temperatures
+          endmap
+       endunion
+
+!      LMAC Times
+
+       array/adt/dim=2             LMAC_TIME        
+                                    !  LMAC extrema times
+  endstructure
+
+  array/byte/dim=176            SPARES          
+
+end_record

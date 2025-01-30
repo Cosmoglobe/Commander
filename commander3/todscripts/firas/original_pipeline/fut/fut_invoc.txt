@@ -1,0 +1,49 @@
+c
+c	File FUT_INVOC.TXT
+c
+c		This file contains all the invocation parameters.
+c
+c	Author: W.K. Young
+c		SASC Technologies
+c		February 1986
+c
+	integer	*4	fac_deglitch	!flag to do deglitching
+	integer *4	fac_consistent	!flag to do consistency checking
+	integer *4	fac_con_params  !flag to check parameter consistency 
+	integer *4	fac_con_ifgs    !flag to do ifg consistency checking
+	integer *4	fac_coadd	!flag to do coaddition
+	integer	*4	fac_select	!flag to access data from archive
+	integer	*4	fac_baseline	!flag to do baseline subtraction
+	integer *4	fac_input	!flag for user defined input
+        integer*4       fac_write_arcv  !flag to write the coadd res to the arcv
+        INTEGER *4      FAC_CALRUN      !FLAG TO DO COADDITION OF TEMP
+                                        !PLATEAU DATA
+        integer*4       fac_rse         !flag for presence of rse file
+        integer*4       fac_batch       !flag for batch run
+	integer	*4	fac_dumpcs	!flag to dump archive selected ifgs
+	integer	*4	fac_dumpdg	!flag to dump deglitched ifgs
+	integer	*4	fac_dumpcc	!flag to dump consistent ifgs
+	integer	*4	fac_dumpcp	!flag to dump ifgs with consistent params
+	integer	*4	fac_dumpci	!flag to dump ifgs of consistent appearance
+	integer	*4	fac_dumpca	!flag to dump ca ifg wo/base removed
+	integer	*4	fac_dumpbl	!flag to dump coadded ifg w/base removed
+        integer *4      fac_nw(30)      !output file logical unit numbers
+        integer *4      fac_nr(10)      !input file logical unit numbers
+	integer *4	fac_query_file	!flag for query file input
+        integer*4       fac_write_coa   !rms logical unit for the coadd rec
+        integer*4       fac_write_base  !rms logical unit for the baseline rec
+	integer *2	fac_nw_ct	!cobetrieve logical write
+
+        character*14    fac_jstart      !julian start time
+        character*14    fac_jstop       !julian stop time
+        character*30    fac_time_range  !time range associated with an rse file
+        CHARACTER*64    FAC_IND_FILE    !NAME OF FEC INDEX FILE USED IN _CALRUN
+        CHARACTER*64    FAC_REC_FILE    !NAME OF FEC ENG REC FILE USDE IN _CALRUN
+
+        common/fac/fac_deglitch,fac_consistent,fac_coadd,fac_select,
+     &             fac_baseline,fac_dumpcs,fac_dumpdg,fac_dumpcc,
+     &             fac_dumpca,fac_dumpbl,fac_nw,fac_nr,fac_input,
+     &		   fac_nw_ct,fac_write_arcv,fac_query_file,
+     &             FAC_CALRUN,FAC_IND_FILE,FAC_REC_FILE,fac_time_range,
+     &             fac_write_coa,fac_write_base,fac_batch,fac_rse,fac_jstart,
+     &             fac_jstop,fac_con_params,fac_con_ifgs,fac_dumpcp,fac_dumpci

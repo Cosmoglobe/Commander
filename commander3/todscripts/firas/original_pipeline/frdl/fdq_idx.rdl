@@ -1,0 +1,54 @@
+!
+!  FIRAS Raw Science Data Index record structure.
+!
+RECORD  FDQ_IDX
+
+  structure header
+    include index_head.rdl
+  endstructure
+
+  structure xcal
+    include IDX_xcal.rdl
+  endstructure
+
+  structure/dim=4 chan
+    include IDX_chan_data.rdl
+  endstructure
+
+  structure/dim=4 GRTS
+    include IDX_GRT_data.rdl
+  endstructure
+
+  structure temp_ctrl
+    include temp_ctrl.rdl
+  endstructure
+
+  structure/dim=2 stat_mon
+    include status_monitor.rdl
+  endstructure
+
+  structure IDX_sync
+    include IDX_sync.rdl
+  endstructure
+
+  structure IPDU_relay
+    include IPDU_power_relay.rdl
+  endstructure
+
+  structure/dim=2 IPDU_stat
+    include IPDU_status.rdl
+  endstructure
+
+  structure misc_stat
+    include misc_stat.rdl
+  endstructure
+
+  structure IDX_analog
+    include IDX_analog.rdl
+  endstructure
+
+  structure IDX_tail
+    include IDX_tail.rdl
+  endstructure
+
+END_RECORD

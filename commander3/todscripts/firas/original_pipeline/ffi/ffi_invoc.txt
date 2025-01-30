@@ -1,0 +1,85 @@
+c------------------------------------------------------------------------
+c
+c	FFI_INVOC.TXT
+c
+c	This include file contains the invocation parameters for FFI.
+c
+c	Author:	  Gene Eplee
+c		  General Sciences Corp.
+c		  513-7768
+c		  9 March 1993
+c		  SER 10763
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Modifications to recover low frequency short fast data.
+c	Gene Eplee, GSC, 25 October 1993
+c	SER 11690
+c
+c------------------------------------------------------------------------
+
+c
+c  Define needed constants.
+c
+	character *  6	fcc_version		!  FFI version number
+	parameter	(fcc_version='11.8')
+
+c
+c  Define the needed variables.
+c
+
+	character * 20	fcc_file_ext		!  input file name extension
+	character * 60	fcc_infile1		!  input coadd file 1 name
+	character * 60	fcc_infile2		!  input coadd file 2 name
+	character * 14 	fcc_jstart_time		!  GMT start time
+	character * 14	fcc_jstop_time		!  GMT stop time
+	character * 48	fcc_outfile		!  output spectrum file name
+	character * 64	fcc_report_file		!  report file name
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 30	fcc_time_range		!  GMT timerange
+
+	integer * 2	fcc_inlen1		!  length of input coadd file 1
+						!    name
+	integer * 2	fcc_inlen2		!  length of input coadd file 2
+						!    name
+	integer * 2	fcc_outlen		!  length of output spectrum
+						!    file name
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_attit_qual		!  attitude quality threshold
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_hybrid		!  hybrid input stream flag
+	integer * 4	fcc_instr_qual		!  instrument quality threshold
+	integer * 4	fcc_jstart(2)		!  binary start time
+	integer * 4	fcc_jstop(2)		!  binary stop time
+	integer * 4	fcc_length		!  mtm scan length
+	integer * 4	fcc_ngroup		!  adds per group
+	integer * 4	fcc_nspec		!  number of spectra processed
+	integer * 4	fcc_nspec1		!  number of spectra processed
+						!    from stream 1
+	integer * 4	fcc_nspec2		!  number of spectra processed
+						!    from stream 2
+	integer * 4	fcc_report		!  /REPORT qualifier
+	integer * 4	fcc_smode		!  scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+	integer * 4	fcc_xhsf		!  XHSF scan mode flag
+	integer * 4	fcc_xllf		!  XLLF scan mode flag
+	integer * 4	fcc_xlsf		!  XLSF scan mode flag
+
+	real	* 4	fcc_threshold		!  hybrid input threshold
+
+c
+c  Define the common block.
+c
+
+	common /fcc_invoc/ fcc_jstart_time, fcc_jstart, fcc_jstop_time,
+     .			   fcc_jstop, fcc_time_range, fcc_instr_qual,
+     .			   fcc_attit_qual, fcc_chan, fcc_smode, fcc_length,
+     .			   fcc_speed, fcc_scan_mode, fcc_ngroup, fcc_xhsf,
+     .			   fcc_xllf, fcc_xlsf, fcc_hybrid, fcc_threshold,
+     .			   fcc_file_ext, fcc_report, fcc_report_file,
+     .			   fcc_replen, fcc_infile1, fcc_infile2, fcc_inlen1,
+     .			   fcc_inlen2, fcc_outfile, fcc_outlen, fcc_nspec,
+     .			   fcc_nspec1, fcc_nspec2

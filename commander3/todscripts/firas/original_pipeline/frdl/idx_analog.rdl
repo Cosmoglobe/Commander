@@ -1,0 +1,122 @@
+!
+!  Miscellaneous analog engineering values
+!
+        union
+
+          map
+            scalar/byte         IPDU_TEMPERATURE_SIDE_A
+            scalar/byte         IPDU_TEMPERATURE_SIDE_B
+            scalar/byte         DRIVE_BOX_TEMPERATURE_SIDE_A 
+            scalar/byte         CHANNEL_PRE_AMP 
+
+            scalar/byte         CHANNEL_TEMP_RH
+            scalar/byte         CHANNEL_TEMP_RL
+            scalar/byte         CHANNEL_TEMP_LH
+            scalar/byte         CHANNEL_TEMP_LL
+
+            scalar/byte         STATUS_MONITOR_TEMP_SIDE_A
+            scalar/byte         STATUS_MONITOR_TEMP_SIDE_B
+            scalar/byte         HOT_SPOT_HEATER_CURRENT_SIDE_A
+            scalar/byte         HOT_SPOT_HEATER_CURRENT_SIDE_B
+            scalar/byte         OPTICAL_PRE_AMP
+            scalar/byte         DRIVE_BOX_TEMPERATURE_SIDE_B
+          endmap
+
+          map
+            array/byte/dim=14   TEMP
+          endmap
+
+        endunion
+
+        array/byte/dim=4        IDX_ANALOG_SPARES_1
+
+        union
+
+          map
+            scalar/byte         IPDU_VOLTAGE_1
+                                !  Digital conv, -15V, side A
+            scalar/byte         IPDU_VOLTAGE_2
+                                !  Digital conv, -15V, side B
+            scalar/byte         IPDU_VOLTAGE_3
+                                !  Digital conv, +15V, side A
+            scalar/byte         IPDU_VOLTAGE_4  
+                                !  Digital conv, +15V, side B
+            scalar/byte         IPDU_VOLTAGE_5
+                                !  Digital conv,  +5V, side A
+            scalar/byte         IPDU_VOLTAGE_6
+                                !  Digital conv,  +5V, side B
+            scalar/byte         IPDU_VOLTAGE_7  
+                                !  Analog conv, +15V, side A
+            scalar/byte         IPDU_VOLTAGE_8  
+                                !  Analog conv, +15V, side B
+            scalar/byte         IPDU_VOLTAGE_9  
+                                !  Analog conv, -15V, side A
+            scalar/byte         IPDU_VOLTAGE_10 
+                                !  Analog conv, -15V, side B
+            scalar/byte         IPDU_VOLTAGE_11 
+                                !  Bias pre-reg, +25V, side A
+            scalar/byte         IPDU_VOLTAGE_12 
+                                !  Bias pre-reg, +25V, side B
+            scalar/byte         IPDU_VOLTAGE_13 
+                                !  Int. P.S. +28V, side A
+            scalar/byte         IPDU_VOLTAGE_14 
+                                !  Int. P.S. +28V, side B
+            scalar/byte         IPDU_VOLTAGE_15 
+                                !  Int. P.S. +15V, side A
+            scalar/byte         IPDU_VOLTAGE_16 
+                                !  Int. P.S. +15V, side B
+            scalar/byte         IPDU_VOLTAGE_17 
+                                !  Int. P.S. -15V, side A
+            scalar/byte         IPDU_VOLTAGE_18 
+                                !  Int. P.S. -15V, side B
+            scalar/byte         IPDU_VOLTAGE_19 
+                                !  Int. P.S.  +5V, side A
+            scalar/byte         IPDU_VOLTAGE_20 
+                                !  Int. P.S.  +5V, side B
+
+            scalar/byte         IPDU_CURRENT_1 
+                                !  Bias pre-reg, side A
+            scalar/byte         IPDU_CURRENT_2  
+                                !  Bias pre-reg, side B
+            scalar/byte         IPDU_CURRENT_3  
+                                !  Analog conv, side A
+            scalar/byte         IPDU_CURRENT_4  
+                                !  Analog conv, side B
+            scalar/byte         IPDU_CURRENT_5  
+                                !  Digital conv, side A
+            scalar/byte         IPDU_CURRENT_6  
+                                !  Digital conv, side B
+            scalar/byte         IPDU_CURRENT_7  
+                                !  Const RH
+            scalar/byte         IPDU_CURRENT_8  
+                                !  Const RL
+            scalar/byte         IPDU_CURRENT_9  
+                                !  Const LH
+            scalar/byte         IPDU_CURRENT_10 
+                                !  Const LL
+            scalar/byte         IPDU_CURRENT_11 
+                                !  Int conv, side A
+            scalar/byte         IPDU_CURRENT_12 
+                                !  Int conv, side A
+          endmap
+
+          map
+            array/byte/dim=32   V_AND_I
+          endmap
+
+        endunion
+
+        array/byte/dim=4        IDX_ANALOG_SPARES_2
+
+        union
+
+          map
+            scalar/byte         MTM_CAL_MOTOR_SIDE_A
+            scalar/byte         MTM_CAL_MOTOR_SIDE_B
+          endmap
+
+          map
+            array/byte/dim=2    MTM_CAL_MOTOR
+          endmap
+
+        endunion

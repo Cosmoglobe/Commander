@@ -1,0 +1,67 @@
+C******************************************************************************
+C  File Name: FPP_Msg.Txt
+C
+C  Purpose: To be used as an include file for declaration of external 
+C           FPP messages in FPP modules.
+C
+C  Author: Shirley M. Read, STX, January 1989.
+C  Modified: Larry P. Rosen, STX, March 1991.
+C*******************************************************************************
+	External FPP_Normal       ! <Successful completion.>
+	External FPP_Aberr        ! <Run aborted.>
+	External FPP_MissSciSel   ! <Missing NFS_SDF file selection. Filename
+				  !  or time range required.>
+	External FPP_InvTim       ! <JSTART is greater than JSTOP time.>
+	External FPP_NoCatRec     ! <No catalog entry found for requested 
+				  ! dataset file.>
+	External FPP_NoCatRecTOD  ! <No catalog entries found for TOD dataset 
+				  ! in requested time range.>
+	External FPP_Segdelt      ! <Segment file has been deleted.>
+	External FPP_ColBefAnc    ! <Consistency check fails - Collection
+				  ! starts before Anc record 1.>
+	External FPP_ColAftAnc    ! <Consistency check fails - Collection
+				  ! starts after Anc record 2.>
+	External FPP_EmulErr      ! <Error return from Lib$Emul. Status = !SL>
+	External FPP_AddxErr      ! <Error return from Lib$Addx. Status = !SL>
+	External FPP_SubxErr      ! <Error return from Lib$Subx. Status = !SL>
+	External FPP_EdivErr      ! <Error return from Lib$Ediv. Status = !SL>
+	External FPP_CTInit       ! <Cobetrieve CT_INIT failure. Status=!SL>
+	External FPP_CTOpenErr    ! <Cobetrieve OPEN ARCHIVE failure. 
+				  ! Status=!SL>
+	External FPP_CTReadErr    ! <Cobetrieve CT_READ_ARCV failure. 
+				  ! Status=!SL. File=!AS.>
+	External FPP_CTWritErr    ! <Cobetrieve CT_WRITE_ARCV failure. 
+				  ! Status=!SL>
+	External FPP_CTClosErr    ! <Cobetrieve CT_CLOSE_ARCV failure. 
+				  ! Status=!SL>
+	External FPP_CTAncEof     ! <End of file detected on read of first 
+				  ! NFS_ANC record in file.>
+	External FPP_CTRefEOF     ! <End of file detected on read FEX reference file.>
+	External FPP_LateRef      ! <Collect time was before first reference
+				  !  record.>
+	External FPP_OpenErr      ! <Report file open failure. Status=!SL>
+	External FPP_WritErr      ! <Report file write failure. Status=!SL>
+	External FPP_ClosErr      ! <Report file close failure. Status=!SL>
+	External FPP_QCatErr      ! <Error return from CCT_Query_Catalog. 
+				  ! Status=!SL>
+	External FPP_QTODCatErr   ! <Error return from CCT_Query_TOD_Catalog.
+				  ! Status=!SL>
+	External FPP_GetLunErr    ! <Error return from Lib$Get_Lun. Status=!SL>
+	External FPP_GettimErr    ! <Error return from Sys$Gettim, Status=!SL>
+	External FPP_Fileseg      ! <Bad File segment >
+	External FPP_Brefchan     ! <Bad Reference Channel Selection>
+	External FPP_Bchannel     ! <Bad Reference Channel Selection>
+	External FPP_Fnumchan     ! <Final proceesing channel number
+				  !  EQ 0. Process Abort!!!>
+	External FPP_Ancnomat     ! <Ancillary file not matched with science.>
+	External FPP_SciNoMat     ! <Science file not matched with ancillary.>
+	External FPP_CTGetFSpec   ! <Cobetrieve CT_Get_FileSpec_Fields failure.>
+	External FPP_ClnCat       ! <FUT_Clean_Catalog failure.>
+	External FPP_CTQueryCat   ! <CCT_Query_TOD_Catalog failure.>
+	External FPP_Overlap      ! <FPP_SDF segment overlaps found.>
+	External FPP_Getconfigerr ! <Bad return from CCT_Get_Config.
+				  ! Status=!SL>/FAO=1
+	External FPP_Opnconfigerr ! <Bad return from CCT_Open_Config.
+				  ! Status=!SL>/FAO=1
+	External FPP_Clsconfigerr ! <Bad return from CCT_Close_Config.
+				  ! Status=!SL>/FAO=1

@@ -1,0 +1,31 @@
+c------------------------------------------------------------------------------
+c  File:	FMS_MSG.TXT
+c
+c  Purpose: To be used as an include file for declaration of external 
+c           FMS messages in FMS modules.
+c
+c  Author: Larry P. Rosen, January 1993, Hughes STX.
+c------------------------------------------------------------------------------
+	external	fms_normal	! Successful completion.
+	external	fms_abort	! Process aborted.
+	external	fms_parserr	! Error parsing.
+	external	fms_lunerr	! Error getting logic unit number.
+	external	fms_openerr	! Error opening file.
+	external	fms_readerr	! Error reading file.
+	external	fms_writerr	! Error writing to file.
+	external	fms_closerr	! Error closing file.
+	external	fms_renamerr	! Error renaming file.
+	external	fms_num_maps	! Number of skymaps must be 2.
+	external	fms_query_cat	! Error querying catalog.
+	external	fms_ttgseterr	! Error setting time tags.
+	external	fms_ctinit	! Cobetrieve ct_init failure.
+	external	fms_illegal_merge	! Illegal merge
+	external	fms_wrong_order	! Command ORDER doesnt match input + 1.
+	external	fms_wrong_combo	! Cmd COMBINATION doesnt match input.
+	external	fms_zeroth_weight	! 0th combo should use D-vector
+	external	fms_csaopen	! Error opening skymap.
+	external	fms_csaoffset	! Error call csa_field_offset_values.
+	external	fms_csaread	! Error calling csa_read_pixels.
+	external	fms_csawrite	! Error calling csa_write_pixels
+	external	fms_csaclose	! Error closing skymap.
+c------------------------------------------------------------------------------

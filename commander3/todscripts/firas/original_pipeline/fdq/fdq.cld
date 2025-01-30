@@ -1,0 +1,51 @@
+DEFINE VERB FDQ
+
+	Image "CSDR$SYSTEM:FDQ.EXE"
+
+	Synonym DATA_QUALIFY
+
+	Qualifier FILE, Value(Type=$FILE), Nonnegatable
+
+	Qualifier JSTART, Value(Required), Nonnegatable
+
+	Qualifier JSTOP, Value(Required), Nonnegatable
+
+	Qualifier SETSEC, Value(Type=$NUMBER, Required), Nonnegatable
+
+	Qualifier LIMIT, Value(Type=LIM_TYPE, Required), Default, Nonnegatable
+
+	Qualifier PLOT_DEVICE, Value(Required),  Nonnegatable
+
+	Qualifier MIN_OFFTIME, Value(Type=$NUMBER,Default=12),
+                  Default, Nonnegatable
+
+	Qualifier MAX_OFFTIME, Value(Type=$NUMBER,Default=12),
+                  Default, Nonnegatable
+
+        Qualifier ATTITUDE,
+		  Value(Type=FDQ_Attitude),
+                  Default
+
+	Qualifier REPORT,
+		Value(Type=$File), Default, Negatable
+
+	Disallow JSTART and not JSTOP
+
+	Disallow JSTOP and not JSTART
+
+Define Type FDQ_Attitude
+      	Keyword NONE, Default
+      	Keyword SIMULATED
+      	Keyword COARSE
+      	Keyword FINE, Value(Type=FDQ_Fine)
+      	Keyword DEFINITIVE
+
+Define Type FDQ_Fine
+      	Keyword DIRBE, Default
+      	Keyword WITHOUT_DIRBE
+
+Define  Type LIM_TYPE
+	Keyword NONE, Default
+	Keyword YELLOW
+	Keyword RED
+

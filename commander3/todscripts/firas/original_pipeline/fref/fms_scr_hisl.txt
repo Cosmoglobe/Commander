@@ -1,0 +1,7 @@
+!  SCRIPT.HISL
+!  FMS script file for merge  RHSS + LHSS = HISL
+!
+ $SMAPS
+	skymap(1) = 'FCS_SKY_RHSS.FAD_8932800_9026409;'
+	skymap(2) = 'FCS_SKY_LHSS.FAD_8932800_9026409;'
+ $END

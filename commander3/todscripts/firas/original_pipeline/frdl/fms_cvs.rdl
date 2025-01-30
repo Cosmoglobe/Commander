@@ -1,0 +1,43 @@
+!
+!  FIRAS C-Vector^2 Record Structure
+!
+record FMS_CVS FMS_CVS
+
+!
+!  Header Information
+!
+    scalar/text/length=14    GMT
+                             !  GMT Dataset Timetag
+    scalar/adt               TIME
+                             !  Binary Dataset Timetag
+    scalar/byte              CHANNEL
+                             !  Channel Number
+    scalar/byte              SCAN_LENGTH
+                             !  MTM Scan Length
+    scalar/byte              SCAN_SPEED
+                             !  MTM Scan Speed
+    scalar/text/length=40    MODEL_LABEL
+                             !  Calibration Solution Label
+    scalar/float             GALAT_EXC
+                             !  Galactic Latitude below which
+                             !    data is excluded
+
+!
+!  Number of calibration ifgs that contributed to
+!    the calibration model solution.
+!
+    scalar/float             NCAL_IFGS
+                             !  Number of calibration ifgs
+
+!
+!  Average C-Vector^2
+!
+    array/double/dim=257     CVECTOR
+                             !  C-Vector^2
+
+!
+!  Spares to Pad to Block Boundary
+!
+    array/byte/dim=47        SPARES
+
+end_record

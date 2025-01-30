@@ -1,0 +1,45 @@
+c---------------------------------------------------------------------------
+c
+c	File: FNT_INVOC.TXT
+c	This file contains those pertinent invocation variables for
+c		doing noisetest analysis
+c
+c	Author: W. K. Young
+c		STI Inc.
+c		July 1986
+c
+c	SER 5779, Add capability to pass in a PLT command file.
+c		Steven Alexander, STX, March 5, 1990
+c---------------------------------------------------------------------------
+
+	integer * 4 ftc_plot		!type of plot flag
+	integer * 4 ftc_preamp		!flag to include preamp in noisetest
+	integer * 4 ftc_write		!flag to indicate whether to write out
+					! file in spectal format
+	integer * 4 ftc_write_file      !write RMS file or archive
+	character * 64 ftc_file_name	!file name of output file
+	character * 32 ftc_plots_device	!user defined plots device
+	integer * 4 ftc_plt_com		!flag to indicate presence of PLT
+					!command file
+	character * 64 ftc_plt_com_file	!PLT command file name
+	integer * 4 ftc_plots
+	integer * 4 ftc_jump
+	logical * 1 ftc_display
+	integer * 4 ftc_interactive
+	character * 3 ftc_input
+
+	integer		*4	ftc_jstart_select
+	integer		*4	ftc_jstop_select
+	character 	*14	ftc_jstart_time
+	integer 	*4 	ftc_jstart(2)
+	character 	*14	ftc_jstop_time
+	integer 	*4 	ftc_jstop(2)
+	character 	*30  	ftc_time_range
+
+	common /ftc/	ftc_plot, ftc_preamp, ftc_file_name, ftc_write,
+     .			ftc_write_file, ftc_plots, ftc_plots_device,
+     .			ftc_plt_com, ftc_plt_com_file,
+     .			ftc_jump, ftc_display, ftc_interactive, ftc_input,
+     .			ftc_jstart_select,ftc_jstop_select,
+     .			ftc_jstart,ftc_jstop,
+     .			ftc_jstart_time,ftc_jstop_time,ftc_time_range

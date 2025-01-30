@@ -1,0 +1,294 @@
+****************************************************************************
+*
+*	File Name:       FEX_LIMFLAGS.TXT
+*
+*	Description:
+*                          File containing flags to enable or disable the limit
+*		         checking for FIRAS telemetry and instrument compoments.
+*	                 Each line contains the name of the data quality flag 
+*			 in the FEX_Limflags record (which may map to an array
+*			 of flags) followed by the number of array elements 
+*			 for the flag (set to 1 if not array), followed by
+*			 the values of the flag elements,. Most flags 
+*			 have a value of 0 or -1 ( False or True ). The rest
+*			 of the flags are bit masks for flags which represent
+*		         checks on a composite of FIRAS components. 
+*		           There are 110 limit flag fields, corresponding to 
+*			 110 data quality flags in the NFS_SDF. The order of
+*			 the parameters on the line is fixed, including array
+*			 elements, but the starting column for each parameter
+*			 may vary. There are no continuations. The setting of
+*			 the flags for each side of the spacecraft is not 
+*			 implemented for Build 4.0. This enhancement will 
+*		         not be implemented unless separate limits and 
+*			 conversions are defined for the two spacecraft sides.
+*			 For flag arrays dimensioned by two for spacecraft
+*		         side, the second half of the array in the FEX_Limflags
+*			 record will not have values.
+*		           Comment lines must begin with a '*' or a '!' in
+*			 column one. Blank lines are allowed.
+*	Assumptions: 
+*			 The positions of the individual flags in the
+*			 FEX_Limflags structure remain constant.
+*
+*	Purpose of File: To be used in creating the limits database for FDQ.
+*
+*	Designer:	 Shirley M. Read  ( STX )  January 1988
+*
+*	Revisions:       Shirley M.Read   ( STX ) May 1988
+*		 	   Reason: To implement new design features of limit 
+*			   checking for Build 4.0.
+*  
+****************************************************************************
+* Changes:
+*   TURNED OFF XCAL B, LO AND HI CURRENT  (10/18/88 KUMMERER)
+*   TURNED OFF XCAL B, LO AND HI CURRENT  (10/18/88 KUMMERER)
+*   TURNED OFF LIMIT CHECKING FOR ALL IPDU CURRENTS (11/2/88 - R. KUMMERER)
+*   ADDED MOON FLAG AND ATTITUDE SUMMARY FLAG (02/18/89, S. READ, SPR 3062)
+*   TURNED OFF B SIDE COLLIMATOR, LO AND HI CURRENT  (03/27/89 KUMMERER)
+*   TURNED OFF ALL BOLOMETERS, HI CURRENT  (03/27/89 KUMMERER)
+*   TURNED OFF ALL GLITCH, OPTICAL PREAMP (05/03/89 KUMMERER)
+*   TURNED OFF LIMIT CHECKING FOR ALL IPDU TEMPERATURES (08/28/89 - S. READ)
+*          FOR COBE SES THERMAL VAC TEST IN MAY TO JUNE 1989.
+*   TURNED OPTICAL PREAMP BACK ON, TURN OFF HOTSPOT HEATER A, B (09/09/89
+*	   KUMMERER)
+*   TURNED ON ALL GLITCH (08/28/91 WANG)
+*	Modified some comments (1991 Sept 27 Shafer)
+*	Cleared upper 5 bits of the ATT_ALT_* flags to explictly disable
+*		VABSAA Checks
+*	Cleared bits for cal resistor check explictily in GRT limits
+*	Cleared bits for TC_RED and Yellow as there are no checks
+*	Set bits for IPDU_TMP (may need another set of limits, or turn these
+*		off for I&T processing)
+*	Set bits for IPDU_CUR (again may need another set of limits, or turn
+*		these off for I&T processing)
+*	Cleared the DIRBE, DMR and SPACECR status checks (no checks in
+*		current software).
+*    Certification:  Certified 1991 Sept 27, Rick Shafer:  Pass 2
+*
+****************************************************************************
+
+
+* SET 1
+* array/byte/dim=10   SCI_ATT : Flags for science or attitude limit checking.
+
+* Missing data ready bits in science data.
+
+FLG_BADSCI     1     -1                 
+
+* Missing minor frames in Housekeeping record.
+
+FLG_BADHKP     1     -1
+
+*  Flag indicating if data is Science or Calibration mode. 
+  
+FLG_CAL        1     -1
+
+* Microprocessor status word, excluding bit 12. Two byte bit mask, first is lsb.
+*	Bit 12 is the Data Buffer condition.
+*	Bit 5 is the Synch Error condition (currently set)
+          
+FLG_MICRO      2     XFF  XEF      
+
+* Bit mask for attitude RED alert flag.
+  
+FLG_ATT_ALT_RED  1   X07         
+
+* Bit mask for attitude YELLOW alert flag.
+
+FLG_ATT_ALT_YEL  1   X07
+
+* Glitch count.        
+
+FLG_GLITCH_CT    1    -1     
+*FLG_GLITCH_CT    1   -1     
+*TURNED OFF ALL GLITCH, OPTICAL PREAMP (05/03/89 KUMMERER)
+*TURNED ON ALL GLITCH (08/28/91 WANG)
+
+* Saturated sample count.
+                                  
+FLG_SATURATE     1   -1      
+
+* Checksum errors.
+
+FLG_CKSM_ERR_ST  1   -1         
+
+* SET 2
+* array/byte/dim=132  ENG_ANAL : Engineering analog flags.
+
+* Bit mask for GRT RED flags: 16 A side low current, 16 A side high current,
+* 16 B side low current, 16 B side high current.
+* Spacecraft side 1: 8 bytes. Spacecraft side 2: 8 bytes.
+*	Bit order same as in GRTRAWWT
+
+* TURNED OFF B SIDE COLLIMATOR, LO AND HI CURRENT  (03/27/89 KUMMERER)
+* TURNED OFF ALL BOLOMETERS, HI CURRENT  	   (03/27/89 KUMMERER)
+*FLG_GRTRED_ST    8    XFF XFF XFF XFF XFE XFF XFE XFF
+* TURNED OFF XCAL B, LO AND HI CURRENT  (10/18/88 KUMMERER)
+*FLG_GRTRED_ST    8    XFF XFF XFF XFF XFF XFF XFF XFF
+*FLG_GRTRED_ST    8    XFF XFF X1F XFE XFE X7F X1E X7E
+* Turned off the cal resistor checks (27/9/91 Shafer)
+*  So current off values are:
+* Bits 10-13 (all currents and sides) = Cal resistors.
+*Current software doesn't check these anyway.
+*                Bits 5-8 (high Current, both sides) = Bolometers, there is no
+*high current bolometer.
+*                Bits 0 and 15 (both currents, B side) = XCAL and collimator
+*GRTs, that have no useful readout
+FLG_GRTRED_ST     8    XFF XC3 X1F XC2 XFE X43 X1E X42
+
+* Bit mask for GRT YELLOW flags: 16 A side low current, 16 A side high current,
+* 16 B side low current, 16 B side high current.
+* Spacecraft side 1: 8 bytes. Spacecraft side 2: 8 bytes.
+
+* TURNED OFF B SIDE COLLIMATOR, LO AND HI CURRENT  (03/27/89 KUMMERER)
+* TURNED OFF ALL BOLOMETERS, HI CURRENT  	   (03/27/89 KUMMERER)
+*FLG_GRTYEL_ST    8    XFF XFF XFF XFF XFE XFF XFE XFF
+* TURNED OFF XCAL B, LO AND HI CURRENT  (10/18/88 KUMMERER)
+*FLG_GRTYEL_ST    8    XFF XFF XFF XFF XFF XFF XFF XFF
+*FLG_GRTYEL_ST    8    XFF XFF X1F XFE XFE X7F X1E X7E
+* See notes for RED limits above (9/27/91 Shafer)
+FLG_GRTYEL_ST     8    XFF XC3 X1F XC2 XFE X43 X1E X42
+
+* RED bit mask for exceeding temperature controller's (TC's) upper limit as 
+* computed from command readback. The checking of limits for TCs is not to
+* implemented in FDQ for Build 4.0. 
+*	Modified RED and YEL flags to explicitly disable checks (no software).
+*			(9/27/91 Shafer)
+
+FLG_TC_RED       1    X00 
+
+* YELLOW bit mask for TC's.
+
+FLG_TC_YEL       1    X00               
+
+* IPDU analog converter and digital converter temperatures. 
+* Spacecraft Side 1 reads: Analog converter A, Digital converter B
+* Spacecraft Side 2 reads: Analog converter B, Digital converter A 
+* Flags are in this order.
+
+FLG_IPDU_TMP     4    -1   -1   -1   -1         
+*  Restored IPDU Temp Flags (shafer 9/27/91)
+
+* Channel temperatures: RH, RL, LH, LL for Spacecraft sides 1 and 2.
+
+FLG_CHAN_TMP_ST  4    -1   -1   -1   -1
+
+* Drive box temperature (A or B). 
+* Spacecraft Side 1 reads only A. Spacecraft Side 2 reads only B.
+* Byte 1 for active A side. Byte 2 for active B side. 
+   
+FLG_DBOX_TMP     2    -1   -1
+
+* Status monitor temperatures for FIRAS A and B sides, SC Sides 1 and 2.
+
+FLG_STMON_TMP    2    -1   -1      
+
+* Optical pre-amp temperature. 
+* Spacecraft Side 1 reads FIRAS A. Spacecraft Side 2 reads FIRAS B.
+
+FLG_OPPA_TMP     2    -1   -1
+*FLG_OPPA_TMP     2     0    0
+*TURNED OPTICAL PREAMP BACK ON, TURN OFF HOTSPOT HEATER A, B (09/09/89 KUMMERER)
+*TURNED OFF ALL GLITCH, OPTICAL PREAMP (05/03/89 KUMMERER)
+    
+* Channel pre-amp temperature.
+* Spacecraft Side 1 reads FIRAS A. Spacecraft Side 2 reads FIRAS B.
+
+FLG_CHPA_TMP     2    -1   -1    
+
+* Current for hot spot heater A (internal reference source). SC sides 1 and 2.
+
+FLG_HS_HEAT_A    1     0
+*FLG_HS_HEAT_A    1    -1
+*TURNED OPTICAL PREAMP BACK ON, TURN OFF HOTSPOT HEATER A, B (09/09/89 KUMMERER)
+
+* Current for hot spot heater B (internal reference source). SC sides 1 and 2.
+
+FLG_HS_HEAT_B    1     0
+*FLG_HS_HEAT_B    1    -1
+*TURNED OPTICAL PREAMP BACK ON, TURN OFF HOTSPOT HEATER A, B (09/09/89 KUMMERER)
+
+* MTM/CAL latch and motor drive current. 
+* Byte 1 for active A side. Byte 2 for active B side. SC sides 1 and 2.
+
+FLG_MTMCAL_MTR   2    -1    -1         
+
+* Bolometer voltage for channels: RH, RL, LH, LL. SC side 1 and 2.
+
+FLG_BOL_VOL_ST   4    -1   -1   -1   -1
+         
+* IPDU voltages (A or B).  10 A (odd numbered) power the right channels.
+* 10 B (even numbered) power the left channels. SC sides 1 and 2.
+
+FLG_IPDU_VOL_ST 20 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1
+         
+* IPDU currents: 6 A (odd numbered). 6 B (even numbered). SC sides 1 and 2.
+
+FLG_IPDU_CUR_ST  12   -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1 -1         
+* TURNED OFF LIMIT CHECKING FOR ALL IPDU CURRENTS (11/2/88 - R. KUMMERER)
+*	Turned them back on (9/29/91 - Shafer)
+
+* SET 3
+* array/byte/dim=4    STAT : Flags for status changes.
+
+* Bit mask for status changes across Major Frame boundary. 4 bytes limit checks.
+
+FLG_STCHG_MJ_ST   4    XFF  XFF  XFF  XFF 
+        
+* SET 4
+* array/byte/dim=22   EXTERNAL : Flags for status values external to FIRAS.
+
+* DIRBE statuses affecting FIRAS :
+* Annealing htrs (yellow): 2 bytes, Annealing htrs (red): 2 bytes
+* IRS sources (yel): 1 byte, IRS sources (red): 1 byte
+* Chopper (1 byte), Shutter (1 byte)
+
+FLG_DIRBE_ST      8    0 0 0 0 0 0 0 0
+*	Turned them off, no software in place(9/29/91 - Shafer)         
+
+* DMR statuses affecting FIRAS :
+* Local oscillators flag (yellow): 1 byte
+* Local oscillators flag (red): 1 byte
+* Noise sources (yellow): 2 bytes, Noise sources (red): 2 bytes
+
+FLG_DMR_ST        6    0 0 0 0 0 0
+*	Turned them off, no software in place (9/29/91 - Shafer)        
+         
+* Spacecraft statuses that affect FIRAS (8 items)
+
+FLG_SPACECR_ST    8    0 0 0 0 0 0 0 0
+*	Turned them off, no software in place (9/29/91 - Shafer)
+
+* SET 5
+* array/byte/dim=4    MISC : Miscellaneous flags.
+     
+* LMAC temperature for analog converter.
+* Spacecraft Sides 1 and 2 read FIRAS A Side only. Dim 2 not used.
+
+FLG_ACLMAC_TMP    1    -1
+
+* LMAC temperature for digital converter.
+* Spacecraft Sides 1 and 2 read FIRAS A Side only. Dim 2 not used.
+
+FLG_DCLMAC_TMP    1    -1
+
+* SET 6
+* array/byte/dim=2    NO_ATTITUDE
+
+* NO attitude flag 
+
+FLG_NO_ATTITUDE   1    -1
+
+* SET 7
+* array/byte/dim=4    SUMMARY : Flags for summaries.
+
+* Attitude summary flag
+
+FLG_ATT_SUM       1    -1
+
+* Overall quality summary
+
+FLG_SUMMARY       1    -1        
+
+

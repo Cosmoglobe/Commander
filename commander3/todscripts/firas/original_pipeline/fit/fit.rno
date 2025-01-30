@@ -1,0 +1,282 @@
+.no flag accept
+.autoparagraph.set paragraph 0,1,0
+.header level Trendplots
+ Plots any field from the FIRAS engineering trends data archive.
+.left margin +5
+
+
+.indent -5.skip 2;Format:
+ TRENDPLOTS
+.autoparagraph.set paragraph 0,0,0.tab stops 32.skip
+.keep.no fill
+Command Qualifiers                          Defaults
+
+/[NO]INTERACTIVE                  /INTERACTIVE
+/[NO]REPORT=filename              /REPORT=FIT_TRENDPLOTS.LOG
+/PLOTDEVICE=plt_device            /PLOTDEVICE="/qms" (Command-Line)
+                                 <User is prompted> (Interactive)
+/FIELDS=(field_1,...,field_10)    /FIELDS=*TEMP*
+/JSTART=YYDDDHHMMSSCCC            /JSTART=YYDDD000000000
+/JSTOP =YYDDDHHMMSSCCC            /JSTOP =YYDDD235959990
+/BINSIZE=bin_specifier            /BINSIZE=ORBIT=1
+
+where 'bin_specifier' is drawn from the following list:
+
+ORBIT[=x]   (x, a real number; default is x=1.)
+DAILY
+MONTHLY
+MISSION
+LENGTH=dddhhmm
+
+.no keep.fill
+.autoparagraph.set paragraph 0,1,0
+
+
+.indent -5.skip 2;Command Parameters:
+.indent -5.skip;None
+
+
+.indent -5.skip 2;Description:
+ The purpose of TRENDPLOTS is to collect and bin the orbit-by-
+orbit engineering trends data from the archive, and to form and plot
+some simple statistics--min and max, mean, and mean +/- the sample
+standard deviation--for each bin.
+
+ TRENDPLOTS works in two modes, interactively or by command line.  Most of its
+DCL qualifiers apply to only one mode.
+
+ Qualifiers legal only in interactive mode:
+
+.skip
+.keep.no fill
+  /INTERACTIVE
+.no keep.fill
+.skip
+
+ Qualifiers legal only in command-line mode:
+
+.skip
+.keep.no fill
+  /NOINTERACTIVE
+  /FIELDS
+  /JSTART
+  /JSTOP
+  /BINSIZE
+.no keep.fill
+.skip 2
+
+ Qualifiers legal in both modes:
+
+.skip
+.keep.no fill
+  /[NO]REPORT
+  /PLOTDEVICE
+.no keep.fill
+.skip
+
+
+.indent -3;Interactive TRENDPLOTS
+
+ In the interactive mode, TRENDPLOTS prompts for a timerange and displays
+a menu from which the plot fields are selected.
+
+ After accepting a
+timerange, the Main Menu is displayed.  This menu allows
+the user to pick a Field Selection Menu (from which the plot fields
+are actually chosen) or specify an action (such as reset the menu or
+create a plot).  Each menu option has an associated number used for
+selecting the option.  Respond to the SELECT A MENU ITEM: prompt with
+its number.
+
+ The engineering trends fields are organized into six Field
+Selection Menus.  They are
+
+.skip
+.keep.no fill
+   1) The A Side GRTs Menu, which contains A side low/high
+      current GRT fields.
+   2) The B Side GRTs Menu, which contains B side low/high
+      current GRT fields.
+   3) The Combined GRTs Menu, which combines low/high current
+      readouts.  Both the A side and B side are included in
+      this menu.
+   4) The IPDU Temperatures Menu.
+   5) The Voltages Menu.
+   6) The Currents Menu (which, admittedly, has some voltage
+      fields.)
+.no keep.fill
+.skip
+
+ A Field Selection Menu displays a list of engineering trends data fields.
+Like the Main Menu, each item in the Field Selection Menu
+is numbered.  Respond to the SELECT A MENU ITEM: prompt with
+the number of the item you wish to select.
+
+ Up to four fields can be selected for plotting at one
+time.  TRENDPLOTS plots them in succession, each plot showing the five
+statistics, min, mean - s, mean, mean + s, and max, for one field.
+
+ The active Field Select Menu can be reset, wiping clean the slate of
+selections from that menu.  Type R to do this.  The Main Menu also has a
+Reset function, which wipes all fields selected (from all menus).
+
+ Typing E causes TRENDPLOTS to exit the current Field Select Menu and return
+to the Main Menu.
+
+.skip 2
+.indent -3;Command-Line Mode TRENDPLOTS
+
+ Command-line mode TRENDPLOTS can plot as many fields as desired at each
+invocation.  Fields are selected
+using the /FIELDS qualifier, specifying the actual field names.  Wild cards
+are allowed in the /FIELDS selection, so that multiple field names
+can be specified with a single selection.  For example, the default
+/FIELDS selection is *TEMP*.  All field names with TEMP imbedded within
+are selected.  TEMP* selects all field names beginning with TEMP, and
+*TEMP selects all field names ending with TEMP.  Refer to interactive
+mode TRENDPLOTS to learn the field names.
+
+ /JSTART and /JSTOP select the timerange.
+
+ Command-line TRENDPLOTS produces one plot per field, same as in 
+interactive mode.
+
+.skip 2
+ TRENDPLOTS plots any field from the engineering trends data archive.  
+TRENDPLOTS will ultimately be capable of plotting all the data in the trends 
+archive, roughly 5000 data points, but current space limitations reduce this 
+number to 1000.  If this number is exceeded,
+TRENDPLOTS truncates the data.  Plots of one day or less are better handled with
+ENGPLOTS (facility FEP), which has a time-resolution of one Major Frame 
+(32 sec).  For details, consult the FEP/ENGPLOTS entry in this manual.
+
+ TRENDPLOTS can be run either interactively or in command line mode.  Choices
+of data timerange, fields to be examined, and bin size are made in interactive
+mode from menus, and in command line mode from qualifiers on the command line.
+When the desired fields are selected and plotting is requested interactively,
+the user is dropped into PLT, an interactive plotting package.  For details
+about PLT, consult the entry in this manual.  
+To return to the TRENDPLOTS menus, simply Quit PLT.
+
+
+.indent -5.skip 2;Command Qualifiers:
+
+.skip;
+.indent -5;/BINSIZE=ORBIT[=x]   (x, a real number; default is x=1.)
+.indent -5;/BINSIZE=DAILY
+.indent -5;/BINSIZE=MONTHLY
+.indent -5;/BINSIZE=MISSION
+.indent -5;/BINSIZE=LENGTH=dddhhmm
+
+  Specifies the length of a time-bin interval to be used by command-line-mode
+TRENDPLOTS for merging the single-orbit statistics into binned
+statistics to be plotted.
+  ORBIT=x will make bins of 'x' orbits each, where 'x' is a real number;
+  DAILY   will bin the data in segments of one day;
+  MONTHLY will bin in 30-day segments;
+  MISSION will collect all existing data into a single bin;
+  LENGTH=dddhhmm will form bins of 'ddd' days + 'hh' hr + 'mm' min.
+Note, however, that regardless of the choice of binsize, the currently
+selected timerange will not be exceeded.
+
+.indent -5.skip;/FIELDS=(field_1,...,field_n)
+  This does the plot field selection when TRENDPLOTS is running in
+/NOINTERACTIVE.  All available fields can be selected.  Wildcards
+are acceptable; duplicate field names are eliminated.  The default,
+*TEMP*, selects all temperature fields for plotting.
+
+.indent -5.skip;/[NO]INTERACTIVE
+  Selects TRENDPLOTS mode of parameter selection, either interactively or by
+command line.  /INTERACTIVE is the default, and results in selection of
+operating parameters by menus displayed on the terminal screen.
+/NOINTERACTIVE turns off the menu display, so that operating parameters
+are taken from the command line.  Batch runs must be done /NOINT; runs at
+a terminal can also be done this way.
+
+.indent -5.skip;/JSTART=YYDDDHHMMSSCCC
+  Specifies the start time of engineering trends data to be retrieved from
+the archive, when running TRENDPLOTS by command line. The time format is
+YYDDDHHMMSSCCC.  /JSTART defaults to 0h of the current day.
+
+.indent -5.skip;/JSTOP=YYDDDHHMMSSCCC
+  Specifies the stop time of engineering trends data to be retrieved from
+the archive, when running TRENDPLOTS by command line. The time format is
+YYDDDHHMMSSCCC.  /JSTOP defaults to 24h of the current day.
+
+.indent -5.skip;/PLOTDEVICE="[filename]<PLT device type>"
+  Determines the filename and plotting device 'format' in which PLT
+outputs the plot.  Note that double quotes, ", must surround the
+file/device specification, as it will always contain a "/" character.
+If not specified on the command line, interactive TRENDPLOTS prompts the
+user for a PLT device type immediately following each timerange
+selection; command-line TRENDPLOTS defaults to "/QMS", which writes a file
+PGPLOT.QMPLOT for each plot generated, these files being TALARIS-
+printable.  The valid PLT device types are:
+
+.autoparagraph.set paragraph 0,0,0.tab stops 32.skip
+.keep.no fill
+
+      /VT125 --       for interactive mode when using a VT-
+                      graphics-compatible terminal, including
+                      VT200 series;
+
+      /QMS,  /VQMS -- makes TALARIS-printable files, landscape
+                      and portrait modes, respectively (the 'V'
+                      is for 'vertical');
+
+      /ARGS           /CANON          /CRINNELL       /FILE
+      /GOC            /HIPLOT         /HP7221         /HQ2648
+      /ID100          /LIACOM         /NULL           /PRINTRONIX
+      /PS       /VPS         /RETRO      /TEK4010     /TK4100
+      /TRILOG         /VERSATEC       /VVERSATEC      /ZETA
+.no keep.fill
+.autoparagraph.set paragraph 0,1,0
+
+.indent -5.skip;/[NO]REPORT[=filename]
+  A processing report recording what plots were produced for a given time
+range may be written to a user-specified disk file.  If this selection is
+made without specifying a filename, FIT_TRENDPLOTS.LOG is written.  By
+default, no report file is written.
+
+.indent -5.skip 2;Plots
+  Currently, TRENDPLOTS displays all five statistics--the minimum, mean-s,
+mean, mean+s, and maximum for each bin--on one plot for each field,
+where s is the sample standard deviation. 
+
+  TRENDPLOTS shows data drop-out periods as gaps in the plot.
+
+
+.indent -5.skip 2;Examples
+
+.skip
+ $ TRENDPLOTS/INTERACTIVE/PLOTDEV="/VT"
+
+  This invokes the interactive TRENDPLOTS.  A start time and a stop time are
+asked for, then the Main Menu is displayed.  From here the user picks
+a Field Selection Menu (from which the plot fields are actually
+chosen) or specifies an action (such as reset the menu or create a
+plot). 
+
+  When a Field Select Menu is selected, a menu of field names appears.
+With each one is a number which is used to select that field. 
+Respond to the "Select a menu item:" prompt with the number of the
+field to be plotted.
+
+.skip 2
+.keep.no fill
+ $ TRENDPLOTS/NOINT/JSTART=89100/JSTOP=89149/FIELDS=*XCAL_TEMP* -
+ _$     /BINSIZE=LENGTH=00012/PLOT="XTEMPS/QMS"
+.no keep.fill
+
+ This invokes the command-line mode of TRENDPLOTS.  /NOINTERACTIVE turns off 
+menuselection.  /JSTART and /JSTOP select engineering trends data in the 
+timerange from 89100000000000 to 89149235959990.  /FIELDS selects all fields 
+with XCAL_TEMP in the field name.  Plots are written to disk files 
+XTEMPS.QMPLOT (with version numbers corresponding to the order in which the 
+fields were matched), which can then be made into hardcopy by the command,
+
+.skip 2
+.keep.no fill
+ $ PRINT/QUE=SYS$LQPRINT XTEMPS.QMPLOT;*
+.no keep.fill
+.left margin

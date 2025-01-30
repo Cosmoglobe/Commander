@@ -1,0 +1,7 @@
+!  SCRIPT.LOWF
+!  FMS script file for merge  LOFA + LOSL = LOWF
+!
+ $SMAPS
+	skymap(1) = 'FMS_SKY_LOFA.FAD_8932800_9026409;'
+	skymap(2) = 'FMS_SKY_LOSL.FAD_8932800_9026409;'
+ $END

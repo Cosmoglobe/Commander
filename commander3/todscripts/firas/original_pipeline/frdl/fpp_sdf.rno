@@ -1,0 +1,14 @@
+.header level Consistent_Raw_Science_Data_File (FPP_SDF)
+
+    Like the ingested FIRAS raw science data file, this file contains all of
+the FIRAS raw science interferograms obtained during the mission.  However,
+this set of raw science interferograms have been analyzed and written by the
+first FIRAS facility, FPP_PreProcessor.  FPP_PreProcessor checks the original
+raw science interferograms for consistency of a number of quantities, mainly
+the collect time of each interferogram, and flags those that are inconsistent.
+FPP_PreProcessor also adds the MTM speed and length at this time.  The raw
+data (in counts) are not modified during this process.  This data file
+remains incomplete even after FPP has been run.  It contains fields that must
+yet be filled by facility FDQ_Data_Qualify.  After FDQ_Data_Qualify runs, the
+raw science archive is complete.
+

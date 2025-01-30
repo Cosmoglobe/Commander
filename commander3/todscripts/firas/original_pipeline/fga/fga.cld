@@ -1,0 +1,24 @@
+! Command Language Definition file for facility FGA.
+!
+Define Verb FGA_GET_ARCHIVE
+
+	Image "CSDR$SYSTEM:FGA.EXE"
+
+	   Synonym   GETARCHIVE
+
+           Qualifier INTERACTIVE,
+		     Default,
+                     Negatable
+	   Qualifier DATASET,
+		     Value
+           Qualifier JSTART,
+                     Value
+           Qualifier JSTOP,
+                     Value
+	   Qualifier RSE,
+                     Value(Type=$FILE),
+                     Negatable                     
+
+	   Disallow  DATASET And (Not JSTART Or Not JSTOP)
+	   Disallow  JSTART And (Not DATASET Or Not JSTOP)
+	   Disallow  JSTOP And (Not DATASET Or Not JSTART)

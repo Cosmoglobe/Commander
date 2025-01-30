@@ -1,0 +1,32 @@
+!
+!    IPDU status information
+!
+        union
+
+          map
+            scalar/byte         MTM_MOTOR_POWER_ENABLE
+            scalar/byte         MAIN_ELEC_CONVERTERS_CHAIN_H
+            scalar/byte         MAIN_ELEC_CONVERTERS_CHAIN_L
+            scalar/byte         HOT_SPOT_HEATER
+            scalar/byte         MTM_DRIVE_MOTOR_ELEC
+            scalar/byte         XCAL_TEMP_CONTROLLER
+            scalar/byte         SKYH_TEMP_CONTROLLER
+            scalar/byte         REFH_TEMP_CONTROLLER
+            scalar/byte         ICAL_TEMP_CONTROLLER
+            scalar/byte         MTM_LATCH_MOTOR_ELEC
+            scalar/byte         XCAL_LATCH_MOTOR_ELEC
+            scalar/byte         XCAL_DRIVE_MOTOR_ELEC
+            scalar/byte         XCAL_POWER_ENABLE
+            scalar/byte         LMAC_FOR_DC_CONVERTOR
+            scalar/byte         LMAC_FOR_AC_CONVERTOR
+            scalar/byte         SPARE1
+            scalar/byte         SPARE2
+            scalar/byte         SPARE3
+            scalar/byte         SPARE4
+          endmap
+
+          map
+            array/byte/dim=19   GROUP5
+          endmap
+
+        endunion

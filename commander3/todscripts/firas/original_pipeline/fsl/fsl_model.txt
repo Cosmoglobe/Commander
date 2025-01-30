@@ -1,0 +1,135 @@
+c-------------------------------------------------------------------------------
+c
+c	FSL_MODEL.TXT
+c
+c	This include file contains the FIRAS calibration model solution that
+c	FSL will apply to sky and calibration voltage spectra.
+c
+c       FSL uses calibrated coadd variances to weight the autophase corrector
+c       computation. The uncalibrated coadd variances are in the FIL records.
+c       The individual coadd variances from the FIL records may be replaced by
+c       either of two options selected on the command line;
+c
+c	    1. The all-sky average calibrated variance computed by a previous
+c              FSL run using a specific calibration model solution. This 
+c              variance is a single real vector. It is archived in the 
+c              reference data set: FEX_VAR_CCSS (where CC=channel, SS=scan mode)
+c              with an extension name corresponding to the calibration model.
+c
+c           2. The all-sky average variance vectors from FIL: real-real, real-
+c              imaginary, imaginary-imaginary. The variances are independent
+c              of the calibration model. It is archived in the reference data
+c              set: FEX_FLV_CCSS with the conventional extension of DAT.
+
+c
+c	Author:  
+c                FCF_Model
+c                Gene Eplee
+c		 General Sciences Corp.
+c		 11 March 1993
+c         
+c                FSL_Model
+c                Shirley M. Read
+c                Hughes STX Corporation
+c                July 1995
+c
+c-------------------------------------------------------------------------------
+c
+c	Hard-coded constants:
+c
+c		LOAD_RESISTANCE		4.0D+07 ohms		bolometer load
+c								   resistance
+c
+c		NPAR			24			number of
+c								bolometer
+c								parameters
+c
+c		TRLIM			1.0D-10			lower limit for
+c								a non-zero
+c								transfer
+c								function
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes for FCF:
+c
+c	Added D-Vector file FEX_VAR.
+c	Gene Eplee, GSC, 25 October 1993.
+c	SER 11397
+c
+c       Changes for FSL:
+c
+c       Shirley M. Read, Hughes STX Corporation, July 12, 1995 
+c       Modified FCF_Model to FSL_Model for the new FIRAS pipeline which
+c       will process long spectra to get improved frequency resolution.
+c           1. Since the length of the calibration model solutions has not 
+c              changed, there were no changes to the array lengths.
+c           2. The start and stop frequency indices for the model solution
+c              are now required for processing. These were determined and 
+c              added to this include file at the time the model was read.
+c	    3. Added arrays for the all-sky average variance vectors from FIL
+c              which may be selected on the command line to replace the
+c              individual coadd variance vectors.
+c           4. Added parameter for record size of FEX_FLV.
+c-------------------------------------------------------------------------------
+
+c
+c  Define the frequency parameters.
+c
+	real	*  8	afreq(361)	!  frequency array in radians
+	real	*  8	df		!  frequency interval in icm
+	real	*  8	dw		!  frequency interval in radians
+	real	*  8	fnyq_hz		!  Nyquist frequency in hz
+	real	*  8	fnyq_icm	!  Nyquist frequency in icm
+	real	*  8	freq(361)	!  frequency array in icm
+c
+c  Define various processing parameters.
+c
+	complex * 16	phase_shift	!  phase shift in radians
+
+	integer * 4	fcc_model_size	!  model solution size in long words
+	parameter	(fcc_model_size = 7424)
+	integer * 2	fcc_var_size	!  FEX_VAR record size in long words
+	parameter	(fcc_var_size = 544)
+	integer * 4	fcc_flv_size	!  FEX_FLV size in long words
+	parameter	(fcc_flv_size = 2240)
+	integer *  4	npar		!  Number of bolometer parameters
+	parameter	(npar = 24)
+
+	real	*  8	load_resistance	!  detector load resistance
+	parameter	(load_resistance = 4.0D+07)
+	real	*  8	spec_norm	!  Nyquist frequency * etendu
+	real	*  8	rscale		!  Conversion factor from
+	parameter	(rscale = 1.0D-07)  !    ergs/sec to watts
+	real	*  8	sky_temp	!  Sky temp for IR power calculation
+	parameter	(sky_temp = 2.726D0)
+	real	*  8	sky_temp_sig	!  Sky temp sigma (from noise floor)
+	parameter	(sky_temp_sig = 2.16659D-05)
+	real	*  8	trlim		!  lower limit for transfer function
+	parameter	(trlim = 1.0D-10)
+c
+c  Define the model solution.
+c
+	character * 40  model_label	!  model solution label
+	character * 14	model_ttag	!  model solution time tag
+
+	complex * 16	B(257)		!  detector delay
+	complex	* 16	emiss(7,257)	!  instrument emissivities
+
+	integer *  4    start_idx       !  start frequency index for model
+	integer *  4    stop_idx        !  stop frequency index for model
+	integer *  2	mod_lablen	!  model solution label length
+
+	real	*  8	bolparm(10)	!  bolometer parameters
+	real	*  8	dvector(257)	!  D-Vector^2
+	real	*  8	param(20)	!  model solution parameters
+	real	*  8	S0		!  detector responsivity
+	real	*  8	tau		!  detector time constant
+	real    *  8    fil_var(3,361)  !  all-sky variances from FIL
+c
+c  Define the common block.
+c
+	common  /fcc_model/  fnyq_icm, fnyq_hz, df, dw, freq, afreq, dvector,
+     .			     phase_shift, spec_norm, model_label, mod_lablen,
+     .			     model_ttag, param, bolparm, S0, tau, B, emiss,
+     .                       start_idx, stop_idx, fil_var

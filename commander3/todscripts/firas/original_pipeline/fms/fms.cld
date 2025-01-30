@@ -1,0 +1,52 @@
+!	FMS_Merge_Skymaps  Command Line Definition File
+!
+	DEFINE VERB FMS
+
+	Image "CSDR$SYSTEM:FMS.EXE"
+
+	Qualifier  SCRIPT,  value (Required),  nonnegatable
+	! file containing the names of the two skymaps to be combined.
+
+	Qualifier  COMBINATION,  value (type=fms_combo, Required), nonnegatable
+	! type of combination being done (FREQUENCY, SCAN_MODE, SIDE, HYBRID).
+
+	Qualifier  ORDER,  value (type=fms_order, Required), nonnegatable
+	! combination order as defined in "tennis tree" combination map
+	! ( ZEROTH, FIRST, SECOND, or THIRD ).
+
+	Qualifier  MODEL_EXT,  value (Required), nonnegatable
+	! calibration model solution and filename extension of D-Vector and
+	! C-Vector data sets.
+
+	Qualifier  WEIGHT,  value (type=fms_weight, Required), nonnegatable
+	! spectral weight specification switch (DVECTOR or CVECTOR).
+	! (CVECTOR used in production.  All ZEROTH order combinations must use
+	! the DVECTOR. )
+
+	Qualifier  TRANS_FREQ, value (Type=$NUMBER, Default=21), default,
+	                       nonnegatable
+	! Correction spectrum transition frequency switch (/TRANS_FREQ =value;
+	! default is /TRANS_FREQ = 21).  The correction spectrum transition is
+	! specified in integer wavenumbers and must fall in the frequency
+	! range of 19-23 wavenumbers.
+
+
+	Qualifier  REPORT,  value (type=$file),  default,  negatable 
+	! (optional) Flag whether a report will be generated for the run.
+	! Allows specification of report file name.
+
+Define Type fms_combo
+	keyword FREQUENCY
+	keyword SCAN_MODE
+	keyword SIDE
+	keyword HYBRID
+
+Define Type fms_order
+	keyword ZEROTH
+	keyword FIRST
+	keyword SECOND
+	keyword THIRD
+
+Define Type fms_weight
+	keyword DVECTOR
+	keyword CVECTOR

@@ -1,0 +1,88 @@
+!
+!  FIRAS covariance matrix and related data
+!     initial product record structure.
+!
+record FIP_COV FIP_COV
+!
+!  Calibration model solution identification
+!
+!  Calibration model solution label
+      scalar/text/length=40      MODEL_LABEL
+!  Optional covariance matrix name.
+      scalar/text/length=40      COV_LABEL
+!  Channel/scan mode
+      scalar/text/length=4       CHANSCAN
+!
+!  Frequency range of model solution.
+! 
+!  Optical frequency of initial data point, in GHz.
+      scalar/float               NU_ZERO
+!  Optical frequency interval, GHz.
+      scalar/float               DELTA_NU
+!  Number of frequency points with data.
+      scalar/long                NUM_FREQ
+!  Number of contributing ifgs.
+      scalar/long                NUM_IFGS
+!  Number of contributing coadds.
+      scalar/long                NUM_COADDS
+!  Degrees of freedom
+      scalar/long                DEG_FREEDOM
+!
+!  Average bolometer temperature, commanded bias, and readout
+!     voltage used in calibration of the covariance matrix:
+!
+!  Average bolometer temp (deg K)
+      scalar/float               BOL_AVG
+!  Average commanded bias in volts
+      scalar/float               CBIAS_AVG
+!  Average readout voltage in volts
+      scalar/float               VOLT_AVG
+!  Detector responsivity (S0) in volts/watt
+      scalar/double              S0
+!  Detector time constant in seconds
+      scalar/double              TAU
+!  Derived bolometer temperature in kelvin
+      scalar/double              TBOL
+!
+!  For the following two fields: record 1 contains info for
+!     frequency Nu_zero, record 2 contains info for frequency
+!     Nu_zero + delta_nu, and so forth up through num_freq.
+!
+!  Average of real parts of calibrated spectra.
+      scalar/double              AVG_RCALSPEC
+!  Average of imaginary parts of calibrated spectra.
+      scalar/double              AVG_ICALSPEC
+!
+!  Dispersion vectors and associated data,
+!     stored in records 1 - 256.
+!
+!  Number of calibrated spectra contributing to bin.
+      scalar/long                BIN_TOTAL
+!  Weighted total of calibrated spectra for this bin.
+      scalar/float               WTD_BIN_TOTAL
+!  Effective weight per each IFG contributing to bin.
+      scalar/double              EFF_WT
+!  Total of real part of calibrated spectra dispersions
+!     in this bin.
+      array/double/dim=180       RDISP
+!  Total of imaginary part of calibrated spectra dispersions
+!     in this bin.
+      array/double/dim=180       IDISP
+!  Temperature and glitch rate dispersion totals in bin.
+      array/double/dim=8         TEMP
+!
+!  COVARIANCE MATRIX
+!
+!  Upper triangular part of symmetric covariance matrix,
+!     stored in records 1 - 253, each with up to 270 values,
+!     row x col.
+!  Real - real (17766 values) stored in records 1 - 66;
+!     upper half of symmetric submatrix 1-188 x row-188.
+!  Real - imag (33840 values) stored in records 67 - 192;
+!     entirety of rectangular submatrix 189-368 x 1-188.
+!  Imag - imag (16290 values) stored in records 193 - 253;
+!     upper half of symmetric submatrix 189-368 x row-368.
+!
+      array/double/dim=270       COVAR
+!
+      end_record

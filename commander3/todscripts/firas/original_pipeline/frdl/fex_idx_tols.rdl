@@ -1,0 +1,17 @@
+!
+!  Index tolerances for generation of FDQ_Idx.
+!
+record FEX_IDX_TOLS FEX_IDX_TOLS
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+  structure idx_tols
+    include idx_tols.rdl
+  endstructure
+
+  array/byte/dim=448            TOL_SPARES
+                                !  Spare bytes
+
+end_record

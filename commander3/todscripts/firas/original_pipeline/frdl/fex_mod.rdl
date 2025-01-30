@@ -1,0 +1,42 @@
+!
+!  Calibration Model Solution Record
+!
+record FEX_MOD FEX_MOD
+!
+!  Note:  The timetag for the model solution
+!         is the creation time of the model
+!
+structure CT_HEAD
+   include ct_head.rdl
+endstructure
+
+structure MOD_HEAD
+   include mod_head.rdl
+endstructure
+!
+!  Calibration Model Solution
+!
+      array/double/dim=32          BOLPARM
+                                   !  Bolometer and
+                                   !  other parameters
+!
+!  Instrument Emissivities
+!
+      union
+         map
+            array/doublec/dim=257  TRANSFER
+            array/doublec/dim=257  ICAL
+            array/doublec/dim=257  SKYHORN
+            array/doublec/dim=257  REFHORN
+            array/doublec/dim=257  DIHEDRAL
+            array/doublec/dim=257  STRUCT
+            array/doublec/dim=257  BOLOMETER
+         endmap
+         map
+            array/doublec/dim=(257,7)  EMISSIVITY
+         endmap
+      endunion
+
+      array/byte/dim=400           SPARES
+                                   ! Spare bytes
+end_record

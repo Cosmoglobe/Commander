@@ -1,0 +1,109 @@
+!******************************************************************************
+
+!  THIS IS SOURCE FILE   F D Q _ L C K E Y P A R S . T X T
+
+!******************************************************************************
+
+!  CREATED BY JOSE E. ALZONA, OAO/17.VI.85
+!  ---------------------------------------
+
+
+!  FUNCTION
+!  --------
+!	This include file contains all the parameter values that are used by
+!	the LIMCUVKEY open/close/read/write utilities in order to handle the
+!	LIMCUVKEY off-line limits-curves data file.  This file is an indexed
+!	file  containing the same  unformatted binary data  as the LIMCUV.DB
+!	file, but in an indexed format using two keys, the primary key being
+!	the point's  8-character DATABASE NAME,  and the secondary key being
+!	the record number of the same point's data in the LIMCUV.DB file.
+
+!	The parameters define file sizes, keys, and offsets of various array
+!	elements in the LIMCURV.DB and the LIMCUVKEY file.  If either or both
+!	of these file formats change,  it may be necessary  to redefine some
+!	of the parameters and re-compile the file LCKEYIO.FOR.
+
+
+!  LOGICAL NAME OF OFF-LINE LIMITS-CURVES KEY FILE IS 'LIMCUVKEY'.
+
+!  All parameters referring to the LIMCURV.DB offsets have the prefix LCD.
+
+!  The following reflects the LIMCURV.DB file format as of 17.VI.85:
+
+	PARAMETER 	LCD_RECSZ=80,	!LIMCURV.DB record size in bytes
+	1		LCD_NOC=1,	!Number of coefficients (I*2)
+	1		LCD_CFF=3,	!Coefficients in ascending power 6X(R*4)
+	1		LCD_LMT=27,	!Limit type (L*1)
+	1		LCD_LMU=28,	!Limit units (L*1)
+	1		LCD_RHM=29,	!Red high limit/mask (I*4)
+	1		LCD_YHV=33,	!Yellow high limit/value (I*4)
+	1		LCD_YLO=37,	!Yellow low limit (I*4)
+	1		LCD_RLO=41,	!Red low limit (I*4)
+	1		LCD_OBT=45,	!Object type (L*1)
+	1		LCD_AFG=46,	!Global array flag (L*1)
+	1		LCD_AIX=47,	!ARINDEX (I*2)
+	1		LCD_NXT=49,	!NEXT (I*2)
+	1		LCD_NME=51,	!Mnemonic name (C*8)
+	1		LCD_TWI=59,	!Three word index 3 X (I*2)
+	1		LCD_LMG=65,	!Limit group I.D. (I*2)
+	1		LCD_LGN=67,	!Next element in limit group (I*2)
+	1		LCD_ID1=69,	!IDX1 (I*2)
+	1		LCD_ID2=71,	!IDX2 (I*2)
+	1		LCD_DTT=73,	!Object data type (I*2)
+	1		LCD_SPR=75	!Start of six spare bytes
+
+!   There 6 bytes of spares at the end of the record.
+
+!   The LIMCUVKEY record is an exact duplicate of the LIMCURV.DB 80-byte
+!   record described above, except that there are an additional 48 bytes
+!   tacked on at the end to make a 128-byte size record.  The first four
+!   of these bytes together give the I*4 record number in the LIMCURV.DB
+!   file of the same data.
+
+!   The other 44 bytes  represent spares  allocated in anticipation of a
+!   future enhancement to the code that would include a GRT-type conver-
+!   sion scheme in its capabilities.
+
+!   All parameters referring to the LIMCUVKEY offsets have the prefix LCK.
+!   They reflect the LIMCUVKEY file format as of 17.VI.85:
+
+	PARAMETER 	LCK_RECSZ=128	!LIMCUVKEY record size in bytes
+					!  (MUST BE .GT. LCD_RECSZ)
+
+!   The following represent the structure of the LIMCURV.DB file:
+
+	PARAMETER	LCK_NOC=LCD_NOC,	!Number of coefficients (I*2)
+	1		LCK_CFF=LCD_CFF,	!Coefficients in ascending power 6X(R*4)
+	1		LCK_LMT=LCD_LMT,	!Limit type (L*1)
+	1		LCK_LMU=LCD_LMU,	!Limit units (L*1)
+	1		LCK_RHM=LCD_RHM,	!Red high limit/mask (I*4)
+	1		LCK_YHV=LCD_YHV,	!Yellow high limit/value (I*4)
+	1		LCK_YLO=LCD_YLO,	!Yellow low limit (I*4)
+	1		LCK_RLO=LCD_RLO,	!Red low limit (I*4)
+	1		LCK_OBT=LCD_OBT,	!Object type (L*1)
+	1		LCK_AFG=LCD_AFG,	!Global array flag (L*1)
+	1		LCK_AIX=LCD_AIX,	!ARINDEX (I*2)
+	1		LCK_NXT=LCD_NXT,	!NEXT (I*2)
+	1		LCK_NME=LCD_NME,	!Mnemonic name (C*8)
+						!   (THIS IS THE PRIMARY KEY)
+	1		LCK_TWI=LCD_TWI,	!Three word index 3 X (I*2)
+	1		LCK_LMG=LCD_LMG,	!Limit group I.D. (I*2)
+	1		LCK_LGN=LCD_LGN,	!Next element in limit group (I*2)
+	1		LCK_ID1=LCD_ID1,	!IDX1 (I*2)
+	1		LCK_ID2=LCD_ID2,	!IDX2 (I*2)
+	1		LCK_DTT=LCD_DTT,	!Object data type (I*2)
+	1		LCK_SPR=LCD_SPR		!LIMCURV.DB spares 6 X (1 byte)
+
+!   The following offsets are additional data in the LIMCUVKEY file
+
+	PARAMETER	LCK_LCREC=81,	!Record number in LIMCURV.DB (I*4)
+					!  (ALSO THE SECONDARY KEY)
+	1		LCK_SPARE=85	!LIMCUVKEY spares (44 bytes - see above)
+
+!   The keys to the file can now be defined:
+
+	PARAMETER	LCK_KEY1F=LCK_NME,	!The 8-character mnemonic
+	1		LCK_KEY1L=LCK_NME+7	!   name
+
+	PARAMETER	LCK_KEY2F=LCK_LCREC,	!The I*4 LIMCURV.DB record
+	1		LCK_KEY2L=LCK_LCREC+3	!   number

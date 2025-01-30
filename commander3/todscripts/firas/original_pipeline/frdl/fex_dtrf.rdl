@@ -1,0 +1,20 @@
+!
+! Digital Transient Response Function File Structure
+! 
+record FEX_DTRF FEX_DTRF
+
+       array/float/dim=128         TRANS
+                                   ! Transient Response Functions
+                                   !
+                                   !    Stored in 8 records:
+                                   !     RH or LH channel    1 - 4
+                                   !        SS scan mode         1
+                                   !        SF scan mode         2
+                                   !        LS scan mode         3
+                                   !        LF scan mode         4
+                                   !     RL or LL channel    5 - 8
+                                   !        SS scan mode         5
+                                   !        SF scan mode         6
+                                   !        LS scan mode         7
+                                   !        LF scan mode         8
+end_record

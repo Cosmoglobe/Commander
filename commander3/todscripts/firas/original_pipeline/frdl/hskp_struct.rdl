@@ -1,0 +1,14 @@
+!
+! The main contents of the housekeeping record.
+!
+        structure HSKP_HEAD
+          include hskp_head.rdl
+        endstructure
+
+        structure TEMPS
+          include temperature.rdl
+        endstructure
+
+        structure V_AND_I
+          include v_and_i.rdl
+        endstructure

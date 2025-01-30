@@ -1,0 +1,167 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'DS-CSPEC'           / Destriper Correction Spectra
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'RL'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'SL'                 / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+COMMENT                        / If S and L data are combined, SCLENGTH is 
+COMMENT                        / set to SL but the extension table identifier
+COMMENT                        / for scan length in CHANSCAN is set to L. 
+SCSPEED = 'F'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NU_ZERO =         67.91283416  / Optical frequency of initial data point in GHz
+DELTA_NU=          16.97820854 / Optical frequency interval between data points 
+COMMENT                        / in GHz
+NUM_FREQ=                   34 / Number of frequency points with good data
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT 
+COMMENT  FIRAS offset correction spectra
+COMMENT     project dataset record structure 
+COMMENT 
+COMMENT 
+COMMENT  Calibration model solution identification
+COMMENT 
+COMMENT  Calibration model solution label
+TFORM1='40A'
+TTYPE1='MODEL_LA' / entire fieldname = MODEL_LABEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Channel / MTM scan mode (length and speed)
+TFORM2='4A'
+TTYPE2='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET2=40
+TUNIT2=' '
+COMMENT 
+COMMENT  Frequency range of offset correction spectra
+COMMENT 
+COMMENT  Optical frequency of initial data point, in GHz
+TFORM3='1E'
+TTYPE3='NU_ZERO' / entire fieldname = NU_ZERO
+OFFSET3=44
+TUNIT3='GHz'
+COMMENT  Optical frequency interval, in GHz
+TFORM4='1E'
+TTYPE4='DELTA_NU' / entire fieldname = DELTA_NU
+OFFSET4=48
+TUNIT4='GHz'
+COMMENT  Number of frequency points with good data
+TFORM5='1J'
+TTYPE5='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET5=52
+TUNIT5=' '
+COMMENT 
+COMMENT  Galactic latitude cut for correction computation,
+COMMENT  absolute value in deg (0 -> 90)        
+TFORM6='1E'
+TTYPE6='GALATEXC' / entire fieldname = GALATEXC
+OFFSET6=56
+TUNIT6='Deg'
+COMMENT 
+COMMENT  Mission period times.
+COMMENT 
+COMMENT  Times are in seconds since
+COMMENT     00:00.00 UTC, 1 January 1981
+COMMENT 
+COMMENT   Aperture cover ejection time, in s
+TFORM7='1D'
+TTYPE7='EJECT_TI' / entire fieldname = EJECT_TIME
+OFFSET7=60
+TUNIT7='s'
+COMMENT   Start times of mission periods, in s
+TFORM8='5D'
+TDIM8='(5)'
+TTYPE8='START_TI' / entire fieldname = START_TIMES
+OFFSET8=68
+TUNIT8='s'
+COMMENT   Stop times of mission periods, in s
+TFORM9='5D'
+TDIM9='(5)'
+TTYPE9='STOP_TIM' / entire fieldname = STOP_TIMES
+OFFSET9=108
+TUNIT9='s'
+COMMENT 
+COMMENT  Destriper Corrections
+COMMENT 
+COMMENT  Index to correction spectra:
+COMMENT      0 = no correction
+COMMENT      1 = exponential correction
+COMMENT      2 = vibration correction
+COMMENT      3 = tophat correction
+TFORM10='5B'
+TDIM10='(5)'
+TTYPE10='CORR_IND' / entire fieldname = CORR_INDEX
+OFFSET10=148
+TUNIT10=' '
+COMMENT 
+COMMENT  Exponential correction time constants,
+COMMENT   in days since the aperture cover ejection
+TFORM11='5E'
+TDIM11='(5)'
+TTYPE11='TAU' / entire fieldname = TAU
+OFFSET11=153
+TUNIT11='d'
+COMMENT 
+COMMENT  Vibration correction coefficients
+TFORM12='5D'
+TDIM12='(5)'
+TTYPE12='VIB_CORR' / entire fieldname = VIB_CORR
+OFFSET12=173
+TUNIT12=' '
+COMMENT 
+COMMENT  Correction spectra, as indicated by CORR_INDEX
+COMMENT 
+COMMENT  Real part of the correction spectra, in MJy/sr
+TFORM13='900E'
+TDIM13='(180,5)'
+TTYPE13='RCORR_SP' / entire fieldname = RCORR_SPEC
+OFFSET13=213
+TUNIT13='MJy/sr'
+COMMENT  Imaginary part of the correction spectra, in MJy/sr
+TFORM14='900E'
+TDIM14='(180,5)'
+TTYPE14='ICORR_SP' / entire fieldname = ICORR_SPEC
+OFFSET14=3813
+TUNIT14='MJy/sr'
+COMMENT 
+COMMENT  
+COMMENT 
+END

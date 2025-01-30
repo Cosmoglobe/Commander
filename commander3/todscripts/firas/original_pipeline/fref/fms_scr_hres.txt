@@ -1,0 +1,7 @@
+!  SCRIPT.HRES
+!  FMS script file for merge  RLLF + LLLF = HRES
+!
+ $SMAPS
+	skymap(1) = 'FCS_SKY_RLLF.FAD_8932800_9026409;'
+	skymap(2) = 'FCS_SKY_LLLF.FAD_8932800_9026409;'
+ $END

@@ -1,0 +1,30 @@
+!
+! FIRAS Destriper Error Matrix
+!    project dataset record structure 
+!
+record FIP_DSE FIP_DSE
+!
+! FIRAS pixel number (resolution 6)
+scalar/long              PIXEL
+! Calibration model solution label
+scalar/text/length=40    MODEL_LABEL
+! Channel / MTM scan mode (length and speed)
+scalar/text/length=4     CHANSCAN
+!
+!  Error Matrix Elements for this Pixel
+!
+! Diagonal (Pixel-Pixel) Matrix Element
+scalar/double            DIAG_ELEMENT
+!
+! Rectangular (Pixel-Stripe) Matrix Elements
+array/double/dim=5       RECT_ELEMENT
+!
+! Beta (auxiliary Pixel-Stripe) Matrix Elements
+array/double/dim=5       BETA_ELEMENT
+!
+! Pixel Contribution to Stripe Corrections flag:
+!   0 = pixel did not contribute to stripes,
+!   1 = pixel did contribute to stripes
+scalar/long              STRIPE_CONTRIB
+!
+end_record

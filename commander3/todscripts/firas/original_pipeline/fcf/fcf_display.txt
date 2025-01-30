@@ -1,0 +1,44 @@
+c-------------------------------------------------------------------------------
+c
+c	FCF_DISPLAY.TXT
+c
+c	This include file contains the ifg, variances, and spectra for plotting.
+c
+c	Author:  Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 21 October 1992
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Add differential and reference spectrum to DISPLAY structure.
+c	Gene Eplee, GSC, 11 July 1994.
+c	SPR 11826
+c
+c-------------------------------------------------------------------------------
+
+	structure /display/
+	   character * 14	gmt		!  GMT time of spectrum
+	   character * 60	coadd_label	!  coadd label
+	   integer * 4		fakeit		!  fakeit flag
+	   integer * 4		gain		!  commanded gain
+	   integer * 4		sweeps		!  scan sweeps
+	   integer * 4		upmode		!  microprocessor mode
+	   integer * 4		xcal_pos	!  xcal position flag
+	   integer * 4		pixel_no	!  pixel number of spectrum
+	   real    * 4		aifg(512)	!  coadded ifg
+	   real	   * 4		ivar(3,257)	!  unapodized voltage variances
+	   real	   * 4		vvar(3,257)	!  apodized voltage variances
+	   real	   * 4		cvar(3,257)	!  calibrated variances
+	   complex * 8		spec(257)	!  spectrum in counts
+	   complex * 8		vspec(257)	!  voltage spectrum
+	   complex * 8		espec(257)	!  differential spectrum
+	   complex * 8		pspec(257)	!  reference spectrum
+	   complex * 8		cspec(257)	!  calibrated spectrum
+	endstructure
+
+	record /display/ display
+
+	common /fcc_display/  display

@@ -1,0 +1,15 @@
+C
+C	Filename: 	FUT_VecPlt_Labels.Txt
+C
+C	Purpose:	To store the titles, x labels, y labels and 
+C			time ranges needed for plots.
+C
+	character	*80	title
+	character	*80	xlabl
+	character	*80	ylabl
+	character	*80	title2
+	character	*80	oxlabl	! Outer X label
+	character	*80	oylabl	! Outer Y label
+	character	*30	time_range
+	common /labels/ title, xlabl, ylabl, title2, oxlabl, oylabl,
+     &	 Time_range

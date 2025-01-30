@@ -1,0 +1,349 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'CAL-SPEC'           / Uncombined, Undestriped Calibration Spectra
+EQUINOX =               2000.0 / equinox of coords in following tables 
+COMMENT
+REFERENC= 'For additional information, please refer to the'
+REFERENC= 'COBE Far Infrared Absolute Spectrophotometer (FIRAS)'
+REFERENC= 'Explanatory Supplement, ed. J.C. Mather et al,'
+REFERENC= 'COBE Ref. Pub. No. 97-C (Greenbelt, MD: NASA/GSFC),'
+REFERENC= 'available in electronic form from the NSSDC.'
+COMMENT
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT 
+COMMENT   FIRAS specific keywords
+CHANSCAN= 'LLSS'               / Channel and mirror transport mechanism scan
+COMMENT                        / mode identifier.  The first two characters
+COMMENT                        / indicate the channel, the first being the
+COMMENT                        / instrument side: right (R) or left (L); and
+COMMENT                        / the second being the frequency: high (H) or
+COMMENT                        / low (L).  The third and fourth characters
+COMMENT                        / indicate the scan mode, the third being the
+COMMENT                        / scan length: short (S) or long (L); and the
+COMMENT                        / fourth being the scan speed: slow (S) or 
+COMMENT                        / fast (F).  In addition, the scan mode may
+COMMENT                        / take the following values for low frequency
+COMMENT                        / data only (channel = RL or LL):
+COMMENT                        /      FS: decimated SF data;
+COMMENT                        /      FL: truncated LF data.
+MODLLABL= 'PASS4              '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NU_ZERO =            68.020812 / Optical frequency of initial data point in GHz
+DELTA_NU=            13.604162 / Optical frequency interval between data points 
+COMMENT                        / in GHz
+NUM_FREQ=                   43 / Number of frequency points with good data
+FFT_LENGTH=                640 / Length of Fast Fourier Transform used
+DATATYPE=                    4 / Data type flag: 
+COMMENT                        / 1 = Merged channel and scan mode 
+COMMENT                        /          destriped calibrated sky spectra
+COMMENT                        / 2 = Single scan mode undestriped 
+COMMENT                        /          calibrated sky spectra  
+COMMENT                        / 3 = Single scan mode undestriped 
+COMMENT                        /          differential sky spectra 
+COMMENT                        / 4 = Single scan mode undestriped 
+COMMENT                        /          calibrated calibration spectra
+COMMENT                        / 5 = Single scan mode undestriped 
+COMMENT                        /          differential calibration spectra
+COMMENT                        / 6 = Coadded sky interferograms
+COMMENT                        / 7 = Coadded time-ordered calibration 
+COMMENT                        /          interferograms
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT  
+COMMENT 
+COMMENT  FIRAS calibration spectrum
+COMMENT        project dataset record structure 
+COMMENT 
+COMMENT 
+COMMENT  FIRAS pixel number (resolution 6)
+TFORM1='1J'
+TTYPE1='PIXEL' / entire fieldname = PIXEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT  Ecliptic longitude, epoch 2000.0, in deg (0 -> 360)
+TFORM2='1E'
+TTYPE2='ECLON' / entire fieldname = ECLON
+OFFSET2=4
+TUNIT2='deg'
+COMMENT  Ecliptic latitude, epoch 2000.0, in deg (-90 -> +90)
+TFORM3='1E'
+TTYPE3='ECLAT' / entire fieldname = ECLAT
+OFFSET3=8
+TUNIT3='deg'
+COMMENT  Real part of spectrum, in MJy/sr
+TFORM4='210E'
+TDIM4='(210)'
+TTYPE4='REAL_SPE' / entire fieldname = REAL_SPECTRUM
+OFFSET4=12
+TUNIT4='MJy/sr'
+COMMENT  Imaginary part of spectrum, in MJy/sr
+TFORM5='210E'
+TDIM5='(210)'
+TTYPE5='IMAG_SPE' / entire fieldname = IMAG_SPECTRUM
+OFFSET5=852
+TUNIT5='MJy/sr'
+COMMENT  Sigmas of spectrum, in MJy/sr
+TFORM6='210E'
+TDIM6='(210)'
+TTYPE6='SIGMAS' / entire fieldname = SIGMAS
+OFFSET6=1692
+TUNIT6='MJy/sr'
+COMMENT  Glitchrate for coadded IFG, in glitches/s
+TFORM7='1E'
+TTYPE7='GLITCH_R' / entire fieldname = GLITCH_RATE
+OFFSET7=2532
+TUNIT7='Gl/s'
+COMMENT  Number of IFGs in spectrum
+TFORM8='1E'
+TTYPE8='NUM_IFGS' / entire fieldname = NUM_IFGS
+OFFSET8=2536
+TUNIT8=' '
+COMMENT  Glitch rate weighted number of IFGs in spectrum
+TFORM9='1E'
+TTYPE9='ADJ_NUM_' / entire fieldname = ADJ_NUM_IFGS
+OFFSET9=2540
+TUNIT9=' '
+COMMENT  Average data collection time in seconds since
+COMMENT     00:00.00 UTC, 1 January 1981
+TFORM10='1D'
+TTYPE10='TIME' / entire fieldname = TIME
+OFFSET10=2544
+TUNIT10='s'
+COMMENT  Observation times of IFGs in the spectrum; 
+COMMENT     in hundredths of days since ejection of the 
+COMMENT     FIRAS aperture cover at
+COMMENT     11:18.00 UTC, 21 November 1989
+TFORM11='100J'
+TDIM11='(100)'
+TTYPE11='IFG_TIME' / entire fieldname = IFG_TIMES
+OFFSET11=2552
+TUNIT11='d*100'
+COMMENT  Flag indicating orphan IFGs, which occur 
+COMMENT     when a spectrum is composed of only 1 or 
+COMMENT     2 IFGs.  In all other cases, the spectrum
+COMMENT     is composed of three or more IFGs.
+COMMENT     Flag = 1 indicates 1 or 2 IFGS in the spectrum;
+COMMENT     flag = 0 indicates 3 or more IFGs in the spectrum;
+COMMENT     applicable only to sky data.
+TFORM12='1B'
+TTYPE12='ORPHANS' / entire fieldname = ORPHANS
+OFFSET12=2952
+TUNIT12=' '
+COMMENT 
+COMMENT  Template Information
+COMMENT 
+COMMENT  Number of templates subtracted from coadded IFG
+TFORM13='1J'
+TTYPE13='NUM_TEMP' / entire fieldname = NUM_TEMPLATES
+OFFSET13=2953
+TUNIT13=' '
+COMMENT  Number of IFGS used in forming the templates
+TFORM14='1J'
+TTYPE14='TPL_NUM_' / entire fieldname = TPL_NUM_IFGS
+OFFSET14=2957
+TUNIT14=' '
+COMMENT  Flag indicating use of IFGs from neighboring
+COMMENT     pixels in template formation (suitable
+COMMENT     IFGs from 8 neighboring pixels);
+COMMENT     applicable only to sky data
+COMMENT     Flag = 1 indicates neighbor IFGs were used;
+COMMENT     flag = 0 indicates neighbor IFGs were not used
+TFORM15='1B'
+TTYPE15='NEIGHBOR' / entire fieldname = NEIGHBORS
+OFFSET15=2961
+TUNIT15=' '
+COMMENT  Number of IFGS from neighboring pixels used in
+COMMENT     forming the templates; only for sky data
+TFORM16='1J'
+TTYPE16='NBR_NUM_' / entire fieldname = NBR_NUM_IFGS
+OFFSET16=2962
+TUNIT16=' '
+COMMENT  Observation times of IFGs used in template 
+COMMENT     formation; in seconds since
+COMMENT     00:00.00 UTC, 1 January 1981
+TFORM17='100D'
+TDIM17='(100)'
+TTYPE17='TPL_TIME' / entire fieldname = TPL_TIMES
+OFFSET17=2966
+TUNIT17='s'
+COMMENT  Pixel numbers of IFGs used in templates
+TFORM18='100J'
+TDIM18='(100)'
+TTYPE18='TPL_PIXE' / entire fieldname = TPL_PIXELS
+OFFSET18=3766
+TUNIT18=' '
+COMMENT 
+COMMENT  Data and Scan Mode Identification
+COMMENT 
+COMMENT  Channel / MTM scan mode (length and speed)
+TFORM19='4A'
+TTYPE19='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET19=4166
+TUNIT19=' '
+COMMENT  Data type flag:  1 = Merged channel and scan mode 
+COMMENT                       destriped calibrated sky spectra
+COMMENT                   2 = Single scan mode undestriped 
+COMMENT                       calibrated sky spectra  
+COMMENT                   3 = Single scan mode undestriped 
+COMMENT                       differential sky spectra 
+COMMENT                   4 = Single scan mode undestriped 
+COMMENT                       calibrated calibration spectra
+COMMENT                   5 = Single scan mode undestriped 
+COMMENT                       differential calibration spectra
+COMMENT                   6 = Coadded sky interferograms
+COMMENT                   7 = Coadded time-ordered calibration 
+COMMENT                       interferograms
+TFORM20='1B'
+TTYPE20='DATATYPE' / entire fieldname = DATATYPE
+OFFSET20=4170
+TUNIT20=' '
+COMMENT  Length of Fast Fourier Transform used
+TFORM21='1J'
+TTYPE21='FFT_LENG' / entire fieldname = FFT_LENGTH
+OFFSET21=4171
+TUNIT21=' '
+COMMENT  Optical frequency of initial data point, in GHz
+TFORM22='1E'
+TTYPE22='NU_ZERO' / entire fieldname = NU_ZERO
+OFFSET22=4175
+TUNIT22='GHz'
+COMMENT  Optical frequency interval, in GHz
+TFORM23='1E'
+TTYPE23='DELTA_NU' / entire fieldname = DELTA_NU
+OFFSET23=4179
+TUNIT23='GHz'
+COMMENT  Number of frequency points with good data
+TFORM24='1J'
+TTYPE24='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET24=4183
+TUNIT24=' '
+COMMENT 
+COMMENT   Bolometer Response Function
+COMMENT 
+COMMENT  Commanded bolometer bias, in V
+TFORM25='1E'
+TTYPE25='BOLOM_BI' / entire fieldname = BOLOM_BIAS
+OFFSET25=4187
+TUNIT25='V'
+COMMENT  Bolometer readout voltage, in V
+TFORM26='1E'
+TTYPE26='BOLOM_VO' / entire fieldname = BOLOM_VOLTAGE
+OFFSET26=4191
+TUNIT26='V'
+COMMENT  Bolometer DC response, in V/W
+TFORM27='1E'
+TTYPE27='DC_RESPO' / entire fieldname = DC_RESPONSE
+OFFSET27=4195
+TUNIT27='V/W'
+COMMENT  Bolometer time constant, in s
+TFORM28='1E'
+TTYPE28='TIME_CON' / entire fieldname = TIME_CONSTANT
+OFFSET28=4199
+TUNIT28='s'
+COMMENT  Linear autophase correction, in rad
+TFORM29='1E'
+TTYPE29='PHASE_CO' / entire fieldname = PHASE_CORR
+OFFSET29=4203
+TUNIT29='rad'
+COMMENT 
+COMMENT  Instrument Temperatures
+COMMENT 
+COMMENT  External calibrator temperature, in K
+TFORM30='1E'
+TTYPE30='XCAL_TEM' / entire fieldname = XCAL_TEMP
+OFFSET30=4207
+TUNIT30='K'
+COMMENT  Internal calibrator temperature, in K
+TFORM31='1E'
+TTYPE31='ICAL_TEM' / entire fieldname = ICAL_TEMP
+OFFSET31=4211
+TUNIT31='K'
+COMMENT  Sky horn temperature, in K
+TFORM32='1E'
+TTYPE32='SKYHORN_' / entire fieldname = SKYHORN_TEMP
+OFFSET32=4215
+TUNIT32='K'
+COMMENT  Reference horn temperature, in K
+TFORM33='1E'
+TTYPE33='REFHORN_' / entire fieldname = REFHORN_TEMP
+OFFSET33=4219
+TUNIT33='K'
+COMMENT  Dihedral mirror temperature, in K
+TFORM34='1E'
+TTYPE34='DIHEDRAL' / entire fieldname = DIHEDRAL_TEMP
+OFFSET34=4223
+TUNIT34='K'
+COMMENT  Collimator mirror temperature, in K
+TFORM35='1E'
+TTYPE35='MIRROR_T' / entire fieldname = MIRROR_TEMP
+OFFSET35=4227
+TUNIT35='K'
+COMMENT  Bolometer operating temperature, in K
+TFORM36='1E'
+TTYPE36='BOLOM_TE' / entire fieldname = BOLOM_TEMP
+OFFSET36=4231
+TUNIT36='K'
+COMMENT  Bolometer bath temperature, in K
+TFORM37='1E'
+TTYPE37='BATH_TEM' / entire fieldname = BATH_TEMP
+OFFSET37=4235
+TUNIT37='K'
+COMMENT 
+COMMENT  Instrument Attitude Information
+COMMENT 
+COMMENT  Galactic longitude, in deg (0 -> 360)
+TFORM38='1E'
+TTYPE38='GALON' / entire fieldname = GALON
+OFFSET38=4239
+TUNIT38='deg'
+COMMENT  Galactic latitude, in deg (-90 -> +90)
+TFORM39='1E'
+TTYPE39='GALAT' / entire fieldname = GALAT
+OFFSET39=4243
+TUNIT39='deg'
+COMMENT  Right ascension, in deg (0 -> 360)
+TFORM40='1E'
+TTYPE40='RA' / entire fieldname = RA
+OFFSET40=4247
+TUNIT40='deg'
+COMMENT  Declination, in deg (-90 -> +90)
+TFORM41='1E'
+TTYPE41='DEC' / entire fieldname = DEC
+OFFSET41=4251
+TUNIT41='deg'
+COMMENT  Galactic latitude exclusion, 
+COMMENT  absolute value in deg (0 -> 90)        
+TFORM42='1E'
+TTYPE42='GALATEXC' / entire fieldname = GALATEXC
+OFFSET42=4255
+TUNIT42='deg'
+COMMENT 
+COMMENT
+COMMENT 
+END

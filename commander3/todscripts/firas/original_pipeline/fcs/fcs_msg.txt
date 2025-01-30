@@ -1,0 +1,40 @@
+c-------------------------------------------------------------------------------
+c  File:	FCS_MSG.TXT
+c
+c  Purpose: To be used as an include file for declaration of external 
+c           FCS messages in FCS modules.
+c
+c  Author: Larry P. Rosen, March 1992, Hughes STX.
+c-------------------------------------------------------------------------------
+	external	fcs_normal		! Successful completion.
+	external	fcs_abort		! Process aborted.
+	external	fcs_zerospec		! Zero spectra averaged.
+	external	fcs_wrong_input		! Skymap file is wrong datatype
+	external	fcs_wrong_chan		! Skymap file has wrong channel
+	external	fcs_wrong_scan		! Skymap file has wrong scanmode
+	external	fcs_ multmodel	! Multiple calibration model solutions
+					!   were used among input skymaps.
+	external	fcs_galcut      ! Pixel has different galaxy cut flags
+	external	fcs_parserr	! Error during parse.
+	external	fcs_lunerr	! Error getting logic unit number.
+	external	fcs_openerr	! Error opening script file.
+	external	fcs_readerr	! Error reading script file.
+	external	fcs_closerr	! Error closing script file.
+	external	fcs_noinput	! No skymaps named in script file.
+	external	fcs_query_cat	! Error querying catalog.
+	external	fcs_invtime	! Jstop time is less than jstart time.
+	external	fcs_ctinit	! Cobetrieve ct_init failure.
+	external	fcs_zdatatype	! None of the skymaps have the
+					!  specified datatype.
+	external	fcs_zchannel	! None of the skymaps have the
+					!  specified channel.
+	external	fcs_zscan	! None of the skymaps have the
+					!  specified scan modes.
+	external	fcs_openrep	! Error opening report file.
+	external	fcs_closerep	! Error closing report file.
+	external	fcs_renerr	! Error renaming report file.
+	external	fcs_csaopen	! Error opening skymap.
+	external	fcs_csaoffset	! Error calling csa_field_offset_values.
+	external	fcs_csaread	! Error calling csa_read_pixels.
+	external	fcs_csawrite	! Error calling csa_write_pixels. 
+	external	fcs_csaclose	! Error closing skymap.

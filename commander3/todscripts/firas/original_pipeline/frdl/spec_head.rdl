@@ -1,0 +1,6 @@
+!
+! Spectrum data header
+!
+        include coa_head.rdl
+
+        array/byte/dim=20       SPEC_SPARES

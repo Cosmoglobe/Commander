@@ -1,0 +1,52 @@
+!  Command Language Definition file for facility FLA_LINES_ANALYSIS
+
+	DEFINE VERB FLGAIN
+
+		IMAGE "CSDR$SYSTEM:FLA_GAIN.EXE"
+
+			QUALIFIER MODEL_EXT,		!  Model File Extension
+				VALUE(TYPE=$FILE,REQUIRED),
+				NONNEGATABLE
+
+			QUALIFIER CHANNEL,		!  Channel Specifier
+				VALUE(TYPE=FLA_CHAN,REQUIRED),
+				NONNEGATABLE
+
+			QUALIFIER SCAN_MODE,		!  Scan Mode Specifier
+				VALUE(TYPE=FLA_SCAN,REQUIRED)
+				NONNEGATABLE
+
+			QUALIFIER FLIGHT		!  Reference Time
+
+			QUALIFIER INT			!  Reference Time
+
+			QUALIFIER BIAS,			!  Commanded Bias
+				VALUE
+
+			QUALIFIER VOLT,			!  Bolometer Voltage
+				VALUE
+
+			QUALIFIER TEMP,			!  Bolometer Temperature
+				VALUE
+
+			QUALIFIER REPORT,		!  Processing Report
+				VALUE(TYPE=$FILE),
+				DEFAULT,
+				NEGATABLE
+
+
+			DISALLOW FLIGHT AND INT
+			DISALLOW (NOT FLIGHT) AND (NOT INT)
+
+
+			DEFINE TYPE FLA_CHAN
+				KEYWORD RH
+				KEYWORD RL
+				KEYWORD LH
+				KEYWORD LL
+
+			DEFINE TYPE FLA_SCAN
+				KEYWORD SS
+				KEYWORD SF
+				KEYWORD LS
+				KEYWORD LF

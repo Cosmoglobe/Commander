@@ -1,0 +1,223 @@
+!
+! Filename: Lim_Flags.Rdl
+!
+! Limits enable/disable flags corresponding to data quality
+! flags in the Firas Raw Science Record. Map structure 1
+! lists the flags for individual components or telemetry
+! words. All flags not specified as bit masks have a value of
+! - 1 (true) for enable and 0 (false) for disable. 
+! Some of the engineering analog flags are dimensioned by two
+! for possibly checking by spacecraft side in the future.
+! Unless denoted otherwise, the first half of the flags in
+! each array refer to Spacecraft Side 1 and the second half
+! to Spacecraft Side 2. Map structure 2 describes the general
+! categories of the limit checking flags. 
+!
+       union
+         map
+           scalar/byte             FLG_BADSCI                 
+                                   ! Missing data ready bits
+                                   ! in science data.
+           scalar/byte             FLG_BADHKP                 
+                                   ! Missing minor frames in
+                                   ! Housekeeping record.
+           scalar/byte             FLG_CAL                 
+                                   ! Flag indicating XCAL
+                                   ! position error.
+           array/byte/dim=2        FLG_MICRO        
+                                   ! Microprocessor status
+                                   ! word, excluding bit
+                                   ! 12. Two byte bit mask.
+           scalar/byte             FLG_ATT_ALT_RED         
+                                   ! Bit mask for attitude
+                                   ! RED alert flag.
+           scalar/byte             FLG_ATT_ALT_YEL         
+                                   ! Bit mask for attitude
+                                   ! YELLOW alert flag.
+           scalar/byte             FLG_GLITCH_CT         
+                                   ! Glitch count. 
+           scalar/byte             FLG_SATURATE         
+                                   ! Saturated sample count.
+           scalar/byte             FLG_CKSM_ERR_ST         
+                                   ! Checksum errors.
+           array/byte/dim=16       FLG_GRTRED_ST         
+                                   ! Bit mask for GRT RED
+                                   ! flags:
+                                   !  16 A side low current,
+                                   !  16 A side high current,
+                                   !  16 B side low current,
+                                   !  16 B side high current.
+                                   ! Spacecraft side 1:
+                                   !  8 bytes.
+                                   ! Spacecraft side 2:
+                                   !  8 btyes.
+           array/byte/dim=16       FLG_GRTYEL_ST         
+                                   ! Bit mask for GRT YELLOW
+                                   ! flags. Same order as
+                                   ! FLG_GRTRED_ST.
+           scalar/byte             FLG_TC_RED         
+                                   ! RED bit mask for
+                                   ! exceeding temperature
+                                   ! controller's (TC's) upper
+                                   ! limit as computed from
+                                   ! command readback. 
+           scalar/byte             FLG_TC_YEL                 
+                                   ! YELLOW bit mask for TC's.
+           array/byte/dim=4        FLG_IPDU_TMP         
+                                   ! IPDU analog and digital
+                                   ! converter temperatures.
+                                   ! Spacecraft Side 1 reads:
+                                   ! Analog converter A, 
+                                   ! Digital converter B
+                                   ! Spacecraft Side 2 reads:
+                                   ! Analog converter B,
+                                   ! Digital converter A
+                                   ! Flags are in this order.
+           array/byte/dim=8        FLG_CHAN_TMP_ST         
+                                   ! Channel temperatures:
+                                   ! RH, RL, LH, LL
+                                   ! for Spacecraft sides
+                                   ! 1 and 2.
+           array/byte/dim=2        FLG_DBOX_TMP         
+                                   ! Drive box temperature
+                                   ! (A or B).
+                                   ! Spacecraft Side 1 reads
+                                   !   A only.
+                                   ! Spacecraft Side 2 reads
+                                   !   B only.
+                                   ! Byte 1 for active A side.
+                                   ! Byte 2 for active B side. 
+           array/byte/dim=4        FLG_STMON_TMP         
+                                   ! Status monitor
+                                   ! temperatures for FIRAS
+                                   ! A and B sides,
+                                   ! SC Sides 1 and 2.
+           array/byte/dim=2        FLG_CHPA_TMP         
+                                   ! Channel pre-amp
+                                   ! temperature.
+                                   ! Spacecraft Side 1
+                                   !   reads FIRAS A.
+                                   ! Spacecraft Side 2
+                                   !   reads FIRAS B.
+           array/byte/dim=2        FLG_OPPA_TMP         
+                                   ! Optical pre-amp
+                                   !   temperature. 
+                                   ! Spacecraft Side 1
+                                   !   reads FIRAS A.
+                                   ! Spacecraft Side 2
+                                   !   reads FIRAS B.
+           array/byte/dim=2        FLG_HS_HEAT_A         
+                                   ! Current for hot spot
+                                   ! heater A (internal
+                                   ! reference source).
+                                   ! SC sides 1 and 2.
+           array/byte/dim=2        FLG_HS_HEAT_B         
+                                   ! Current for hot spot
+                                   ! heater B (internal
+                                   ! reference source).
+                                   ! SC sides 1 and 2.
+           array/byte/dim=4        FLG_MTMCAL_MTR         
+                                   ! MTM/CAL latch and
+                                   ! motor drive current. 
+                                   ! Byte 1 for active A
+                                   !   side. 
+                                   ! Byte 2 for active B
+                                   !   side. 
+                                   ! SC sides 1 and 2.
+           array/byte/dim=8        FLG_BOL_VOL_ST         
+                                   ! Bolometer voltage for
+                                   ! channels:
+                                   ! RH, RL, LH, LL.
+                                   ! SC side 1 and 2.
+           array/byte/dim=40       FLG_IPDU_VOL_ST         
+                                   ! IPDU voltages (A or B).
+                                   ! 10 A (odd number) power 
+                                   ! the right channels.
+                                   ! 10 B (even number) power 
+                                   ! the left channels.
+                                   ! SC sides 1 and 2.
+           array/byte/dim=24       FLG_IPDU_CUR_ST         
+                                   ! IPDU currents (A or B).
+                                   ! 6 A (odd numbered).
+                                   ! 6 B (even numbered).
+                                   ! SC sides 1 and 2.
+           array/byte/dim=4        FLG_STCHG_MJ_ST         
+                                   ! Bit mask for status
+                                   ! changes across Major
+                                   ! Frame boundary. 4 bytes
+                                   ! for limit checks.
+           array/byte/dim=8        FLG_DIRBE_ST         
+                                   ! DIRBE statuses affecting 
+                                   ! FIRAS :
+                                   ! Annealing htrs (yellow): 
+                                   ! 2 bytes
+                                   ! Annealing htrs (red): 
+                                   ! 2 bytes
+                                   ! IRS sources (yel): 1 byte
+                                   ! IRS sources (red): 1 byte
+                                   ! Chopper (1 byte)
+                                   ! Shutter (1 byte)
+           array/byte/dim=6        FLG_DMR_ST                 
+                                   ! DMR statuses affecting 
+                                   ! FIRAS :
+                                   ! Local oscillators flag 
+                                   ! (yellow): 1 byte
+                                   ! Local oscillators flag 
+                                   ! (red): 1 byte
+                                   ! Noise sources (yellow): 
+                                   ! 2 bytes
+                                   ! Noise sources (red): 
+                                   ! 2 bytes
+           array/byte/dim=8        FLG_SPACECR_ST         
+                                   ! Spacecraft statuses that
+                                   ! affect FIRAS (8 items)
+                                   ! Torquer Bars (yel): 1 byte
+                                   ! Torquer Bars (red): 1 byte
+                                   !   Bars A to C: Lsb to Msb
+                                   ! Momentum Wheels (yel):
+                                   !   1 byte
+                                   ! Momentum Wheels (red):
+                                   !   1 byte
+           array/byte/dim=2        FLG_ACLMAC_TMP
+                                   ! LMAC temperature for 
+                                   ! analog converter.
+                                   ! Spacecraft Sides 1 and
+                                   ! 2 read FIRAS A Side only.
+                                   ! Dim 2 not used.
+           array/byte/dim=2        FLG_DCLMAC_TMP
+                                   ! LMAC temperature for 
+                                   ! digital converter.
+                                   ! Spacecraft Sides 1 and 2
+                                   ! read FIRAS A Side only.
+                                   ! Dim 2 not used.
+           array/byte/dim=74       FLG_SPARES         
+                                   ! 74 spares
+           array/byte/dim=2        FLG_NO_ATTITUDE
+                                   ! Check for missing attitude.
+                                   ! Dim 2 not used.
+           array/byte/dim=2        FLG_ATT_SUM
+                                   ! Attitude summary flag
+           array/byte/dim=2        FLG_SUMMARY         
+                                   ! Overall quality summary
+         endmap
+         map
+           array/byte/dim=10       SCI_ATT
+                                   ! Flags for science or 
+                                   ! attitude limit checking.
+           array/byte/dim=136      ENG_ANAL
+                                   ! Engineering analog flags.
+           array/byte/dim=4        STAT
+                                   ! Flags for status changes.
+           array/byte/dim=22       EXTERNAL
+                                   ! Flags for status values 
+                                   ! external to FIRAS.
+           array/byte/dim=4        MISC
+                                   ! Miscellaneous flags.
+           array/byte/dim=74       SPARES_S1
+                                   ! Spares for map 2.
+           array/byte/dim=2        NO_ATTITUDE
+                                   ! Missing attitude.
+           array/byte/dim=4        SUMMARY
+                                   ! Flags for summaries.
+         endmap
+       endunion

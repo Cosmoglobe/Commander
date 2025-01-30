@@ -1,0 +1,70 @@
+!
+! FEP_ENGPLOTS Command Language Definition file.
+!
+
+Define Verb FEP_ENGPLOTS
+
+      Image "CSDR$SYSTEM:FEP_ENGPLOTS.EXE"
+
+	    Synonym ENGPLOTS
+
+            Qualifier INTERACTIVE,
+		      Negatable
+
+            Qualifier REPORT,
+                      Value(Type=$File),
+		      Negatable
+
+            Qualifier CONVERT,
+		      Negatable
+
+            Qualifier MONITOR,
+		      Negatable
+
+            Qualifier PLOTDEVICE,
+                      Value,
+		      NonNegatable
+
+            Qualifier PLTFILE,
+                      Value(Type=$File,Default=PLT.COM),
+		      NonNegatable
+
+            Qualifier FIELDS,
+                      Value(List,Default=*TEMP*),
+                      Default,
+		      NonNegatable
+
+            Qualifier JSTART,
+		      Value
+
+            Qualifier JSTOP,
+		      Value
+
+	    Qualifier SMOOTH,
+		      Value(Type=$Number,Default=1),
+		      Default,
+		      NonNegatable
+
+	    Qualifier CROSSGAPS,
+		      Default,
+		      Negatable
+
+	    Qualifier AVERAGE_CALIBRATION,
+		      Default,
+		      Negatable
+
+	    Qualifier DWELL,
+		      Syntax=DWELLPLOT
+
+	Disallow INTERACTIVE AND CONVERT
+	Disallow INTERACTIVE AND NEG CONVERT
+	Disallow INTERACTIVE AND FIELDS
+	Disallow INTERACTIVE AND SMOOTH
+	Disallow INTERACTIVE AND CROSSGAPS
+	Disallow INTERACTIVE AND NEG CROSSGAPS
+
+
+Define Syntax Dwellplot
+
+       Image "CSDR$SYSTEM:FEP_DWELLPLOT.EXE"
+

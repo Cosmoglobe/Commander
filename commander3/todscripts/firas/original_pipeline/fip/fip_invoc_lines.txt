@@ -1,0 +1,65 @@
+c-------------------------------------------------------------------------------
+c
+c	FIP_INVOC_LINES.TXT
+c
+c	This include file contains the processing parameters and the invocation
+c	parameters for FIP_LINES.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 14 September 1993
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Changed FCC_FIP_SIZE to FIP_HIFIP_SIZE and FIP_LOSIZE to accomodate
+c	high and low frequency input datasets.
+c	Gene Eplee, 19 November 1993
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the processing parameters.
+c
+	character *  6	fcc_version		!  FIP version number
+	parameter	(fcc_version='12.3')
+
+	integer * 4	fcc_hifip_size		!  FIP high frequency chan line
+	parameter	(fcc_hifip_size = 5774)	!    profile size in long words
+	integer * 4	fcc_lofip_size		!  FIP low frequency chan line
+	parameter	(fcc_lofip_size = 2894)	!    profile size in long words
+	integer *  4	lolim(12)		!  Lower frequency index for
+	data lolim / 5, 5, 5, 5, 5, 9, 5, 5, 5, 5, 5, 9 /  !    line profiles
+	integer *  4	uplim(12)		!  Upper frequency index
+	data uplim / 171, 171, 171, 38, 38, 156, 171, 171, 171, 38, 38, 156 /
+
+c
+c  Define the invocation flags.
+c
+	character * 48	fcc_fex_file		!  FEX lines file name
+	character * 48	fcc_fip_file		!  FIP lines file name
+	character * 20	fcc_lines_ext		!  lines file extension
+	character *  4	fcc_scan_mode		!  channel and scan mode
+	character * 64	fcc_report_file		!  report file name
+
+	integer * 2	fcc_extlen		!  length of file name extension
+	integer * 2	fcc_fexlen		!  length of FEX lines file name
+	integer * 2	fcc_fiplen		!  length of FIP lines file name
+	integer * 2	fcc_replen		!  length of report file name
+
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_flight		!  /FLIGHT qualifier
+	integer * 4	fcc_length		!  mtm scan length
+	integer * 4	fcc_report		!  /REPORT qualifier
+	integer * 4	fcc_smode		!  mtm scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_lines_ext, fcc_extlen, fcc_chan, fcc_length,
+     .			     fcc_speed, fcc_smode, fcc_scan_mode, fcc_flight,
+     .			     fcc_fex_file, fcc_fexlen, fcc_fip_file, fcc_fiplen,
+     .			     fcc_report, fcc_report_file, fcc_replen

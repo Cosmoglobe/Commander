@@ -1,0 +1,174 @@
+1 FLA
+    FLA_LINES_ANALYSIS is a suite of IDL and FORTRAN programs that generate
+    synthetic spectra line profiles for use in modelling FIRAS data.
+    The programs and associated datasets are:
+
+    FLA_GAIN        computes the FIRAS instrument gain function
+2 FLA_GAIN
+    FLA_GAIN computes the FIRAS gain function from the calibration
+    model solution and  the electronics transfer function.  For each
+    channel and scan mode, FLA_GAIN reads the optical transfer function
+    and the electronics transfer function.  The program computes the
+    bolometer responsivity and time constant from user-supplied bolometer
+    state parameters -- these are used to compute the bolometer response
+    function.  FLA_GAIN combines the bolometer response function, the
+    optical transfer function, and the electronics transfer function into
+    the instrument gain function.
+
+    FLA_GAIN is invoked by the verb FLGAIN.
+3 Logical_Pointers
+    FLA_GAIN uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_CAL    Points to the directory that contains the
+                          calibration model solution FLA_GAIN will
+                          read
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FLA_GAIN will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FLA_GAIN will
+                          write the instrument gain function
+3 Datasets
+    The operation of FLA_GAIN requires the use of the following
+    datasets:
+
+    1)  the calibration model solution;
+
+    2)  the reference datasets; and
+
+    3)  the instrument gain function.
+4 Input_Datasets
+    FLA_GAIN processes the the following input dataset:
+
+        FEX_MOD_CCSS.VVV_XXXXXXXXXX        Calibration model solution
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), VVV refers to the version of the calibration program
+    that generated the model solution (e.g., F16), and XXXXXXXXXX is
+    the model solution label (e.g., 93HYBRID).
+4 Reference_Datasets
+    FLA_GAIN uses the following reference datasets:
+
+        FEX_ETF         Electronics transfer function written to the
+                        initial product model solution
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the initial
+                        product model solution
+4 Output_Datasets
+    FLA_GAIN writes the following output dataset:
+
+        FEX_GAIN_CCSS.VVV_XXXXXXXXXX    ASCII file containing the
+                                        instrument gain fuctnion
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), VVV refers to the version of the calibration program
+    that generated the model solution (e.g., F16), and XXXXXXXXXX is
+    the model solution label (e.g., 93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FLA_GAIN.  The
+    qualifiers specify the input dataset and the processing report
+    generation.
+4 /MODEL_EXT
+    /MODEL_EXT=<model solution filename extension>
+
+        FLA_GAIN will reformat the calibration model solution
+        specified by the model solution filename extansion.  The
+        filename extension is of the form VVV_XXXXXXXXXX, where VVV is
+        the version of the calibration program that generated the
+        solution and XXXXXXXXXX is the model solution label.
+
+        The model solution filename extension is required for FLA_GAIN
+        to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FLA_GAIN reformats a model for one channel per invocation.
+        The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.
+        The /CHANNEL qualifier is required for FLA_GAIN to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FLA_GAIN reformats a model for one scan mode per invocation.
+        The options are SHORT SLOW, SHORT FAST, LONG SLOW, or LONG FAST.
+        The /SCAN_MODE qualifier is required for FLA_GAIN to run.
+4 /FLIGHT
+    /FLIGHT
+        FLA_GAIN reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FLA_GAIN to run.
+4 /INT
+    /INT
+        FLA_GAIN reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FLA_GAIN to run.
+4 /BIAS
+    /BIAS=<commanded bolometer bias in counts>
+
+        FLA_GAIN computes a detector responsivity and time constant
+        for the commanded bolometer bias specified by the /BIAS
+        qualifier.  Nominally, a mission average value for the channel
+        and scan mode in question is specified.
+
+        The commanded bolometer bias is required for FLA_GAIN to run.
+4 /VOLT
+    /VOLT=<bolometer voltage in volts>
+
+        FLA_GAIN computes a detector responsivity and time constant
+        for the bolometer voltage specified by the /VOLT qualifier.
+        Nominally, a mission average value for the channel and scan
+        mode in question is specified.
+
+        The bolometer voltage is required for FLA_GAIN to run.
+4 /TEMP
+    /TEMP=<bolometer temperature>
+
+        FLA_GAIN computes a detector responsivity and time constant
+        for the bolometer temperature specified by the /TEMP qualifier.
+        Nominally, a mission average value for the channel and scan
+        mode in question is specified.
+
+        The bolometer temperature is required for FLA_GAIN to run.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FLA_GAIN produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FLA_GAIN_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        VVV is the version of the calibration program that generated the
+        model solution, XXXXXXXXXX is the model solution label, and
+        ZZZZZZZZZ is the run time in GMT format.
+3 Example
+    A typical invocation of FLA_GAIN is:
+
+        $ FLGAIN/MODEL_EXT=F16_93HYBRID/CHANNEL=RH/SCAN_MODE=SS-
+             /FLIGHT/BIAS=86/VOLT=2.91594291/TEMP=1.53423882
+
+    In this example, an FCF calibration model solution for the right
+    high, short slow scan mode is read from the binary file
+    CSDR$FIRAS_CAL:FEX_MOD_RHSS.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    instrument gain function is computed and written to the ASCII file
+    CSDR$FIRAS_OUT:FEX_GAIN_RHSS.F16_93HYBRID.  The processing report
+    file is FLA_GAIN_RHSS_F16_93HYBRID.REP_930801457.  The report file
+    will be written to the current default directory.

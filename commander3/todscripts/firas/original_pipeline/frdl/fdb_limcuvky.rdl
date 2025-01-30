@@ -1,0 +1,9 @@
+!
+!  Engineering Conversion Table Record Structure
+!
+record FDB_LIMCUVKY FDB_LIMCUVKY
+
+  array/byte/dim=128  POLY_TABLE
+                      ! Engineering conversion table
+
+end_record

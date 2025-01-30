@@ -1,0 +1,60 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!	Command Line Definition File for FPP_FIRAS_Pre_Processor               !
+!	--------------------------------------------------------               !
+!	FPP_FIRAS_Pre_Processor computes the midpoint of collect time and      !
+!	modifies the raw science data records to include the midpoint time,    !
+!	gains, fake-it status, and gap and bad time flags.                     !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+	Define Verb FPP
+
+	Image "CSDR$SYSTEM:FPP.EXE"
+
+	Synonym Preprocess
+
+!  Required Qualifiers
+
+	Qualifier  Jstart,  Value(Required),  Nonnegatable
+	!  The start time of the NFS_SDF raw science data to be processed.
+
+	Qualifier  Jstop,  Value(Required),  Nonnegatable
+	!  The stop time of the NFS_SDF raw science data to be processed.
+
+	Qualifier  Channel, Value(Required,Type=FPP_Chan), Default, Nonnegatable
+	!  Selects one or all of the four science channels for run.
+
+	Qualifier  Max_Sec,  Default,  Value(Type=$NUMBER, Default=40)
+	!  Number of secs allowed between two major frames of ancillary data
+	!  before a telemetry gap is established.
+
+	Qualifier  Report,  Value(TYPE=$FILE),  Default,  Negatable 
+	!  Determines whether a report will be generated for the run.
+	!  The default name is :  FPP_yydddhh_yydddhh.REP_yydddhhmm;
+
+!  Additional Qualifiers
+
+	Qualifier  Filename,  Value(Type=$FILE),  Nonnegatable
+	!  The name of the NFS_SDF raw science data file to be processed.
+
+	Qualifier  SCI_Gap,  Default,  Value(Type=$NUMBER, Default=300)
+	!  Number of secs allowed between two NFS_SDF raw science data records
+	!  before a gap is reported.
+
+	Qualifier  ANC_Gap,  Default,  Value(Type=$NUMBER, Default=90)
+	!  Number of secs allowed between two major frames of ancillary data
+	!  before large gap is reported.
+
+	Qualifier  SCREEN_SWEEPS, Default, Negatable
+	!  If set or defaulted, then FPP flags all ifg's with # sweeps not
+	!  equal to 0, 1, 4, or 16.
+
+	Disallow  Jstart  and  not Jstop
+
+	Disallow  Jstop  and  not Jstart
+
+	Define  Type  FPP_Chan
+		Keyword  ALL,  Default
+		Keyword  RH
+		Keyword  RL
+		Keyword  LH
+		Keyword  LL

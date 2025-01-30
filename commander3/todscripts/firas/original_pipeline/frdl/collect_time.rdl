@@ -1,0 +1,11 @@
+!
+! Fields written by the FIRAS Preprocessor.
+!
+        scalar/adt              MIDPOINT_TIME
+                                !  Midpoint of Collect Time 
+                                !    for science IFG
+        scalar/byte             BADTIME_FLAG
+                                !  Flag for invalid computed 
+                                !    midpoint of collect time
+        scalar/byte             FPP_SPARE
+                                !  Preprocessor spare

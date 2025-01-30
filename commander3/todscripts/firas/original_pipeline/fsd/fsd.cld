@@ -1,0 +1,169 @@
+!      FSD.CLD Build 2.0
+!
+!      By Reid Wilson, STX Inc.,  20-MAY-1987
+!
+!      This file does the command line definition for the FIRAS facility
+!      FSD_FIRAS_STATISTICS.
+!
+!      Qualifiers INTERACTIVE, INPUT, JSTART, JSTOP, OUTPUT
+!            added to ASTROPLOTS.    Fred Shuman, STX Inc., 1989 Jan 24
+!
+!      Qualifier PLOTS added to ASTROPLOTS.  SNAPSHOT added to PLOTS_TYPE.
+!            Fred Shuman, STX Inc., 1989 Jun 15
+!
+!      Glitchmap qualifier INPUT removed; Astroplots, Glitchmap, and Poserr
+!      qualifier SCIENCE added to select archive file NFS_SDF, FPP_SDF, or
+!            FDQ_SDF.  Fred Shuman, STX Inc., 1989 Aug 29.
+!
+!      SPR 4133, Correct the ASTROPLOTS, GLITCHMAP options for /CHANNEL
+!          to be: ALL, RIGHT, LEFT, HIGH, LOW, RH, RL, LH, LL.
+!          Harte Wang, STX Inc., 1989 Oct 17    
+!
+!      SPR 5777, Select instrument and attitude data quality.
+!	   R. Kummerer, STX / 1990 Feb 2
+!
+!      SER 5728, Add capability to pass in a PLT command file.
+!	   S. Alexander, STX / 1990 March 7
+!
+!      SER 4569, Convert FSD_ASTROPLOTS from TEMPLATE to PLT graphics.
+!	   R. Kummerer, STX / 1990 April 26
+!_____________________________________________________________________________
+
+DEFINE VERB FSD_POSERR
+
+      IMAGE CSDR$SYSTEM:FSD_POSERR.EXE
+
+      SYNONYM POSERR
+
+      QUALIFIER SCIENCE, NONNEGATABLE, DEFAULT,
+                VALUE(TYPE=FSD_INPUT_TYPE, DEFAULT=NFS)
+
+      QUALIFIER PLTFILE,
+                VALUE(TYPE=$FILE,DEFAULT=PLT.PCO),
+                NONNEGATABLE
+
+DEFINE VERB FSD_ASTROPLOTS
+
+      IMAGE CSDR$SYSTEM:FSD_ASTROPLOTS.EXE
+
+      SYNONYM ASTROPLOTS
+
+      QUALIFIER INTERACTIVE, DEFAULT, NEGATABLE
+
+      QUALIFIER PLOTDEVICE, VALUE(REQUIRED), NEGATABLE
+
+      QUALIFIER PLTFILE,
+                VALUE(TYPE=$FILE,DEFAULT=PLT.PCO),
+                NONNEGATABLE
+
+      QUALIFIER INPUT, NONNEGATABLE,
+                VALUE(REQUIRED, TYPE=$FILE)
+
+      QUALIFIER JSTART, NONNEGATABLE,
+                VALUE(REQUIRED)
+
+      QUALIFIER JSTOP, NONNEGATABLE,
+                VALUE(REQUIRED)
+
+      QUALIFIER SCIENCE, NONNEGATABLE, DEFAULT,
+                VALUE(TYPE=FSD_INPUT_TYPE, DEFAULT=NFS)
+
+      QUALIFIER OUTPUT, DEFAULT,
+                VALUE(TYPE=FSD_OUTPUT_TYPE, DEFAULT=TIME)
+
+      QUALIFIER CHANNEL, DEFAULT,
+                VALUE(TYPE=FSD_CHANNEL_TYPE, DEFAULT=ALL)
+
+      QUALIFIER ATTITUDE, DEFAULT,
+		VALUE(TYPE=FSD_ATTITUDE)
+
+      QUALIFIER QUALITY, VALUE(TYPE=FSD_QUALITY, LIST, REQUIRED),
+                NONNEGATABLE
+
+      DISALLOW (INPUT AND CHANNEL)
+      DISALLOW (INPUT AND JSTART)
+      DISALLOW ((JSTART AND NOT JSTOP) OR (JSTOP AND NOT JSTART))
+      DISALLOW (OUTPUT.SKY AND PLOTDEVICE)
+
+
+DEFINE VERB FSD_GLITCHMAP
+
+      IMAGE CSDR$SYSTEM:FSD_GLITCHMAP.EXE
+
+      SYNONYM GLITCHMAP
+
+      QUALIFIER INTERACTIVE, DEFAULT, NEGATABLE
+
+      QUALIFIER SCIENCE, NONNEGATABLE, DEFAULT,
+                VALUE(TYPE=FSD_INPUT_TYPE, DEFAULT = NFS)
+
+      QUALIFIER IFG, NEGATABLE, DEFAULT
+
+      QUALIFIER PLOTDEVICE, VALUE(REQUIRED), NEGATABLE
+
+      QUALIFIER PLTFILE,
+                VALUE(TYPE=$FILE,DEFAULT=PLT.PCO),
+                NONNEGATABLE
+
+      QUALIFIER CHANNEL, NONNEGATABLE, DEFAULT,
+                VALUE(TYPE=FSD_CHANNEL_TYPE, DEFAULT=ALL)
+
+      QUALIFIER SCAN_MODE, NONNEGATABLE, DEFAULT,
+                VALUE(TYPE=FSD_SCAN_TYPE, DEFAULT=ALL)
+
+      QUALIFIER WRITE, NEGATABLE, DEFAULT,
+                VALUE(DEFAULT=ARCHIVE,TYPE=$FILE)
+
+
+
+      DEFINE TYPE FSD_SCAN_TYPE
+
+            KEYWORD SS
+            KEYWORD SF
+            KEYWORD LS
+            KEYWORD LF
+            KEYWORD ALL
+
+
+      DEFINE TYPE FSD_OUTPUT_TYPE
+
+            KEYWORD TIME
+            KEYWORD SKY
+
+
+      DEFINE TYPE FSD_CHANNEL_TYPE
+
+            KEYWORD RH
+            KEYWORD RL
+            KEYWORD LH
+            KEYWORD LL
+            KEYWORD ALL
+            KEYWORD RIGHT
+            KEYWORD LEFT
+            KEYWORD HIGH
+            KEYWORD LOW
+
+
+      DEFINE TYPE FSD_INPUT_TYPE
+            KEYWORD NFS, DEFAULT
+            KEYWORD FPP
+            KEYWORD FDQ
+
+
+      DEFINE TYPE FSD_ATTITUDE
+
+	    KEYWORD SIMULATED, DEFAULT
+	    KEYWORD PREDICTED
+	    KEYWORD COARSE
+	    KEYWORD FINE, VALUE(TYPE=FSD_FINE)
+	    KEYWORD DEFINITIVE
+
+
+      DEFINE TYPE FSD_FINE
+	    KEYWORD DIRBE, DEFAULT
+	    KEYWORD WITHOUT_DIRBE
+
+
+      DEFINE TYPE FSD_QUALITY
+	    KEYWORD INSTRUMENT, VALUE(TYPE=$NUMBER,REQUIRED)
+	    KEYWORD ATTITUDE, VALUE(TYPE=$NUMBER,REQUIRED)

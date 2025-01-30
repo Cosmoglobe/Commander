@@ -1,0 +1,36 @@
+!
+! Notch filters and spares
+!
+        array/byte/dim=5        NTCH_FLT_A
+                                !  A side notch filters
+        array/byte/dim=5        NTCH_FLT_B
+                                !  B side notch filters
+        scalar/byte             TLM_QUAL_MAJ_FRM
+                                !  Overall telemetry quality  
+                                !  for major frame  
+        scalar/byte             POWER_A_STATUS
+                                !  Status bits in Subcom Word
+                                !  105 for power to A side	
+                                !  Bits 7:6 MTM & XCAL motor
+                                !    power
+                                !  Bits 5:4 IPDU Bias prereg.
+                                !    converter.
+                                !  Bits 3:2 IPDU Internal conv.
+                                !  Bits 1:0 IPDU Analog & dig.
+                                !    converter.
+        scalar/byte             POWER_B_STATUS
+                                !  Status bits in Subcom Word
+                                !  105 for power to B side; bit
+                                !  order same as for A side
+        scalar/byte             LMAC_ANALOG_TEMP
+                                !  LMAC temperature for analog
+                                !  converter. 
+                                !  Spacecraft Sides 1 and 2
+                                !  read FIRAS A Side only.
+        scalar/byte             LMAC_DIGITAL_TEMP
+                                !  LMAC temperature for digital
+                                !  converter.
+                                !  Spacecraft Sides 1 and 2
+                                !  read FIRAS A Side only.
+        array/byte/dim=17       SPARES
+                                !  Spare bytes

@@ -1,0 +1,300 @@
+!
+! One major frame of housekeeping data.
+!
+record FEP_STOLDB NL:FEP_STOLDB
+
+!
+! Housekeeping menu.
+!
+union
+
+   map
+
+      structure HSKP_MENU
+        scalar/text/length=8    STATUS_MONITOR_CMD_1
+        scalar/text/length=8    STATUS_MONITOR_CMD_2
+        scalar/text/length=8    STATUS_MONITOR_CMD_3
+        scalar/text/length=8    STATUS_MONITOR_CMD_4
+        scalar/text/length=8    STATUS_MONITOR_CMD_5
+        scalar/text/length=8    STATUS_MONITOR_CMD_6
+        scalar/text/length=8    STATUS_MONITOR_CMD_7
+        scalar/text/length=8    STATUS_MONITOR_CMD_8
+                           !  Status monitor commands
+        scalar/text/length=8    IPDU_STATUS_1
+        scalar/text/length=8    IPDU_STATUS_2
+        scalar/text/length=8    IPDU_STATUS_3
+        scalar/text/length=8    IPDU_STATUS_4
+        scalar/text/length=8    IPDU_STATUS_5
+        scalar/text/length=8    IPDU_STATUS_6
+        scalar/text/length=8    IPDU_STATUS_7
+        scalar/text/length=8    IPDU_STATUS_8
+                           !  IPDU status
+        scalar/text/length=8    DWELL_STATUS_A
+        scalar/text/length=8    DWELL_STATUS_B
+                           !  Dwell mode status
+        scalar/text/length=8    LVDT_STATUS_1
+        scalar/text/length=8    LVDT_STATUS_2
+                           !  MTM status
+        scalar/text/length=8    MICRO_PROC_STATUS_RH
+        scalar/text/length=8    MICRO_PROC_STATUS_RL
+        scalar/text/length=8    MICRO_PROC_STATUS_LH
+        scalar/text/length=8    MICRO_PROC_STATUS_LL
+                           !  Microprocessor status
+        scalar/text/length=8    BOLOMETER_COMMANDED_BIAS_RH
+        scalar/text/length=8    BOLOMETER_COMMANDED_BIAS_RL
+        scalar/text/length=8    BOLOMETER_COMMANDED_BIAS_LH
+        scalar/text/length=8    BOLOMETER_COMMANDED_BIAS_LL
+                           !  Bolometer commanded bias
+      endstructure
+
+   endmap
+
+   map
+
+      array/text/length=8/dim=28    HSKP_STOLDB
+
+   endmap
+
+endunion
+!
+! GRT temperatures by A/B side and High/Low current.
+!
+!
+!                Side A, High current.
+!
+union
+
+   map
+
+      structure GRTA_MENU
+        scalar/text/length=8    XCAL_TEMP_AL
+        scalar/text/length=8    SKY_HORN_TEMP_AL
+        scalar/text/length=8    REFERENCE_HORN_TEMP_AL
+        scalar/text/length=8    INTERNAL_CALIBRATOR_TEMP_AL
+        scalar/text/length=8    DIHEDRAL_TEMP_AL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RH_TEMP_AL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RL_TEMP_AL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LH_TEMP_AL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LL_TEMP_AL
+        scalar/text/length=8    MIRROR_TEMP_AL
+        scalar/text/length=8    CAL_RESISTORS_RH_TEMP_AL
+        scalar/text/length=8    CAL_RESISTORS_RL_TEMP_AL
+        scalar/text/length=8    CAL_RESISTORS_LH_TEMP_AL
+        scalar/text/length=8    CAL_RESISTORS_LL_TEMP_AL
+        scalar/text/length=8    XCAL_TEMP_S5_AL
+        scalar/text/length=8    COLIMATOR_TEMP_AL
+!
+!                Side A, Low current.
+!
+        scalar/text/length=8    XCAL_TEMP_AH
+        scalar/text/length=8    SKY_HORN_TEMP_AH
+        scalar/text/length=8    REFERENCE_HORN_TEMP_AH
+        scalar/text/length=8    INTERNAL_CALIBRATOR_TEMP_AH
+        scalar/text/length=8    DIHEDRAL_TEMP_AH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RH_TEMP_AH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RL_TEMP_AH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LH_TEMP_AH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LL_TEMP_AH
+        scalar/text/length=8    MIRROR_TEMP_AH
+        scalar/text/length=8    CAL_RESISTORS_RH_TEMP_AH
+        scalar/text/length=8    CAL_RESISTORS_RL_TEMP_AH
+        scalar/text/length=8    CAL_RESISTORS_LH_TEMP_AH
+        scalar/text/length=8    CAL_RESISTORS_LL_TEMP_AH
+        scalar/text/length=8    XCAL_TEMP_S5_AH
+        scalar/text/length=8    COLIMATOR_TEMP_AH
+      endstructure
+
+    endmap
+
+   map
+
+      array/text/length=8/dim=32    GRTA_STOLDB
+
+   endmap
+
+endunion
+
+!
+!                Side B, High current.
+!
+union
+
+   map
+
+      structure GRTB_MENU
+        scalar/text/length=8    XCAL_TEMP_BL
+        scalar/text/length=8    SKY_HORN_TEMP_BL
+        scalar/text/length=8    REFERENCE_HORN_TEMP_BL
+        scalar/text/length=8    INTERNAL_CALIBRATOR_TEMP_BL
+        scalar/text/length=8    DIHEDRAL_TEMP_BL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RH_TEMP_BL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RL_TEMP_BL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LH_TEMP_BL
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LL_TEMP_BL
+        scalar/text/length=8    MIRROR_TEMP_BL
+        scalar/text/length=8    CAL_RESISTORS_RH_TEMP_BL
+        scalar/text/length=8    CAL_RESISTORS_RL_TEMP_BL
+        scalar/text/length=8    CAL_RESISTORS_LH_TEMP_BL
+        scalar/text/length=8    CAL_RESISTORS_LL_TEMP_BL
+        scalar/text/length=8    XCAL_TEMP_S6_BL
+        scalar/text/length=8    COLIMATOR_TEMP_BL
+!
+!                Side B, Low current.
+!
+        scalar/text/length=8    XCAL_TEMP_BH
+        scalar/text/length=8    SKY_HORN_TEMP_BH
+        scalar/text/length=8    REFERENCE_HORN_TEMP_BH
+        scalar/text/length=8    INTERNAL_CALIBRATOR_TEMP_BH
+        scalar/text/length=8    DIHEDRAL_TEMP_BH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RH_TEMP_BH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_RL_TEMP_BH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LH_TEMP_BH
+        scalar/text/length=8    BOLOMETER_ASSEMBLY_LL_TEMP_BH
+        scalar/text/length=8    MIRROR_TEMP_BH
+        scalar/text/length=8    CAL_RESISTORS_RH_TEMP_BH
+        scalar/text/length=8    CAL_RESISTORS_RL_TEMP_BH
+        scalar/text/length=8    CAL_RESISTORS_LH_TEMP_BH
+        scalar/text/length=8    CAL_RESISTORS_LL_TEMP_BH
+        scalar/text/length=8    XCAL_TEMP_S6_BH
+        scalar/text/length=8    COLIMATOR_TEMP_BH
+      endstructure
+
+   endmap
+
+   map
+
+      array/text/length=8/dim=32    GRTB_STOLDB
+
+   endmap
+
+endunion
+
+!
+! IPDU temperatures.
+!
+
+union
+
+   map
+
+      structure IPDU_MENU
+        scalar/text/length=8    IPDU_TEMP_A
+        scalar/text/length=8    IPDU_TEMP_B
+                           !  IPDU temperatures, side A and B
+        scalar/text/length=8    DRIVE_BOX_TEMP_A
+        scalar/text/length=8    CHAN_PREAMP_TEMP
+        scalar/text/length=8    CHANNEL_TEMP_RH
+        scalar/text/length=8    CHANNEL_TEMP_RL
+        scalar/text/length=8    CHANNEL_TEMP_LH
+        scalar/text/length=8    CHANNEL_TEMP_LL
+        scalar/text/length=8    STATUS_MONITOR_TEMP_A
+        scalar/text/length=8    STATUS_MONITOR_TEMP_B
+        scalar/text/length=8    HOT_SPOT_CURRENT_A
+        scalar/text/length=8    HOT_SPOT_CURRENT_B
+        scalar/text/length=8    OPTICAL_PREAMP
+        scalar/text/length=8    DRIVE_BOX_TEMP_B
+      endstructure
+
+   endmap
+
+   map
+
+      array/text/length=8/dim=14    IPDU_STOLDB
+
+   endmap
+
+endunion
+
+!
+! IPDU voltages.
+!
+union
+
+   map
+
+      structure VOLT_MENU
+        scalar/text/length=8    DIGITAL_CONV_N15V_A
+        scalar/text/length=8    DIGITAL_CONV_N15V_B
+        scalar/text/length=8    DIGITAL_CONV_P15V_A
+        scalar/text/length=8    DIGITAL_CONV_P15V_B
+        scalar/text/length=8    DIGITAL_CONV_P5V_A
+        scalar/text/length=8    DIGITAL_CONV_P5V_B
+        scalar/text/length=8    ANALOG_CONV_P15V_A
+        scalar/text/length=8    ANALOG_CONV_P15V_B
+        scalar/text/length=8    ANALOG_CONV_N15V_A
+        scalar/text/length=8    ANALOG_CONV_N15V_B
+        scalar/text/length=8    BIAS_PRE_REG_P25V_A
+        scalar/text/length=8    BIAS_PRE_REG_P25V_B
+        scalar/text/length=8    INT_PS_P28V_A
+        scalar/text/length=8    INT_PS_P28V_B
+        scalar/text/length=8    INT_PS_P15V_A
+        scalar/text/length=8    INT_PS_P15V_B
+        scalar/text/length=8    INT_PS_N15V_A
+        scalar/text/length=8    INT_PS_N15V_B
+        scalar/text/length=8    INT_PS_P5V_A
+        scalar/text/length=8    INT_PS_P5V_B
+      endstructure
+
+   endmap
+
+   map
+
+      array/text/length=8/dim=20    VOLT_STOLDB
+
+   endmap
+
+endunion
+!
+! IPDU currents.
+!
+union
+
+   map
+
+      structure CURR_MENU
+        scalar/text/length=8    BIAS_PRE_REG_A
+        scalar/text/length=8    BIAS_PRE_REG_B
+        scalar/text/length=8    ANALOG_CONV_A
+        scalar/text/length=8    ANALOG_CONV_B
+        scalar/text/length=8    DIGITAL_CONV_A
+        scalar/text/length=8    DIGITAL_CONV_B
+        scalar/text/length=8    CON_CURRENT_RH
+        scalar/text/length=8    CON_CURRENT_LH
+        scalar/text/length=8    CON_CURRENT_RL
+        scalar/text/length=8    CON_CURRENT_LL
+        scalar/text/length=8    CON_INT_CONV_A
+        scalar/text/length=8    CON_INT_CONV_B
+        scalar/text/length=8    MTM_CAL_MOTOR_A
+        scalar/text/length=8    MTM_CAL_MOTOR_B
+        scalar/text/length=8    BOLOMETER_BIAS_VOLTAGE_RH
+        scalar/text/length=8    BOLOMETER_BIAS_VOLTAGE_RL
+        scalar/text/length=8    BOLOMETER_BIAS_VOLTAGE_LH
+        scalar/text/length=8    BOLOMETER_BIAS_VOLTAGE_LL
+        scalar/text/length=8    NOTCH_FILTER_A_1
+        scalar/text/length=8    NOTCH_FILTER_A_2
+        scalar/text/length=8    NOTCH_FILTER_A_3
+        scalar/text/length=8    NOTCH_FILTER_A_4
+        scalar/text/length=8    NOTCH_FILTER_A_5
+        scalar/text/length=8    NOTCH_FILTER_B_1
+        scalar/text/length=8    NOTCH_FILTER_B_2
+        scalar/text/length=8    NOTCH_FILTER_B_3
+        scalar/text/length=8    NOTCH_FILTER_B_4
+        scalar/text/length=8    NOTCH_FILTER_B_5
+        scalar/text/length=8    POWER_A_STATUS
+        scalar/text/length=8    POWER_B_STATUS
+        scalar/text/length=8    TELEMETRY_QUALITY
+        scalar/text/length=8    LMAC_ANALOG_TEMP
+        scalar/text/length=8    LMAC_DIGITAL_TEMP
+      endstructure
+
+   endmap
+
+   map
+
+      array/text/length=8/dim=33    CURR_STOLDB
+
+   endmap
+
+endunion
+
+end_record

@@ -1,0 +1,44 @@
+!
+! Status Monitor Information
+!
+        union
+
+          map
+            scalar/byte         MTM_OPERATING_MODE
+            scalar/byte         ICAL_TEMP_CNTRL
+            scalar/byte         REFH_TEMP_CNTRL
+            scalar/byte         SKYH_TEMP_CNTRL
+            scalar/byte         XCAL_TEMP_CNTRL
+            scalar/byte         DITHER_CHANNEL_H
+            scalar/byte         DITHER_CHANNEL_L
+            scalar/byte         ROM_POWER_H
+            scalar/byte         ROM_POWER_L
+            scalar/byte         MTM_LATCH
+            scalar/byte         XCAL_LATCH
+            scalar/byte         ICAL_TC1_CURRENT_RANGE
+            scalar/byte         REFH_TC2_CURRENT_RANGE
+            scalar/byte         SKYH_TC3_CURRENT_RANGE
+            scalar/byte         XCAL_TC4_CURRENT_RANGE
+            scalar/byte         ICAL_TC1_INTEGRATOR_GAIN
+            scalar/byte         REFH_TC2_INTEGRATOR_GAIN
+            scalar/byte         SKYH_TC3_INTEGRATOR_GAIN
+            scalar/byte         XCAL_TC4_INTEGRATOR_GAIN
+            scalar/byte         ICAL_TC1_PROP_GAIN
+            scalar/byte         REFH_TC2_PROP_GAIN
+            scalar/byte         SKYH_TC3_PROP_GAIN
+            scalar/byte         XCAL_TC4_PROP_GAIN
+            scalar/byte         MTM_STOW
+            scalar/byte         MTM_FAST_SLOW_CMD_BIT
+            scalar/byte         MTM_LONG_SHORT_CMD_BIT
+            scalar/byte         XCAL_STOW
+            scalar/byte         XCAL_LATCH_CMD
+            scalar/byte         MTM_LATCH_CMD
+            array/byte/dim=3    STATMON_SPARES
+            scalar/byte         EXTRA_BIT_SIDE
+          endmap
+
+          map
+            array/byte/dim=33   GROUP3
+          endmap
+
+        endunion

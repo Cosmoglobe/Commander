@@ -1,0 +1,21 @@
+.header level Ancillary_Engineering_Index (FDQ_HKP_IDX)
+
+    The engineering index archives, both Engineering Index (FDQ_IDX) and
+Ancillary Engineering Index (FDQ_HKP_IDX), indicate when the FIRAS
+instrument is in a particular state, such as internal calibrator
+temperature, external calibrator position and temperature, detector 
+biases, scan speed, scan length, and most other engineering parameters.
+    The Ancillary Engineering Index, unlike the Engineering Index,
+cross-references engineering data with instrument state only.  It does
+not cross-reference raw science data because the Ancillary Engineering Data
+and Ancillary Engineering Index pertain to periods of time that lack raw
+science data.  The
+engineering data cross-referenced by the ancillary index is in the
+Ancillary Engineering Data archive, FDQ_HKP_ENG.  
+    Facility FDQ_HOUSEKEEPING_CONVERT processes data from
+periods of time which have no raw science data associated with housekeeping
+data.  The housekeeping data are converted directly into engineering units,
+written to the Ancillary Engineering Data archive, and cross-referenced with
+ancillary engineering indices.  This is done by facility
+FDQ_HOUSEKEEPING_CONVERT.
+

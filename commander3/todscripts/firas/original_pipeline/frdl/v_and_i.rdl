@@ -1,0 +1,76 @@
+!
+! IDPU voltages and currents.
+!
+       union
+
+         map
+           array/byte/dim=2     DIG_CONV_N_15
+                                !  Digital conv, -15v,
+                                !    sides A and B
+           array/byte/dim=2     DIG_CONV_P_15
+                                !  Digital conv, +15v, 
+                                !    sides A and B
+           array/byte/dim=2     DIG_CONV_P_5
+                                !  Digital conv, +5v, 
+                                !    sides A and B
+           array/byte/dim=2     ANA_CONV_P_15
+                                !  Analog conv, +15v, 
+                                !    sides A and B
+           array/byte/dim=2     ANA_CONV_N_15
+                                !  Analog conv, -15v, 
+                                !    sides A and B
+           array/byte/dim=2     BIAS_PRE_REG
+                                !  Bias pre-reg, +25v,
+                                !    sides A and B
+           array/byte/dim=2     INT_PS_P_28
+                                !  Int. P.S., +28v, 
+                                !    sides A and B
+           array/byte/dim=2     INT_PS_P_15
+                                !  Int. P.S., +15v, 
+                                !    sides A and B
+           array/byte/dim=2     INT_PS_N_15
+                                !  Int. P.S., -15v, 
+                                !    sides A and B
+           array/byte/dim=2     INT_PS_P_5
+                                !  Int. P.S., +5v, 
+                                !    sides A and B
+         endmap
+
+         map
+           array/byte/dim=20    IPDU_VOLT
+         endmap
+
+       endunion
+
+       union
+
+         map
+
+           array/byte/dim=2     CUR_BIAS_PRE_REG
+                                !  Bias pre-reg cur, 
+                                !    sides A and B
+           array/byte/dim=2     CUR_ANA_CONV
+                                !  Analog conv cur, 
+                                !    sides A and B
+           array/byte/dim=2     CUR_DIG_CONV
+                                !  Digital conv cur,
+                                !    sides A and B
+           array/byte/dim=4     CON_CURRENT
+                                !  Const cur, RH,LH,RL,LL
+           array/byte/dim=2     CON_INT_CONV
+                                !  Int conv cur, 
+                                !    sides A and B
+         endmap
+
+         map
+           array/byte/dim=12    IPDU_AMP
+         endmap
+
+       endunion
+
+       array/byte/dim=2         MTM_CAL_MOTOR
+                                !  MTM cal motor, 
+                                !    sides A and B
+       array/byte/dim=4         BOL_BIAS_VOLT
+                                !  Bolometer bias,
+                                !    RH,RL,LH,LL

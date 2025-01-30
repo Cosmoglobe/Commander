@@ -1,0 +1,20 @@
+3 3 3 3			! Minimum number of IFGs for coadd
+
+!  Reference Dataset FEX_MINCOADD Text File
+!
+!     Contains minimum number of IFGs needed to form a coadd
+!     group.  Used by FEC, FSS, and FIC.
+!
+!  Author:  S. Alexander, Hughes STX, 12/3/91
+!
+!  Rationale:  In order to facilitate the taking of a median if necessary, the
+!              minimum number of ifgs should be an odd number.  We fear that 3
+!              is too small because any statistical quantities generated from 
+!              that number are likely not to be meaningful.  Seven is 
+!              uncomfortably large because our proliferation of operating 
+!              states during the mission will probably cause there to be a 
+!              significant number of pixels with fewer than 7 coaddable ifgs.
+!              Thus, we compromise on 5.
+!              Rich Isaacman, GSC, 12/3/91
+!	Certified:  Rick Shafer 1991 December 12 - Pass 2
+!       S. Brodd, HSTX, 5/95, SER 12244:  Changed from 5 to 3 for new pipeline.

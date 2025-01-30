@@ -1,0 +1,461 @@
+1 FSL
+    FSL_SPECTRA_LONG produces calibrated spectra from both sky and
+    calibration coadded FIRAS interferograms.  The calibration software has
+    been redesigned in 1995 to process long spectra containing a maximum of
+    361 frequency points.  The actual number of valid points varies with 
+    channel and scan mode.  Use of the longer spectra is expected to improve 
+    the frequency resolution significantly.  FSL replaces FCF in the FIRAS 
+    processing pipeline.  FSL reads in the coadded (or single) ifgs, along 
+    with the corresponding calibration model solution (bolometer parameters 
+    and instrument emissivities), apodization function, electronics transfer 
+    function and other reference parameters.  FSL apodizes and rotates a 
+    coadded ifg, then FFTs it into a spectrum.  This spectrum in counts is 
+    normalized by the Nyquist frequency, the etendu, the ADC voltage scale 
+    factor, and the electronics transfer function to yield a spectrum in volts 
+    at the detector.  FSL can write the voltage spectrum out as an intermediate
+    data product.  Next, FSL calculates a detector responsivity and time
+    constant for the spectrum from the detector temperature, the detector
+    voltage, and the bolometer parameters.  These quantities are used by FSL
+    to convert the spectrum from volts to ergs/sec.  FSL partially calibrates
+    the variances from the coadd record to use in the autophase correction.
+    Alternatively, the all-sky averaged variances from FIL coadd records or an
+    all-sky averaged calibrated variance vector computed from previous FSL
+    production may be substituted for the individual variances from the coadd
+    record.  FSL computes the reference spectrum from the emissivities and a
+    Planck temperature distribution function. FSL corrects the spectrum for 
+    harmonics and MTM vibrations, performs an autophase correction, then 
+    calibrates it with the instrument emissivities using the reference 
+    spectrum.  FSL converts the spectrum and variances from units of 
+    ergs/sec/cm^2/sr/icm to MJy/sr. The end product of processing is a 
+    calibrated spectrum of the sky or of a stable calibration temperature 
+    plateau, with units of MJy/sr.  FSL can optionally write out differential 
+    spectra instead of the fully calibrated spectra.
+
+    FSL will process a single combination of channel and scan mode per 
+    invocation.  The four channels are right high (RH), right low (RL), left
+    high (LH), and left low (LL). There are six scan modes created by the
+    FIL coaddition program: short slow (SS), short fast (SF), long slow (LS), 
+    long fast (LF), fast short (FS), and fast long (FL).  FSL will only 
+    process the following combinations of channel and scan modes.
+
+      SS for all four channels    SF for all four channels
+      LF for all four channels    FS for low channels only
+      FL for low channels only
+
+    The low frequency FS ifgs have been decimated to 128 points and the low 
+    frequency FL ifgs have been truncated to 128 points by processing
+    algorithms in FIL. 
+2 Logical_Pointers
+    FSL uses four logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the archive directory that contains the
+                          coadded (or single) ifgs FSL will calibrate.
+
+        CSDR$FIRAS_OUT    Points to the archive directory where FSL will
+                          write the calibrated, differential, or voltage
+                          spectra.
+
+        CSDR$FIRAS_CAL    Points to the archive directory that contains the
+                          the calibration model solutions FSL will apply and
+                          the averaged FSL variance reference datasets FSL 
+                          will use.
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains the
+                          reference datasets FSL will use.
+        CSDR$FIRAS_UREF   Points to the archive directory that contains the
+                          averaged FIL variances datasets FSL will use.
+2 Datasets
+    The operation of FSL requires the use of four sets of data.  These are:
+
+    1)  the input coadded (or single) ifgs (either sky or calibration type);
+
+    2)  the output voltage, differential, and calibrated spectra
+        (either sky or calibration type);
+
+    3)  the calibration model solutions; and
+
+    4)  the reference datasets.
+3 Input_Datasets
+    FSL reads in one of two sets of coadded ifgs:
+
+        FIL_SKY_CCSS    Skymaps of coadded sky ifgs.
+
+        FIL_CAL_CCSS    Time-ordered files of coadded calibration ifgs.
+
+    For both datasets, CC refers to channel (RH,RL,LH,LL) and SS refers
+    to scan mode (SS,SF,LF,FS,FL).
+3 Output_Datasets
+    FSL writes out one of two sets of voltage spectra:
+
+        FSL_VSK_CCSS    Skymaps of voltage sky spectra.
+
+        FSL_VCL_CCSS    Time-ordered files of voltage calibration spectra.
+
+    FSL writes out one of two sets of differential spectra:
+
+        FSL_DSK_CCSS    Skymaps of differential sky spectra.
+
+        FSL_DCL_CCSS    Time-ordered files of differential calibration
+                        spectra.
+
+    FSL writes out one of two sets of calibrated spectra:
+
+        FSL_SKY_CCSS    Skymaps of calibrated sky spectra.
+
+        FSL_CAL_CCSS    Time-ordered files of calibrated calibration
+                        spectra.
+
+    For all six datasets, CC refers to channel (RH,RL,LH,LL) and SS
+    refers to scan mode (SS,SF,LF,FS,FL).
+3 Calibration_Model_Solutions
+    FSL calibrates coadded ifgs using the calibration model solutions:
+
+        FEX_MOD_CCSS.VVV_XXXXXXXXXX    Calibration model solutions, where
+                                       CC refers to channel (RH,RL,LH,LL), 
+                                       SS refers to scan mode
+                                       (SS,SF,LF,FS,FL), VVV refers to the
+                                       version of the calibration program
+                                       that generated the model solution
+                                       (e.g., F16), and XXXXXXXXXX is the
+                                       model solution label (e.g.,
+                                       93HYBRID).
+3 Reference_Datasets
+    FSL processes coadded ifgs using several reference datasets:
+
+        FEX_APODL       Apodization functions.
+
+        FEX_ETFL         Electronics transfer functions.
+
+        FEX_GRTCOAWT    Relative weights for combining GRT temperatures.
+
+        FEX_GRTTRANS    GRT transition temperatures and transition zones.
+
+        FEX_NYQUISTL    Instrument Nyquist frequencies.
+
+        FEX_VIBCORRL    Vibration correction frequency offsets.
+
+        FEX_VAR.VVV_XXXXXXXXXX    All-sky average variances, where CC
+                                  refers to channel (RH,RL,LH,LL), SS
+                                  refers to scan mode (SS,SF,LF,FS,FL),
+                                  VVV refers to the version of the
+                                  calibration program that generated the
+                                  model solution (e.g., F16), and
+                                  XXXXXXXXXX is the model solution label
+                                  (e.g., 93HYBRID).
+2 Command_Qualifiers
+    Command line qualifiers control the operation of FSL.  The qualifiers
+    specify file input and output, data selection and processing, and plot
+    and processing report generation.
+3 /FILE_EXT
+    /FILE_EXT=<filename extension>
+
+    /NOFILE_EXT    Default
+
+        Input coadd files can be specified by the filename extension.
+        This input option works for sky or calibration data.  The
+        /FILE_EXT switch is the standard input qualifier for sky data.
+
+        Note:  FSL can only process ONE skymap per invocation.
+
+        The use of /FILE_EXT as the input qualifier precludes the use of
+        /JSTART or /JSTOP and overrides the /JSTART and /JSTOP default
+        values.
+3 /JSTART
+    /JSTART=<YYDDDHHMMSSCCC>
+
+    /JSTART=86001000000000    Default
+
+        Input coadded ifgs can be specified by timerange.  The start time
+        of the timerange is specified by the /JSTART qualifier, using the
+        GMT time format (YY is the year, DDD is the day, HH is the hour,
+        MM is the minute, SS is the second, and CCC is the millisecond).
+        This input option works for calibration or sky data.  The /JSTART
+        switch, along with the /JSTOP switch, are the standard input
+        qualifiers for calibration data.
+
+        /JSTART cannot be used in conjunction with /FILE_EXT.
+3 /JSTOP
+    /JSTOP=<YYDDDHHMMSSCCC>
+
+    /JSTOP=99365235959999    Default
+
+        Input coadded ifgs can be specified by timerange.  The stop time
+        of the timerange is specified by the /JSTOP qualifier, using the
+        GMT time format (YY is the year, DDD is the day, HH is the hour,
+        MM is the minute, SS is the second, and CCC is the millisecond).
+        This input option works for calibration or sky data.  The /JSTOP
+        switch, along with the /JSTART switch, are the standard input
+        qualifiers for calibration data.
+
+        /JSTOP cannot be used in conjunction with /FILE_EXT.
+3 /INPUT
+    /INPUT=SKY
+
+    /INPUT=CAL
+
+        FSL will process either sky data or calibration data during a
+        single invocation.  The /INPUT qualifier is required for FSL to
+        run.
+3 /PIXEL
+    /PIXEL=ALL    Default
+
+    /PIXEL=<pixel list>
+
+        FSL will process particular sky pixels that are specified by the
+        /PIXEL qualifier.  Up to 78 pixels can be specified by pixel
+        number in the pixel list.
+
+        /PIXEL cannot be used in conjunction with /INPUT=CAL.
+3 /QUALITY
+    /QUALITY=(INSTRUMENT=<instr_qual>,ATTITUDE=<attit_qual>)
+
+    /QUALITY=(INSTRUMENT=3,ATTITUDE=3)    Default
+
+        The data quality thresholds for the input coadded ifgs are
+        specified by the /QUALITY switch.  The thresholds for instrument
+        and attitude quality are be specified separately.
+
+        Sky data should normally be processed with the default quality
+        thresholds of 3.  Calibration data should normally be processed
+        with an instrument quality threshold of 3 and an attitude quality
+        threshold of 6.
+3 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FSL processes data for only ONE channel per invocation.  The
+        options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.  The
+        /CHANNEL qualifier is required for FSL to run.
+3 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LF
+
+    /SCAN_MODE=FS
+
+    /SCAN_MODE=FL
+
+        FSL processes data for only ONE scan mode per invocation.  The
+        options are SHORT SLOW, SHORT FAST, LONG FAST, FAST SHORT, or
+        FAST LONG.  The /SCAN_MODE qualifier is required for FSL to run.
+
+        /SCAN_MODE=FS cannot be used with /CHANNEL=RH or /CHANNEL=LH.
+        /SCAN_MODE=FL cannot be used with /CHANNEL=RH or /CHANNEL=LH.
+3 /SINGLE_IFG
+    /SINGLE_IFG
+
+    /NOSINGLE_IFG    DEFAULT
+
+        FSL processes coadded ifgs by default.  FSL will process single
+        ifgs if the /SINGLE_IFG qualifier is set.  If the /SINGLE_IFG
+        qualifier is set, FSL processes the spectra as single ifgs,
+        whether or not they actually are single.
+
+        Note:  The /SINGLE_IFG qualifier should not be set when processing
+        coadded ifgs.  Single and coadded ifgs SHOULD NOT be processed
+        together in a single invocation of FSL.
+3 /CALIBRATE
+    /CALIBRATE    Default
+
+    /NOCALIBRATE
+
+        FSL calibrates voltage spectra by default.  If FSL is run to
+        produce voltage spectra ONLY, the CPU time required to process
+        the data will be reduced by the use of the /NOCALIBRATE qualifier.
+
+        /NOCALIBRATE cannot be used in conjunction with /WRITE=CAL or
+        with /WRITE=BOTH.
+3 /MODEL_EXT
+    /MODEL_EXT=<model solution filename extension>
+
+    /NOMODEL_EXT    Default
+
+        The calibration model solution that FSL will apply is specified by
+        the model solution file name extension.  The file name extension
+        is of the form VVV_XXXXXXXXXX, where VVV is the version of the
+        calibration program that generated the solution and XXXXXXXXXX is
+        the model solution label.
+
+        The specification of a calibration model solution via the
+        /MODEL_EXT qualifier IS REQUIRED unless /NOCALIBRATE is set.
+3 /DVECTOR
+    /DVECTOR
+
+    /NODVECTOR    Default
+
+        FSL uses variance estimates to weight the autophase correction
+        computation.  If the /DVECTOR qualifier is set, FSL reads the
+        variance estimate from the reference datset FEX_VAR. If the /FIL_VAR
+        qualifier is set, FSL reads FEX_FLV. Otherwise, FSL uses the 
+        individual coadd variances for the variance estimates. Both /DVECTOR
+        and /FIL_VAR qualifiers are not allowed.3 /DVECTOR
+    /DVECTOR
+3 /FIL_VAR
+    /FIL_VAR
+
+    /NOFIL_VAR    Default
+
+        FSL uses variance estimates to weight the autophase correction
+        computation.  If the /FIL_VAR qualifier is set, FSL reads the
+        variance estimate from the reference datset FEX_FLV. If the /DVECTOR
+        qualifier is set, FSL reads FEX_VAR. Otherwise, FSL uses the 
+        individual coadd variances for the variance estimates. Both /FIL_VAR
+        and /DVECTOR qualifiers are not allowed.
+3 /TSIG_ZERO
+    /TSIG_ZERO
+
+    /NOTSIG_ZERO    Default
+
+        If the /TSIG_ZERO qualifier is set, FSL sets the combined temperature 
+	sigmas to zero for all coadds before the computation of the reference
+        spectra. The reference spectrum will thus be computed from a single
+	temperature Planck function.
+3 /DIFFERENTIAL
+    /DIFFERENTIAL
+
+    /NODIFFERENTIAL    Default
+
+        If the /DIFFERENTIAL qualifier is set, FSL does not add the
+        reference spectra to the differential spectra to obtain
+        calibrated spectra.
+
+        If the /DIFFERENTIAL qualifier and either the  /WRITE=CAL or
+        /WRITE=BOTH qualifier is set, FSL writes out differential spectra
+        instead of calibrated spectra.
+
+        /DIFFERENTIAL cannot be used in conjunction with /NOCALIBRATE.
+3 /PLOT_DEVICE
+    /PLOT_DEVICE[=<plot device>]
+
+    /NOPLOT_DEVICE    Default
+
+        FSL will plot the components of the calibration model solution
+        and will plot the coadded ifgs and spectra specified from
+        interactive menus if the /PLOT_DEVICE qualifier is set.  FSL uses
+        the PLT(PGPLOT) plotting package.
+
+        If the /PLOT_DEVICE qualifier is set without specifying a plot
+        device, FSL uses the logical PLT_DEVICE to define the device.
+3 /PLT_FILE
+    /PLT_FILE[=<PCO filename>]
+
+    /NOPLT_FILE    Default
+
+        If FSL is invoked with the /PLOT_DEVICE qualifier set, the
+        PLT(PGPLOT) plotting package can be initialized with a PCO
+        command file.  The PCO file is specified by the /PLT_FILE
+        qualifier.
+
+        If the /PLT_FILE qualifier is set without specifying a PCO
+        filename, FSL assumes a default filename of PLT.PCO.
+3 /WRITE
+    /WRITE=VOLT
+
+    /WRITE=CAL
+
+    /WRITE=BOTH
+
+    /NOWRITE    Default
+
+        FSL can write voltage and/or differential or calibrated spectra.
+        Sky data are written to skymaps and calibration spectra are
+        written to time-ordered files.  The output options are specified
+        by the /WRITE qualifier.  
+
+        If the /DIFFERENTIAL qualifier and either the  /WRITE=CAL or
+        /WRITE=BOTH qualifier is set, FSL writes out differential spectra
+        instead of calibrated spectra.
+
+        /WRITE=CAL or /WRITE=BOTH cannot be used in conjunction with
+        /NOCALIBRATE.
+3 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FSL produces a processing report.  If the report
+        filename is not specified by the /REPORT qualifier, the default
+        filename takes the form of
+        FSL_DDD_CCSS_XXXXXXX_YYYYYYY.REP_ZZZZZZZZZ, where DDD is the data
+        type (SKY or CAL), XXXXXXX and YYYYYYY are the start and stop
+        times for the processed data, and ZZZZZZZZZ is the run time.  All
+        of the times are in GMT format.
+2 Examples
+
+        FSL is designed primarily for batch processing of coadded ifgs.  A
+    typical invocation of FSL to process sky data is:
+
+        $ FSL/FILE_EXT=ED_9022005_9026409/INPUT=SKY/CHANNEL=LL -
+             /SCAN_MODE=SS/MODEL_EXT=F16_JAN92AA12/WRITE=CAL
+
+    In this example, coadded sky ifgs in the left low, short slow scan mode
+    are read from the skymap CSDR$FIRAS_IN:FIL_SKY_LLSS.ED_9022005_9026409
+    and are calibrated with the CSDR$FIRAS_CAL:FEX_MOD_LLSS.F16_JAN92AA12
+    model solution.  The resulting calibrated spectra are written out to
+    the skymap CSDR$FIRAS_OUT:FSL_SKY_LLSS.ED_8934301_9026410.  The
+    processing report file is FSL_SKY_LLSS_8934301_9026410.REP_920801902.
+    The report file will be written to the current default directory when
+    FSL is invoked.
+
+        A similar batch invocation to process calibration data is:
+
+        $ FSL/JSTART=893531100/JSTOP=902621100/INPUT=CAL -
+             /QUALITY=ATTITUDE=6/CHANNEL=RH/SCAN_MODE=LF -
+             /MODEL_EXT=F16_93HYBRID/DVECTOR/WRITE=BOTH
+
+    In this example, coadded calibration ifgs in the right high, long fast
+    scan mode is read from the time-ordered files CSDR$FIRAS_IN:FIL_CAL_RHLF
+    over the timerange of 893531100 to 902621100.  Coadded ifgs with
+    attitude data quality of 6 or less are calibrated with the
+    CSDR$FIRAS_CAL:FEX_MOD_RHLF.F16_93HYBRID model solution.  The variance
+    estimate for the autophase correction calculation is read from the
+    reference datase CSDR$FIRAS_CAL:FEX_VAR_RHLF.F16_93HYBRID. The resulting
+    voltage spectra are written to the time-ordered file
+    CSDR$FIRAS_OUT:FSL_VCL_RHLF.ED_8935311_9026411 and the resulting
+    calibrated spectra are written to the time-ordered file
+    CSDR$FIRAS_OUT:FSL_CAL_RHLF.ED_8935311_9026411.  The processing report
+    file is FSL_CAL_LLSS_8935311_9026211.REP_920811935 and will be written to 
+    the current default directory.
+
+        A batch invocation to generate differential spectra is:
+
+        $ FSL/FILE_EXT=ED_9022005_9026409/INPUT=SKY/CHANNEL=LL -
+             /SCAN_MODE=SS/MODEL_EXT=F16_93HYBRID/DIFFERENTIAL/WRITE=CAL
+
+    In this example, coadded sky ifgs in the left low, short slow scan mode
+    are read from the skymap CSDR$FIRAS_IN:FIL_SKY_LLSS.ED_9022005_9026409
+    and are calibrated with the CSDR$FIRAS_CAL:FEX_MOD_LLSS.F16_93HYBRID
+    model solution.  The resulting differential spectra are written out to
+    the skymap CSDR$FIRAS_OUT:FSL_DSK_LLSS.ED_8934301_9026410.  The
+    processing report file is FSL_SKY_LLSS_8934301_9026410.REP_920801902.
+    The report file will be written to the current default directory when
+    FSL is invoked.
+
+
+
+
+
+
+        For analysis purposes, FSL can be run interactively on selected sets
+    of data.  For example, an invocation to process sky data for the
+    galactic center is,
+
+        $ FSL/FILE_EXT=ED_9023400_9026410/INPUT=SKY/PIXEL=(4337,4342,4349) -
+             /CHANNEL=RH/SCAN_MODE=SS/MODEL_EXT=F16_AX92AACH/PLOT_DEVICE -
+             /NOREPORT
+
+    In this example, coadded sky ifgs in the right high, short slow scan
+    mode for FIRAS pixels 4337, 4342, and 4349 are read from the skymap
+    CSDR$FIRAS_IN:FIL_SKY_RHSS.ED_9023400_9026410 and are calibrated with
+    the CSDR$FIRAS_CAL:FEX_MOD_RHSS.F16_AX92AACH model solution.  The
+    components of the calibration model solution and the ifgs and spectra
+    specified from interactive menus are plotted by PLT(PGPLOT) on the
+    device PLT_DEVICE.  No output files are written and no processing report
+    is generated.

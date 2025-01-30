@@ -1,0 +1,294 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'COV-MAT'            / Calibrated Covariance Matrices
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented (dd/mm/yy)
+DATE-END= '21/09/90           '/ date of final data represented (dd/mm/yy)
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'RL'                 / Channel identifier: 
+COMMENT                        /   right (R) or left (L) instrument side,
+COMMENT                        /   high (H) or low (L) frequency
+SCLENGTH= 'S'                  / Mirror transport mechanism scan length:
+COMMENT                        /   short (S), long (L)
+SCSPEED = 'S'                  / Mirror transport mechanism scan speed:
+COMMENT                        /   slow (S), fast (F)
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NU_ZERO =         67.91283416  / Optical frequency of initial data point
+COMMENT                        / in GHz
+DELTA_NU=          16.97820854 / Optical frequency interval between data
+COMMENT                        / points in GHz
+NUM_FREQ=                   34 / Number of frequency points with good data
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT  
+COMMENT         The user is referred to the callable routine 
+COMMENT     FITS_READ_COVAR which reads the FIP_COVAR file and 
+COMMENT     reconstructs the covariance matrix from it.  See the 
+COMMENT     documentation on FITS_READ_COVAR for its exact calling 
+COMMENT     sequence.
+COMMENT 
+COMMENT
+COMMENT      FIRAS covariance matrix and related data
+COMMENT         project dataset record structure
+COMMENT     
+COMMENT        The covariance matrix information consists of 256 records.
+COMMENT 
+COMMENT   Calibration model solution identification
+COMMENT 
+COMMENT   Calibration model solution label
+TFORM1='40A'
+TTYPE1='MODEL_LA' / entire fieldname = MODEL_LABEL
+OFFSET1=0
+TUNIT1=' '
+COMMENT   Optional covariance matrix name.
+TFORM2='40A'
+TTYPE2='COV_LABE' / entire fieldname = COV_LABEL
+OFFSET2=40
+TUNIT2=' '
+COMMENT   Channel/scan mode
+TFORM3='4A'
+TTYPE3='CHANSCAN' / entire fieldname = CHANSCAN
+OFFSET3=80
+TUNIT3=' '
+COMMENT 
+COMMENT   Frequency range of model solution.
+COMMENT  
+COMMENT   Optical frequency of initial data point, in GHz.
+TFORM4='1E'
+TTYPE4='NU_ZERO' / entire fieldname = NU_ZERO
+OFFSET4=84
+TUNIT4='GHz'
+COMMENT   Optical frequency interval, GHz.
+TFORM5='1E'
+TTYPE5='DELTA_NU' / entire fieldname = DELTA_NU
+OFFSET5=88
+TUNIT5='GHz'
+COMMENT   Number of frequency points with data.
+TFORM6='1J'
+TTYPE6='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET6=92
+TUNIT6=' '
+COMMENT   Number of contributing IFGs.
+TFORM7='1J'
+TTYPE7='NUM_IFGS' / entire fieldname = NUM_IFGS
+OFFSET7=96
+TUNIT7=' '
+COMMENT   Number of contributing coadds.
+TFORM8='1J'
+TTYPE8='NUM_COAD' / entire fieldname = NUM_COADDS
+OFFSET8=100
+TUNIT8=' '
+COMMENT   Degrees of freedom
+TFORM9='1J'
+TTYPE9='DEG_FREE' / entire fieldname = DEG_FREEDOM
+OFFSET9=104
+TUNIT9=' '
+COMMENT 
+COMMENT   Average bolometer temperature, commanded bias, and readout
+COMMENT      voltage used in calibration of the covariance matrix:
+COMMENT 
+COMMENT   Average bolometer temp (deg K)
+TFORM10='1E'
+TTYPE10='BOL_AVG' / entire fieldname = BOL_AVG
+OFFSET10=108
+TUNIT10='K'
+COMMENT   Average commanded bias in volts
+TFORM11='1E'
+TTYPE11='CBIAS_AV' / entire fieldname = CBIAS_AVG
+OFFSET11=112
+TUNIT11='V'
+COMMENT   Average readout voltage in volts
+TFORM12='1E'
+TTYPE12='VOLT_AVG' / entire fieldname = VOLT_AVG
+OFFSET12=116
+TUNIT12='V'
+COMMENT   DC responsivity (S0) in volts/watt
+TFORM13='1D'
+TTYPE13='S0' / entire fieldname = S0
+OFFSET13=120
+TUNIT13='V/W'
+COMMENT   Detector time constant in seconds
+TFORM14='1D'
+TTYPE14='TAU' / entire fieldname = TAU
+OFFSET14=128
+TUNIT14='s'
+COMMENT   Derived bolometer temperature in kelvin
+TFORM15='1D'
+TTYPE15='TBOL' / entire fieldname = TBOL
+OFFSET15=136
+TUNIT15='K'
+COMMENT 
+COMMENT    For the fields AVG_RCALSPEC and AVG_ICALSPEC, record 1 
+COMMENT    contains info for frequency NU_ZERO, record 2 contains 
+COMMENT    info for frequency NU_ZERO + DELTA_NU, and so forth up
+COMMENT    through NUM_FREQ.  Thus only records numbered 1 through 
+COMMENT    NUM_FREQ will contain data in these fields.
+COMMENT 
+COMMENT   Average of real parts of calibrated spectra, in MJy/sr.
+TFORM16='1D'
+TTYPE16='AVG_RCAL' / entire fieldname = AVG_RCALSPEC
+OFFSET16=144
+TUNIT16='MJy/sr'
+COMMENT   Average of imaginary parts of calibrated spectra, in MJy/sr.
+TFORM17='1D'
+TTYPE17='AVG_ICAL' / entire fieldname = AVG_ICALSPEC
+OFFSET17=152
+TUNIT17='MJy/sr'
+COMMENT 
+COMMENT     For the fields BIN_TOTAL, WTD_BIN_TOTAL, EFF_WT, RDISP, 
+COMMENT     IDISP, and TEMP, each record number corresponds to a 
+COMMENT     classification number depending on eight different 
+COMMENT     instrument conditions:  whether Xcal, Ical, Refhorn, 
+COMMENT     Skyhorn temperatures, glitch rate, and galactic latitude 
+COMMENT     are over/under certain limits, whether data were taken 
+COMMENT     before/after turning off the MTM in SAA passages, and 
+COMMENT     whether a secondary template was subtracted in the 
+COMMENT     coaddition process.  Yes/no answers to each of the above 
+COMMENT     questions (in order) result in 2^8=256 categories.  To 
+COMMENT     match a category to a record number, subtract 1 from the 
+COMMENT     record number, render it in binary, and read the yes/no 
+COMMENT     answers corresponding to the above categories from RIGHT 
+COMMENT     to LEFT respectively.  For example, if record number 158 
+COMMENT     contains non-zero data and the user wishes to calculate the
+COMMENT     corresponding binning criteria, first subtract 1 to get 157, 
+COMMENT     which in binary notation is 10011101.  Thus record 158 
+COMMENT     contains information regarding data taken with a hot Xcal, 
+COMMENT     normal Ical, Hot Refhorn and Skyhorn, high glitch rate, low 
+COMMENT     galactic latitude, before the MTM was turned off in 
+COMMENT     SAA passages, and with secondary template subtracted.  
+COMMENT     Conversely, if the user wishes to check whether any 
+COMMENT     IFGs had the above mentioned characteristics, converting 
+COMMENT     10011101 to base 10 then adding 1 will indicate that the 
+COMMENT     relevant information is in record number 158.   
+COMMENT     
+COMMENT     The fields BIN_TOTAL, WTD_BIN_TOTAL, EFF_WT, RDISP, IDISP, 
+COMMENT     and TEMP will be zero in many records because no
+COMMENT     IFGs in the data set matched the criteria corresponding to
+COMMENT     that particular record (bin) number.
+COMMENT     
+COMMENT   Dispersion vectors and associated data,
+COMMENT      stored in records 1 - 256.
+COMMENT 
+COMMENT   Number of calibrated spectra, if any, contributing to bin 
+COMMENT   determined by the record number.
+TFORM18='1J'
+TTYPE18='BIN_TOTA' / entire fieldname = BIN_TOTAL
+OFFSET18=160
+TUNIT18=' '
+COMMENT 
+COMMENT   Weighted total of calibrated spectra for the bin determined 
+COMMENT   by the record number, in MJy/sr. The weighted total is the 
+COMMENT   sum over all coadds of  K(i)*(N(i)-1)/N(i), where K(i) is 
+COMMENT   the number of spectra from coadd i fitting the criteria 
+COMMENT   for this bin and N(i) is the number of spectra in coadd i. 
+TFORM19='1E'
+TTYPE19='WTD_BIN_' / entire fieldname = WTD_BIN_TOTAL
+OFFSET19=164
+TUNIT19=' '
+COMMENT   
+COMMENT   Effective weight per each calibrated spectrum contributing 
+COMMENT   to the bin determined by the record number.  The effective 
+COMMENT   weight is the sum of the squares of the Euclidean norms of 
+COMMENT   the dispersion vectors in that bin divided by the product 
+COMMENT   of the unweighted bin total and the average of the squares 
+COMMENT   of the norms of all dispersion vectors. 
+TFORM20='1D'
+TTYPE20='EFF_WT' / entire fieldname = EFF_WT
+OFFSET20=168
+TUNIT20=' '
+COMMENT 
+COMMENT   Total of real part of calibrated spectra dispersions
+COMMENT      for the bin determined by the record number, in MJy/sr
+TFORM21='180D'
+TDIM21='(180)'
+TTYPE21='RDISP' / entire fieldname = RDISP
+OFFSET21=176
+TUNIT21='MJy/sr'
+COMMENT 
+COMMENT   Total of imaginary part of calibrated spectra dispersions
+COMMENT      for the bin determined by the record number, in MJy/sr
+TFORM22='180D'
+TDIM22='(180)'
+TTYPE22='IDISP' / entire fieldname = IDISP
+OFFSET22=1616
+TUNIT22='MJy/sr'
+COMMENT
+COMMENT 
+COMMENT   Temperature and glitch rate dispersion totals 
+COMMENT      for the bin determined by the record number.
+COMMENT     
+COMMENT     Units in positions 1-7 of TEMP are K
+COMMENT     Units in position 8 are Glitches/sec
+COMMENT   See the FIRAS Explanatory Supplement for additional information.
+COMMENT
+TFORM23='8D'
+TDIM23='(8)'
+TTYPE23='TEMP' / entire fieldname = TEMP
+OFFSET23=3056
+TUNIT23=' '
+COMMENT 
+COMMENT   COVARIANCE MATRIX
+COMMENT 
+COMMENT 
+COMMENT     Units in covariance matrix vary with location as noted below.
+COMMENT   See the FIRAS Explanatory Supplement for additional information.
+COMMENT
+COMMENT   Upper triangular part of symmetric covariance matrix,
+COMMENT      stored in records 1 - 253, each with up to 270 values,
+COMMENT      row x col.
+COMMENT 
+COMMENT   Real - real (17766 values) stored in records 1 - 66;
+COMMENT      upper half of symmetric submatrix 1-188 x row-188.
+COMMENT       Units in matrix locations 1-180 x row-180 are (MJy/sr)**2
+COMMENT       Units in locations 1-180 x 181-184 are K*MJy/sr
+COMMENT       Units in locations 1-180 x 181-187 are K*MJy/sr
+COMMENT       Units in locations 1-180 x 188 are (Glitches/sec)*(MJy/sr)
+COMMENT       Units in locations 181-187 x row-187 are K**2
+COMMENT       Units in locations 181-184 x 188 are K*(Glitches/sec)
+COMMENT       Units in location 188 x 188 are (Glitches/sec)**2
+COMMENT        
+COMMENT   Real - imag (33840 values) stored in records 67 - 192;
+COMMENT      entirety of rectangular submatrix 189-368 x 1-188.
+COMMENT       Units in these locations are (MJy/sr)**2
+COMMENT 
+COMMENT   Imag - imag (16290 values) stored in records 193 - 253;
+COMMENT      upper half of symmetric submatrix 189-368 x row-368.
+COMMENT       Units in these locations are (MJy/sr)**2
+TFORM24='270D'
+TDIM24='(270)'
+TTYPE24='COVAR' / entire fieldname = COVAR
+OFFSET24=3120
+TUNIT24=' '
+COMMENT 
+END

@@ -1,0 +1,100 @@
+c-------------------------------------------------------------------------------
+c
+c	FFI_CONFIG.TXT
+c
+c	This include file contains the CCT_GET_CONFIG parameters for FFI.  This
+c	file give access to the following reference datasets:
+c
+c		Sequential:		Direct:
+c
+c		FEX_GRTCOAWT		FEX_APOD
+c		FEX_GRTTRANS		FEX_ETF
+c		FEX_NYQUIST
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 9 March 1993
+c		 SER 10763
+c
+c-------------------------------------------------------------------------------
+
+
+	Include '(cct_get_config)'
+
+
+c  The sequential-access reference datasets.
+
+	character * 32	dset_tod(3)
+	data dset_tod(1) /'CSDR$FIRAS_REF:FEX_GRTCOAWT'/
+	data dset_tod(2) /'CSDR$FIRAS_REF:FEX_GRTTRANS'/
+	data dset_tod(3) /'CSDR$FIRAS_REF:FEX_NYQUIST'/
+
+	integer *  4	ndset_tod /3/
+	integer *  4	size_tod(3) /256, 384, 128/
+	integer *  4	tod_index(3)
+	integer *  4	tod_lun(3)
+
+	logical *  1	new_tod_segment(3)
+
+	dictionary 'fex_grtcoawt'
+	dictionary 'fex_grttrans'
+	dictionary 'fex_nyquist'
+
+	structure /ffi_config/
+	   record /fex_grtcoawt/ grtcoawt
+	   record /fex_grttrans/ grttrans
+	   record /fex_nyquist/  nyquist
+	endstructure
+
+	record /ffi_config/ config
+	record /config_status/  tod_stat(3)
+
+
+c  The direct-access reference datasets.
+
+	character * 32	dset_dir(2)
+	data dset_dir(1) /'CSDR$FIRAS_REF:FEX_APOD'/
+	data dset_dir(2) /'CSDR$FIRAS_REF:FEX_ETF'/
+
+	integer	*  4	dir_index(2)
+	integer	*  4	dir_lun(2)
+	integer	*  4	ndset_dir /2/
+	integer	*  4	size_dir(2) /4096, 4112/
+
+	logical	*  1	new_dir_segment(2)
+
+	record /config_status/ dir_stat(2)
+
+
+c  Common variables and reference data effective time range.
+
+	character *  6	dir_access /'DIRECT'/
+	character * 14	ref_gmt_start /'86001000100000'/
+	character * 14	ref_gmt_stop  /'99365235859999'/
+	character *  1	seq_access /' '/
+	integer *  4	ncache /1/
+	integer *  4	ref_count
+	integer	*  4	ref_start(2)
+	integer	*  4	ref_stop(2)
+
+c
+c  Define the apodization function, the zapodization function, the electronics
+c	transfer function, and the ifg peak position.
+c
+
+	complex * 16	ztrans(257)		!  electronics transfer function
+	real	*  8	apod_fcn(512)		!  apodization function
+	real	*  8	zapod_fcn(1024)		!  zapodization function
+	integer *  4	ictr			!  ifg peak position
+	integer *  4	peak_pos		!  unlinerized peak position
+
+
+c
+c  Define the common block.
+c
+
+	common /fcc_config_data/ tod_lun, tod_index, tod_stat,
+     .				 dir_lun, dir_index, dir_stat,
+     .				 ref_start, ref_stop, config, peak_pos,
+     .				 ictr, apod_fcn, zapod_fcn, ztrans

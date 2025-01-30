@@ -1,0 +1,152 @@
+c-------------------------------------------------------------------------------
+c
+c	FFL_CONFIG.TXT
+c
+c	This include file contains the CCT_GET_CONFIG parameters for FFL
+c	(formerly FFI).  This file gives access to the following reference
+c	datasets:
+c
+c		Sequential:		Direct:
+c
+c		FEX_GRTCOAWT		FEX_ETFL
+c		FEX_GRTTRANS		FEX_APODL
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 9 March 1993
+c		 SER 10763
+c
+c-------------------------------------------------------------------------------
+c
+c   Changes:
+c	Change name from FFI to FFL; convert Common block to Structure in order
+c	   to remove some of the obscurity arising from Common blocks hiding in
+c	   Include files.
+c	Fred Shuman, HSTX, 1995 June 14.
+c
+c	Incorporated the ETFL file into dset_dir, making these into arrays (2).
+c	Fred Shuman, HSTX, 1995 July 05.
+c
+c	Subsumed the FFL_SPEC.TXT include file in order to get vspecsiz.
+c	Fred Shuman, HSTX, 1995 July 21.
+c
+c===============================================================================
+cc
+cc	FFL_SPEC.TXT
+cc
+cc	This include file contains the FISH voltage spectrum record.  It also
+cc	contains processing parameters required by FFL (formerly FFI).
+cc
+cc	Author:	  Gene Eplee
+cc		  General Sciences Corp.
+cc		  513-7768
+cc		  19 February 1993
+cc		  SER 10763
+cc
+cc------------------------------------------------------------------------------
+cc
+cc   Changes:
+cc	Converted FISH_SPEC to 340 point records.
+cc	Gene Eplee, GSC, 14 April 1994.
+cc
+cc	Added glitch rate weighted number of IFGs per coadd.
+cc	Alice Trenholme, GSC, 29 December 1994
+cc
+cc	Change name from FFI to FFL; convert Common block to Structure in order
+cc	   to remove some of the obscurity arising from Common blocks hiding in
+cc	   Include files.
+cc	Fred Shuman, HSTX, 1995 June 14.
+cc
+cc	Deleted phase_shift and var_norm since they are used in only one module.
+cc	Fred Shuman, HSTX, 1995 June 30.
+cc
+c===============================================================================
+
+c
+c  Define the FISH voltage record and spectrum length parameters, and the
+c    spectrum record structure.
+c
+	Integer *  2	vrecsize		!  Fish output file record size
+	Parameter	(vrecsize = 2183)	!    in long words.
+
+	Integer *  2	vspecsiz		!  Voltage spectrum length
+	Parameter	(vspecsiz = 360)
+
+	Structure / fishspec /
+	   Integer *  4		nifgs		!  number of ifgs per coadd
+           Real    *  4         adj_nifgs	!  glitch rate adjusted
+						!    number of ifgs per coadd
+	   Real	   *  8		time		!  time since apco ejection
+	   Real	   *  4		temp(7)		!  instrument temperatures
+	   Real	   *  4		tsigma(7)	!  temperature sigmas
+	   Real	   *  8		volt		!  bolometer voltage
+	   Real	   *  8		bias		!  commanded bolometer bias
+	   Integer *  4		gain		!  commanded gain
+	   Complex * 16		vspec(vspecsiz)	!  voltage spectrum
+	   Real	   *  8		vsigma(vspecsiz)!  apodized voltage sigmas
+	EndStructure
+
+	Include '(CCT_Get_Config)'
+
+c  The sequential-access reference datasets.
+
+	Character*32	dset_tod(2)
+	Data dset_tod /'CSDR$FIRAS_REF:FEX_GRTCOAWT',
+     &                 'CSDR$FIRAS_REF:FEX_GRTTRANS'/
+
+	Integer  * 4	ndset_tod /2/
+	Integer  * 4	size_tod(2) /256, 384/
+
+	Logical  * 1	new_tod_segment(2)
+
+	Dictionary 'fex_grtcoawt'
+	Dictionary 'fex_grttrans'
+
+c  The direct-access reference datasets.
+
+	Character*32	dset_dir(2)
+	Data dset_dir /'CSDR$FIRAS_REF:FEX_ETFL.DAT','CSDR$FIRAS_REF:FEX_APODL'/
+
+	Integer *  2	dirsiz
+	Parameter	(dirsiz = 16*(vspecsiz+1))
+	Integer  * 4	ndset_dir /2/
+	Integer  * 4	size_dir(2) /dirsiz, 4096/	! Yes--use of parameter
+					! in data list is ANSI Standard!!
+	Logical  * 1	new_dir_segment(2)
+
+c  Reference data effective time range and other variables.
+
+	Character* 6	dir_access /'DIRECT'/
+	Character*14	ref_gmt_start /'86001000100000'/
+	Character*14	ref_gmt_stop  /'99365235859999'/
+	Character* 1	seq_access /' '/
+	Integer  * 4	ncache /1/
+	Integer  * 4	ref_count
+	Real     * 8	year_len		!  tropical year in seconds
+	Parameter (year_len = 31556925.19D0)
+	Integer  * 4	ifglen(6) /4*512, 2*128/! IFG lengths by scan mode
+
+c
+c  Define the configdata structure.
+c
+	Structure / config /
+	   Record / fex_grtcoawt / grtcoawt
+	   Record / fex_grttrans / grttrans
+	EndStructure
+
+	Structure / configdata /
+	   Integer  * 4	tod_lun(2)
+	   Integer  * 4	tod_index(2)
+	   Record / config_status / tod_stat(2)	! This structure is defined in..
+	   Integer  * 4	dir_lun(2)
+	   Integer  * 4	dir_index(2)
+	   Record / config_status / dir_stat(2)	!..include file (CCT_Get_Config)
+	   Integer  * 4	ref_start(2)
+	   Integer  * 4	ref_stop(2)
+	   Real     * 8	apco_eject_time	! apco eject time in T68 sec
+	   Record / config / config
+	   Complex  *16	ztrans(vspecsiz+1)! electronics transfer function
+	EndStructure
+
+	Record / configdata / fflc

@@ -1,0 +1,51 @@
+c******************************************************************
+c                                            
+c   File fss_include.txt ; Include file for FSS facility
+c
+c   version 9.0   D. Bouler, Jan 1991  New facility requirements
+c
+c******************************************************************
+c   Modification History:
+c
+c   D. Bouler, 12/19/91, SPR 9364 -- fss_max_buff and fss_max_groups increased
+c
+c   S. Brodd, 9/12/95, SPR 12251 -- fss_max_buff and fss_max_groups doubled
+c******************************************************************
+
+c
+c Version number for FSS
+c
+      character*6      fss_VERSION              !Current version of FSS
+      parameter       (fss_VERSION='13.5')
+c
+c Sizes of buffers
+c
+      integer*4        fss_max_buff             ! Maximum for 50-day period
+      parameter       (fss_max_buff = 200000)
+      integer*4        fss_max_groups           ! Maximum number of coadd groups
+      parameter       (fss_max_groups = 50000) 
+c
+c Size of FSS_SSSKY record
+c
+      integer*4        fss_lw_recsize           ! SSSKY rec length in longwords
+      parameter       (fss_lw_recsize = 16)     ! 64 bytes = 16 longwords
+      integer*4        fss_byte_recsize         ! SSSKY rec length in bytes
+      parameter       (fss_byte_recsize = 64)   ! 64 bytes = 16 longwords
+c
+c CSA parameters
+c
+      integer*4        max_pix_num              !Max number of FIRAS pixels
+      parameter       (max_pix_num=6144)
+      integer*4        pix_offset               !Offset of pixel number in rec
+      parameter       (pix_offset = 9)
+      integer*4        time_offset              !Offset of start time
+      parameter       (time_offset = 0)
+      integer*4        end_offset               !Offset of end time (none)
+      parameter       (end_offset = -1)
+      integer*4        index_level              !index level for skymap
+      parameter       (index_level = 6)
+      integer*4        blk_cnt                  !Multi-block count for csa calls
+c
+c Byte record for FSS_MERGE_SORT
+c
+      character*64     sort_rec                 !Byte record for FSS_MERGE_SORT

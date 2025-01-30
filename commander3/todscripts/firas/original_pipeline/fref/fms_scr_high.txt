@@ -1,0 +1,7 @@
+!  SCRIPT.HIGH
+!  FMS script file for merge  HIFA + HISL = HIGH
+!
+ $SMAPS
+	skymap(1) = 'FMS_SKY_HIFA.FAD_8932800_9026409;'
+	skymap(2) = 'FMS_SKY_HISL.FAD_8932800_9026409;'
+ $END

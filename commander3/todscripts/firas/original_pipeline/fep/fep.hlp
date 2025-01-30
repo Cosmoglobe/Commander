@@ -1,0 +1,233 @@
+1  FEP
+
+ PURPOSE
+
+  The FIRAS Engineering Plots facility contains two facilities which
+  produce plots of engineering data, FEP_Engplots and FEP_Dwellplot. 
+  Either facility is invoked by means of the command verb ENGPLOTS;
+  to get FEP_Dwellplot, use the /DWELL qualifier.
+
+ METHOD
+
+  ENGPLOTS plots any field from the housekeeping data archive.  Fields
+  can be converted to engineeering units before being plotted or remain
+  unconverted and be plotted in raw telemetry counts.  ENGPLOTS can be
+  run either interactively or in batch mode.  Choices of data timerange,
+  fields to be examined, and smoothing are made in interactive mode from
+  menus, and in batch mode from qualifiers on the command line.  When the
+  desired fields are selected and plotting is requested interactively, the
+  user is dropped into PLT, an interactive plotting package.  Plotted
+  fields can be smoothed and re-plotted by Quitting PLT and answering the
+  Smoothing prompts.  To return to the ENGPLOTS menus, answer No (or
+  simply Return) to the Smoothing prompts.  For help with PLT type
+  HELP at the PLT> prompt.  For timeranges spanning much more than a day, 
+  TRENDPLOTS is recommended.
+
+  Format:
+
+        ENGPLOTS
+
+2  /CONVERT
+
+  /CONVERT   (default)
+  /NOCONVERT
+
+  ENGPLOTS can display raw telemetry counts or data converted to
+  engineering units.  /CONVERT can be selected only when running
+  ENGPLOTS in batch. 
+
+2  /CROSSGAPS
+
+  /CROSSGAPS    (default)
+  /NOCROSSGAPS
+
+  For use with the /SMOOTH qualifier, this controls whether smoothing is
+  carried across timegaps and dwell gaps.  If /CROSSGAPS is selected (by
+  default or explicitly), the smoothing computation treats data on each
+  side of any such gap as adjacent; /NOCROSSGAPS truncates the smoothing
+  window at each gap.  This qualifier is available only in batch mode,
+  since in interactive mode its function is handled by prompt each time
+  you Quit PLT. 
+
+2  /FIELDS
+
+  /FIELDS=(field_1, ..., field_4)
+  /FIELDS=*TEMP*  (default)
+
+  This does the plot field selection when ENGPLOTS is running in batch. 
+  Up to 4 different fields can be selected.  Wildcards are acceptable;
+  duplicate field names are eliminated.  Default /FIELDS selects all
+  temperature fields for plotting. 
+
+2  /INTERACTIVE
+
+  /INTERACTIVE     (default)
+  /NOINTERACTIVE
+
+  Selects ENGPLOTS mode of operation, either interactive or batch.
+  /INTERACTIVE is the default. /NOINTERACTIVE turns off the
+  interactive mode.
+
+2  /JSTART
+
+  /JSTART=yydddhhmmssccc
+
+  Specifies the start time of housekeeping data to be retrieved from
+  the archive, when running ENGPLOTS in batch. The time format is
+  YYDDDHHMMSSCCC.  /JSTART defaults to 0h of the current day.
+
+2  /JSTOP
+
+  /JSTOP=yydddhhmmssccc
+
+  Specifies the stop time of housekeeping data to be retrieved from
+  the archive, when running ENGPLOTS in batch. The time format is
+  YYDDDHHMMSSCCC.  /JSTOP defaults to 24h of the current day.
+
+2  /MONITOR
+
+  /MONITOR
+  /NOMONITOR  (default)
+
+  This is a useful option for analyzing data as it becomes available
+  in the archive, almost in real-time.  /MONITOR allows the user to
+  monitor a number of housekeeping data fields.  It keeps ENGPLOTS
+  from insisting on selecting a new set of fields to be plotted when
+  the time limit is exceeded.  The stop time must be set to a time
+  in the future.  /MONITOR can be selected only when running ENGPLOTS
+  interactively.
+
+2  /PLOTDEVICE
+
+  /PLOTDEVICE="[filename]<PLT device type>"
+
+  Determines the filename and plotting device 'format' in which PLT
+  outputs the plot.  Note that double quotes, ", must surround the
+  file/device specification, as it will always contain a "/" character.
+  If not specified on the command line, interactive ENGPLOTS prompts the
+  user for a PLT device type immediately following each timerange
+  selection; batch ENGPLOTS defaults to "/QMS", which writes a file
+  PGPLOT.QMPLOT for each plot generated, these files being TALARIS-
+  printable.  The valid PLT device types are:
+
+      /VT125 --       for interactive mode when using a VT-graphics-
+                      compatible terminal, including VT200 series;
+      /QMS, /TF, /VQMS -- makes TALARIS-printable files, landscape and
+                      portrait modes, respectively ('V' = 'vertical');
+
+      /ARGS           /CANON          /CRINNELL       /FILE
+      /GOC            /HIPLOT         /HP7221         /HQ2648
+      /ID100          /LIACOM         /NULL           /PRINTRONIX
+      /PS       /VPS         /RETRO      /TEK4010     /TK4100
+      /TRILOG         /VERSATEC       /VVERSATEC      /ZETA
+
+2  /PLTFILE 
+
+  /PLTFILE[=filename]
+
+  Causes PLT commands in the specified file to be executed when plots are
+  produced.  If this qualifier is absent, default PLT options will be used.
+  The default filename is PLT.PCO.  
+
+2  /REPORT
+
+  /REPORT=[filename]
+  (no report is default)
+
+  Names the processing report file generated by ENGPLOTS.  By default, no report
+  is written.  The report file name may be chosen using /REPORT=filename, or the
+  default name may be used by using /REPORT.  The default report file name is:
+                      FEP_yydddhh_yydddhh.REP_yydddhhmm;
+  where the first two date/times are the start and stop times for the data,
+  and the final date/time is the current GMT for that run.
+
+
+2  /SMOOTH
+
+  /SMOOTH=window_size
+
+  In batch mode, plots may be smoothed using a window size specified with
+  this qualifier.  In interactive mode this qualifier is not available;
+  smoothing is done by prompt each time you Quit PLT. 
+
+  The window size must be an odd integer; default is 1.  The smoothing
+  function is a "boxcar" whose width is the specified window size;
+  adjacent points centered on the current value are averaged (equally
+  weighted).  In interactive ENGPLOTS, the same plot may be smoothed
+  several times; the smoothing is always applied to the original data, not
+  to the already smoothed data.  In either interactive or batch mode,
+  smoothing with window size = 1 returns the original data unsmoothed. 
+  See also /CROSSGAPS. 
+
+2 /DWELL
+
+  Plots GRT data taken when the FIRAS instrument dwelt one of the GRTs.
+  DWELLPLOT prompts for a time range and then searches for data taken
+  in dwell mode.  If data is found, a plot is displayed on the terminal
+  that DWELLPLOT is being run from.
+
+  DWELLPLOT is invoked from the ENGPLOTS command line as an 
+  alternate syntax.
+  
+  Format:
+
+	ENGPLOTS/DWELL
+
+2  Examples
+
+
+  ENGPLOTS/INTERACTIVE/PLOTDEVICE="/VT"
+
+     invokes the interactive ENGPLOTS.  A start time and a stop time are
+     asked for, then the Main Menu is displayed.  From here the user picks
+     a Field Selection Menu (from which the plot fields are actually
+     chosen) or specifies an action (such as reset the menu or create a
+     plot). 
+
+     When a Field Select Menu is selected, a menu of field names appears.
+     With each one is a number which is used to select that field. 
+     Respond to the "Select a menu item:" prompt with the number of the
+     field to be plotted.  Each selected plot field is marked for plotting
+     in raw counts or for conversion and plotting in engineering units. 
+     Type 'N' (for NOCONVERT) to mark future field selections for no
+     conversion.  Type 'C' (for CONVERT) to mark future field selections
+     for conversion.  The last C or N typed remains in effect until the
+     other is selected. 
+
+
+  ENGPLOTS/NOINTER/JSTART=86204/JSTOP=86205/FIELDS=*XCAL_TEMP* -
+      /PLOTDEV="LASR/QMS"/PLTFILE=PLT.COM
+
+     invokes the batch mode ENGPLOTS.  /NOINTERACTIVE turns off menu
+     selection.  /JSTART and /JSTOP select the timerange of housekeeping
+     data.  /FIELDS selects all fields with XCAL_TEMP in the field name.
+     In the current default directory at the time ENGPLOTS is invoked,
+     plot file LASR.QMPLOT will be written, which can be printed on 
+     a TALARIS laser printer to produce the plot.
+
+
+  ENGPLOTS/INTERACTIVE/MONITOR
+
+     puts ENGPLOTS into monitor mode so that selected plot fields will
+     be automatically monitored once selected.  This mode is designed
+     specifically for real-time.  Select a timerange that goes into the
+     future.  You will be prompted for a PLT device type; respond with
+     /vt if you are running from a VT200-series or compatible terminal.
+     If you respond with /qms, you may produce tons of plot files, so 
+     watch out!
+
+
+2  FIRAS_Logicals
+
+  Datasets used by FEP are controlled by the logical
+  name " CSDR$FIRAS_RAW " and " CSDR$FIRAS_REF".  These logical names
+  can be used to direct the facility to operate on datasets within a
+  private archive by making the following definition;
+
+  DEFINE CSDR$FIRAS_RAW CSDR$FIRAS_EDIT
+  DEFINE CSDR$FIRAS_REF CSDR$FIRAS_REFERENCE
+ 
+  CSDR$FIRAS_RAW: NFS_HKP
+  CSDR$FIRAS_REF: FDB_LIMCUVKY,FDB_GRTRICH,FDB_GRTCAL,FEX_CALRES,
+                  FEX_GRTRAWWT,FEX_GRTTRANS
+  

@@ -1,0 +1,23 @@
+!
+!   Status for IPDU relays
+!
+        union
+
+          map
+            scalar/byte         IPDU_POWER_RELAY_4_POLE_A1
+            scalar/byte         IPDU_POWER_RELAY_4_POLE_B1
+            scalar/byte         IPDU_POWER_RELAY_4_POLE_A2
+            scalar/byte         IPDU_POWER_RELAY_4_POLE_B2
+            scalar/byte         IPDU_POWER_RELAY_2_POLE_A3
+            scalar/byte         IPDU_POWER_RELAY_2_POLE_B3
+            scalar/byte         IPDU_OTHER_STATUS_A4
+            scalar/byte         IPDU_OTHER_STATUS_B4
+          endmap
+
+          map
+            array/byte/dim=8    GROUP4
+          endmap
+
+        endunion
+
+        array/byte/dim=4        IPDU_SPARES

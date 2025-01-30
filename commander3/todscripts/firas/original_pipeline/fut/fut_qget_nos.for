@@ -1,0 +1,66 @@
+	INTEGER*4 FUNCTION FUT_QGET_NOS (NOS_LUN, NOS_REC)
+
+C------------------------------------------------------------------------
+C
+C	PROGRAM NAME:
+C	  FUT_QGET_NOS
+C
+C	PROGRAM DESCRIPTION:
+C	  Program to read FIRAS Noise Spectrum Archive
+C
+C	AUTHOR:
+C	  R. Kummerer
+C	  STX
+C	  November 12, 1987
+C
+C	Input parameters:
+C	  NOS_LUN	I*2	Logical unit for reading Noise Spectrum Archive
+C
+C	Output parameters:
+C	  NOS_REC	RECORD	Buffer containing record
+C
+C	INPUT FILES:
+C	  FIRAS NOISE SPECTRUM ARCHIVE
+C
+C	OUTPUT FILES:
+C	  NONE
+C
+C	SUBROUTINES CALLED:
+C	  CT_QUERY_GET
+C
+C	INCLUDE FILES USED:
+C	  CT$LIBRARY:CTUSER.INC
+C
+C------------------------------------------------------------------------
+
+	IMPLICIT	NONE
+
+	INCLUDE		'CT$LIBRARY:CTUSER.INC'
+
+	DICTIONARY	'FNT_NOISE'
+	RECORD /FNT_NOISE/ NOS_REC
+
+	INTEGER		*2	NOS_LUN
+	INTEGER		*2	ISTAT
+	INTEGER		*2	CT_STAT(20)
+
+	EXTERNAL		FUT_NORMAL
+	EXTERNAL		FUT_EOF
+	EXTERNAL		FUT_CTQGET_ERR
+
+
+	CALL CT_QUERY_GET (, NOS_LUN, NOS_REC, CT_STAT)
+	IF (CT_STAT(1) .NE. CTP_NORMAL) THEN
+	  IF (CT_STAT(1) .EQ. CTP_ENDOFFILE) THEN
+	    FUT_QGET_NOS = %LOC(FUT_EOF)
+	  ELSE
+	    CALL LIB$SIGNAL (FUT_CTQGET_ERR, %VAL(1), %VAL(CT_STAT(1)))
+	    FUT_QGET_NOS = %LOC(FUT_CTQGET_ERR)
+	  ENDIF
+	  RETURN
+	ENDIF
+
+	FUT_QGET_NOS = %LOC(FUT_NORMAL)
+
+	RETURN
+	END

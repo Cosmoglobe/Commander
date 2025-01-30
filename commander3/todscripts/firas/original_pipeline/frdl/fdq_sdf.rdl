@@ -1,0 +1,30 @@
+!
+! FDQ Processed Raw Science Data
+!
+Record FDQ_SDF FDQ_SDF
+
+  Structure CT_HEAD
+    Include CT_HEAD.RDL
+  EndStructure
+
+  Structure SCI_HEAD
+    Include SCI_HEAD.RDL
+  EndStructure
+
+  Structure IFG_DATA
+    Include IFG_DATA.RDL
+  EndStructure
+
+  Structure DQ_DATA
+    Include DQ_DATA.RDL
+  EndStructure
+
+  Structure COLLECT_TIME
+    Include COLLECT_TIME.RDL
+  EndStructure
+
+  Structure ATTITUDE
+    Include ATTITUDE.RDL
+  EndStructure
+
+End_Record

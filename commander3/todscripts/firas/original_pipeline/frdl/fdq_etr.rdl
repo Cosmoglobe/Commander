@@ -1,0 +1,38 @@
+!
+!  Engineering Trends record structure.
+!
+record FDQ_ETR FDQ_ETR
+
+  structure ct_head
+    include ct_head.rdl
+  endstructure
+
+  structure en_head
+    include eng_head.rdl
+  endstructure
+
+  structure en_stat
+    include eng_status.rdl
+  endstructure
+
+  structure en_analog
+    include eng_analog.rdl
+  endstructure
+
+  structure en_xcal
+    include eng_xcal.rdl
+  endstructure
+
+  structure/dim=4 chan
+    include eng_setup.rdl
+  endstructure
+
+  structure/dim=2 en_tempdiff
+    include eng_tempdiff.rdl
+  endstructure
+
+  structure en_tail
+    include eng_tail.rdl
+  endstructure
+
+end_record

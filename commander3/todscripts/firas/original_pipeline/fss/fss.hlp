@@ -1,0 +1,377 @@
+
+
+1 FSS
+
+  PURPOSE
+
+  The FIRAS Sort Sky (FSS) facility selects, filters and groups FDQ raw sky 
+  data in preparation for coaddition by FIC.  Data which do not satisfy user 
+  specified screening criteria are rejected by FSS, and are not carried over 
+  to the coaddition stage.  The FSS output product is in the form of skymaps.  
+
+  METHOD
+
+  FSS reads the engineering data, calculates instrument temperatures by 
+  combining FDQ thermometer temperatures and recovers the transmit time 
+  tags associated with the engineering records.  The raw science records 
+  corresponding to the time tags are read and screened with the user 
+  specified acceptance criteria.  Records may be rejected for numerous 
+  reasons.  For example, data may be selected using acceptance limits for 
+  specific quantities: attitude and instrument data quality, dihedral 
+  temperature, internal calibrator (ICAL) temperature, a galactic plane 
+  exclusion limit, and minimum/maximum limits for the Sun, Moon and Earth 
+  limb angles.  If specified, records from a previous FSS skymap are 
+  retrieved and those passing the acceptance criteria are merged with the 
+  current skymap.  The data which meet these criteria are sorted and grouped
+  by pixel, scan mode and ICAL temperature.  Finally, the remaining 
+  quantities in the sorted short science record array are filled, and the 
+  facility writes the collection of groups to an output skymap and generates 
+  a processing report.
+
+  For coaddition, each group must have the same channel, scan mode and pixel 
+  number; in addition, all records in a group must occur within a user 
+  specified time range and have internal calibrator temperatures which differ
+  by less than a user specified, or defaulted, temperature tolerance.  If the 
+  number of records in a particular group is larger than a maximum allowed 
+  number, then the group is subdivided into equal sized groups which are 
+  smaller than the allowed maximum.  
+
+  Notes: 
+  1.  Groups which have a size (i.e., the number of IFGs in the group) 
+  smaller than the minimum number of IFGs for coaddition by FIC will be 
+  included in the FSS output skymap, but such groups will be rejected and not
+  coadded at the FIC stage.
+  2.  Calibration data are not processed by FSS and, normally, neither are 
+  Fake-it data.
+  3.  Since February 1995, FSS now writes out records of neighboring pixels
+  after each coadd group, with the first neighbor flagged with a 3.  Each sorted
+  group of records in FSS is written out with the transition flag of the first
+  record set to 1 if the group is below the minimum set in note 1 above, or set
+  to 2 if the group is larger.  Each following record in the group has a flag
+  set to 0.  Then, all records of neighboring pixels within the same scan mode
+  and ICAL temperature bin are sorted according to increasing absolute value of
+  difference of galactic latitude from the coadd group's average galactic
+  latitude.  These records are then written out with the first record's flag
+  set to 3, and all the rest set to 0.  If the coadd group was split because
+  it contained greater than a set maximum number of records (typically 100),
+  then only records from the neighboring pixels with time tags on the same
+  side of the split as the coadd group are included.
+
+
+2 /CHANNEL
+
+  /CHANNEL=(ALL|HIGH|LOW|RIGHT|LEFT|RH|RL|LH|LL)    
+  /CHANNEL=ALL (D)
+
+  Specifies the channels to be processed. The default is ALL channels.
+
+2 /FIRST_RUN
+
+  /[NO]FIRST_RUN
+
+  Specifies that an input skymap is not used in the current processing 
+  session.
+
+2 /FAKEIT         
+
+  /[NO]FAKEIT       (Default is  /NOFAKEIT)
+
+  Directs FSS to select data with fakeit = one (on) or zero (off). 
+
+2 /CLOSEOLD
+
+  /[NO]CLOSEOLD    (Default is /NOCLOSEOLD)
+
+  Directs FSS to extract from the input skymap (specified by INSKYMAP) any 
+  coadd groups which are smaller than the minimum size for a coadd group.  
+  This option is used to include data from a skymap of an earlier mission 
+  time range.  The option must be accompanied by an earliest acceptable 
+  time of the records in the previous skymap, and is specified using the 
+  OLDEST option.
+
+2 /GALAXY
+
+  /GALAXY=galactic_latitude   (Default is /GALAXY=0.0)
+
+  Excludes from processing all raw science IFGs which are within the user 
+  specified +/- galactic latitude range.  This option can be used to exclude
+  the galactic plane, and the value must be in units of degrees.  The 
+  default is zero degrees latitude.
+
+2 /TYPEPIX
+
+  /TYPEPIX=(SKY=index|EARTH=index|SCAN_ANGLE=sa_bin|ORBIT=orbit_origin)
+  /TYPEPIX=SKY=6       Default
+
+  Specifies the type of pixelization to be used in grouping the data. The 
+  sky based or Earth based pixel index ranges from 0 to 6.  A user specified 
+  bin, sa_bin, may be used to group the data in SCAN_ANGLE.  For example, 
+  the user request TYPEPIX=SCAN_ANGLE=23 would instruct FSS to group the data 
+  by SCAN_ANGLE with a bin size of 23 degrees.  FSS converts the SCAN_ANGLE 
+  range from (-180, +180) to (0, 360), divides the range into 15 orbital 
+  segments of 23 degrees each and a partial segment of 15 degrees, and maps 
+  the bins to the pixel scheme [0,1,...,15].  The data may also be grouped by
+  orbit, with respect to a user specified orbit origin: orbit_origin.  The 
+  values of sa_bin and orbit_origin must be in degrees.  The default 
+  pixelization is sky based with a pixel index of 6 (TYPEPIX = SKY = 6).
+
+
+2 /PIXEL
+
+  /PIXEL=(pixel_1, pixel_2, ...)    (Default is /PIXEL=ALL)
+
+  Specifies the list of pixels for processing. Only pixels in the list will 
+  be processed. The DCL command line interpreter length limit and/or an upper
+  limit to the number of elements specified in a vector impose a practical 
+  limit of approximately 88 for the list length.  It is recommended that the 
+  /PIXLIST option be used to specify long lists of upto 100 pixels.
+
+2 /PIXLIST
+
+  /PIXLIST
+
+  Directs the facility to use the pixel list specified in the 'namelist' file
+  CSDR$FIRAS_OUT:PIXLIST.LIS for processing. Only pixels included in this file
+  will be processed. Up to 100 pixels can be specified in the file, and the 
+  file should be organized as follows.
+
+              $PIXLIST PLISTS =
+               <pixel1>     (, <pixel2>, <pixel3>, ...., )
+               (......)
+               (......, <pixel100> )
+              $END
+
+  The first and last lines of the above are required in the file organization.
+
+2 /QUALITY
+
+  /QUALITY=(INSTRUMENT=<threshold>,ATTITUDE=<threshold>)
+  /QUALITY=(INSTRUMENT=3,ATTITUDE=3)     Default
+
+  Selects the acceptable data quality threshold for both the instrument
+  and attitude.  Data with qualities less than or equal to the specified
+  thresholds are accepted for processing.  Thresholds are defined as
+  follows:
+
+            0 = all data quality accepted    
+            1 = no yellow or red violations  
+            2 = one or two yellow violations and no red violations
+            3 = three or more yellow violations and no red violations
+            4 = no yellow violations and one or two red violations
+            5 = one or two yellow and one or two red violations
+            6 = three or more yellow and one or two red violations
+            7 = three or more red violations
+
+2 /RSE
+
+  /[NO]RSE=filename    (Default is /NORSE)
+   
+  This file contains the record selection expressions (RSE) to be applied
+  to the engineering data sets.  The RSEs are used to filter the data and
+  screen out undesirable instrument phenomena.
+
+2 /MINSUN
+
+ /MINSUN=minsun        (Default is 0.0)
+
+ Rejects all science data records with SUN_ANGLE values less than minsun.
+ The value is specified in units of degrees.  The default is 0.0 degrees.
+
+2 /MAXSUN
+
+ /MAXSUN=maxsun        (Default is 180.0)
+
+ Rejects all science data records with SUN_ANGLE values greater than maxsun.
+ The value is specified in units of degrees.  The default is 180.0 degrees.
+
+2 /MINMOON
+
+ /MINMOON=minmoon       (Default is 0.0)
+
+ Rejects all science data records with MOON_ANGLE values less than minmoon.
+ The value is specified in units of degrees.  The default is 0.0 degrees.
+
+2 /MAXMOON
+
+ /MAXMOON=maxmoon       (Default is 180.0)
+
+ Rejects all science data records with MOON_ANGLE values greater than maxmoon.
+ The value is specified in units of degrees.  The default is 180.0 degrees.
+
+2 /MINEARTH
+
+ /MINEARTH=minearth     (Default is 0.0)
+
+ Rejects all science data records with EARTH_LIMB angle values less than 
+ minearth.  The value is specified in units of degrees.  The default is 0.0
+ degrees.
+
+2 /MAXEARTH
+
+ /MAXEARTH=maxearth     (Default is 180.0)
+
+ Rejects all science data records with EARTH_LIMB angle values greater than 
+ maxearth.  The value is specified in units of degrees.  The default is 180.0
+ degrees.
+
+2 /REPORT
+
+  /[NO]REPORT[=filename]    
+  /REPORT=FSS_jstart_jstop.REP_runtime    Default
+
+  This, in conjunction with /DETAIL, selects the report to be generated.  The
+  default report filename is FSS_jstart_jstop.REP_runtime, where jstart is the
+  start time, jstop is the stop time and runtime is the processing time; the
+  dafault values for jstart, jstop and runtime have the form YYDDDHH.
+
+2 /DETAIL
+
+  /DETAIL=(SUMMARY, FULL)       (Default is SUMMARY)
+
+  This option selects the detail level in the FSS report.  A summary report
+  includes information on record failure reasons.  Specify FULL if additional
+  information on the coadd groups is required; a full detail report identifies
+  the pixel number, scan mode and ICAL temperature bin of each group, and 
+  lists the number of records comprising the group.
+
+2 /JSTART
+
+  The start time, supplied in Julian day format (YYDDDHHMMSSCCC), specifies 
+  the begining time of raw science input to FSS. Unspecified digits of 
+  HHMMSSCCC will be padded with zeroes.  For example, /JSTOP=90123 is
+  translated as /JSTOP=90123000000000.
+
+2 /JSTOP
+
+  The stop time, supplied in Julian day format (YYDDDHHMMSSCCC), specifies 
+  the stop time of the output skymap created by FSS and the stop time of raw 
+  science input.  Unspecified digits of HHMMSSCCC will be padded with the 
+  maximum time of 235959990.  For example, /JSTOP=90123 is translated as
+  /JSTOP=90123235959990.
+
+2 /MTM
+
+   /MTM=(SS|SF|LS|LF|ALL)    (Default is ALL)
+
+   MTM selects data from the four mirror transport mechanism modes.
+   These are specified by length ([S]hort,[L]ong) and speed ([S]low,[F]ast).
+
+2 /TEMPTOL
+
+   /TEMPTOL[=value]              (Default is 5.0 mK)
+
+   TEMPTOL specifies the temperature tolerance for the ICAL variation. Only 
+   the records which have an ICAL temperature within the tolerance of the 
+   user specified, or defaulted, temperature bin midpoint(s) will be included 
+   in the processing. See /BINS help for temperature bins. Units are in 
+   milli-kelvin.
+
+2 /MAX_DIHED
+
+   /MAX_DIHED[=value]              (Default is 3.0 Degrees Kelvin)
+
+   MAX_DIHED specifies the maximum allowed temperature for the dihedrals. 
+   Data with temperatures higher than this value will be excluded.  Units 
+   are in kelvin.
+
+2 /BINS
+   
+   /BINS[=(temp_1, temp_2,...)] (Default is 2.747, 2.758, 2.771 Degrees K)
+
+   BINS specifies the ICAL temperatures to be processed. Only data which fall
+   within a user-given, or defaulted, tolerance of these temperatures will be 
+   processed. See help on /TEMPTOL for the temperature tolerance.  Units are 
+   in kelvin.
+
+2 /MPMODES
+  
+   /MPMODES[=(0, 1, 2, 3, 4, ALL)   (Default is ALL) 
+
+   MPMODES specifies the microprocessor mode(s) to process. 
+
+2 /INSKYMAP
+
+   /INSKYMAP=extension
+
+   INSKYMAP is used to specify the file extension of the input skymap.  Only 
+   the extension may be specified; e.g., if the input skymap has the name
+   FSS_SSSKY_LL.PREVIOUS_RUN, then the extension should be specified as 
+   follows.
+
+                    /INSKYMAP=PREVIOUS_RUN
+
+2 /OUTSKYMAP
+
+   /OUTSKYMAP=extension
+   /OUTSKYMAP=ED_jstart_jstop    is the default
+
+   OUTSKYMAP is used to specify the file extension of the output skymap.  
+   Only the extension may be specified; e.g., the user specification
+
+                    /OUTSKYMAP=ED_90128_90129
+
+   would result in the output file(s) being named FSS_SSSKY_xx.ED_90128_90129, 
+   where xx is the channel.
+
+2 /ENGFILE
+   
+   /ENGFILE=extension
+
+   ENGFILE is used to specify the file name of the input engineering file.  
+   Only the extension may be specified.; e.g., if the input engineering file
+   has the name FDQ_ENG.ED_901400000, then the extension should be specified 
+   as follows.
+
+                    /INSKYMAP=ED_901400000
+
+2 /WRITE  
+
+   /[NO]WRITE         (Default is WRITE)
+
+   WRITE specifies whether an output skymap will be written.
+
+2 /OLDEST
+
+   /OLDEST[=YYDDDHHMMSSMMM]    (Default is 89320000000000)
+
+   OLDEST specifies the earliest acceptable time for data from an input 
+   skymap.  When the /CLOSEOLD option is applied to an input skymap 
+   (specified by INSKYMAP), OLDEST may be used to exclude from processing 
+   the straggling records which have time tags earlier than user the 
+   specified time limit.
+
+2 Logicals
+
+  The FSS input and output datasets can be directed to user specified 
+  archives by appropriate definitions of the FIRAS logical names.
+
+  CSDR$FIRAS_IN:   FSS_SSSKY_xx
+  CSDR$FIRAS_OUT:  FSS_SSSKY_xx 
+  CSDR$FIRAS_RAW:  FDQ_SDF_xx, FDQ_ENG
+  CSDR$FIRAS_REF:  FEX_MINCOADD, FEX_GRTRAWWT, FEX_GRTTRANS
+ 
+  where xx in the dataset name indicates a channel specifier (RH,RL,LH,LL).
+
+2 Examples
+
+  Example 1: Select data from a specified time range.
+
+       $ FSS/JSTART=901200000/JSTOP=901400000/CHANNEL=LL/DETAIL=FULL -
+            /REPORT/GALAXY=10/FIRST_RUN/QUALITY=(INSTRUMENT=3,ATTITUDE=3) -
+            /OUTSKYMAP=PIXLIST_90120_90140/MAX_DIHED=3.5/MINMOON=22 -
+            /MINSUN=91.2/MINEARTH=87/BINS=2.758/PIXLIST
+
+  Example 2: Merge incomplete coadds from a previous skymap.
+
+       $ FSS/JSTART=901400000/JSTOP=9016000000/CHANNEL=LL/DETAIL=FULL -
+            /REPORT/GALAXY=10/NOFIRST_RUN/QUALITY=(INSTRUMENT=3,ATTITUDE=3) -
+            /OUTSKYMAP=PIXLIST_90135_90160/MAX_DIHED=3.5/MINMOON=22 -
+            /MINSUN=91.2/MINEARTH=87/BINS=2.758/PIXLIST -
+            /INSKYMAP=PIXLIST_90120_90140/CLOSEOLD/OLDEST=90135
+
+  In the second example, data selection will include IFGs from the skymap 
+  generated in example 1.  The CLOSEOLD qualifier directs FSS to use only 
+  the IFGs which are smaller than a complete coadd group in the input skymap.
+  As specified by the value of OLDEST in example 2, FSS will select only
+  the input skymap IFGs with time tags later than 90135 to be merged with 
+  with the skymap of the current data selection process.

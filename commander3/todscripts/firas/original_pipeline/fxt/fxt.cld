@@ -1,0 +1,71 @@
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!                                                                             !
+!		Command Line Definition File for FXT_Log_Extrema              !
+!        	------------------------------------------------              !
+!		FXT_Log_Extrema logs the current minima and maxima            !
+!		for engineering analogs into the COBETRIEVE Archive.          !
+!                                                                             !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+		Define Verb FXT
+
+       		Image "CSDR$SYSTEM:FXT.EXE"
+
+	    		Synonym Minmax
+
+            		Qualifier Engfile,
+			          Value(Required,Type=$FILE),
+                                  Nonnegatable
+
+            		Qualifier Jstart,
+		      		  Value(Required),
+				  Nonnegatable
+
+            		Qualifier Jstop,
+		      		  Value(Required),
+				  Nonnegatable
+
+			Qualifier Init,
+				  Nonnegatable
+
+			Qualifier Filter,
+				  Value(Type=$NUMBER,Default=2),
+                                  Default,
+				  Nonnegatable
+
+            		Qualifier Plots,
+				  Value(Type=Plot_Type),
+				  Default
+
+			Qualifier Min_Offtime,
+				  Value(Type=$NUMBER,Default=12),
+                                  Default,
+				  Nonnegatable
+
+			Qualifier Max_Offtime,
+				  Value(Type=$NUMBER,Default=24),
+                                  Default,
+				  Nonnegatable
+
+			Qualifier Flags,
+				  Nonnegatable
+
+	    		Qualifier Report,
+				  Value(Type=$FILE),
+                      		  Negatable 
+
+
+
+	   	 	Disallow Jstart and not Jstop
+
+	    		Disallow Jstop and not Jstart
+
+			Disallow Jstart and Engfile
+
+			Disallow Jstop and Engfile
+
+		Define Type Plot_Type
+		        Keyword None, Default
+			Keyword Lineprinter
+			Keyword Lasqms
+			Keyword Lastf

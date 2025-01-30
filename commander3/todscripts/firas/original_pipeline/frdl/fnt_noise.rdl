@@ -1,0 +1,35 @@
+!
+! Phase corrected spectra.
+!
+RECORD/DURATION=0:0:32  FNT_NOISE FNT_NOISE
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+  structure COA_HEAD
+    include spec_head.rdl
+  endstructure
+
+  structure CHAN
+!
+! Spectra data.
+!
+        include chan_data.rdl
+
+        array/floatc/dim=512    SPEC
+                                !  Spectrum
+        array/float/dim=512     SIGMAS
+                                !  Spectrum sigmas
+
+        array/byte/dim=32       SPEC_SPARES
+                                !  Spares
+  endstructure
+
+  structure ATTIT
+    include attitude.rdl
+  endstructure
+
+  array/byte/dim=52     NOISE_SPARES
+
+END_RECORD

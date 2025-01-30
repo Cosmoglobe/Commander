@@ -1,0 +1,35 @@
+c------------------------------------------------------------------------
+c
+c	FRD_MODEL_INVOC.TXT
+c
+c	This include file contains the invocation parameters for 
+c	FRD_EXTRACT_MODEL.
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 2 October 1992
+c		 SER 8178
+c
+c------------------------------------------------------------------------
+
+c
+c  Define the input and output file name extensions
+c
+	character * 32	fcc_infile_ext		!  input file name extension
+	character * 20	fcc_outfile_ext		!  output file name extension
+
+c
+c  Define the model solution scan mode.
+c
+	integer * 4	fcc_chan		!  channel number
+	integer * 4	fcc_length		!  mtm scan length
+	integer * 4	fcc_ngroup		!  adds per group
+	integer * 4	fcc_smode		!  mtm scan mode
+	integer * 4	fcc_speed		!  mtm scan speed
+
+c
+c  Define the common block.
+c
+	common  /fcc_invoc/  fcc_infile_ext, fcc_outfile_ext, fcc_chan,
+     .			     fcc_smode, fcc_length, fcc_speed, fcc_ngroup

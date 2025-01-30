@@ -1,0 +1,18 @@
+        record FSD_SKY FSD_SKY
+!
+! Record structure for FSD_Astroplots Skymaps
+!
+        scalar/long             PIXEL_NO
+                                !  FIRAS pixel number
+        scalar/float            PEAK_HT
+                                !  IFG peak height
+        scalar/float            GLITCH_RATE
+                                !  Glitch rate
+        scalar/float            DEGL_NOISE
+                                !  Deglitcher noise level
+        scalar/long             NUM_PTS
+                                !  Number of points averaged
+                                !  to get these fluxes
+        array/byte/dim=44       SPARES
+                                !  Skyrec spares
+        end_record

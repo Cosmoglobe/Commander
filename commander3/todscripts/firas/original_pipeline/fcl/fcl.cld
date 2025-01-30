@@ -1,0 +1,54 @@
+!   FIRAS_CalibrateCovariances_Long (FCL) Command Language Definition File
+!
+!   Author: S. Brodd, HSTX, 12/95, SPR 12291
+!
+!   Modifications:
+!
+define verb fcl_calibratecovariances_long
+
+       image "csdr$system:fcl.exe"
+  
+       qualifier channel
+                 value(type=fcl_channel,required)
+                 nonnegatable
+
+       qualifier scan_mode
+                 value(type=fcl_scan_mode,required)
+                 nonnegatable
+
+       qualifier cov_ext
+                 value(type=$file,required)
+                 nonnegatable
+
+       qualifier mod_ext
+                 value(type=$file,required)
+                 nonnegatable
+
+       qualifier bol_avg
+                 value(required)
+                 nonnegatable
+
+       qualifier cbias_avg
+                 value(required)
+                 nonnegatable
+
+       qualifier volt_avg
+                 value(required)
+                 nonnegatable
+
+       qualifier label
+                 value
+                 nonnegatable
+
+define type fcl_channel
+       keyword rh
+       keyword rl
+       keyword lh
+       keyword ll
+
+define type fcl_scan_mode
+       keyword ss
+       keyword sf
+       keyword lf
+       keyword fs
+       keyword fl

@@ -1,0 +1,93 @@
+c-------------------------------------------------------------------------------
+c
+c	FIP_CONFIG_MODEL.TXT
+c
+c	This include file contains the CCT_GET_CONFIG parameters for FIP_MODEL.
+c	This file give access to the following reference datasets:
+c
+c		Sequential:		Direct:
+c
+c		FEX_NYQUIST		FEX_APOD
+c					FEX_ETF
+c
+c	Author:	 Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 25 May 1993
+c
+c-------------------------------------------------------------------------------
+
+
+	Include '(cct_get_config)'
+
+
+c  The sequential-access reference datasets.
+
+	character * 32	dset_tod
+	data dset_tod /'CSDR$FIRAS_REF:FEX_NYQUIST'/
+
+	integer *  4	ndset_tod /1/
+	integer *  4	size_tod /128/
+	integer *  4	tod_index
+	integer *  4	tod_lun
+
+	logical *  1	new_tod_segment
+
+	dictionary 'fex_nyquist'
+	record /fex_nyquist/  nyquist
+
+	record /config_status/  tod_stat
+
+
+c  The direct-access reference datasets.
+
+	character * 32	dset_dir(2)
+	data dset_dir(1) /'CSDR$FIRAS_REF:FEX_APOD'/
+	data dset_dir(2) /'CSDR$FIRAS_REF:FEX_ETF'/
+
+	integer	*  4	dir_index(2)
+	integer	*  4	dir_lun(2)
+	integer	*  4	ndset_dir /2/
+	integer	*  4	size_dir(2) /4096, 4112/
+
+	logical	*  1	new_dir_segment(2)
+
+	record /config_status/ dir_stat(2)
+
+
+c  Common variables and reference data effective time range.
+
+	character *  6	dir_access /'DIRECT'/
+	character * 14	ref_gmt_start /'86001000100000'/
+	character * 14	ref_gmt_stop  /'99365235859999'/
+	character * 14	ref_gmt_time
+	character *  1	seq_access /' '/
+	integer *  4	ncache /1/
+	integer *  4	ref_count
+	integer	*  4	ref_start(2)
+	integer	*  4	ref_stop(2)
+	integer	*  4	ref_time(2)
+
+c
+c  Define the frequency variables, the apodization function, and the electronics
+c	transfer function.
+c
+
+	complex * 16	ztrans(257)		!  electronics transfer function
+
+	real	*  4	fnyq_hz			!  Nyquist frequency in hz
+	real	*  4	fnyq_icm		!  Nyquist frequency in icm
+	real	*  4	spec_norm		!  spectrum normalization factor
+
+	real	*  8	apod_fcn(512)		!  apodization function
+
+
+c
+c  Define the common block.
+c
+
+	common /fcc_config_data/ tod_lun, tod_index, tod_stat,
+     .				 dir_lun, dir_index, dir_stat,
+     .				 ref_start, ref_stop, ref_gmt_time, ref_time,
+     .				 nyquist, fnyq_icm, fnyq_hz, spec_norm,
+     .				 apod_fcn, ztrans

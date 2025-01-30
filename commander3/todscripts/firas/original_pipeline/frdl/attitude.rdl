@@ -1,0 +1,176 @@
+!
+! Attitude related quantities.
+! All quantities are in Epoch 2000.0 coordinates.
+!
+        scalar/long             PIXEL_NO
+                                !  FIRAS pixel number
+        array/float/dim=3       EQUATORIAL
+                                !  FIRAS pointing in
+                                !  celestial equatorial
+                                !  coordinates
+                                !    Unit vectors
+        scalar/word             RA
+                                !  Right ascension of
+                                !  FIRAS pointing
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             DEC
+                                !  Declination of FIRAS
+                                !  pointing
+                                !    Range: - Pi/2 to + Pi/2
+                                !    Units: 10**-4 radians
+        scalar/long             TERR_PIXEL_NO
+                                !  Terrestrial coordinates
+                                !  based pixel number
+        scalar/word             TERR_LATITUDE
+                                !  Terrestrial latitude of
+                                !  COBE
+                                !    Range: - Pi/2 to + Pi/2
+                                !    Units: 10**-4 radians
+        scalar/word             TERR_LONGITUDE
+                                !  Terrestrial longitude of
+                                !  COBE
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             EARTH_LIMB
+                                !  Angle of Earth limb from
+                                !  FIRAS skyhorn Line-of-Sight
+                                !    Range: 0 to Pi
+                                !    Units: 10**-4 radians
+        scalar/word             EARTH_LIMB_AZIMUTH
+                                !  Azimuth angle of Earth limb
+                                !  about FIRAS LOS in SC frame
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             SUN_ANGLE
+                                !  Angle of Sun in FIRAS
+                                !  skyhorn LOS
+                                !    Range: 0 to Pi
+                                !    Units: 10**-4 radians
+        scalar/word             MOON_ANGLE
+                                !  Angle of Moon in FIRAS
+                                !  skyhorn LOS (phi)
+                                !    Range: 0 to Pi
+                                !    Units: 10**-4 radians
+        scalar/word             MOON_AZ_ANGLE
+                                !  Azimuth angle of Moon about
+                                !  FIRAS LOS in SC frame
+                                !  (theta)
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             MOON_PHASE
+                                !  Phase of Moon
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/float            SUN_MOON_DIST
+                                !  Sun-Moon distance
+                                !    Units: km
+        scalar/float            COBE_MOON_DIST
+                                !  COBE-Moon distance
+                                !    Units: km
+        scalar/word             ALTITUDE
+                                !  COBE altitude
+                                !    Units: 0.1 km
+        scalar/word             PROJECTED_BARYCENTRIC_VELOCITY
+                                !  Solar system barycentric vel
+                                !  of COBE projected along LOS
+                                !    Units: 0.01 km/sec
+        scalar/word             MCILWAIN_L_PARAM
+                                !  McIlwain L parameter
+                                !    Units: Earth radii
+        scalar/word             GALACTIC_LONGITUDE
+                                !  Galactic longitude
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             GALACTIC_LATITUDE
+                                !  Galactic latitude
+                                !    Range: - Pi/2 to + Pi/2
+                                !    Units: 10**-4 radians
+        scalar/word             ECLIPTIC_LONGITUDE
+                                !  Ecliptic longitude
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             ECLIPTIC_LATITUDE
+                                !  Ecliptic latitude
+                                !    Range: - Pi/2 to + Pi/2
+                                !    Units: 10**-4 radians
+        scalar/word             ORBITAL_PHASE
+                                !  Geocentric angle from
+                                !  the orbital ascending
+                                !  node to COBE position
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             PROJECTED_GEOCENTRIC_VELOCITY
+                                !  Geocentric velocity of
+                                !  COBE projected along LOS
+                                !    Units: 0.001 km/sec =
+                                !                  m/sec
+        scalar/word             SCAN_ANGLE
+                                !  Azimuth angle, about the
+                                !  Sun direction, of FIRAS
+                                !  LOS, positive in the
+                                !  ascending sense from the
+                                !  ecliptic
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/word             SC_ROTATION_ANGLE
+                                !  Spaceraft Rotation Angle
+                                !    Range: - Pi to + Pi
+                                !    Units: 10**-4 radians
+        scalar/byte             SOLUTION
+                                ! Source of attitude
+                                ! solution
+                                !   None      = 0
+                                !   Simulated = 1
+                                !   Predicted = 2
+                                !   Coarse    = 3
+                                !   Fine without Dirbe = 4
+                                !   Fine with Dirbe = 5
+                                !   Definitive = 6
+        scalar/text/length=1    PIXEL_DEFINITION
+                                ! Type of pixelization:
+                                !   'q' = standard quad-cube
+                                !   'O' = orbit average
+                                !   'S' = scan angle
+                                !   'E' = geocentric
+                                !         quad-cube
+        scalar/word             SKYMAP_INDEX
+                                ! Information supporting
+                                ! PIXEL_DEFINITION:
+                                !
+                                !  Type    SKYMAP_INDEX Content
+                                !    q      standard quad-cube
+                                !           skymap index
+                                !    O      orbit origin
+                                !          (units = 0.1d)
+                                !    S      scan angle
+                                !          (units = 0.1d)
+                                !    E      skymap index
+        scalar/word             EXC_GALACTIC_LAT
+                                ! Exclude data within +/-
+                                ! Galactic latitude
+                                !   Range: 0 to +Pi/2
+                                !   Units: 10**-4 radians
+        scalar/byte             TERR_RAD_BYTE
+                                ! Terrestrial radiation region location flag
+                                ! Information only
+                                ! Region determined from mission planning files
+                                ! Bit 0 = OK
+                                ! Bit 1 = North Van Allen Belt
+                                ! Bit 2 = South Van Allen Belt
+                                ! Bit 3 = South Atlantic Anomaly
+                                ! Independent of attitude quality flags
+        scalar/byte             OUTSIDE_GALAXY_CUT
+                                ! Flag indicating whether FDS destriper
+                                ! included this record in its stripe
+                                ! calculation based on whether its pixel center
+                                ! is outside the galactic latitude cut in the
+                                ! FDS driver.  This flag is set by FAD.
+                                ! 0 = not set yet (pre-FAD data)
+                                ! 1 = record included (outside > galactic cut )
+                                ! 2 = record excluded (within <= galactic cut )
+!
+! Fill the rest of the block.
+!
+        array/byte/dim=2        ATT_SPARES
+                                !  Rest of the record

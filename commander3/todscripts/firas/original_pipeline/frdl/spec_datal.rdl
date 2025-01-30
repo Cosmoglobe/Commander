@@ -1,0 +1,87 @@
+        !
+        !  Spectrum data
+        !
+        scalar/text/length=14   MODEL_TTAG
+                                !  Model solution time tag
+        scalar/text/length=40   MODEL_LABEL
+                                !  Model solution ID label
+        scalar/text/length=80   COMBINE_SCRIPT
+                                !  FCS script file name
+        scalar/float            RESPONSIVITY
+                                !  Bolometer responsivity
+        scalar/float            RESP_SIGMA
+                                !  Bolometer responsivity sigma
+        scalar/float            TIME_CONSTANT
+                                !  Bolometer time constant
+        scalar/float            TC_SIGMA
+                                !  Bolometer time constant sigma
+        scalar/long             FFT_LENGTH
+                                !  Length of fast Fourier
+                                !    transform used
+        scalar/long             LOFREQ_BIN
+                                !  Lowest frequency bin for 
+                                !    which calibrated spectrum
+                                !    is non-zero.
+        scalar/long             HIFREQ_BIN
+                                !  Highest frequency bin for 
+                                !    which calibrated spectrum
+                                !    is non-zero.
+        array/floatc/dim=361    SPEC
+                                !  Spectrum
+        array/float/dim=361     REAL_VAR
+                                !  Variance of means contributed
+                                !    by real part of spectra
+        array/float/dim=361     IMAG_VAR
+                                !  Variance of means contributed
+                                !    by imaginary part of spectra
+        array/float/dim=361     REAL_IMAG_VAR
+                                !  Covariances between real and
+                                !    imaginary parts of spectra
+        scalar/float            PHASE_CORR
+                                !  Linear autophase correction
+        scalar/float            PC_SIGMA
+                                !  Linear autophase correction sigma
+        scalar/float            QRAD
+                                !  IR power from bolometer model (Watts)
+        scalar/float            QRAD_SIGMA
+                                !  IR power sigma
+        scalar/float            IR_POWER
+                                !  IR power from Planck functions (Watts)
+        scalar/float            IR_POWER_SIGMA
+                                !  IR power sigma
+        scalar/byte             CALIBRATED
+                                !  0 = Spectrum has not been
+                                !      calibrated
+                                !  1 = Spectrum has been
+                                !      calibrated
+        scalar/byte             COADD_VARS
+                                !  0 = Individual coadd variances 
+                                !      have not been used in 
+                                !      autophase correction
+                                !  1 = Individual coadd variances 
+                                !      have been used in 
+                                !      autophase correction
+        scalar/byte             FIL_VARS
+                                !  0 = Average coadd variances 
+                                !      from FIL have not been used in 
+                                !      autophase correction
+                                !  1 = Average coadd variances 
+                                !      from FIL have been used in 
+                                !      autophase correction
+        scalar/byte             FSL_VARS
+                                !  0 = Calibrated variances from
+                                !      FSL have not been used in 
+                                !      autophase correction
+                                !  1 = Calibrated variances from
+                                !      FSL have been used in 
+                                !      autophase correction
+        scalar/byte             DESTRIPED
+                                !  0 = Spectrum has not been
+                                !      destriped
+                                !  1 = Spectrum has been
+                                !      destriped
+        array/byte/dim=24       SPARES
+                                !  Spare bytes
+     structure COMBINATIONS
+       include combinations.rdl
+     endstructure

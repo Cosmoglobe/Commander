@@ -1,0 +1,28 @@
+!
+! Engineering record trailer.
+!
+        array/byte/dim=8        ENGTAIL_SPARES
+                                !  Channel specific spares
+        scalar/byte             HSKP_FLAG
+                                !  Housekeeping flag
+                                !  0=housekeeping present
+                                !  1=no housekeeping data for
+                                !  time of engineering record
+        scalar/float            LMAC_ANALOG_TEMP
+                                !  LMAC temperature for analog
+                                !  converter. 
+                                !  Spacecraft Sides 1 and 2
+                                !  read FIRAS A Side only.
+        scalar/float            LMAC_DIGITAL_TEMP
+                                !  LMAC temperature for digital
+                                !  converter. 
+                                !  Spacecraft Sides 1 and 2
+                                !  read FIRAS A Side only.
+        array/byte/dim=2        TLM_QUAL_MAJ_FRM
+                                !  Overall telemetry quality
+                                !  for MJF
+!
+! Fill the record out to a block boundary.
+!
+        array/byte/dim=9        ENG_SPARES
+                                !  Engineering record spares

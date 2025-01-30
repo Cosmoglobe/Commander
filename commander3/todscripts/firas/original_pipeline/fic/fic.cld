@@ -1,0 +1,162 @@
+!   FIRAS_Interferogram_Coaddition (FIC) Command Language Definition File
+!
+!   Author: S. Alexander, HSTX, 2/92
+!
+!   Modifications:
+!
+define verb fic_interferogram_coadd
+
+       image "csdr$system:fic.exe"
+  
+!   Qualifiers specifying input.
+
+       qualifier input
+                 value(type=fic_input)
+                 nonnegatable
+                 default
+
+       qualifier channel
+                 value(type=fic_channel)
+                 nonnegatable
+                 default
+
+       qualifier scan_mode
+                 value(type=fic_scan_mode)
+                 nonnegatable
+                 default
+
+       qualifier file
+                 value(type=$file,required)
+
+       qualifier jstart
+                 value(required)
+                 nonnegatable
+
+       qualifier jstop
+                 value(required)
+                 nonnegatable
+
+       qualifier rse
+                 value(type=$file,required)
+
+       qualifier covar
+                 value(type=fic_covar)
+
+       qualifier quality
+                 value(type=fic_quality,list)
+                 nonnegatable 
+                 default
+
+!   Qualifiers specifying facility operations to be performed.
+
+       qualifier single
+
+       qualifier inst_state
+                 default
+  
+       qualifier pixel_no
+                 default
+
+       qualifier sec_template
+                 default
+
+       qualifier deglitch
+                 default
+
+       qualifier shape_check
+                 default
+
+       qualifier coadd
+                 default
+
+       qualifier baseline_sub
+                 default
+ 
+!   Qualifiers specifying output and reports.
+
+       qualifier output
+                 value(type=fic_output,list)
+                 default
+
+       qualifier outfile
+                 value(type=$file,required)
+
+       qualifier report
+                 value(type=fic_report)
+
+!   Disallowed combinations of qualifiers.
+
+disallow file and (jstart or jstop)
+disallow rse and (not input.raw)
+disallow covar and (input.raw or input.calibration)
+disallow covar and (scan_mode.ls)
+disallow covar and (neg inst_state)
+disallow covar and (neg pixel_no)
+disallow covar and (neg deglitch)
+disallow covar and (neg shape_check)
+disallow covar and (neg coadd)
+disallow single and covar
+disallow single and (neg coadd)
+disallow baseline_sub and (neg coadd)
+disallow (output.template or output.sec_template) and (single or 
+         ((neg deglitch) and (neg shape_check)) or (neg coadd))
+disallow output.deglitch and (single or (neg deglitch))
+disallow output.coadd and (neg coadd)
+disallow output.baseline_sub and (neg baseline_sub)
+disallow outfile and (neg output)
+disallow report.detail and (single or (neg deglitch))
+
+define type fic_input
+       keyword sky
+               default
+       keyword calibration
+       keyword raw
+
+define type fic_channel
+       keyword rh
+       keyword rl
+       keyword lh
+       keyword ll
+       keyword right
+       keyword left
+       keyword high
+       keyword low
+       keyword all
+               default
+
+define type fic_scan_mode
+       keyword ss
+       keyword sf
+       keyword ls
+       keyword lf
+       keyword all
+               default
+
+define type fic_covar
+       keyword new
+       keyword update
+               default
+
+define type fic_quality
+       keyword instrument
+               value(type=$number,default=3)
+               default 
+       keyword attitude
+               value(type=$number,default=3)
+               default
+
+define type fic_output
+       keyword template
+       keyword sec_template
+       keyword deglitch
+       keyword con_check
+       keyword coadd
+       keyword baseline_sub
+               default
+
+define type fic_report
+       keyword summary
+               value(type=$file)
+               default
+       keyword detail
+               value(type=$file)

@@ -1,0 +1,56 @@
+c-------------------------------------------------------------------------------
+c
+c	FIP_MODEL.TXT
+c
+c	This include file contains the FIRAS calibration model solution that
+c	FIP_MODEL will write to the Initial Product RDL.
+c
+c	Author:  Gene Eplee
+c		 General Sciences Corp.
+c		 513-7768
+c		 24 May 1993
+c
+c-------------------------------------------------------------------------------
+c
+c	Changes:
+c
+c	Added FEX_CVS record structure.  Gene Eplee, GSC, 29 September 1993.
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define required processing parameters.
+c
+	integer * 4	fcc_cvs_size	!  FEX model solution size in long words
+	parameter	(fcc_cvs_size = 544)
+	integer * 4	fcc_fip_size	!  FIP model solution size in long words
+	parameter	(fcc_fip_size = 3645)
+	integer * 4	fcc_mod_size	!  FEX model solution size in long words
+	parameter	(fcc_mod_size = 7424)
+
+c
+c  Define the model solution variables.
+c
+	real	* 8	bol_volt	!  detector voltage
+	real	* 8	cmd_bias	!  commanded bolometer bias
+	real	* 8	S0		!  detector responsivity
+	real	* 8	tau		!  detector time constant
+	real	* 8	Tbol		!  actual detector temperature
+	real	* 8	Tdet		!  measured detector temperature
+
+c
+c  Define the model solution and FEX_CVS RDL's.
+c
+	dictionary 'fex_cvs'
+	record /fex_cvs/ fex_cvs
+	dictionary 'fex_mod'
+	record /fex_mod/ fex_model
+	dictionary 'fip_mod'
+	record /fip_mod/ fip_model
+
+c
+c  Define the common block.
+c
+
+	common  /fcc_model/  cmd_bias, bol_volt, Tdet, Tbol, S0, tau,
+     .			     fex_cvs, fex_model, fip_model

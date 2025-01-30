@@ -1,0 +1,157 @@
+!
+! Consistency Check Thresholds
+!
+record FEX_CTH FEX_CTH
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+!
+! Values for instrument state consistency check
+!
+  array/float/dim=4     BOLOMETER_VOLTAGE_TOLERANCES
+                        ! Fractional tolerances for
+                        !   bolometer voltages by
+                        !   channel
+  array/float/dim=10    GRT_TOLERANCES
+                        ! Fractional tolerances for
+                        !   GRT temperatures in
+                        !   FUT_TEMP_LIST order
+  array/float/dim=(5,3) SPATIAL_GRADIENTS
+                        ! Constants X,Y,Z for
+                        !   spatial gradient check
+                        !   |B-A| <= X+Y*A+Z*B
+                        !   for 1 - XCAL S5 vs. S6
+                        !   2 - XCAL tip vs. horn
+                        !   3 - ICAL
+                        !   4 - skyhorn
+                        !   5 - refhorn
+                        !   Units: X - degrees K;
+                        !          Y,Z - none
+  array/word/dim=20     TEMPORAL_GRADIENTS
+                        ! Absolute tolerances for 
+                        !   bracketing major frame 
+                        !   temperature differences
+                        !   for A side (1 - 10) and
+                        !   B side (11 - 20) in
+                        !   FUT_TEMP_LIST order
+                        !   Units: tenth of a milliK
+!
+! Values for neighbor selection
+!
+  array/float/dim=4     GAL_LAT_CUTOFF
+                        ! Galactic latitude cutoff
+                        !   by channel
+                        !   Units: degrees
+!
+! Values for secondary template formation
+!
+  array/float/dim=4     UPPER_BOUNDS
+                        ! Upper fractional bounds
+                        !   for secondary template
+                        !   by channel
+  array/float/dim=4     LOWER_BOUNDS
+                        ! Lower fractional bounds
+                        !   for secondary template
+                        !   by channel
+  array/word/dim=4      PEAK_POINTS
+                        ! Odd number of points around
+                        !   and including ifg peak 
+                        !   for secondary template 
+                        !   fitting by channel
+  array/float/dim=(4,4) PRIM_TEMP_AMP
+                        ! Lower cutoff of primary
+                        !   template amplitude for
+                        !   sec template subtraction
+                        !   stored by 
+                        !   1: channel RH,RL,LH,LL
+                        !   2: scan mode SS,SF,LS,LF
+  array/float/dim=(4,4) PRIM_TEMP_SNR
+                        ! Lower cutoff of primary
+                        !   template signal/noise for
+                        !   sec template subtraction
+                        !   stored by 
+                        !   1: channel RH,RL,LH,LL
+                        !   2: scan mode SS,SF,LS,LF
+  array/float/dim=(4,4) SEC_TEMP_AMP
+                        ! Lower cutoff of secondary
+                        !   template amplitude for
+                        !   sec template subtraction
+                        !   stored by 
+                        !   1: channel RH,RL,LH,LL
+                        !   2: scan mode SS,SF,LS,LF
+  array/float/dim=(4,4) SEC_TEMP_SNR
+                        ! Lower cutoff of primary
+                        !   template signal/noise for
+                        !   sec template subtraction
+                        !   stored by 
+                        !   1: channel RH,RL,LH,LL
+                        !   2: scan mode SS,SF,LS,LF
+!
+! Values for shape consistency check
+!
+  array/float/dim=4     MIN_IFG_NOISE
+                        ! Minimum ifg noise
+                        !   by channel
+  array/float/dim=4     MAX_IFG_NOISE
+                        ! Maximum ifg noise
+                        !   by channel
+  array/long/dim=(2,4)  MASK_IFG
+                        ! Value below which to 
+                        !   disregard ifg;
+                        !   stored by 
+                        !   1: frequency (high, low)
+                        !   2: four scan modes
+                        !      (SS, SF, LS, LF)
+  array/float/dim=4     MAX_POINT_DEVIATION
+                        ! Maximum ifg point
+                        !   deviation from 
+                        !   the average noise
+                        !   by channel
+  array/word/dim=4      MAX_BAD_POINTS
+                        ! Maximum number of
+                        !   point deviations
+                        !   by channel
+  array/word/dim=4      MIN_IFG_SHAPE_COADD
+                        ! Minimum number of ifgs 
+                        !   required to coadd
+                        !   by channel
+!
+! Values for binning cutoffs for statistics
+!
+  scalar/float          XCAL_TEMP
+                        ! External calibrator
+                        !   temperature
+                        !   Units: degrees K
+  scalar/float          ICAL_TEMP
+                        ! Internal calibrator
+                        !   temperature
+                        !   Units: degrees K
+  scalar/float          SKYHORN_REFHORN_AVG
+                        ! Average of skyhorn
+                        !   and refhorn temps
+                        !   Units: degrees K
+  scalar/float          DIHEDRAL_TEMP
+                        ! Dihedral temperature
+                        !   Units: degrees K
+  array/float/dim=4     BOLOMETER_TEMP
+                        ! Bolometer temperature
+                        !   by channel
+                        !   Units: degrees K
+  array/float/dim=4     GLITCH_RATE
+                        ! Glitch rate per
+                        !   second by channel
+  scalar/word           ABS_GALACTIC_LAT
+                        ! Absolute galactic
+                        !   latitude
+                        !   Units: 10**-4 radians
+  scalar/text/length=14 GMT_TIME_SAA
+                        ! Time when MTM began to
+                        !   be shut off during
+                        !   SAA passages
+  scalar/adt            TIME_SAA
+                        ! Time in binary
+
+  array/byte/dim=324    CTH_SPARES
+                        ! Pad to 1024 bytes
+end_record

@@ -1,0 +1,29 @@
+!
+!  RDL for FIRAS Reference Data of MTMSWEEP
+!
+!  This structure contains fields for reference data of the FULL sweep
+!  flyback time to be used by FPP in calculating the midpoint of
+!  collect time for the interferograms.
+!
+record FEX_MTMSWEEP FEX_MTMSWEEP
+
+! CT_HEAD contains the time data was taken.
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+! Times for each scan mode in units of tenths of microsecond.
+! Total time = Turn Around + Sweep + Flyback
+! Order of scan modes: SS, LS, SF, LF for times 1,2,3,4.
+
+  array/long/dim=4        TOTAL_SWEEP_FLYBACK
+
+! Flyback times for each mode.
+
+  array/long/dim=4        FLYBACK
+
+! Spares
+
+  array/byte/dim=32        SPARES
+  end_record

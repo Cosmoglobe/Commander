@@ -1,0 +1,26 @@
+c------------------------------------------------------------------------
+c
+c	This include file contains the housekeeping data information.
+c
+c	Author: R. Kummerer
+c		STX
+c		April 8, 1987
+c
+c------------------------------------------------------------------------
+c
+c Changes:
+c
+c	Add MAXRECS parameter.  R. Kummerer, August 20, 1987.
+c       Add TIMETAGS Variable.  H. Wang, Feb. 9, 1990.
+c------------------------------------------------------------------------
+
+	Integer		*4	nrecs
+	Byte	hskp_data(fac_hskp_frame_size+fac_notch_size,
+     .			  fac_max_hskp_recs)
+
+        Structure /HSK_Time/
+           Integer*4  Time(2)
+        END Structure
+
+        RECORD /HSK_Time/ Timetags(fac_max_hskp_recs)
+	Common /Data/ nrecs, hskp_data, timetags

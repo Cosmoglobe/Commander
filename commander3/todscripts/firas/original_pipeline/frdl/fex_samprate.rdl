@@ -1,0 +1,14 @@
+!
+! Sampling Rates
+! 
+record FEX_SAMPRATE FEX_SAMPRATE
+
+       scalar/float             SAMPLING_RATE
+                                !
+                                ! Sampling rate; either INT or mission
+                                !
+       array/byte/dim=60        SPARES
+                                !
+                                ! Spares
+                                !
+end_record

@@ -1,0 +1,15 @@
+.header level Data_Qualified_Raw_Science_File (FDQ_SDF)
+
+    This file contains all of the FIRAS raw science interferograms obtained
+during the mission.  It is originally written by the FIRAS Stripper,
+subsequently updated and rewritten by facilities FPP_PreProcessor and
+FDQ_Data_Qualify.  At this point, the data are fully qualified and in their
+complete, final form.  The raw data (in counts) remain unmodified during
+this process.
+    FDQ_Data_Qualify adds all instrument parameters that FPP_PreProcessor
+does not add (such as the gain, fake-it mode flag, external calibrator
+position), data quality flags (pertaining to a number of different factors), 
+and the time corresponding to the associated Engineering Data File record.  It
+also adds attitude information such as the pixel number, Moon aspect angles,
+the Moon phase, and distances from the Moon to the Sun and COBE.
+

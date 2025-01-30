@@ -1,0 +1,189 @@
+!------------------------------------------------------------------------------
+!
+!  Filename:
+!	FUT_PLOT_NAMES.TXT
+!
+!  Author:
+!	Shirley M. Read (STX), June 1988.
+!
+!  Purpose:
+!	For Build 4.0 the capability of triggering Engplots was added to FDQ.
+!       FDQ will write command line text files to generate Engplots for 
+!	engineering fields which exceeded either red or yellow limits .
+!
+!       *** The following field names can be selected for ***
+!       *** plotting using FEP_ENGPLOTS.  Specifically,   ***
+!       *** ENGPLOTS/FIELDS=(f1,...,f10) where fn is one  ***
+!       *** of the field name outlined below.             ***
+!
+!------------------------------------------------------------------------------
+
+	Character*30 	Plot_Name(118)
+!
+! 	GRT MENU : temperatures by A/B side and Low/High current.
+!
+!
+!                Side A, Low current.
+!
+	Data Plot_Name(1)   /        'XCAL_TEMP_AL' /
+        Data Plot_Name(2)   /        'SKY_HORN_TEMP_AL' /
+        Data Plot_Name(3)   /        'REFERENCE_HORN_TEMP_AL' /
+        Data Plot_Name(4)   /        'INTERNAL_CALIBRATOR_TEMP_AL' /
+        Data Plot_Name(5)   /        'DIHEDRAL_TEMP_AL' /
+        Data Plot_Name(6)   /        'BOLOMETER_ASSEMBLY_RH_TEMP_AL'/
+        Data Plot_Name(7)   /        'BOLOMETER_ASSEMBLY_RL_TEMP_AL'/
+        Data Plot_Name(8)   /        'BOLOMETER_ASSEMBLY_LH_TEMP_AL'/
+        Data Plot_Name(9)   /        'BOLOMETER_ASSEMBLY_LL_TEMP_AL'/
+        Data Plot_Name(10)  /        'MIRROR_TEMP_AL' /
+        Data Plot_Name(11)  /        'CAL_RESISTOR_RA_1L' /
+        Data Plot_Name(12)  /        'CAL_RESISTOR_RA_2L' /
+        Data Plot_Name(13)  /        'CAL_RESISTOR_RA_3L' /
+        Data Plot_Name(14)  /        'CAL_RESISTOR_RA_4L' /
+        Data Plot_Name(15)  /        'XCAL_TEMP_S5_AL' /
+        Data Plot_Name(16)  /        'COLIMATOR_TEMP_AL' /
+!
+!                Side A, High current.
+!
+        Data Plot_Name(17)  /        'XCAL_TEMP_AH' /
+        Data Plot_Name(18)  /        'SKY_HORN_TEMP_AH' /
+        Data Plot_Name(19)  /        'REFERENCE_HORN_TEMP_AH' /
+        Data Plot_Name(20)  /        'INTERNAL_CALIBRATOR_TEMP_AH' /
+        Data Plot_Name(21)  /        'DIHEDRAL_TEMP_AH' /
+        Data Plot_Name(22)  /        'BOLOMETER_ASSEMBLY_RH_TEMP_AH' /
+        Data Plot_Name(23)  /        'BOLOMETER_ASSEMBLY_RL_TEMP_AH' /
+        Data Plot_Name(24)  /        'BOLOMETER_ASSEMBLY_LH_TEMP_AH' /
+        Data Plot_Name(25)  /        'BOLOMETER_ASSEMBLY_LL_TEMP_AH' /
+        Data Plot_Name(26)  /        'MIRROR_TEMP_AH' /
+        Data Plot_Name(27)  /        'CAL_RESISTOR_RA_3H' /
+        Data Plot_Name(28)  /        'CAL_RESISTOR_RA_4H' /
+        Data Plot_Name(29)  /        'CAL_RESISTOR_RA_5H' /
+        Data Plot_Name(30)  /        'CAL_RESISTOR_RA_6H' /
+        Data Plot_Name(31)  /        'XCAL_TEMP_S5_AH' /
+        Data Plot_Name(32)  /        'COLIMATOR_TEMP_AH' /
+!
+!                Side B, Low current.
+!
+        Data Plot_Name(33)  /        'XCAL_TEMP_BL' /
+        Data Plot_Name(34)  /        'SKY_HORN_TEMP_BL' /
+        Data Plot_Name(35)  /        'REFERENCE_HORN_TEMP_BL' /
+        Data Plot_Name(36)  /        'INTERNAL_CALIBRATOR_TEMP_BL' /
+        Data Plot_Name(37)  /        'DIHEDRAL_TEMP_BL' /
+        Data Plot_Name(38)  /        'BOLOMETER_ASSEMBLY_RH_TEMP_BL' /
+        Data Plot_Name(39)  /        'BOLOMETER_ASSEMBLY_RL_TEMP_BL' /
+        Data Plot_Name(40)  /        'BOLOMETER_ASSEMBLY_LH_TEMP_BL' /
+        Data Plot_Name(41)  /        'BOLOMETER_ASSEMBLY_LL_TEMP_BL' /
+        Data Plot_Name(42)  /        'MIRROR_TEMP_BL' /
+        Data Plot_Name(43)  /        'CAL_RESISTOR_RB_1L' /
+        Data Plot_Name(44)  /        'CAL_RESISTOR_RB_2L' /
+        Data Plot_Name(45)  /        'CAL_RESISTOR_RB_3L' /
+        Data Plot_Name(46)  /        'CAL_RESISTOR_RB_4L' /
+        Data Plot_Name(47)  /        'XCAL_TEMP_S6_BL' /
+        Data Plot_Name(48)  /        'COLIMATOR_TEMP_BL' /
+!
+!                Side B, High current.
+!
+        Data Plot_Name(49)  /        'XCAL_TEMP_BH' /
+        Data Plot_Name(50)  /        'SKY_HORN_TEMP_BH' /
+        Data Plot_Name(51)  /        'REFERENCE_HORN_TEMP_BH' /
+        Data Plot_Name(52)  /        'INTERNAL_CALIBRATOR_TEMP_BH' /
+        Data Plot_Name(53)  /        'DIHEDRAL_TEMP_BH' /
+        Data Plot_Name(54)  /        'BOLOMETER_ASSEMBLY_RH_TEMP_BH'/
+        Data Plot_Name(55)  /        'BOLOMETER_ASSEMBLY_RL_TEMP_BH'/
+        Data Plot_Name(56)  /        'BOLOMETER_ASSEMBLY_LH_TEMP_BH'/
+        Data Plot_Name(57)  /        'BOLOMETER_ASSEMBLY_LL_TEMP_BH'/
+        Data Plot_Name(58)  /        'MIRROR_TEMP_BH' /
+        Data Plot_Name(59)  /        'CAL_RESISTOR_RB_3H' /
+        Data Plot_Name(60)  /        'CAL_RESISTOR_RB_4H' /
+        Data Plot_Name(61)  /        'CAL_RESISTOR_RB_5H' /
+        Data Plot_Name(62)  /        'CAL_RESISTOR_RB_6H' /
+        Data Plot_Name(63)  /        'XCAL_TEMP_S6_BH' /
+        Data Plot_Name(64)  /        'COLIMATOR_TEMP_BH' /
+!
+!       Temperatures
+! 
+        Data Plot_Name(65)  /        'IPDU_TEMP_A' /
+        Data Plot_Name(66)  /        'IPDU_TEMP_B' /
+        Data Plot_Name(67)  /        'CHANNEL_TEMP_RH' /
+        Data Plot_Name(68)  /        'CHANNEL_TEMP_RL' /
+        Data Plot_Name(69)  /        'CHANNEL_TEMP_LH' /
+        Data Plot_Name(70)  /        'CHANNEL_TEMP_LL' /
+        Data Plot_Name(71)  /        'DRIVE_BOX_TEMP_A' /
+        Data Plot_Name(72)  /        'DRIVE_BOX_TEMP_B' /
+        Data Plot_Name(73)  /        'STATUS_MONITOR_TEMP_A' /
+        Data Plot_Name(74)  /        'STATUS_MONITOR_TEMP_B' /
+        Data Plot_Name(75)  /        'CHAN_PREAMP_TEMP' /
+        Data Plot_Name(76)  /        'OPTICAL_PREAMP' /
+!
+!	Currents
+        Data Plot_Name(77)  /        'HOT_SPOT_CURRENT_A' /
+        Data Plot_Name(78)  /        'HOT_SPOT_CURRENT_B' /
+        Data Plot_Name(79)  /        'MTM_CAL_MOTOR_A' /
+        Data Plot_Name(80)  /        'MTM_CAL_MOTOR_B' /
+!
+!	Voltages
+!
+        Data Plot_Name(81)  /        'BOLOMETER_BIAS_VOLTAGE_RH' /
+        Data Plot_Name(82)  /        'BOLOMETER_BIAS_VOLTAGE_RL' /
+        Data Plot_Name(83)  /        'BOLOMETER_BIAS_VOLTAGE_LH' /
+        Data Plot_Name(84)  /        'BOLOMETER_BIAS_VOLTAGE_LL' /
+
+!
+! 	IPDU voltages.
+!
+        Data Plot_Name(85)  /        'DIGITAL_CONV_N15V_A' /
+        Data Plot_Name(86)  /        'DIGITAL_CONV_N15V_B' /
+        Data Plot_Name(87)  /        'DIGITAL_CONV_P15V_A' /
+        Data Plot_Name(88)  /        'DIGITAL_CONV_P15V_B' /
+        Data Plot_Name(89)  /        'DIGITAL_CONV_P5V_A' /
+        Data Plot_Name(90)  /        'DIGITAL_CONV_P5V_B' /
+        Data Plot_Name(91)  /        'ANALOG_CONV_P15V_A' /
+        Data Plot_Name(92)  /        'ANALOG_CONV_P15V_B' /
+        Data Plot_Name(93)  /        'ANALOG_CONV_N15V_A' /
+        Data Plot_Name(94)  /        'ANALOG_CONV_N15V_B' /
+        Data Plot_Name(95)  /        'BIAS_PRE_REG_P25V_A' /
+        Data Plot_Name(96)  /        'BIAS_PRE_REG_P25V_B' /
+        Data Plot_Name(97)  /        'INT_PS_P28V_A' /
+        Data Plot_Name(98)  /        'INT_PS_P28V_B' /
+        Data Plot_Name(99)  /        'INT_PS_P15V_A' /
+        Data Plot_Name(100) /        'INT_PS_P15V_B' /
+        Data Plot_Name(101) /        'INT_PS_N15V_A' /
+        Data Plot_Name(102) /        'INT_PS_N15V_B' /
+        Data Plot_Name(103) /        'INT_PS_P5V_A' /
+        Data Plot_Name(104) /        'INT_PS_P5V_B' /
+!
+! 	IPDU currents.
+!
+        Data Plot_Name(105) /        'BIAS_PRE_REG_A' /
+        Data Plot_Name(106) /        'BIAS_PRE_REG_B' /
+        Data Plot_Name(107) /        'ANALOG_CONV_A' /
+        Data Plot_Name(108) /        'ANALOG_CONV_B' /
+        Data Plot_Name(109) /        'DIGITAL_CONV_A' /
+        Data Plot_Name(110) /        'DIGITAL_CONV_B' /
+        Data Plot_Name(111) /        'CON_CURRENT_RH' /
+        Data Plot_Name(112) /        'CON_CURRENT_LH' /
+        Data Plot_Name(113) /        'CON_CURRENT_RL' /
+        Data Plot_Name(114) /        'CON_CURRENT_LL' /
+        Data Plot_Name(115) /        'CON_INT_CONV_A' /
+        Data Plot_Name(116) /        'CON_INT_CONV_B' /
+!
+! 	LMAC temperatures.
+! 
+        Data Plot_Name(117) /        'LMAC_ANALOG_TEMP' /
+        Data Plot_Name(118) /        'LMAC_DIGITAL_TEMP' /
+!
+!	Lengths of Plot Names.
+!
+	Integer*2	Name_Len(118)
+
+	Data Name_Len / 
+	1    12,16,22,27,16,29,29,29,29,14,18,18,18,18,15,17,
+	1    12,16,22,27,16,29,29,29,29,14,18,18,18,18,15,17,
+	1    12,16,22,27,16,29,29,29,29,14,18,18,18,18,15,17,
+	1    12,16,22,27,16,29,29,29,29,14,18,18,18,18,15,17,
+
+	1    11,11,15,15,15,15,16,16,21,21,16,14,18,18,15,15,
+	1    25,25,25,25,
+
+	1    19,19,19,19,18,18,18,18,18,18,19,19,13,13,13,13,13,13,12,12,
+	1    14,14,13,13,14,14,14,14,14,14,14,14,16,17 /
+

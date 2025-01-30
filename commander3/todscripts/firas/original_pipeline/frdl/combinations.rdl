@@ -1,0 +1,36 @@
+        !
+        !  Skymap Combinations
+        !
+        array/text/length=4/dim=8   ORDER_0_INPUT
+                                    !  Zeroth-Order Input Files
+        array/text/length=4/dim=8   ORDER_1_INPUT
+                                    !  First-Order Input Files
+        array/text/length=4/dim=4   ORDER_2_INPUT
+                                    !  Second-Order Input Files
+        array/text/length=4/dim=2   ORDER_3_INPUT
+                                    !  Third-Order Input Files
+        !
+        !  Numbers of Input IFGs
+        !
+        array/word/dim=8            ORDER_0_NIFGS
+                                    !  Zeroth-Order Input
+                                    !  NIFGs * 10.0
+        array/word/dim=8            ORDER_1_NIFGS
+                                    !  First-Order Input
+                                    !  NIFGs * 10.0
+        array/word/dim=4            ORDER_2_NIFGS
+                                    !  Second-Order Input
+                                    !  NIFGs * 10.0
+        array/word/dim=2            ORDER_3_NIFGS
+                                    !  Third-Order Input
+                                    !  NIFGs * 10.0
+        !
+        !  Combination Information
+        !
+        scalar/byte                 CURRENT_ORDER
+                                    !  Order of Current Combination
+                                    !  CURRENT_ORDER = Order + 1
+        scalar/byte                 COMBINATION_QUALITY
+                                    !  Data Quality Flag
+                                    !  for Combined Spectrum
+        scalar/byte                 SPARE

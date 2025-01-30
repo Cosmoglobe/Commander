@@ -1,0 +1,29 @@
+!
+!  GRTs in the Index record.
+!
+        union
+
+          map
+            scalar/word         XCAL
+            scalar/word         SKYH
+            scalar/word         REFH
+            scalar/word         ICAL
+            scalar/word         DIHEDRAL_RIGHT  
+            scalar/word         BOL_ASSEMBLY_RH  
+            scalar/word         BOL_ASSEMBLY_RL  
+            scalar/word         BOL_ASSEMBLY_LH  
+            scalar/word         BOL_ASSEMBLY_LL  
+            scalar/word         MIRROR_M1_RIGHT
+            scalar/word         CAL_RESISTOR_1
+            scalar/word         CAL_RESISTOR_2
+            scalar/word         CAL_RESISTOR_3
+            scalar/word         CAL_RESISTOR_4
+            scalar/word         XCAL_SEGMENT
+            scalar/word         COLLIMATOR_C1_RIGHT
+          endmap
+
+          map
+            array/word/dim=16   GROUP1
+          endmap
+
+        endunion

@@ -1,0 +1,271 @@
+C------------------------------------------------------------------------
+C   FIT_MENU.TXT
+C
+C	This include file contains the menu information for FIT.
+C
+C	Author: Fred Shuman
+C		STX
+C		October 8, 1987
+C
+C------------------------------------------------------------------------
+
+C	Character	*32	GRTA_menu(32)
+	Integer		*4	GRTA_menu_num
+
+C	Character	*32	GRTB_menu(32)
+	Integer		*4	GRTB_menu_num
+
+C	Character	*32	COMB_menu(32)
+	Integer		*4	COMB_menu_num
+
+C	Character	*32	IPDU_menu(30)
+	Integer		*4	IPDU_menu_num
+
+C	Character	*32	VOLT_menu(20)
+	Integer		*4	VOLT_menu_num
+
+C	Character	*32	CURR_menu(14)
+	Integer		*4	CURR_menu_num
+
+	Integer		*4	total_menu_num
+
+	Integer		*2	GRTA_page
+	Integer		*2	GRTB_page
+	Integer		*2	COMB_page
+	Integer		*2	IPDU_page
+	Integer		*2	VOLT_page
+	Integer		*2	CURR_page
+
+	Parameter	(GRTA_page = 1)
+	Parameter	(GRTB_page = 2)
+	Parameter	(COMB_page = 3)
+	Parameter	(IPDU_page = 4)
+	Parameter	(VOLT_page = 5)
+	Parameter	(CURR_page = 6)
+
+C	Common /GRTA_MENU/ GRTA_menu, GRTA_menu_num 
+C	Common /GRTB_MENU/ GRTB_menu, GRTB_menu_num 
+C	Common /COMB_MENU/ COMB_menu, COMB_menu_num 
+C	Common /IPDU_MENU/ IPDU_menu, IPDU_menu_num 
+C	Common /VOLT_MENU/ VOLT_menu, VOLT_menu_num 
+C	Common /CURR_MENU/ CURR_menu, CURR_menu_num 
+C
+	Parameter	(GRTA_menu_num = 32)
+	Parameter	(GRTB_menu_num = 32)
+	Parameter	(COMB_menu_num = 32)
+	Parameter	(IPDU_menu_num = 30)
+	Parameter	(VOLT_menu_num = 20)
+	Parameter	(CURR_menu_num = 14)
+C
+	Character	*32	GRTA_menu(GRTA_menu_num)
+	Character	*32	GRTB_menu(GRTB_menu_num)
+	Character	*32	COMB_menu(COMB_menu_num)
+	Character	*32	IPDU_menu(IPDU_menu_num)
+	Character	*32	VOLT_menu(VOLT_menu_num)
+	Character	*32	CURR_menu(CURR_menu_num)
+
+C	Common /HSKP_MENU/ HSKP_menu, HSKP_menu_num
+C	Common /GRTA_MENU/ GRTA_menu, GRTA_menu_num
+C	Common /GRTB_MENU/ GRTB_menu, GRTB_menu_num
+C	Common /COMB_MENU/ COMB_menu, COMB_menu_num
+C	Common /IPDU_MENU/ IPDU_menu, IPDU_menu_num
+C	Common /VOLT_MENU/ VOLT_menu, VOLT_menu_num
+C	Common /CURR_MENU/ CURR_menu, CURR_menu_num
+C
+C  Hard code the fep menu pages ---- SPR 5655, Harte Wang, STX 3/8/90
+C
+C  CHANGE:
+C      SPR 6590, correct from 'CHAN_PREAMP_TEMP' to 'CHAN_PREAMP_TEMP_A'
+C       H. Wang, STX, 3/29/90
+C      SPR 7316, correct from 'CHAN_PREAMP_TEMP_A' to 'CHAN_PREAMP_TEMP'
+C       H. Wang, STX, 9/20/90
+C   
+C      A SIDE GRT TEMPERATURES  MENU
+C
+        DATA  GRTA_menu /
+     *        ' NOT AVAILABLE',
+     *        ' NOT AVAILABLE',
+     *        ' NOT AVAILABLE',
+     *        ' NOT AVAILABLE',
+     *        'CAL_RESISTOR_RA_3H', 
+     *        'CAL_RESISTOR_RA_4H', 
+     *        'CAL_RESISTOR_RA_5H', 
+     *        'CAL_RESISTOR_RA_6H',
+     *        'COLIMATOR_TEMP_AH', 
+     *        'DIHEDRAL_TEMP_AH', 
+     *        'INTERNAL_CALIBRATOR_TEMP_AH',
+     *        'MIRROR_TEMP_AH',
+     *        'REFERENCE_HORN_TEMP_AH',
+     *        'SKY_HORN_TEMP_AH',
+     *        'XCAL_TEMP_AH',
+     *        'XCAL_TEMP_S5_AH',
+     *        'BOLOMETER_ASSEMBLY_LH_TEMP_AL',  
+     *        'BOLOMETER_ASSEMBLY_LL_TEMP_AL',  
+     *        'BOLOMETER_ASSEMBLY_RH_TEMP_AL',  
+     *        'BOLOMETER_ASSEMBLY_RL_TEMP_AL',  
+     *        'CAL_RESISTOR_RA_1L',
+     *        'CAL_RESISTOR_RA_2L',
+     *        'CAL_RESISTOR_RA_3L',
+     *        'CAL_RESISTOR_RA_4L',
+     *        'COLIMATOR_TEMP_AL',
+     *        'DIHEDRAL_TEMP_AL',
+     *        'INTERNAL_CALIBRATOR_TEMP_AL',
+     *        'MIRROR_TEMP_AL',
+     *        'REFERENCE_HORN_TEMP_AL',
+     *        'SKY_HORN_TEMP_AL',
+     *        'XCAL_TEMP_AL',
+     *        'XCAL_TEMP_S5_AL'/  
+C
+C
+C      B SIDE GRT TEMPERATURES  MENU
+C
+        DATA  GRTB_menu /
+     *        ' NOT AVAILABLE',
+     *        ' NOT AVAILABLE',
+     *        ' NOT AVAILABLE',
+     *        ' NOT AVAILABLE',
+     *        'CAL_RESISTOR_RB_3H', 
+     *        'CAL_RESISTOR_RB_4H', 
+     *        'CAL_RESISTOR_RB_5H', 
+     *        'CAL_RESISTOR_RB_6H',
+     *        ' NOT AVAILABLE', 
+     *        'DIHEDRAL_TEMP_BH', 
+     *        'INTERNAL_CALIBRATOR_TEMP_BH',
+     *        'MIRROR_TEMP_BH',
+     *        'REFERENCE_HORN_TEMP_BH',
+     *        'SKY_HORN_TEMP_BH',
+     *        ' NOT AVAILABLE',
+     *        'XCAL_TEMP_S6_BH',
+     *        'BOLOMETER_ASSEMBLY_LH_TEMP_BL',  
+     *        'BOLOMETER_ASSEMBLY_LL_TEMP_BL',  
+     *        'BOLOMETER_ASSEMBLY_RH_TEMP_BL',  
+     *        'BOLOMETER_ASSEMBLY_RL_TEMP_BL',  
+     *        'CAL_RESISTOR_RB_1L',
+     *        'CAL_RESISTOR_RB_2L',
+     *        'CAL_RESISTOR_RB_3L',
+     *        'CAL_RESISTOR_RB_4L',
+     *        ' NOT AVAILABLE',
+     *        'DIHEDRAL_TEMP_BL',
+     *        'INTERNAL_CALIBRATOR_TEMP_BL',
+     *        'MIRROR_TEMP_BL',
+     *        'REFERENCE_HORN_TEMP_BL',
+     *        'SKY_HORN_TEMP_BL',
+     *        ' NOT AVAILABLE ',
+     *        'XCAL_TEMP_S6_BL'/  
+C
+C
+C      COMBINED GRT TEMPERATURES  MENU
+C
+        DATA  COMB_menu /
+     *        'BOLOMETER_ASSEMBLY_LH_TEMP_A',
+     *        'BOLOMETER_ASSEMBLY_LL_TEMP_A',
+     *        'BOLOMETER_ASSEMBLY_RH_TEMP_A',
+     *        'BOLOMETER_ASSEMBLY_RL_TEMP_A',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        'COLIMATOR_TEMP_A', 
+     *        'DIHEDRAL_TEMP_A', 
+     *        'INTERNAL_CALIBRATOR_TEMP_A',
+     *        'MIRROR_TEMP_A',
+     *        'REFERENCE_HORN_TEMP_A',
+     *        'SKY_HORN_TEMP_A',
+     *        'XCAL_TEMP_A',
+     *        'XCAL_TEMP_S5_A',
+     *        'BOLOMETER_ASSEMBLY_LH_TEMP_B',  
+     *        'BOLOMETER_ASSEMBLY_LL_TEMP_B',  
+     *        'BOLOMETER_ASSEMBLY_RH_TEMP_B',  
+     *        'BOLOMETER_ASSEMBLY_RL_TEMP_B',  
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        '*COMB. CAL_RESISTOR MEANINGLESS',
+     *        ' NOT AVAILABLE',
+     *        'DIHEDRAL_TEMP_B',
+     *        'INTERNAL_CALIBRATOR_TEMP_B',
+     *        'MIRROR_TEMP_B',
+     *        'REFERENCE_HORN_TEMP_B',
+     *        'SKY_HORN_TEMP_B',
+     *        ' NOT AVAILABLE',
+     *        'XCAL_TEMP_S6_B'/  
+C
+C
+C              IPDU TEMPERATURE  MENU
+C
+        DATA  IPDU_menu /
+     *        'BOLOMETER_BIAS_VOLTAGE_LH',
+     *        'BOLOMETER_BIAS_VOLTAGE_LL',
+     *        'BOLOMETER_BIAS_VOLTAGE_RH',
+     *        'BOLOMETER_BIAS_VOLTAGE_RL',
+     *        'CHANNEL_TEMP_LH',
+     *        'CHANNEL_TEMP_LL',
+     *        'CHANNEL_TEMP_RH',
+     *        'CHANNEL_TEMP_RL',
+     *        'CHAN_PREAMP_TEMP',
+     *        'DRIVE_BOX_TEMP_A',
+     *        'DRIVE_BOX_TEMP_B',
+     *        'HOT_SPOT_CURRENT_A',
+     *        'HOT_SPOT_CURRENT_B',
+     *        'IPDU_STATUS_1',
+     *        'IPDU_STATUS_2',
+     *        'IPDU_STATUS_3',
+     *        'IPDU_STATUS_4',
+     *        'IPDU_STATUS_5',
+     *        'IPDU_STATUS_6',
+     *        'IPDU_STATUS_7',
+     *        'IPDU_STATUS_8',
+     *        'IPDU_TEMP_A',
+     *        'IPDU_TEMP_B',
+     *        'MTM_CAL_MOTOR_A',
+     *        'MTM_CAL_MOTOR_B',
+     *        'MTM_POSITION_A',
+     *        'MTM_POSITION_B',
+     *        'OPTICAL_PREAMP',
+     *        'STATUS_MONITOR_TEMP_A', 
+     *        'STATUS_MONITOR_TEMP_B'/ 
+C
+C
+C              VOLTAGES  MENU
+C
+        DATA  VOLT_menu /
+     *        'ANALOG_CONV_N15V_A',
+     *        'ANALOG_CONV_N15V_B',
+     *        'ANALOG_CONV_P15V_A',
+     *        'ANALOG_CONV_P15V_B',
+     *        'BIAS_PRE_REG_P25V_A',
+     *        'BIAS_PRE_REG_P25V_B',
+     *        'DIGITAL_CONV_N15V_A',
+     *        'DIGITAL_CONV_N15V_B',
+     *        'DIGITAL_CONV_P15V_A',
+     *        'DIGITAL_CONV_P15V_B',
+     *        'DIGITAL_CONV_P5V_A',
+     *        'DIGITAL_CONV_P5V_B',
+     *        'INT_PS_N15V_A',
+     *        'INT_PS_N15V_B',
+     *        'INT_PS_P15V_A',
+     *        'INT_PS_P15V_B',
+     *        'INT_PS_P28V_A',
+     *        'INT_PS_P28V_B',
+     *        'INT_PS_P5V_A',
+     *        'INT_PS_P5V_B'/
+C
+C
+C              CURRENT  MENU
+C
+        DATA  CURR_menu /
+     *        'ANALOG_CONV_A',
+     *        'ANALOG_CONV_B',
+     *        'BIAS_PRE_REG_A',
+     *        'BIAS_PRE_REG_B',
+     *        'CON_CURRENT_LH',
+     *        'CON_CURRENT_LL',
+     *        'CON_CURRENT_RH',
+     *        'CON_CURRENT_RL',
+     *        'CON_INT_CONV_A',
+     *        'CON_INT_CONV_B',
+     *        'DIGITAL_CONV_A',
+     *        'DIGITAL_CONV_B',
+     *        'LMAC_ANALOG_TEMP',
+     *        'LMAC_DIGITAL_TEMP'/
+	Common /TOTAL_MENU/ Total_menu_num

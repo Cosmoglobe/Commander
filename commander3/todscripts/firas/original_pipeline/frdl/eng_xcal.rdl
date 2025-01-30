@@ -1,0 +1,10 @@
+!
+!        Science Mode Setup
+!
+        array/word/dim=2        POS
+                                ! XCal position
+                                !   0 = error
+                                !   1 = in sky horn
+                                !   2 = stowed (out of horn)
+                                !   3 = transit (between in and out)
+        array/byte/dim=50       XCAL_SPARES

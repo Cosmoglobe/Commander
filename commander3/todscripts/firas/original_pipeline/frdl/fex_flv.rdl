@@ -1,0 +1,53 @@
+!
+!  FIRAS Average FIL Variances Record Structure
+!
+record FEX_FLV FEX_FLV
+!
+!  Header Information
+!
+    scalar/text/length=14    GMT
+                             !  GMT dataset timetag
+    scalar/adt               TIME
+                             !  Binary dataset timetag
+    scalar/byte              CHANNEL
+                             !  Channel Number; 1-4 = RH-LL
+    scalar/byte              SCAN_MODE
+                             !  Scan Mode; 1-6 = SS-FL
+    scalar/text/length=40    LABEL
+                             !  Identifying Label
+    scalar/float             GALAT_EXC
+                             !  Galactic Latitude below which
+                             !    data is excluded
+    scalar/long              MIN_IFGS
+                             !  Minimum number of ifgs per
+                             !    coadd allowed in formation
+                             !    of average variances
+!
+!  Number of Interferograms Information
+!
+    scalar/float             NSKY_IFGS
+                             !  Number of sky ifgs contributing
+                             !    to average variances
+    scalar/float             ADJ_NSKY_IFGS
+                             !  Number of glitch rate weighted
+                             !    sky ifgs contributing
+                             !    to average variances
+    scalar/long              DEG_FREEDOM
+                             !  Degrees of freedom contributing
+                             !    to average variances
+!
+!  Variances
+!
+    array/double/dim=361     RR_VARIANCES
+                             !  Average real to real Variances
+    array/double/dim=361     II_VARIANCES
+                             !  Average imaginary to imaginary
+                             !  Variances
+    array/double/dim=361     RI_VARIANCES
+                             !  Average real to imaginary
+                             !  Variances
+!
+!  Spares to Pad to Half-Block Boundary
+!
+    array/byte/dim=212       SPARES
+end_record

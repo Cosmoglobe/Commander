@@ -1,0 +1,224 @@
+1 FNT
+
+  Use FNT to process noise data.  FNT senses whether the fake-it bits are
+  set and adjusts analysis accordingly.  The preamp may be factored in or
+  out of the analysis.  You may choose among linear, semi-log, or log-log
+  plots to display your data.
+
+  Format:
+
+	FNT
+
+
+2  /CHANNEL
+
+  /CHANNEL
+
+  This qualifier tells FNT to process data for only those specified
+  channel numbers.
+
+3  ALL
+
+  /CHANNEL=ALL
+
+  Processes all four channels.
+
+3  HIGH
+
+  /CHANNEL=HIGH
+
+  Processes the high frequency channel data.
+
+3  LEFT
+
+  /CHANNEL=LEFT
+
+  Processes left side channel data.
+
+3  LOW
+
+  /CHANNEL=LOW
+
+  Processes the low frequency channel data.
+
+3  RIGHT
+
+  /CHANNEL=RIGHT
+
+  Processes right side channel data.
+
+3  Channel_ID
+
+  /CHANNEL=(RH | RL | LH | LL)
+
+  Process right high channel data, right low channel data, left high
+  channel data, or left low channel data.
+
+2  /JSTART
+
+ /JSTART=YYDDDHHMMSSCCC
+
+ This qualifier specifies a lower time limit on data to be selected for
+ processing. The default is 00:00:00.000 of current date.
+
+2  /JSTOP
+
+ /JSTOP=YYDDDHHMMSSCCC
+
+ This qualifier specifies an upper time limit on data to be selected for
+ processing. The default is 23:59:59.000 of the current date.
+
+2  /INPUT 
+
+  /INPUT = RAW   
+  /INPUT = FPP
+  /INPUT = FDQ   Default
+
+  This qualifier specifies the type of raw science data for input,
+  either NFS_SDF_XX, FPP_SDF_XX, or FDQ_SDF_XX.
+
+2  /INTERACTIVE
+
+  /INTERACTIVE     (default)
+  /NOINTERACTIVE
+
+  Selects NOISETEST mode of operation, either interactive or batch.
+  /INTERACTIVE is the default. /NOINTERACTIVE turns off the
+  interactive mode.
+
+2 /LINEAR
+
+  This qualifier tells NOISETEST to do linear plots of the data.  This is
+  the default setting.
+
+2 /SEMILOG
+
+  This qualifier tells NOISETEST to do semi-log plots of the data (Note:
+  the log scale is on the y-axis, average power density values).
+
+2 /LOGLOG
+
+  This qualifier tells NOISETEST to do a log-log plot of the data.
+
+2 /PLOTDEVICE
+
+  /PLOTDEVICE="[filename]<PLT device type>"
+  /PLOTDEVICE=PLT_DEVICE    default
+  /NOPLOTDEVICE
+
+  Specifies the filename and plotting device 'format' in which PLT
+  outputs the plot.  Note that double quotes, ", must surround the
+  filename/device specification,  as it will always contain a  "/"
+  character.   The default device is  /VT125  which is the logical
+  translation of PLT_DEVICE.   In batch mode, /PLOTDEVICE defaults
+  to PLT_HARDCOPY which is /QMS, the laserprinter.   The valid PLT
+  device types are:
+
+      /VT125          for interactive mode when using a VT-graphics-
+                      compatible terminal, including VT200 series
+
+      /QMS, /VQMS     makes TALARIS-printable files, landscape and
+                      portrait modes, respectively ('V' = 'vertical')
+
+      /PRINTRONIX     make line-printer displayable files
+
+      /ARGS           /CANON          /CRINNELL       /FILE
+      /GOC            /HIPLOT         /HP7221         /HQ2648
+      /ID100          /LIACOM         /NULL           /PS
+      /VPS            /RETRO          /TEK4010        /TK4100
+      /TRILOG         /VERSATEC       /VVERSATEC      /ZETA
+
+2 /PLTFILE 
+
+  /PLTFILE[=filename]
+
+  Causes PLT commands in the specified file to be executed when plots are
+  produced.  If this qualifier is absent, default PLT options will be used.
+  The default filename is PLT.PCO.  
+
+2 /PREAMP
+
+  /PREAMP  default
+  /NOPREAMP
+
+  This qualifier determines whether the electronics transfer function is 
+  included in the analysis.  The default is on.
+
+2 /DIFF
+
+  /NODIFF  default
+  /DIFF
+
+  This qualifier determines FNT difference in spectra needed for noise 
+  monitoring.
+
+2 /WRITE
+
+  /WRITE
+  /NOWRITE
+
+  This qualifier specifies whether the power spectra will be written to the 
+  archive.  The default is /NOWRITE.
+
+
+2  FIRAS_Logicals
+
+  Datasets input to and output from FNT can be  directed  to  different
+  archives by appropriate definitions of the FIRAS  logical  names.  In
+  the following list of datasets and their corresponding logicals, 'XX'
+  in the dataset name indicates a channel specifier (RH,RL,LH,LL).
+
+  CSDR$FIRAS_RAW: nfs_sdf_XX, fpp_sdf_XX, fdq_sdf_XX
+ 
+  CSDR$FIRAS_OUT: fnt_noise_XX
+  
+  CSDR$FIRAS_REF: fex_dtf, fex_etf
+
+  A common arrangement of this set up is to direct the logical
+  CSDR$FIRAS_OUT to point to a private archive
+     (e.g. 'DEFINE CSDR$FIRAS_OUT DEV:[PRIVATE.ARCHIVE]').
+
+2 Examples
+
+	To do a plain old NOISETEST at the DCL prompt type:
+
+	$ FNT
+
+	   or
+
+	$ NOISE
+
+
+	This command executes NOISETEST with the following options:
+
+	$ NOISETEST/CHANNEL=ALL/PREAMP/LINEAR -
+	_$  /NOWRITE -
+	_$  /PLOTDEVICE="/VT"
+
+	You will be prompted for a start and stop time enter them in the
+	CT GMT time format (YYDDDHHMMSSCCC), trailing zeros are unecessary.
+
+	To view the above data with a semi-log plot use:
+
+	$ FNT/SEMILOG
+
+	or for log-log plots:
+
+	$ NOISE/LOGLOG
+
+	To see what the noise looks likes with out the preamp transfer function
+	removed use NOISETEST this way:
+
+	$ NOISE/NOPREAMP
+
+	If you want to only look at channel 1 (=right side, high freq.) try:
+
+	$ NOISE/CHAN=RH
+
+	high frequency channels
+
+	$ NOISE/CHAN=HI
+
+	or right side
+
+	$ NOISE/CHAN=RIGHT

@@ -1,0 +1,36 @@
+!
+!  Apodization Function File Structure
+!
+Record FEX_APOD FEX_APOD
+
+  Array/Double/Dim=512          APODFCN
+                                ! Apodization Function
+                                !
+                                !    Stored in 385 records;
+                                !    one record for each value of
+                                !    adds-per-group from 1 to 12 for
+                                !    each combination of MTM speed,
+                                !    MTM length, low or high channel,
+                                !    digital filter on or off, and
+                                !    linearized or unlinearized ifgs.
+                                !    Sci-mode 2 or 4 has digital
+                                !    filter on, sci-mode 0,1, or 3
+                                !    has digital filter off.
+                                !    Last record is for fake-it data.
+                                !
+                                !    Adds-per-group = 1      1 - 32
+                                !     MTM slow               1 - 16
+                                !      MTM short             1 -  8
+                                !       Channel low          1 -  4
+                                !        Digital filter off  1 -  2
+                                !         Unlinearized            1
+                                !         Linearized              2
+                                !        Digital filter on   3 -  4
+                                !       Channel high         5 -  8
+                                !      MTM long              9 - 16
+                                !     MTM fast              17 - 32
+                                !
+                                !    Adds-per-group = 2     33 - 64
+                                !       . . .
+                                !    Fake-it data               385
+End_Record

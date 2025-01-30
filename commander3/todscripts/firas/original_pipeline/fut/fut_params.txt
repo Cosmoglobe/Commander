@@ -1,0 +1,966 @@
+c-----------------------------------------------------------------------------
+c	Parameter file for FIRAS subsystem
+c
+c	Author: W.K. Young
+c		SASC Technologies
+c		February, 1986
+c
+c-----------------------------------------------------------------------------
+c       Modified:  To include FAC_PHASE_TEMP, August 21, 1986
+c			R. Kummerer
+c		   Remove unused parameters. January 29, 1987,
+c			R. Kummerer
+c		   Add FAC_OPEN_HSKP_SIZE. February 9, 1987,
+c			R. Kummerer
+c		   Update plot parameters. March 2, 1987, R. Kummerer
+c		   Add FAC_HSKP_FRAME_SIZE. March 10, 1987, R. Kummerer
+c		   Add FAC_OPEN_PHAS_SIZE. July 17, 1987, R. Kummerer
+c		   FAC_MAX_STRUCT value changed from 5 to 6 for new
+c			model parameters calculations.  Add FAC_PARMFIT_SIZE.
+c			August 13, 1987. R. Kummerer
+c		   Add FAC_NOTCH_SIZE. August 14, 1987, R. Kummerer
+c		   Add FAC_MAX_HSKP_RECS. August 21, 1987, R. Kummerer
+c		   Add XCal position, engineering stats parameters.
+c			Sept 2, 1987, R. Kummerer.
+c                  Add FAC_OPEN_SHORT_SCI_SIZE. Dec 20, 1987, R. Wilson.
+c		   Add FPR data type parameters. Dec 22, 1987, R. Kummerer.
+c		   Add FAC_CHANNEL_IDS, Jan 14, 1988, R. Wilson
+c		   Add data quality summary parameters, Feb 12, 1988. R. Kummerer.
+c		   Correct XCAL position parameters. Mar 9, 1988. R. Kummerer.
+c       	   To include values for types of attitude solution.
+c			Shirley M. Read, STX, May 1988
+c		   Add smoothing function parameters. July 15, 1988. R. Kummerer.
+c		   Add FAC_LMAC_SIZE. August 18, 1988, R. Kummerer
+c		   Add FAC_ATT_SOLN. August 29, 1988, R. Kummerer
+c		   Add FAC_HKP_IDX and FAC_HKP_EDF. Sept. 14, 1988,  J. Bonnell
+c		   Add FAC_CALCULATE. Sept. 21, 1988,  R. Kummerer
+c		   Add FAC_PREVIOUS. Oct. 24, 1988,  R. Kummerer
+c		   Add FAC_SPEED,FAC_LENGTH.  Oct 25, 1988, R. Kummerer
+c		   Add FAC_AUTOPHASE, SPR 3065. Jan 22, 1989, R. Kummerer
+c		   Add FAC_FIR_ANC, SPR 2848. Feb 13, 1989, R. Kummerer
+c		   Correct FAC_XCALIN, FAC_XCAL_OUT definitions.  Must be
+c			FAC_XCALIN=1, FAC_XCALOUT=2. SPR 3916.
+c			May 30, 1989, R. Kummerer
+c		   Add parameters FAC_FPP_xx and FAC_FDQ_xx where xx is the
+c			channel id.  July 22, 1989, R. Kummerer.
+c		   Add parameters FAC_GAINS, FAC_JSTART_DEFAULT and
+c			FAC_JSTOP_DEFAULT. SER 3493, R. Kummerer,
+c			August 18, 1989.  Use new PLT graphics.
+c		   Add parameters gap flag parameters.  SER 4210, R. Kummerer,
+c			August 30, 1989.
+c                  Add parameters FAC_TELM_PAD for telemetry quality bad
+c                       H. Wang, Dec. 2, 1989
+c                  SPR 4750 Q. CHUNG/STX OCT 1989.
+c                  ADD FAC_FIR_SCILIM,FAC_FIR_ENGLIM,FAC_FIR_LIMFLAG. 
+c                  ADD FAC_FIR_IDX_FLAG,FAC_IDX_TOLS. NOV 8, 1989.
+c                  ADD FAC_FIR_CTH                NOV 15, 1989.
+c                  ADD FAC_FIR_GRTSWT             NOV 16, 1989.
+c                  Add parameters FAC_IFG_PEAK and FAC_SCAN_TIME.c
+c			SPR 6406, 6407. R. Kummerer, Mar 8, 1990.
+c                  SPR 6726, Add the fac_laserqms, fac_lasertf
+c                      H. Wang, STX, May 15, 1990
+c                  SPR 1860, change the buffer size of fac_max_stats_rec from
+c                            1000 to 6000
+c                      H. Wang, STX, aug 29, 1990
+c                  Add parameters fac_frd_gainr, fac_frd_gainl, fac_frd_faker,
+c                      fac_frd_fakel, fac_frd_facr, fac_frd_gtran, 
+c                      fac_frd_grawt, fac_frd_gcoat, fac_frd_mtmsweep,
+c                      fac_frd_vabsaa
+c                      SPR 8372 N. Gonzales, September 10, 1991
+c                  Add fac_frd_mincoadd, N. Gonzales/HughesSTX, Dec. 9, 1991,
+c                      SER 9099.
+c                  Add FAC_OUT_TEMPLATE,FAC_OUT_SEC_TEMPLATE,FAC_OUT_DEGLITCH,
+c                      FAC_OUT_CON_CHECK,FAC_OUT_COADD,FAC_OUT_BASELINE_SUB,
+c                      FAC_ETENDU,FAC_ADC_SCALE,FAC_MAX_SHORT,FAC_SKYMAP_LEVEL,
+c                      FAC_SKYMAP_NO_LEVELS,FAC_COAD_SPEC_SIZE,
+c                      FAC_CON_CHECK_SIZE,FAC_COVAR_SIZE,
+c                      FAC_COAD_SPEC_PIX_OFFSET,FAC_CON_CHECK_PIX_OFFSET,
+c                      FAC_TIME_OFFSET,FAC_SPEC_DATA_SIZE,FAC_COVAR,
+c                      FAC_MAX_DEGLITCH,FAC_EPOCH.
+c                      S. Alexander, STX, Jan. 1, 1992, SER 7985.
+c		   Add FAC_APCO_DATE,FAC_DPI,FAC_VAX_YEAR_LEN.
+c                      S. Alexander, HSTX, Apr. 2, 1993, SER 10763.
+c		   Add FAC_MAX_PERIODS,FAC_APCO_GMT,FAC_MAX_SKYMAP_RECS,
+c                      FAC_NUM_PIXELS. S. Alexander, HSTX, May 27, 1993, 
+c                      SER 10798.
+c		   Add FAC_LOAD_RESIST,FAC_ICM_GHZ,FAC_WATT_TO_MJY,
+c                      FAC_ERG_TO_MJY. S. Alexander, HSTX, June 11, 1993, 
+c                      SER 11058.
+c		   Add FAC_ERG_TO_WATT. S. Alexander, HSTX, Nov 1, 1993, 
+c                      SER 11413.
+c		   Add FAC_COUNT_TO_VOLT. S. Alexander, HSTX, Nov 3, 1993, 
+c                      SER 11189.
+c		   Add new FL scan mode. S. Alexander, HSTX, Apr 4, 1994, 
+c                      SER 11395.
+c		   Remove FAC_FIR_GRTSWT. S. Alexander, HSTX, May 2, 1994, 
+c                      SPR 11741.
+c                  Add FAC_FFT_LENGTH,FAC_SPEC_LENGTH,FAC_SCAN_MODE_IDSL,
+c                      FAC_COAD_SPEC_SIZEL,FAC_SPEC_DATA_SIZEL,
+c                      FAC_COAD_SPEC_PIX_OFFSETL,FAC_COVAR_SIZEL, changed
+c                      values of FAC_MAX_SHORT from 1000 to 1500. S. Brodd,
+c                      HSTX, 4/95, SERs 12244 and 12245.
+c                  Add FAC_NYQ_CORRECT. S. Brodd, HSTX, 4/96, SPR 12316.
+c                  Increase the value of FAC_MAX_SHORT to 3000. S. Brodd,
+c                      HSTX, 11/96, SPR 12338.
+c-----------------------------------------------------------------------------
+
+c
+c General purpose parameters.
+c
+	character * 2   fac_channel_ids(4)/'RH', 'RL', 'LH', 'LL'/
+					!channel ids corresponding to chans 1-4 
+	character * 2   fac_scan_mode_ids(5)/'SS', 'SF', 'LS', 'LF', 'FL'/
+					!scan mode ids for scan modes 1-5
+	character * 2   fac_scan_mode_idsl(6)/'SS','SF','LS','LF','FS','FL'/
+					!long scan mode ids for scan modes 1-6
+	character * 20  fac_att_soln(0:6)/'NONE', 'SIMULATED',
+	1				  'PREDICTED', 'COARSE',
+	1				  'FINE_WITHOUT_DIRBE',
+	1				  'FINE_WITH_DIRBE',
+	1				  'DEFINITIVE'/
+	character * 4   fac_speed(0:1)/'SLOW','FAST'/
+					!MTM speeds
+	character * 5   fac_length(0:1)/'SHORT','LONG'/
+					!MTM lengths
+	integer * 4	fac_gains(0:7)/1,3,10,30,100,300,1000,3000/
+	character * 14  fac_jstart_default/'86001000000000'/
+	character * 14  fac_jstop_default /'99365235959990'/
+
+   	integer	* 4	fac_normal	!normal return status
+	integer	* 4	fac_endoffile	!end of file status
+	integer	* 4	fac_present	!command line qualifier flag
+	integer	* 4	fac_not_present	!command line qualifier flag
+	integer * 4	fac_more_data	!not end of file
+	integer * 4	fac_ct		!output/input to/from cobetrieve
+        integer * 4	fac_file	!output/input to/from user defined file
+	integer * 4	fac_sky_map	!output/input to/from sky map
+	integer * 4	fac_crash	!all purpose error
+c
+c Skymap Parameters.
+c
+	integer * 4	fac_skymap_level / 5 / 	!FIRAS skymap level
+	integer * 4	fac_skymap_no_levels / 6 /  !number of skymap levels
+	integer * 4	fac_time_offset / 14 /	!time offset for FIRAS skymaps
+	integer * 4	fac_num_pixels / 6144 / !number of FIRAS pixels
+c
+c FIRAS Instrument Parameters
+c
+c IFG peak position by MTM speed, MTM length and channel.
+
+	integer	* 4	fac_ifg_peak(0:1,0:1,4) / 356, 354, 358, 354,
+	1					  359, 89,  361,  89,
+	2					  356, 354, 358, 354,
+	3					  359, 89,  361,  89  /
+
+c IFG peak position by scan mode (SS=0, SF=1, LS=2, LF=3) and channel.
+
+	integer	* 4	fac_ifg_peak_sm(0:3,4)  / 356, 358, 354, 354,
+	1					  359, 361,  89,  89,
+	2					  356, 358, 354, 354,
+	3					  359, 361,  89,  89  /
+
+c MTM scan times by MTM speed, MTM length and channel.
+
+	real * 4	fac_scan_times(0:1,0:1) / 2.2, 8.8, 1.5, 6.0 /
+	real * 4	fac_scan_times_sm(0:3)  / 2.2, 1.5, 8.8, 6.0 /
+c Etendu, 10 volt adc scale, and sampling rate.
+	real * 4	fac_etendu / 1.5 /
+	real * 4	fac_adc_scale / 204.75 /
+        real * 4        fac_epoch / 2000.0 /
+c Load resistance, icm to ghz conversion factor, spectrum unit conversion
+c factors, counts to volts conversion factor
+	real * 8	fac_load_resist / 4.0D+7 /
+	real * 8	fac_icm_ghz
+	parameter	(fac_icm_ghz = 29.9792458D0)
+	real * 8	fac_watt_to_mjy	! conversion from W/cm^2/sr/icm to
+					! MJy/sr
+ 	parameter 	(fac_watt_to_mjy = 1.0D+15/fac_icm_ghz)
+	real * 8	fac_erg_to_mjy	! conversion from ergs/sec/cm^2/sr/icm 
+					! to MJy/sr
+ 	parameter 	(fac_erg_to_mjy = 1.0D+8/fac_icm_ghz)
+        real*8          fac_erg_to_watt ! conversion from ergs/sec to watts
+        parameter       (fac_erg_to_watt = 1.0D-7)
+        real*4          fac_count_to_volt ! conversion from counts to volts
+        parameter       (fac_count_to_volt = 25.5)
+c
+c Fast Fourier and spectrum lengths; Nyquist frequency correction
+c
+	integer * 4	fac_fft_length(6) /640,640,640,640,160,160/
+	integer * 4	fac_spec_length(6) /321,321,321,321,81,81/
+        real*4          fac_nyq_correct /1.00159/
+c
+c Data Quality summary flags
+c
+	byte		fac_no_dq	!FDQ not run
+	byte		fac_good_dq	!all dq flags ok
+	byte		fac_some_yellow !"some" yellow, no red
+	byte		fac_many_yellow !"many" yellow, no red
+	byte		fac_no_y_some_r	!no yellow, "some" red
+	byte		fac_some_y_some_r !"some" yellow, "some" red
+	byte		fac_many_y_some_r !"many" yellow, "some" red
+	byte		fac_many_red	!"many" red
+	byte		fac_no_att_soln	! no attitude soln.
+	byte		fac_no_hskp	!no housekeeping
+	byte		fac_tlm_error	!telemetry error
+c
+c Record sizes and the like
+c
+        integer * 2     fac_sci_rec_size	!science record size
+        integer * 2	fac_coad_size		!coadd record size
+        integer * 2     fac_eng_rec_size 	!engineering record size
+        integer * 2	fac_coad_spec_size	!coadd and spectrum record size
+        integer * 2	fac_coad_spec_sizel	!long coadd/spectrum record size
+        integer * 2	fac_spec_data_size	!size of spec_data include rdl
+        integer * 2	fac_spec_data_sizel	!size of long spec_data rdl
+        integer * 2	fac_coad_spec_pix_offset   !coadd and spectrum record
+						!     pixel offset
+        integer * 2	fac_coad_spec_pix_offsetl   !coadd and spectrum record
+						!     pixel offset (long)
+        integer * 2	fac_con_check_size	!con check record size
+        integer * 2	fac_con_check_pix_offset  !con check record pixel offset
+        integer * 2     fac_covar_size          !covariance matrix record size
+        integer * 2     fac_covar_sizel         !long covariance matrix size
+        integer * 2     fac_num_scan_modes 	!max number of scan FIRAS
+						!  scan modes
+        integer * 2	fac_max_num		!maximum number of allowable
+						!  records to coadd
+	integer * 2	fac_max_short		!maximum short science records
+	integer * 4	fac_max_skymap_recs     !max records in a pixel
+        integer * 2     fac_max_deglitch        !maximum deglitch iterations
+	integer * 2	fac_max_coad		!maximum number of allowable
+						!  coadd recs for FFC
+	integer * 2	fac_max_spec		!maximum number of allowable
+						!  uc spec recs for FCS
+	integer * 2	fac_open_sci_size	!science record size over 4
+	integer * 2	fac_open_short_sci_size !short science size over 4
+	integer * 2	fac_open_eng_size       !engineering record size over 4
+	integer * 2	fac_open_hskp_size      !housekeeping record size over 4
+        integer * 2     fac_open_calrun         !both eng and pi index rec size
+                                                !over 4
+        integer * 2     fac_open_index_size     !fec index record size over 4
+	integer * 2	fac_open_coad_size	!coadd record size over 4
+	integer * 2	fac_open_phcspec_size	!phase-corrected spect record
+						!  size over 4
+	integer * 2	fac_open_ucspec_size	!Uncombined Calibrated spect
+						!  record size over 4
+	integer * 2	fac_open_phas_size	!phase record size over 4
+	integer * 2	fac_open_model_size	!model parms size over 4
+	integer * 2	fac_open_covar_size	!model covar size over 4
+	integer * 2	fac_open_resid_size	!solution residuals size over 4
+
+	integer * 2	fac_cthead_size		!CT header size
+	integer * 2	fac_coahead_size	!coadd header size
+	integer * 2	fac_spechead_size	!spec header size
+	integer * 2	fac_coachan_size	!coadd channel specific size
+	integer * 2	fac_phcspechan_size	!Phase-corrected spec channel
+						!  specific size
+	integer * 2	fac_ucspechan_size	!Uncombined Calibrated spec
+						!  channel specific size
+	integer * 2	fac_pcchan_size		!Phase-correctors channel
+						!  specific size
+	integer * 2	fac_chan_size		!channel specific size
+	integer * 2	fac_engstat_size	!eng status size
+	integer * 2	fac_grtstat_num		!number of elements in GRT
+						!  status group
+	integer * 2	fac_inststat_num	!number of elements in
+						!  instrument status group
+	integer * 2	fac_engtemp_size	!eng analog size
+	integer * 2	fac_engsigma_size	!eng sigmas size
+	integer * 2	fac_attit_size		!coattitude size
+	integer * 2	fac_hskp_frame_size	!size of 1 major frame of
+						!  housekeeping data
+	integer * 2	fac_notch_size		!size of notch filter data
+						!  structure in hskp record
+	integer * 2	fac_lmaceng_size	!size of lmac temp data
+						!  structure in eng record
+	integer * 2	fac_parmfit_size	!model parameters fit size
+c
+c Processing branch
+c
+	integer * 2	fac_sky			!sky data
+	integer * 2	fac_cal			!calibration data
+	integer * 2	fac_raw			!raw data
+	integer * 2	fac_out_template	!output primary template
+	integer * 2	fac_out_sec_template	!output secondary template
+	integer * 2	fac_out_deglitch	!output deglitched data
+	integer * 2	fac_out_con_check	!output con check records
+	integer * 2	fac_out_coadd 		!output coadded ifgs
+	integer * 2	fac_out_baseline_sub 	!output baseline-sub ifgs
+        integer * 2     fac_out_covar           !output covariance matrix
+c
+c Science record offsets
+c
+        integer * 2     fac_oifg		!ifg offset
+c
+c Consistency  checker parameters
+c
+	integer * 4	fac_max_gain_set	!maximum gain setting
+	integer * 4	fac_min_gain_set	!minimum gain setting
+	integer * 4	fac_max_adds		!maximum adds per group
+	integer * 4	fac_min_adds		!minimum adds per group
+c
+c Plot flags
+c
+	integer * 4	fac_linear		!make a linear plot
+	integer * 4	fac_loglog		!make a log-log plot
+	integer * 4	fac_semilog		!make a semilog plot
+	integer * 4	fac_terminal		!plot on the terminal
+	integer * 4	fac_snapshot		!plot in a TEMPLATE display
+						! copy file
+	integer * 4	fac_lineprinter		!make dot matrix printable
+						! disk file
+	integer * 4	fac_laserprinter	!make TALARIS QMS printable
+						! disk file
+	integer * 4	fac_laserqms		!make TALARIS QMS printable
+						! disk file
+	integer * 4	fac_lasertf		!make TALARIS TF printable
+						! disk file
+c
+c PLT-related parameters
+c
+	real    * 4	fac_no_data		! PLT's "NO-DATA" value
+	real    * 4	fac_margin		! fractnl margin for plot frame
+	real    * 4	fac_dwell_pad		! fractnl margin for plotting
+						!  the dwell field in ENGPLOTS
+	real    * 4	fac_telm_pad		! fractnl margin for plotting
+						! the telm qual field in ENGPLOTS
+c
+c Calibration parameters
+c
+	integer * 4	fac_no_find_peak	!didn't find ifg peak
+	integer * 4	fac_both		!indicates both scan len&speed
+	integer * 4	fac_slow		!indicates only slow scans
+	integer * 4	fac_fast		!indicates only fast scans
+	integer * 4	fac_long		!indicates only long scans
+	integer * 4	fac_short		!indicates only short scans
+	integer * 4	fac_max_struct		!temps for calibration soln
+	integer * 2	fac_max_periods		!maximum calibration periods
+						!for FDS
+	integer * 4	fac_left		!indicates only left side
+	integer * 4	fac_right		!indicates only right side
+	integer * 4	fac_num_model		!number of different model parameters
+	integer * 4	fac_num_emiss
+	integer * 4     fac_phase_temp
+
+c
+c Engineering plots parameters
+c
+	integer * 4	fac_max_hskp_recs	!maximum number of major frames
+						!  allowed
+
+c
+c XCal position parameters
+c
+	integer * 2	fac_xcaltrans		!XCal in transit
+	integer * 2	fac_xcalout		!XCal out
+	integer * 2	fac_xcalin		!XCal in
+	integer * 2	fac_xcalposerr		!XCal position error
+
+c
+c Engineering statistics parameters
+c
+	integer * 2	fac_engave		!Eng statistics - average
+	integer * 2	fac_engsig		!Eng statistics - sigma
+	integer * 2	fac_engmin		!Eng statistics - minimum
+	integer * 2	fac_engmax		!Eng statistics - maximum
+	integer * 4	fac_max_stats_recs	!maximum number of engnrg
+						!  statistics records allowed
+	integer * 4	fac_max_menu_num	!maximum number of menu items
+	real    * 4	fac_orbit		!COBE orbital period (in sec)
+	real    * 4	fac_minute		! one minute (sec)
+	real    * 4	fac_hour		! one hour (sec)
+	real    * 4	fac_day			! one day (sec)
+	real    * 4	fac_month		! one month, 30 days (sec)
+	real    * 4	fac_year		! one ave (Julian)caldr yr (sec)
+	real    * 4	fac_mission		! 999 days > total mission (sec)
+	integer	* 4	fac_apco_date	!  aperture cover ejection date in VAX
+                                        !  ADT time
+	parameter	(fac_apco_date = 9626073)
+	character * 14	fac_apco_gmt    !  aperture cover ejection date in GMT
+	parameter	(fac_apco_gmt = '893251118')
+	real	* 8	fac_vax_year_len	!  length of a year in 
+						!  VAX ADT seconds
+	parameter	(fac_vax_year_len = 73426.0D0)
+
+c
+c FPR data type parameters.
+c
+	integer * 4	fac_write_ctl		!update the tracking catalog
+	integer * 4	fac_write_mtr		!update the tracking matrix
+	integer * 4	fac_close_track		!close down tracking
+
+	byte		fac_caldata		!Calibration data
+	byte		fac_skydata		!Sky data
+	byte		fac_moondata		!Moon contaminated sky data
+	byte		fac_ssifgdata		!Single scan data
+	byte		fac_fakeitdata		!Fake-it data
+
+	byte		fac_run			!Facility has been run
+	byte		fac_not_run		!Facility has not been run
+
+c
+c Attitude parameters.
+c
+	real	*4	fac_pi
+	parameter (fac_pi = 3.141592653589793)
+	real	*8	fac_dpi			!Double precision pi
+	parameter	(fac_dpi = 3.141592653589793D0)
+	real	*4	fac_att_conv
+	parameter (fac_att_conv = 1.0e-4 * 180.0 / 3.1415926)
+	real	*4	fac_att_conv_rad
+	parameter (fac_att_conv_rad = 1.0e-4)
+	integer*2 fac_none
+	integer*2 fac_simulated
+	integer*2 fac_predicted
+	integer*2 fac_coarse
+	integer*2 fac_fine_without_Dirbe
+	integer*2 fac_fine_with_Dirbe
+	integer*2 fac_definitive
+c
+c Model interpolation parameters
+c
+	integer*2 fac_interpolate
+	integer*2 fac_previous
+	integer*2 fac_latest
+	integer*2 fac_closest
+	integer*2 fac_calculate
+	integer*2 fac_autophase
+
+c
+c Extract status
+c
+	integer*2 fac_stranded
+	integer*2 fac_tolerance
+	integer*2 fac_holding
+	integer*2 fac_stale
+
+c
+c Smoothing Functions.
+c
+	integer*4 fac_boxcar
+
+c
+c FUT_OPEN_ARCHIVES parameters.
+c
+	integer*2 fac_ask_oper
+	integer*2 fac_get_hkp
+	integer*2 fac_get_idx
+	integer*2 fac_get_sci
+	integer*2 fac_get_eng
+	integer*2 fac_get_coa
+	integer*2 fac_get_rs1
+	integer*2 fac_get_rs2
+	integer*2 fac_get_rs3
+	integer*2 fac_get_rs4
+	integer*2 fac_get_rsi
+	integer*2 fac_get_hsk
+	integer*2 fac_get_edf
+	integer*2 fac_get_etr
+	integer*2 fac_get_phs
+	integer*2 fac_get_phc
+	integer*2 fac_get_csp
+	integer*2 fac_get_nos
+	integer*2 fac_get_ed1
+	integer*2 fac_get_ed2
+	integer*2 fac_get_ed3
+	integer*2 fac_get_ed4
+	integer*2 fac_get_mp1
+	integer*2 fac_get_mp2
+	integer*2 fac_get_mp3
+	integer*2 fac_get_mp4
+	integer*2 fac_get_cv1
+	integer*2 fac_get_cv2
+	integer*2 fac_get_cv3
+	integer*2 fac_get_cv4
+	integer*2 fac_get_rd1
+	integer*2 fac_get_rd2
+	integer*2 fac_get_rd3
+	integer*2 fac_get_rd4
+	integer*2 fac_get_sc1
+	integer*2 fac_get_sc2
+	integer*2 fac_get_sc3
+	integer*2 fac_get_sc4
+	integer*2 fac_get_sm1
+	integer*2 fac_get_sm2
+	integer*2 fac_get_sm3
+	integer*2 fac_get_sm4
+c
+c Continuation of CTUSER.INC parameters ctu_$fir_XXX
+c
+	integer	*4	fac_fpp_rh
+	integer	*4	fac_fpp_rl
+	integer	*4	fac_fpp_lh
+	integer	*4	fac_fpp_ll
+
+	integer	*4	fac_fdq_rh
+	integer	*4	fac_fdq_rl
+	integer	*4	fac_fdq_lh
+	integer	*4	fac_fdq_ll
+
+	integer	*4	fac_skyco_rh
+	integer	*4	fac_skyco_rl
+	integer	*4	fac_skyco_lh
+	integer	*4	fac_skyco_ll
+	integer	*4	fac_pcspc_rh
+	integer	*4	fac_pcspc_rl
+	integer	*4	fac_pcspc_lh
+	integer	*4	fac_pcspc_ll
+	integer	*4	fac_ucspc_rh
+	integer	*4	fac_ucspc_rl
+	integer	*4	fac_ucspc_lh
+	integer	*4	fac_ucspc_ll
+
+	integer *4	fac_sssky_rh
+	integer *4	fac_sssky_rl
+	integer *4	fac_sssky_lh
+	integer *4	fac_sssky_ll
+
+	integer *4	fac_hkp_idx
+	integer *4	fac_hkp_edf
+
+	integer *4	fac_ccmsp_rh
+	integer *4	fac_ccmsp_rl
+	integer *4	fac_ccmsp_lh
+	integer *4	fac_ccmsp_ll
+	integer *4	fac_ccasp_rh
+	integer *4	fac_ccasp_rl
+	integer *4	fac_ccasp_lh
+	integer *4	fac_ccasp_ll
+
+	integer *4	fac_cmmsp_lr
+	integer *4	fac_cmmsp_hr
+	integer *4	fac_cmasp_lr
+	integer *4	fac_cmasp_hr
+
+	integer *4	fac_crmsp_lr
+	integer *4	fac_crmsp_hr
+	integer *4	fac_crasp_lr
+	integer *4	fac_crasp_hr
+
+	integer *4	fac_lrmspc
+	integer *4	fac_lraspc
+	integer *4	fac_smmspc
+	integer *4	fac_smaspc
+
+	integer *4	fac_fir_anc
+
+	integer *4      fac_frd_facr
+	integer *4      fac_frd_faker      
+	integer *4      fac_frd_fakel
+	integer *4      fac_frd_gainr
+	integer *4      fac_frd_gainl
+	integer *4      fac_frd_gtran
+	integer *4      fac_frd_grawt
+	integer *4      fac_frd_gcoat
+	integer *4	fac_frd_mtmsweep
+	integer *4	fac_frd_vabsaa
+	integer *4	fac_frd_mincoadd
+
+	integer *4	fac_sshf_rh
+	integer *4	fac_sshf_rl
+	integer *4	fac_sshf_lh
+	integer *4	fac_sshf_ll
+	integer *4	fac_sspur_rh
+	integer *4	fac_sspur_rl
+	integer *4	fac_sspur_lh
+	integer *4	fac_sspur_ll
+
+	integer *4	fac_cottg_rh
+	integer *4	fac_cottg_rl
+	integer *4	fac_cottg_lh
+	integer *4	fac_cottg_ll
+
+	integer *4	fac_ctctl_rh
+	integer *4	fac_ctctl_rl
+	integer *4	fac_ctctl_lh
+	integer *4	fac_ctctl_ll
+
+	integer *4	fac_ctmtr_rh
+	integer *4	fac_ctmtr_rl
+	integer *4	fac_ctmtr_lh
+	integer *4	fac_ctmtr_ll
+
+	integer *4	fac_dtodg_rh
+	integer *4	fac_dtodg_rl
+	integer *4	fac_dtodg_lh
+	integer *4	fac_dtodg_ll
+	integer *4	fac_dtoci_rh
+	integer *4	fac_dtoci_rl
+	integer *4	fac_dtoci_lh
+	integer *4	fac_dtoci_ll
+	integer *4	fac_dtocp_rh
+	integer *4	fac_dtocp_rl
+	integer *4	fac_dtocp_lh
+	integer *4	fac_dtocp_ll
+
+	integer *4	fac_dttdg_rh
+	integer *4	fac_dttdg_rl
+	integer *4	fac_dttdg_lh
+	integer *4	fac_dttdg_ll
+	integer *4	fac_dttci_rh
+	integer *4	fac_dttci_rl
+	integer *4	fac_dttci_lh
+	integer *4	fac_dttci_ll
+	integer *4	fac_dttcp_rh
+	integer *4	fac_dttcp_rl
+	integer *4	fac_dttcp_lh
+	integer *4	fac_dttcp_ll
+
+	integer *4	fac_eng_xtrm
+
+        Integer *4      FAC_FIR_SCILIM
+	INTEGER *4      FAC_FIR_ENGLIM
+        INTEGER *4      FAC_FIR_LIMFLAG
+        INTEGER *4      FAC_FIR_IDX_FLAG
+        INTEGER *4      FAC_FIR_IDX_TOLS
+        INTEGER *4      FAC_FIR_CTH
+c
+c Gap flags
+c
+	integer * 2	fac_no_gap
+	integer * 2	fac_gap
+	integer * 2	fac_gap_nodata
+
+c
+c Assign values.
+c
+	parameter (fac_normal =	0)
+	parameter (fac_endoffile = -1)
+	parameter (fac_present = 1)
+	parameter (fac_not_present = 0)
+	parameter (fac_more_data = 0)
+	parameter (fac_ct = -1000)
+	parameter (fac_file = -999)
+	parameter (fac_crash = 13)
+	parameter (fac_oifg = 200)
+        parameter (fac_sci_rec_size = 1536)
+	parameter (fac_max_num = 100)
+	parameter (fac_max_short = 3000)
+	parameter (fac_max_skymap_recs = 128)
+        parameter (fac_max_deglitch = 1000)
+        parameter (fac_num_scan_modes = 4)
+	parameter (fac_coad_size = 6656)
+	parameter (fac_coad_spec_size = 7680)
+	parameter (fac_coad_spec_sizel = 11264)
+	parameter (fac_spec_data_size = 5450)
+	parameter (fac_spec_data_sizel = 7570)
+	parameter (fac_coad_spec_pix_offset = 7600)
+	parameter (fac_coad_spec_pix_offsetl = 11184)
+	parameter (fac_con_check_size = 128)
+	parameter (fac_con_check_pix_offset = 60)
+        parameter (fac_covar_size = 8704)
+        parameter (fac_covar_sizel = 14336)
+	parameter (fac_open_sci_size = 384)
+	parameter (fac_open_short_sci_size = 16)
+        parameter (fac_open_calrun = 256)
+        parameter (fac_open_index_size = 256)
+        parameter (fac_open_eng_size = 256)
+        parameter (fac_open_hskp_size = 256)
+	parameter (fac_open_coad_size = 1664)
+	parameter (fac_open_phcspec_size = 1920)
+	parameter (fac_open_ucspec_size = 2432)
+	parameter (fac_open_phas_size = 1408)
+	parameter (fac_open_model_size = 6976)
+	parameter (fac_open_covar_size = 8000)
+	parameter (fac_open_resid_size = 560)
+	parameter (fac_cthead_size = 64)
+	parameter (fac_coahead_size = 190)
+	parameter (fac_spechead_size = 210)
+	parameter (fac_coachan_size = 5246)
+	parameter (fac_phcspechan_size = 6250)
+	parameter (fac_ucspechan_size = 8298)
+	parameter (fac_pcchan_size = 4202)
+	parameter (fac_chan_size = 74)
+	parameter (fac_engstat_size = 68)
+	parameter (fac_grtstat_num = 16)
+	parameter (fac_inststat_num = 14)
+	parameter (fac_engtemp_size = 504)
+	parameter (fac_engsigma_size = 504)
+	parameter (fac_attit_size = 80)
+	parameter (fac_hskp_frame_size = 216)
+	parameter (fac_parmfit_size = 1088)
+	parameter (fac_notch_size = 15)
+	parameter (fac_lmaceng_size = 8)
+	parameter (fac_eng_rec_size = 1024)
+	parameter (fac_max_gain_set = 7)
+	parameter (fac_min_gain_set = 0)
+	parameter (fac_max_adds = 12)
+	parameter (fac_min_adds = 1)
+	parameter (fac_linear = 0)
+	parameter (fac_loglog = 96)
+	parameter (fac_semilog = 97)
+	parameter (fac_terminal = 95)
+	parameter (fac_snapshot = 94)
+	parameter (fac_lineprinter = 93)
+	parameter (fac_laserprinter = 92)
+	parameter (fac_laserqms = 91)
+	parameter (fac_lasertf = 90)
+	parameter (fac_no_data = -1.2E-34)
+	parameter (fac_margin = .05)
+	parameter (fac_dwell_pad = .02)
+        parameter (fac_telm_pad = .03) 
+	parameter (fac_max_coad = 64)
+	parameter (fac_max_spec = 64)
+	parameter (fac_no_find_peak = -2)
+	parameter (fac_both = 3)
+	parameter (fac_slow = 1)
+	parameter (fac_fast = 2)
+	parameter (fac_long = 2)
+	parameter (fac_short = 1)
+	parameter (fac_max_struct = 6)
+	parameter (fac_max_periods = 14)
+	parameter (fac_right = 12)
+	parameter (fac_left = 14)
+	parameter (fac_sky_map = -998)
+	parameter (fac_num_model = 6)
+	parameter (fac_num_emiss = 5)
+	parameter (fac_phase_temp = 2.0)
+	parameter (fac_max_hskp_recs = 3000)
+	parameter (fac_xcalposerr = 0)
+	parameter (fac_xcalout = 2)
+	parameter (fac_xcalin = 1)
+	parameter (fac_xcaltrans = 3)
+	parameter (fac_engave = 1)
+	parameter (fac_engsig = 2)
+	parameter (fac_engmin = 3)
+	parameter (fac_engmax = 4)
+	parameter (fac_max_stats_recs = 6000)
+	parameter (fac_max_menu_num = 300)
+	parameter (fac_orbit   = 6168.)
+	parameter (fac_minute  =   60.)
+	parameter (fac_hour    =   60.*fac_minute)
+	parameter (fac_day     =   24.*fac_hour)
+	parameter (fac_month   =   30.*fac_day)
+	parameter (fac_year    =  365.25*fac_day)
+	parameter (fac_mission =  999.*fac_day)
+
+	parameter (fac_write_ctl = 1)
+	parameter (fac_write_mtr = 2)
+	parameter (fac_close_track = 3)
+
+	parameter (fac_caldata = 1)
+	parameter (fac_skydata = 2)
+	parameter (fac_moondata = 4)
+	parameter (fac_ssifgdata = 8)
+	parameter (fac_fakeitdata = 16)
+	parameter (fac_not_run = 0)
+	parameter (fac_run = 1)
+
+	parameter (fac_none = 0)
+	parameter (fac_simulated = 1)
+	parameter (fac_predicted = 2)
+	parameter (fac_coarse = 3)
+	parameter (fac_fine_without_Dirbe = 4)
+	parameter (fac_fine_with_Dirbe = 5)
+	parameter (fac_definitive = 6)
+
+	parameter (fac_ask_oper = 0)
+	parameter (fac_get_hkp = 1)
+	parameter (fac_get_idx = 2)
+	parameter (fac_get_sci = 3)
+	parameter (fac_get_eng = 4)
+	parameter (fac_get_coa = 5)
+	parameter (fac_get_rs1 = 6)
+	parameter (fac_get_rs2 = 7)
+	parameter (fac_get_rs3 = 8)
+	parameter (fac_get_rs4 = 9)
+	parameter (fac_get_rsi = 10)
+	parameter (fac_get_hsk = 11)
+	parameter (fac_get_edf = 12)
+	parameter (fac_get_etr = 13)
+	parameter (fac_get_phs = 14)
+	parameter (fac_get_phc = 15)
+	parameter (fac_get_csp = 16)
+	parameter (fac_get_nos = 17)
+	parameter (fac_get_ed1 = 18)
+	parameter (fac_get_ed2 = 19)
+	parameter (fac_get_ed3 = 20)
+	parameter (fac_get_ed4 = 21)
+	parameter (fac_get_mp1 = 22)
+	parameter (fac_get_mp2 = 23)
+	parameter (fac_get_mp3 = 24)
+	parameter (fac_get_mp4 = 25)
+	parameter (fac_get_cv1 = 26)
+	parameter (fac_get_cv2 = 27)
+	parameter (fac_get_cv3 = 28)
+	parameter (fac_get_cv4 = 29)
+	parameter (fac_get_rd1 = 30)
+	parameter (fac_get_rd2 = 31)
+	parameter (fac_get_rd3 = 32)
+	parameter (fac_get_rd4 = 33)
+	parameter (fac_get_sc1 = 34)
+	parameter (fac_get_sc2 = 35)
+	parameter (fac_get_sc3 = 36)
+	parameter (fac_get_sc4 = 37)
+	parameter (fac_get_sm1 = 38)
+	parameter (fac_get_sm2 = 39)
+	parameter (fac_get_sm3 = 40)
+	parameter (fac_get_sm4 = 41)
+
+	parameter (fac_sky = 1)
+	parameter (fac_cal = 2)
+	parameter (fac_raw = 3)
+	parameter (fac_out_template = 1)
+	parameter (fac_out_sec_template = 2)
+	parameter (fac_out_deglitch = 3)
+	parameter (fac_out_con_check = 4)
+	parameter (fac_out_coadd = 5)
+	parameter (fac_out_baseline_sub = 6)
+        parameter (fac_out_covar = 7)
+
+	parameter (fac_no_dq = 0)
+	parameter (fac_good_dq = 1)
+	parameter (fac_some_yellow = 2)
+	parameter (fac_many_yellow = 3)
+	parameter (fac_no_y_some_r = 4)
+	parameter (fac_some_y_some_r = 5)
+	parameter (fac_many_y_some_r = 6)
+	parameter (fac_many_red = 7)
+	parameter (fac_no_att_soln = 32)
+	parameter (fac_no_hskp = 64)
+	parameter (fac_tlm_error = 127)
+
+	parameter (fac_interpolate = 1)
+	parameter (fac_latest = 2)
+	parameter (fac_closest = 3)
+	parameter (fac_calculate = 4)
+	parameter (fac_previous = 5)
+	parameter (fac_autophase = 6)
+
+	parameter (fac_stranded = 1)
+	parameter (fac_tolerance = 2)
+	parameter (fac_holding = 3)
+	parameter (fac_stale = 4)
+
+	parameter (fac_boxcar = 1)
+
+	parameter (fac_fpp_rh = 1)
+	parameter (fac_fpp_rl = 2)
+	parameter (fac_fpp_lh = 3)
+	parameter (fac_fpp_ll = 4)
+	parameter (fac_fdq_rh = 5)
+	parameter (fac_fdq_rl = 6)
+	parameter (fac_fdq_lh = 7)
+	parameter (fac_fdq_ll = 8)
+
+	parameter (fac_fir_anc = 97)
+	parameter (fac_skyco_rh = 98)
+	parameter (fac_skyco_rl = 99)
+	parameter (fac_skyco_lh = 100)
+	parameter (fac_skyco_ll = 101)
+	parameter (fac_pcspc_rh = 102)
+	parameter (fac_pcspc_rl = 103)
+	parameter (fac_pcspc_lh = 104)
+	parameter (fac_pcspc_ll = 105)
+	parameter (fac_ucspc_rh = 106)
+	parameter (fac_ucspc_rl = 107)
+	parameter (fac_ucspc_lh = 108)
+	parameter (fac_ucspc_ll = 109)
+
+	parameter (fac_fir_scilim = 110)
+	parameter (fac_fir_englim = 111)
+        parameter (fac_fir_limflag = 112)
+        parameter (fac_fir_idx_tOLS = 113)
+        parameter (fac_fir_idx_FLAG = 114)
+        parameter (fac_fir_cth = 159)
+
+	parameter (fac_frd_facr = 207)
+	parameter (fac_frd_faker = 208)
+	parameter (fac_frd_fakel = 209)
+
+	parameter (fac_sssky_rh = 210)
+	parameter (fac_sssky_rl = 211)
+	parameter (fac_sssky_lh = 212)
+	parameter (fac_sssky_ll = 213)
+
+	parameter (fac_frd_vabsaa = 214)
+	parameter (fac_frd_mtmsweep = 216)
+	parameter (fac_frd_gainr = 218)
+	parameter (fac_frd_gainl = 219)
+	parameter (fac_frd_grawt = 225)
+	parameter (fac_frd_gtran = 226)
+	parameter (fac_frd_gcoat = 227)
+	parameter (fac_frd_mincoadd = 230)
+
+	parameter (fac_hkp_idx = 156)
+	parameter (fac_hkp_edf = 157)
+
+	parameter (fac_ccmsp_rh = 123)
+	parameter (fac_ccmsp_rl = 124)
+	parameter (fac_ccmsp_lh = 125)
+	parameter (fac_ccmsp_ll = 126)
+	parameter (fac_ccasp_rh = 127)
+	parameter (fac_ccasp_rl = 128)
+	parameter (fac_ccasp_lh = 129)
+	parameter (fac_ccasp_ll = 130)
+
+	parameter (fac_cmmsp_lr = 131)
+	parameter (fac_cmmsp_hr = 132)
+	parameter (fac_cmasp_lr = 133)
+	parameter (fac_cmasp_hr = 134)
+
+	parameter (fac_crmsp_lr = 135)
+	parameter (fac_crmsp_hr = 136)
+	parameter (fac_crasp_lr = 137)
+	parameter (fac_crasp_hr = 138)
+
+	parameter (fac_lrmspc = 139)
+	parameter (fac_lraspc = 140)
+	parameter (fac_smmspc = 141)
+	parameter (fac_smaspc = 142)
+
+	parameter (fac_sshf_rh = 89)
+	parameter (fac_sshf_rl = 90)
+	parameter (fac_sshf_lh = 91)
+	parameter (fac_sshf_ll = 92)
+	parameter (fac_sspur_rh = 93)
+	parameter (fac_sspur_rl = 94)
+	parameter (fac_sspur_lh = 95)
+	parameter (fac_sspur_ll = 96)
+
+	parameter (fac_cottg_rh = 115)
+	parameter (fac_cottg_rl = 116)
+	parameter (fac_cottg_lh = 117)
+	parameter (fac_cottg_ll = 118)
+
+	parameter (fac_ctctl_rh = 161)
+	parameter (fac_ctctl_rl = 162)
+	parameter (fac_ctctl_lh = 163)
+	parameter (fac_ctctl_ll = 164)
+
+	parameter (fac_ctmtr_rh = 165)
+	parameter (fac_ctmtr_rl = 166)
+	parameter (fac_ctmtr_lh = 167)
+	parameter (fac_ctmtr_ll = 168)
+
+	parameter (fac_dtodg_rh = 173)
+	parameter (fac_dtodg_rl = 174)
+	parameter (fac_dtodg_lh = 175)
+	parameter (fac_dtodg_ll = 176)
+	parameter (fac_dtoci_rh = 177)
+	parameter (fac_dtoci_rl = 178)
+	parameter (fac_dtoci_lh = 179)
+	parameter (fac_dtoci_ll = 180)
+	parameter (fac_dtocp_rh = 181)
+	parameter (fac_dtocp_rl = 182)
+	parameter (fac_dtocp_lh = 183)
+	parameter (fac_dtocp_ll = 184)
+
+	parameter (fac_dttdg_rh = 185)
+	parameter (fac_dttdg_rl = 186)
+	parameter (fac_dttdg_lh = 187)
+	parameter (fac_dttdg_ll = 188)
+	parameter (fac_dttci_rh = 189)
+	parameter (fac_dttci_rl = 190)
+	parameter (fac_dttci_lh = 191)
+	parameter (fac_dttci_ll = 192)
+	parameter (fac_dttcp_rh = 193)
+	parameter (fac_dttcp_rl = 194)
+	parameter (fac_dttcp_lh = 195)
+	parameter (fac_dttcp_ll = 196)
+
+	parameter (fac_eng_xtrm = 158)
+
+	parameter (fac_no_gap = 0)
+	parameter (fac_gap = 1)
+	parameter (fac_gap_nodata = 2)

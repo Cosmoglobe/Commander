@@ -1,0 +1,23 @@
+.header level Engineering_Index (FDQ_IDX)
+
+    The Time-Ordered Interferograms (the ingested, consistent and data
+qualified raw science interferograms) are indexed by internal calibrator
+temperature, external calibrator position and temperature, sky horn
+and reference horn temperatures, detector biases, onboard deglitcher
+parameters, scan speed, scan length, and most other engineering
+parameters.  This file is cross-referenced with the Engineering Data
+File by the Engineering Index to search the interferograms for
+particular cases of interest; such cases will arise because both the
+commanded instrument status and its history may be needed to
+understand certain data.
+    This file also includes a history of microprocessor status word
+changes, which is produced from the telemetry data and command files
+by analyzing all the status indictators and command words (e.g.,
+temperatures, gains, and microprocessor software selections) and
+recording their changes as events. The index capability accomodates
+requests to retrieve engineering data fitting certain Boolean combinations of
+engineering quantities, by means of the Cobetrieve query.
+    It is also necessary to have some cross-reference capability with
+DIRBE and DMR, since a change of instrument state in either of those
+can cause observable changes (e.g., thermal pulses) in FIRAS.
+

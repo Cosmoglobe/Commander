@@ -1,0 +1,7 @@
+!  SCRIPT.LRES
+!  FMS script file for merge  HIGH + LOWF = LRES
+!
+ $SMAPS
+	skymap(1) = 'FMS_SKY_HIGH.FAD_8932800_9026409;'
+	skymap(2) = 'FMS_SKY_LOWF.FAD_8932800_9026409;'
+ $END

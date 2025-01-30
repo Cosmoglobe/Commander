@@ -1,0 +1,34 @@
+  0.3181130953125  0.2140692412586  0.0966526586767  !  RH slopes
+  1.4352805363822  0.8577051984544  0.5659091990933  !  RL slopes
+  1.5191090347109  0.7266698341443  0.2082700179341  !  LH slopes
+  0.9033791223006  1.1911192067644  0.7500055772031  !  LL slopes
+
+  0.8077706519285  0.8747664977663  0.9388613541838  !  RH intercepts
+  0.4982031329753  0.7114551425149  0.8027039679998  !  RL intercepts
+  0.8917235659124  0.9526830996467  0.9840390263056  !  LH intercepts
+  0.6036605718068  0.6089863134529  0.6825380479394  !  LL intercepts
+
+!
+!  Reference Dataset FEX_GLTCHCOR Text File
+!
+!	This file contains the glitchrate correction slopes and intercepts
+!	for the FIRAS data.  These corrections were computed for each channel
+!	and scan mode by a linear lease squares fit to the average variance and
+!	glitch rate of each calibrated sky spectrum.  The average variance for
+!	a spectrum is defined to be:  ((Nifgs * Real_Var) / D-Vector^2) / Nfreq.
+!
+!	These corrections are used in the following manner:
+!		Nifgs' = Nifgs / (Intercept + Slope * Glitchrate)
+!
+!	The spectra used in these computations were calibrated with the
+!	F16_93HYBRID calibration model solutions.
+!
+!	For each row above, entries are in the order short slow, short fast,
+!	and long fast.
+!
+!
+!	Author:   Gene Eplee
+!		  General Sciences Corp.
+!		  513-7768
+!		  2 December 1993
+!                 SER 11702

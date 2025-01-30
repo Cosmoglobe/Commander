@@ -1,0 +1,35 @@
+
+      DEFINE VERB FAD_APPLY_DESTRIPER
+
+      Image "CSDR$SYSTEM:FAD.EXE"
+
+      qualifier  CHAN,  value (type=fad_channel, required),  nonnegatable
+      ! Two letter, FIRAS channel to process, see fad_channel below.
+
+      qualifier  SCAN,  value (type=fad_scan_mode, required),  nonnegatable
+      ! Two letter, FIRAS scan mode to process, see fad_scan_mode below.
+
+      qualifier  FILEXT,  value (required), nonnegatable
+      ! File extension of the FCF_SKY file to process.
+
+      qualifier  MODEL,  value (required), nonnegatable
+      ! FISH model name - file extension of FEX_EJ reference file.
+
+      qualifier  REPORT,  value (type=$file),  default,  negatable
+      ! Allows user to specify report name or NOREPORT. 
+
+	DISALLOW Chan.rh AND Scan.fl
+	DISALLOW Chan.lh AND Scan.fl
+
+      define type fad_channel
+            keyword rh
+            keyword rl
+            keyword lh
+            keyword ll
+
+      define type fad_scan_mode
+            keyword ss
+            keyword sf
+            keyword ls
+            keyword lf
+            keyword fl

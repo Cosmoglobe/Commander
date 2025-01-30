@@ -1,0 +1,128 @@
+1 FCS
+
+   PURPOSE
+
+      FCS - FIRAS COMBINE SKYMAPS is the last facility in the pipeline
+      processing of FIRAS data.  Its purpose is to combine FIRAS skymaps.
+      The combination is a weighted mean of the FCF produced calibrated
+      spectra in each pixel.  FCS will calculate the total variance per
+      combined spectrum, a bin vector, and means and standard deviations of
+      the engineering, attitude, and any other fields in the skymap.  FCS will
+      fill in the appropriate values for minimum and maximum engineering
+      value, and first and last time values.
+
+      FCS will combine spectra and data from one FIRAS channel and one scan
+      modes.  Combination skymaps can be formed for the entire mission data set
+      or several mission periods.  The input FCF skymaps are identified by file
+      name which will be designated in a namelist or "script" file.  This file
+      can contain a time range per skymap that indicates which records within
+      a skymap should be included in the combination formed by FCS (no time
+      range indicates that all records are included).
+
+2 /SKYFILE
+   A required qualifier.
+   Name of "script" file, a namelist input file that contains:
+
+      1. (Required)  The complete name of each skymap file to be combined.
+
+      2. (Optional)  A time range for each input skymap file.  Only spectra
+      created from interferograms (IFG's) within this time range will be
+      included in the FCS combined spectrum.  Start time defaults towards the
+      start of day (ie. 8912713 -> 89127130000000 ).  Stop time defaults
+      towards the end of day (ie. 90134 -> 90134235959990 ).  The default
+      times are those found in the archive catalog for each skymap.
+
+      3. (Optional)  An output file extension for the combined skymap.  The
+      defaults are:
+         "FAD_jstart_jstop" for FAD input,
+         "FCF_jstart_jstop" for FCF input.
+
+      jstart and jstop are the earliest and latest times defaulted or specified
+      in the script file.
+
+      Format Examples:
+
+         FCS/SKYFILE=INPUTFILE.DAT/input=fcf/chan=rh/scan=ss/report
+         FCS/SKYF=MYFILE.DAT/input=fcf/chan=rh/scan=ss/report
+
+2 /INPUT
+      A required qualifier.
+      Specifies the input data type.  FCS can be run on either FAD or FCF input
+      data.  The INPUT qualifier must specify the type of skymaps listed in the
+      script file.
+
+      Format Examples:
+
+         FCS/skyf=inputfcf.dat/INPUT=FCF/chan=rh/scan=ss/report
+         FCS/skyf=inputfad.dat/INPUT=FAD/chan=rh/scan=ss/report
+
+2 /CHANNEL
+      A required qualifier.
+      Channel to process. Should match skymaps in script file.
+      The Channel qualifier allows the user to select one of the four
+      science channels for the run. The default is RH.  The desired channel
+      may be selected by specifying one of: RH, RL, LH or LL.
+
+      Format Examples:
+
+         FCS/skyfile=slist.nam/input=fcf/CHANNEL=LH/scan=ss/report=fcs.rpt
+         FCS/skyfile=slist.nam/input=fcf/CHAN=LL/scan=ss/report=fcs.rpt
+
+2 /SCAN_MODE
+      A required qualifier.
+      Scan mode of skymaps to process. Should match skymaps in script file.
+      The qualifier allows the user to select one of the four scan modes for
+      the run. The default is SS.  The desired scan mode may be selected by
+      specifying one of: SS, SF, LS, LF and must match at least one of the
+      skymaps listed in the specified "script" file indicated with the
+      /skyfile qualifier.
+
+      Format Examples:
+
+         FCS/skyfile=slist.nam/input=fcf/chan=lh/SCAN_MODE=SS/report=fcs.rpt
+         FCS/skyfile=slist.nam/input=fcf/chan=lh/SCAN=SS/report=fcs.rpt
+
+2 /REPORT
+       The REPORT qualifier determines whether a report will be generated for
+       the run.  It can also be used to specify a report name.  The default is
+       to write the report file.  This qualifier is negatable.  There are 2
+       possible default report names:
+
+         "FCS_ccss_REPORT.FAD_jstart_jstop" for FAD input,
+         "FCS_ccss_REPORT.FCF_jstart_jstop" for FCF input,
+
+       where cc = channel, ss = scanmode, and jstart and jstop are the gmts
+       specified as the largest range in the script file.  /NOREPORT indicates
+       that no report should be made.
+
+       Format Examples:
+
+          FCS/skyfile=slist.nam/input=fcf/chan=LH/scan=LF/REPORT=FCS.RPT
+             - user specified report name.
+          FCS/skyfile=slist.nam/input=fcf/chan=LH/scan=LF/NOREPORT
+             - no report generated.
+          FCS/skyfile=slist.nam/input=fcf/chan=LH/scan=LF/REPORT
+             - uses default name.
+          FCS/skyfile=slist.nam/input=fcf/chan=LH/scan=LF
+             - uses default name.
+
+2  FIRAS_Logicals
+
+      Datasets used by FCS are controlled by the logical names
+      "CSDR$FIRAS_IN" and "CSDR$FIRAS_OUT".  These logical names can be used
+      to direct the facility to operate on datasets within a private archive
+      by making definitions such as:
+         DEFINE CSDR$FIRAS_IN DEVICE:[PRIVATE.ARCHIVE]
+
+      CSDR$FIRAS_IN  points to the archive containing skymaps to combine.
+      CSDR$FIRAS_OUT  points to the archive to contain the combined skymap.
+
+2  Production
+
+   During pipeline production FCS is invoked:
+
+      FCS/skyfile=csdr$firas_reference:fcs_scr_rhss.txt/input=FAD/chan=RH -
+         /scan=SS
+
+      FCS/skyfile=csdr$firas_reference:fcs_scr_rhlf.txt/input=FAD/chan=RH -
+         /scan=LF

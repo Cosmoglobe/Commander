@@ -1,0 +1,21 @@
+!
+! Channel specific setup fields.
+!
+        scalar/byte             UP_SCI_MODE
+                                !  uP science mode
+        scalar/byte             FAKEIT
+                                !  Fake-it
+        scalar/byte             UP_ADDS_PER_GROUP
+                                !  uP adds per group
+        scalar/byte             UP_SWPS_PER_IFG
+                                !  uP sweeps per ifg
+        scalar/byte             XMIT_MTM_SPEED
+                                !  MTM speed at transmit
+        scalar/byte             XMIT_MTM_LEN
+                                !  MTM length at transmit
+        scalar/word             SCI_GAIN
+                                !  Science gain
+        scalar/byte             DITHER
+                                !  Dither bit
+        array/byte/dim=15       SETUP_SPARES
+                                !  Setup spares

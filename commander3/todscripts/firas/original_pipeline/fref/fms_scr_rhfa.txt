@@ -1,0 +1,7 @@
+!  SCRIPT.RHFA
+!  FMS script file for merge  RHSF + RHLF = RHFA
+!
+ $SMAPS
+	skymap(1) = 'FCS_SKY_RHSF.FAD_8932800_9026409;'
+	skymap(2) = 'FCS_SKY_RHLF.FAD_8932800_9026409;'
+ $END

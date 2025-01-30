@@ -1,0 +1,20 @@
+.header level Ancillary_Engineering_Data (FDQ_HKP_ENG)
+
+    This file describes the status of the FIRAS instrument for periods
+of time when no raw science data are available.  Stored
+within this file are instrument temperatures, voltages, currents,
+microprocessor status words and other important engineering quantities.
+It is cross-indexed with the Ancillary Engineering Index
+so that engineering data can be retrieved
+on the basis of these engineering quantities.
+    The Ancillary Engineering Data archive, unlike the Engineering Data archive,
+are associated with no raw science data.  The cross-reference between intrument
+state and these engineering data is maintained in the
+Ancillary Engineering Index archive, FDQ_HKP_IDX.
+    Facility FDQ_HOUSEKEEPING_CONVERT processes data from
+periods of time which have no raw science data associated with housekeeping
+data.  The housekeeping data are converted directly into engineering units,
+written to the Ancillary Engineering Data archive, and cross-referenced with
+ancillary engineering indices.  This is done by facility
+FDQ_HOUSEKEEPING_CONVERT.
+

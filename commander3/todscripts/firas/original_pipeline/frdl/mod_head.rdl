@@ -1,0 +1,17 @@
+!
+!  Calibration Model Solution Header
+!
+      scalar/text/length=40  LABEL
+                             !  Model solution ID label
+      scalar/text/length=14  GMT
+                             !  Model solution creation time
+      scalar/byte            CHAN_ID
+                             !  Channel number
+      scalar/byte            MTM_SPEED
+                             !  Scan speed
+      scalar/byte            MTM_LENGTH
+                             !  Scan length
+      scalar/byte            ADDS_PER_GROUP
+                             !  Adds per group
+      array/byte/dim=134     SPARES
+                             !  Spares

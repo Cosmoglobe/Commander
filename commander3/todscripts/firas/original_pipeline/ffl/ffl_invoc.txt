@@ -1,0 +1,73 @@
+c-------------------------------------------------------------------------------
+c
+c	FFL_INVOC.TXT
+c
+c	This include file contains the invocation parameters for FFL
+c	(formerly FFI).
+c
+c	Author:	  Gene Eplee
+c		  General Sciences Corp.
+c		  513-7768
+c		  9 March 1993
+c		  SER 10763
+c
+c-------------------------------------------------------------------------------
+c
+c   Changes:
+c	Modifications to recover low frequency short fast data.
+c	Gene Eplee, GSC, 25 October 1993
+c	SER 11395
+c
+c	Change name from FFI to FFL; convert Common block to Structure in order
+c	   to remove some of the obscurity arising from Common blocks hiding in
+c	   Include files.			Fred Shuman, HSTX, 1995 June 14.
+c	Removed xlsf and xllf flags.		Fred Shuman, HSTX, 1995 July 05.
+c	Removed short flag; added ngpetf.	Fred Shuman, HSTX, 1995 July 14.
+c
+c-------------------------------------------------------------------------------
+
+c
+c  Define the needed constants.
+c
+	Character *  6	version		!  FFL version number
+	Parameter	(version='13.7')
+
+c
+c  Define the needed variables.
+c
+	Structure / invoc /
+	   Character*20	file_ext	!  input file name extension
+	   Character*60	infile1		!  input coadd file 1 name
+	   Character*60	infile2		!  input coadd file 2 name
+	   Character*14	jstart_time	!  GMT start time
+	   Character*14	jstop_time	!  GMT stop time
+	   Character*48	outfile		!  output spectrum file name
+	   Character*64	report_file	!  report file name
+	   Character* 4	scan_mode	!  channel and scan mode
+	   Character*30 time_range	!  GMT timerange
+
+	   Integer  * 2	inlen1		!  length of input coadd file 1 name
+	   Integer  * 2	inlen2		!  length of input coadd file 2 name
+	   Integer  * 2	outlen		!  length of output spectrum file name
+	   Integer  * 2	replen		!  length of report file name
+
+	   Integer  * 4	apod		!  apodization flag
+	   Integer  * 4	attit_qual, instr_qual	!  attitude, instrmt quality
+						!    thresholds
+	   Integer  * 4	chan			!  channel number
+	   Integer  * 4	smode			!  mtm scan mode
+	   Integer  * 4	hybrid			!  hybrid input stream flag
+	   Integer  * 4	jstart(2), jstop(2)	!  binary start time, stop time
+	   Integer  * 4	ngroup		!  adds per group
+	   Integer  * 4	ngpetf		!  adds/gp for FUT_Get_Recnum [for ETF]
+	   Integer  * 4	npts		!  # of points in spectra
+	   Integer  * 4	nspec		!  # of spectra processed
+	   Integer  * 4	nspec1		!  # of spectra processed from stream 1
+	   Integer  * 4	nspec2		!  # of spectra processed from stream 2
+	   Integer  * 4	report		!  /REPORT qualifier
+	   Integer  * 4	xhsf		!  XHSF scan mode flag
+
+	   Real     * 4	threshold	!  hybrid input threshold
+	EndStructure
+
+	Record / invoc / ffli

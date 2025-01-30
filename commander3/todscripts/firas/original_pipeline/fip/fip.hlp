@@ -1,0 +1,1493 @@
+1 FIP
+    FIP_INITIAL_PRODUCT is a suite of programs that converts various FIRAS
+    datasets to Project Dataset formats and writes the converted datasets
+    to Project Dataset files.  These Project Dataset files are ready for
+    conversion to Project Dataset FITS files.  Currently, there ten FIP
+    programs.  The programs and associated datasets are:
+
+    FIP_SKY          processes skymaps of calibrated spectra (FCS, FMS)
+    FIP_MODEL        processes FIRAS calibration model solutions
+    FIP_COVAR        processes covariance matrices for the FIRAS sky spectra
+    FIP_LINES        processes FIRAS spectral line profiles
+    FIP_EJV          processes FIRAS destriper correction spectra
+    FIP_ERR          processes FIRAS calibration error terms
+    FIP_FEF          processes FIRAS extra factor error terms
+    FIP_DUST         processes skymaps of line-subtracted FIRAS dust spectra
+    FIP_CVS          processes FIRAS C-Vector files
+    FIP_SPECTRA_COADD processes calibration and skymap, spectra and coadds:
+                      FCF_CAL, FCF_SKY, FCF_DCL, FCF_DSK, FIC_CAL, and FIC_SKY.
+2 FIP_SKY
+    FIP_SKY reformats skymaps of combined calibrated FIRAS spectra from
+    the Production Pipeline RDLs to the Project Dataset sky spectra RDL.
+    Data types: FCS_SKY and FMS_SKY.  For each spectrum record, FIP_SKY
+    converts the spectrum and variances from ergs/s/cm^2/sr/icm to MJy/sr.
+    It converts the frequency scale information from icm to GHz.  It also
+    selects the instrument and attitude information required for the
+    project dataset RDL.
+
+    FIP_SKY allows the project dataset spectra to be filtered by
+    galactic latitude and by frequency.  The galactic latitude filter
+    excludes spectra for all pixels whose centers have latitudes greater
+    than the user-specified cutoff.  The frequency filter excludes data
+    for all frequencies outside of the user-specified frequency range.
+
+    FIP_SKY is invoked by the verb FIPSKY.
+3 Logical_Pointers
+    FIP_SKY uses two logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the archive directory that contains
+                          the skymap of combined calibrated spectra
+                          FIP_SKY will reformat.
+
+        CSDR$FIRAS_OUT    Points to the archive directory where FIP_SKY
+                          will write the project dataset spectra.
+3 Datasets
+    The opertion of FIP_SKY requires the use of two sets of data.
+    These are:
+
+    1)  the input skymap of combined calibrated spectra; and
+
+    2)  the output skymap of reformatted spectra.
+4 Input_Datasets
+    FIP_SKY will reformat one of two types of calibrated sky spectra:
+
+        FCS_SKY_CCSS    Skymaps of calibrated spectra in a single
+                        channel/scan mode combined within pixels by FCS
+
+        FMS_SKY_CCSS    Skymaps of combined calibrated spectra merged
+                        across channel and /or scan mode by FCS
+
+
+    For all three datasets, CCSS refers to the channel and scan mode of
+        the dataset, which can be a single or merged channel/scan mode.
+4 Output_Datasets
+    FIP_SKY writes out skymaps of calibrated spectra in the Project
+        Dataset RDL:
+
+        FIP_SKY_CCSS    Skymaps of reformatted calibrated spectra
+
+    CCSS refers to the channel and scan mode of the dataset, which can
+        be a single or merged channel/scan mode.
+
+    The first three characters of the FIP_SKY_CCSS filename extension
+        are either FCS or FMS, indicating the type of the
+        reformatted data.
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_SKY.  The
+    qualifiers specify the input data type, the data filtering, and the
+    processing report generation.
+4 /FILE
+    /FILE_EXT=<input skymap filename>
+
+        Input skymap files are specified by the complete filename
+        (e.g., FCS_SKY_RHSS.FAD_8932800_9026409).  FIP_SKY reformats
+        spectra for one skymap per invocation.
+
+        NOTE:  FIP_SKY ONLY REFORMATS FCS OR FMS SPECTRA.
+
+        The /FILE qualifier is required for FIP_SKY to run.
+4 /EXC_GLAT
+    /EXC_GLAT=<latitude_cutoff>
+
+    /EXC_GLAT=<90.0>    Default
+
+        FIP_SKY is able to filter the reformatted spectra by galactic
+        latitude.  The program excludes spectra for pixels whose centers
+        have galactic latitudes greater than the latitude cutoff.  The
+        latitude cutoff is specified as a real number in degrees.  By
+        default, FIP_SKY includes all latitudes in the reformatted data.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_SKY is able to filter the reformatted spectra by frequency.
+        The program excludes data for all freqeuncies outside of the
+        user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_SKY includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_SKY produces a processing report.  If the report
+        filename is not specified by the /REPORT qualifier, the default
+        filename takes the form of
+        FIP_SKY_DDD_CCSS_XXXXXXX_YYYYYYY.REP_ZZZZZZZZZ, where DDD is the
+        input data type (FCS or FMS), CCSS is the channel and scan mode,
+        XXXXXXX and YYYYYYY are the start and stop times for the skymap,
+        and ZZZZZZZZZ is the run time.  The times are in GMT format.
+3 Example
+    FIP_SKY is designed for batch processing of calibrated sky spectra.
+    A typical invocation of FIP_SKY is:
+
+        $ FIPSKY/FILE=FCS_SKY_RHSS.FAD_8932800_9026409/EXC_GLAT=15.0
+                /FREQ_RANGE=(LOW=2,HIGH=97)
+
+    In this example, an FCS skymap of calibrated right high, short slow
+    spectra is read from the file
+    CSDR$FIRAS_IN:FCS_SKY_RHSS.ED_8932800_9026409 and is filtered to
+    exclude spectra with latitudes greater than 15.0 degrees and to
+    exclude data for frequencies outside of the range of 2 to 97 icm.
+    The resulting reformatted spectra are written to the output skymap
+    CSDR$FIRAS_OUT:FIP_SKY_RHSS.FCS_8932800_9026409.  The processing
+    report file is FIP_SKY_FCS_RHSS_8932800_9026409.REP_930801457.  The
+    report file will be written to the current default directory where
+    FIP_SKY is invoked.
+2 FIP_MODEL
+    FIP_MODEL reformats FIRAS calibration model solutions from the
+    Production Pipeline RDLs to the Project Dataset model solution RDL.
+    For each channel and scan mode, FIP_MODEL processes the calibration
+    model solution, the electronics transfer function, and the
+    apodization function.  The program also computes the bolometer
+    responsivity and time constant from user-supplied bolometer state
+    parameters.  
+
+    FIP_MODEL allows the project dataset gain functions and noise esitmates
+    to be filtered by frequency.  The frequency filter excludes data for
+    all frequencies outside of the user-specified frequency range.
+
+    FIP_MODEL is invoked by the verb FIPMODEL.
+3 Logical_Pointers
+    FIP_MODEL uses four logical pointers to direct data input and output:
+
+        CSDR$FIRAS_CAL    Points to the directory that contains the
+                          calibration model solution FIP_MODEL will
+                          reformat
+
+        CSDR$FIRAS_IN     Points to the directory that contains the
+                          C-Vector FIP_MODEL will write to the project
+                          dataset model solution
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_MODEL will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_MODEL will
+                          write the project dataset calibration model
+                          solution
+3 Datasets
+    The operation of FIP_MODEL requires the use of the following
+    datasets:
+
+    1)  the calibration model solution and the C-Vector noise estimate;
+
+    2)  the reference datasets; and
+
+    3)  calibration model solution in the project dataset format.
+4 Input_Datasets
+    FIP_MODEL processes the the following input datasets:
+
+        FEX_MOD_CCSS.VVV_XXXXXXXXXX        Calibration model solution
+
+        FEX_CVS_CCSS.VVV_XXXXXXXXXX        C-Vector detector noise
+                                           estimate
+
+    In both of these cases, CC refers to channel (RH,RL,LH,LL), SS
+    refers to scan mode (SS,SF,LS,LF), VVV refers to the version of the 
+    calibration program that generated the model solution (e.g., F16),
+    and XXXXXXXXXX is the model solution label (e.g., 93HYBRID).
+4 Reference_Datasets
+    FIP_MODEL uses the following reference datasets:
+
+        FEX_APOD        Apodization function written to the project
+                        dataset model solution 
+
+        FEX_ETF         Electronics transfer function written to the
+                        project dataset model solution
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the project
+                        dataset model solution
+4 Output_Datasets
+    FIP_MODEL writes the following output dataset:
+
+        FIP_MOD_CCSS.VVV_XXXXXXXXXX    Calibration model solution in
+                                       project dataset format
+
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), VVV refers to the version of the calibration program
+    that generated the model solution (e.g., F16), and XXXXXXXXXX is
+    the model solution label (e.g., 93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_MODEL.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /MODEL_EXT
+    /MODEL_EXT=<model solution filename extension>
+
+        FIP_MODEL will reformat the calibration model solution
+        specified by the model solution filename extansion.  The
+        filename extension is of the form VVV_XXXXXXXXXX, where VVV is
+        the version of the calibration program that generated the
+        solution and XXXXXXXXXX is the model solution label.
+
+        The model solution filename extension is required for FIP_MODEL
+        to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_MODEL reformats a model for one channel per invocation.
+        The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.
+        The /CHANNEL qualifier is required for FIP_MODEL to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_MODEL reformats a model for one scan mode per invocation.
+        The options are SHORT SLOW, SHORT FAST, LONG SLOW, or LONG FAST.
+        The /SCAN_MODE qualifier is required for FIP_MODEL to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_MODEL reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_MODEL to run.
+4 /INT
+    /INT
+        FIP_MODEL reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_MODEL to run.
+4 /BIAS
+    /BIAS=<commanded bolometer bias in counts>
+
+        FIP_MODEL computes a detector responsivity and time constant
+        for the commanded bolometer bias specified by the /BIAS
+        qualifier.  Nominally, a mission average value for the channel
+        and scan mode in question is specified.
+
+        The commanded bolometer bias is required for FIP_MODEL to run.
+4 /VOLT
+    /VOLT=<bolometer voltage in volts>
+
+        FIP_MODEL computes a detector responsivity and time constant
+        for the bolometer voltage specified by the /VOLT qualifier.
+        Nominally, a mission average value for the channel and scan
+        mode in question is specified.
+
+        The bolometer voltage is required for FIP_MODEL to run.
+4 /TEMP
+    /TEMP=<bolometer temperature>
+
+        FIP_MODEL computes a detector responsivity and time constant
+        for the bolometer temperature specified by the /TEMP qualifier.
+        Nominally, a mission average value for the channel and scan
+        mode in question is specified.
+
+        The bolometer temperature is required for FIP_MODEL to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_MODEL is able to filter the model solution by frequency.
+        The program excludes data for all frequencies outside of the
+        user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_MODEL includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_MODEL produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_MOD_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        VVV is the version of the calibration program that generated the
+        model solution, XXXXXXXXXX is the model solution label, and
+        ZZZZZZZZZ is the run time in GMT format.
+3 Example
+    FIP_MODEL is designed for batch processing of calibration model
+    solutions.  A typical invocation of FIP_MODEL is:
+
+        $ FIPMODEL/MODEL_EXT=F16_93HYBRID/CHANNEL=RH/SCAN_MODE=SS-
+             /FLIGHT/BIAS=86/VOLT=2.91594291/TEMP=1.53423882-
+             /FREQ_RANGE=(LOW=20,HIGH=100)
+
+    In this example, an FCF calibration model solution for the right
+    high, short slow scan mode is read from the binary file
+    CSDR$FIRAS_CAL:FEX_MOD_RHSS.F16_93HYBRID and a C-Vector noise
+    estimate is read from the binary file
+    CSDR$FIRAS_IN:FEX_CVS_RHSS.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    gain functions and the noise esitmate are filtered to exclude data
+    for frequencies outside the range of 20 to 100 icm.  The reformatted
+    calibration model solution is written to the binary file
+    CSDR$FIRAS_OUT:FIP_MOD_RHSS.F16_93HYBRID.  The processing report
+    file is FIP_MODEL_RHSS_F16_93HYBRID.REP_930801457.  The report file
+    will be written to the current default directory where FIP_MODEL is
+    invoked.
+2 FIP_COVAR
+
+    The purpose of FIP_COVAR is to convert the calibrated covariance matrix
+    output by FCC_Calibrate_Covariances into proper units and write only the
+    frequency bins that are specified for the FIRAS project dataset release.
+
+    FIP_COVAR will retrieve the covariance matrix and associated information
+    from the FCC output, for the specified channel and scan mode, convert
+    the units from Eplees^2 to (MJy/sr)^2, and write the submatrix for the
+    specified frequency range for the deliverable project dataset.
+
+3 Logical_Pointers
+    FIP_COVAR uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN   - points to the archive containing the FCC_COV
+                          covariance matrix.
+        CSDR$FIRAS_REF  - points to the archive containing FEX_NYQUIST
+                          reference file.
+        CSDR$FIRAS_OUT  - points to the archive to contain the converted
+                          covariance matrix.
+
+3 Command_Qualifiers
+    The FIP_COVAR command line contains the following qualifiers:
+
+4 /CHANNEL
+    /CHANNEL=RH
+    /CHANNEL=RL
+    /CHANNEL=LH
+    /CHANNEL=LL
+
+    Specifies which channel of FIRAS data to process, Right High, Right
+    Low, Left High, or Left Low.  The channel specification is required
+    and there is no default.
+
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+    /SCAN_MODE=SF
+    /SCAN_MODE=LS
+    /SCAN_MODE=LF
+
+    Specifies which MTM scan mode of FIRAS data to process, Short Slow,
+    Short Fast, Long Slow, or Long Fast.  The scan mode specification is
+    required and there is no default.
+
+4 /FILE_EXT
+    /FILE_EXT=ED_9022005_9026409
+
+    Specifies the file extension of the input FCC_COV_ccss file.  The
+    same file extension is used for the output FIP_COV_ccss file.  The
+    file extension specification is required and there is no no default.
+
+4 /FREQ_RANGE
+    /FREQ_RANGE=(LOW=20, HIGH=90)
+
+    Specifies the frequency range for data released. (LOW=fl, HIGH=fh)
+    where fl and fh are real numbers specifying frequency range in icm.
+    The range specification is required and there is no default.  If the
+    range is too big an error message is reported and process aborts.
+
+4 /REPORT
+    /REPORT
+    /REPORT=my_report_name.rep
+    /NOREPORT
+
+    Specifies a processing report be generated, can specify a name for
+    the report, or that no report be generated.  The qualifier is
+    optional; the default is to create a report named:
+       FIP_COV_ccss_jstart_jstop.REP_rungmt,
+    where cc is the channel, ss is the scan mode, jstart_jstop are the
+    data start and stop times from the input data file name, and rungmt
+    is the current processing time in gmt.
+2 FIP_LINES
+    FIP_LINES reformats FIRAS spectral line profiles from the binary files
+    generated by FLA to the project dataset line profiles RDL's.  There is
+    a set of line profiles for each channel and scan mode.
+
+    FIP_LINES allows the project dataset line profiles to be filtered by
+    frequency.  The frequency filter excludes data for all frequencies
+    outside of the user-specified frequency range.
+
+    FIP_LINES is invoked by the verb FIPLINES
+3 Logical_Pointers
+    FIP_LINES uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the directory that contains the binary
+                          line profiles file generated by FLA
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_LINES will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_LINES will
+                          write the project dataset line profiles file
+3 Datasets
+    The operation of FIP_LINES requires the use of the following
+    datasets:
+
+    1)  the binary line profiles file;
+
+    2)  the reference datasets; and
+
+    3)  the line profiles file in the project dataset format.
+4 Input_Datasets
+    FIP_LINES processes the following input datasets:
+
+        FLA_HLP_CCSS.VVV_XXXXXXXXXX     High frequency channel
+                                        binary line profiles
+                                        file generated by FLA
+
+        FLA_LLP_CCSS.VVV_XXXXXXXXXX     Low frequency channel
+                                        binary line profiles
+                                        file generated by FLA
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to generate the line profiles (e.g., F16_93HYBRID).
+4 Reference_Datasets
+    FIP_LINES uses the following reference datasets:
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the
+                        project dataset line profiles
+4 Output_Datasets
+    FIP_LINES writes the following output dataset:
+
+        FIP_HLP_CCSS.VVV_XXXXXXXXXX    High frequency channel
+                                       line profiles file
+                                       in project dataset format
+
+        FIP_HLP_CCSS.VVV_XXXXXXXXXX    Low frequency channel
+                                       line profiles file
+                                       in project dataset format
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to generate the line profiles (e.g., F16_93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_LINES.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /LINES_EXT
+    /LINES_EXT=<line profiles filename extension>
+
+        FIP_LINES will reformat the binry line profiles file specified
+        by the line profiles filename extansion.  The filename
+        extension is of the form VVV_XXXXXXXXXX, where VVV_XXXXXXXXXX
+        is the label of the model solution used to generate the line
+        profiles (e.g., F16_93HYBRID).
+
+        The line profiles filename extension is required for FIP_LINES
+        to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_LINES reformats line profiles for one channel per
+        invocation.  The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH,
+        or LEFT LOW.  The /CHANNEL qualifier is required for FIP_LINES
+        to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_LINES reformats line profiles for one scan mode per
+        invocation.  The options are SHORT SLOW, SHORT FAST, LONG SLOW,
+        or LONG FAST.  The /SCAN_MODE qualifier is required for
+        FIP_LINES to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_LINES reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_LINES to run.
+4 /INT
+    /INT
+        FIP_LINES reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_LINES to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_LINES is able to filter the line profiles by frequency.
+        The program excludes data for all frequencies outside of the
+        user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_LINES includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_LINES produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_LINES_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        and VVV_XXXXXXXXXX is the line profiles filename extension,
+        and ZZZZZZZZZ is the run time in GMT format.
+3 Example
+    FIP_LINES is designed for batch processing of binary line profile 
+    files.  A typical invocation of FIP_LINES is:
+
+        $ FIPLINES/LINES_EXT=F16_93HYBRID/CHANNEL=RH/SCAN_MODE=SS-
+             /FLIGHT/FREQ_RANGE=(LOW=2,HIGH=97)
+
+    In this example, FIRAS spectral line profiles for the right high,
+    short slow scan mode are read from the binary file
+    CSDR$FIRAS_IN:FLA_HLP_RHSS.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    line profiles are filtered to exclude data for frequencies outside
+    the range of 2 to 97 icm.  The reformatted line profiles are
+    written to the binary file CSDR$FIRAS_OUT:FIP_HLP_RHSS.F16_93HYBRID.
+    The processing report file is
+    FIP_LINES_RHSS_F16_93HYBRID.REP_930801457.  The report file will be
+    written to the current default directory where FIP_LINES is invoked.
+2 FIP_EJV
+    FIP_EJV reformats the FIRAS destriper correction spectra reference
+    datasets to the Project Dataset RDL.  There is a set of correction
+    spectra for each channel and scan mode.
+
+    FIP_EJV allows the project dataset correction spectra to be filtered
+    by frequency.  The frequency filter excludes data for all frequencies
+    outside of the user-specified frequency range.
+
+    FIP_EJV is invoked by the verb FIPEJV.
+3 Logical_Pointers
+    FIP_EJV uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the directory that contains the binary
+                          correction spectra files generated by FDS
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_EJV will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_EJV will
+                          write the project dataset correction spectra
+                          files.
+3 Datasets
+    The operation of FIP_EJV requires the use of the following
+    datasets:
+
+    1)  the binary correction spectra files;
+
+    2)  the reference datasets; and
+
+    3)  the correction spectra files in the project dataset format.
+4 Input_Datasets
+    FIP_EJV processes the the following input datasets:
+
+        FEX_EJV_CCSS.VVV_XXXXXXXXXX     Binary destriper correction
+                                        spectra file generated by FDS
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+4 Reference_Datasets
+    FIP_EJV uses the following reference datasets:
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the
+                        project dataset correction spectra
+4 Output_Datasets
+    FIP_EJV writes the following output dataset:
+
+        FIP_EJV_CCSS.VVV_XXXXXXXXXX    Destriper correction spectra in
+                                       project dataset format
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_EJV.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /FILE_EXT
+    /FILE_EXT=<correction spectra filename extension>
+
+        FIP_EJV will reformat the binary correction spectra files
+        specified by the correction spectra filename extansion.
+        The filename extension is of the form VVV_XXXXXXXXXX, which
+        is the label of the model solution used to calibrate the
+        sky spectra.
+
+        The correction spectra filename extension is required for
+        FIP_EJV to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_EJV reformats correction spectra for one channel per
+        invocation.  The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH,
+        or LEFT LOW.  The /CHANNEL qualifier is required for FIP_EJV
+        to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_EJV reformats correction spectra for one scan mode per
+        invocation.  The options are SHORT SLOW, SHORT FAST, LONG SLOW,
+        or LONG FAST.  The /SCAN_MODE qualifier is required for
+        FIP_EJV to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_EJV reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_EJV to run.
+4 /INT
+    /INT
+        FIP_EJV reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_EJV to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_EJV is able to filter the correction spectra by frequency.
+        The program excludes data for all frequencies outside of the
+        user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_EJV includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_EJV produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_EJV_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        VVV_XXXXXXXXXX is the correction spectra filename extension,
+        and ZZZZZZZZZ is the run time in GMT format.
+3 Example
+    FIP_EJV is designed for batch processing of binary correction 
+    spectra files.  A typical invocation of FIP_EJV is:
+
+        $ FIPEJV/FILE_EXT=F16_93HYBRID/CHANNEL=LL/SCAN_MODE=SS-
+             /FLIGHT/FREQ_RANGE=(LOW=2,HIGH=21)
+
+    In this example, FIRAS correction spectra for the left low,
+    short slow scan mode are read from the binary file
+    CSDR$FIRAS_IN:FEX_EJV_LLSS.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    correction spectra are filtered to exclude data for frequencies
+    outside the range of 2 to 21 icm.  The reformatted correction
+    spectra are written to the binary file
+    CSDR$FIRAS_OUT:FIP_EJV_LLSS.F16_93HYBRID.  The processing report file
+    is FIP_EJV_RHSS_F16_93HYBRID.REP_930801457.  The report file will be
+    written to the current default directory where FIP_EJV is invoked.
+2 FIP_ERR
+    FIP_ERR reformats the FIRAS calibration errors datasets to the
+    Project Dataset RDL.  There is a set of errors for each channel
+    and scan mode.
+
+    FIP_ERR allows the project dataset errors to be filtered by
+    frequency.  The frequency filter excludes data for all frequencies
+    outside of the user-specified frequency range.
+
+    FIP_ERR is invoked by the verb FIPRR.
+3 Logical_Pointers
+    FIP_ERR uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the directory that contains the binary
+                          error files generated by FER
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_ERR will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_ERR will
+                          write the project dataset error files.
+3 Datasets
+    The operation of FIP_ERR requires the use of the following
+    datasets:
+
+    1)  the binary error files;
+
+    2)  the reference datasets; and
+
+    3)  the error files in the project dataset format.
+4 Input_Datasets
+    FIP_ERR processes the the following input datasets:
+
+        FER_ERR_CCSS.VVV_XXXXXXXXXX     Binary error file
+                                        generated by FER
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+4 Reference_Datasets
+    FIP_ERR uses the following reference datasets:
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the
+                        project dataset correction spectra
+4 Output_Datasets
+    FIP_ERR writes the following output dataset:
+
+        FIP_ERR_CCSS.VVV_XXXXXXXXXX    Errors in project dataset
+                                       format
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_ERR.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /FILE_EXT
+    /FILE_EXT=<error filename extension>
+
+        FIP_ERR will reformat the binary error files specified by
+        specified by the error filename extansion.  The filename
+        extension is of the form VVV_XXXXXXXXXX, which is the label
+        of the model solution used to calibrate the sky spectra.
+
+        The error filename extension is required for FIP_ERR to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_ERR reformats errors for one channel per invocation.
+        The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.
+        The /CHANNEL qualifier is required for FIP_ERR to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_ERR reformats errors for one scan mode per invocation.
+        The options are SHORT SLOW, SHORT FAST, LONG SLOW, or LONG FAST.
+        The /SCAN_MODE qualifier is required for FIP_ERR to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_ERR reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_ERR to run.
+4 /INT
+    /INT
+        FIP_ERR reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_ERR to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_ERR is able to filter the errors by frequency.  The program
+        excludes data for all frequencies outside of the user-specified
+        frequency range.  The low and high frequency cutoffs are
+        specified as integer numbers in icm.  By default, FIP_ERR
+        includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_ERR produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_ERR_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        VVV_XXXXXXXXXX is the error filename extension, and ZZZZZZZZZ
+        is the run time in GMT format.
+3 Example
+    FIP_ERR is designed for batch processing of binary error files. 
+    A typical invocation of FIP_ERR is:
+
+        $ FIPRR/FILE_EXT=F16_93HYBRID/CHANNEL=LL/SCAN_MODE=SS-
+             /FLIGHT/FREQ_RANGE=(LOW=2,HIGH=21)
+
+    In this example, FIRAS errors for the left low, short slow scan
+    mode are read from the binary file
+    CSDR$FIRAS_IN:FER_ERR_LLSS.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    errors are filtered to exclude data for frequencies outside the range
+    of 2 to 21 icm.  The reformatted correction spectra are written to the
+    binary file CSDR$FIRAS_OUT:FIP_ERR_LLSS.F16_93HYBRID.  The processing
+    report file is FIP_ERR_RHSS_F16_93HYBRID.REP_930801457.  The report
+    file will be written to the current default directory where FIP_ERR is
+    invoked.
+2 FIP_FEF
+    FIP_FEF reformats the FIRAS extra factor errors datasets to the
+    Project Dataset RDL.  There is a set of errors for each channel
+    and scan mode.
+
+    FIP_FEF allows the project dataset errors to be filtered by
+    frequency.  The frequency filter excludes data for all frequencies
+    outside of the user-specified frequency range.
+
+    FIP_FEF is invoked by the verb FIPFEF.
+3 Logical_Pointers
+    FIP_FEF uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the directory that contains the binary
+                          error files generated by FEF
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_FEF will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_FEF will
+                          write the project dataset error files.
+3 Datasets
+    The operation of FIP_FEF requires the use of the following
+    datasets:
+
+    1)  the binary error files;
+
+    2)  the reference datasets; and
+
+    3)  the error files in the project dataset format.
+4 Input_Datasets
+    FIP_FEF processes the the following input datasets:
+
+        FEF_SPC_CCSS.VVV_XXXXXXXXXX     Binary error file
+                                        generated by FEF
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+4 Reference_Datasets
+    FIP_FEF uses the following reference datasets:
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the
+                        project dataset correction spectra
+4 Output_Datasets
+    FIP_FEF writes the following output dataset:
+
+        FIP_FEF_CCSS.VVV_XXXXXXXXXX    Errors in project dataset
+                                       format
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_FEF.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /FILE_EXT
+    /FILE_EXT=<error filename extension>
+
+        FIP_FEF will reformat the binary error files specified by
+        specified by the error filename extansion.  The filename
+        extension is of the form VVV_XXXXXXXXXX, which is the label
+        of the model solution used to calibrate the sky spectra.
+
+        The error filename extension is required for FIP_FEF to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_FEF reformats errors for one channel per invocation.
+        The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.
+        The /CHANNEL qualifier is required for FIP_FEF to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_FEF reformats errors for one scan mode per invocation.
+        The options are SHORT SLOW, SHORT FAST, LONG SLOW, or LONG FAST.
+        The /SCAN_MODE qualifier is required for FIP_FEF to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_FEF reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_FEF to run.
+4 /INT
+    /INT
+        FIP_FEF reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_FEF to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_FEF is able to filter the errors by frequency.  The program
+        excludes data for all frequencies outside of the user-specified
+        frequency range.  The low and high frequency cutoffs are
+        specified as integer numbers in icm.  By default, FIP_FEF
+        includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_FEF produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_FEF_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        VVV_XXXXXXXXXX is the error filename extension, and ZZZZZZZZZ
+        is the run time in GMT format.
+3 Example
+    FIP_FEF is designed for batch processing of binary error files. 
+    A typical invocation of FIP_FEF is:
+
+        $ FIPFEF/FILE_EXT=F16_93HYBRID/CHANNEL=LL/SCAN_MODE=SS-
+             /FLIGHT/FREQ_RANGE=(LOW=2,HIGH=21)
+
+    In this example, FIRAS extra factor errors for the left low,
+    short slow scan mode are read from the binary file
+    CSDR$FIRAS_IN:FEF_SPC_LLSS.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    errors are filtered to exclude data for frequencies outside the range
+    of 2 to 21 icm.  The reformatted correction spectra are written to the
+    binary file CSDR$FIRAS_OUT:FIP_FEF_LLSS.F16_93HYBRID.  The processing
+    report file is FIP_FEF_RHSS_F16_93HYBRID.REP_930801457.  The report
+    file will be written to the current default directory where FIP_FEF is
+    invoked.
+2 FIP_DUST
+    FIP_DUST reformats the lines-subtracted FIRAS dust spectra to the
+    Project Dataset RDL.  There is a skymap of spectra for each channel
+    and scan mode.
+
+    FIP_DUST allows the dust spectra to be filtered by frequecy.  The
+    frequency filter excludes data for all frequencies outside of the
+    user-specified frequency range.
+
+    FIP_DUST is invoked by the verb FIPDUST.
+3 Logical_Pointers
+    FIP_DUST uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the directory that contains the
+                          skymaps of dust spectra created by FLA.
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_DUST will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_DUST will
+                          write the project dataset dust spectrum skymaps.
+3 Datasets
+    The operation of FIP_DUST requires the use of the following
+    datasets:
+
+    1)  the skymaps of line-subtracted dust spectra;
+
+    2)  the reference datasets; and
+
+    3)  the dust spectra in the project dataset skymaps.
+4 Input_Datasets
+    FIP_DUST processes the the following input skymaps:
+
+        FLA_DST_CCSS.VVV_XXXXXXXXXX     Lines-subtracted dust
+                                        spectra generated by FLA
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+4 Reference_Datasets
+    FIP_DUST uses the following reference datasets:
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the
+                        project dataset correction spectra
+4 Output_Datasets
+    FIP_DUST writes the following output skymaps:
+
+        FIP_DST_CCSS.VVV_XXXXXXXXXX    Dust spectra in project
+                                       dataset format
+
+    Here, CC refers to channel (RH,RL,LH,LL), SS refers to scan mode
+    (SS,SF,LS,LF), and VVV_XXXXXXXXXX is the label of the model
+    solution used to calibrate the sky spectra (e.g., F16_93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_DUST.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /FILE_EXT
+    /FILE_EXT=<error filename extension>
+
+        FIP_DUST will reformat the dust spectrum skymaps specified by
+        specified by the error filename extansion.  The filename
+        extension is of the form VVV_XXXXXXXXXX, which is the label
+        of the model solution used to calibrate the sky spectra.
+
+        The error filename extension is required for FIP_DUST to run.
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_DUST reformats skymaps for one channel per invocation.
+        The options are RIGHT HIGH, RIGHT LOW, LEFT HIGH, or LEFT LOW.
+        The /CHANNEL qualifier is required for FIP_DUST to run.
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_DUST reformats skymaps for one scan mode per invocation.
+        The options are SHORT SLOW, SHORT FAST, LONG SLOW, or LONG FAST.
+        The /SCAN_MODE qualifier is required for FIP_DUST to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_DUST reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_DUST to run.
+4 /INT
+    /INT
+        FIP_DUST reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_DUST to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_DUST is able to filter the spectra by frequency.  The
+        program excludes data for all frequencies outside of the
+        user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_DUST includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_DUST produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_DUST_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CC is the
+        channel (RH, RL, LH, LL), SS is the scan mode (SS, SF, LS, LF),
+        VVV_XXXXXXXXXX is the error filename extension, and ZZZZZZZZZ
+        is the run time in GMT format.
+3 Example
+    FIP_DUST is designed for batch processing of dust spectrum skymaps
+    A typical invocation of FIP_DUST is:
+
+        $ FIPDUST/FILE_EXT=F16_93HYBRID/CHANNEL=LL/SCAN_MODE=SS-
+             /FLIGHT/FREQ_RANGE=(LOW=2,HIGH=21)
+
+    In this example, FIRAS dust spectra for the left low, short slow scan
+    mode are read from the skymap CSDR$FIRAS_IN:FLA_DST_LLSS.F16_93HYBRID.
+    The flight reference datasets are read from the archive directory
+    CSDR$FIRAS_REF.  The spectra are filtered to exclude data for
+    frequencies outside the range of 2 to 21 icm.  The reformatted dust
+    spectra are written to the binary file
+    CSDR$FIRAS_OUT:FIP_DUST_LLSS.F16_93HYBRID.  The processing report file
+    is FIP_DUST_RHSS_F16_93HYBRID.REP_930801457.  The report file will be
+    written to the current default directory where FIP_DUST is invoked.
+2 FIP_CVS
+    FIP_CVS reformats the C-Vector files to the Project Dataset RDL.  There
+    is a C-Vector for each merged skymap.
+
+    FIP_CVS allows the project dataset C-Vectors to be filtered by
+    frequency.  The frequency filter excludes data for all frequencies
+    outside of the user-specified frequency range.
+
+    FIP_CVS is invoked by the verb FIPVEC.
+3 Logical_Pointers
+    FIP_CVS uses three logical pointers to direct data input and output:
+
+        CSDR$FIRAS_IN     Points to the directory that contains the binary
+                          C-Vector files generated by FMS
+
+        CSDR$FIRAS_REF    Points to the archive directory that contains
+                          the reference datasets FIP_CVS will use
+
+        CSDR$FIRAS_OUT    Points to the directory where FIP_CVS will
+                          write the project dataset C-Vector files.
+3 Datasets
+    The operation of FIP_CVS requires the use of the following
+    datasets:
+
+    1)  the binary C-Vector files;
+
+    2)  the reference datasets; and
+
+    3)  the C-Vector files in the project dataset format.
+4 Input_Datasets
+    FIP_CVS processes the the following input datasets:
+
+        FMS_CVS_CCSS.VVV_XXXXXXXXXX     Binary C-Vector file
+                                        generated by FDS
+
+    Here, CCSS refers to scan mode (HIGH, LOWF, LRES, HRES) and
+    VVV_XXXXXXXXXX is the label of the model solution used to
+    calibrate the sky spectra (e.g., F16_93HYBRID).
+4 Reference_Datasets
+    FIP_CVS uses the following reference datasets:
+
+        FEX_NYQUIST     Instrument Nyquist frequency used to compute
+                        the frequency scale information for the
+                        project dataset correction spectra
+4 Output_Datasets
+    FIP_CVS writes the following output dataset:
+
+        FIP_CVS_CCSS.VVV_XXXXXXXXXX    C-Vector for merged skymaps in
+                                       project dataset format
+
+    Here, CCSS refers to scan mode (HIGH, LOWF, LRES, HRES) and
+    VVV_XXXXXXXXXX is the label of the model solution used to
+    calibrate the sky spectra (e.g., F16_93HYBRID).
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_CVS.  The
+    qualifiers specify the input dataset, the data filtering, and the
+    processing report generation.
+4 /FILE_EXT
+    /FILE_EXT=<correction spectra filename extension>
+
+        FIP_CVS will reformat the binary C-Vector files specified
+        by the correction spectra filename extansion.  The
+        filename extension is of the form VVV_XXXXXXXXXX, which
+        is the label of the model solution used to calibrate the
+        sky spectra.
+
+        The C-Vector filename extension is required for
+        FIP_CVS to run.
+4 /SCAN_MODE
+    /SCAN_MODE=HIGH
+
+    /SCAN_MODE=LOWF
+
+    /SCAN_MODE=LRES
+
+    /SCAN_MODE=HRES
+
+        FIP_CVS reformats C-Vectors for one scan mode per invocation.
+        The options are HIGH, LOWF, LRES, or HRES.  The /SCAN_MODE
+        qualifier is required for FIP_CVS to run.
+4 /FLIGHT
+    /FLIGHT
+        FIP_CVS reads the flight reference datasets when the /FLIGHT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_CVS to run.
+4 /INT
+    /INT
+        FIP_CVS reads the I&T reference datasets when the /INT
+        qualifier is specified.
+
+	Either the /FLIGHT or the /INT qualifier is required for
+        FIP_CVS to run.
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_CVS is able to filter the C-Vectors by frequency.  The
+        program excludes data for all frequencies outside of the
+        user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_CVS includes all frequencies in the reformatted data.
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_CVS produces a processing report.  If the
+        report filename is not specified by the /REPORT qualifier, the
+        default filename takes the form of
+        FIP_CVS_CCSS_VVV_XXXXXXXXXX.REP_ZZZZZZZZZ, where CCSS is the
+        scan mode (HIGH, LOWF, LRES, HRES), VVV_XXXXXXXXXX is the
+        C-Vector filename extension, and ZZZZZZZZZ is the run time in
+        GMT format.
+3 Example
+    FIP_CVS is designed for batch processing of binary C-Vector 
+    files.  A typical invocation of FIP_CVS is:
+
+        $ FIPVEC/FILE_EXT=F16_93HYBRID/SCAN_MODE=LRES/FLIGHT-
+                /FREQ_RANGE=(LOW=2,HIGH=21)
+
+    In this example, the C-Vector for the low resolution merged
+    scan mode is read from the binary file
+    CSDR$FIRAS_IN:FMS_CVS_LRES.F16_93HYBRID.  The flight reference
+    datasets are read from the archive directory CSDR$FIRAS_REF.  The
+    C-Vector is filtered to exclude data for frequencies outside
+    the range of 2 to 21 icm.  The reformatted C-Vector is written to
+    the binary file CSDR$FIRAS_OUT:FIP_CVS_LRES.F16_93HYBRID.  The
+    processing report file is FIP_CVS_LRES_F16_93HYBRID.REP_930801457.
+    The report file will be written to the current default directory
+    where FIP_CVS is invoked.
+
+2 FIP_SPECTRA_COADD
+    FIP_SPECTRA_COADD reformats skymaps and calibration data of uncombined
+    calibrated and differential FIRAS spectra and coadd skymaps and coadd
+    calibration data.  Input data types are FCF_SKY, FCF_CAL, FCF_DSK,
+    FCF_DCL, FIC_SKY, and FIC_CAL.  For each record, FIP_SPECTRA_COADD
+    converts the spectrum from ergs/s/cm^2/sr/icm to MJy/sr and variances
+    are converted from (ergs/sec/cm^2/sr/icm_^2 to (MJy/sr)^2.
+
+    It converts the frequency scale information from icm to GHz.  It also
+    selects the instrument and attitude information required for the
+    project dataset RDL.
+v
+    FIP_SPECTRA_COADD allows the project dataset records to be filtered by
+    galactic latitude and by frequency.  The galactic latitude filter
+    excludes sky data for all pixels whose centers have latitudes greater
+    than the user-specified cutoff.  The frequency filter excludes data
+    for all frequencies outside of the user-specified frequency range.
+
+    FIP_SPECTRA_COADD is invoked by the verb FIPA (because only the first
+    four letters of a verb are used, and FIPS and FIPC are already used).
+
+3 Logical_Pointers
+    FIP_SPECTRA_COADD uses two logical pointers to direct data input and
+    output:
+
+        CSDR$FIRAS_IN     Points to the archive directory that contains
+                          the input files to process.
+
+        CSDR$FIRAS_OUT    Points to the archive directory where the files of
+                          reformatted data will be written.
+
+3 Datasets
+    Each run of FIP_SPECTRA_COADD processes one of six possible types of
+    input data for each channel and scan mode specified.  The command line
+    specifies the type, channel, and scan mode of data being processed and a
+    script file containing the specific filename extensions of the input and
+    output data sets.  Each run of FIP_SPECTRA_COADD takes in as many files
+    as are specified from the archive pointed to by CSDR$FIRAS_IN and writes
+    one output file to the archive pointed to by CSDR$FIRAS_OUT.
+
+4 Input_Datasets
+    FIP_SPECTRA_COADD will reformat one of six types of data.  For all
+    data sets, ccss refers to the channel and scan mode of the data set.
+
+        FCF_SKY_ccss    Skymaps of calibrated spectra in a single
+                        channel/scan mode.  Multiple spectra per pixel.
+
+        FCF_DSK_ccss    Skymaps of differential spectra in a single
+                        channel/scan mode.  Multiple spectra per pixel.
+
+        FIC_SKY_ccss    Skymaps of coadded interferograms in a single
+                        channel/scan mode.  Multiple ifg's per pixel.
+
+        FCF_CAL_ccss    Time ordered file of calibrated calibration spectra
+                        in a single channel/scan mode.
+
+        FCF_DCL_ccss    Time ordered file of differential calibration spectra
+                        in a single channel/scan mode.
+
+        FIC_CAL_ccss    Time ordered file of coadded calibration interferograms
+                        in a single channel/scan mode.
+
+4 Output_Datasets
+    FIP_SPECTRA_COADD will produce one of six types of output file, depending
+    on the input data type.  For all data sets, ccss refers to the channel and
+    scan mode of the data set.
+
+        Input data      Output data     Data type
+
+        FCF_SKY_ccss    FIP_CSK_ccss    Skymaps of calibrated spectra
+        FCF_DSK_ccss    FIP_DSK_ccss    Skymaps of differential spectra
+        FIC_SKY_ccss    FIP_ISK_ccss    Skymaps of coadded interferograms
+        FCF_CAL_ccss    FIP_CCL_ccss    Calibrated calibration spectra
+        FCF_DCL_ccss    FIP_DCL_ccss    Differential calibration spectra
+        FIC_CAL_ccss    FIP_ICL_ccss    Coadded calibration interferograms
+
+3 Command_Qualifiers
+    Command line qualifiers control the operation of FIP_SKY.  The
+    qualifiers specify the input data type, the data filtering, and the
+    processing report generation.
+
+4 /SCRIPT
+    /SCRIPT = <input script file name including directory>
+
+    FIP_SPECTRA_COADD processes all files of one data type for one
+    channel and scan mode.  The files will have different file name
+    extensions.  These extensions are listed in a namelist read input
+    file.  Also specified in the file is the output file name extension.
+    This qualifier is required; it must be specified.  A sample follows.
+    Note the namelist format requires a single space followed by a $, followed
+    by the name of the namelist as specified in the code.  Then each data
+    is entered on a separate line, each beginning with a tab.  Finally a
+    single space, followed by a $, followed by END to end the namelist.
+
+!  FIP_SPECTRA_COADD script file for SF scan mode.
+!
+!  Larry Rosen , HSTX, 14 December 1994
+!	Namelist / sfiles / infilext, outfilext
+!	Character*20	infilext (fac_max_num)	! Input files extensions
+!	Character*20	outfilext		! Output file extension
+ $SFILES
+	infilext(1) = 'ED_8932800_8934301;'
+	infilext(2) = 'ED_9013915_9019318;'
+	infilext(3) = 'ED_9019318_9020711;'
+	infilext(4) = 'ED_9020811_9022004;'
+	outfilext = 'ED_8932400_9026423;'
+ $END
+
+4 /SPECTRA
+    /SPECTRA = <spectra type>
+    The SPECTRA qualifier specifies the type of spectral input.  The possible
+    values are CALIBRATED, DIFFERENTIAL, or COADD.
+
+         Input data       SPECTRA
+        ------------    ------------
+        FCF_SKY_ccss     CALIBRATED      Skymaps of calibrated spectra
+        FCF_CAL_ccss     CALIBRATED      Calibrated calibration spectra
+        FCF_DSK_ccss    DIFFERENTIAL     Skymaps of differential spectra
+        FCF_DCL_ccss    DIFFERENTIAL     Differential calibration spectra
+        FIC_SKY_ccss       COADD         Skymaps of coadded interferograms
+        FIC_CAL_ccss       COADD         Coadded calibration interferograms
+
+4 /DATA
+    /DATA = <data type>
+    Data type is SKY or CAL.
+
+         Input data        DATA
+        ------------       -----
+        FCF_SKY_ccss        SKY      Skymaps of calibrated spectra
+        FCF_CAL_ccss        CAL      Calibrated calibration spectra
+        FCF_DSK_ccss        SKY      Skymaps of differential spectra
+        FCF_DCL_ccss        CAL      Differential calibration spectra
+        FIC_SKY_ccss        SKY      Skymaps of coadded interferograms
+        FIC_CAL_ccss        CAL      Coadded calibration interferograms
+
+4 /CHANNEL
+    /CHANNEL=RH
+
+    /CHANNEL=RL
+
+    /CHANNEL=LH
+
+    /CHANNEL=LL
+
+        FIP_SPECTRA_COADD reformats data for one channel per invocation.
+        The options are right high, right low, left high, or left low.
+        The /CHANNEL qualifier is required.
+
+4 /SCAN_MODE
+    /SCAN_MODE=SS
+
+    /SCAN_MODE=SF
+
+    /SCAN_MODE=LS
+
+    /SCAN_MODE=LF
+
+        FIP_SPECTRA_COADD reformats data for one scan mode per invocation.
+        The options are short slow, short fast, long slow, or long fast.
+        The /SCAN_MODE qualifier is required.
+
+4 /EXC_GLAT
+    /EXC_GLAT=<latitude_cutoff>
+
+    /EXC_GLAT=<90.0>    Default
+
+        FIP_SPECTRA_COADD is able to filter the reformatted data by galactic
+        latitude.  The program excludes spectra for pixels whose centers
+        have galactic latitudes greater than the latitude cutoff.  The
+        latitude cutoff is specified as a real number in degrees.  By default,
+        FIP_SPECTRA_COADD includes all latitudes in the reformatted data.
+        This qualifier is meaningless for calibration data.
+
+4 /FREQ_RANGE
+    /FREQ_RANGE=ALL    Default
+
+    /FREQ_RANGE=(LOW=<low_freq_cutoff>,HIGH=<high_freq_cutoff>)
+
+        FIP_SPECTRA_COADD is able to filter the reformatted spectra by
+        frequency.  The program excludes data for all freqeuncies outside
+        of the user-specified frequency range.  The low and high frequency
+        cutoffs are specified as integer numbers in icm.  By default,
+        FIP_SPECTRA_COADD includes all frequencies in the reformatted data.
+
+4 /REPORT
+    /REPORT[=<filename>]    Default
+
+    /NOREPORT
+
+        By default, FIP_SKY produces a processing report.  If the report
+        filename is not specified by the /REPORT qualifier, the default
+        filename takes the form of
+        FIP_SKY_DDD_CCSS_XXXXXXX_YYYYYYY.REP_ZZZZZZZZZ, where DDD is the
+        input data type (FCS or FMS), CCSS is the channel and scan mode,
+        XXXXXXX and YYYYYYY are the start and stop times for the skymap,
+        and ZZZZZZZZZ is the run time.  The times are in GMT format.
+3 Example
+    FIP_SKY is designed for batch processing of calibrated sky spectra.
+    A typical invocation of FIP_SKY is:
+
+        $ FIPSKY/FILE=FCS_SKY_RHSS.FAD_8932800_9026409/EXC_GLAT=15.0
+                /FREQ_RANGE=(LOW=2,HIGH=97)
+
+    In this example, an FCS skymap of calibrated right high, short slow
+    spectra is read from the file
+    CSDR$FIRAS_IN:FCS_SKY_RHSS.ED_8932800_9026409 and is filtered to
+    exclude spectra with latitudes greater than 15.0 degrees and to
+    exclude data for frequencies outside of the range of 2 to 97 icm.
+    The resulting reformatted spectra are written to the output skymap
+    CSDR$FIRAS_OUT:FIP_SKY_RHSS.FCS_8932800_9026409.  The processing
+    report file is FIP_SKY_FCS_RHSS_8932800_9026409.REP_930801457.  The
+    report file will be written to the current default directory where
+    FIP_SKY is invoked.
+

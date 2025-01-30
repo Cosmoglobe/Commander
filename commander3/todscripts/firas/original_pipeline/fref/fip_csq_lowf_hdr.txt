@@ -1,0 +1,97 @@
+SIMPLE  =                    T / specifies FITS standard file
+BITPIX  =                   32 / if rasterized array follows, data 32-bit int
+NAXIS   =                    0 / no rasterized arrays follow
+EXTEND  =                    T / Table extensions may follow
+ORIGIN  = 'CDAC'               / Cosmology Data Analysis Center
+TELESCOP= 'COBE'               / COsmic Background Explorer satellite
+INSTRUME= 'FIRAS'              / COBE instrument [DIRBE, DMR, FIRAS] 
+OBJECT  = 'ALL-SKY'            / part of sky given [ALL-SKY, GAL-SLICE]
+PRODUCT = 'CHI-SQ'             /
+EQUINOX =               2000.0 / equinox of coords in following tables 
+REFERENC= 'FIRAS Explanatory Supplement'
+COMMENT   COBE specific keywords
+DATE-BEG= '24/11/89           '/ date of initial data represented
+DATE-END= '21/09/90           '/ date of final data represented
+PIXRESOL=                    6 / Quad tree pixel resolution [6, 9]
+COMMENT
+COMMENT   FIRAS specific keywords
+CHANNEL = 'LOWF'               / Merged low frequency low resolution
+COMMENT                        /     skymap
+MODLLABL= 'F16_93HYBRID       '/ FIRAS calibration model solution label
+MISS_SEG= 'ENTIRE_MISSION     '/ FIRAS segment of mission represented
+NUM_FREQ=                   34 / Number of frequency points with good data
+COMMENT                        / See FIRAS Explanatory Supplement for 
+COMMENT                        / additional information.
+COMMENT
+END
+COMMENT
+TIMVERSN= 'OGIP/93-003'        / OGIP memo number where the convention
+COMMENT                        / is described      
+COMMENT    The times reported in this file are atomic seconds elapsed
+COMMENT    since 00:00:00 UTC, 1 January 1981.  Time information is
+COMMENT    recorded in a manner consistent with the convention specified
+COMMENT    in OGIP/93-003 with the understanding that time is counted
+COMMENT    in atomic seconds and the origin of time (MJDREF) is quoted
+COMMENT    in ephemeris MJD.
+TIMESYS = '1981.00'      / time system (same as IRAS)
+MJDREFI =         44605  / Integer portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+MJDREFF = 0.00059240741  / Fractional portion of ephemeris MJD
+COMMENT                  / corresponding to 0h UTC 1 Jan 1981
+TIMEUNIT= 's      '      / unit for TSTART, TSTOP, TIMEZERO = seconds
+TSTART  = 280713605.000  / observation start time in TIMESYS system
+TSTOP   = 306806405.990  / observation stop time in TIMESYS system
+COMMENT
+COMMENT  
+COMMENT 
+COMMENT  FIRAS Chi-Squared project dataset
+COMMENT STRUCTURE; from here to ENDSTRUCTURE comment are fields within
+COMMENT            structure 
+COMMENT        record structure 
+COMMENT 
+COMMENT 
+COMMENT  Chi-Squared Identification
+COMMENT 
+COMMENT  Output Skymap label
+TFORM1='4A'
+TTYPE1='OUTMAP' / entire fieldname = OUTMAP
+OFFSET1=0
+TUNIT1=' '
+COMMENT  First Input Skymap label
+TFORM2='4A'
+TTYPE2='INMAP_1' / entire fieldname = INMAP_1
+OFFSET2=4
+TUNIT2=' '
+COMMENT  Second Input Skymap label
+TFORM3='4A'
+TTYPE3='INMAP_2' / entire fieldname = INMAP_2
+OFFSET3=8
+TUNIT3=' '
+COMMENT  Sky Pixel Number
+TFORM4='1J'
+TTYPE4='PIXEL' / entire fieldname = PIXEL
+OFFSET4=12
+TUNIT4=' '
+COMMENT  First Input Skymap Weight
+TFORM5='1E'
+TTYPE5='WEIGHT_1' / entire fieldname = WEIGHT_1
+OFFSET5=16
+TUNIT5=' '
+COMMENT  Second Input Skymap Weight
+TFORM6='1E'
+TTYPE6='WEIGHT_2' / entire fieldname = WEIGHT_2
+OFFSET6=20
+TUNIT6=' '
+COMMENT  Number of frequency points
+TFORM7='1J'
+TTYPE7='NUM_FREQ' / entire fieldname = NUM_FREQ
+OFFSET7=24
+TUNIT7=' '
+COMMENT  Combined Chi-Squared
+TFORM8='1E'
+TTYPE8='COMB_CHI' / entire fieldname = COMB_CHI_SQUARE
+OFFSET8=28
+TUNIT8=' '
+COMMENT 
+COMMENT 
+END

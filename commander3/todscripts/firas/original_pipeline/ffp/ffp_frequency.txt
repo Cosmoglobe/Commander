@@ -1,0 +1,44 @@
+c------------------------------------------------------------------------------
+c
+c	FFP_FREQUENCY.TXT
+c
+c	This include file contains the processing parameters and invocation
+c	parameters for the FFP frequency cut.
+c
+c	Author:	 S. Brodd, HSTX, 3/21/96
+c
+c       Modifications:
+c
+c-------------------------------------------------------------------------------
+c
+c  Define the processing parameters.
+c
+	integer * 4	fcc_jhi_default		!  Default high frequency index
+	parameter	(fcc_jhi_default = 210)
+	integer * 4	fcc_jlo_default		!  Default low frequency index
+	parameter	(fcc_jlo_default = 1)
+c
+c  Set the invocation flags.
+c
+	integer * 4	fcc_fchan		!  channel number
+	integer * 4	fcc_freq		!  /FREQ_RANGE qualifier
+	integer * 4	fcc_freq_offset		!  frequency index offset
+	integer * 4	fcc_fsmode		!  scan mode number
+	integer * 4	fcc_jhi			!  low frequency index
+	integer * 4	fcc_jlo			!  high frequeny index
+	integer * 4	fcc_nfreq		!  number of frequency points
+
+	real	* 4	fcc_dnu			!  optical frequency interval in
+                                                !    GHz
+	real	* 4	fcc_dw			!  audio frequency interval in
+                                                !    radians/sec
+	real	* 4	fcc_nu0			!  first optical frequency point
+                                                !    in GHz
+	real	* 4	fcc_w0			!  first audio frequency point
+                                                !    in radians/sec
+c
+c  Define the common block.
+c
+	common  /fcc_freq/  fcc_fchan, fcc_fsmode, fcc_freq, fcc_jlo, fcc_jhi,
+     .                      fcc_freq_offset, fcc_nfreq, fcc_nu0, fcc_dnu, 
+     .                      fcc_w0, fcc_dw

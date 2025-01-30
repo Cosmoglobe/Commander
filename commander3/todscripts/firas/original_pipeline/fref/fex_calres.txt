@@ -1,0 +1,31 @@
+        10243   4925    10254   4924
+        14315   10267   14328   10273
+        15649   14323   15662   14334
+        15985   15346   15997   15358
+
+!	SPR 2612  Update Cal Res conversion table for I&T.
+!       Calibration GRT counts from 13 October 1988
+!
+!	948	682	206	15039
+!	139	359	102	331
+!	3034	14574	3102	3308
+!	1038	1640	1034	1654
+
+!	Calibration GRT counts from 24 March 1986:
+!
+!	668	2116	658	2102
+!	337	1063	332	1054
+!	9906	10544	9831	10487
+!	3305	5279	3280	5248
+!
+!	Cal GRT counts for 2nd ITD test, 30 June 1986:
+!	Includes switchovers from 1K to 4544 ohms.
+!	Listed at the beginning of the file.
+
+	These are calibration resistor counts for (columnwise)
+	A-side lo current, A-side high current, B-side low current,
+	and B-side high current. These are used for
+	deriving the counts-to-ohms conversion polynomial in program
+	DWELLPLOT.
+
+	Rich Isaacman, Applied Research Corp.	25 March 1986

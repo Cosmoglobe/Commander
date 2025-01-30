@@ -1,0 +1,34 @@
+!
+! COBETRIEVE header for time-ordered files.
+!
+        scalar/text/length=14   GMT
+                                !  GMT of start collect
+        scalar/adt              TIME
+                                !  Binary time
+        array/byte/dim=6        SPACE_TIME
+                                !  Spacecraft time
+        scalar/long             MJR_FRM_NO
+                                !  Major frame number
+        scalar/long             ORBIT
+                                !  Orbit number
+!
+! The original 28 COBETRIEVE spares are now reserved
+! for the COBE subsystems. The first 20 bytes are
+! reserved for use by the INGEST Subsystem.
+!
+        scalar/byte             HSKP1_TLM_FMT
+                                !  Telemetry format for
+                                !    major frame 1
+        scalar/byte             HSKP2_TLM_FMT
+                                !  Telemetry format for
+                                !    major frame 2
+        array/byte/dim=18       INGEST_SPARES
+                                !  Spares
+!
+! The remaining 8 bytes are reserved for use by the
+! instrument subsystems.
+!
+        scalar/word             DATASET_ID
+                                !  CT dataset ID
+        array/byte/dim=6        INSTR_SPARES
+                                !  Spares

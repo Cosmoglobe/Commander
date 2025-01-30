@@ -1,0 +1,54 @@
+!
+! FIT_TRENDPLOTS Command Language Definition file.
+!
+
+Define Verb FIT_TRENDPLOTS
+
+      Image "CSDR$SYSTEM:FIT.EXE"
+
+	    Synonym TRENDPLOTS
+
+            Qualifier INTERACTIVE,
+		      Negatable
+
+            Qualifier REPORT,
+                      Value(Type=$File,Default=FIT_TRENDPLOTS.LOG),
+		      Negatable
+
+            Qualifier PLOTDEVICE,
+                      Value,
+		      NonNegatable
+
+            Qualifier PLTFILE,
+                      Value(Type=$File,Default=PLT.PCO),
+		      NonNegatable
+
+            Qualifier FIELDS,
+                      Value(List,Default=*TEMP*),
+                      Default,
+		      NonNegatable
+
+            Qualifier JSTART,
+		      Value
+
+            Qualifier JSTOP,
+		      Value
+
+            Qualifier BINSIZE,
+		      Value(Type=FIT_BIN_SPEC)
+
+            Qualifier ORBITAL_PD, Value(Default=102.8),
+                      Nonnegatable
+
+	Disallow ((JSTART AND NOT JSTOP) OR (JSTOP AND NOT JSTART))
+	Disallow NEG INTERACTIVE AND NOT JSTART
+	Disallow NEG INTERACTIVE AND NOT FIELDS
+	Disallow INTERACTIVE AND FIELDS
+	Disallow INTERACTIVE AND BINSIZE
+
+Define Type FIT_BIN_SPEC
+      Keyword ORBIT, Default, Value(Type=$File, Default=1.)
+      Keyword DAILY
+      Keyword MONTHLY
+      Keyword MISSION
+      Keyword LENGTH, Value

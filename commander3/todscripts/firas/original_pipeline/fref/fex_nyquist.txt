@@ -1,0 +1,13 @@
+ 1.0044579 !  Correction to optical Nyquist frequency
+
+!  Reference Dataset FEX_NYQUIST Text File
+!
+!       This file contains the correction factor to be applied to the optical 
+!       Nyquist frequency to bring the optical frequency scale
+!	into agreement with the 63.395 icm galactic [C II] emission line.
+!
+!	Author:   Gene Eplee
+!		  General Sciences Corp.
+!		  513-7768
+!		  25 June 1992
+!		  SER 9790

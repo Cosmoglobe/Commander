@@ -1,0 +1,15 @@
+!
+!       Coadd data
+!
+        array/float/dim=512     IFG
+                                !  IFG
+        array/float/dim=257     REAL_VAR
+                                !  Variance of means contributed
+                                !    by real part of spectra
+        array/float/dim=257     IMAG_VAR
+                                !  Variance of means contributed
+                                !    by imaginary part of spectra
+        array/float/dim=257     REAL_IMAG_VAR
+                                !  Covariances between real and
+                                !    imaginary parts of spectra
+        array/byte/dim=318      SPARES

@@ -1,0 +1,240 @@
+!
+! Coadd and spectrum data.
+!
+        scalar/byte             CHAN_ID
+                                !  Channel ID
+        scalar/byte             MTM_SPEED
+                                !  MTM speed
+        scalar/byte             MTM_LENGTH
+                                !  MTM length
+        scalar/byte             FAKEIT
+                                !  Fake-it pulse
+        scalar/byte             SCI_MODE
+                                !  Block ID from uP header
+        scalar/byte             ADDS_PER_GROUP
+                                !  Adds per group
+        scalar/byte             XCAL_POS
+                                !  External calibrator position
+        scalar/byte             SWEEPS
+                                !  Sweeps per IFG
+        scalar/long             GAIN_SUM
+                                !  Sum of science gains
+        scalar/float            GLITCH_RATE
+                                !  Average glitch rate
+        scalar/byte             DQ_SUMMARY_FLAG
+                                !  Max data quality summary
+        scalar/byte             ATT_SUMMARY_FLAG
+                                !  Max attitude quality summary
+        scalar/word             PEAK_POS
+                                !  Position of IFG peak
+        scalar/float            NYQUIST_HERTZ
+                                !  Nyquist freq in hertz
+        scalar/float            NYQUIST_ICM
+                                !  Nyquist freq in wave nos
+!
+! Quantities associated with primary template.
+!
+        structure PRIM_TEMPLATE
+                                !  Info on prim template
+                scalar/byte     SUBTRACTED
+                                !  Flag for prim temp subtraction;
+                                !    1 = subtracted, 0 = not
+                scalar/float    AMPLITUDE
+                                !  Amplitude of prim template
+                scalar/float    SNR
+                                !  Signal-to-noise of prim template
+        endstructure
+!
+! Quantities associated with secondary template.
+!
+        structure SEC_TEMPLATE
+                                !  Info on sec template
+                scalar/byte     SUBTRACTED
+                                !  Flag for sec temp subtraction;
+                                !    1 = subtracted, 0 = not
+                scalar/float    AMPLITUDE
+                                !  Amplitude of sec template
+                scalar/float    SNR
+                                !  Signal-to-noise of sec template
+                scalar/float    VARIANCE
+                                !  Variance of sec template
+                scalar/float    B_AVERAGE
+                                !  Average of B coeffs
+                scalar/float    B_VARIANCE
+                                !  Variance of B coeffs
+        endstructure
+!
+! Quantities associated with digital transient.
+!
+        structure TRANSIENT
+                                !  Coeffs for transient
+                scalar/float    C_AVERAGE
+                                !  Average of transient coeffs
+                scalar/float    C_VARIANCE
+                                !  Variance of transient coeffs
+                scalar/float    BL_TRANS_COEFF
+                                !  Baseline transient coeff
+        endstructure
+!
+! Quantities associated with deglitcher.
+!
+        structure DEGLITCH
+                                !  Average values from deglitcher
+                scalar/word     GLITCH_ITER
+                                !  Number of deglitcher clean
+                                !    iterations
+                scalar/float    GLITCH_SIGNAL
+                                !  Glitch signal removed
+        endstructure
+!
+! Coadd noise, bins, and baseline subtraction coefficients.
+! 
+        scalar/float            NOISE
+                                !  Median noise
+        array/word/dim=256      BIN_INFO
+                                !  Binning info for coadd
+        array/float/dim=5       BL_COEFFS
+                                !  Baseline coeffs
+!
+! Engineering quantities.
+!
+        scalar/word             BOL_CMD_BIAS
+                                !  Commanded bias
+        scalar/float            BOL_VOLT
+                                !  Readout voltage
+        array/float/dim=4       BOL_VOLT_MIN
+                                !  Bolometer voltage minima
+        array/float/dim=4       BOL_VOLT_MAX
+                                !  Bolometer voltage maxima
+!
+! Combined temperatures.
+!
+        union
+          map
+            scalar/float        XCAL
+                                ! External calibrator
+                                !   combined temperature
+            scalar/float        ICAL
+                                ! Internal calibrator
+                                !   combined temperature
+            scalar/float        SKYHORN
+                                ! Sky horn combined 
+                                !   temperature
+            scalar/float        REFHORN
+                                ! Reference horn 
+                                !   combined temperature
+            scalar/float        DIHEDRAL
+                                ! Dihedral combined 
+                                !   temperature
+            scalar/float        COLLIMATOR_MIRROR
+                                ! Collimator and mirror 
+                                !   combined temperature
+            array/float/dim=4   BOL_ASSEM
+                                ! Bolometer assembly 
+                                !   combined temperature
+          endmap
+          map
+            array/float/dim=10  TEMP
+                                !  Combined temperatures
+          endmap
+        endunion
+!
+! Combined temperature sigmas.
+!
+        union
+          map
+            scalar/float        XCAL_SIGMA
+                                ! External calibrator
+                                !   combined temp sigma
+            scalar/float        ICAL_SIGMA
+                                ! Internal calibrator
+                                !   combined temp sigma
+            scalar/float        SKYHORN_SIGMA
+                                ! Sky horn combined 
+                                !   temp sigma
+            scalar/float        REFHORN_SIGMA
+                                ! Reference horn 
+                                !   combined temp sigma
+            scalar/float        DIHEDRAL_SIGMA
+                                ! Dihedral combined 
+                                !   temp sigma
+            scalar/float        COLLIMATOR_MIRROR_SIGMA
+                                ! Collimator and mirror 
+                                !   combined temp sigma
+            array/float/dim=4   BOL_ASSEM_SIGMA
+                                ! Bolometer assembly 
+                                !   combined temp sigma
+          endmap
+          map
+            array/float/dim=10  TEMP_SIGMA
+                                !  Combined temp sigmas
+          endmap
+        endunion
+!
+! Combined temperature minima.
+!
+        union
+          map
+            scalar/float        XCAL_MIN
+                                ! External calibrator
+                                !   combined temp minimum
+            scalar/float        ICAL_MIN
+                                ! Internal calibrator
+                                !   combined temp minimum
+            scalar/float        SKYHORN_MIN
+                                ! Sky horn combined 
+                                !   temp minimum
+            scalar/float        REFHORN_MIN
+                                ! Reference horn 
+                                !   combined temp minimum
+            scalar/float        DIHEDRAL_MIN
+                                ! Dihedral combined 
+                                !   temp minimum
+            scalar/float        COLLIMATOR_MIRROR_MIN
+                                ! Collimator and mirror 
+                                !   combined temp minimum
+            array/float/dim=4   BOL_ASSEM_MIN
+                                ! Bolometer assembly 
+                                !   combined temp minimum
+          endmap
+          map
+            array/float/dim=10  TEMP_MIN
+                                !  Combined temp minima
+          endmap
+        endunion
+!
+! Combined temperature maxima.
+!
+        union
+          map
+            scalar/float        XCAL_MAX
+                                ! External calibrator
+                                !   combined temp maximum
+            scalar/float        ICAL_MAX
+                                ! Internal calibrator
+                                !   combined temp maximum
+            scalar/float        SKYHORN_MAX
+                                ! Sky horn combined 
+                                !   temp maximum
+            scalar/float        REFHORN_MAX
+                                ! Reference horn 
+                                !   combined temp maximum
+            scalar/float        DIHEDRAL_MAX
+                                ! Dihedral combined 
+                                !   temp maximum
+            scalar/float        COLLIMATOR_MIRROR_MAX
+                                ! Collimator and mirror 
+                                !   combined temp maximum
+            array/float/dim=4   BOL_ASSEM_MAX
+                                ! Bolometer assembly 
+                                !   combined temp maximum
+          endmap
+          map
+            array/float/dim=10  TEMP_MAX
+                                !  Combined temp maxima
+          endmap
+        endunion
+!
+! Spares.
+!
+        array/byte/dim=14       SPARES

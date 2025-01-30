@@ -1,0 +1,47 @@
+!
+! Coadded data header.
+!
+        scalar/text/length=14   FIRST_GMT
+                                !  Binary time of first IFG
+        scalar/adt              FIRST_BIN_GMT
+                                !  GMT of first IFG
+        array/byte/dim=6        FIRST_SPACE_TIME
+                                !  Spacecraft time of first
+                                !    IFG
+        scalar/long             FIRST_MJR_FRM_NUM
+                                !  Major frame # of first IFG
+        scalar/text/length=14   LAST_GMT
+                                !  Binary time of last IFG
+        scalar/adt              LAST_BIN_GMT
+                                !  GMT of last IFG
+        array/byte/dim=6        LAST_SPACE_TIME
+                                !  Spacecraft time of last
+                                !    IFG
+        scalar/long             LAST_MJR_FRM_NUM
+                                !  Major frame # of last IFG
+        scalar/long             NUM_FIRST_IFG
+                                !  Record # of first IFG
+                                !    in coadd
+        scalar/long             NUM_LAST_IFG
+                                !  Record # of last IFG
+        scalar/text/length=60   LABEL
+                                !  Coadd label
+        scalar/float            IREF_TEMP
+                                !  Internal reference source
+                                !    temperature
+        scalar/byte             XCAL_POS
+                                !  External calibrator position
+        scalar/word             NUM_IFGS
+                                !  Number of IFGs in coadd
+        scalar/byte             DQ_SUMMARY_FLAG
+                                !  Polled data quality summary
+                                !    of science IFGs
+        scalar/long             IFG_NO
+                                !  IFG number in segment
+        scalar/long             MTR_NO
+                                !  Record number in IFG matrix
+                                !    segment
+        scalar/byte             ATT_SUMMARY_FLAG
+                                !  Polled attitude data quality
+                                !    summary of science IFGs
+        array/byte/dim=41       COA_SPARES

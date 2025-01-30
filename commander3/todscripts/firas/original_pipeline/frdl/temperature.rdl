@@ -1,0 +1,23 @@
+!
+! Instrument temperatures.
+!
+        structure/dim=4 SIDE_AMP
+          include temp_counts.rdl
+        endstructure
+
+        array/byte/dim=2        IPDU
+                                !  IPDU temperatures A,B
+        scalar/byte             DRIVE_BOX_A
+                                !  Drive box temp A
+        scalar/byte             CHAN_PRE_AMP
+                                !  Channel preamp
+        array/byte/dim=4        CHAN_TEMP
+                                !  Channel temps
+        array/byte/dim=2        STAT_MON
+                                !  Status monitor temp
+        array/byte/dim=2        HOT_SPOT_CURRENT
+                                !  Hot spot heater A,B
+        scalar/byte             OPTICAL_PREAMP
+                                !  Optical preamp
+        scalar/byte             DRIVE_BOX_B
+                                !  Drive box temp B

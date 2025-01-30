@@ -1,0 +1,179 @@
+!   FIRAS_Interferogram_Long (FIL) Command Language Definition File
+!
+!   Author: S. Brodd, HSTX, 4/95
+!
+!   Modifications:
+!
+define verb fil_interferogram_long
+
+       image "csdr$system:fil.exe"
+  
+!   Qualifiers specifying input.
+
+       qualifier input
+                 value(type=fil_input)
+                 nonnegatable
+                 default
+
+       qualifier channel
+                 value(type=fil_channel)
+                 nonnegatable
+                 default
+
+       qualifier scan_mode
+                 value(type=fil_scan_mode)
+                 nonnegatable
+                 default
+
+       qualifier file
+                 value(type=$file,required)
+
+       qualifier jstart
+                 value(required)
+                 nonnegatable
+
+       qualifier jstop
+                 value(required)
+                 nonnegatable
+
+       qualifier rse
+                 value(type=$file,required)
+
+       qualifier neighbors
+                 value(type=$number,default=4)
+
+       qualifier orphans
+
+       qualifier pool_max
+                 value(type=$number,default=15)
+
+       qualifier group_max
+                 value(type=$number,default=10)
+
+       qualifier covar
+                 value(type=fil_covar)
+
+       qualifier quality
+                 value(type=fil_quality,list)
+                 nonnegatable 
+                 default
+
+!   Qualifiers specifying facility operations to be performed.
+
+       qualifier single
+
+       qualifier inst_state
+                 default
+  
+       qualifier pixel_no
+                 default
+
+       qualifier sec_template
+                 default
+
+       qualifier deglitch
+                 default
+
+       qualifier shape_check
+                 default
+
+       qualifier coadd
+                 default
+
+       qualifier baseline_sub
+                 default
+ 
+!   Qualifiers specifying output and reports.
+
+       qualifier output
+                 value(type=fil_output,list)
+                 default
+
+       qualifier outfile
+                 value(type=$file,required)
+
+       qualifier report
+                 value(type=fil_report)
+
+!   Disallowed combinations of qualifiers.
+
+disallow ((scan_mode.fs or scan_mode.fl) and (channel.rh or channel.lh or
+           channel.high or channel.right or channel.left))
+disallow file and (jstart or jstop)
+disallow rse and (not input.raw)
+disallow ((neighbors or orphans) and (input.raw or input.calibration))
+disallow (not(neighbors or orphans) and (pool_max or group_max))
+disallow covar and (input.raw or input.calibration)
+disallow covar and (scan_mode.ls)
+disallow covar and (neg inst_state)
+disallow covar and (neg pixel_no)
+disallow covar and (neg deglitch)
+disallow covar and (neg shape_check)
+disallow covar and (neg coadd)
+disallow single and covar
+disallow single and (neg coadd)
+disallow baseline_sub and (neg coadd)
+disallow (output.template or output.sec_template) and (single or 
+         ((neg deglitch) and (neg shape_check)) or (neg coadd))
+disallow output.deglitch and (single or (neg deglitch))
+disallow output.coadd and (neg coadd)
+disallow output.baseline_sub and (neg baseline_sub)
+disallow outfile and (neg output)
+disallow report.detail and (single or (neg deglitch))
+
+define type fil_input
+       keyword sky
+               default
+       keyword calibration
+       keyword raw
+
+define type fil_channel
+       keyword rh
+       keyword rl
+       keyword lh
+       keyword ll
+       keyword right
+       keyword left
+       keyword high
+       keyword low
+       keyword all
+               default
+
+define type fil_scan_mode
+       keyword ss
+       keyword sf
+       keyword ls
+       keyword lf
+       keyword fs
+       keyword fl
+       keyword all
+               default
+
+define type fil_covar
+       keyword new
+       keyword update
+               default
+
+define type fil_quality
+       keyword instrument
+               value(type=$number,default=3)
+               default 
+       keyword attitude
+               value(type=$number,default=3)
+               default
+
+define type fil_output
+       keyword template
+       keyword sec_template
+       keyword deglitch
+       keyword con_check
+       keyword coadd
+       keyword baseline_sub
+               default
+
+define type fil_report
+       keyword summary
+               value(type=$file)
+               default
+       keyword detail
+               value(type=$file)

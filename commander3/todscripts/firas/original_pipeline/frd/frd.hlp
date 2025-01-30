@@ -1,0 +1,345 @@
+1 FRD
+
+ PURPOSE
+
+ Facility FRD_REFERENCE_DATA consists of a number of utility programs
+ which create the reference datasets used by facilities of the  FIRAS
+ Project Pipeline.  
+
+ METHOD
+
+ FRD reads input text file " FEX_XXX.TXT" which must be in the same
+ directory where facility is run.  A binary output file "FEX_XXX.DAT"
+ will be created which contains reformatted data.  Each of the output
+ files created by the FRD programs must be loaded into the archive 
+ through CCL management facility. The types of reference files stored
+ in the FIRAS archive are time-tagged and time ordered data. These 
+ reference data sets will be used by facilities of the FIRAS Pipeline.
+ 
+2 FRD_CC_THRESHOLDS
+
+ Defines the thresholds used by the IFG consistency checker.
+
+ Consistency check thresholds include limits for the  minimum number of
+ IFGs that may be coadded, upper  and  lower limits for raw science IFG
+ sigmas and similar thresholds. Look in the Database Manual for dataset
+ FEX_CTH for a detailed description of available thresholds.
+
+ FRD_CC_THRESHOLDS takes as input file FEX_CTH.TXT which must be in the
+ directory from which you run this facility. FRD_CC_THRESHOLDS produces
+ a binary output file, FEX_CTH.DAT, also in the  directory  from  which
+ this facility is run.
+
+ Format:
+
+        CCTHRESHOLDS
+
+
+2 FRD_DGTL_TRANSFCN
+
+ Produces the post-detector digital transfer functions for the FIRAS
+ instrument  from  analytical descriptions of the analog and digital
+ filters.   Transfer  functions  are  generated for all 288 possible
+ combinations of channels, scan modes, sample rates, micro-processor
+ modes, and adds per group.
+
+ FRD_DGTL_TRANSFCN  produces  an  output  file,  FEX_DTF.DAT, in the
+ directory from which this facility is run.   The output file format
+ is 288 direct access binary records.  Each record holds an array of
+ 257 COMPLEX*8 numbers.   The  output  file  format and stucture are 
+ identical to the file created by FRD_ELEX_TRANSFCN.
+
+ Format:
+
+        DGTL_TRANSFCN
+
+
+2 FRD_DEFINE_IDX_PARAMS
+
+ Outlines the engineering fields to track and  corresponding tolerances
+ allowed when FDQ_DATA_QUALIFY creates the engineering index.  
+
+ Facility FDQ_DATA_QUALIFY generates an engineering index archive which
+ defines the state of the FIRAS  instrument  over periods of time where
+ the instrument is stable.
+
+ There are  two  reference  datasets  which  helps  FDQ_DATA_QUALIFY to
+ determine when the FIRAS instrument is stable.
+
+ The first defines the maximum allowed tolerances in which  engineering
+ quantities may wander before FDQ_DATA_QUALIFY  decides that  the state
+ of the instrument has changed.
+
+ The second  defines  which  engineering  quantities  are  watched  for
+ instrument state changes.
+
+ Engineering tolerances are defined in the  FEX_IDX_TOLS  archive.  The
+ engineering quantities  to be watched for instrument state changes are
+ defined in the FEX_IDX_FLAG archive.  The reference datasets placed in
+ these archives are created by FRD_DEFINE_IDX_PARAMS.
+
+ FRD_DEFINE_IDX_PARAMS takes as input ASCII text files, FEX_IDX_TOLS.TXT
+ and FEX_IDX_FLAG.TXT.   These text files are created or updated by the
+ user using the EDT text editor and then given to FRD_DEFINE_IDX_PARAMS
+ for input.   FRD_DEFINE_IDX_PARAMS  creates two reference data  files,
+ FEX_IDX_TOLS.DAT and FEX_IDX_FLAG.DAT.
+
+ Format:
+
+        IDX_PARAMS/INDEX=TOLS, or FLAGS/REPORT
+
+3 /INDEX
+
+ This qualifier specifies whether the selected input is to generate engineering
+ tolerance reference file FEX_IDX_TOLS, or engineering quantities FEX_IDX_FLAGS
+ to be watched for instrument state changes which are defined in the archive  
+ file.
+
+   Note: By typing IDX_PARAMS and then return will generate both reference
+         files FEX_IDX_TOLS, FEX_IDX_FLAGS plus two report files.
+ 
+3 /REPORT
+
+ This qualifier will generate a report file for this processing.  Default
+ is no report generated.
+
+   
+2 FRD_DEFINE_LIMITS
+
+ Facility FDQ_Data_Qualify  performs  data quality checks on the raw
+ science and engineering data.  FRD_DEFINE_LIMITS defines the yellow
+ and  red  limits  for  each  quantity which FDQ_DATA_QUALIFY limits
+ checks.  It also defines which science and  engineering  quantities
+ are to be limit checked.  There are a set of flags which enables or
+ disables limit checking for each quantity that can be limit checked.
+
+ Format:
+
+        LIMITS
+
+3 /SCI
+
+ Creates the limits file  for  science data.  FRD_DEFINE_LIMITS takes
+ the ASCII file FEX_SCILIM.TXT which the  user  creates/updates  with
+ the  EDT  text editor.  FRD_DEFINE_LIMITS  writes  the  binary  file
+ FEX_SCILIM.DAT which is entered into the FEX_SCILIM archive.
+
+3 /ENG
+
+ Creates  the  limits  file  for engineering data.  FRD_DEFINE_LIMITS
+ takes  the  ASCII file FEX_GRTLIM.TXT which the user creates/updates
+ with the EDT text editor.   FRD_DEFINE_LIMITS writes the binary file
+ FEX_ENGLIM.DAT which is entered into the FEX_ENGLIM archive.
+
+3 /FLAG
+
+ Creates  the  limits  flags  file  that  defines  which  science and
+ engineering quantities are to be limit  checked.   FRD_DEFINE_LIMITS
+ takes the ASCII file FEX_LIMFLAGS.TXT which the user creates/updates
+ with the EDT text editor.  FRD_DEFINE_LIMITS  writes the binary file
+ FEX_LIMFLAGS.DAT which is entered into the FEX_LIMFLAGS archive.
+
+
+2 FRD_ELEX_TRANSFCN
+
+ Produces post-detector electronics transfer functions for the FIRAS
+ instrument  from  analytical descriptions of the analog and digital
+ filters.   Transfer  functions  are  generated for all 288 possible
+ combinations of channels, scan modes, sample rates, micro-processor
+ modes, and adds per group.
+
+ FRD_ELEX_TRANSFCN produces  an  output  file,  FEX_ETF.DAT,  in the
+ directory from which this facility is run.   The output file format
+ is 288 direct access binary records.  Each record holds an array of
+ 257 COMPLEX*8 numbers.   The  output  file  format and stucture are
+ identical to the file created by FRD_DGTL_TRANSFCN.
+
+ Format:
+
+        ELEX_TRANSFCN/SAMPLE=INT, or MISSION
+
+3 /SAMPLE
+
+ This qualifier specifies whether the selected input is an Integration data, or
+ a Mission data. INT selects the sampling rate used during integration and
+ test; MISSION selects the rate used on orbit.
+
+
+2 FRD_GLITCH_PROFILE
+
+ Produces a glitch profile for all channel/scan mode  combinations used by
+ the deglitcher algorithm.
+
+ FRD_GLITCH_PROFILE produces an output file, FEX_SGP.DAT, in the directory
+ from which this facility is run.  The  output  file  format is 288 direct
+ access binary records.
+
+ Format:
+
+     GPROFILE
+
+
+2 FRD_GTRANS
+
+ FRD_GTRANS generates three reference files FEX_GRTTRANS, FEX_GRTRAWWT
+ and FEX_GRTCOAWT which contains parameters pertaining to the FIRAS
+ instrument GRTs.  A set of flags denoting the status of the GRTs (0 meaning
+ a GRT is no longer operating) and the low/high current transition temperatures
+ and the corresponding transition half-widths are defined in the datasets.
+
+ These datasets determine the way instrument GRT temperatures are combined
+ to arrive at the "definitive" instrument temperature.  This is used by
+ numerous FIRAS facilities, mainly the Project Pipeline facilities.
+
+ Input for FRD_GTRANS are taken from FEX_GRTTRANS.TXT, FEX_GRTRAWWT.TXT,
+ FEX_GRTCOAWT.TXT which must be in the directory from which FRD_GTRANS is
+ run.  The output files appears in the same directory and are called
+ FEX_GRTTRANS.DAT, FEX_GRTRAWWT.DAT, FEX_GRTCOAWT.DAT.
+
+ Format:
+
+        GTRAN/OUTPUT=TRAN, or RAW, or COAD
+
+3 /OUTPUT
+
+ This qualifier specifies data input either TRAN, RAW, or COAD.
+
+   Note: By typing GTRAN and then return will generate all three reference
+         files FEX_GRTTRANS.DAT, FEX_GRTRAWWT.DAT, FEX_GRTCOAWT.DAT.
+
+2 FRD_EXTREMA
+
+ FRD_EXTREMA updates the extrema log file, FXT_ENG_XTRM. The old file is 
+ read in and a menu-driven system allows the user to update or reset the
+ maxima and minima desired. This might be because a previous extremum was
+ the result of an anomalous instrument condition and does not apply to
+ usual operating conditions. The user is prompted for all input. A report
+ file, FRD_EXTREMA_REPORT.LIS, is written to record the old and new 
+ values for the extrema and the last time they were updated.   
+
+ FRD_EXTREMA is not used to generate reference files as the other FRD
+ programs do, but updates the files produced by FXT.
+
+ Format:
+
+        EXTREMA
+
+2 FRD_AVE_CALRES
+
+ The purpose of this facility is to create a set of time ordered
+ reference files containing average values of the calibrator resistors
+ for FDQ to use.  The values of the calibrator resistors found in the
+ housekeeping major frames will be averaged over a desired period of time.
+
+
+ Format:
+
+        FACR/JSTART=YYDDDHHMMSS/JSTOP=YYDDDHHMMSS/AVETIME=0.5/REPORT
+
+ 3 /JSTART=YYDDDHHMMSS
+
+  Set GMT start time to read housekeeping files. The usual GMT format 
+  format will be used (yyddd); default is start time of the day.
+
+
+ 3 /JSTOP=YYDDDHHMMSS
+
+  Set GMT stop time to read housekeeping files. The usual GMT format
+  will be used (yyddd); default is end time of the day.
+
+ 3 /AVETIME
+
+  The desired time period over which each of the calibrator resistor's 
+  values will be averaged. The unit of this qualifier is set to a floating
+  point real number of days with a default value of 0.5 day.
+
+ 3 /REPORT
+
+  This qualifier specifies whether a report will be generated for the run.
+  The default is to write a report with default name: FRD_<start>_<stop>.REP_
+  <run> where GMT time of the report file extension is the run time of FACR.
+  The qualifier is negatable (/NOREPORT). In addition, the user can also 
+  specify a different report name (/REPORT=Filename).
+
+ 3 FIRAS_Logicals
+
+  Datasets input to and output from FRD can be directed to
+  different archives by appropriate definitions of the
+  Firas logical names.
+
+  CSDR$FIRAS_RAW: NFS_HKP
+
+  CSDR$FIRAS_REF: FEX_AV_CALRS
+
+ 2 FRD_GFG
+
+  The purpose of this facility is to create reference files,
+  FEX_GAIN.DAT and FEX_FAKEIT.DAT.  These files contain records
+  of gain settings and fake_it statuses respectively.  Each record
+  will have times indicating the range over which the value was set.
+  Each record ends due to value changes, gaps in the housekeeping
+  data, housekeeping frames which had bad telemetry quality, or the
+  end of data is reached.  The FPP facility will use these "time line"
+  reference files in determining the gains and fakeit statuses 
+  associated with each science record, and occurrences of data gaps.
+
+  Format:
+
+         FGFG/MAX_SEC=40/REPORT=BOZO.RPT
+
+
+  3 /MAX_SEC
+
+   This qualifier defines the maximum number of seconds allowed before a
+   "gap" is established; time is being measured between housekeeping major
+   frame 1 and the following major frame 1, and between major 2 and the 
+   following major frame 2. The default is 40 seconds.
+
+  3 /REPORT
+
+   This qualifier specifies whether a report will be generated for the run.
+   The default is to write a report with default name: FRD_GFG.REP_yydddhhmm,
+   where GMT time of the report file extension is the run time of FGFG. The
+   qualifier is negatable (/NOREPORT). In addition, the user can also specify
+   a different report name (/REPORT=Filename).
+
+
+  3 FIRAS_Logicals
+
+   Datasets input to and output from FRD can be directed to
+   different archives by appropriate definitions of the following
+   Firas logical names. 
+
+   CSDR$FIRAS_RAW: NFS_HKP
+
+   CSDR$FIRAS_REF: FEX_FAKEIT, FEX_GAIN
+
+
+ 2 FRD_VABSAA
+
+   This program reads FREF files FEX_VABN, FEX_VABS and FEX_SAA.TXT, and 
+   rearrange them to form and write FEX_VABSAA.DAT.  This file describes
+   the south and north boundaries of one of the radiation belts.  VABN defines
+   the north Van Allen Belt; VABS, the south Van Allen Belt; SAA, then South
+   Atlantic Anomaly.
+
+   Format: VABSAA
+    
+ 
+ 2 FRD_MTMSWEEP
+
+   This facility reads FEX_MTMSWEEP.TXT text file which contain the timing
+   of the Mirror Transport Mechanism for the sweep and flyback, and write an
+   output binary file FEX_MTMSWEEP.DAT.
+
+   Format: MTMSWEEP
+
+
+ 2 FRD_MINCOADD
+
+   Read input text file FEX_MINCOADD.TXT which include the minimum number
+   of IFGs to coadd for the four FIRAS channels, and write an output binary 
+   file FEX_CMDGAIN.DAT.
+  
+   Format: MINCOADD
+

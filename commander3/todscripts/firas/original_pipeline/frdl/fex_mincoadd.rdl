@@ -1,0 +1,17 @@
+!
+! Minimum Number of IFGS to Form a Coadd Group
+!
+record FEX_MINCOADD FEX_MINCOADD
+
+  structure CT_HEAD
+    include ct_head.rdl
+  endstructure
+
+  array/word/dim=4      MIN_IFG_COADD
+                        ! Minimum number of IFGs
+                        !   required to coadd
+
+  array/byte/dim=56     MINCOADD_SPARES
+                        ! Pad to 128 bytes
+
+end_record

@@ -1,0 +1,23 @@
+!
+! Fields written by Data Qualify.
+!
+        scalar/word             FAKE
+                                !  Fakeit pulse status
+        scalar/word             XCAL_POS
+                                !  Position of xcal 0
+        scalar/float            IREF_TEMP
+                                !  Internal reference source
+                                !    temperature
+				!  This value is no longer being calaulated
+				!  by FDQ
+        scalar/adt              ENG_TIME
+                                !  Time of associate
+                                !    engineeering record
+        scalar/long             ENG_REC
+                                !  Engineering record number
+        array/byte/dim=110      DATA_QUALITY
+                                !  Data quality flags
+        scalar/long             IFG_NO
+                                !  IFG number within segment
+        array/byte/dim=24       DQ_SPARES
+                                !  Data qualify spares

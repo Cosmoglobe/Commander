@@ -1,0 +1,120 @@
+!
+!      FEC.CLD
+!
+!      By K. Jensen (STX) 05-MAR-1991
+!
+!      Revision of FEC.CLD
+!      By Reid Wilson, STX Inc.,  20-FEB-1987
+!      Revision made to satisfy SWG Final Requirements for FEC
+!
+!      This file does the command line definition for the FIRAS facility
+!      FEC_Extract_Calibration.
+!
+!      Additional Revision : SPR 9428 : Added MAX_DIHED qualifier
+!
+!      Additional Revision : SPR 12270 : Added MIN_DIHED qualifier
+!
+!     
+   DEFINE VERB FEC
+
+   IMAGE "CSDR$SYSTEM:FEC.EXE"
+
+   QUALIFIER CHANNEL,
+             NonNegatable
+             Default,
+             Value(Type=Channel_type)
+
+   QUALIFIER JSTART
+             NonNegatable, Value(Required)
+
+   QUALIFIER JSTOP
+             NonNegatable, Value(Required)
+
+   QUALIFIER QUALITY
+             NonNegatable,
+             Default,
+             Value(Type=FEC_Quality,List)
+
+   QUALIFIER QUERY
+             Negatable
+
+   QUALIFIER FAKEIT
+             Negatable
+
+   QUALIFIER REPORT
+             Negatable,
+             Default,
+             Value(Type=$FILE)
+
+   QUALIFIER REPORTALL
+             Negatable
+
+   QUALIFIER RSE
+             Negatable,
+             Value(Type=$File)
+
+   QUALIFIER WRITE
+             Negatable
+
+   QUALIFIER XCAL_POSITION
+             NonNegatable
+             Default,
+             Value(Type=FEC_XCAL)
+
+   QUALIFIER TOLERANCE
+             NonNegatable
+             Default,
+             Value(type=tol_type)
+
+   QUALIFIER WINDOW_SIZE
+             NonNegatable,
+             Default,
+             Value(type=$number)
+            
+   QUALIFIER TEMP_SIZE
+             NonNegatable
+             Default,
+             Value(List)
+
+  QUALIFIER MIN_DIHED           !Min dihedral temperature
+            Nonnegatable,       !Default is 0.0 degrees Kelvin
+            Default,
+            Value(default=0.0)
+
+  QUALIFIER MAX_DIHED           !Max dihedral temperature
+            Nonnegatable,       !Default is 3.5 degrees Kelvin
+            Default,
+            Value(default=3.5)
+
+   DISALLOW  (JSTART And Not JSTOP) Or (Not JSTART And JSTOP)
+   DISALLOW  (Not JSTART And Not QUERY And Not RSE) Or 
+             (Not JSTOP And Not QUERY And Not RSE)
+   DISALLOW  (QUERY And JSTART) Or (QUERY And JSTOP) Or
+             (QUERY And RSE)
+
+   DEFINE TYPE CHANNEL_TYPE
+      KEYWORD ALL, DEFAULT
+      KEYWORD HIGH
+      KEYWORD LOW
+      KEYWORD RIGHT
+      KEYWORD LEFT
+      KEYWORD RH
+      KEYWORD RL
+      KEYWORD LH
+      KEYWORD LL
+
+   DEFINE TYPE FEC_XCAL
+      KEYWORD IN, DEFAULT
+      KEYWORD OUT
+      KEYWORD TRANSIT
+      KEYWORD ERROR
+
+   DEFINE TYPE FEC_QUALITY
+      KEYWORD INSTRUMENT, VALUE(TYPE=$NUMBER,DEFAULT=3)
+      KEYWORD ATTITUDE, VALUE(TYPE=$NUMBER,DEFAULT=3)
+
+   DEFINE TYPE TOL_TYPE
+      KEYWORD ABSOLUTE
+      KEYWORD RELATIVE, DEFAULT
+
+

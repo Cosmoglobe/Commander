@@ -1,0 +1,57 @@
+!
+!  Electronics Transfer Function File Structure
+!
+Record FEX_ETF FEX_ETF
+
+  Array/DoubleC/Dim=257         ZTRANSFCN
+                                ! Electronics Transfer Function
+                                !
+                                !    Stored in 288 records;
+                                !    one record for each value of
+                                !    adds-per-group from 1 to 12 for
+                                !    each combination of MTM speed,
+                                !    channel, and digital filter.
+                                !    Sci-mode 2 or 4 has digital
+                                !    filter on, sci-mode 0,1, or 3
+                                !    has digital filter off.
+                                !
+                                !    Slow MTM Speed         1 -  96
+                                !     RH                    1 -  24
+                                !      Digital Filter On    1 -  12
+                                !      Digital Filter Off  13 -  24
+                                !     RL                   25 -  48
+                                !      Digital Filter On   25 -  36
+                                !      Digital Filter Off  37 -  48
+                                !     LH                   49 -  72
+                                !      Digital Filter On   49 -  60
+                                !      Digital Filter Off  61 -  72
+                                !     LL                   73 -  96
+                                !      Digital Filter On   73 -  84
+                                !      Digital Filter Off  85 -  96
+                                !    Fast MTM Speed        97 - 192
+                                !     RH                   97 - 120
+                                !      Digital Filter On   97 - 108
+                                !      Digital Filter Off 109 - 120
+                                !     RL                  121 - 144
+                                !      Digital Filter On  121 - 132
+                                !      Digital Filter Off 133 - 144
+                                !     LH                  145 - 168
+                                !      Digital Filter On  145 - 156
+                                !      Digital Filter Off 157 - 168
+                                !     LL                  169 - 192
+                                !      Digital Filter On  169 - 180
+                                !      Digital Filter Off 181 - 192
+                                !    Fake-it Mode         193 - 288
+                                !     RH                  193 - 216
+                                !      Digital Filter On  193 - 204
+                                !      Digital Filter Off 205 - 216
+                                !     RL                  217 - 240
+                                !      Digital Filter On  217 - 228
+                                !      Digital Filter Off 229 - 240
+                                !     LH                  241 - 264
+                                !      Digital Filter On  241 - 252
+                                !      Digital Filter Off 253 - 264
+                                !     LL                  265 - 288
+                                !      Digital Filter On  265 - 276
+                                !      Digital Filter Off 277 - 288
+End_Record

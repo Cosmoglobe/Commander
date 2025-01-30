@@ -1,0 +1,7 @@
+!
+!  Structure for index flags.
+!
+        array/byte/dim=284      FLAGS
+                                ! Flags to enable/disable
+                                ! index record generation
+                                ! on engineering fields 

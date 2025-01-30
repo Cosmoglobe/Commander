@@ -1,0 +1,148 @@
+!
+! Instrument temperatures.
+!
+        union
+
+          map
+
+            array/float/dim=16      A_LO_GRT
+                                    !  A side low current GRTS
+            array/float/dim=16      A_HI_GRT
+                                    !  A side high current GRTS
+            array/float/dim=16      B_LO_GRT
+                                    !  B side low current GRTS
+            array/float/dim=16      B_HI_GRT
+                                    !  B side high current GRTS
+          endmap
+
+          map
+  
+            !  A side low current GRTS
+            scalar/float            A_LO_XCAL_TIP
+                                    !  External calibrator tip
+            scalar/float            A_LO_SKYHORN
+                                    !  Sky horn
+            scalar/float            A_LO_REFHORN
+                                    !  Reference horn
+            scalar/float            A_LO_ICAL
+                                    !  Internal reference source
+            scalar/float            A_LO_DIHEDRAL
+                                    !  Dihedral
+            array/float/dim=4       A_LO_BOL_ASSEM
+                                    !  Bolometer assembly
+            scalar/float            A_LO_MIRROR
+                                    !  Mirror assembly
+            array/float/dim=4       A_LO_CAL_RESISTORS
+                                    !  Cal resistors
+            scalar/float            A_LO_XCAL_CONE
+                                    !  Additional xcal temp
+            scalar/float            A_LO_COLLIMATOR
+                                    !  Collimator
+            !  A side high current GRTS
+            scalar/float            A_HI_XCAL_TIP
+                                    !  External calibrator tip
+            scalar/float            A_HI_SKYHORN
+                                    !  Sky horn
+            scalar/float            A_HI_REFHORN
+                                    !  Reference horn
+            scalar/float            A_HI_ICAL
+                                    !  Internal reference source
+            scalar/float            A_HI_DIHEDRAL
+                                    !  Dihedral
+            array/float/dim=4       A_HI_BOL_ASSEM
+                                    !  Bolometer assembly
+            scalar/float            A_HI_MIRROR
+                                    !  Mirror assembly
+            array/float/dim=4       A_HI_CAL_RESISTORS
+                                    !  Cal resistors
+            scalar/float            A_HI_XCAL_CONE
+                                    !  Additional xcal temp
+            scalar/float            A_HI_COLLIMATOR
+                                    !  Collimator
+            !  B side low current GRTS
+            scalar/float            B_LO_XCAL_TIP
+                                    !  External calibrator tip
+            scalar/float            B_LO_SKYHORN
+                                    !  Sky horn
+            scalar/float            B_LO_REFHORN
+                                    !  Reference horn
+            scalar/float            B_LO_ICAL
+                                    !  Internal reference source
+            scalar/float            B_LO_DIHEDRAL
+                                    !  Dihedral
+            array/float/dim=4       B_LO_BOL_ASSEM
+                                    !  Bolometer assembly
+            scalar/float            B_LO_MIRROR
+                                    !  Mirror assembly
+            array/float/dim=4       B_LO_CAL_RESISTORS
+                                    !  Cal resistors
+            scalar/float            B_LO_XCAL_CONE
+                                    !  Additional xcal temp
+            scalar/float            B_LO_COLLIMATOR
+                                    !  Collimator
+            !  B side high current GRTS
+            scalar/float            B_HI_XCAL_TIP
+                                    !  External calibrator tip
+            scalar/float            B_HI_SKYHORN
+                                    !  Sky horn
+            scalar/float            B_HI_REFHORN
+                                    !  Reference horn
+            scalar/float            B_HI_ICAL
+                                    !  Internal reference source
+            scalar/float            B_HI_DIHEDRAL
+                                    !  Dihedral
+            array/float/dim=4       B_HI_BOL_ASSEM
+                                    !  Bolometer assembly
+            scalar/float            B_HI_MIRROR
+                                    !  Mirror assembly
+            array/float/dim=4       B_HI_CAL_RESISTORS
+                                    !  Cal resistors
+            scalar/float            B_HI_XCAL_CONE
+                                    !  Additional xcal temp
+            scalar/float            B_HI_COLLIMATOR
+                                    !  Collimator
+          endmap
+
+          map
+            array/float/dim=64      GRT
+          endmap
+
+        endunion
+
+        union
+
+          map
+
+            array/float/dim=8       TEMP_CTRL
+                                    !  Temperature controllers
+            array/float/dim=2       IPDU_TEMP
+                                    !  IPDU temps A,B
+            array/float/dim=4       CNA_TEMP
+                                    !  Channel temps
+            array/float/dim=2       DBX_TEMP
+                                    !  Drive box temps
+            array/float/dim=2       STAT_MON_TEMP
+                                    !  Status monitor temp
+            scalar/float            PAMP_CHAN
+                                    !  Channel preamp
+            scalar/float            PAMP_OP
+                                    !  Optical preamp
+            array/float/dim=2       HOT_SPOT
+                                    !  Hot spot heater A,B
+            array/float/dim=2       MTM_CAL_MTR
+                                    !  MTM/Cal motors
+            array/float/dim=2       MTM_POS
+                                    !  MTM position
+            array/float/dim=4       BOL_VOLT
+                                    !  Bolometer voltages
+            array/float/dim=20      IPDU_VOLT
+                                    !  IPDU voltages
+            array/float/dim=12      IPDU_AMP
+                                    !  IPDU currents
+          endmap
+
+          map
+            array/float/dim=62     GROUP1
+          endmap
+
+        endunion
