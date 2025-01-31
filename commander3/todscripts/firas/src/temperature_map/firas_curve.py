@@ -108,6 +108,18 @@ print("Calculating BB curve")
 for channel in channels.keys():
     for mode in modes.keys():
         bb_curve = np.zeros(len(f_ghz[f"{channel}_{mode}"]))
+
+        # subtract dust emission
+        nu0_dust = 353  # using Planck values
+        beta_dust = 1.55
+        t_dust = np.array(20.8)  # u.K
+        optical_depth_nu0 = 9.6 * 10 ** (-7)
+        dust = (
+            optical_depth_nu0
+            * planck(f_ghz[f"{channel}_{mode}"], t_dust)
+            * (f_ghz[f"{channel}_{mode}"] / nu0_dust) ** beta_dust
+        )
+
         for freq in range(len(f_ghz[f"{channel}_{mode}"])):
             hpxmap = np.zeros(npix)
             data_density = np.zeros(npix)
@@ -118,7 +130,8 @@ for channel in channels.keys():
 
             m = np.zeros(npix)
             mask2 = data_density == 0
-            m[~mask2] = hpxmap[~mask2] / data_density[~mask2]
+            m[~mask2] = (hpxmap[~mask2] - dust[freq]) / data_density[~mask2]
+            # m[~mask2] = hpxmap[~mask2] / data_density[~mask2]
 
             # mask the map with the points of no data
             m[mask2] = hp.UNSEEN
@@ -146,6 +159,7 @@ for channel in channels.keys():
             planck(f_ghz[f"{channel}_{mode}"], t0),
             label="Original",
         )
+        plt.plot(f_ghz[f"{channel}_{mode}"], dust, label="Dust")
         plt.xlabel("Frequency [GHz]")
         plt.ylabel("Brightness [MJy/sr]")
         plt.title("BB curve")

@@ -258,6 +258,9 @@ for channel in channels.keys():
                 np.abs(otf[f"{channel}_{mode}"]) > 0
             ]
 
+apod = {}
+etf = {}
+S0 = {}
 tau = {}
 Jo = {}
 Jg = {}
@@ -274,6 +277,19 @@ for channel in channels.keys():
         if mode == "lf" and (channel == "lh" or channel == "rh"):
             continue
         else:
+            apod[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "APODIZAT"
+            ][0]
+            etf[f"{channel}_{mode}"] = (
+                fits_data[f"{channel}_{mode}"][1].data["RELEX_GA"][0]
+                + 1j * fits_data[f"{channel}_{mode}"][1].data["IELEX_GA"][0]
+            )
+            etf[f"{channel}_{mode}"] = etf[f"{channel}_{mode}"][
+                np.abs(etf[f"{channel}_{mode}"]) > 0
+            ]
+            S0[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
+                "DC_RESPO"
+            ][0]
             tau[f"{channel}_{mode}"] = fits_data[f"{channel}_{mode}"][1].data[
                 "TIME_CON"
             ][0]
@@ -304,7 +320,7 @@ for channel in channels.keys():
 
 print("cleaning interferograms")
 
-for channel in channels.keys():
+for channel, channel_value in channels.items():
     for mode in modes.keys():
         if mode == "lf" and (channel == "lh" or channel == "rh"):
             continue
@@ -313,13 +329,17 @@ for channel in channels.keys():
                 ifg=variablesm[f"ifg_{channel}_{mode}"],
                 mtm_length=0 if mode[0] == "s" else 1,
                 mtm_speed=0 if mode[1] == "s" else 1,
-                channel=3,
-                adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
+                # channel=channel_value,
+                # adds_per_group=variablesm[f"adds_per_group_{channel}_{mode}"],
                 gain=variablesm[f"gain_{channel}_{mode}"],
                 sweeps=variablesm[f"sweeps_{channel}_{mode}"],
+                apod=apod[f"{channel}_{mode}"],
             )
 
 print("converting interferograms to spectra")
+
+# instrumental gain function normalization (mjy v / w sr)
+# norm = {"ss": 7.479336e00, "lf": 2.991734e00}
 
 spec = {}
 for channel, channel_value in channels.items():
@@ -346,6 +366,9 @@ for channel, channel_value in channels.items():
                 beta=beta[f"{channel}_{mode}"],
                 G1=G1[f"{channel}_{mode}"],
                 tau=tau[f"{channel}_{mode}"],
+                # etf=etf[f"{channel}_{mode}"],
+                # S0=S0[f"{channel}_{mode}"],
+                # norm=norm[mode],
             )
             print(f"shape of spec: {spec[f"{channel}_{mode}"].shape}")
 

@@ -201,6 +201,9 @@ for channel in channels.keys():
             m[f"{channel}_{mode}"] = np.zeros((npix, len(f_ghz[f"{channel}_{mode}"])))
             monopole = planck(f_ghz[f"{channel}_{mode}"], np.array(T_CMB))
             mask = data_density[f"{channel}_{mode}"] == 0
+            print(
+                f"shapes of map and density: {hpxmap[f'{channel}_{mode}'].shape}, {data_density[f'{channel}_{mode}'].shape}, monopole {monopole.shape}"
+            )
             m[f"{channel}_{mode}"][~mask] = (
                 hpxmap[f"{channel}_{mode}"][~mask]
                 / data_density[f"{channel}_{mode}"][~mask, np.newaxis]
@@ -222,7 +225,7 @@ for channel in channels.keys():
                     unit="MJy/sr",
                     # norm="hist",
                     min=0,
-                    max=100,
+                    max=200,
                 )
                 # hp.graticule(coord="G")
                 plt.savefig(
@@ -230,13 +233,25 @@ for channel in channels.keys():
                 )
                 plt.close()
 
+print("plotting joint map")
+
 # make maps taking into account both of the modes matching the frequencies
 # low frequencies
 joint_map = hpxmap["ll_lf"] + hpxmap["rl_lf"]
 joint_density = data_density["ll_lf"] + data_density["rl_lf"]
 for i in range(len(f_ghz["ll_ss"])):
-    joint_map[:, i + 3 * i] += hpxmap["ll_ss"][:, i] + hpxmap["rl_ss"][:, i]
-    joint_density += data_density["ll_ss"] + data_density["rl_ss"]
+    joint_map[:, i + 3 * i] += (
+        hpxmap["ll_ss"][:, i]
+        + hpxmap["rl_ss"][:, i]
+        + hpxmap["lh_ss"][:, i]
+        + hpxmap["rh_ss"][:, i]
+    )
+    joint_density += (
+        data_density["ll_ss"]
+        + data_density["rl_ss"]
+        + data_density["lh_ss"]
+        + data_density["rh_ss"]
+    )
 
 m_joint = np.zeros((npix, len(f_ghz["ll_lf"])))
 monopole = planck(f_ghz["ll_lf"], np.array(T_CMB))
@@ -254,65 +269,94 @@ for freq in range(len(f_ghz["ll_lf"])):
         unit="MJy/sr",
         # norm="hist",
         min=0,
-        max=100,
+        max=200,
     )
     # hp.graticule(coord="G")
     plt.savefig(f"../../output/maps/joint/{int(f_ghz['ll_lf'][freq]):04d}.png")
     plt.close()
 
-print("Calculating temperature map")
-
-
-t0 = 2.726
-
-fit = {}
-temps = {}
-for channel in ["ll", "rl"]:
-    for mode in modes:
-        temps[f"{channel}_{mode}"] = np.zeros(npix)
-        for i in range(len(m[f"{channel}_{mode}"])):
-            fit[f"{channel}_{mode}"] = minimize(
-                residuals,
-                t0,
-                args=(
-                    f_ghz[f"{channel}_{mode}"],
-                    m[f"{channel}_{mode}"][i],
-                ),
-            )
-            temps[f"{channel}_{mode}"][i] = fit[f"{channel}_{mode}"].x[0]
-
-        print(f"{f"{channel}_{mode}"}: {temps[f"{channel}_{mode}"]}")
-
-        hp.mollview(
-            temps[f"{channel}_{mode}"],
-            coord="G",
-            title="Temperature map",
-            unit="K",
-            # norm="hist",
-            min=2.7,
-            max=2.8,
-        )
-        plt.savefig(f"../../output/maps/temperature_map_{f"{channel}_{mode}"}.png")
-        plt.close()
-
-temps = np.zeros(npix)
-for i in range(len(m_joint)):
-    if joint_density[i] != 0:
-        fit = minimize(residuals, t0, args=(f_ghz["ll_lf"], m_joint[i]))
-        temps[i] = fit.x[0]
-    else:
-        temps[i] = np.nan  # hp.UNSEEN
-
-print(temps)
-
-hp.mollview(
-    temps,
-    coord="G",
-    title="Temperature map",
-    unit="K",
-    # norm="hist",
-    min=2.7,
-    max=2.8,
+# high frequencies
+joint_map = hpxmap["lh_ss"] + hpxmap["rh_ss"]
+joint_density = data_density["lh_ss"] + data_density["rh_ss"]
+print(f"joint density shape: {joint_density.shape}")
+m_joint = np.zeros((npix, (len(f_ghz["lh_ss"]) - len(f_ghz["ll_ss"]))))
+monopole = planck(f_ghz["lh_ss"], np.array(T_CMB))[len(f_ghz["ll_ss"]) :]
+joint_mask = joint_density == 0
+print(
+    f"shapes of joint map and joint density: {joint_map.shape}, {joint_density.shape} and monopole {monopole.shape}"
 )
-plt.savefig("../../output/maps/temperature_map.png")
-plt.close()
+m_joint[~joint_mask] = (
+    joint_map[~joint_mask] / joint_density[~joint_mask, np.newaxis]
+)[:, len(f_ghz["ll_ss"]) :] - monopole
+m_joint[joint_mask] = np.nan  # hp.UNSEEN
+
+for freq in range(len(f_ghz["ll_ss"]), len(f_ghz["lh_ss"])):
+    hp.mollview(
+        m_joint[:, freq],
+        # coord="G",
+        title=f"{int(f_ghz['lh_ss'][freq]):04d} GHz",
+        unit="MJy/sr",
+        # norm="hist",
+        min=0,
+        max=100,
+    )
+    # hp.graticule(coord="G")
+    plt.savefig(f"../../output/maps/joint/{int(f_ghz['lh_ss'][freq]):04d}.png")
+    plt.close()
+
+# print("Calculating temperature map")
+
+
+# t0 = 2.726
+
+# fit = {}
+# temps = {}
+# for channel in ["ll", "rl"]:
+#     for mode in modes:
+#         temps[f"{channel}_{mode}"] = np.zeros(npix)
+#         for i in range(len(m[f"{channel}_{mode}"])):
+#             fit[f"{channel}_{mode}"] = minimize(
+#                 residuals,
+#                 t0,
+#                 args=(
+#                     f_ghz[f"{channel}_{mode}"],
+#                     m[f"{channel}_{mode}"][i],
+#                 ),
+#             )
+#             temps[f"{channel}_{mode}"][i] = fit[f"{channel}_{mode}"].x[0]
+
+#         print(f"{f"{channel}_{mode}"}: {temps[f"{channel}_{mode}"]}")
+
+#         hp.mollview(
+#             temps[f"{channel}_{mode}"],
+#             coord="G",
+#             title="Temperature map",
+#             unit="K",
+#             # norm="hist",
+#             min=2.7,
+#             max=2.8,
+#         )
+#         plt.savefig(f"../../output/maps/temperature_map_{f"{channel}_{mode}"}.png")
+#         plt.close()
+
+# temps = np.zeros(npix)
+# for i in range(len(m_joint)):
+#     if joint_density[i] != 0:
+#         fit = minimize(residuals, t0, args=(f_ghz["ll_lf"], m_joint[i]))
+#         temps[i] = fit.x[0]
+#     else:
+#         temps[i] = np.nan  # hp.UNSEEN
+
+# print(temps)
+
+# hp.mollview(
+#     temps,
+#     coord="G",
+#     title="Temperature map",
+#     unit="K",
+#     # norm="hist",
+#     min=2.7,
+#     max=2.8,
+# )
+# plt.savefig("../../output/maps/temperature_map.png")
+# plt.close()

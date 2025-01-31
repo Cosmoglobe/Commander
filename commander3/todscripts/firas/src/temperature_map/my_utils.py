@@ -84,10 +84,11 @@ def clean_ifg(
     ifg,
     mtm_length,
     mtm_speed,
-    channel,
-    adds_per_group,
+    # channel,
+    # adds_per_group,
     gain,
     sweeps,
+    apod,
 ):
     median_ifg = np.expand_dims(my_median(ifg), axis=-1)
 
@@ -105,9 +106,16 @@ def clean_ifg(
     # apodize
     sm = 2 * mtm_length + mtm_speed
 
-    arecno = apod_recnuml(channel, sm, adds_per_group).astype(np.int32)
-    apodl_all = apodl()
-    apod = apodl_all[arecno, :]
+    # plt.plot(apod, label="lambda")
+
+    # use apodization function from the pipeline
+    # arecno = apod_recnuml(channel, sm, adds_per_group).astype(np.int32)
+    # apodl_all = apodl()
+    # apod = apodl_all[arecno, :]
+    # plt.plot(apod, label="pipeline")
+    # plt.legend()
+    # plt.savefig(f"../../output/plots/apod_{channel}.png")
+    # plt.clf()
 
     ifg = ifg * apod
 
@@ -138,17 +146,18 @@ def ifg_to_spec(
     beta,
     G1,
     tau,
+    # etf,
+    # S0,
+    # norm,
 ):
     # fft
     spec = np.fft.rfft(ifg)
 
     # print("spec after rfft:", spec)
 
-    # etf
+    # etf from the pipeline
     etfl_all = elex_transfcnl(samprate=681.43, nfreq=len(spec[0]))
-
     erecno = get_recnum(mtm_speed, channel, adds_per_group).astype(np.int32)
-
     etf = etfl_all[erecno, :]
 
     # print("etf:", etf)
@@ -157,9 +166,17 @@ def ifg_to_spec(
     fac_adc_scale = 204.75  # nathan's pipeline
     spec_norm = fnyq_icm * fac_etendu * fac_adc_scale
 
-    spec = spec / etf  # kills 0 frequency
+    if mtm_speed == 0:
+        cutoff = 5
+    else:
+        cutoff = 7
+
+    spec = spec / etf
+    # spec = spec[:, cutoff : (len(etf) + cutoff)] / etf  # kills 0 frequency
     # print("spec after etf:", spec)
-    spec = spec / spec_norm
+    spec = (
+        spec / spec_norm
+    )  # i will leave this for now but i think using the one in lambda doesn't need this and needs the other factor
 
     # plot etf spec over time
     plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
@@ -169,8 +186,14 @@ def ifg_to_spec(
     # fcc_spec_length = 321
     spec_len = len(ifg[0]) // 2 + 1
     dw = 2.0 * np.pi * fnyq_hz / spec_len
-    # afreq = np.arange(fcc_spec_length) * dw # had to change because i'm not padding for now
+    # afreq = (
+    #     np.arange(fcc_spec_length) * dw
+    # )  # had to change because i'm not padding for now
     afreq = np.arange(spec_len) * dw
+    # using from lambda:
+    # a0 = 11.149872  # rad/s
+    # da = 2.2299744
+    # afreq = a0 + da * np.arange(len(spec[0]))
 
     # print("afreq:", afreq)
 
@@ -187,33 +210,13 @@ def ifg_to_spec(
         G1=G1,
     )
 
-    # print("S0:", S0)
-
     B = 1.0 + 1j * tau * afreq
 
-    # print("B:", B)
-
-    spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]
-
-    # print("spec after dc response:", spec)
-
-    # plot spec after bolometer transfer function
-    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
-    plt.savefig("../../output/plots/spec_after_bolometer_transfer_function.png")
-    plt.clf()
-
-    if mtm_speed == 0:
-        cutoff = 5
-    else:
-        cutoff = 7
+    spec = B[np.newaxis, :] * spec / S0[:, np.newaxis]  # * norm
 
     # optical transfer function
     spec = spec[:, cutoff : (len(otf) + cutoff)] / otf
-
-    # plot spec after optical transfer function
-    plt.imshow(np.abs(spec).T, aspect="auto", extent=[0, len(spec), 0, len(spec[0])])
-    plt.savefig("../../output/plots/spec_after_optical_transfer_function.png")
-    plt.clf()
+    # spec = spec / otf
 
     fac_icm_ghz = 29.9792458
     fac_erg_to_mjy = 1.0e8 / fac_icm_ghz
