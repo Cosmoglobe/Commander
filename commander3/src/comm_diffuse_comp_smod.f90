@@ -1291,6 +1291,8 @@ contains
     implicit none
     integer(i4b),                intent(in) :: comm, samp_group
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
        call initDiffPrecond_diagonal(comm, samp_group)
@@ -1441,6 +1443,8 @@ contains
     integer(i4b), intent(in) :: samp_group
     logical(lgt), intent(in) :: force_update
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
        call updateDiffPrecond_diagonal(samp_group, force_update)
@@ -2173,6 +2177,8 @@ contains
     real(dp),           dimension(:), intent(inout) :: x
     integer(i4b),                     intent(in)    :: samp_group
 
+    if (npre == 0) return
+    
     select case (trim(precond_type))
     case ("diagonal")
        call applyDiffPrecond_diagonal(x, samp_group)

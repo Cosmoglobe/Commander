@@ -22,6 +22,7 @@ program commander
   use comm_nonlin_mod
   use comm_mh_specind_mod
   use comm_zodi_samp_mod
+  use comm_sparse_mod
   implicit none
 
   integer(i4b)        :: i, j, l, iargc, ierr, iter, stat, first_sample, samp_group, curr_samp, tod_freq, modfact
@@ -415,7 +416,7 @@ program commander
       call timer%stop(TOT_ZODI_SAMP)
    end if
    
-   if (mod(iter+1,modfact) == 0) then
+   if (mod(iter+1,modfact) == 0 .and. iter > 1) then
 
      ! Sample linear parameters with CG search; loop over CG sample groups
      !call output_FITS_sample(cpar, 1000+iter, .true.)

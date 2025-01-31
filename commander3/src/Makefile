@@ -28,6 +28,7 @@ F90SOURCES=hashtbl.f90 \
            hmc_mod.f90 \
            comm_hdf_mod.f90 \
            sharp.f90 \
+           comm_sparse_mod.f90 \
            sort_utils.f90 \
            ars_mod.f90 \
            math_tools.f90 \
@@ -153,6 +154,7 @@ hashtbl.o                   :
 sharp.o                     :
 locate_mod.o                :
 math_tools.o                :
+comm_sparse_mod.o           : math_tools.o
 powell_mod.o                :
 hmc_mod.o                   :
 spline_1d_mod.o             : math_tools.o locate_mod.o
@@ -233,7 +235,7 @@ comm_f_mod.o                : comm_f_int_mod.o comm_f_int_0d_mod.o comm_f_int_1d
 comm_cl_mod.o               : comm_map_mod.o comm_bp_utils.o
 comm_diffuse_comp_mod.o     : comm_f_mod.o comm_cl_mod.o
     comm_diffuse_comp_smod.o    : comm_diffuse_comp_mod.o
-comm_ptsrc_comp_mod.o       : comm_f_mod.o
+comm_ptsrc_comp_mod.o       : comm_f_mod.o comm_sparse_mod.o
 comm_template_comp_mod.o    : comm_f_mod.o
 comm_comp_interface_mod.o   : comm_diffuse_comp_mod.o comm_ptsrc_comp_mod.o comm_template_comp_mod.o
 
@@ -265,9 +267,9 @@ comm_signal_mod.o           : comm_chisq_mod.o comm_cr_mod.o comm_ame_lognormal_
 comm_mh_specind_mod.o       : comm_signal_mod.o
 comm_gain_mod.o             : comm_signal_mod.o
 comm_nonlin_mod.o           : comm_gain_mod.o
-    comm_nonlin_smod.o          : comm_nonlin_mod.o
+comm_nonlin_smod.o          : comm_nonlin_mod.o
 
-commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o
+commander.o                 : comm_nonlin_mod.o comm_mh_specind_mod.o comm_zodi_samp_mod.o comm_sparse_mod.o
 
 
 

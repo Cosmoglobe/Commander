@@ -46,7 +46,7 @@ contains
     integer(i4b) :: i, j, k, l, m, n, maxiter, root, ierr
     integer(i4b), save :: samp_group_prev
     real(dp)     :: eps, tol, delta0, delta_new, delta_old, alpha, beta, t1, t2, t3, t4
-    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff
+    real(dp)     :: lim_convergence, val_convergence, chisq, chisq_prev, buff, dq
     real(dp), allocatable, dimension(:)   :: Ax, r, d, q, temp_vec, s, x_out
     real(dp), allocatable, dimension(:,:) :: alm, pamp
     class(comm_comp),   pointer :: c => null()
@@ -94,7 +94,7 @@ contains
                 deallocate(alm)
              end if
           class is (comm_ptsrc_comp)
-             if (c%myid == 0 .and. .not. c%precomputed_amps) then
+             if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
                 call cr_extract_comp(c%id, x, pamp)
                 do j = 1, c%nmaps
                    do i = 1, c%nsrc
@@ -139,6 +139,15 @@ contains
 !!$    call mpi_finalize(ierr)
 !!$    stop
 
+!!$    x = 0.d0
+!!$    x(1) = 1.d0
+!!$    r = cr_matmulA(x, samp_group)   ! x is zero
+!!$
+!!$    write(*,*) 'Ax = ', r
+!!$
+!!$    call mpi_finalize(ierr)
+!!$    stop
+    
     call update_status(status, "cr4")
     r  = b - cr_matmulA(x, samp_group)   ! x is zero
     call update_status(status, "cr5")
@@ -194,7 +203,12 @@ contains
        !if (delta_new < eps * delta0 .and. (i >= cpar%cg_miniter .or. delta_new <= 1d-30 * delta0)) exit
 
        q     = cr_matmulA(d, samp_group)
-       alpha = delta_new / mpi_dot_product(cpar%comm_chain, d, q)
+       dq    = mpi_dot_product(cpar%comm_chain, d, q)
+!!$       if (dq == 0.d0) then
+!!$          val_convergence = 0.d0
+!!$          cycle
+!!$       end if
+       alpha = delta_new / dq
        x     = x + alpha * d
 
        ! Restart every 50th iteration to suppress numerical errors
@@ -203,8 +217,8 @@ contains
        else
           r = r - alpha*q
        end if
-
-      call update_status(status, "cg3")
+       
+       call update_status(status, "cg3")
        call wall_time(t3)
        s         = cr_invM(cpar%comm_chain, r, samp_group)
        call wall_time(t4)
@@ -239,7 +253,7 @@ contains
                       deallocate(alm)
                    end if
                 class is (comm_ptsrc_comp)
-                   if (c%myid == 0 .and. .not. c%precomputed_amps) then
+                   if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
                       call cr_extract_comp(c%id, x_out, pamp)
                       do j = 1, c%nmaps
                          do k = 1, c%nsrc
@@ -313,7 +327,7 @@ contains
              deallocate(alm)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0 .and. .not. c%precomputed_amps) then
+          if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
              call cr_extract_comp(c%id, x, pamp)
              do j = 1, c%nmaps
                 do k = 1, c%nsrc
@@ -383,7 +397,7 @@ contains
              deallocate(alm)
           end if
        class is (comm_ptsrc_comp)
-          if (c%myid == 0 .and. .not. c%precomputed_amps) then
+          if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
              call cr_extract_comp(c%id, x_out, pamp)
              do j = 1, c%nmaps
                 do k = 1, c%nsrc
@@ -429,9 +443,9 @@ contains
              ind = ind + c%x%info%nalm
           end do
        class is (comm_ptsrc_comp)
-          if (c%myid == 0 .and. .not. c%precomputed_amps) then
+          if (c%myid == 0) then
              do i = 1, c%nmaps
-                if (c%active_samp_group(samp_group)) x(ind:ind+c%nsrc-1) = c%x(:,i)
+                if (c%active_samp_group(samp_group)) x(ind:ind+c%nsrc-1) = c%x(1:c%nsrc,i)
                 ind = ind + c%nsrc
              end do
           end if
@@ -466,7 +480,7 @@ contains
        class is (comm_ptsrc_comp)
           do i = 1, c%nmaps
             if (c%myid == 0) then
-              if (c%active_samp_group(samp_group)) c%x(:,i) = x(ind:ind+c%nsrc-1)
+              if (c%active_samp_group(samp_group)) c%x(1:c%nsrc,i) = x(ind:ind+c%nsrc-1)
               ind = ind + c%nsrc
             end if
           end do
@@ -608,20 +622,19 @@ contains
              call Tm%dealloc(); deallocate(Tm)
              nullify(info)
           class is (comm_ptsrc_comp)
-             if(.not. c%precomputed_amps) then 
-                 
-               allocate(Tp(c%nsrc,c%nmaps))
-               Tp = c%projectBand(i,map)
-               if (c%myid == 0) then
-                  do j = 1, c%nmaps
-                     do k = 1, c%nsrc
-                        Tp(k,j) = Tp(k,j) * c%src(k)%P_x(j,2)
-                     end do
-                  end do
-                  call cr_insert_comp(c%id, .true., Tp, rhs)
-               end if
-               deallocate(Tp)
+             allocate(Tp(c%nsrc,c%nmaps))
+             Tp = c%projectBand(i,map)
+             if (c%myid == 0) then
+                if (allocated(c%src(1)%P_x)) then
+                   do j = 1, c%nmaps
+                      do k = 1, c%nsrc
+                         Tp(k,j) = Tp(k,j) * c%src(k)%P_x(j,2)
+                      end do
+                   end do
+                end if
+                call cr_insert_comp(c%id, .true., Tp, rhs)
              end if
+             deallocate(Tp)
           class is (comm_template_comp)
              allocate(Tp(1,1))
              Tp = c%projectBand(i,map)
@@ -678,27 +691,25 @@ contains
              deallocate(eta)
           end if
        class is (comm_ptsrc_comp)
-          if (.not. c%precomputed_amps) then 
-            if (c%myid == 0) then
-               allocate(eta(1:c%nsrc,c%nmaps))
-               eta = 0.d0
-               ! Variance term
-               if (trim(operation) == 'sample') then
-                  do j = 1, c%nmaps
-                     do i = 1, c%nsrc
-                        eta(i,j) = rand_gauss(handle)
-                     end do
-                  end do
-               end if
-               ! Mean term
-               do j = 1, c%nmaps
-                  do i = 1, c%nsrc
-                     eta(i,j) = eta(i,j) + c%src(i)%P_x(j,1)/c%src(i)%P_x(j,2)
-                  end do
-               end do
-               call cr_insert_comp(c%id, .true., eta, rhs)
-               deallocate(eta)
-            end if
+          if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
+             allocate(eta(1:c%nsrc,c%nmaps))
+             eta = 0.d0
+             ! Variance term
+             if (trim(operation) == 'sample') then
+                do j = 1, c%nmaps
+                   do i = 1, c%nsrc
+                      eta(i,j) = rand_gauss(handle)
+                   end do
+                end do
+             end if
+             ! Mean term
+             do j = 1, c%nmaps
+                do i = 1, c%nsrc
+                   eta(i,j) = eta(i,j) + c%src(i)%P_x(j,1)/c%src(i)%P_x(j,2)
+                end do
+             end do
+             call cr_insert_comp(c%id, .true., eta, rhs)
+             deallocate(eta)
           end if
        class is (comm_template_comp)
           if (c%myid == 0) then
@@ -750,7 +761,7 @@ contains
     !call update_status(status, "A3")
     c       => compList
     lmax    = -1
-!    !write(*,*) 'df2'
+    !    !write(*,*) 'df2'
     do while (associated(c))
        if (.not. c%active_samp_group(samp_group)) then
           c => c%nextComp()
@@ -769,7 +780,7 @@ contains
           end if
           lmax = max(max(lmax, c%lmax_amp),2)
        class is (comm_ptsrc_comp)
-          if (c%myid == 0 .and. .not. c%precomputed_amps) then
+          if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              do j = 1, c%nmaps
                 do i = 1, c%nsrc
@@ -832,13 +843,11 @@ contains
              deallocate(alm, m)
     !write(*,*) 'df6'
           class is (comm_ptsrc_comp)
-             if(.not. c%precomputed_amps) then
-               call cr_extract_comp(c%id, sqrtS_x, pamp)
-               allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
-               m = c%getBand(i, amp_in=pamp)
-               pmap%map = pmap%map + m
-               deallocate(pamp, m)
-             end if
+             call cr_extract_comp(c%id, sqrtS_x, pamp)
+             allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
+             m = c%getBand(i, amp_in=pamp)
+             pmap%map = pmap%map + m
+             deallocate(pamp, m)
           class is (comm_template_comp)
              call cr_extract_comp(c%id, sqrtS_x, pamp)
              allocate(m(0:data(i)%info%np-1,data(i)%info%nmaps))
@@ -877,7 +886,7 @@ contains
        call wall_time(t2)
        !call update_status(status, "A12")
        !if (myid == 0) write(*,fmt='(a,f8.2)') 'invN time = ', real(t2-t1,sp)
-
+       
        ! Project summed map into components, ie., row-wise matrix elements
        call wall_time(t1)
        c   => compList
@@ -905,12 +914,10 @@ contains
              call cr_insert_comp(c%id, .true., alm, y)
              deallocate(alm)
           class is (comm_ptsrc_comp)
-             if(.not. c%precomputed_amps) then
-               allocate(pamp(0:c%nsrc-1,c%nmaps))
-               pamp = c%projectBand(i, map)
-               if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
-               deallocate(pamp)
-             end if
+             allocate(pamp(0:c%nsrc-1,c%nmaps))
+             pamp = c%projectBand(i, map)
+             if (c%myid == 0) call cr_insert_comp(c%id, .true., pamp, y)
+             deallocate(pamp)
           class is (comm_template_comp)
              allocate(pamp(1,1))
              pamp = c%projectBand(i, map)
@@ -927,7 +934,7 @@ contains
     end do
     !call update_status(status, "A16")
     !write(*,*) 'df6'
-
+    
     ! Add prior term and multiply with sqrt(S) for relevant components
     call wall_time(t1)
     c   => compList
@@ -954,7 +961,7 @@ contains
           end if
     !write(*,*) 'df9'
        class is (comm_ptsrc_comp)
-          if (c%myid == 0 .and. .not. c%precomputed_amps) then
+          if (c%myid == 0 .and. allocated(c%src(1)%P_x)) then
              ! Multiply with sqrt(Cl)
              call cr_extract_comp(c%id, y, pamp)
              do j = 1, c%nmaps
